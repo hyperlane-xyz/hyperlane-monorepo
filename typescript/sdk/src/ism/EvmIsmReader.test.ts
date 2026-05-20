@@ -4,6 +4,8 @@ import sinon from 'sinon';
 
 import {
   AbstractRoutingIsm__factory,
+  AmountRoutingIsm,
+  AmountRoutingIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
@@ -21,6 +23,8 @@ import {
   Ownable__factory,
   PausableIsm,
   PausableIsm__factory,
+  RateLimitedIsm,
+  RateLimitedIsm__factory,
   TestIsm,
   TestIsm__factory,
   TrustedRelayerIsm,
@@ -41,6 +45,19 @@ import {
   PausableIsmConfig,
   TestIsmConfig,
 } from './types.js';
+
+function missingSelectorError(): Error & { code: string; data: string } {
+  return Object.assign(new Error('call revert exception (data="0x")'), {
+    code: 'CALL_EXCEPTION',
+    data: '0x',
+  });
+}
+
+function networkError(): Error & { code: string } {
+  return Object.assign(new Error('provider unavailable'), {
+    code: 'NETWORK_ERROR',
+  });
+}
 
 describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
@@ -102,6 +119,7 @@ describe('EvmIsmReader', () => {
       moduleType: sandbox.stub().resolves(ModuleType.NULL),
       owner: sandbox.stub().resolves(mockOwner),
       paused: sandbox.stub().resolves(mockPaused),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
     };
     sandbox
       .stub(PausableIsm__factory, 'connect')
@@ -135,6 +153,12 @@ describe('EvmIsmReader', () => {
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
       moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      owner: sandbox.stub().rejects(missingSelectorError()),
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      recipient: sandbox.stub().rejects(missingSelectorError()),
     };
     sandbox
       .stub(TestIsm__factory, 'connect')
@@ -152,6 +176,9 @@ describe('EvmIsmReader', () => {
       .stub(CCIPIsm__factory, 'connect')
       .returns(mockContract as unknown as CCIPIsm);
     sandbox
+      .stub(RateLimitedIsm__factory, 'connect')
+      .returns(mockContract as unknown as RateLimitedIsm);
+    sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
 
@@ -167,6 +194,141 @@ describe('EvmIsmReader', () => {
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should not classify transient pausable probe failures as test ISM', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().resolves(false),
+      owner: sandbox.stub().rejects(transientError),
+    };
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveNullConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should not treat transient routing owner failures as non-ownable routing', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns({
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    } as any);
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
+      CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+      bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
+    } as any);
+    sandbox.stub(Ownable__factory, 'connect').returns({
+      owner: sandbox.stub().rejects(transientError),
+    } as any);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveRoutingConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should not treat transient ICA probe failures as non-ICA routing', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns({
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    } as any);
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
+      CCIP_READ_ISM: sandbox.stub().rejects(transientError),
+    } as any);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveRoutingConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should not classify transient AmountRoutingIsm probe failures as legacy ICA', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns({
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    } as any);
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
+      CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+      bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
+    } as any);
+    sandbox.stub(Ownable__factory, 'connect').returns({
+      owner: sandbox.stub().rejects(missingSelectorError()),
+    } as any);
+    sandbox.stub(AmountRoutingIsm__factory, 'connect').returns({
+      lower: sandbox.stub().rejects(transientError),
+      upper: sandbox.stub().resolves(randomAddress()),
+      threshold: sandbox.stub().resolves(1),
+    } as unknown as AmountRoutingIsm);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveRoutingConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should not treat transient fallback mailbox failures as plain routing', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(AbstractRoutingIsm__factory, 'connect').returns({
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    } as any);
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
+      CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+      bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
+    } as any);
+    sandbox.stub(Ownable__factory, 'connect').returns({
+      owner: sandbox.stub().resolves(randomAddress()),
+    } as any);
+    sandbox.stub(DefaultFallbackRoutingIsm__factory, 'connect').returns({
+      domains: sandbox.stub().resolves([]),
+      mailbox: sandbox.stub().rejects(transientError),
+    } as any);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveRoutingConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
   });
 
   it('should derive the ICA ism correctly', async () => {
@@ -235,7 +397,7 @@ describe('EvmIsmReader', () => {
 
     // Mock fallback routing to fail mailbox() call
     const mockFallbackContract = {
-      mailbox: sandbox.stub().rejects(new Error('No mailbox')),
+      mailbox: sandbox.stub().rejects(missingSelectorError()),
       domains: sandbox.stub().resolves([BigNumber.from(mockDomain)]),
       module: sandbox.stub().resolves(mockModule),
     };
@@ -258,7 +420,8 @@ describe('EvmIsmReader', () => {
       .stub(DomainRoutingIsm__factory, 'connect')
       .returns(mockRoutingContract as any);
     sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
-      CCIP_READ_ISM: sandbox.stub().rejects(new Error('Not ICA')),
+      CCIP_READ_ISM: sandbox.stub().rejects(missingSelectorError()),
+      bytecodeHash: sandbox.stub().rejects(missingSelectorError()),
     } as any);
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')

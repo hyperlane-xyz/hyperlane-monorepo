@@ -8,8 +8,12 @@ import {
   CCIPHook__factory,
   DefaultHook,
   DefaultHook__factory,
+  DomainRoutingHook,
+  DomainRoutingHook__factory,
   IPostDispatchHook,
   IPostDispatchHook__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   MerkleTreeHook,
   MerkleTreeHook__factory,
   OPStackHook,
@@ -36,6 +40,19 @@ import {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+
+function missingSelectorError(): Error & { code: string; data: string } {
+  return Object.assign(new Error('call revert exception (data="0x")'), {
+    code: 'CALL_EXCEPTION',
+    data: '0x',
+  });
+}
+
+function networkError(): Error & { code: string } {
+  return Object.assign(new Error('provider unavailable'), {
+    code: 'NETWORK_ERROR',
+  });
+}
 
 describe('EvmHookReader', () => {
   let evmHookReader: EvmHookReader;
@@ -200,6 +217,9 @@ describe('EvmHookReader', () => {
     sandbox
       .stub(OPStackHook__factory, 'connect')
       .returns(mockContract as unknown as OPStackHook);
+    sandbox.stub(CCIPHook__factory, 'connect').returns({
+      ccipDestination: sandbox.stub().rejects(missingSelectorError()),
+    } as unknown as CCIPHook);
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
       .returns(mockContract as unknown as IPostDispatchHook);
@@ -249,6 +269,102 @@ describe('EvmHookReader', () => {
     };
 
     expect(config).to.deep.equal(expectedConfig);
+  });
+
+  it('should not treat transient ID_AUTH hook probe failures as missing methods', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(CCIPHook__factory, 'connect').returns({
+      ccipDestination: sandbox.stub().rejects(transientError),
+    } as unknown as CCIPHook);
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveIdAuthIsmConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should not drop IGP quote signers on transient probe failures', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(randomAddress()),
+      beneficiary: sandbox.stub().resolves(randomAddress()),
+      quoteSigners: sandbox.stub().rejects(transientError),
+    } as unknown as InterchainGasPaymaster);
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveIgpConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
+  it('should still derive IGP config when a domain is unsupported', async () => {
+    const mockAddress = randomAddress();
+    const owner = randomAddress();
+    const beneficiary = randomAddress();
+    const domainId = test1.domainId;
+
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(owner),
+      beneficiary: sandbox.stub().resolves(beneficiary),
+      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      getExchangeRateAndGasPrice: sandbox
+        .stub()
+        .rejects(
+          new Error(`Configured IGP doesn't support domain ${domainId}`),
+        ),
+    } as unknown as InterchainGasPaymaster);
+
+    const config = await evmHookReader.deriveIgpConfig(mockAddress);
+
+    expect(config).to.deep.equal({
+      owner,
+      address: mockAddress,
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      beneficiary,
+      oracleKey: owner,
+      overhead: {},
+      oracleConfig: {},
+    });
+  });
+
+  it('should not drop routing hook domains on transient read failures', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([test1.domainId]);
+    sandbox.stub(DomainRoutingHook__factory, 'connect').returns({
+      hookType: sandbox.stub().resolves(OnchainHookType.ROUTING),
+      owner: sandbox.stub().resolves(randomAddress()),
+      hooks: sandbox.stub().rejects(transientError),
+    } as unknown as DomainRoutingHook);
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveDomainRoutingConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
   });
 
   it('should throw if derivation fails', async () => {

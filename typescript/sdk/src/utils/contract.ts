@@ -10,6 +10,41 @@ export function isValidContractVersion(
   return compareVersions(currentVersion, targetVersion) >= 0;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function isMissingSelectorCallException(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+
+  const callException =
+    error.code === 'CALL_EXCEPTION'
+      ? error
+      : isRecord(error.cause) && error.cause.code === 'CALL_EXCEPTION'
+        ? error.cause
+        : undefined;
+  if (!callException) return false;
+
+  const nestedError = isRecord(callException.error)
+    ? callException.error
+    : undefined;
+  const data =
+    typeof callException.data === 'string'
+      ? callException.data
+      : nestedError?.data;
+  if (data === '0x') return true;
+
+  // Some ethers/provider combinations only expose empty return data in the
+  // formatted message.
+  return (
+    typeof error.message === 'string' && error.message.includes('data="0x"')
+  );
+}
+
+export function throwIfNotMissingSelector(error: unknown): void {
+  if (!isMissingSelectorCallException(error)) throw error;
+}
+
 export async function contractHasString(
   provider: providers.Provider,
   address: Address,

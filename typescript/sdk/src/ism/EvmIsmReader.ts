@@ -37,7 +37,10 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
-import { contractHasString } from '../utils/contract.js';
+import {
+  contractHasString,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 
 import {
   AggregationIsmConfig,
@@ -231,7 +234,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ownableIsm = Ownable__factory.connect(address, this.provider);
     try {
       owner = await ownableIsm.owner();
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
         address,
@@ -266,7 +270,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         isms: await this.deriveRemoteIsmConfigs(
           domainIds,
           abstractRoutingIsm,
-          icaRouter.isms,
+          (domain) => icaRouter.isms(domain),
           // The isms here are deployed on remote chains and can't be derived
           false,
         ),
@@ -279,7 +283,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       await this.deriveRemoteIsmConfigs(
         domainIds,
         abstractRoutingIsm,
-        defaultFallbackIsmInstance.module,
+        (domain) => defaultFallbackIsmInstance.module(domain),
         true,
       );
 
@@ -287,7 +291,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     let ismType: IsmType = IsmType.FALLBACK_ROUTING;
     try {
       await defaultFallbackIsmInstance.mailbox();
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       ismType = IsmType.ROUTING;
       this.logger.debug(
         'Error accessing mailbox property, implying this is not a fallback routing ISM.',
@@ -329,11 +334,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     try {
       await icaInstance.CCIP_READ_ISM();
       return true;
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       try {
         await icaInstance.bytecodeHash();
         return true;
-      } catch {
+      } catch (innerError) {
+        throwIfNotMissingSelector(innerError);
         this.logger.debug(
           'Not an ICA router (no CCIP_READ_ISM or bytecodeHash).',
           address,
@@ -370,7 +377,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         if (!chainName) {
           this.logger.warn(
-            `Unknown domain ID ${domainId}, skipping domain configuration`,
+            `Unknown domain ID ${domainId.toString()}, skipping domain configuration`,
           );
           return;
         }
@@ -406,7 +413,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         ism.upper(),
         ism.threshold(),
       ]);
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
       this.logger.debug(
         'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
@@ -519,7 +527,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         relayer,
         type: IsmType.TRUSTED_RELAYER,
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "trustedRelayer" property, implying this is not a Trusted Relayer ISM.',
         address,
@@ -529,15 +538,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     // if it has paused() property --> PAUSABLE
     const pausableIsm = PausableIsm__factory.connect(address, this.provider);
     try {
-      const paused = await pausableIsm.paused();
-      const owner = await pausableIsm.owner();
+      const [paused, owner] = await Promise.all([
+        pausableIsm.paused(),
+        pausableIsm.owner(),
+      ]);
       return {
         address,
         owner,
         type: IsmType.PAUSABLE,
         paused,
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
         address,
@@ -557,7 +569,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         type: IsmType.CCIP,
         originChain,
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
@@ -574,7 +587,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         origin: address,
         nativeBridge: '', // no way to extract native bridge from the ism
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
         address,
@@ -600,7 +614,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         maxCapacity,
         owner,
       };
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
         address,

@@ -36,6 +36,7 @@ import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import {
   AggregationHookConfig,
@@ -57,6 +58,16 @@ import {
   RateLimitedHookConfig,
   RoutingHookConfig,
 } from './types.js';
+
+function isUnsupportedIgpDomainError(
+  error: unknown,
+  domainId: number,
+): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes(`Configured IGP doesn't support domain ${domainId}`)
+  );
+}
 
 export interface HookReader {
   deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
@@ -291,7 +302,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       // This method only exists on CCIPHook
       await ccipHook.ccipDestination();
       return this.deriveCcipConfig(address);
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       // Not a CCIP hook, try OPStack
       try {
         const opStackHook = OPStackHook__factory.connect(
@@ -301,7 +313,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         // This method only exists on OPStackHook
         await opStackHook.l1Messenger();
         return this.deriveOpStackConfig(address);
-      } catch {
+      } catch (innerError) {
+        throwIfNotMissingSelector(innerError);
         throw new Error(
           `Could not determine hook type - neither CCIP nor OPStack methods found`,
         );
@@ -427,7 +440,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       hook.owner(),
       hook.beneficiary(),
       // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch(() => {
+      hook.quoteSigners().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           'quoteSigners() not available on this IGP version, skipping',
         );
@@ -466,7 +480,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             this.provider,
           );
           return oracle.owner();
-        } catch {
+        } catch (error) {
+          if (!isUnsupportedIgpDomainError(error, domainId)) throw error;
           this.logger.debug(
             'Domain not configured on IGP Hook',
             domainId,
@@ -666,17 +681,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.possibleDomainIds(),
       async (domainId) => {
         const chainName = this.multiProvider.getChainName(domainId);
-        try {
-          const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
-            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
-          }
-        } catch {
-          this.logger.debug(
-            `Domain not configured on ${hook.constructor.name}`,
-            domainId,
-            chainName,
-          );
+        const domainHook = await hook.hooks(domainId);
+        if (domainHook !== ethers.constants.AddressZero) {
+          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
         }
       },
     );
