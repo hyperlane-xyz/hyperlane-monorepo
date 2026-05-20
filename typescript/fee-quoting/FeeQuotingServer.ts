@@ -3,7 +3,7 @@ import express, { Express } from 'express';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
-import type { Address, Hex } from 'viem';
+import { type Address, type Hex, isAddress } from 'viem';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -242,22 +242,46 @@ export class FeeQuotingServer {
           'Derived warp route config',
         );
 
-        const feeToken = (token.igpTokenAddressOrDenom ??
+        const feeTokenRaw =
+          token.igpTokenAddressOrDenom ??
           token.addressOrDenom ??
-          '0x0000000000000000000000000000000000000000') as Address;
+          '0x0000000000000000000000000000000000000000';
+        assert(
+          isAddress(feeTokenRaw),
+          `Fee token for ${chainName} is not a valid EVM address: ${feeTokenRaw}`,
+        );
+        const feeToken: Address = feeTokenRaw;
+
+        assert(
+          isAddress(quotedCallsAddress),
+          `quotedCalls for ${chainName} is not a valid EVM address: ${quotedCallsAddress}`,
+        );
+        const quotedCalls: Address = quotedCallsAddress;
+
+        assert(
+          isAddress(warpRouteAddress),
+          `Warp router for ${chainName} is not a valid EVM address: ${warpRouteAddress}`,
+        );
+        const warpRouter: Address = warpRouteAddress;
+
+        const chainId = multiProvider.getEvmChainId(chainName);
 
         // Get or create chain context
         let ctx = chainContexts.get(chainName);
         if (!ctx) {
           ctx = {
+            protocol: ProtocolType.Ethereum,
             chainName,
-            quotedCallsAddress: quotedCallsAddress as Address,
+            quotedCallsAddress: quotedCalls,
             routers: new Map(),
           };
           chainContexts.set(chainName, ctx);
         }
 
-        ctx.routers.set(warpRouteAddress.toLowerCase() as Address, {
+        ctx.routers.set(warpRouter.toLowerCase(), {
+          protocol: ProtocolType.Ethereum,
+          chainId,
+          quotedCallsAddress: quotedCalls,
           feeToken,
           derivedConfig,
         });

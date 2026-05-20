@@ -5,6 +5,7 @@ import request from 'supertest';
 import type { Address, Hex } from 'viem';
 
 import { HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZERO_ADDRESS } from '../../src/constants.js';
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';
@@ -35,7 +36,10 @@ const ICA_PARAMS = `origin=ethereum&router=${ROUTER}&destination=42161&salt=${SA
 
 function createTestApp(): Express {
   const routers = new Map();
-  routers.set(ROUTER as Address, {
+  routers.set(ROUTER.toLowerCase(), {
+    protocol: ProtocolType.Ethereum,
+    chainId: 1,
+    quotedCallsAddress: QUOTED_CALLS,
     feeToken: FEE_TOKEN,
     derivedConfig: {
       hook: {
@@ -63,6 +67,7 @@ function createTestApp(): Express {
 
   const chainContexts = new Map<string, ChainQuoteContext>();
   chainContexts.set('ethereum', {
+    protocol: ProtocolType.Ethereum,
     chainName: 'ethereum',
     quotedCallsAddress: QUOTED_CALLS,
     routers,
