@@ -1,24 +1,13 @@
-import { type NextFunction, Request, Response, Router } from 'express';
+import { Request, Response, Router } from 'express';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
 
 import { FeeQuotingCommand } from '@hyperlane-xyz/sdk';
 
-import { ApiError } from '../middleware/errorHandler.js';
 import type { QuoteService } from '../services/quoteService.js';
 
-type AsyncHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => Promise<void>;
-
-/** Wrap async route handler so rejections are forwarded to Express error middleware */
-function asyncHandler(fn: AsyncHandler) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    fn(req, res, next).catch(next);
-  };
-}
+import { asyncHandler } from './asyncHandler.js';
+import { parseAndValidate } from './parseAndValidate.js';
 
 const addressSchema = z.string().startsWith('0x').length(42);
 const bytes32Schema = z.string().startsWith('0x').length(66);
@@ -42,17 +31,6 @@ const IcaQuerySchema = z.object({
   destination: domainSchema,
   salt: bytes32Schema,
 });
-
-function parseAndValidate<T>(schema: z.ZodType<T>, query: unknown): T {
-  const parsed = schema.safeParse(query);
-  if (!parsed.success) {
-    const messages = parsed.error.issues
-      .map((i) => `${i.path.join('.')}: ${i.message}`)
-      .join('; ');
-    throw new ApiError(messages, 400);
-  }
-  return parsed.data;
-}
 
 export function createQuoteRouter(quoteService: QuoteService): Router {
   const router = Router();
