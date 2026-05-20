@@ -60,8 +60,11 @@ import {
 const NATIVE_FEE_TOKEN_MINT = '11111111111111111111111111111111';
 
 /** Per-route on-chain state snapshot. Fee config tree is walked per request
- * (mirrors EVM); IGP signers are snapshot once and not refreshed mid-flight. */
-interface SvmRouteState {
+ * (mirrors EVM); IGP signers are snapshot once and not refreshed mid-flight.
+ *
+ * Exported so tests can construct route states directly via `fromState`
+ * without going through the on-chain artifact read path. */
+export interface SvmRouteState {
   domainId: number;
   warpProgramId: string;
   fee?: {
@@ -139,6 +142,37 @@ export class SvmQuoteService implements IProtocolQuoteService {
       routesByKey.set(routeKey(r.origin, r.warpProgramId), state);
     }
 
+    return new SvmQuoteService({
+      privateKey: opts.signerKey,
+      signerH160: ethAddressHexFromPrivateKey(opts.signerKey),
+      logger: opts.logger,
+      routesByKey,
+    });
+  }
+
+  /**
+   * Testing-only constructor — accepts pre-built route states directly,
+   * bypassing the on-chain reads in `create`. Use only from tests that
+   * already mock `FeeArtifactConfig` shapes + IGP-signer sets.
+   */
+  static fromState(opts: {
+    signerKey: Uint8Array;
+    logger: Logger;
+    routes: ReadonlyArray<
+      {
+        origin: string;
+      } & SvmRouteState
+    >;
+  }): SvmQuoteService {
+    const routesByKey = new Map<string, SvmRouteState>();
+    for (const r of opts.routes) {
+      routesByKey.set(routeKey(r.origin, r.warpProgramId), {
+        domainId: r.domainId,
+        warpProgramId: r.warpProgramId,
+        fee: r.fee,
+        igp: r.igp,
+      });
+    }
     return new SvmQuoteService({
       privateKey: opts.signerKey,
       signerH160: ethAddressHexFromPrivateKey(opts.signerKey),
