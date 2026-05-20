@@ -240,8 +240,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
-  [WarpRouteIds.StagingHYPER]: getHyperWarpConfigStaging,
-  [WarpRouteIds.StagingstHYPER]: getStakedHyperWarpConfigStaging,
+  [WarpRouteIds.HYPERSTAGE]: getHyperWarpConfigStaging,
+  [WarpRouteIds.stHYPERSTAGE]: getStakedHyperWarpConfigStaging,
   [WarpRouteIds.HYPER]: getHyperWarpConfigProduction,
   [WarpRouteIds.stHYPER]: getStakedHyperWarpConfigProduction,
 };
