@@ -27,16 +27,18 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .filter_map(|(swap, meta)| {
                 txns.get(&meta.transaction_id).map(|txn| StorableCcrSwap {
                     swap: swap.inner(),
-                    sequence: swap.sequence.map(|v| v as i64),
                     meta,
                     txn_id: txn.id,
                 })
             })
             .collect_vec();
 
-        debug!(domain = self.domain.id(), ?storable, "storable CCR swaps",);
+        debug!(domain = self.domain.id(), ?storable, "storable CCR swaps");
 
-        let stored = self.db.store_ccr_swaps(self.domain.id(), &storable).await?;
+        let stored = self
+            .db
+            .store_ccr_swaps_as_messages(self.domain.id(), &storable)
+            .await?;
         Ok(stored as u32)
     }
 }

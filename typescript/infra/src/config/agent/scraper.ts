@@ -2,8 +2,12 @@ import {
   AgentConfig,
   ChainMap,
   ScraperConfig as ScraperAgentConfig,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
+  TokenStandard,
 } from '@hyperlane-xyz/sdk';
+import { isAddress } from '@hyperlane-xyz/utils';
 
+import { getDomainId, getRegistry } from '../../../config/registry.js';
 import { Role } from '../../roles.js';
 import type { HelmStatefulSetValues } from '../infrastructure.js';
 
@@ -45,6 +49,49 @@ export function getCombinedChainsToScrape(
   return Array.from(chainsToScrape).sort();
 }
 
+function buildCcrRoutersConfig(
+  chainsToScrape: string[],
+): Record<string, Record<string, string>> {
+  const chainsSet = new Set(chainsToScrape);
+  const ccrRouters: Record<string, Record<string, string>> = {};
+
+  const allWarpRoutes = getRegistry().getWarpRoutes();
+  for (const warpCoreConfig of Object.values(allWarpRoutes)) {
+    for (const token of warpCoreConfig.tokens) {
+      if (
+        !TOKEN_CROSS_COLLATERAL_STANDARDS.has(token.standard as TokenStandard)
+      )
+        continue;
+      if (
+        !token.addressOrDenom ||
+        !token.collateralAddressOrDenom ||
+        !token.chainName
+      )
+        continue;
+      if (!chainsSet.has(token.chainName)) continue;
+      if (
+        !isAddress(token.addressOrDenom) ||
+        !isAddress(token.collateralAddressOrDenom)
+      )
+        continue;
+
+      let domainId: number;
+      try {
+        domainId = getDomainId(token.chainName);
+      } catch {
+        continue;
+      }
+
+      const domainKey = domainId.toString();
+      if (!ccrRouters[domainKey]) ccrRouters[domainKey] = {};
+      ccrRouters[domainKey][token.addressOrDenom] =
+        token.collateralAddressOrDenom;
+    }
+  }
+
+  return ccrRouters;
+}
+
 export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
   constructor(agentConfig: RootAgentConfig) {
     if (!agentConfig.scraper)
@@ -60,8 +107,11 @@ export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
       true,
     );
 
+    const ccrRouters = buildCcrRoutersConfig(chainsToScrape);
+
     return {
       chainsToScrape: chainsToScrape.join(','),
+      ...(Object.keys(ccrRouters).length > 0 && { ccrRouters }),
     };
   }
 
