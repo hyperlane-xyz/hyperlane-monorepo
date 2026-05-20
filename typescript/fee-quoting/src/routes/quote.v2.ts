@@ -53,7 +53,7 @@ const IgpQuerySchema = z.object({
  *   GET /v2/quote/igp   — IGP quote
  *
  * Both reuse the same protocol-dispatch path through
- * `IProtocolQuoteSigner`; Phase 4 widens the registry with the Sealevel impl.
+ * `IProtocolQuoteService`; Phase 4 widens the registry with the Sealevel impl.
  */
 export function createQuoteV2Router(quoteService: QuoteService): Router {
   const router = Router();
