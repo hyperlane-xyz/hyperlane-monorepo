@@ -172,6 +172,9 @@ catalog:
   zod-validation-error: ^3.3.0
   yargs: ^17.7.2
   chalk: ^5.3.0
+  '@prisma/adapter-pg': ^7.8.0
+  '@prisma/client': ^7.8.0
+  prisma: ^7.8.0
 overrides:
   async: ^2.6.4
   fetch-ponyfill: ^7.1
