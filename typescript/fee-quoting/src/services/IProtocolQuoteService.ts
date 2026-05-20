@@ -6,6 +6,18 @@ import type { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { QuoteMode } from '../config.js';
 
 /**
+ * Label for which quoter a signed quote applies to. Shared across protocol
+ * implementations so error messages and skip logs use the same vocabulary for
+ * the warp/token-fee quoter vs the IGP quoter.
+ */
+export const QuoterType = {
+  WarpFee: 'warp fee',
+  Igp: 'IGP',
+} as const;
+
+export type QuoterType = (typeof QuoterType)[keyof typeof QuoterType];
+
+/**
  * Salt + expiry binding applied to a signed quote. Protocol-agnostic: the
  * EVM-specific `submitter` (`QuotedCalls` address vs `address(0)`) and the
  * SVM-specific `clientSalt`/PDA mechanics are derived by each signer impl
