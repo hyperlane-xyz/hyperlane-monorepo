@@ -234,6 +234,8 @@ export {
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
 export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
+export { isSvmDeployedWarpAddress as isSealevelDeployedWarpAddress } from './warp/types.js';
+export { isSvmDeployedIgpHook as isSealevelDeployedIgpHook } from './types.js';
 
 // Warp Address Lookup Table support
 export {
