@@ -38,18 +38,6 @@ fn decode_received_transfer_remote(log: &Log) -> Option<(u32, H256, U256)> {
     Some((origin, recipient, amount))
 }
 
-/// Decode an ERC20 `Transfer` log. Returns `(from, to, value)` or `None`.
-fn decode_erc20_transfer(log: &Log) -> Option<(EthersH160, EthersH160, U256)> {
-    if log.topics.first() != Some(&erc20_transfer_topic()) {
-        return None;
-    }
-    // address is stored right-aligned in the 32-byte topic
-    let from = EthersH160::from_slice(&log.topics.get(1)?[12..32]);
-    let to = EthersH160::from_slice(&log.topics.get(2)?[12..32]);
-    let value = U256::from_big_endian(&log.data[..32]);
-    Some((from, to, value))
-}
-
 /// Indexes `ReceivedTransferRemote` events across multiple CrossCollateralRouter
 /// contracts on a single chain and assembles same-chain swap records.
 #[derive(Debug)]
@@ -62,10 +50,10 @@ where
     local_domain: u32,
     /// All CCR contract addresses on this chain
     ccr_addresses: Vec<EthersH160>,
-    /// Map from CCR address to its underlying ERC20 token address (from registry)
-    ccr_to_erc20: HashMap<EthersH160, EthersH160>,
     /// Set of known collateral ERC20 addresses — pre-built for fast log pre-filtering
     known_collaterals: HashSet<EthersH160>,
+    /// CCR router addresses pre-padded to 32 bytes for direct topic[2] comparison
+    ccr_router_topics: HashSet<EthersH256>,
     reorg_period: EthereumReorgPeriod,
 }
 
@@ -85,12 +73,21 @@ where
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
         let known_collaterals = ccr_to_erc20.values().copied().collect();
+        let ccr_addresses: Vec<EthersH160> = ccr_addresses.into_iter().map(Into::into).collect();
+        let ccr_router_topics = ccr_addresses
+            .iter()
+            .map(|addr| {
+                let mut topic = EthersH256::zero();
+                topic.0[12..].copy_from_slice(&addr.0);
+                topic
+            })
+            .collect();
         Self {
             provider,
             local_domain,
-            ccr_addresses: ccr_addresses.into_iter().map(Into::into).collect(),
+            ccr_addresses,
             known_collaterals,
-            ccr_to_erc20,
+            ccr_router_topics,
             reorg_period,
         }
     }
@@ -113,19 +110,33 @@ where
             return Ok(None);
         };
 
+        // Precompute the destination router as a 32-byte topic for direct comparison.
+        let mut dst_topic = EthersH256::zero();
+        dst_topic.0[12..].copy_from_slice(&destination_router.0);
+
+        let erc20_topic = erc20_transfer_topic();
+
         let result = receipt.logs.iter().find_map(|log| {
-            // Pre-filter: only decode logs from known collateral ERC20 contracts,
-            // skipping all other logs without topic or data parsing.
+            // Pre-filter 1: only ERC20 logs from known collateral contracts.
             if !self.known_collaterals.contains(&log.address) {
                 return None;
             }
-            let (_, to, value) = decode_erc20_transfer(log)?;
-            // `to` must be a known CCR address other than the destination router
-            if self.ccr_to_erc20.contains_key(&to) && to != destination_router {
-                Some((to, value))
-            } else {
-                None
+            // Pre-filter 2: must be an ERC20 Transfer event.
+            if log.topics.first() != Some(&erc20_topic) {
+                return None;
             }
+            // Compare topic2 (`to`) directly as a 32-byte value — no decoding needed.
+            // `to` is the source CCR router: a known CCR address other than the destination.
+            let topic2 = log.topics.get(2)?;
+            if !self.ccr_router_topics.contains(topic2) || topic2 == &dst_topic {
+                return None;
+            }
+            if log.data.len() < 32 {
+                return None;
+            }
+            let value = U256::from_big_endian(&log.data[..32]);
+            let source_router = EthersH160::from_slice(&topic2.0[12..]);
+            Some((source_router, value))
         });
 
         Ok(result)
