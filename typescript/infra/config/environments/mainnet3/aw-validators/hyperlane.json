@@ -364,5 +364,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "nesa": {
+    "validators": ["0x990f548e766b830f69642d36cdd47fb20a2aa405"]
   }
 }
