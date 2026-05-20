@@ -1,10 +1,14 @@
 import { keccak_256 } from '@noble/hashes/sha3';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { type Address, getAddressCodec } from '@solana/kit';
+import {
+  type Address,
+  address as parseAddress,
+  getAddressCodec,
+} from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { concatBytes, u32le } from './codecs/binary.js';
+import { concatBytes, u32le, u48be } from './codecs/binary.js';
 import type { SvmSignedQuote } from './codecs/fee.js';
 
 /**
@@ -16,8 +20,6 @@ const QUOTE_DOMAIN_TAG = new TextEncoder().encode('HyperlaneSvmQuote');
 
 const CLIENT_SALT_LEN = 32;
 const SIGNATURE_LEN = 65;
-const ISSUED_AT_LEN = 6;
-const EXPIRY_LEN = 6;
 const U32_MAX = 0xffffffff;
 
 const addressEncoder = getAddressCodec();
@@ -85,18 +87,21 @@ export function buildSvmQuoteMessageHash(args: {
 export interface SignSvmQuoteArgs {
   /** secp256k1 private key, 32 bytes. */
   privateKey: Uint8Array;
-  /** Pubkey of the fee account / IGP account the quote applies to. */
-  feeAccount: Address;
+  /** Pubkey of the fee account / IGP account the quote applies to (base58). */
+  feeAccount: string;
   /** Hyperlane domain id of the chain this quote is for. */
   domainId: number;
-  /** Payer that will submit the quote; binds the scoped salt. */
-  payer: Address;
+  /** Payer that will submit the quote; binds the scoped salt (base58). */
+  payer: string;
   context: Uint8Array;
   data: Uint8Array;
-  /** 6-byte u48 BE issued-at timestamp. */
-  issuedAt: Uint8Array;
-  /** 6-byte u48 BE expiry timestamp. `expiry === issuedAt` ⇒ transient. */
-  expiry: Uint8Array;
+  /** Unix-seconds issued-at timestamp. Encoded as u48 BE in the message hash. */
+  issuedAt: bigint;
+  /**
+   * Unix-seconds expiry timestamp. `expiry === issuedAt` ⇒ transient.
+   * Encoded as u48 BE in the message hash.
+   */
+  expiry: bigint;
   /**
    * 32 bytes of client-provided salt used in scoped-salt derivation and PDA
    * collision-avoidance. When omitted, cryptographically random bytes are
@@ -115,14 +120,6 @@ export interface SignSvmQuoteArgs {
  */
 export function signSvmQuote(args: SignSvmQuoteArgs): SvmSignedQuote {
   assert(
-    args.issuedAt.length === ISSUED_AT_LEN,
-    `issuedAt must be ${ISSUED_AT_LEN} bytes (u48 BE), got ${args.issuedAt.length}`,
-  );
-  assert(
-    args.expiry.length === EXPIRY_LEN,
-    `expiry must be ${EXPIRY_LEN} bytes (u48 BE), got ${args.expiry.length}`,
-  );
-  assert(
     Number.isInteger(args.domainId) &&
       args.domainId >= 0 &&
       args.domainId <= U32_MAX,
@@ -135,14 +132,17 @@ export function signSvmQuote(args: SignSvmQuoteArgs): SvmSignedQuote {
     `clientSalt must be ${CLIENT_SALT_LEN} bytes, got ${clientSalt.length}`,
   );
 
-  const scopedSalt = computeScopedSalt(args.payer, clientSalt);
+  const issuedAt = u48be(args.issuedAt);
+  const expiry = u48be(args.expiry);
+
+  const scopedSalt = computeScopedSalt(parseAddress(args.payer), clientSalt);
   const messageHash = buildSvmQuoteMessageHash({
-    feeAccount: args.feeAccount,
+    feeAccount: parseAddress(args.feeAccount),
     domainId: args.domainId,
     context: args.context,
     data: args.data,
-    issuedAt: args.issuedAt,
-    expiry: args.expiry,
+    issuedAt,
+    expiry,
     scopedSalt,
   });
 
@@ -154,8 +154,8 @@ export function signSvmQuote(args: SignSvmQuoteArgs): SvmSignedQuote {
   return {
     context: args.context,
     data: args.data,
-    issuedAt: args.issuedAt,
-    expiry: args.expiry,
+    issuedAt,
+    expiry,
     clientSalt,
     signature,
   };

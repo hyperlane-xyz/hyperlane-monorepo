@@ -1,0 +1,7 @@
+---
+"@hyperlane-xyz/sealevel-sdk": minor
+---
+
+The Sealevel SDK gained first-class encoders for the bytes the offchain quote signer hashes into a `SvmSignedQuote`: `encodeSvmFeeQuoteContext` (44-byte Leaf/Routing or 76-byte Cross-Collateral context, discriminated by `targetRouter`), `encodeSvmIgpQuoteContext` (68-byte IGP context), and `encodeSvmIgpQuoteData` (33-byte IGP pricing data). `encodeFeeDataStrategy` plus the `FeeStrategyKind` / `SvmFeeDataStrategy` / `SvmFeeParams` types are also surfaced so consumers can produce the warp `data` slot without reaching past the SDK. The fee-program wildcard sentinels `WILDCARD_AMOUNT` (`u64::MAX`) and `WILDCARD_RECIPIENT` (`[0xFF; 32]`) are exported so offchain signers can mirror the on-chain `_matchesTransient` wildcard pattern when a field isn't fixed at sign time.
+
+`signSvmQuote` now takes `issuedAt` and `expiry` as `bigint` unix seconds instead of pre-encoded 6-byte `Uint8Array`s — the encoding moves inside the helper so the on-chain u48 BE wire format stays an implementation detail. The returned `SvmSignedQuote.issuedAt` / `.expiry` keep the existing `Uint8Array` shape consumed by `encodeSvmSignedQuote`. `signSvmQuote` and `encodeSvmIgpQuoteContext` also now accept plain base58 strings for pubkey inputs (`feeAccount`, `payer`, `feeTokenMint`, `sender`); parsing happens internally so consumers don't import `address` from `@solana/kit` directly.
