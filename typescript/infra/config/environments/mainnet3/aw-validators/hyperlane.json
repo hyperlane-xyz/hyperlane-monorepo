@@ -215,6 +215,9 @@
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
   },
+  "nesa": {
+    "validators": ["0x990f548e766b830f69642d36cdd47fb20a2aa405"]
+  },
   "neutron": {
     "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
   },
@@ -364,8 +367,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "nesa": {
-    "validators": ["0x990f548e766b830f69642d36cdd47fb20a2aa405"]
   }
 }
