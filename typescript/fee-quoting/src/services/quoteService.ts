@@ -149,6 +149,7 @@ export class QuoteService {
     salt: Hex;
     recipient: Hex;
     targetRouter: Hex;
+    txSubmitter: string;
   }): Promise<AnyQuoteV2Entry> {
     const service = this.dispatch(args.origin);
     const req: WarpQuoteRequest = {
@@ -158,6 +159,7 @@ export class QuoteService {
       destination: args.destination,
       recipient: args.recipient,
       targetRouter: args.targetRouter,
+      txSubmitter: args.txSubmitter,
       binding: this.buildBinding(args.salt),
     };
     return service.getWarpQuote(req);
@@ -168,6 +170,7 @@ export class QuoteService {
     router: string;
     destination: number;
     salt: Hex;
+    txSubmitter: string;
   }): Promise<AnyQuoteV2Entry> {
     const service = this.dispatch(args.origin);
     const req: IgpQuoteRequest = {
@@ -176,6 +179,7 @@ export class QuoteService {
       destChainName: this.multiProvider.getChainName(args.destination),
       destination: args.destination,
       sender: args.router,
+      txSubmitter: args.txSubmitter,
       binding: this.buildBinding(args.salt),
     };
     return service.getIgpQuote(req);

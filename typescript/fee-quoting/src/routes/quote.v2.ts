@@ -1,21 +1,16 @@
 import { Request, Response, Router } from 'express';
-import { type Address, type Hex, isAddress, isHex } from 'viem';
+import { type Hex, isHex } from 'viem';
 import { z } from 'zod';
 
-import type { QuoteV2Response } from '@hyperlane-xyz/sdk';
+import { type QuoteV2Response, ZHash } from '@hyperlane-xyz/sdk';
 
 import type { QuoteService } from '../services/quoteService.js';
 
 import { asyncHandler } from './asyncHandler.js';
 import { parseAndValidate } from './parseAndValidate.js';
 
-// Custom Zod schemas that narrow strings to viem's branded `Address` / `Hex`
-// at parse time, so downstream handlers don't need `as` casts.
-const addressSchema = z.custom<Address>(
-  (v): boolean => typeof v === 'string' && isAddress(v),
-  'Invalid 0x address (must be 42 hex chars)',
-);
-
+// Bytes32 schema narrows to viem's branded `Hex`. Used for fixed-32-byte
+// fields (salt, recipient, targetRouter) regardless of origin protocol.
 const bytes32Schema = z.custom<Hex>(
   (v): boolean =>
     typeof v === 'string' && isHex(v, { strict: true }) && v.length === 66,
@@ -27,20 +22,25 @@ const domainSchema = z
   .regex(/^\d+$/, 'Domain must be a numeric string')
   .transform((s) => parseInt(s, 10));
 
+// `router` and `txSubmitter` use the SDK's protocol-agnostic `ZHash` (EVM
+// 0x-hex, SVM base58, Cosmos bech32, etc.). The downstream service narrows
+// per its own protocol.
 const WarpQuerySchema = z.object({
   origin: z.string().min(1),
-  router: addressSchema,
+  router: ZHash,
   destination: domainSchema,
   salt: bytes32Schema,
   recipient: bytes32Schema,
   targetRouter: bytes32Schema,
+  txSubmitter: ZHash,
 });
 
 const IgpQuerySchema = z.object({
   origin: z.string().min(1),
-  router: addressSchema,
+  router: ZHash,
   destination: domainSchema,
   salt: bytes32Schema,
+  txSubmitter: ZHash,
 });
 
 /**
