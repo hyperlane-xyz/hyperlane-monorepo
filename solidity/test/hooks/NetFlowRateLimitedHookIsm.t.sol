@@ -8,6 +8,8 @@ import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "contracts/token/HypERC20.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
 import {NetFlowRateLimitedHookIsm} from "contracts/hooks/warp-route/NetFlowRateLimitedHookIsm.sol";
+import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
+import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {NetFlowRateLimited} from "contracts/libs/NetFlowRateLimited.sol";
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -99,6 +101,18 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(netFlow.localCollateral(), INITIAL_COLLATERAL);
         assertEq(netFlow.maxCapacity(), 10 ether);
         assertEq(netFlow.calculateCurrentLevel(), 10 ether);
+    }
+
+    function test_reportsTypesAndZeroQuote() external view {
+        assertEq(
+            netFlow.hookType(),
+            uint8(IPostDispatchHook.HookTypes.RATE_LIMITED)
+        );
+        assertEq(
+            netFlow.moduleType(),
+            uint8(IInterchainSecurityModule.Types.NULL)
+        );
+        assertEq(netFlow.quoteDispatch(bytes(""), bytes("")), 0);
     }
 
     function test_inboundConsumesLocalNetFlow() external {
