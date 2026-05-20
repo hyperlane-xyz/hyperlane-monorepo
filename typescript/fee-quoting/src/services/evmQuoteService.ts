@@ -46,24 +46,17 @@ import {
 } from '../constants.js';
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
 
-import type {
-  IProtocolQuoteService,
-  IgpQuoteRequest,
-  QuoteBinding,
-  WarpQuoteRequest,
+import {
+  type IProtocolQuoteService,
+  type IgpQuoteRequest,
+  type QuoteBinding,
+  QuoterType,
+  type WarpQuoteRequest,
 } from './IProtocolQuoteService.js';
-
-/**
- * Label for the quoter contract a signed quote applies to. Used in error
- * messages and skip logs to disambiguate the warp/token-fee quoter from the
- * IGP quoter.
- */
-const QuoterType = {
-  WarpFee: 'warp fee',
-  Igp: 'IGP',
-} as const;
-
-type QuoterType = (typeof QuoterType)[keyof typeof QuoterType];
+import {
+  PLACEHOLDER_IGP_PRICING,
+  PLACEHOLDER_WARP_FEE_PARAMS,
+} from './quotePolicy.js';
 
 /** Per-route on-chain state cached by the service at construction time. */
 interface EvmRouteState {
@@ -378,7 +371,8 @@ export class EvmQuoteService implements IProtocolQuoteService {
       ['uint32', 'bytes32', 'uint256'],
       [destination, recipient, BigInt(2) ** BigInt(256) - BigInt(1)],
     );
-    const data = encodePacked(['uint256', 'uint256'], [0n, 1n]);
+    const { maxFee, halfAmount } = PLACEHOLDER_WARP_FEE_PARAMS;
+    const data = encodePacked(['uint256', 'uint256'], [maxFee, halfAmount]);
     return this.signEip712(route, feeQuoter, context, data, binding);
   }
 
@@ -394,7 +388,11 @@ export class EvmQuoteService implements IProtocolQuoteService {
       ['address', 'uint32', 'address'],
       [feeToken, destination, sender],
     );
-    const data = encodePacked(['uint128', 'uint128'], [0n, 0n]);
+    const { tokenExchangeRate, gasPrice } = PLACEHOLDER_IGP_PRICING;
+    const data = encodePacked(
+      ['uint128', 'uint128'],
+      [tokenExchangeRate, gasPrice],
+    );
     return this.signEip712(route, igp, context, data, binding);
   }
 
