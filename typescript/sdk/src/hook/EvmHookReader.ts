@@ -294,7 +294,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       return derived;
     }
     if (typeof original === 'string') return original;
-    return (original as DerivedHookConfig).address ?? derived;
+    return derived.address;
   }
 
   async deriveMailboxDefaultHookConfig(
@@ -413,10 +413,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.AGGREGATION);
 
-    const hookConfigs: DerivedHookConfig[] = await concurrentMap(
+    const hookConfigs = await concurrentMap(
       this.concurrency,
       hooks,
-      (hook) => this.deriveHookConfig(hook),
+      async (hookAddress) => {
+        const derived = await this.deriveHookConfigFromAddress(hookAddress);
+        return this.preserveUnredeployable(hookAddress, derived);
+      },
     );
 
     const config: WithAddress<AggregationHookConfig> = {
@@ -615,7 +618,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    const childHookConfig = await this.deriveHookConfig(childHookAddress);
+    const derivedChild =
+      await this.deriveHookConfigFromAddress(childHookAddress);
+    const childHookConfig = this.preserveUnredeployable(
+      childHookAddress,
+      derivedChild,
+    );
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
@@ -674,7 +682,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
 
-    const fallbackHookConfig = await this.deriveHookConfig(fallbackHookAddress);
+    const derivedFallback =
+      await this.deriveHookConfigFromAddress(fallbackHookAddress);
+    const fallbackHookConfig = this.preserveUnredeployable(
+      fallbackHookAddress,
+      derivedFallback,
+    );
 
     const config: WithAddress<FallbackRoutingHookConfig> = {
       owner,
@@ -701,7 +714,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         try {
           const domainHook = await hook.hooks(domainId);
           if (domainHook !== ethers.constants.AddressZero) {
-            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+            const derived = await this.deriveHookConfigFromAddress(domainHook);
+            domainHooks[chainName] = this.preserveUnredeployable(
+              domainHook,
+              derived,
+            );
           }
         } catch {
           this.logger.debug(
@@ -759,10 +776,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
 
     // Parallelize hook config derivation
-    const [lowerHookConfig, upperHookConfig] = await Promise.all([
-      this.deriveHookConfig(lowerHookAddress),
-      this.deriveHookConfig(upperHookAddress),
+    const [lowerDerived, upperDerived] = await Promise.all([
+      this.deriveHookConfigFromAddress(lowerHookAddress),
+      this.deriveHookConfigFromAddress(upperHookAddress),
     ]);
+    const lowerHookConfig = this.preserveUnredeployable(
+      lowerHookAddress,
+      lowerDerived,
+    );
+    const upperHookConfig = this.preserveUnredeployable(
+      upperHookAddress,
+      upperDerived,
+    );
 
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,

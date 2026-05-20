@@ -531,21 +531,23 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // CrossCollateralRoutingFee: update sub-fee contracts (nested structure)
     if (
       normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
-      normalizedActualConfig.type === TokenFeeType.CrossCollateralRoutingFee
+      normalizedActualConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+      actualConfig.type === TokenFeeType.CrossCollateralRoutingFee
     ) {
+      const targetFeeContracts = normalizedTargetConfig.feeContracts ?? {};
+      // CAST: actualConfig.type is checked in the condition above; DerivedCrossCollateralRoutingFeeConfig
+      // refines feeContracts to Record<ChainName, Record<string, DerivedTokenFeeConfig>> which TypeScript
+      // cannot infer solely from the discriminant check on WithAddress<TokenFeeConfig>.
       const actualCCR = actualConfig as DerivedCrossCollateralRoutingFeeConfig;
-      const targetFeeContracts =
-        (normalizedTargetConfig as DerivedCrossCollateralRoutingFeeConfig)
-          .feeContracts ?? {};
 
       // Carry actual addresses into target entries, but limit to target keys only so
       // orphan entries from actualConfig don't get re-injected into the update loop.
-      const merged = objMerge(
+      const merged = objMerge<DerivedCrossCollateralRoutingFeeConfig>(
         actualConfig,
         normalizedTargetConfig,
         10,
         true,
-      ) as DerivedCrossCollateralRoutingFeeConfig;
+      );
       if (merged.feeContracts) {
         for (const chainName of Object.keys(merged.feeContracts)) {
           if (!(chainName in targetFeeContracts)) {

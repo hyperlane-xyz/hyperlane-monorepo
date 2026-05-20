@@ -227,7 +227,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
-    return derived.type === IsmType.OFFCHAIN_LOOKUP ? original : derived;
+    if (derived.type !== IsmType.OFFCHAIN_LOOKUP) return derived;
+    if (typeof original === 'string') return original;
+    return derived.address;
   }
 
   async deriveRoutingConfig(
@@ -407,12 +409,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           : await addressDeriveFunc(domainId);
 
         if (deriveConfig) {
-          const derived = await this.deriveIsmConfig(moduleAddress);
-          // offchainLookupIsm can't be redeployed; keep the address so deploy()
-          // can connect to the existing contract via the string branch
+          const derived = await this.deriveIsmConfigFromAddress(moduleAddress);
           return [
             chainName,
-            derived.type === IsmType.OFFCHAIN_LOOKUP ? moduleAddress : derived,
+            this.preserveUnredeployableIsm(moduleAddress, derived),
           ];
         }
         return [chainName, moduleAddress];
@@ -454,11 +454,15 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       };
     }
 
+    const [lowerDerived, upperDerived] = await Promise.all([
+      this.deriveIsmConfigFromAddress(lowerIsm),
+      this.deriveIsmConfigFromAddress(upperIsm),
+    ]);
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,
-      lowerIsm: await this.deriveIsmConfig(lowerIsm),
-      upperIsm: await this.deriveIsmConfig(upperIsm),
+      lowerIsm: this.preserveUnredeployableIsm(lowerIsm, lowerDerived),
+      upperIsm: this.preserveUnredeployableIsm(upperIsm, upperDerived),
       threshold: threshold.toNumber(),
     };
   }
@@ -477,7 +481,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ismConfigs = await concurrentMap(
       this.concurrency,
       modules,
-      async (module) => this.deriveIsmConfig(module),
+      async (module) => {
+        const derived = await this.deriveIsmConfigFromAddress(module);
+        return this.preserveUnredeployableIsm(module, derived);
+      },
     );
 
     // If it's a zkSync chain, it must be a StorageAggregationIsm
