@@ -3,6 +3,7 @@ import { type Hex, isHex } from 'viem';
 import { z } from 'zod';
 
 import { type QuoteV2Response, ZHash } from '@hyperlane-xyz/sdk';
+import { isValidAddressSealevel } from '@hyperlane-xyz/utils';
 
 import type { QuoteService } from '../services/quoteService.js';
 
@@ -22,25 +23,30 @@ const domainSchema = z
   .regex(/^\d+$/, 'Domain must be a numeric string')
   .transform((s) => parseInt(s, 10));
 
-// `router` and `txSubmitter` use the SDK's protocol-agnostic `ZHash` (EVM
-// 0x-hex, SVM base58, Cosmos bech32, etc.). The downstream service narrows
-// per its own protocol.
+const svmAddressSchema = z.string().refine(isValidAddressSealevel, {
+  message: 'Must be a valid Sealevel address (base58-encoded 32-byte pubkey)',
+});
+const protocolAddressSchema = z.union([ZHash, svmAddressSchema]);
+
+// `router` and `txSubmitter` use protocol-agnostic address validation. The SVM
+// branch is intentionally separate from SDK `ZHash` because valid Sealevel
+// pubkeys are base58 strings that decode to 32 bytes, not fixed-width hashes.
 const WarpQuerySchema = z.object({
   origin: z.string().min(1),
-  router: ZHash,
+  router: protocolAddressSchema,
   destination: domainSchema,
   salt: bytes32Schema,
   recipient: bytes32Schema,
   targetRouter: bytes32Schema,
-  txSubmitter: ZHash,
+  txSubmitter: protocolAddressSchema,
 });
 
 const IgpQuerySchema = z.object({
   origin: z.string().min(1),
-  router: ZHash,
+  router: protocolAddressSchema,
   destination: domainSchema,
   salt: bytes32Schema,
-  txSubmitter: ZHash,
+  txSubmitter: protocolAddressSchema,
 });
 
 /**
