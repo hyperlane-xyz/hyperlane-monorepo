@@ -34,6 +34,7 @@ import {
   QuoteService,
   type ChainQuoteContext,
 } from './src/services/quoteService.js';
+import { buildSvmRouterContext } from './src/services/svmContext.js';
 
 export class FeeQuotingServer {
   app: Express;
@@ -189,107 +190,194 @@ export class FeeQuotingServer {
         const { chainName } = token;
         const metadata = chainMetadataMap[chainName];
 
-        if (metadata?.protocol !== ProtocolType.Ethereum) {
-          this.logger.debug(
-            { chainName, protocol: metadata?.protocol },
-            'Skipping non-EVM chain',
-          );
-          continue;
+        switch (metadata?.protocol) {
+          case ProtocolType.Ethereum:
+            await this.addEvmRouter({
+              chainName,
+              token,
+              chainAddresses,
+              multiProvider,
+              core,
+              chainContexts,
+            });
+            break;
+          case ProtocolType.Sealevel:
+            await this.addSvmRouter({
+              chainName,
+              metadata,
+              token,
+              chainContexts,
+            });
+            break;
+          default:
+            this.logger.debug(
+              { chainName, protocol: metadata?.protocol },
+              'Skipping chain with unsupported protocol',
+            );
         }
-
-        const addresses = chainAddresses[chainName];
-        if (!addresses) {
-          this.logger.warn({ chainName }, 'No core addresses, skipping');
-          continue;
-        }
-
-        const quotedCallsAddress = addresses.quotedCalls;
-        if (!quotedCallsAddress) {
-          this.logger.warn({ chainName }, 'No quotedCalls address, skipping');
-          continue;
-        }
-
-        const warpRouteAddress = token.addressOrDenom;
-        assert(warpRouteAddress, `No address for token on chain: ${chainName}`);
-
-        // Read full config from on-chain state
-        const reader = new EvmWarpRouteReader(multiProvider, chainName);
-        const derivedConfig =
-          await reader.deriveWarpRouteConfig(warpRouteAddress);
-
-        // Resolve hook with Mailbox default fallback when router hook is unset
-        if (
-          typeof derivedConfig.hook === 'string' &&
-          isZeroishAddress(derivedConfig.hook)
-        ) {
-          const hookAddress = await core.getHook(
-            chainName,
-            warpRouteAddress as Address,
-          );
-          const hookReader = new EvmHookReader(multiProvider, chainName);
-          derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
-        }
-
-        this.logger.info(
-          {
-            chainName,
-            warpRoute: warpRouteAddress,
-            hookType:
-              typeof derivedConfig.hook === 'string'
-                ? 'address'
-                : derivedConfig.hook.type,
-            hasFee: !!derivedConfig.tokenFee,
-            feeType: derivedConfig.tokenFee?.type,
-          },
-          'Derived warp route config',
-        );
-
-        const feeTokenRaw =
-          token.igpTokenAddressOrDenom ??
-          token.addressOrDenom ??
-          '0x0000000000000000000000000000000000000000';
-        assert(
-          isAddress(feeTokenRaw),
-          `Fee token for ${chainName} is not a valid EVM address: ${feeTokenRaw}`,
-        );
-        const feeToken: Address = feeTokenRaw;
-
-        assert(
-          isAddress(quotedCallsAddress),
-          `quotedCalls for ${chainName} is not a valid EVM address: ${quotedCallsAddress}`,
-        );
-        const quotedCalls: Address = quotedCallsAddress;
-
-        assert(
-          isAddress(warpRouteAddress),
-          `Warp router for ${chainName} is not a valid EVM address: ${warpRouteAddress}`,
-        );
-        const warpRouter: Address = warpRouteAddress;
-
-        const chainId = multiProvider.getEvmChainId(chainName);
-
-        // Get or create chain context
-        let ctx = chainContexts.get(chainName);
-        if (!ctx) {
-          ctx = {
-            protocol: ProtocolType.Ethereum,
-            chainName,
-            quotedCallsAddress: quotedCalls,
-            routers: new Map(),
-          };
-          chainContexts.set(chainName, ctx);
-        }
-
-        ctx.routers.set(warpRouter.toLowerCase(), {
-          protocol: ProtocolType.Ethereum,
-          chainId,
-          quotedCallsAddress: quotedCalls,
-          feeToken,
-          derivedConfig,
-        });
       }
     }
 
     return { multiProvider, chainContexts };
+  }
+
+  private async addEvmRouter(args: {
+    chainName: string;
+    token: { addressOrDenom?: string; igpTokenAddressOrDenom?: string };
+    chainAddresses: Record<string, Record<string, string>>;
+    multiProvider: MultiProvider;
+    core: HyperlaneCore;
+    chainContexts: Map<string, ChainQuoteContext>;
+  }): Promise<void> {
+    const {
+      chainName,
+      token,
+      chainAddresses,
+      multiProvider,
+      core,
+      chainContexts,
+    } = args;
+
+    const addresses = chainAddresses[chainName];
+    if (!addresses) {
+      this.logger.warn({ chainName }, 'No core addresses, skipping');
+      return;
+    }
+
+    const quotedCallsAddress = addresses.quotedCalls;
+    if (!quotedCallsAddress) {
+      this.logger.warn({ chainName }, 'No quotedCalls address, skipping');
+      return;
+    }
+
+    const warpRouteAddress = token.addressOrDenom;
+    assert(warpRouteAddress, `No address for token on chain: ${chainName}`);
+
+    const reader = new EvmWarpRouteReader(multiProvider, chainName);
+    const derivedConfig = await reader.deriveWarpRouteConfig(warpRouteAddress);
+
+    // Resolve hook with Mailbox default fallback when router hook is unset
+    if (
+      typeof derivedConfig.hook === 'string' &&
+      isZeroishAddress(derivedConfig.hook)
+    ) {
+      assert(
+        isAddress(warpRouteAddress),
+        `Warp router for ${chainName} is not a valid EVM address: ${warpRouteAddress}`,
+      );
+      const hookAddress = await core.getHook(chainName, warpRouteAddress);
+      const hookReader = new EvmHookReader(multiProvider, chainName);
+      derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
+    }
+
+    this.logger.info(
+      {
+        chainName,
+        warpRoute: warpRouteAddress,
+        hookType:
+          typeof derivedConfig.hook === 'string'
+            ? 'address'
+            : derivedConfig.hook.type,
+        hasFee: !!derivedConfig.tokenFee,
+        feeType: derivedConfig.tokenFee?.type,
+      },
+      'Derived EVM warp route config',
+    );
+
+    const feeTokenRaw =
+      token.igpTokenAddressOrDenom ??
+      token.addressOrDenom ??
+      '0x0000000000000000000000000000000000000000';
+    assert(
+      isAddress(feeTokenRaw),
+      `Fee token for ${chainName} is not a valid EVM address: ${feeTokenRaw}`,
+    );
+    assert(
+      isAddress(quotedCallsAddress),
+      `quotedCalls for ${chainName} is not a valid EVM address: ${quotedCallsAddress}`,
+    );
+    assert(
+      isAddress(warpRouteAddress),
+      `Warp router for ${chainName} is not a valid EVM address: ${warpRouteAddress}`,
+    );
+    const feeToken: Address = feeTokenRaw;
+    const quotedCalls: Address = quotedCallsAddress;
+    const warpRouter: Address = warpRouteAddress;
+    const chainId = multiProvider.getEvmChainId(chainName);
+
+    let ctx = chainContexts.get(chainName);
+    if (!ctx) {
+      ctx = {
+        protocol: ProtocolType.Ethereum,
+        chainName,
+        quotedCallsAddress: quotedCalls,
+        routers: new Map(),
+      };
+      chainContexts.set(chainName, ctx);
+    }
+    assert(
+      ctx.protocol === ProtocolType.Ethereum,
+      `Chain ${chainName} already has a non-EVM context — cannot mix protocols`,
+    );
+
+    ctx.routers.set(warpRouter.toLowerCase(), {
+      protocol: ProtocolType.Ethereum,
+      chainId,
+      quotedCallsAddress: quotedCalls,
+      feeToken,
+      derivedConfig,
+    });
+  }
+
+  private async addSvmRouter(args: {
+    chainName: string;
+    metadata: ChainMetadata;
+    token: { addressOrDenom?: string };
+    chainContexts: Map<string, ChainQuoteContext>;
+  }): Promise<void> {
+    const { chainName, metadata, token, chainContexts } = args;
+
+    const warpProgramId = token.addressOrDenom;
+    assert(warpProgramId, `No address for token on chain: ${chainName}`);
+    assert(
+      typeof metadata.domainId === 'number',
+      `Sealevel chain ${chainName} missing numeric domainId`,
+    );
+    const domainId = metadata.domainId;
+
+    const routerCtx = await buildSvmRouterContext({
+      chainName,
+      domainId,
+      metadata,
+      warpProgramId,
+      logger: this.logger,
+    });
+
+    this.logger.info(
+      {
+        chainName,
+        warpProgramId,
+        hasFee: !!routerCtx.fee,
+        hasIgp: !!routerCtx.igp,
+      },
+      'Derived SVM warp route config',
+    );
+
+    let ctx = chainContexts.get(chainName);
+    if (!ctx) {
+      ctx = {
+        protocol: ProtocolType.Sealevel,
+        chainName,
+        domainId,
+        routers: new Map(),
+      };
+      chainContexts.set(chainName, ctx);
+    }
+    assert(
+      ctx.protocol === ProtocolType.Sealevel,
+      `Chain ${chainName} already has a non-Sealevel context — cannot mix protocols`,
+    );
+
+    ctx.routers.set(warpProgramId, routerCtx);
   }
 }
