@@ -84,10 +84,11 @@ export function getSafeService(
   const chainId = multiProvider.getEvmChainId(chain);
   assert(chainId, `Chain is not an EVM chain: ${chain}`);
 
-  const txServiceUrl = normalizeSafeTxServiceUrl(
+  const config = getSafeApiKitConfig(
+    chainId,
     gnosisSafeTransactionServiceUrl,
+    gnosisSafeApiKey,
   );
-  const config = getSafeApiKitConfig(chainId, txServiceUrl, gnosisSafeApiKey);
   try {
     return new SafeApiKitCtor(config);
   } catch (error) {
@@ -97,11 +98,13 @@ export function getSafeService(
         'There is no transaction service available for chainId',
       ) &&
       !config.txServiceUrl &&
-      isSafeGlobalTxServiceUrl(txServiceUrl)
+      isSafeGlobalTxServiceUrl(gnosisSafeTransactionServiceUrl)
     ) {
       return new SafeApiKitCtor({
         ...config,
-        txServiceUrl,
+        txServiceUrl: normalizeSafeTxServiceUrl(
+          gnosisSafeTransactionServiceUrl,
+        ),
       });
     }
     throw error;

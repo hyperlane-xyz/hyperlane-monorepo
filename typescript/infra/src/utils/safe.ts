@@ -43,6 +43,9 @@ const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
 
 type SafeService = ReturnType<typeof getSafeService>;
+type SafeMultisigTransactionResponse = Awaited<
+  ReturnType<SafeService['getTransaction']>
+>;
 
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
@@ -278,7 +281,7 @@ export async function getSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeTxHash: string,
-): Promise<any> {
+): Promise<SafeMultisigTransactionResponse | undefined> {
   const safeService = getSafeService(chain, multiProvider);
 
   try {
