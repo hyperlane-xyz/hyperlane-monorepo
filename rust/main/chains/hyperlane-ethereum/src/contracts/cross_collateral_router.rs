@@ -34,6 +34,9 @@ fn decode_received_transfer_remote(log: &Log) -> Option<(u32, H256, U256)> {
     }
     let origin = u32::from_be_bytes(log.topics.get(1)?[28..32].try_into().ok()?);
     let recipient = H256::from(log.topics.get(2)?.0);
+    if log.data.len() < 32 {
+        return None;
+    }
     let amount = U256::from_big_endian(&log.data[..32]);
     Some((origin, recipient, amount))
 }

@@ -95,24 +95,47 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
         };
 
         // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
-        let ccr_routers: HashMap<u32, HashMap<H160, H160>> = p
+        let raw_ccr_routers = p
             .chain(&mut err)
             .get_opt_key("ccrRouters")
             .parse_value::<HashMap<String, HashMap<String, String>>>("parsing ccrRouters")
             .end()
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|(domain_str, router_map)| {
-                let domain_id: u32 = domain_str.parse().ok()?;
-                let parsed: HashMap<H160, H160> = router_map
-                    .into_iter()
-                    .filter_map(|(router, token)| {
-                        Some((H160::from_str(&router).ok()?, H160::from_str(&token).ok()?))
+            .unwrap_or_default();
+
+        let mut ccr_routers: HashMap<u32, HashMap<H160, H160>> = HashMap::new();
+        for (domain_str, router_map) in raw_ccr_routers {
+            let Some(domain_id) = domain_str
+                .parse::<u32>()
+                .with_context(|| format!("Invalid domain ID '{domain_str}' in ccrRouters"))
+                .into_config_result(|| cwp.add("ccrRouters"))
+                .take_config_err(&mut err)
+            else {
+                continue;
+            };
+            let mut domain_routers = HashMap::new();
+            for (router, token) in router_map {
+                let Some(r) = H160::from_str(&router)
+                    .with_context(|| {
+                        format!("Invalid router address '{router}' for domain '{domain_str}' in ccrRouters")
                     })
-                    .collect();
-                Some((domain_id, parsed))
-            })
-            .collect();
+                    .into_config_result(|| cwp.add("ccrRouters"))
+                    .take_config_err(&mut err)
+                else {
+                    continue;
+                };
+                let Some(t) = H160::from_str(&token)
+                    .with_context(|| {
+                        format!("Invalid token address '{token}' for router '{router}' in domain '{domain_str}' ccrRouters")
+                    })
+                    .into_config_result(|| cwp.add("ccrRouters"))
+                    .take_config_err(&mut err)
+                else {
+                    continue;
+                };
+                domain_routers.insert(r, t);
+            }
+            ccr_routers.insert(domain_id, domain_routers);
+        }
 
         cfg_unwrap_all!(&p.cwp, err: [base, db]);
 

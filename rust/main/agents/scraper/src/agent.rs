@@ -470,13 +470,19 @@ impl Scraper {
 
         Ok(Some(tokio::spawn(
             async move {
-                let mut from_block =
-                    HyperlaneWatermarkedLogStore::<SameChainCcrSwap>::retrieve_high_watermark(
+                let mut from_block = loop {
+                    match HyperlaneWatermarkedLogStore::<SameChainCcrSwap>::retrieve_high_watermark(
                         &store,
                     )
                     .await
-                    .unwrap_or(None)
-                    .unwrap_or(default_from);
+                    {
+                        Ok(watermark) => break watermark.unwrap_or(default_from),
+                        Err(err) => {
+                            warn!(?err, "Failed to retrieve CCR swap watermark; retrying");
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                    }
+                };
 
                 loop {
                     let tip = match indexer.get_finalized_block_number().await {
@@ -488,7 +494,7 @@ impl Scraper {
                         }
                     };
 
-                    if from_block >= tip {
+                    if from_block > tip {
                         sleep(Duration::from_secs(5)).await;
                         continue;
                     }
@@ -508,7 +514,12 @@ impl Scraper {
                         if let Err(err) =
                             HyperlaneLogStore::<SameChainCcrSwap>::store_logs(&store, &logs).await
                         {
-                            warn!(?err, "Failed to store CCR swaps");
+                            warn!(
+                                ?err,
+                                from_block, to_block, "Failed to store CCR swaps; retrying range"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                            continue;
                         }
                     }
 
@@ -518,7 +529,12 @@ impl Scraper {
                         )
                         .await
                     {
-                        warn!(?err, "Failed to update CCR swap watermark");
+                        warn!(
+                            ?err,
+                            to_block, "Failed to update CCR swap watermark; retrying range"
+                        );
+                        sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        continue;
                     }
 
                     from_block = to_block.saturating_add(1);

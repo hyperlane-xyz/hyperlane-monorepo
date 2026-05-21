@@ -58,10 +58,7 @@ export function buildCcrRoutersConfig(
   const allWarpRoutes = getRegistry().getWarpRoutes();
   for (const warpCoreConfig of Object.values(allWarpRoutes)) {
     for (const token of warpCoreConfig.tokens) {
-      if (
-        !TOKEN_CROSS_COLLATERAL_STANDARDS.has(token.standard as TokenStandard)
-      )
-        continue;
+      if (!TOKEN_CROSS_COLLATERAL_STANDARDS.has(token.standard)) continue;
       if (
         !token.addressOrDenom ||
         !token.collateralAddressOrDenom ||
@@ -75,12 +72,7 @@ export function buildCcrRoutersConfig(
       )
         continue;
 
-      let domainId: number;
-      try {
-        domainId = getDomainId(token.chainName);
-      } catch {
-        continue;
-      }
+      const domainId = getDomainId(token.chainName);
 
       const domainKey = domainId.toString();
       if (!ccrRouters[domainKey]) ccrRouters[domainKey] = {};

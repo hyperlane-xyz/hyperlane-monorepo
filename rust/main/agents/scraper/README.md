@@ -60,12 +60,11 @@ The explorer decodes the message body to show the origin token (from `sender` = 
 
 ### Recognizing synthetic messages
 
-Two properties uniquely identify a synthetic same-chain CCR swap message:
+One property uniquely identifies a synthetic same-chain CCR swap message:
 
 1. **`msg_id` starts with 8 zero hex chars** — `msg_id LIKE '0x00000000%'`
-2. **`nonce = 2147483647`** (`i32::MAX`) in the database
 
-Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 8-byte prefix being all zeros is ~1 in 10^19). Real nonces are sequential from 0 and never approach `i32::MAX`.
+Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 4-byte / 8 hex char prefix being all zeros is ~1 in 2^32 (~4.3×10^9)). The nonce is not a reliable identifier: it is hash-derived (range `[0, 2^31)`) and can coincide with real sequential nonces.
 
 ### Recalculating the msg_id
 

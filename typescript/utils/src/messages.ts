@@ -2,6 +2,7 @@ import { BigNumber, ethers, utils } from 'ethers';
 
 import { addressToBytes32, ensure0x } from './addresses.js';
 import { fromHexString, toHexString } from './strings.js';
+import { assert } from './validation.js';
 import {
   Address,
   Domain,
@@ -185,6 +186,17 @@ export function syntheticCcrSwapMessageId(
   txHash: HexString,
   logIndex: bigint | number,
 ): HexString {
+  assert(
+    ethers.utils.isHexString(txHash, 32),
+    `txHash must be a 32-byte hex string, got: ${txHash}`,
+  );
+  assert(
+    (typeof logIndex === 'bigint' && logIndex >= 0n) ||
+      (typeof logIndex === 'number' &&
+        Number.isInteger(logIndex) &&
+        logIndex >= 0),
+    `logIndex must be a non-negative integer, got: ${logIndex}`,
+  );
   const logIndexHex = ethers.utils.hexZeroPad(
     ethers.BigNumber.from(logIndex).toHexString(),
     8,
