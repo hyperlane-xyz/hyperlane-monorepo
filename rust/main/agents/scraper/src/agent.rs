@@ -456,13 +456,12 @@ impl Scraper {
             _ => return Ok(None),
         };
 
-        let ccr_addresses: Vec<_> = ccr_router_map.keys().copied().collect();
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 
         let chain_setup = self.as_ref().settings.chain_setup(&domain)?;
         let indexer = chain_setup
-            .build_ccr_swap_indexer(&metrics, local_domain, ccr_addresses, ccr_to_erc20)
+            .build_ccr_swap_indexer(&metrics, local_domain, ccr_to_erc20)
             .await?;
 
         let chunk_size = index_settings.chunk_size;

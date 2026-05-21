@@ -12,9 +12,10 @@ use tracing::instrument;
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod, RoutingIsm,
-    SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160, H256,
+    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
+    Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod,
+    RoutingIsm, SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160,
+    H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -844,11 +845,10 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
         local_domain: u32,
-        ccr_addresses: Vec<H160>,
         ccr_to_erc20: std::collections::HashMap<H160, H160>,
-    ) -> Result<Box<dyn SequenceAwareIndexer<SameChainCcrSwap>>> {
+    ) -> Result<Box<dyn Indexer<SameChainCcrSwap>>> {
         let ctx = "Building CCR swap indexer";
-        // Use a zero address as the locator — CcrSwapIndexer uses ccr_addresses instead.
+        // Use a zero address as the locator — CcrSwapIndexer uses ccr_to_erc20 keys instead.
         let locator = self.locator(H256::zero());
 
         match &self.connection {
@@ -861,7 +861,6 @@ impl ChainConf {
                     metrics,
                     h_eth::CcrSwapIndexerBuilder {
                         local_domain,
-                        ccr_addresses,
                         ccr_to_erc20,
                         reorg_period,
                     },

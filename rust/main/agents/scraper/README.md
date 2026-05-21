@@ -51,7 +51,7 @@ Each swap is represented as:
 | `sender` | source CCR router address (origin mailbox) |
 | `recipient` | destination CCR router address (destination mailbox) |
 | `body` | TokenMessage: `recipient_bytes32 \|\| amount_received_uint256` (from `ReceivedTransferRemote`, post-fee, matches how cross-chain CCR Hyperlane messages encode the transfer amount) |
-| `nonce` | `keccak256(tx_id \|\| log_index)[0..4] % 2^31` — collision-resistant, fits PostgreSQL's signed INT4 range |
+| `nonce` | `msg_id bytes [4..8] % 2^31` — derived from the msg_id hash so nonce collision ↔ msg_id collision, keeping the DB upsert idempotent; fits PostgreSQL's signed INT4 range |
 | `msg_id` | `0x00000000 \|\| keccak256("SameChainCCR" \|\| txHash32 \|\| logIndex8)[0..28]` — 4-byte zero prefix makes synthetic IDs immediately distinguishable from real message IDs |
 
 A matching `delivered_message` row pointing to the same transaction is inserted immediately, so the swap appears as an instantly-delivered transfer in the explorer.

@@ -47,8 +47,9 @@ impl ScraperDb {
     /// The message ID has a 4-byte zero prefix for immediate recognition:
     /// `0x00000000 || keccak256("SameChainCCR" || txHash || logIndex)[0..28]`
     ///
-    /// The nonce is `keccak256(tx_id || log_index) % 2^31` — collision-resistant
-    /// within PostgreSQL's signed INT4 range.
+    /// The nonce is derived from msg_id bytes [4..8] (% 2^31 for PostgreSQL's signed INT4)
+    /// so that a nonce collision implies a msg_id collision, making the OnConflict upsert
+    /// genuinely idempotent.
     #[instrument(skip_all)]
     pub async fn store_ccr_swaps_as_messages(
         &self,
@@ -61,15 +62,11 @@ impl ScraperDb {
 
             let msg_id = synthetic_ccr_msg_id(storable.meta);
 
-            // Deterministic nonce: keccak256(tx_id_bytes || log_index_be)
-            // % 2^31 keeps the nonce in PostgreSQL's signed integer range.
-            let mut nonce_input = [0u8; 72];
-            nonce_input[..64].copy_from_slice(storable.meta.transaction_id.as_bytes());
-            nonce_input[64..].copy_from_slice(&storable.meta.log_index.as_u64().to_be_bytes());
-            let nonce_hash = keccak256(nonce_input);
+            // Derive nonce from msg_id bytes [4..8] (first 4 bytes of the hash payload)
+            // so nonce collision ↔ msg_id collision, keeping OnConflict idempotent.
+            // % 2^31 keeps the value in PostgreSQL's signed INT4 range.
             let nonce =
-                u32::from_be_bytes([nonce_hash[0], nonce_hash[1], nonce_hash[2], nonce_hash[3]])
-                    % 2_147_483_648;
+                u32::from_be_bytes(msg_id.as_bytes()[4..8].try_into().unwrap()) % 2_147_483_648;
 
             // TokenMessage body: recipient_bytes32 ++ amount_received_uint256
             // Uses amount_received (from ReceivedTransferRemote, post-fee) to match
