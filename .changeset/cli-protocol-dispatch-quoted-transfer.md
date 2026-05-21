@@ -1,0 +1,6 @@
+---
+"@hyperlane-xyz/cli": minor
+"@hyperlane-xyz/sdk": minor
+---
+
+`hyperlane warp send`'s offchain-quoting block now dispatches by origin protocol through the `QuotedTransferProvider` interface — EVM origins still produce the legacy v1 `EvmQuotedTransferProvider` (wrapper-contract path), Sealevel origins produce a `SealevelQuotedTransferProvider` against the v2 fee-quoting API. The CLI internally reads the SVM warp route's `fee_config` to discover the fee program / fee-account PDA and wires up a `Connection` from `multiProtocolProvider.getSolanaWeb3Provider`. The `--fee-quoting-url` / `--fee-quoting-api-key` flags now cover both protocols; no new SVM-prefixed flags. Mode (standing vs transient) is server-controlled — the SDK provider always sends a random client salt and infers mode from the response's `expiry === issuedAt` discriminator (the standalone `SealevelQuoteMode` export was removed since callers no longer pick the mode). Existing `quotedCalls` callers stay working via WarpCore's backcompat shim; new code should pass `quotedTransfer` directly. Validated end-to-end: 8 EVM warp-send e2e tests pass, the cross-chain SVM→EVM warp-send e2e passes against a live Solana validator, and the cross-chain CC EVM+SVM deploy/enroll suite passes.
