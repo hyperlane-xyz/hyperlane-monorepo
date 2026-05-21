@@ -68,22 +68,12 @@ Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the
 
 ### Recalculating the msg_id
 
-Any client can deterministically reconstruct the `msg_id` given the transaction hash and log index of the `ReceivedTransferRemote` event:
+Any client can deterministically reconstruct the `msg_id` given the transaction hash and log index of the `ReceivedTransferRemote` event using the canonical helper:
 
 ```typescript
-import { ethers } from 'ethers';
+import { syntheticCcrSwapMessageId } from '@hyperlane-xyz/utils';
 
-function computeSameChainCcrMsgId(
-  txHash: string,   // 32-byte tx hash (0x-prefixed)
-  logIndex: bigint, // log index of the ReceivedTransferRemote event
-): string {
-  const logIndexBytes = ethers.toBeHex(logIndex, 8);
-  const hash = ethers.keccak256(
-    ethers.concat([ethers.toUtf8Bytes('SameChainCCR'), txHash, logIndexBytes]),
-  );
-  // 4 zero bytes || first 28 bytes of hash
-  return '0x' + '00'.repeat(4) + hash.slice(2, 58);
-}
+const msgId = syntheticCcrSwapMessageId(txHash, logIndex);
 ```
 
 ### CCR router configuration

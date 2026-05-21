@@ -7,7 +7,7 @@ use ethers::prelude::Selector;
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
@@ -840,13 +840,13 @@ impl ChainConf {
     }
 
     /// Build a CCR same-chain swap indexer for EVM chains.
-    /// Only supported for Ethereum connections; returns an error for other chain types.
+    /// Only supported for Ethereum connections; returns `Ok(None)` for other chain types.
     pub async fn build_ccr_swap_indexer(
         &self,
         metrics: &CoreMetrics,
         local_domain: u32,
         ccr_to_erc20: std::collections::HashMap<H160, H160>,
-    ) -> Result<Box<dyn Indexer<SameChainCcrSwap>>> {
+    ) -> Result<Option<Box<dyn Indexer<SameChainCcrSwap>>>> {
         let ctx = "Building CCR swap indexer";
         // Use a zero address as the locator — CcrSwapIndexer uses ccr_to_erc20 keys instead.
         let locator = self.locator(H256::zero());
@@ -855,23 +855,29 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 let reorg_period =
                     EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
-                self.build_ethereum(
-                    conf,
-                    &locator,
-                    metrics,
-                    h_eth::CcrSwapIndexerBuilder {
-                        local_domain,
-                        ccr_to_erc20,
-                        reorg_period,
-                    },
-                )
-                .await
+                let indexer = self
+                    .build_ethereum(
+                        conf,
+                        &locator,
+                        metrics,
+                        h_eth::CcrSwapIndexerBuilder {
+                            local_domain,
+                            ccr_to_erc20,
+                            reorg_period,
+                        },
+                    )
+                    .await
+                    .context(ctx)?;
+                Ok(Some(indexer))
             }
-            _ => Err(eyre::eyre!(
-                "CCR swap indexer is only supported for Ethereum chains"
-            )),
+            _ => {
+                warn!(
+                    domain = %self.domain.name(),
+                    "CCR swap indexer is only supported for Ethereum chains; skipping"
+                );
+                Ok(None)
+            }
         }
-        .context(ctx)
     }
 
     /// Try to convert the chain settings into a merkle tree hook indexer

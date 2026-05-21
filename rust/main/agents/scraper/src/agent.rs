@@ -228,7 +228,6 @@ impl Scraper {
             .build_ccr_indexer(
                 domain,
                 self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
                 store,
                 index_settings.clone(),
             )
@@ -447,7 +446,6 @@ impl Scraper {
         &self,
         domain: HyperlaneDomain,
         metrics: Arc<CoreMetrics>,
-        _contract_sync_metrics: Arc<ContractSyncMetrics>,
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> eyre::Result<Option<JoinHandle<()>>> {
@@ -460,15 +458,25 @@ impl Scraper {
         let local_domain = domain.id();
 
         let chain_setup = self.as_ref().settings.chain_setup(&domain)?;
-        let indexer = chain_setup
+        let Some(indexer) = chain_setup
             .build_ccr_swap_indexer(&metrics, local_domain, ccr_to_erc20)
-            .await?;
+            .await?
+        else {
+            return Ok(None);
+        };
 
         let chunk_size = index_settings.chunk_size;
+        assert!(chunk_size > 0, "index.chunk must be > 0 (got 0)");
         let default_from = index_settings.from.max(0) as u32;
 
         Ok(Some(tokio::spawn(
             async move {
+                // NOTE: HyperlaneDbStore uses a single BlockCursor per domain (not
+                // per event type), so this watermark is shared with the message, delivery,
+                // and gas-payment indexers. If those indexers are ahead of where CCR
+                // routers were deployed, the CCR indexer will start from their cursor
+                // position and miss historical swaps. A schema migration adding an
+                // event-type column to the cursor table is needed to fix this properly.
                 let mut from_block = loop {
                     match HyperlaneWatermarkedLogStore::<SameChainCcrSwap>::retrieve_high_watermark(
                         &store,

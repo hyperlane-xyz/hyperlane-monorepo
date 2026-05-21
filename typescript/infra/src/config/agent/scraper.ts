@@ -2,7 +2,6 @@ import {
   AgentConfig,
   ChainMap,
   ScraperConfig as ScraperAgentConfig,
-  TOKEN_CROSS_COLLATERAL_STANDARDS,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 import { isAddress } from '@hyperlane-xyz/utils';
@@ -58,7 +57,8 @@ export function buildCcrRoutersConfig(
   const allWarpRoutes = getRegistry().getWarpRoutes();
   for (const warpCoreConfig of Object.values(allWarpRoutes)) {
     for (const token of warpCoreConfig.tokens) {
-      if (!TOKEN_CROSS_COLLATERAL_STANDARDS.has(token.standard)) continue;
+      if (token.standard !== TokenStandard.EvmHypCrossCollateralRouter)
+        continue;
       if (
         !token.addressOrDenom ||
         !token.collateralAddressOrDenom ||
