@@ -49,7 +49,7 @@ export function getCombinedChainsToScrape(
   return Array.from(chainsToScrape).sort();
 }
 
-function buildCcrRoutersConfig(
+export function buildCcrRoutersConfig(
   chainsToScrape: string[],
 ): Record<string, Record<string, string>> {
   const chainsSet = new Set(chainsToScrape);
