@@ -226,6 +226,36 @@ describe('EvmIsmReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
+  it('should prioritize transient pausable probe failures over missing selectors', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      owner: sandbox.stub().rejects(transientError),
+    };
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveNullConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(transientError);
+  });
+
   it('should not treat transient routing owner failures as non-ownable routing', async () => {
     const mockAddress = randomAddress();
     const transientError = networkError();

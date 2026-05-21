@@ -36,7 +36,10 @@ import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
-import { throwIfNotMissingSelector } from '../utils/contract.js';
+import {
+  isMissingSelectorCallException,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 
 import {
   AggregationHookConfig,
@@ -207,12 +210,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
           );
       }
-    } catch (e: any) {
+    } catch (e) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
+      if (!onchainHookType && isMissingSelectorCallException(e)) {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );

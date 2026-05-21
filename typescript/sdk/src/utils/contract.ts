@@ -25,6 +25,9 @@ function getErrorMessage(error: unknown): string | undefined {
 function isEmptyProviderResponse(error: unknown): boolean {
   let current = error;
   while (isRecord(current)) {
+    // Assumes the originating provider call was an eth_call probe. The
+    // HyperlaneJsonRpcProvider also emits this message for empty getBalance,
+    // getBlock, and getBlockNumber responses.
     if (getErrorMessage(current) === 'Invalid response from provider') {
       return true;
     }

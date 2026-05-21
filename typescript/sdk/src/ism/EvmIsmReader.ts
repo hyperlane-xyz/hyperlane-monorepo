@@ -39,6 +39,7 @@ import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   contractHasString,
+  isMissingSelectorCallException,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
 
@@ -537,19 +538,29 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     // if it has paused() property --> PAUSABLE
     const pausableIsm = PausableIsm__factory.connect(address, this.provider);
-    try {
-      const [paused, owner] = await Promise.all([
-        pausableIsm.paused(),
-        pausableIsm.owner(),
-      ]);
+    const [pausedResult, ownerResult] = await Promise.allSettled([
+      pausableIsm.paused(),
+      pausableIsm.owner(),
+    ]);
+    const unexpectedError = [pausedResult, ownerResult].find(
+      (result) =>
+        result.status === 'rejected' &&
+        !isMissingSelectorCallException(result.reason),
+    );
+    if (unexpectedError?.status === 'rejected') {
+      throw unexpectedError.reason;
+    }
+    if (
+      pausedResult.status === 'fulfilled' &&
+      ownerResult.status === 'fulfilled'
+    ) {
       return {
         address,
-        owner,
+        owner: ownerResult.value,
         type: IsmType.PAUSABLE,
-        paused,
+        paused: pausedResult.value,
       };
-    } catch (error) {
-      throwIfNotMissingSelector(error);
+    } else {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
         address,

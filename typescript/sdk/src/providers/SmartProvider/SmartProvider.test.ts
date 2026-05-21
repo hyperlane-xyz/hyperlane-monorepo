@@ -468,6 +468,21 @@ describe('SmartProvider', () => {
       expect(isMissingSelectorCallException(e)).to.equal(true);
     });
 
+    it('uses the most diagnostic unhandled provider error as the cause', () => {
+      const genericError = new Error('generic provider error');
+      const emptyResponseError = new Error('Invalid response from provider');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [genericError, emptyResponseError],
+        'Test fallback message',
+      );
+
+      const e = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e.cause).to.equal(emptyResponseError);
+      expect(isMissingSelectorCallException(e)).to.equal(true);
+    });
+
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {
       // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
       // Even without revert data, this is a real contract revert
