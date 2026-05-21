@@ -12,6 +12,8 @@ export {
   type QuotedTransferParams,
 } from './quoted-calls/builder.js';
 export { FeeQuotingClient } from './quoted-calls/client.js';
+export { EvmQuotedTransferProvider } from './quoted-calls/EvmQuotedTransferProvider.js';
+export type { QuotedTransferProvider } from './quoted-calls/QuotedTransferProvider.js';
 export type {
   FeeQuotingClientOptions,
   QuoteParams as FeeQuotingQuoteParams,
