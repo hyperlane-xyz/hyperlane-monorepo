@@ -36,6 +36,7 @@ import type {
 import { parseSimulationAccountMetas } from './sealevelFee.js';
 import {
   SealevelHypCollateralAdapter,
+  type SealevelTransferBundle,
   TRANSFER_REMOTE_COMPUTE_LIMIT,
 } from './SealevelTokenAdapter.js';
 import {
@@ -513,17 +514,31 @@ export class SealevelHypCrossCollateralAdapter
     return keys;
   }
 
-  // For remote transfers, `recipient` is a destination-chain address (e.g., Ethereum hex).
-  // For local (same-chain) transfers, `recipient` must be a valid Solana pubkey
-  // that can receive the target token (used to derive the recipient's ATA).
-  async populateTransferRemoteToTx({
+  /**
+   * Sealevel-only — returns the building blocks of a `transfer_remote_to` tx
+   * (compute-budget ixs separated from the warp ix, ALTs, fee payer, signers)
+   * without compiling them into a `Transaction` / `VersionedTransaction`. The
+   * composing layer (typically the offchain-quoted-transfer provider)
+   * prepends `SubmitFeeQuote` / `SubmitIgpQuote` ixs between the compute-
+   * budget head and the transfer ix.
+   *
+   * `clientSalt` (optional) is the pre-scoped 32-byte salt for a same-tx
+   * offchain transient quote — threaded through to the fee + IGP cascade
+   * simulations so their PDA enumeration includes the transient quote PDA.
+   * Standing-only callers omit it.
+   */
+  async getTransferRemoteToIxBundle({
     amount,
     destination,
     recipient,
     fromAccountOwner,
     targetRouter,
     extraSigners,
-  }: TransferRemoteToParams): Promise<Transaction | VersionedTransaction> {
+    clientSalt,
+  }: TransferRemoteToParams & {
+    /** Sealevel-only — see method docs. */
+    clientSalt?: Uint8Array;
+  }): Promise<SealevelTransferBundle> {
     assert(fromAccountOwner, 'fromAccountOwner required for Sealevel');
 
     const sender = new PublicKey(fromAccountOwner);
@@ -543,12 +558,18 @@ export class SealevelHypCrossCollateralAdapter
           payer: sender,
           destination,
           targetRouter: targetRouterBytes,
+          scopedSalt: clientSalt,
         })
       : undefined;
 
+    let keys: Array<AccountMeta>;
+    // Local-domain CC transfers don't have a unique-message PDA, so
+    // randomWallet is omitted and we skip pre-signing.
+    let randomWallet: Keypair | undefined;
+
     if (destination === localDomain) {
       const targetProgram = new PublicKey(targetRouter);
-      const keys = await this.getTransferRemoteToLocalKeyList({
+      keys = await this.getTransferRemoteToLocalKeyList({
         sender,
         targetProgram,
         senderProgram: this.warpProgramPubKey,
@@ -556,17 +577,8 @@ export class SealevelHypCrossCollateralAdapter
         recipient: recipientBytes,
         feeSection,
       });
-
-      return this.createTransferRemoteToTx({
-        keys,
-        destination,
-        recipientBytes,
-        amount: BigInt(amount),
-        targetRouterBytes,
-        sender,
-      });
     } else {
-      const randomWallet = extraSigners?.length
+      randomWallet = extraSigners?.length
         ? extraSigners[0]
         : Keypair.generate();
       const mailbox = new PublicKey(this.addresses.mailbox);
@@ -580,9 +592,10 @@ export class SealevelHypCrossCollateralAdapter
               innerIgpAccount: igpState.innerIgpAccount,
               payer: sender,
               destination,
+              scopedSalt: clientSalt,
             })
           : undefined;
-      const keys = await this.getTransferRemoteToRemoteKeyList({
+      keys = await this.getTransferRemoteToRemoteKeyList({
         sender,
         mailbox,
         randomWallet: randomWallet.publicKey,
@@ -590,42 +603,14 @@ export class SealevelHypCrossCollateralAdapter
         feeSection,
         igpQuotedSection,
       });
-
-      return this.createTransferRemoteToTx({
-        keys,
-        destination,
-        recipientBytes,
-        amount: BigInt(amount),
-        targetRouterBytes,
-        sender,
-        randomWallet,
-      });
     }
-  }
 
-  private async createTransferRemoteToTx({
-    keys,
-    destination,
-    recipientBytes,
-    amount,
-    targetRouterBytes,
-    sender,
-    randomWallet,
-  }: {
-    keys: Array<AccountMeta>;
-    destination: number;
-    recipientBytes: Uint8Array;
-    amount: bigint;
-    targetRouterBytes: Uint8Array;
-    sender: PublicKey;
-    randomWallet?: Keypair;
-  }): Promise<Transaction | VersionedTransaction> {
     const value = new SealevelInstructionWrapper({
       instruction: SealevelCCInstructionKind.TransferRemoteTo,
       data: new SealevelCCTransferRemoteToInstruction({
         destination_domain: destination,
         recipient: recipientBytes,
-        amount_or_id: amount,
+        amount_or_id: BigInt(amount),
         target_router: targetRouterBytes,
       }),
     });
@@ -644,57 +629,64 @@ export class SealevelHypCrossCollateralAdapter
       microLamports: (await this.getMedianPriorityFee()) || 0,
     });
 
+    const addressLookupTableAccounts = this.addresses.altAddresses
+      ? await this.addressLookupTableAccounts.get()
+      : [];
+
+    return {
+      computeBudgetInstructions: [
+        setComputeLimitInstruction,
+        setPriorityFeeInstruction,
+      ],
+      transferInstructions: [transferInstruction],
+      addressLookupTableAccounts,
+      feePayer: sender,
+      signers: randomWallet ? [randomWallet] : [],
+    };
+  }
+
+  // For remote transfers, `recipient` is a destination-chain address (e.g., Ethereum hex).
+  // For local (same-chain) transfers, `recipient` must be a valid Solana pubkey
+  // that can receive the target token (used to derive the recipient's ATA).
+  async populateTransferRemoteToTx(
+    params: TransferRemoteToParams,
+  ): Promise<Transaction | VersionedTransaction> {
+    const bundle = await this.getTransferRemoteToIxBundle(params);
+    const allInstructions = [
+      ...bundle.computeBudgetInstructions,
+      ...bundle.transferInstructions,
+    ];
+
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    const instructions = [
-      setComputeLimitInstruction,
-      setPriorityFeeInstruction,
-      transferInstruction,
-    ];
-
-    let tx: Transaction | VersionedTransaction;
     if (this.addresses.altAddresses) {
       // ALT path: when the route registers ALT addresses, compile a v0
       // message so the on-chain account-key list stays under Solana's
       // 1232-byte tx limit (40+ accounts on new-flow fee + IGP routes).
-      const addressLookupTableAccounts =
-        await this.addressLookupTableAccounts.get();
       const message = MessageV0.compile({
-        payerKey: sender,
-        instructions,
+        payerKey: bundle.feePayer,
+        instructions: allInstructions,
         recentBlockhash,
-        addressLookupTableAccounts,
+        addressLookupTableAccounts: bundle.addressLookupTableAccounts,
       });
       const versionedTx = new VersionedTransaction(message);
-
-      // Only fills the randomWallet's slot; the user wallet's slot stays
-      // empty for the wallet-adapter chain to populate later. Local-domain
-      // CC transfers don't have a unique-message PDA, so randomWallet is
-      // undefined and we skip pre-signing.
-      if (randomWallet) {
-        versionedTx.sign([randomWallet]);
+      if (bundle.signers.length > 0) {
+        versionedTx.sign(bundle.signers);
       }
-
-      tx = versionedTx;
-    } else {
-      // Legacy path — unchanged for routes without ALT.
-      // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-      tx = new Transaction({
-        feePayer: sender,
-        blockhash: recentBlockhash,
-        recentBlockhash,
-      })
-        .add(setComputeLimitInstruction)
-        .add(setPriorityFeeInstruction)
-        .add(transferInstruction);
-
-      if (randomWallet) {
-        tx.partialSign(randomWallet);
-      }
+      return versionedTx;
     }
 
+    // Legacy path — unchanged for routes without ALT.
+    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+    const tx = new Transaction({
+      feePayer: bundle.feePayer,
+      blockhash: recentBlockhash,
+      recentBlockhash,
+    });
+    for (const ix of allInstructions) tx.add(ix);
+    for (const signer of bundle.signers) tx.partialSign(signer);
     return tx;
   }
 }
