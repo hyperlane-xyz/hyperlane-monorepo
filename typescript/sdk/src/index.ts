@@ -962,6 +962,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
+  normalizeSafeTxServiceUrl,
   safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
