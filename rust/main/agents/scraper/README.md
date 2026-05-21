@@ -51,54 +51,39 @@ Each swap is represented as:
 | `sender` | source CCR router address (origin mailbox) |
 | `recipient` | destination CCR router address (destination mailbox) |
 | `body` | TokenMessage: `recipient_bytes32 \|\| amount_received_uint256` (from `ReceivedTransferRemote`, post-fee, matches how cross-chain CCR Hyperlane messages encode the transfer amount) |
-| `nonce` | `keccak256(tx_id \|\| log_index)[0..4] % 2^31` — deterministic, fits PostgreSQL signed integer |
-| `msg_id` | `keccak256(version \|\| nonce \|\| origin \|\| sender \|\| destination \|\| recipient \|\| body)` |
+| `nonce` | `keccak256(tx_id \|\| log_index)[0..4] % 2^31` — collision-resistant, fits PostgreSQL's signed INT4 range |
+| `msg_id` | `0x00000000 \|\| keccak256("SameChainCCR" \|\| txHash32 \|\| logIndex8)[0..28]` — 4-byte zero prefix makes synthetic IDs immediately distinguishable from real message IDs |
 
 A matching `delivered_message` row pointing to the same transaction is inserted immediately, so the swap appears as an instantly-delivered transfer in the explorer.
 
 The explorer decodes the message body to show the origin token (from `sender` = source router) and destination token (from `recipient` = dest router) via the warp route registry. The received amount is computed from the sent amount using the destination token's scale factor, consistent with how cross-chain CCR swaps are displayed.
 
+### Recognizing synthetic messages
+
+Two properties uniquely identify a synthetic same-chain CCR swap message:
+
+1. **`msg_id` starts with 8 zero hex chars** — `msg_id LIKE '0x00000000%'`
+2. **`nonce = 2147483647`** (`i32::MAX`) in the database
+
+Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 8-byte prefix being all zeros is ~1 in 10^19). Real nonces are sequential from 0 and never approach `i32::MAX`.
+
 ### Recalculating the msg_id
 
-Any client can deterministically reconstruct the `msg_id` for a same-chain CCR swap given the transaction hash, log index, and swap parameters:
+Any client can deterministically reconstruct the `msg_id` given the transaction hash and log index of the `ReceivedTransferRemote` event:
 
 ```typescript
 import { ethers } from 'ethers';
 
-function computeCcrMsgId(
-  txHash: string,          // 32-byte tx hash (0x-prefixed)
-  logIndex: bigint,        // log index of the ReceivedTransferRemote event
-  domain: number,          // chain domain ID (same for origin and destination)
-  sourceRouter: string,    // source CCR router address (0x-prefixed, 20 bytes)
-  destRouter: string,      // destination CCR router address (0x-prefixed, 20 bytes)
-  recipient: string,       // final token recipient (0x-prefixed, 20 bytes)
-  amountReceived: bigint,  // amount from ReceivedTransferRemote (post-fee, destination token decimals)
+function computeSameChainCcrMsgId(
+  txHash: string,   // 32-byte tx hash (0x-prefixed)
+  logIndex: bigint, // log index of the ReceivedTransferRemote event
 ): string {
-  // 1. Derive nonce: keccak256(tx_id_64_bytes || log_index_8_bytes) % 2^31
-  const txId = ethers.zeroPadValue(txHash, 64);
   const logIndexBytes = ethers.toBeHex(logIndex, 8);
-  const nonceHash = ethers.keccak256(ethers.concat([txId, logIndexBytes]));
-  const nonce = Number(BigInt(nonceHash.slice(0, 10)) % 2_147_483_648n);
-
-  // 2. Build TokenMessage body: recipient_bytes32 || amount_uint256
-  const recipientBytes32 = ethers.zeroPadValue(recipient, 32);
-  const amountBytes32 = ethers.toBeHex(amountReceived, 32);
-  const body = ethers.concat([recipientBytes32, amountBytes32]);
-
-  // 3. Encode and hash the Hyperlane message (version=3, origin==destination)
-  const sourceBytes32 = ethers.zeroPadValue(sourceRouter, 32);
-  const destBytes32 = ethers.zeroPadValue(destRouter, 32);
-  const encoded = ethers.concat([
-    ethers.toBeHex(3, 1),        // version
-    ethers.toBeHex(nonce, 4),    // nonce
-    ethers.toBeHex(domain, 4),   // origin
-    sourceBytes32,               // sender
-    ethers.toBeHex(domain, 4),   // destination (same chain)
-    destBytes32,                 // recipient (dest router)
-    body,
-  ]);
-
-  return ethers.keccak256(encoded);
+  const hash = ethers.keccak256(
+    ethers.concat([ethers.toUtf8Bytes('SameChainCCR'), txHash, logIndexBytes]),
+  );
+  // 4 zero bytes || first 28 bytes of hash
+  return '0x' + '00'.repeat(4) + hash.slice(2, 58);
 }
 ```
 
