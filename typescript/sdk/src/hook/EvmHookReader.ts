@@ -242,27 +242,59 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.deriveHookConfig(hook),
-          ),
+          objMap(config.domains, async (_, hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            return this.preserveUnredeployable(hook, derived);
+          }),
         );
 
-        if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await this.deriveHookConfig(config.fallback);
+        if (config.type === HookType.FALLBACK_ROUTING) {
+          const derived = await this.deriveHookConfig(config.fallback);
+          config.fallback = this.preserveUnredeployable(
+            config.fallback,
+            derived,
+          );
+        }
         break;
+      case HookType.CCTP:
+        return config;
       case HookType.AGGREGATION:
         config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
+          config.hooks.map(async (hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            return this.preserveUnredeployable(hook, derived);
+          }),
         );
         break;
-      case HookType.AMOUNT_ROUTING:
-        [config.lowerHook, config.upperHook] = await Promise.all([
-          this.deriveHookConfig(config.lowerHook),
-          this.deriveHookConfig(config.upperHook),
+      case HookType.AMOUNT_ROUTING: {
+        const lowerOrig = config.lowerHook;
+        const upperOrig = config.upperHook;
+        const [lowerDerived, upperDerived] = await Promise.all([
+          this.deriveHookConfig(lowerOrig),
+          this.deriveHookConfig(upperOrig),
         ]);
+        config.lowerHook = this.preserveUnredeployable(lowerOrig, lowerDerived);
+        config.upperHook = this.preserveUnredeployable(upperOrig, upperDerived);
         break;
+      }
     }
     return config as DerivedHookConfig;
+  }
+
+  // Returns original HookConfig for non-redeployable types (CCTP, PREDICATE) so that
+  // normalizeConfig — which strips 'address' from all objects — does not discard
+  // the address. Returns the address as a bare string so it survives normalizeConfig
+  // and deploy() reaches the string branch intact, regardless of whether the original
+  // was already a string or an object with an address field.
+  private preserveUnredeployable(
+    original: HookConfig,
+    derived: DerivedHookConfig,
+  ): HookConfig {
+    if (derived.type !== HookType.CCTP && derived.type !== HookType.PREDICATE) {
+      return derived;
+    }
+    if (typeof original === 'string') return original;
+    return derived.address;
   }
 
   async deriveMailboxDefaultHookConfig(
@@ -381,10 +413,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.AGGREGATION);
 
-    const hookConfigs: DerivedHookConfig[] = await concurrentMap(
+    const hookConfigs = await concurrentMap(
       this.concurrency,
       hooks,
-      (hook) => this.deriveHookConfig(hook),
+      async (hookAddress) => {
+        const derived = await this.deriveHookConfigFromAddress(hookAddress);
+        return this.preserveUnredeployable(hookAddress, derived);
+      },
     );
 
     const config: WithAddress<AggregationHookConfig> = {
@@ -583,7 +618,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    const childHookConfig = await this.deriveHookConfig(childHookAddress);
+    const derivedChild =
+      await this.deriveHookConfigFromAddress(childHookAddress);
+    const childHookConfig = this.preserveUnredeployable(
+      childHookAddress,
+      derivedChild,
+    );
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
@@ -642,7 +682,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
 
-    const fallbackHookConfig = await this.deriveHookConfig(fallbackHookAddress);
+    const derivedFallback =
+      await this.deriveHookConfigFromAddress(fallbackHookAddress);
+    const fallbackHookConfig = this.preserveUnredeployable(
+      fallbackHookAddress,
+      derivedFallback,
+    );
 
     const config: WithAddress<FallbackRoutingHookConfig> = {
       owner,
@@ -669,7 +714,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         try {
           const domainHook = await hook.hooks(domainId);
           if (domainHook !== ethers.constants.AddressZero) {
-            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+            const derived = await this.deriveHookConfigFromAddress(domainHook);
+            domainHooks[chainName] = this.preserveUnredeployable(
+              domainHook,
+              derived,
+            );
           }
         } catch {
           this.logger.debug(
@@ -727,10 +776,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
 
     // Parallelize hook config derivation
-    const [lowerHookConfig, upperHookConfig] = await Promise.all([
-      this.deriveHookConfig(lowerHookAddress),
-      this.deriveHookConfig(upperHookAddress),
+    const [lowerDerived, upperDerived] = await Promise.all([
+      this.deriveHookConfigFromAddress(lowerHookAddress),
+      this.deriveHookConfigFromAddress(upperHookAddress),
     ]);
+    const lowerHookConfig = this.preserveUnredeployable(
+      lowerHookAddress,
+      lowerDerived,
+    );
+    const upperHookConfig = this.preserveUnredeployable(
+      upperHookAddress,
+      upperDerived,
+    );
 
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,
