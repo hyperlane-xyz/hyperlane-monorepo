@@ -78,6 +78,12 @@ export interface IsmReader {
   ): void;
 }
 
+// ISM types that cannot be deployed by HyperlaneIsmFactory — preserve as address strings.
+const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
+  IsmType.OFFCHAIN_LOOKUP,
+  IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+]);
+
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   protected isZkSyncChain: boolean;
@@ -219,15 +225,15 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return config as DerivedIsmConfig;
   }
 
-  // Returns the original IsmConfig for non-redeployable ISM types (e.g. OFFCHAIN_LOOKUP)
-  // so normalizeConfig and deploy() handle them correctly. The original is typically a
-  // string address that survives normalizeConfig intact and reaches deploy()'s string
-  // branch; an object config is also preserved as-is for deploy() to use directly.
+  // Returns the original IsmConfig for non-redeployable ISM types (e.g. OFFCHAIN_LOOKUP,
+  // INTERCHAIN_ACCOUNT_ROUTING) so normalizeConfig and deploy() handle them correctly.
+  // The original is typically a string address that survives normalizeConfig intact and
+  // reaches deploy()'s string branch; an object config is also preserved via derived.address.
   private preserveUnredeployableIsm(
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
-    if (derived.type !== IsmType.OFFCHAIN_LOOKUP) return derived;
+    if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;
     if (typeof original === 'string') return original;
     return derived.address;
   }

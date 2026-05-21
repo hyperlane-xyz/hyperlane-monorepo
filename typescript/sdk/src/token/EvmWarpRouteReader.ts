@@ -56,12 +56,7 @@ import {
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import {
-  AggregationHookConfig,
-  DerivedHookConfig,
-  HookType,
-  OnchainHookType,
-} from '../hook/types.js';
+import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
@@ -342,6 +337,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const predicateWrapper = await this.derivePredicateWrapperConfig(
       routerConfig.hook as DerivedHookConfig | string | undefined,
+      warpRouteAddress,
     );
 
     const derivedConfig = {
@@ -368,6 +364,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    */
   private async derivePredicateWrapperConfig(
     hook: DerivedHookConfig | string | undefined,
+    warpRouteAddress: Address,
   ): Promise<PredicateWrapperConfig | undefined> {
     let predicateAddress = this.findPredicateAddressInHook(hook);
 
@@ -376,16 +373,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       typeof hook !== 'string' &&
       hook?.type === HookType.AGGREGATION
     ) {
-      for (const sub of (hook as AggregationHookConfig).hooks) {
+      for (const sub of hook.hooks) {
         if (typeof sub !== 'string') continue;
         try {
           const candidate = PredicateRouterWrapper__factory.connect(
             sub,
             this.provider,
           );
+          const [hookType, warpRoute] = await Promise.all([
+            candidate.hookType(),
+            candidate.warpRoute(),
+          ]);
           if (
-            (await candidate.hookType()) ===
-            OnchainHookType.PREDICATE_ROUTER_WRAPPER
+            hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER &&
+            eqAddress(warpRoute, warpRouteAddress)
           ) {
             predicateAddress = sub;
             break;
@@ -416,7 +417,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     if (!hook || typeof hook === 'string') return undefined;
     if (hook.type === HookType.PREDICATE) return hook.address;
     if (hook.type === HookType.AGGREGATION) {
-      for (const sub of (hook as AggregationHookConfig).hooks) {
+      for (const sub of hook.hooks) {
         const found = this.findPredicateAddressInHook(
           sub as DerivedHookConfig | string,
         );
