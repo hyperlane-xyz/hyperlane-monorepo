@@ -168,6 +168,20 @@ export interface QuoteV2Response {
   quote: AnyQuoteV2Entry;
 }
 
+/**
+ * Path segments under the v2 quote API. Shared between client + server so
+ * that route names stay in lockstep.
+ */
+export const QuoteV2Endpoint = {
+  Warp: 'warp',
+  Igp: 'igp',
+} as const;
+export type QuoteV2Endpoint =
+  (typeof QuoteV2Endpoint)[keyof typeof QuoteV2Endpoint];
+
+/** URL prefix every v2 quote endpoint lives under. */
+export const QUOTE_V2_BASE_PATH = '/v2/quote';
+
 /** Reasons the server may refuse to produce a quote (404 response). */
 export const NoQuoteAvailableReason = {
   NotAuthorized: 'not_authorized',
