@@ -1,0 +1,5 @@
+---
+"@hyperlane-xyz/sdk": minor
+---
+
+Web3.js-based instruction builders for the on-chain `SubmitQuote` (warp fee program) and `SubmitIgpQuote` (IGP program) handlers were added to `sealevelFee.ts`, mirroring `@hyperlane-xyz/sealevel-sdk`'s `@solana/kit` versions. `buildSubmitFeeQuoteIx` simulates `GetSubmitQuoteAccountMetas` to discover the variable cascade-PDA account list and substitutes the placeholder at slot 1 with the real payer; `buildSubmitIgpQuoteIx` composes the IGP's fixed 4-account layout (`[system, payer, igp, quotePda]`) and accepts a caller-derived quote PDA. The supporting Borsh schemas (`SealevelSvmSignedQuote`, `SealevelSubmitQuoteSchema`, `SealevelGetSubmitQuoteAccountMetasSchema`), an extended `simulateSubmitFeeQuoteAccountMetas` helper, and the `deriveIgpTransientQuotePda` PDA deriver ship alongside. The IGP path is forward-looking — the on-chain SVM IGP handler doesn't accept `SubmitIgpQuote` yet, but the SDK is now ready for the upgrade with no further release required at that point.
