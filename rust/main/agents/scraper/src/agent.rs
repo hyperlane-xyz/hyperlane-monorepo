@@ -5,7 +5,7 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneWatermarkedLogStore, InterchainGasPayment, SameChainCcrSwap, H512,
+    HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
 };
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
@@ -469,27 +469,19 @@ impl Scraper {
         assert!(chunk_size > 0, "index.chunk must be > 0 (got 0)");
         let default_from = index_settings.from.max(0) as u32;
 
+        // Create a dedicated BlockCursor for CCR swaps keyed by (domain, "ccr_swap").
+        // This is independent of the message/delivery/gas cursor so the two indexers
+        // don't race to read and overwrite each other's watermark.
+        let ccr_cursor = Arc::new(
+            store
+                .db
+                .block_cursor(local_domain, "ccr_swap", default_from.into())
+                .await?,
+        );
+
         Ok(Some(tokio::spawn(
             async move {
-                // NOTE: HyperlaneDbStore uses a single BlockCursor per domain (not
-                // per event type), so this watermark is shared with the message, delivery,
-                // and gas-payment indexers. If those indexers are ahead of where CCR
-                // routers were deployed, the CCR indexer will start from their cursor
-                // position and miss historical swaps. A schema migration adding an
-                // event-type column to the cursor table is needed to fix this properly.
-                let mut from_block = loop {
-                    match HyperlaneWatermarkedLogStore::<SameChainCcrSwap>::retrieve_high_watermark(
-                        &store,
-                    )
-                    .await
-                    {
-                        Ok(watermark) => break watermark.unwrap_or(default_from),
-                        Err(err) => {
-                            warn!(?err, "Failed to retrieve CCR swap watermark; retrying");
-                            sleep(RPC_RETRY_SLEEP_DURATION).await;
-                        }
-                    }
-                };
+                let mut from_block = ccr_cursor.height().await as u32;
 
                 loop {
                     let tip = match indexer.get_finalized_block_number().await {
@@ -530,20 +522,7 @@ impl Scraper {
                         }
                     }
 
-                    if let Err(err) =
-                        HyperlaneWatermarkedLogStore::<SameChainCcrSwap>::store_high_watermark(
-                            &store, to_block,
-                        )
-                        .await
-                    {
-                        warn!(
-                            ?err,
-                            to_block, "Failed to update CCR swap watermark; retrying range"
-                        );
-                        sleep(RPC_RETRY_SLEEP_DURATION).await;
-                        continue;
-                    }
-
+                    ccr_cursor.update(to_block.into()).await;
                     from_block = to_block.saturating_add(1);
                 }
             }

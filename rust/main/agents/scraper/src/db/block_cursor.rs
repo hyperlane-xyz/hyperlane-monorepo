@@ -27,11 +27,14 @@ pub struct BlockCursor {
     db: DbConn,
     /// The hyperlane domain this block cursor is for.
     domain: u32,
+    /// Discriminates different indexer types sharing the same domain (e.g. "" for
+    /// messages, "ccr_swap" for same-chain CCR swaps) so each has an independent watermark.
+    event_type: String,
     inner: RwLock<BlockCursorInner>,
 }
 
 impl BlockCursor {
-    async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
+    async fn new(db: DbConn, domain: u32, event_type: &str, default_height: u64) -> Result<Self> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Height,
@@ -39,6 +42,7 @@ impl BlockCursor {
 
         let height = (cursor::Entity::find())
             .filter(cursor::Column::Domain.eq(domain))
+            .filter(cursor::Column::EventType.eq(event_type))
             .order_by(cursor::Column::Height, Order::Desc)
             .select_only()
             .column_as(cursor::Column::Height, QueryAs::Height)
@@ -59,6 +63,7 @@ impl BlockCursor {
         Ok(Self {
             db,
             domain,
+            event_type: event_type.to_owned(),
             inner: RwLock::new(BlockCursorInner {
                 height,
                 last_saved_at: Instant::now(),
@@ -88,6 +93,7 @@ impl BlockCursor {
                 domain: ActiveValue::Set(self.domain as i32),
                 time_created: ActiveValue::NotSet,
                 height: ActiveValue::Set(height as i64),
+                event_type: ActiveValue::Set(self.event_type.clone()),
             };
             debug!(?model, "Inserting cursor");
             if let Err(e) = Insert::one(model).exec(&self.db).await {
@@ -100,7 +106,12 @@ impl BlockCursor {
 }
 
 impl ScraperDb {
-    pub async fn block_cursor(&self, domain: u32, default_height: u64) -> Result<BlockCursor> {
-        BlockCursor::new(self.clone_connection(), domain, default_height).await
+    pub async fn block_cursor(
+        &self,
+        domain: u32,
+        event_type: &str,
+        default_height: u64,
+    ) -> Result<BlockCursor> {
+        BlockCursor::new(self.clone_connection(), domain, event_type, default_height).await
     }
 }
