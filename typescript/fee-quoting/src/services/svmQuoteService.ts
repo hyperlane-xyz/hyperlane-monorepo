@@ -30,6 +30,7 @@ import {
   type SvmFeeQuoteContextInput,
   type SvmSignedQuote,
   WILDCARD_AMOUNT,
+  WILDCARD_RECIPIENT,
   encodeFeeDataStrategy,
   encodeSvmFeeQuoteContext,
   encodeSvmIgpQuoteContext,
@@ -201,10 +202,26 @@ export class SvmQuoteService implements IProtocolQuoteService {
       );
     }
 
+    // Standing quotes are stored at a PDA keyed by `(fee_account, dest, target_router)`
+    // and consumed by any submitter — recipient isn't part of the seed. Signing
+    // the user-specified recipient would partition the standing PDA per
+    // recipient, defeating reuse. Substitute `WILDCARD_RECIPIENT` server-side
+    // so any caller (regardless of their actual recipient) can consume the
+    // standing PDA; the on-chain consume falls back to the wildcard lookup
+    // when the user's recipient doesn't match (see fee program
+    // `processor/quote.rs` recipient-wildcard branch).
+    //
+    // Transient quotes ARE one-shot and recipient-keyed by design — keep the
+    // user's recipient there.
+    const recipientForSigning =
+      req.binding.kind === QuoteMode.STANDING
+        ? WILDCARD_RECIPIENT
+        : hexToBytes(req.recipient);
+
     const resolved = resolveSvmWarpQuote(
       route.fee.config,
       req.destination,
-      hexToBytes(req.recipient),
+      recipientForSigning,
       hexToBytes(req.targetRouter),
       route.fee.feeAccountPda,
       req.binding,
