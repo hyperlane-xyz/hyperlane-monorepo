@@ -3,6 +3,7 @@ import {
   Connection,
   Message,
   PublicKey,
+  SystemProgram,
   TransactionInstruction,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -462,4 +463,288 @@ export async function simulateIgpQuote(
     'Decoded QuoteGasPayment response is not SealevelIgpQuoteGasPaymentResponse',
   );
   return data.payment_quote;
+}
+
+// ============================================================================
+// SubmitQuote: Borsh schemas
+// ============================================================================
+//
+// Wire form of `SvmSignedQuote` (Rust `quote-verifier::SvmSignedQuote`):
+//   context:    Vec<u8>  (u32 LE len + bytes)  — 44B non-CC, 76B CC
+//   data:       Vec<u8>  (u32 LE len + bytes)  — Borsh-encoded FeeDataStrategy
+//   issuedAt:   [u8; 6]                        — u48 BE unix seconds
+//   expiry:     [u8; 6]                        — u48 BE unix seconds
+//   clientSalt: [u8; 32]
+//   signature:  [u8; 65]
+//
+// Submitted on-chain as `SubmitQuote(SvmSignedQuote)` (fee program, disc 10)
+// or `SubmitIgpQuote(SvmSignedQuote)` (IGP program, disc 14). The borsh
+// schema is the same data class — only the wrapper's `instruction` value
+// differs at runtime.
+
+/**
+ * Wire form of `SvmSignedQuote`. Mirrors svm-sdk's `SvmSignedQuote` codec
+ * (`@solana/kit` based) but built on the borsh-style schemas the SDK already
+ * uses for SVM ix encoding.
+ */
+export class SealevelSvmSignedQuote {
+  context!: Uint8Array;
+  data!: Uint8Array;
+  issued_at!: Uint8Array; // 6
+  expiry!: Uint8Array; // 6
+  client_salt!: Uint8Array; // 32
+  signature!: Uint8Array; // 65
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+/**
+ * Schema for either `SubmitQuote` (fee) or `SubmitIgpQuote` (IGP). Caller
+ * sets the wrapper's `instruction` discriminator at construction.
+ */
+export const SealevelSubmitQuoteSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelSvmSignedQuote],
+      ],
+    },
+  ],
+  [
+    SealevelSvmSignedQuote,
+    {
+      kind: 'struct',
+      fields: [
+        ['context', ['u8']],
+        ['data', ['u8']],
+        ['issued_at', [6]],
+        ['expiry', [6]],
+        ['client_salt', [32]],
+        ['signature', [65]],
+      ],
+    },
+  ],
+]);
+
+/**
+ * `GetSubmitQuoteAccountMetas` data — simulation-only request returning the
+ * variable account list the fee program needs to consume a quote. Mirrors
+ * the on-chain instruction by the same name (fee program, disc 14).
+ */
+export class SealevelGetSubmitQuoteAccountMetasInstruction {
+  destination_domain!: number;
+  target_router!: Uint8Array; // 32
+  scoped_salt!: Uint8Array | null; // 32 if Some; null ⇒ standing-only request
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelGetSubmitQuoteAccountMetasSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelGetSubmitQuoteAccountMetasInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelGetSubmitQuoteAccountMetasInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['destination_domain', 'u32'],
+        ['target_router', [32]],
+        ['scoped_salt', { kind: 'option', type: [32] }],
+      ],
+    },
+  ],
+]);
+
+// ============================================================================
+// IGP transient quote PDA
+// ============================================================================
+
+const TRANSIENT_QUOTE_SEG = Buffer.from('transient_quote');
+
+/**
+ * Derive an IGP transient-quote PDA. Seeds:
+ * ["hyperlane_igp", "-", "transient_quote", "-", igp_account, "-", scoped_salt].
+ *
+ * Mirrors svm-sdk's `deriveIgpTransientQuotePda` — the on-chain PDA the IGP
+ * `SubmitIgpQuote` handler initializes for a transient (one-shot) quote.
+ */
+export function deriveIgpTransientQuotePda(
+  programId: PublicKey,
+  igpAccount: PublicKey,
+  scopedSalt: Uint8Array,
+): PublicKey {
+  assert(
+    scopedSalt.length === 32,
+    `scopedSalt must be 32 bytes, got ${scopedSalt.length}`,
+  );
+  return BaseSealevelAdapter.derivePda(
+    [
+      IGP_PROGRAM_SEED,
+      SEP,
+      TRANSIENT_QUOTE_SEG,
+      SEP,
+      igpAccount.toBuffer(),
+      SEP,
+      Buffer.from(scopedSalt),
+    ],
+    programId,
+  );
+}
+
+// ============================================================================
+// SubmitFeeQuote (warp fee program)
+// ============================================================================
+
+/**
+ * Account-meta layout returned from `GetSubmitQuoteAccountMetas`:
+ *   [0] system program (readonly)
+ *   [1] payer placeholder (Pubkey::default — substituted before submit)
+ *   [2] fee account (readonly)
+ *   [3..N] route PDAs (readonly cascade)
+ *   [N+1] transient or standing quote PDA (writable)
+ *
+ * `simulateSubmitFeeQuoteAccountMetas` runs the simulation, asserts the
+ * placeholder is at slot 1 (drift in the on-chain layout fails loudly here
+ * rather than at submit), and substitutes the real payer (writable signer).
+ */
+export async function simulateSubmitFeeQuoteAccountMetas(
+  connection: Connection,
+  feeProgram: PublicKey,
+  feeAccount: PublicKey,
+  payer: PublicKey,
+  params: {
+    destinationDomain: number;
+    targetRouter: Uint8Array;
+    scopedSalt?: Uint8Array;
+  },
+): Promise<AccountMeta[]> {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelFeeInstruction.GetSubmitQuoteAccountMetas,
+    data: new SealevelGetSubmitQuoteAccountMetasInstruction({
+      destination_domain: params.destinationDomain,
+      target_router: params.targetRouter,
+      scoped_salt: params.scopedSalt ?? null,
+    }),
+  });
+  const ix = new TransactionInstruction({
+    keys: [{ pubkey: feeAccount, isSigner: false, isWritable: false }],
+    programId: feeProgram,
+    data: Buffer.from(
+      serialize(SealevelGetSubmitQuoteAccountMetasSchema, wrapped),
+    ),
+  });
+  const returnData = await simulateAndReadReturnData(
+    connection,
+    ix,
+    payer,
+    'GetSubmitQuoteAccountMetas',
+  );
+  const metas = parseSimulationAccountMetas(returnData);
+
+  assert(
+    metas[1]?.pubkey.equals(PublicKey.default),
+    `simulateSubmitFeeQuoteAccountMetas: expected payer placeholder (${PublicKey.default.toBase58()}) at slot 1, got ${metas[1]?.pubkey.toBase58()} — on-chain contract may have changed`,
+  );
+  return metas.map((m, i) =>
+    i === 1 ? { pubkey: payer, isSigner: true, isWritable: true } : m,
+  );
+}
+
+/**
+ * Build a `SubmitQuote` instruction for the warp fee program. Account list
+ * is discovered via `simulateSubmitFeeQuoteAccountMetas` and includes the
+ * resolved cascade PDA(s) the on-chain handler will read/write.
+ */
+export async function buildSubmitFeeQuoteIx(args: {
+  connection: Connection;
+  feeProgramId: PublicKey;
+  feeAccount: PublicKey;
+  payer: PublicKey;
+  signedQuote: SealevelSvmSignedQuote;
+  /** Required for transient mode (when `signedQuote.expiry === signedQuote.issued_at`). */
+  scopedSalt?: Uint8Array;
+  /** Hyperlane destination domain ID. */
+  destinationDomain: number;
+  /** 32-byte remote warp router (H256). */
+  targetRouter: Uint8Array;
+}): Promise<TransactionInstruction> {
+  const accounts = await simulateSubmitFeeQuoteAccountMetas(
+    args.connection,
+    args.feeProgramId,
+    args.feeAccount,
+    args.payer,
+    {
+      destinationDomain: args.destinationDomain,
+      targetRouter: args.targetRouter,
+      scopedSalt: args.scopedSalt,
+    },
+  );
+
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelFeeInstruction.SubmitQuote,
+    data: args.signedQuote,
+  });
+  return new TransactionInstruction({
+    keys: accounts,
+    programId: args.feeProgramId,
+    data: Buffer.from(serialize(SealevelSubmitQuoteSchema, wrapped)),
+  });
+}
+
+// ============================================================================
+// SubmitIgpQuote (IGP program)
+// ============================================================================
+
+/**
+ * Build a `SubmitIgpQuote` instruction for the IGP program. Unlike the fee
+ * variant, the IGP submit has a fixed 4-account layout and the caller is
+ * responsible for deriving the destination quote PDA (transient or standing).
+ *
+ * Wire layout:
+ *   [0] system program (readonly)
+ *   [1] payer (writable signer)
+ *   [2] igp account (readonly)
+ *   [3] quote PDA (writable)
+ */
+export function buildSubmitIgpQuoteIx(args: {
+  igpProgramId: PublicKey;
+  igpAccount: PublicKey;
+  payer: PublicKey;
+  /**
+   * Pre-derived destination PDA:
+   *  - Transient: `deriveIgpTransientQuotePda(programId, igpAccount, scopedSalt)`
+   *  - Standing:  `deriveIgpStandingQuotePda(programId, igpAccount, feeTokenMint, destDomain, sender)`
+   */
+  quotePda: PublicKey;
+  signedQuote: SealevelSvmSignedQuote;
+}): TransactionInstruction {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelIgpInstruction.SubmitIgpQuote,
+    data: args.signedQuote,
+  });
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: args.payer, isSigner: true, isWritable: true },
+      { pubkey: args.igpAccount, isSigner: false, isWritable: false },
+      { pubkey: args.quotePda, isSigner: false, isWritable: true },
+    ],
+    programId: args.igpProgramId,
+    data: Buffer.from(serialize(SealevelSubmitQuoteSchema, wrapped)),
+  });
 }
