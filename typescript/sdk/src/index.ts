@@ -22,6 +22,12 @@ export type {
 } from './quoted-calls/client.js';
 export { EvmQuotedTransferProvider } from './quoted-calls/EvmQuotedTransferProvider.js';
 export type { QuotedTransferProvider } from './quoted-calls/QuotedTransferProvider.js';
+export { SealevelQuotedTransferProvider } from './quoted-calls/SealevelQuotedTransferProvider.js';
+export type {
+  SealevelQuoteMode,
+  SealevelQuotedTransferProviderOpts,
+} from './quoted-calls/SealevelQuotedTransferProvider.js';
+export { composeSealevelTx } from './quoted-calls/composeSealevelTx.js';
 export { decodeSealevelQuoteEntry } from './quoted-calls/svmDecoder.js';
 export type {
   DecodedSealevelQuoteEntry,
