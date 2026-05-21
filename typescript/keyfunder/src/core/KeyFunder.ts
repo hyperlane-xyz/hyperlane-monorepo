@@ -1,11 +1,13 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
   KeyFunderConfig,
+  OpStackBridgeConfig,
   ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
@@ -15,11 +17,31 @@ const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
 
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
 
+const OP_STACK_STANDARD_BRIDGE_ABI = [
+  'function bridgeETHTo(address _to, uint32 _minGasLimit, bytes _extraData) payable',
+] as const;
+
+export interface OpStackStandardBridge {
+  bridgeETHTo(
+    to: string,
+    minGasLimit: number,
+    extraData: string,
+    overrides: { value: BigNumber },
+  ): Promise<{
+    hash: string;
+    wait: () => Promise<{ transactionHash?: string }>;
+  }>;
+}
+
 export interface KeyFunderOptions {
   logger: Logger;
   metrics?: KeyFunderMetrics;
   skipIgpClaim?: boolean;
   igp?: HyperlaneIgp;
+  opStackStandardBridgeFactory?: (
+    address: string,
+    signer: ethers.Signer,
+  ) => OpStackStandardBridge;
 }
 
 export class KeyFunder {
@@ -90,6 +112,8 @@ export class KeyFunder {
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
     }
+
+    await this.bridgeIfRequired(chain, chainConfig);
 
     try {
       await this.recordFunderBalance(chain);
@@ -199,6 +223,105 @@ export class KeyFunder {
       );
       logger.info('IGP claim completed');
     }
+  }
+
+  private async bridgeIfRequired(
+    chain: string,
+    chainConfig: ChainConfig,
+  ): Promise<void> {
+    if (!chainConfig.bridge) {
+      return;
+    }
+
+    await this.bridgeToOpStack(chain, chainConfig.bridge);
+  }
+
+  private async bridgeToOpStack(
+    childChain: string,
+    bridgeConfig: OpStackBridgeConfig,
+  ): Promise<void> {
+    const logger = this.options.logger.child({
+      chain: childChain,
+      parentChain: bridgeConfig.parentChain,
+      operation: 'op-stack-bridge',
+    });
+    const childFunderAddress =
+      await this.multiProvider.getSignerAddress(childChain);
+    const childBalance = await this.multiProvider
+      .getSigner(childChain)
+      .getBalance();
+    const threshold = ethers.utils.parseEther(bridgeConfig.threshold);
+
+    logger.info(
+      {
+        childFunderAddress,
+        childBalance: ethers.utils.formatEther(childBalance),
+        threshold: ethers.utils.formatEther(threshold),
+      },
+      'Checking OP Stack bridge conditions',
+    );
+
+    if (childBalance.gte(threshold)) {
+      logger.debug('Child funder balance above bridge threshold, skipping');
+      return;
+    }
+
+    const targetBalance = ethers.utils.parseEther(bridgeConfig.targetBalance);
+    const bridgeAmount = targetBalance.sub(childBalance);
+    const parentSigner = this.multiProvider.getSigner(bridgeConfig.parentChain);
+    const parentFunderAddress = await parentSigner.getAddress();
+    const parentBalance = await parentSigner.getBalance();
+
+    if (parentBalance.lt(bridgeAmount)) {
+      logger.error(
+        {
+          parentFunderAddress,
+          parentBalance: ethers.utils.formatEther(parentBalance),
+          requiredAmount: ethers.utils.formatEther(bridgeAmount),
+        },
+        'Parent funder balance insufficient to bridge',
+      );
+    }
+    assert(
+      parentBalance.gte(bridgeAmount),
+      `Insufficient parent funder balance on ${bridgeConfig.parentChain}: has ${ethers.utils.formatEther(parentBalance)}, needs ${ethers.utils.formatEther(bridgeAmount)}`,
+    );
+
+    logger.info(
+      {
+        childFunderAddress,
+        parentFunderAddress,
+        bridgeAmount: ethers.utils.formatEther(bridgeAmount),
+        standardBridge: bridgeConfig.standardBridge,
+      },
+      'Bridging funds to OP Stack child chain',
+    );
+
+    const bridge =
+      this.options.opStackStandardBridgeFactory?.(
+        bridgeConfig.standardBridge,
+        parentSigner,
+      ) ??
+      createOpStackStandardBridge(bridgeConfig.standardBridge, parentSigner);
+    const tx = await bridge.bridgeETHTo(
+      childFunderAddress,
+      bridgeConfig.minGasLimit,
+      bridgeConfig.extraData,
+      { value: bridgeAmount },
+    );
+    const receipt = await tx.wait();
+    const txHash = receipt.transactionHash ?? tx.hash;
+
+    logger.info(
+      {
+        txHash,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(
+          bridgeConfig.parentChain,
+          { hash: txHash },
+        ),
+      },
+      'OP Stack bridge transaction completed',
+    );
   }
 
   private async fundKeys(
@@ -415,5 +538,19 @@ function createTimeoutPromise(
     cleanup: () => {
       clearTimeout(timeoutId);
     },
+  };
+}
+
+function createOpStackStandardBridge(
+  address: string,
+  signer: ethers.Signer,
+): OpStackStandardBridge {
+  const contract = new Contract(address, OP_STACK_STANDARD_BRIDGE_ABI, signer);
+  return {
+    bridgeETHTo: async (to, minGasLimit, extraData, overrides) =>
+      contract.bridgeETHTo(to, minGasLimit, extraData, overrides) as Promise<{
+        hash: string;
+        wait: () => Promise<{ transactionHash?: string }>;
+      }>,
   };
 }

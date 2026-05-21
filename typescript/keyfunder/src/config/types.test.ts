@@ -5,6 +5,7 @@ import { calculateMultipliedBalance } from '../core/KeyFunder.js';
 
 import {
   ChainConfigSchema,
+  BridgeType,
   KeyFunderConfigSchema,
   RoleConfigSchema,
   SweepConfigSchema,
@@ -213,6 +214,55 @@ describe('KeyFunderConfig Schemas', () => {
       };
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
+    });
+
+    it('should validate OP Stack bridge config with defaults', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.OpStack,
+          parentChain: 'ethereum',
+          standardBridge: '0x4200000000000000000000000000000000000010',
+          threshold: '0.1',
+          targetBalance: '0.5',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.bridge?.type).to.equal(BridgeType.OpStack);
+        expect(result.data.bridge?.minGasLimit).to.equal(200_000);
+        expect(result.data.bridge?.extraData).to.equal('0x');
+      }
+    });
+
+    it('should reject OP Stack bridge zero address', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.OpStack,
+          parentChain: 'ethereum',
+          standardBridge: '0x0000000000000000000000000000000000000000',
+          threshold: '0.1',
+          targetBalance: '0.5',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject OP Stack bridge target at or below threshold', () => {
+      for (const targetBalance of ['1', '0.9']) {
+        const config = {
+          bridge: {
+            type: BridgeType.OpStack,
+            parentChain: 'ethereum',
+            standardBridge: '0x4200000000000000000000000000000000000010',
+            threshold: '1',
+            targetBalance,
+          },
+        };
+        const result = ChainConfigSchema.safeParse(config);
+        expect(result.success).to.be.false;
+      }
     });
   });
 

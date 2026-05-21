@@ -7,6 +7,12 @@ const AddressSchema = z
     'Must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
   );
 
+const NonZeroAddressSchema = AddressSchema.refine(
+  (address) =>
+    address.toLowerCase() !== '0x0000000000000000000000000000000000000000',
+  'Must not be the zero address',
+);
+
 // Requires leading digit (e.g., "0.5" not ".5") for YAML readability
 const BalanceStringSchema = z
   .string()
@@ -67,10 +73,59 @@ export const SweepConfigSchema = z
     },
   );
 
+export const BridgeType = {
+  OpStack: 'opstack',
+} as const;
+
+function compareBalanceStrings(left: string, right: string): number {
+  const [leftWholeRaw, leftFractionRaw = ''] = left.split('.');
+  const [rightWholeRaw, rightFractionRaw = ''] = right.split('.');
+
+  const leftWhole = leftWholeRaw.replace(/^0+/, '') || '0';
+  const rightWhole = rightWholeRaw.replace(/^0+/, '') || '0';
+
+  if (leftWhole.length !== rightWhole.length) {
+    return leftWhole.length > rightWhole.length ? 1 : -1;
+  }
+
+  const wholeComparison = leftWhole.localeCompare(rightWhole);
+  if (wholeComparison !== 0) {
+    return wholeComparison;
+  }
+
+  const leftFraction = leftFractionRaw.padEnd(18, '0');
+  const rightFraction = rightFractionRaw.padEnd(18, '0');
+  return leftFraction.localeCompare(rightFraction);
+}
+
+export const OpStackBridgeConfigSchema = z
+  .object({
+    type: z.literal(BridgeType.OpStack),
+    parentChain: z.string().min(1),
+    standardBridge: NonZeroAddressSchema,
+    threshold: BalanceStringSchema,
+    targetBalance: BalanceStringSchema,
+    minGasLimit: z.number().int().positive().default(200_000),
+    extraData: z
+      .string()
+      .regex(/^0x(?:[a-fA-F0-9]{2})*$/, 'Must be hex bytes')
+      .default('0x'),
+  })
+  .refine(
+    (data) => compareBalanceStrings(data.targetBalance, data.threshold) > 0,
+    {
+      message: 'Bridge targetBalance must be greater than threshold',
+      path: ['targetBalance'],
+    },
+  );
+
+export const BridgeConfigSchema = OpStackBridgeConfigSchema;
+
 export const ChainConfigSchema = z.object({
   balances: z.record(z.string(), BalanceStringSchema).optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),
+  bridge: BridgeConfigSchema.optional(),
 });
 
 export const MetricsConfigSchema = z.object({
@@ -108,6 +163,8 @@ export const KeyFunderConfigSchema = z
 export type RoleConfig = z.infer<typeof RoleConfigSchema>;
 export type IgpConfig = z.infer<typeof IgpConfigSchema>;
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
+export type OpStackBridgeConfig = z.infer<typeof OpStackBridgeConfigSchema>;
+export type BridgeConfig = z.infer<typeof BridgeConfigSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
 export type KeyFunderConfig = z.infer<typeof KeyFunderConfigSchema>;

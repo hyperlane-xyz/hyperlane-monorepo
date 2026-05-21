@@ -4,6 +4,9 @@ export {
   RoleConfigSchema,
   IgpConfigSchema,
   SweepConfigSchema,
+  BridgeType,
+  BridgeConfigSchema,
+  OpStackBridgeConfigSchema,
   ChainConfigSchema,
   MetricsConfigSchema,
 } from './config/types.js';
@@ -13,6 +16,8 @@ export type {
   RoleConfig,
   IgpConfig,
   SweepConfig,
+  BridgeConfig,
+  OpStackBridgeConfig,
   ChainConfig,
   MetricsConfig,
   ResolvedKeyConfig,
@@ -21,6 +26,7 @@ export type {
 export {
   KeyFunder,
   calculateMultipliedBalance,
+  type OpStackStandardBridge,
   type KeyFunderOptions,
 } from './core/KeyFunder.js';
 export { KeyFunderMetrics } from './metrics/Metrics.js';
