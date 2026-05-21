@@ -11,9 +11,22 @@ export {
   type QuotedCallsTransaction,
   type QuotedTransferParams,
 } from './quoted-calls/builder.js';
-export { FeeQuotingClient } from './quoted-calls/client.js';
+export {
+  FeeQuotingClient,
+  FeeQuotingNoQuoteAvailableError,
+  FeeQuotingV2Client,
+} from './quoted-calls/client.js';
+export type {
+  FeeQuotingV2IgpParams,
+  FeeQuotingV2WarpParams,
+} from './quoted-calls/client.js';
 export { EvmQuotedTransferProvider } from './quoted-calls/EvmQuotedTransferProvider.js';
 export type { QuotedTransferProvider } from './quoted-calls/QuotedTransferProvider.js';
+export { decodeSealevelQuoteEntry } from './quoted-calls/svmDecoder.js';
+export type {
+  DecodedSealevelQuoteEntry,
+  DecodedSvmSignedQuote,
+} from './quoted-calls/svmDecoder.js';
 export type {
   FeeQuotingClientOptions,
   QuoteParams as FeeQuotingQuoteParams,
@@ -48,6 +61,8 @@ export {
   type Permit2Data,
   type QuotedCallsParams,
   QuotedCallsCommand,
+  QUOTE_V2_BASE_PATH,
+  QuoteV2Endpoint,
   type QuoteV2Entry,
   type QuoteV2Response,
   type SealevelQuoteDetails,
