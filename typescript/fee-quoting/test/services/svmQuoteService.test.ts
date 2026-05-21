@@ -300,6 +300,44 @@ describe('SvmQuoteService', () => {
     }
   });
 
+  describe('getWarpQuote — recipient substitution', () => {
+    // 44B Leaf context layout: 4B dest_domain LE | 32B recipient | 8B amount LE.
+    // Recipient occupies hex offset (0x + 8) .. (0x + 8 + 64).
+    const HEX_PREFIX_LEN = 2;
+    const HEX_DOMAIN_LEN = 4 * 2;
+    const RECIPIENT_HEX_START = HEX_PREFIX_LEN + HEX_DOMAIN_LEN;
+    const RECIPIENT_HEX_END = RECIPIENT_HEX_START + 32 * 2;
+    const WILDCARD_RECIPIENT_HEX = '0x' + 'ff'.repeat(32);
+
+    it('standing mode substitutes recipient with WILDCARD_RECIPIENT', async () => {
+      const svc = createTestService();
+      const entry = await svc.getWarpQuote({
+        ...baseWarpReq,
+        binding: STANDING_BINDING,
+      });
+      const ctx = entry.details.signedQuote.context;
+      const signedRecipient =
+        '0x' + ctx.slice(RECIPIENT_HEX_START, RECIPIENT_HEX_END);
+      expect(signedRecipient.toLowerCase()).to.equal(WILDCARD_RECIPIENT_HEX);
+      // Sanity: original user recipient was NOT what got signed.
+      expect(signedRecipient.toLowerCase()).to.not.equal(
+        RECIPIENT.toLowerCase(),
+      );
+    });
+
+    it('transient mode preserves the user-supplied recipient', async () => {
+      const svc = createTestService();
+      const entry = await svc.getWarpQuote({
+        ...baseWarpReq,
+        binding: TRANSIENT_BINDING,
+      });
+      const ctx = entry.details.signedQuote.context;
+      const signedRecipient =
+        '0x' + ctx.slice(RECIPIENT_HEX_START, RECIPIENT_HEX_END);
+      expect(signedRecipient.toLowerCase()).to.equal(RECIPIENT.toLowerCase());
+    });
+  });
+
   describe('getWarpQuote — 404 skip paths', () => {
     interface SkipCase {
       name: string;
