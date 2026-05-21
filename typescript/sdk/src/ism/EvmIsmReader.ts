@@ -78,6 +78,12 @@ export interface IsmReader {
   ): void;
 }
 
+// ISM types that cannot be deployed by HyperlaneIsmFactory — preserve as address strings.
+const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
+  IsmType.OFFCHAIN_LOOKUP,
+  IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+]);
+
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   protected isZkSyncChain: boolean;
@@ -182,24 +188,54 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       case IsmType.FALLBACK_ROUTING:
       case IsmType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+          objMap(config.domains, async (_, ism) => {
+            const derived = await this.deriveIsmConfig(ism);
+            return this.preserveUnredeployableIsm(ism, derived);
+          }),
         );
         break;
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
         config.modules = await Promise.all(
-          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+          config.modules.map(async (ism) => {
+            const derived = await this.deriveIsmConfig(ism);
+            return this.preserveUnredeployableIsm(ism, derived);
+          }),
         );
         break;
-      case IsmType.AMOUNT_ROUTING:
-        [config.lowerIsm, config.upperIsm] = await Promise.all([
-          this.deriveIsmConfig(config.lowerIsm),
-          this.deriveIsmConfig(config.upperIsm),
+      case IsmType.AMOUNT_ROUTING: {
+        const lowerOrig = config.lowerIsm;
+        const upperOrig = config.upperIsm;
+        const [lowerDerived, upperDerived] = await Promise.all([
+          this.deriveIsmConfig(lowerOrig),
+          this.deriveIsmConfig(upperOrig),
         ]);
+        config.lowerIsm = this.preserveUnredeployableIsm(
+          lowerOrig,
+          lowerDerived,
+        );
+        config.upperIsm = this.preserveUnredeployableIsm(
+          upperOrig,
+          upperDerived,
+        );
         break;
+      }
     }
 
     return config as DerivedIsmConfig;
+  }
+
+  // Returns the original IsmConfig for non-redeployable ISM types (e.g. OFFCHAIN_LOOKUP,
+  // INTERCHAIN_ACCOUNT_ROUTING) so normalizeConfig and deploy() handle them correctly.
+  // The original is typically a string address that survives normalizeConfig intact and
+  // reaches deploy()'s string branch; an object config is also preserved via derived.address.
+  private preserveUnredeployableIsm(
+    original: IsmConfig,
+    derived: DerivedIsmConfig,
+  ): IsmConfig {
+    if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;
+    if (typeof original === 'string') return original;
+    return derived.address;
   }
 
   async deriveRoutingConfig(
@@ -378,12 +414,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           ? await contractInstance.route(this.messageContext.message)
           : await addressDeriveFunc(domainId);
 
-        return [
-          chainName,
-          deriveConfig
-            ? await this.deriveIsmConfig(moduleAddress)
-            : moduleAddress,
-        ];
+        if (deriveConfig) {
+          const derived = await this.deriveIsmConfigFromAddress(moduleAddress);
+          return [
+            chainName,
+            this.preserveUnredeployableIsm(moduleAddress, derived),
+          ];
+        }
+        return [chainName, moduleAddress];
       },
     );
 
@@ -422,11 +460,15 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       };
     }
 
+    const [lowerDerived, upperDerived] = await Promise.all([
+      this.deriveIsmConfigFromAddress(lowerIsm),
+      this.deriveIsmConfigFromAddress(upperIsm),
+    ]);
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,
-      lowerIsm: await this.deriveIsmConfig(lowerIsm),
-      upperIsm: await this.deriveIsmConfig(upperIsm),
+      lowerIsm: this.preserveUnredeployableIsm(lowerIsm, lowerDerived),
+      upperIsm: this.preserveUnredeployableIsm(upperIsm, upperDerived),
       threshold: threshold.toNumber(),
     };
   }
@@ -445,7 +487,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ismConfigs = await concurrentMap(
       this.concurrency,
       modules,
-      async (module) => this.deriveIsmConfig(module),
+      async (module) => {
+        const derived = await this.deriveIsmConfigFromAddress(module);
+        return this.preserveUnredeployableIsm(module, derived);
+      },
     );
 
     // If it's a zkSync chain, it must be a StorageAggregationIsm

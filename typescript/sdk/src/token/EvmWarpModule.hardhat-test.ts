@@ -8,6 +8,7 @@ import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  CrossCollateralRoutingFee__factory,
   CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
@@ -64,6 +65,8 @@ import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
+import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
+import { DEFAULT_ROUTER_KEY } from '../fee/types.js';
 import { EvmWarpModule } from './EvmWarpModule.js';
 import {
   EverclearTokenBridgeTokenType,
@@ -2163,6 +2166,113 @@ describe('EvmWarpModule', async () => {
       if (finalConfig.tokenFee?.type === TokenFeeType.OffchainQuotedLinearFee) {
         expect(finalConfig.tokenFee.quoteSigners).to.have.lengthOf(2);
       }
+    });
+
+    it('clears orphan CCR fee pointer without explicit tokenReaderParams (CLI path)', async () => {
+      // Simulates the production CLI path: EvmWarpModule.update() → createTokenFeeUpdateTxs()
+      // called without explicit tokenReaderParams. The fix derives crossCollateralRouters hints
+      // from actualConfig.crossCollateralRouters so orphan on-chain pointers are detected.
+
+      // 1. Deploy a CCR fee contract and wire a stale router key to a sub-fee
+      const ccrFactory = new CrossCollateralRoutingFee__factory(signer);
+      const ccrf = await ccrFactory.deploy(signer.address);
+      await ccrf.deployed();
+
+      const linearFeeConfig = await EvmTokenFeeModule.expandConfig({
+        multiProvider,
+        chainName: chain,
+        config: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: signer.address,
+          bps: 100,
+        },
+      });
+      const staleSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain,
+        config: linearFeeConfig,
+      });
+      const staleSubFeeAddress = staleSubFeeModule.serialize().deployedFee;
+      const routingDomain = multiProvider.getDomainId(chain);
+      const staleRouterKey = hre.ethers.utils.hexZeroPad(signer.address, 32);
+
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDomain],
+        [staleRouterKey],
+        [staleSubFeeAddress],
+      );
+
+      // 2. Build an EvmWarpModule with a fake token route address (not needed for this code path)
+      const warpModule = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.crossCollateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+          ...ismFactoryAddresses,
+        },
+      });
+
+      // 3. actualConfig: CCR token with the stale router enrolled in crossCollateralRouters
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        crossCollateralRouters: {
+          [routingDomain]: [staleRouterKey],
+        },
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          address: ccrf.address,
+          feeContracts: {},
+        },
+      } as unknown as DerivedTokenRouterConfig;
+
+      // 4. expectedConfig: CCR fee with only DEFAULT_ROUTER_KEY (stale key removed)
+      const expectedConfig: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {
+            [chain]: {
+              [DEFAULT_ROUTER_KEY]: {
+                ...linearFeeConfig,
+              },
+            },
+          },
+        },
+      };
+
+      // 5. Call createTokenFeeUpdateTxs WITHOUT explicit tokenReaderParams
+      const txs = await warpModule.createTokenFeeUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      );
+
+      // Must include a clearing tx for the stale router key
+      const clearTx = txs.find((tx) =>
+        tx.annotation?.includes('Clearing removed CrossCollateralRoutingFee'),
+      );
+      expect(clearTx, 'expected orphan clearing tx').to.not.be.undefined;
+
+      // Verify the tx encodes AddressZero for the stale key
+      const iface = CrossCollateralRoutingFee__factory.createInterface();
+      const decoded = iface.decodeFunctionData(
+        'setCrossCollateralRouterFeeContracts',
+        clearTx!.data!,
+      );
+      expect(decoded[1].map((k: string) => k.toLowerCase())).to.deep.equal([
+        staleRouterKey.toLowerCase(),
+      ]);
+      expect(decoded[2]).to.deep.equal([hre.ethers.constants.AddressZero]);
     });
   });
 
