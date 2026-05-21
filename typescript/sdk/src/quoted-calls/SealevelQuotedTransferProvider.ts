@@ -32,14 +32,12 @@ import {
 import { composeSealevelTx } from './composeSealevelTx.js';
 import type { QuotedTransferProvider } from './QuotedTransferProvider.js';
 import {
+  type DecodedSealevelQuoteEntry,
   type DecodedSvmSignedQuote,
   decodeSealevelQuoteEntry,
 } from './svmDecoder.js';
 
-export type SealevelQuoteMode = 'standing' | 'transient';
-
 const SALT_LEN = 32;
-const ZERO_SALT = new Uint8Array(SALT_LEN);
 
 /**
  * `keccak256(payer || clientSalt)` — mirrors the on-chain
@@ -84,14 +82,6 @@ function toSealevelSvmSignedQuote(
 
 export interface SealevelQuotedTransferProviderOpts {
   feeQuotingClient: FeeQuotingV2Client;
-  /**
-   * `'standing'` uses ZERO_BYTES32 as the salt and lets the server pick a
-   * long-lived standing-quote PDA. `'transient'` generates a fresh random
-   * client salt + scoped salt for a one-shot transient PDA — the same scoped
-   * salt threads into the adapter bundle so the on-chain cascade includes
-   * the transient PDA.
-   */
-  mode: SealevelQuoteMode;
   connection: Connection;
   feeProgramId: PublicKey;
   feeAccount: PublicKey;
@@ -107,6 +97,18 @@ export interface SealevelQuotedTransferProviderOpts {
    * `crypto.getRandomValues` (works in Node + browser).
    */
   randomSalt?: () => Uint8Array;
+}
+
+/**
+ * Inspect a decoded entry's envelope timestamps — the server signals a
+ * transient quote with `expiry === issuedAt` (same u48 BE timestamp).
+ * Standing quotes use `expiry > issuedAt`.
+ *
+ * The provider doesn't ask the server for a specific mode; the server's
+ * config decides, and the response carries the discriminator.
+ */
+function isTransientQuote(entry: DecodedSealevelQuoteEntry): boolean {
+  return entry.expiry === entry.issuedAt;
 }
 
 /**
@@ -150,21 +152,16 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       destinationToken !== undefined &&
       warpCore.isCrossCollateralTransfer(token, destinationToken);
 
-    // 1. Resolve salts.
-    //    standing  -> rawClientSalt = ZERO_BYTES32, scopedSalt = undefined
-    //    transient -> rawClientSalt = random,      scopedSalt = keccak256(payer||raw)
-    const rawClientSalt =
-      this.opts.mode === 'transient'
-        ? (this.opts.randomSalt ?? defaultRandomSalt)()
-        : ZERO_SALT;
+    // 1. Always send a random client salt — the server's `quoteMode` config
+    //    decides whether the returned quote is standing (`expiry > issuedAt`)
+    //    or transient (`expiry === issuedAt`). The provider infers mode from
+    //    the response and uses the server-echoed `clientSalt` to derive the
+    //    scoped salt (for transient PDA cascade lookup).
+    const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
     assert(
       rawClientSalt.length === SALT_LEN,
       `rawClientSalt must be ${SALT_LEN} bytes`,
     );
-    const scopedSalt =
-      this.opts.mode === 'transient'
-        ? computeSealevelScopedSalt(senderPubkey, rawClientSalt)
-        : undefined;
 
     // 2. Resolve targetRouter bytes — CC uses the destination router's
     //    H256; non-CC uses H256::zero (matches the on-chain fee program's
@@ -222,6 +219,19 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     );
     const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
 
+    // 5. Derive the bundle/cascade scopedSalt from the warp response.
+    //    Transient → keccak256(payer || serverEchoedClientSalt); Standing →
+    //    undefined (cascade returns the standing path only). When IGP is
+    //    enabled, assert its mode matches — server-config divergence between
+    //    the two endpoints would silently break PDA lookups.
+    const warpIsTransient = isTransientQuote(decodedWarp);
+    const scopedSalt = warpIsTransient
+      ? computeSealevelScopedSalt(
+          senderPubkey,
+          decodedWarp.signedQuote.clientSalt,
+        )
+      : undefined;
+
     const submitFeeIx = await buildSubmitFeeQuoteIx({
       connection: this.opts.connection,
       feeProgramId: this.opts.feeProgramId,
@@ -240,6 +250,10 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         `Expected Sealevel IGP quote, got ${igpEntry.protocol}`,
       );
       const decodedIgp = decodeSealevelQuoteEntry(igpEntry);
+      assert(
+        isTransientQuote(decodedIgp) === warpIsTransient,
+        'Warp and IGP quote modes diverge — server config inconsistency. Same scopedSalt drives both cascades.',
+      );
       // IGP standing PDA seeds carry `(igp, fee_token_mint, dest, sender)`;
       // SOL-paying routes use `Pubkey::default` for `fee_token_mint`, and the
       // sender is the warp router program ID.
@@ -265,7 +279,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       });
     }
 
-    // 5. Pull the adapter ix bundle (CC or non-CC).
+    // 6. Pull the adapter ix bundle (CC or non-CC).
     const adapter = token.getHypAdapter(
       warpCore.multiProvider,
       destinationName,
@@ -309,7 +323,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       });
     }
 
-    // 6. Compose single atomic tx — budget head, submit prelude, then warp.
+    // 7. Compose single atomic tx — budget head, submit prelude, then warp.
     const prelude: TransactionInstruction[] = [submitFeeIx];
     if (submitIgpIx) prelude.push(submitIgpIx);
     const tx = await composeSealevelTx({
