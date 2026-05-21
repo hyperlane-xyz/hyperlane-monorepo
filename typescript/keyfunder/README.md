@@ -41,7 +41,7 @@ chains:
       threshold: '0.3'
       targetMultiplier: 1.5
       triggerMultiplier: 2.0
-  arbitrum:
+  optimism:
     balances:
       hyperlane-relayer: '0.1'
     igp:

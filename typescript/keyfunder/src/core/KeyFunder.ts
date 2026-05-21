@@ -303,14 +303,20 @@ export class KeyFunder {
         parentSigner,
       ) ??
       createOpStackStandardBridge(bridgeConfig.standardBridge, parentSigner);
-    const tx = await bridge.bridgeETHTo(
-      childFunderAddress,
-      bridgeConfig.minGasLimit,
-      bridgeConfig.extraData,
-      { value: bridgeAmount },
-    );
-    const receipt = await tx.wait();
-    const txHash = receipt.transactionHash ?? tx.hash;
+    let txHash: string;
+    try {
+      const tx = await bridge.bridgeETHTo(
+        childFunderAddress,
+        bridgeConfig.minGasLimit,
+        bridgeConfig.extraData,
+        { value: bridgeAmount },
+      );
+      const receipt = await tx.wait();
+      txHash = receipt.transactionHash ?? tx.hash;
+    } catch (error) {
+      logger.error({ error }, 'OP Stack bridge transaction failed');
+      throw error;
+    }
 
     logger.info(
       {
@@ -547,10 +553,17 @@ function createOpStackStandardBridge(
 ): OpStackStandardBridge {
   const contract = new Contract(address, OP_STACK_STANDARD_BRIDGE_ABI, signer);
   return {
-    bridgeETHTo: async (to, minGasLimit, extraData, overrides) =>
-      contract.bridgeETHTo(to, minGasLimit, extraData, overrides) as Promise<{
-        hash: string;
-        wait: () => Promise<{ transactionHash?: string }>;
-      }>,
+    bridgeETHTo: async (to, minGasLimit, extraData, overrides) => {
+      const tx = await contract.bridgeETHTo(
+        to,
+        minGasLimit,
+        extraData,
+        overrides,
+      );
+      return {
+        hash: tx.hash,
+        wait: async () => tx.wait(),
+      };
+    },
   };
 }
