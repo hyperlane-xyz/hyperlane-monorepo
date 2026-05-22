@@ -319,6 +319,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.CCIP:
         contract = await this.deployCCIPIsm(destination, config);
         break;
+      case IsmType.OFFCHAIN_LOOKUP:
+        throw new Error(
+          `OFFCHAIN_LOOKUP ISM cannot be deployed — it must already be deployed. ` +
+            `Pass its contract address as a string instead of a config object.`,
+        );
       case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
         throw new Error(
           'Interchain Account ISM is not supported in this context',

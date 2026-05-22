@@ -59,6 +59,8 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
+import { mergeCrossCollateralRouters } from '../fee/crossCollateralUtils.js';
+import { TokenFeeType } from '../fee/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { stripPredicateSubHook } from '../hook/utils.js';
 import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
@@ -1697,9 +1699,33 @@ export class EvmWarpModule extends HyperlaneModule<
       },
       this.contractVerifier,
     );
+
+    // For CCR fee updates, forward the on-chain enrolled router keys as hints so the
+    // reader can observe orphan feeContracts entries not present in the target config.
+    // Without these hints, the removal loop in EvmTokenFeeModule.update() never sees
+    // stale (dest, router) entries and the on-chain pointer stays wired.
+    let effectiveTokenReaderParams = tokenReaderParams;
+    if (
+      isCrossCollateralTokenConfig(actualConfig) &&
+      actualConfig.crossCollateralRouters &&
+      resolvedTokenFee.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
+      const onchainRoutersByDomain = resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.crossCollateralRouters,
+      );
+      effectiveTokenReaderParams = {
+        ...tokenReaderParams,
+        crossCollateralRouters: mergeCrossCollateralRouters(
+          tokenReaderParams?.crossCollateralRouters,
+          onchainRoutersByDomain,
+        ),
+      };
+    }
+
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,
-      tokenReaderParams,
+      effectiveTokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
 

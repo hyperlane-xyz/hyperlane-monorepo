@@ -455,7 +455,7 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
-    it('should redeploy CCRF when fee contracts differ', async () => {
+    it('should update CCRF sub-fee when fee contracts differ', async () => {
       const initialSubFeeModule = await EvmTokenFeeModule.create({
         multiProvider,
         chain: test4Chain,
@@ -501,8 +501,9 @@ describe('EvmTokenFeeModule', () => {
         },
       );
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(ccrf.address);
+      expect(txs).to.have.lengthOf(1);
+      expect(module.serialize().deployedFee).to.equal(ccrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
@@ -524,7 +525,7 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(BPS + 1);
     });
 
-    it('should redeploy an empty CCRF using explicitly resolved child tokens', async () => {
+    it('should update an empty CCRF using explicitly resolved child tokens', async () => {
       const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
       const routingDestination = multiProvider.getDomainId(test4Chain);
       const module = new EvmTokenFeeModule(multiProvider, {
@@ -559,8 +560,9 @@ describe('EvmTokenFeeModule', () => {
         },
       });
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(emptyCcrf.address);
+      expect(txs).to.have.lengthOf(1);
+      expect(module.serialize().deployedFee).to.equal(emptyCcrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
@@ -577,7 +579,7 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(token.address);
     });
 
-    it('should preserve caller-provided CCR routers when diffing for redeploy', async () => {
+    it('should preserve caller-provided CCR routers when diffing for update', async () => {
       const initialSubFeeModule = await EvmTokenFeeModule.create({
         multiProvider,
         chain: test4Chain,
@@ -628,8 +630,11 @@ describe('EvmTokenFeeModule', () => {
         },
       );
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(ccrf.address);
+      // 2 txs: one to wire DEFAULT_ROUTER_KEY, one to clear the removed routerKey
+      expect(txs).to.have.lengthOf(2);
+      expect(module.serialize().deployedFee).to.equal(ccrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+      await multiProvider.sendTransaction(test4Chain, txs[1]);
 
       const onchainConfig = await module.read({
         crossCollateralRouters: {
@@ -643,9 +648,158 @@ describe('EvmTokenFeeModule', () => {
       expect(
         onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.type,
       ).to.equal(TokenFeeType.LinearFee);
-      expect(onchainConfig.feeContracts[test4Chain]?.[routerKey]).to.equal(
-        undefined,
+      // Verify the orphan routerKey pointer was actually cleared on-chain
+      expect(await ccrf.feeContracts(routingDestination, routerKey)).to.equal(
+        hre.ethers.constants.AddressZero,
       );
+    });
+
+    it('should deploy a fresh sub-fee when two routers sharing an address diverge in target config', async () => {
+      // Arrange: one shared sub-fee; both router keys wired to it
+      const sharedSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config, // bps: BPS
+      });
+      const sharedSubFeeAddr = sharedSubFeeModule.serialize().deployedFee;
+
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      const routerKeyA = hre.ethers.utils.hexZeroPad('0x01', 32);
+      const routerKeyB = hre.ethers.utils.hexZeroPad('0x02', 32);
+
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination, routingDestination],
+        [routerKeyA, routerKeyB],
+        [sharedSubFeeAddr, sharedSubFeeAddr],
+      );
+
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: CrossCollateralRoutingFeeConfigSchema.parse({
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {},
+        }),
+        addresses: { deployedFee: ccrf.address },
+      });
+
+      // routerKeyA keeps config (bps: BPS), routerKeyB diverges — processed in A-first order
+      const txs = await module.update({
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        owner: signer.address,
+        feeContracts: {
+          [test4Chain]: {
+            [routerKeyA]: config, // unchanged
+            [routerKeyB]: { ...config, bps: BPS + 5 }, // diverged
+          },
+        },
+      });
+
+      // routerKeyA: config matches, pointer stays → no tx for A
+      // routerKeyB: diverges from cached A config → split deploy, pointer updated → 1 tx
+      expect(txs).to.have.lengthOf(1);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+
+      const addrA = await ccrf.feeContracts(routingDestination, routerKeyA);
+      const addrB = await ccrf.feeContracts(routingDestination, routerKeyB);
+
+      // routerKeyA retained the shared address (no change needed)
+      expect(addrA.toLowerCase()).to.equal(sharedSubFeeAddr.toLowerCase());
+      // routerKeyB received a fresh contract
+      expect(addrB.toLowerCase()).to.not.equal(sharedSubFeeAddr.toLowerCase());
+
+      // Both have the correct on-chain configs
+      const onchainConfig = await module.read({
+        crossCollateralRouters: {
+          [routingDestination]: [routerKeyA, routerKeyB],
+        },
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
+      );
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[routerKeyA]?.bps,
+      ).to.equal(BPS);
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[routerKeyB]?.bps,
+      ).to.equal(BPS + 5);
+    });
+
+    it('should produce correct per-router configs regardless of split iteration order', async () => {
+      // Same scenario as above but routerKeyB appears first in the feeContracts object,
+      // so the update loop processes it first — exercising the opposite split code path
+      // (B triggers the "first time" update+cache, A is the split deployment).
+      const sharedSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config, // bps: BPS
+      });
+      const sharedSubFeeAddr = sharedSubFeeModule.serialize().deployedFee;
+
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      const routerKeyA = hre.ethers.utils.hexZeroPad('0x01', 32);
+      const routerKeyB = hre.ethers.utils.hexZeroPad('0x02', 32);
+
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination, routingDestination],
+        [routerKeyA, routerKeyB],
+        [sharedSubFeeAddr, sharedSubFeeAddr],
+      );
+
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: CrossCollateralRoutingFeeConfigSchema.parse({
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {},
+        }),
+        addresses: { deployedFee: ccrf.address },
+      });
+
+      // B-first iteration order: routerKeyB processed before routerKeyA
+      const txs = await module.update({
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        owner: signer.address,
+        feeContracts: {
+          [test4Chain]: {
+            [routerKeyB]: { ...config, bps: BPS + 5 }, // B first in insertion order
+            [routerKeyA]: config,
+          },
+        },
+      });
+
+      // B triggers a redeploy (bps changed), A then sees B's cached config ≠ A's config → split.
+      // Both pointers change → both packed into 1 setCrossCollateralRouterFeeContracts tx.
+      expect(txs).to.have.lengthOf(1);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+
+      const addrA = await ccrf.feeContracts(routingDestination, routerKeyA);
+      const addrB = await ccrf.feeContracts(routingDestination, routerKeyB);
+
+      // Both routers now have their own unique contracts (neither retained sharedAddr)
+      expect(addrA.toLowerCase()).to.not.equal(sharedSubFeeAddr.toLowerCase());
+      expect(addrB.toLowerCase()).to.not.equal(sharedSubFeeAddr.toLowerCase());
+      expect(addrA.toLowerCase()).to.not.equal(addrB.toLowerCase());
+
+      // Config correctness: same outcome as A-first order
+      const onchainConfig = await module.read({
+        crossCollateralRouters: {
+          [routingDestination]: [routerKeyA, routerKeyB],
+        },
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
+      );
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[routerKeyA]?.bps,
+      ).to.equal(BPS);
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[routerKeyB]?.bps,
+      ).to.equal(BPS + 5);
     });
 
     it('should redeploy when fee type changes', async () => {

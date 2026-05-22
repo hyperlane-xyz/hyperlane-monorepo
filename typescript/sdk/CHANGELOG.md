@@ -1,5 +1,38 @@
 # @hyperlane-xyz/sdk
 
+## 35.0.0
+
+### Major Changes
+
+- 631d7e7: `ICoreAdapter.extractMessageIds` was made async (returns `Promise`). Callers must add `await` at call sites.
+
+  `AleoCoreAdapter` extracted message IDs by querying on-chain mappings. Because Aleo's mailbox nonce counter is a single shared mapping entry, at most one dispatch is accepted per block; a confirmed transaction with type `"execute"` was the accepted dispatch, and the dispatched nonce is `mailbox.nonce - 1`. Unlike EVM/SVM adapters that parsed receipt logs, Aleo extraction required on-chain mapping queries. Callers constructing `MultiProtocolCore` for an Aleo origin chain had to supply a real mailbox address (not a stub); passing no address caused extraction to return an empty result rather than throw.
+
+  Aleo warp token writers (native, collateral, synthetic) verified that the mailbox is initialized before deploying warp tokens. Previously, running `warp deploy` against an uninitialized mailbox produced a cryptic "transaction rejected" error from the on-chain finalize assertion; now a clear error is thrown immediately.
+
+### Minor Changes
+
+- 44aa432: Added a new `hyperlane warp balances` CLI command that displays token balances for each leg of a warp route. Fixed `EvmHypRebaseCollateralAdapter.getBridgedSupply` to return the underlying asset amount (previously returned raw vault shares). Added `EvmHypOwnerCollateralAdapter` that reads `assetDeposited` directly from `HypERC4626OwnerCollateral`, and routed `WarpCore.getTokenCollateral` through `getBridgedSupply` for ERC4626 collateral standards so destination-collateral checks and balance display no longer report zero for yield-bearing vault routes.
+- a8c9430: Enabled warp send for Aleo. When Aleo is the origin chain, the CLI now skips delivery confirmation (message ID extraction from Aleo receipts is not yet supported) instead of throwing an error.
+
+### Patch Changes
+
+- 38479d0: The EvmIcaTxSubmitter now dynamically estimates destination-chain handle() gas via estimateIcaHandleGas instead of relying on the 50k default, so the encoded gasLimit matches the IGP payment and is sufficient for multi-call ICA transactions.
+- 4adf279: Fixed warp apply when trying to remove warp fees from a warp route
+- 7089676: Fixed offchain lookup ISM updates, cross-collateral fee updates, and CCTP/PREDICATE hook address preservation during on-chain config derivation.
+- 6c687ee: Safe API Kit requests to Safe's hosted gateway were updated to use the SDK's authenticated default service resolution instead of forcing an explicit transaction service URL.
+- Updated dependencies [631d7e7]
+- Updated dependencies [f3851a3]
+  - @hyperlane-xyz/aleo-sdk@35.0.0
+  - @hyperlane-xyz/deploy-sdk@6.0.3
+  - @hyperlane-xyz/starknet-core@35.0.0
+  - @hyperlane-xyz/cosmos-sdk@35.0.0
+  - @hyperlane-xyz/radix-sdk@35.0.0
+  - @hyperlane-xyz/utils@35.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.8
+
 ## 34.0.0
 
 ### Major Changes
