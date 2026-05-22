@@ -24,7 +24,6 @@ import type {
   IHypCrossCollateralAdapter,
   InterchainGasQuote,
   QuoteTransferRemoteParams,
-  TransferRemoteParams,
   TransferRemoteToParams,
 } from './ITokenAdapter.js';
 import {
@@ -108,34 +107,6 @@ export class SealevelHypCrossCollateralAdapter
       recipient: params.recipient,
       amount: params.amount,
       targetRouter: remoteRouterBytes,
-    });
-  }
-
-  // Override base impl which seeds the fee section with H256::zero(); resolve
-  // the destination warp router and delegate to populateTransferRemoteToTx.
-  override async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    fromAccountOwner,
-    extraSigners,
-  }: TransferRemoteParams): Promise<Transaction | VersionedTransaction> {
-    const tokenData = await this.getTokenAccountData();
-    const remoteRouterBytes = tokenData.remote_routers?.get(destination);
-    assert(
-      remoteRouterBytes,
-      `No remote router registered for destination domain ${destination}`,
-    );
-    // 32-byte canonical form → base58 round-trips through addressToBytesSol
-    // back to the same 32 bytes (works for both EVM-padded and native SVM
-    // target routers).
-    return this.populateTransferRemoteToTx({
-      amount: weiAmountOrId,
-      destination,
-      recipient,
-      fromAccountOwner,
-      targetRouter: new PublicKey(remoteRouterBytes).toBase58(),
-      extraSigners,
     });
   }
 
