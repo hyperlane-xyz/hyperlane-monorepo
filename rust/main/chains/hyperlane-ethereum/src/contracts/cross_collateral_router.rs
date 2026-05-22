@@ -211,12 +211,16 @@ where
                     let receipt = provider
                         .get_transaction_receipt(tx_hash)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?;
+                        .map_err(ChainCommunicationError::from_other)?
+                        .ok_or_else(|| {
+                            ChainCommunicationError::from_other_str(&format!(
+                                "missing receipt for finalized tx {tx_hash:?}"
+                            ))
+                        })?;
                     Ok::<_, ChainCommunicationError>((tx_hash, receipt))
                 }
             })
             .buffer_unordered(RECEIPT_FETCH_CONCURRENCY)
-            .try_filter_map(|(hash, receipt)| async move { Ok(receipt.map(|r| (hash, r))) })
             .try_collect()
             .await?;
 
@@ -224,7 +228,10 @@ where
         let mut results = Vec::new();
         for c in candidates {
             let Some(receipt) = receipts.get(&c.tx_hash) else {
-                continue;
+                return Err(ChainCommunicationError::from_other_str(&format!(
+                    "receipt missing from cache for tx {:?} (should be unreachable)",
+                    c.tx_hash
+                )));
             };
             let Some(source_router) =
                 self.find_source_in_receipt(receipt, c.destination_router, c.rtr_log_index)

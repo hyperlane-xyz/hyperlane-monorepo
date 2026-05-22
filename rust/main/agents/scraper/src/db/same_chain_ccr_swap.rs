@@ -10,7 +10,7 @@ use hyperlane_core::{
 use crate::db::ScraperDb;
 use crate::db::{StorableDelivery, StorableMessage};
 
-use super::generated::message;
+use super::generated::{delivered_message, message};
 
 /// Compute the synthetic message ID for a same-chain CCR swap.
 ///
@@ -21,6 +21,11 @@ use super::generated::message;
 /// Uniqueness comes from `txHash || logIndex` in the hash.
 fn synthetic_ccr_msg_id(meta: &LogMeta) -> H256 {
     // The H512 transaction_id stores the 32-byte tx hash right-aligned (bytes 32..64).
+    debug_assert_eq!(
+        &meta.transaction_id.as_bytes()[..32],
+        &[0u8; 32],
+        "expected right-aligned 32-byte tx hash in transaction_id"
+    );
     let tx_hash = &meta.transaction_id.as_bytes()[32..];
     let log_index = meta.log_index.as_u64().to_be_bytes();
 
@@ -62,7 +67,13 @@ impl ScraperDb {
             .into_tuple::<i32>()
             .one(&self.0)
             .await?;
-        Ok(max.map_or(0, |n| (n as u32).wrapping_add(1)))
+        let next = match max {
+            None => 0u32,
+            Some(n) => (n as u32)
+                .checked_add(1)
+                .ok_or_else(|| eyre::eyre!("CCR nonce exhausted for domain={domain} mailbox"))?,
+        };
+        Ok(next)
     }
 
     /// Returns true if a message with this `msg_id` is already stored.
@@ -70,6 +81,15 @@ impl ScraperDb {
     async fn ccr_msg_already_stored(&self, msg_id: H256) -> Result<bool> {
         let count = message::Entity::find()
             .filter(message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
+            .count(&self.0)
+            .await?;
+        Ok(count > 0)
+    }
+
+    /// Returns true if a delivery row for this `msg_id` is already stored.
+    async fn ccr_delivery_already_stored(&self, msg_id: H256) -> Result<bool> {
+        let count = delivered_message::Entity::find()
+            .filter(delivered_message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
             .count(&self.0)
             .await?;
         Ok(count > 0)
@@ -98,46 +118,52 @@ impl ScraperDb {
 
             let msg_id = synthetic_ccr_msg_id(storable.meta);
 
-            // Skip if already indexed — sequential nonce is not deterministic
-            // across re-index runs so we guard on msg_id instead of relying on
-            // ON CONFLICT.
-            if self.ccr_msg_already_stored(msg_id).await? {
+            let msg_stored = self.ccr_msg_already_stored(msg_id).await?;
+            // Skip only when both rows are present.  If the message was written
+            // but the delivery was not (partial-commit on a prior retry), we fall
+            // through so the delivery upsert can complete the pair.
+            if msg_stored && self.ccr_delivery_already_stored(msg_id).await? {
                 continue;
             }
 
-            let nonce = self.ccr_next_nonce(domain, &swap.source_router).await?;
+            if !msg_stored {
+                // Sequential nonce is non-deterministic across re-index runs, so
+                // we guard insertion on msg_id rather than relying on ON CONFLICT.
+                let nonce = self.ccr_next_nonce(domain, &swap.source_router).await?;
 
-            // TokenMessage body: recipient_bytes32 ++ amount_received_uint256
-            // Uses amount_received (from ReceivedTransferRemote, post-fee) to match
-            // what cross-chain CCR Hyperlane messages encode in the message body.
-            let mut body = Vec::with_capacity(64);
-            body.extend_from_slice(swap.recipient.as_bytes());
-            let mut amount_bytes = [0u8; 32];
-            swap.amount_received.to_big_endian(&mut amount_bytes);
-            body.extend_from_slice(&amount_bytes);
+                // TokenMessage body: recipient_bytes32 ++ amount_received_uint256
+                // Uses amount_received (from ReceivedTransferRemote, post-fee) to match
+                // what cross-chain CCR Hyperlane messages encode in the message body.
+                let mut body = Vec::with_capacity(64);
+                body.extend_from_slice(swap.recipient.as_bytes());
+                let mut amount_bytes = [0u8; 32];
+                swap.amount_received.to_big_endian(&mut amount_bytes);
+                body.extend_from_slice(&amount_bytes);
 
-            let msg = HyperlaneMessage {
-                version: 3,
-                nonce,
-                origin: swap.domain,
-                sender: swap.source_router,
-                destination: swap.domain,
-                recipient: swap.destination_router,
-                body,
-            };
+                let msg = HyperlaneMessage {
+                    version: 3,
+                    nonce,
+                    origin: swap.domain,
+                    sender: swap.source_router,
+                    destination: swap.domain,
+                    recipient: swap.destination_router,
+                    body,
+                };
 
-            self.store_dispatched_messages(
-                domain,
-                &swap.source_router,
-                std::iter::once(StorableMessage {
-                    msg,
-                    meta: storable.meta,
-                    txn_id: storable.txn_id,
-                    id_override: Some(msg_id),
-                }),
-            )
-            .await?;
+                self.store_dispatched_messages(
+                    domain,
+                    &swap.source_router,
+                    std::iter::once(StorableMessage {
+                        msg,
+                        meta: storable.meta,
+                        txn_id: storable.txn_id,
+                        id_override: Some(msg_id),
+                    }),
+                )
+                .await?;
+            }
 
+            // Delivery insert uses ON CONFLICT upsert — safe to call on retry.
             self.store_deliveries(
                 domain,
                 swap.destination_router,

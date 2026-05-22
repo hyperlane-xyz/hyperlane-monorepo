@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use eyre::Result;
-use itertools::Itertools;
 use tracing::debug;
 
 use hyperlane_core::{HyperlaneLogStore, Indexed, LogMeta, SameChainCcrSwap, H512};
@@ -24,14 +23,20 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
 
         let storable = swaps
             .iter()
-            .filter_map(|(swap, meta)| {
-                txns.get(&meta.transaction_id).map(|txn| StorableCcrSwap {
+            .map(|(swap, meta)| {
+                let txn = txns.get(&meta.transaction_id).ok_or_else(|| {
+                    eyre::eyre!(
+                        "txn not found in enriched map for CCR swap tx {:?}",
+                        meta.transaction_id
+                    )
+                })?;
+                Ok(StorableCcrSwap {
                     swap: swap.inner(),
                     meta,
                     txn_id: txn.id,
                 })
             })
-            .collect_vec();
+            .collect::<Result<Vec<_>>>()?;
 
         debug!(domain = self.domain.id(), ?storable, "storable CCR swaps");
 

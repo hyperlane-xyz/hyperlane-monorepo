@@ -466,7 +466,10 @@ impl Scraper {
         };
 
         let chunk_size = index_settings.chunk_size;
-        assert!(chunk_size > 0, "index.chunk must be > 0 (got 0)");
+        if chunk_size == 0 {
+            warn!(?domain, "index.chunk must be > 0 for CCR sync; skipping");
+            return Ok(None);
+        }
         let default_from = index_settings.from.max(0) as u32;
 
         // Create a dedicated BlockCursor for CCR swaps keyed by (domain, "ccr_swap").
@@ -523,6 +526,7 @@ impl Scraper {
                     }
 
                     ccr_cursor.update(to_block.into()).await;
+                    ccr_cursor.flush().await;
                     from_block = to_block.saturating_add(1);
                 }
             }

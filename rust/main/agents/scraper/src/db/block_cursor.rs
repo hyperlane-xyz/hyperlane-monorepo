@@ -103,6 +103,30 @@ impl BlockCursor {
             }
         }
     }
+
+    /// Persist the current height to the database unconditionally, bypassing the
+    /// time-based throttle.  Call this after committing a write-once batch (e.g.
+    /// CCR swaps) so a restart never re-plays already-advanced ranges.
+    #[instrument(skip(self), fields(cursor = ?self.inner))]
+    pub async fn flush(&self) {
+        let mut inner = self.inner.write().await;
+        let height = inner.height;
+        inner.last_saved_at = Instant::now();
+        let inner = inner.downgrade();
+        let model = cursor::ActiveModel {
+            id: ActiveValue::NotSet,
+            domain: ActiveValue::Set(self.domain as i32),
+            time_created: ActiveValue::NotSet,
+            height: ActiveValue::Set(height as i64),
+            event_type: ActiveValue::Set(self.event_type.clone()),
+        };
+        debug!(?model, "Flushing cursor to database");
+        if let Err(e) = Insert::one(model).exec(&self.db).await {
+            warn!(error = ?e, "Failed to flush cursor to database")
+        } else {
+            debug!(cursor = ?*inner, "Flushed cursor")
+        }
+    }
 }
 
 impl ScraperDb {
