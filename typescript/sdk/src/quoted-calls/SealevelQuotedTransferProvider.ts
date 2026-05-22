@@ -152,6 +152,25 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       destinationToken !== undefined &&
       warpCore.isCrossCollateralTransfer(token, destinationToken);
 
+    // Defense in depth: fail early when the warp route has no fee_config.
+    // The UI hook (`useSvmQuotedTransfer`) is supposed to gate provider
+    // construction on this, but a direct API caller (CLI, integration test)
+    // would otherwise build a SubmitFeeQuote ix against a fee account that
+    // doesn't exist and fail later with an opaque on-chain error.
+    const adapter = token.getHypAdapter(
+      warpCore.multiProvider,
+      destinationName,
+    );
+    assert(
+      adapter instanceof SealevelHypTokenAdapter,
+      `SVM warp route requires SealevelHypTokenAdapter; got ${adapter.constructor.name}`,
+    );
+    const tokenData = await adapter.getTokenAccountData();
+    assert(
+      tokenData.fee_config,
+      `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
+    );
+
     // 1. Always send a random client salt — the server's `quoteMode` config
     //    decides whether the returned quote is standing (`expiry > issuedAt`)
     //    or transient (`expiry === issuedAt`). The provider infers mode from
@@ -163,9 +182,15 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       `rawClientSalt must be ${SALT_LEN} bytes`,
     );
 
-    // 2. Resolve targetRouter bytes — CC uses the destination router's
-    //    H256; non-CC uses H256::zero (matches the on-chain fee program's
-    //    seed macro for Leaf / Routing modes).
+    // 2. Resolve `target_router` to mirror what the runtime CPI will pass
+    //    `QuoteFee`. For CC-to-CC routes the bundle emits `transfer_remote_to`
+    //    and the CC ix payload carries an explicit `target_router` chosen by
+    //    the user (one of the destination's CC-enrolled routers, resolved via
+    //    `destinationToken.addressOrDenom`). For everything else the base
+    //    `transfer_remote` auto-resolves to the destination's standard
+    //    enrolled remote router (`tokenData.remote_routers[dest]`, exposed
+    //    via `getRouterAddress`). Sending `ZERO` here would miss per-domain
+    //    CC fee leaves on deployments that configure them.
     const targetRouterBytes = isCC
       ? hexToBytes(
           addressToBytes32(
@@ -177,7 +202,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
             }).addressOrDenom,
           ) as Hex,
         )
-      : new Uint8Array(SALT_LEN);
+      : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
     // 3. Build API request shape — same salt/txSubmitter for both endpoints.
     const recipientHex = addressToBytes32(recipient) as Hex;
@@ -232,6 +257,22 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         )
       : undefined;
 
+    // Extract the EFFECTIVE target_router the server signed for. CC fee leaves
+    // produce a 76B context whose trailing 32B is `ctx.target_router`; the
+    // server may resolve it to `DEFAULT_ROUTER` when the request's target
+    // router has no specific leaf configured. The on-chain `SubmitQuote`
+    // handler verifies the route PDA at `cc_route_pda_seeds!(fee_account,
+    // dest, ctx.target_router)` literally — no DEFAULT_ROUTER fallback at
+    // submit time — so the SDK must mirror the server's resolution. Leaf /
+    // non-CC contexts are 44B and carry no target_router slot; fall back to
+    // the request's bytes (kept ZERO by the cascade layout's standing-target
+    // hardcode at `_ => H256::zero()`).
+    const CC_CONTEXT_LEN = 76;
+    const effectiveTargetRouter =
+      decodedWarp.signedQuote.context.length === CC_CONTEXT_LEN
+        ? decodedWarp.signedQuote.context.slice(44)
+        : targetRouterBytes;
+
     const submitFeeIx = await buildSubmitFeeQuoteIx({
       connection: this.opts.connection,
       feeProgramId: this.opts.feeProgramId,
@@ -240,7 +281,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       signedQuote: toSealevelSvmSignedQuote(decodedWarp.signedQuote),
       scopedSalt,
       destinationDomain: destinationDomainId,
-      targetRouter: targetRouterBytes,
+      targetRouter: effectiveTargetRouter,
     });
 
     let submitIgpIx: TransactionInstruction | undefined;
@@ -266,6 +307,11 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         : deriveIgpStandingQuotePda(
             this.opts.igpProgramId!,
             this.opts.igpAccount!,
+            // SOL-paying routes only — the IGP standing PDA seeds include
+            // `fee_token_mint`, which is `Pubkey::default()` for native SOL
+            // payment. SPL-paying IGPs aren't supported by this provider
+            // today; revisit when the on-chain IGP enables offchain
+            // submission for non-native fee tokens.
             PublicKey.default,
             destinationDomainId,
             new PublicKey(token.addressOrDenom),
@@ -280,10 +326,6 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     }
 
     // 6. Pull the adapter ix bundle (CC or non-CC).
-    const adapter = token.getHypAdapter(
-      warpCore.multiProvider,
-      destinationName,
-    );
     let bundle: SealevelTransferBundle;
     if (isCC) {
       assert(
@@ -310,10 +352,6 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         clientSalt: scopedSalt,
       });
     } else {
-      assert(
-        adapter instanceof SealevelHypTokenAdapter,
-        'SVM warp route requires SealevelHypTokenAdapter',
-      );
       bundle = await adapter.getTransferRemoteIxBundle({
         weiAmountOrId: originTokenAmount.amount.toString(),
         destination: destinationDomainId,
