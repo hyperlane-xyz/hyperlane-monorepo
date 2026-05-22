@@ -48,8 +48,9 @@ where
     ccr_addresses: Vec<EthersH160>,
     /// Set of known collateral ERC20 addresses — pre-built for fast log pre-filtering
     known_collaterals: HashSet<EthersH160>,
-    /// CCR router addresses pre-padded to 32 bytes for direct topic[2] comparison
-    ccr_router_topics: HashSet<EthersH256>,
+    /// Maps each CCR router's topic2 representation (address left-padded to 32 bytes)
+    /// to its paired collateral ERC20 address — used to verify router→collateral pairs
+    ccr_router_topics: HashMap<EthersH256, EthersH160>,
     /// Cached topic0 for ERC20 Transfer — computed once at construction
     erc20_transfer_topic: EthersH256,
     reorg_period: EthereumReorgPeriod,
@@ -72,12 +73,12 @@ where
             .collect();
         let known_collaterals = ccr_to_erc20.values().copied().collect();
         let ccr_addresses: Vec<EthersH160> = ccr_to_erc20.keys().copied().collect();
-        let ccr_router_topics = ccr_addresses
+        let ccr_router_topics = ccr_to_erc20
             .iter()
-            .map(|addr| {
+            .map(|(addr, collateral)| {
                 let mut topic = EthersH256::zero();
                 topic.0[12..].copy_from_slice(&addr.0);
-                topic
+                (topic, *collateral)
             })
             .collect();
         Self {
@@ -112,7 +113,7 @@ where
             .rev()
             .filter(|log| {
                 log.log_index
-                    .map_or(false, |idx| idx.as_u64() < rtr_log_index)
+                    .is_some_and(|idx| idx.as_u64() < rtr_log_index)
             })
             .find_map(|log| {
                 // Pre-filter 1: only ERC20 logs from known collateral contracts.
@@ -125,8 +126,14 @@ where
                 }
                 // Compare topic2 (`to`) directly as a 32-byte value — no decoding needed.
                 // `to` is the source CCR router: a known CCR address other than the destination.
+                // Also verify the Transfer came from that router's paired collateral, not just
+                // any known collateral (guards against cross-token transfers matching spuriously).
                 let topic2 = log.topics.get(2)?;
-                if !self.ccr_router_topics.contains(topic2) || topic2 == &dst_topic {
+                if topic2 == &dst_topic {
+                    return None;
+                }
+                let expected_collateral = self.ccr_router_topics.get(topic2)?;
+                if log.address != *expected_collateral {
                     return None;
                 }
                 Some(EthersH160::from_slice(&topic2.0[12..]))

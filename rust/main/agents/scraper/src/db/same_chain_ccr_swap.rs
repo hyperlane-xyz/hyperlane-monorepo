@@ -1,6 +1,6 @@
 use ethers::utils::keccak256;
 use eyre::Result;
-use sea_orm::{prelude::*, ActiveValue::*, QueryOrder, QuerySelect};
+use sea_orm::{prelude::*, QueryOrder, QuerySelect};
 use tracing::instrument;
 
 use hyperlane_core::{
