@@ -898,7 +898,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
-    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] = [];
+    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] | undefined;
 
     try {
       extraBridgesLimits = await getExtraLockBoxConfigs({
@@ -908,8 +908,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         logger: this.logger,
       });
     } catch (error) {
+      if (!isMissingSelectorCallException(error)) throw error;
       this.logger.warn(
-        `Failed to derive extra xERC20 lockbox configs for token at ${xERC20Address} on chain ${this.chain}`,
+        `Skipping extra xERC20 lockbox configs after missing-selector error for token at ${xERC20Address} on chain ${this.chain}`,
         error,
       );
     }
@@ -926,7 +927,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
           },
           extraBridges:
-            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
+            extraBridgesLimits && extraBridgesLimits.length > 0
+              ? extraBridgesLimits
+              : undefined,
         },
       };
     } catch (error) {
