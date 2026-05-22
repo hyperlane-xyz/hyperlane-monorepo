@@ -61,7 +61,11 @@ import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.j
 import { OnchainHookType } from '../../hook/types.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
-import { isValidContractVersion } from '../../utils/contract.js';
+import {
+  isMissingSelectorCallException,
+  isValidContractVersion,
+  throwIfNotMissingSelector,
+} from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -443,9 +447,12 @@ export class EvmHypSyntheticAdapter
     try {
       return await this.contract.PACKAGE_VERSION();
     } catch (err) {
-      // PACKAGE_VERSION was introduced in v5.4.0
+      if (isMissingSelectorCallException(err)) {
+        // PACKAGE_VERSION was introduced in v5.4.0
+        return '5.3.9';
+      }
       this.logger.error(`Error when fetching package version ${err}`);
-      return '5.3.9';
+      throw err;
     }
   }
 
@@ -895,7 +902,8 @@ export class EvmHypCollateralFiatAdapter
       const limit = await fiatToken.minterAllowance(this.addresses.token);
 
       return limit.toBigInt();
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       return UIN256_MAX_VALUE;
     }
   }

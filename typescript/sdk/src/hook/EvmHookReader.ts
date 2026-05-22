@@ -26,6 +26,7 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  isZeroishAddress,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -36,6 +37,10 @@ import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import {
+  isMissingSelectorCallException,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 
 import {
   AggregationHookConfig,
@@ -57,6 +62,18 @@ import {
   RateLimitedHookConfig,
   RoutingHookConfig,
 } from './types.js';
+
+function isUnsupportedIgpDomainError(
+  error: unknown,
+  domainId: number,
+): boolean {
+  // Mirrors InterchainGasPaymaster.getExchangeRateAndGasPrice in
+  // solidity/contracts/hooks/igp/InterchainGasPaymaster.sol.
+  return (
+    error instanceof Error &&
+    error.message.includes(`Configured IGP doesn't support domain ${domainId}`)
+  );
+}
 
 export interface HookReader {
   deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
@@ -196,12 +213,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
           );
       }
-    } catch (e: any) {
+    } catch (e) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
+      if (!onchainHookType && isMissingSelectorCallException(e)) {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );
@@ -318,27 +332,29 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
     // First check if it's a CCIP hook
+    const ccipHook = CCIPHook__factory.connect(address, this.provider);
     try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
       // This method only exists on CCIPHook
       await ccipHook.ccipDestination();
-      return this.deriveCcipConfig(address);
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+
       // Not a CCIP hook, try OPStack
+      const opStackHook = OPStackHook__factory.connect(address, this.provider);
       try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
         // This method only exists on OPStackHook
         await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
-      } catch {
+      } catch (innerError) {
+        throwIfNotMissingSelector(innerError);
         throw new Error(
           `Could not determine hook type - neither CCIP nor OPStack methods found`,
         );
       }
+
+      return this.deriveOpStackConfig(address);
     }
+
+    return this.deriveCcipConfig(address);
   }
 
   async deriveCcipConfig(
@@ -462,7 +478,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       hook.owner(),
       hook.beneficiary(),
       // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch(() => {
+      hook.quoteSigners().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           'quoteSigners() not available on this IGP version, skipping',
         );
@@ -501,7 +518,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             this.provider,
           );
           return oracle.owner();
-        } catch {
+        } catch (error) {
+          if (!isUnsupportedIgpDomainError(error, domainId)) throw error;
           this.logger.debug(
             'Domain not configured on IGP Hook',
             domainId,
@@ -711,20 +729,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.possibleDomainIds(),
       async (domainId) => {
         const chainName = this.multiProvider.getChainName(domainId);
-        try {
-          const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
-            const derived = await this.deriveHookConfigFromAddress(domainHook);
-            domainHooks[chainName] = this.preserveUnredeployable(
-              domainHook,
-              derived,
-            );
-          }
-        } catch {
-          this.logger.debug(
-            `Domain not configured on ${hook.constructor.name}`,
-            domainId,
-            chainName,
+        const domainHook = await hook.hooks(domainId);
+        if (!isZeroishAddress(domainHook)) {
+          const derived = await this.deriveHookConfigFromAddress(domainHook);
+          domainHooks[chainName] = this.preserveUnredeployable(
+            domainHook,
+            derived,
           );
         }
       },

@@ -1858,8 +1858,8 @@ export class EvmWarpModule extends HyperlaneModule<
       'Cannot upgrade warp route with unknown token type',
     );
 
-    // This should be impossible since we try catch the call to `PACKAGE_VERSION`
-    // in `EvmWarpRouteReader.fetchPackageVersion`
+    // Older contracts without PACKAGE_VERSION fall back to a legacy version in
+    // EvmWarpRouteReader.fetchPackageVersion.
     assert(
       actualConfig.contractVersion,
       'Actual contract version is undefined',
