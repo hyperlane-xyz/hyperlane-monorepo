@@ -66,6 +66,8 @@ function isUnsupportedIgpDomainError(
   error: unknown,
   domainId: number,
 ): boolean {
+  // Mirrors InterchainGasPaymaster.getExchangeRateAndGasPrice in
+  // solidity/contracts/hooks/igp/InterchainGasPaymaster.sol.
   return (
     error instanceof Error &&
     error.message.includes(`Configured IGP doesn't support domain ${domainId}`)
@@ -329,29 +331,29 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
     // First check if it's a CCIP hook
+    const ccipHook = CCIPHook__factory.connect(address, this.provider);
     try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
       // This method only exists on CCIPHook
       await ccipHook.ccipDestination();
-      return this.deriveCcipConfig(address);
     } catch (error) {
       throwIfNotMissingSelector(error);
+
       // Not a CCIP hook, try OPStack
+      const opStackHook = OPStackHook__factory.connect(address, this.provider);
       try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
         // This method only exists on OPStackHook
         await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
       } catch (innerError) {
         throwIfNotMissingSelector(innerError);
         throw new Error(
           `Could not determine hook type - neither CCIP nor OPStack methods found`,
         );
       }
+
+      return this.deriveOpStackConfig(address);
     }
+
+    return this.deriveCcipConfig(address);
   }
 
   async deriveCcipConfig(

@@ -36,16 +36,22 @@ function isEmptyProviderResponse(error: unknown): boolean {
   return false;
 }
 
+function findCallException(
+  error: unknown,
+): Record<string, unknown> | undefined {
+  let current = error;
+  while (isRecord(current)) {
+    if (current.code === 'CALL_EXCEPTION') return current;
+    current = current.cause;
+  }
+  return undefined;
+}
+
 export function isMissingSelectorCallException(error: unknown): boolean {
   if (!isRecord(error)) return false;
   if (isEmptyProviderResponse(error)) return true;
 
-  const callException =
-    error.code === 'CALL_EXCEPTION'
-      ? error
-      : isRecord(error.cause) && error.cause.code === 'CALL_EXCEPTION'
-        ? error.cause
-        : undefined;
+  const callException = findCallException(error);
   if (!callException) return false;
 
   const nestedError = isRecord(callException.error)

@@ -1,17 +1,8 @@
 import { expect } from 'chai';
 
+import { missingSelectorError, wrappedError } from '../test/errors.js';
+
 import { isMissingSelectorCallException } from './contract.js';
-
-function missingSelectorError(): Error & { code: string; data: string } {
-  return Object.assign(new Error('call revert exception'), {
-    code: 'CALL_EXCEPTION',
-    data: '0x',
-  });
-}
-
-function wrappedError(cause: Error): Error {
-  return new Error('wrapped provider error', { cause });
-}
 
 describe('contract utils', () => {
   describe('isMissingSelectorCallException', () => {
@@ -24,6 +15,14 @@ describe('contract utils', () => {
     it('matches SmartProvider-wrapped empty call exceptions', () => {
       expect(
         isMissingSelectorCallException(wrappedError(missingSelectorError())),
+      ).to.equal(true);
+    });
+
+    it('matches deeply wrapped empty call exceptions', () => {
+      expect(
+        isMissingSelectorCallException(
+          wrappedError(wrappedError(missingSelectorError())),
+        ),
       ).to.equal(true);
     });
 

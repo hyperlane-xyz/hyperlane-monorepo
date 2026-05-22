@@ -395,7 +395,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             predicateAddress = sub;
             break;
           }
-        } catch {
+        } catch (error) {
+          throwIfNotMissingSelector(error);
           // Not a PredicateRouterWrapper — continue
         }
       }
@@ -920,11 +921,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         },
       };
     } catch (error) {
+      if (isMissingSelectorCallException(error)) return {};
       this.logger.error(
         `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
         error,
       );
-      return {};
+      throw error;
     }
   }
 

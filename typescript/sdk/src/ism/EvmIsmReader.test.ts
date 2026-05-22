@@ -34,6 +34,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { missingSelectorError, networkError } from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -45,19 +46,6 @@ import {
   PausableIsmConfig,
   TestIsmConfig,
 } from './types.js';
-
-function missingSelectorError(): Error & { code: string; data: string } {
-  return Object.assign(new Error('call revert exception (data="0x")'), {
-    code: 'CALL_EXCEPTION',
-    data: '0x',
-  });
-}
-
-function networkError(): Error & { code: string } {
-  return Object.assign(new Error('provider unavailable'), {
-    code: 'NETWORK_ERROR',
-  });
-}
 
 describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
