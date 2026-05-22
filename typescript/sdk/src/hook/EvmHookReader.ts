@@ -26,6 +26,7 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  isZeroishAddress,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -729,7 +730,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       async (domainId) => {
         const chainName = this.multiProvider.getChainName(domainId);
         const domainHook = await hook.hooks(domainId);
-        if (domainHook !== ethers.constants.AddressZero) {
+        if (!isZeroishAddress(domainHook)) {
           const derived = await this.deriveHookConfigFromAddress(domainHook);
           domainHooks[chainName] = this.preserveUnredeployable(
             domainHook,

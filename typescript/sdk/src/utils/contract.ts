@@ -1,7 +1,7 @@
 import { compareVersions } from 'compare-versions';
 import { providers } from 'ethers';
 
-import { Address, chunk, strip0x } from '@hyperlane-xyz/utils';
+import { Address, chunk, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
 export function isValidContractVersion(
   currentVersion: string,
@@ -11,7 +11,7 @@ export function isValidContractVersion(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && !isNullish(value);
 }
 
 function getErrorMessage(error: unknown): string | undefined {
