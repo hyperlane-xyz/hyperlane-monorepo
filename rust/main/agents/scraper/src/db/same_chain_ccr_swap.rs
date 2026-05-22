@@ -1,16 +1,11 @@
 use ethers::utils::keccak256;
 use eyre::Result;
-use sea_orm::prelude::*;
 use tracing::instrument;
 
-use hyperlane_core::{
-    address_to_bytes, h256_to_bytes, HyperlaneMessage, LogMeta, SameChainCcrSwap, H256,
-};
+use hyperlane_core::{HyperlaneMessage, LogMeta, SameChainCcrSwap, H256};
 
 use crate::db::ScraperDb;
 use crate::db::{StorableDelivery, StorableMessage};
-
-use super::generated::message;
 
 /// Compute the synthetic message ID for a same-chain CCR swap.
 ///
