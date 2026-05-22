@@ -107,12 +107,14 @@ impl BlockCursor {
     /// Persist the current height to the database unconditionally, bypassing the
     /// time-based throttle.  Call this after committing a write-once batch (e.g.
     /// CCR swaps) so a restart never re-plays already-advanced ranges.
+    ///
+    /// Returns `Err` on DB failure so the caller can decide whether to back off
+    /// or keep advancing. `last_saved_at` is only updated on success so a failed
+    /// flush does not suppress the throttle in `update()`.
     #[instrument(skip(self), fields(cursor = ?self.inner))]
-    pub async fn flush(&self) {
+    pub async fn flush(&self) -> Result<()> {
         let mut inner = self.inner.write().await;
         let height = inner.height;
-        inner.last_saved_at = Instant::now();
-        let inner = inner.downgrade();
         let model = cursor::ActiveModel {
             id: ActiveValue::NotSet,
             domain: ActiveValue::Set(self.domain as i32),
@@ -121,11 +123,11 @@ impl BlockCursor {
             event_type: ActiveValue::Set(self.event_type.clone()),
         };
         debug!(?model, "Flushing cursor to database");
-        if let Err(e) = Insert::one(model).exec(&self.db).await {
-            warn!(error = ?e, "Failed to flush cursor to database")
-        } else {
-            debug!(cursor = ?*inner, "Flushed cursor")
-        }
+        Insert::one(model).exec(&self.db).await?;
+        inner.last_saved_at = Instant::now();
+        let inner = inner.downgrade();
+        debug!(cursor = ?*inner, "Flushed cursor");
+        Ok(())
     }
 }
 

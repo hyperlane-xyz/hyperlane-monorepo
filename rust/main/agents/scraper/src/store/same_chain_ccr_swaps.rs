@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use eyre::Result;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use hyperlane_core::{HyperlaneLogStore, Indexed, LogMeta, SameChainCcrSwap, H512};
 
@@ -21,22 +21,27 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .map(|t| (t.hash, t))
             .collect();
 
-        let storable = swaps
+        // filter_map mirrors the dispatch/payment store_logs pattern: if
+        // ensure_blocks_and_txns silently dropped a txn (transient RPC fetch
+        // failure), skip the swap rather than returning Err and stalling the
+        // indexer in a tight retry loop for the same block range.
+        let storable: Vec<_> = swaps
             .iter()
-            .map(|(swap, meta)| {
-                let txn = txns.get(&meta.transaction_id).ok_or_else(|| {
-                    eyre::eyre!(
-                        "txn not found in enriched map for CCR swap tx {:?}",
-                        meta.transaction_id
-                    )
-                })?;
-                Ok(StorableCcrSwap {
+            .filter_map(|(swap, meta)| {
+                let txn = txns.get(&meta.transaction_id);
+                if txn.is_none() {
+                    warn!(
+                        tx_hash = ?meta.transaction_id,
+                        "skipping CCR swap: txn not found in enriched map (transient RPC miss?)"
+                    );
+                }
+                txn.map(|t| StorableCcrSwap {
                     swap: swap.inner(),
                     meta,
-                    txn_id: txn.id,
+                    txn_id: t.id,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect();
 
         debug!(domain = self.domain.id(), ?storable, "storable CCR swaps");
 

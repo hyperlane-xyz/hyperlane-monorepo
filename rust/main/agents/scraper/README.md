@@ -51,7 +51,7 @@ Each swap is represented as:
 | `sender` | source CCR router address (origin mailbox) |
 | `recipient` | destination CCR router address (destination mailbox) |
 | `body` | TokenMessage: `recipient_bytes32 \|\| amount_received_uint256` (from `ReceivedTransferRemote`, post-fee, matches how cross-chain CCR Hyperlane messages encode the transfer amount) |
-| `nonce` | sequential counter per `(domain, source_router)` pair, starting at 0 — unique by construction, no collision possible |
+| `nonce` | sequential counter per `(domain, source_router)` pair, starting at 0 — collision-free by construction; not stable across re-index runs (idempotency is guarded by `msg_id` pre-check, not ON CONFLICT) |
 | `msg_id` | `0x00000000 \|\| keccak256("SameChainCCR" \|\| txHash32 \|\| logIndex8)[0..28]` — 4-byte zero prefix makes synthetic IDs immediately distinguishable from real message IDs |
 
 A matching `delivered_message` row pointing to the same transaction is inserted immediately, so the swap appears as an instantly-delivered transfer in the explorer.

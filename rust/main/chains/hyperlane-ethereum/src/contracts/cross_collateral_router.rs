@@ -227,12 +227,12 @@ where
         // Assemble swap records using the cached receipts.
         let mut results = Vec::new();
         for c in candidates {
-            let Some(receipt) = receipts.get(&c.tx_hash) else {
-                return Err(ChainCommunicationError::from_other_str(&format!(
-                    "receipt missing from cache for tx {:?} (should be unreachable)",
+            let receipt = receipts.get(&c.tx_hash).unwrap_or_else(|| {
+                unreachable!(
+                    "try_collect above ensures all receipts are present; tx {:?} missing",
                     c.tx_hash
-                )));
-            };
+                )
+            });
             let Some(source_router) =
                 self.find_source_in_receipt(receipt, c.destination_router, c.rtr_log_index)
             else {
