@@ -460,7 +460,7 @@
       "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
       "blockExplorers": [
         {
-          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiKey": "CYUPN3Q66JIMRGQWYUDXJKQH4SX8YIYZMW",
           "apiUrl": "https://api-sepolia.etherscan.io/api",
           "family": "etherscan",
           "name": "Etherscan",
@@ -1364,7 +1364,7 @@
       "protocol": "aleo",
       "rpcUrls": [
         {
-          "http": "https://api.explorer.provable.com/v2"
+          "http": "https://api.explorer.provable.com/v1"
         }
       ],
       "mailbox": "aleo1jps66qyy3mwhtdyrx4n7u3j5qnh8d7fdc4pwx3t0g9mwcs0xjuxqc3lsxu",
