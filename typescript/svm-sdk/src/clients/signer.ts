@@ -166,6 +166,7 @@ export class SvmSigner
   ): Promise<SvmSigner> {
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
+
     const keyBytes = parseKeyBytes(privateKey);
 
     let keypair: KeyPairSigner;
@@ -180,6 +181,15 @@ export class SvmSigner
     }
 
     return new SvmSigner(rpc, rpcUrls, keypair);
+  }
+
+  static async connectWithTransactionSigner(
+    rpcUrls: string[],
+    signer: TransactionSigner,
+  ): Promise<SvmSigner> {
+    assert(rpcUrls.length > 0, 'At least one RPC URL is required');
+    const rpc = createRpc(rpcUrls[0]);
+    return new SvmSigner(rpc, rpcUrls, signer);
   }
 
   getSignerAddress(): string {

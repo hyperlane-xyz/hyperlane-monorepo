@@ -13,7 +13,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { createGcpKmsAltVmSigner } from './strategies/signer/altvm/GcpKmsAltVmSigner.js';
+
+import {
+  CustomTxSubmitterType,
+  type ExtendedChainSubmissionStrategy,
+} from '../submitters/types.js';
 
 import {
   JSON_RPC_SUBMITTER_TYPE,
@@ -127,6 +132,12 @@ export async function createAltVMSigners(
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
 
+    const rawConfig = strategyConfig[chain]?.submitter;
+    if (rawConfig?.type === CustomTxSubmitterType.GCP_KMS) {
+      signers[chain] = await createGcpKmsAltVmSigner(metadata, rawConfig.keyId);
+      continue;
+    }
+
     if (!protocolRegistry.hasProtocol(metadata.protocol)) {
       continue;
     }
@@ -136,20 +147,25 @@ export async function createAltVMSigners(
       metadata.protocol,
       chain,
     );
-    const signerConfig = {
-      privateKey: await loadPrivateKey(
-        keyByProtocol,
-        promptedKeyByProtocol,
-        strategyConfig,
-        metadata.protocol,
-        chain,
-      ),
-      accountAddress,
-    };
+    const privateKey = await loadPrivateKey(
+      keyByProtocol,
+      promptedKeyByProtocol,
+      strategyConfig,
+      metadata.protocol,
+      chain,
+    );
+
+    if (privateKey.startsWith('gcpkms://')) {
+      signers[chain] = await createGcpKmsAltVmSigner(
+        metadata,
+        privateKey.slice('gcpkms://'.length),
+      );
+      continue;
+    }
 
     signers[chain] = await protocolRegistry
       .getProtocolProvider(metadata.protocol)
-      .createSigner(metadata, signerConfig);
+      .createSigner(metadata, { privateKey, accountAddress });
   }
 
   return signers;

@@ -17,7 +17,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import {
+  CustomTxSubmitterType,
+  type ExtendedChainSubmissionStrategy,
+} from '../../../submitters/types.js';
 import { type SignerKeyProtocolMap } from '../../types.js';
 
 import {
@@ -25,7 +28,10 @@ import {
   type SignerConfig,
   type TypedSigner,
 } from './BaseMultiProtocolSigner.js';
-import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
+import {
+  GcpKmsSignerStrategy,
+  MultiProtocolSignerFactory,
+} from './MultiProtocolSignerFactory.js';
 
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
@@ -153,22 +159,33 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
     const rawConfig = this.submissionStrategy[chain]?.submitter;
 
-    let signerConfig: SignerConfig;
+    let signer: TypedSigner;
     const defaultPrivateKey = (this.options.key ?? {})[protocolType];
-    if (isJsonRpcSubmitterConfig(rawConfig)) {
-      signerConfig = rawConfig;
 
-      // Even if the config is a json rpc one,
-      // the private key might be undefined
-      signerConfig.privateKey ??= defaultPrivateKey;
-    } else {
-      signerConfig = {
+    const gcpKmsKeyId =
+      rawConfig?.type === CustomTxSubmitterType.GCP_KMS
+        ? rawConfig.keyId
+        : defaultPrivateKey?.startsWith('gcpkms://')
+          ? defaultPrivateKey.slice('gcpkms://'.length)
+          : undefined;
+
+    if (gcpKmsKeyId) {
+      signer = await new GcpKmsSignerStrategy(
+        this.multiProtocolProvider,
+      ).getSigner({
         chain,
-        privateKey: defaultPrivateKey,
-      };
+        keyId: gcpKmsKeyId,
+      });
+    } else {
+      let signerConfig: SignerConfig;
+      if (isJsonRpcSubmitterConfig(rawConfig)) {
+        signerConfig = rawConfig;
+        signerConfig.privateKey ??= defaultPrivateKey;
+      } else {
+        signerConfig = { chain, privateKey: defaultPrivateKey };
+      }
+      signer = await signerStrategy.getSigner(signerConfig);
     }
-
-    const signer = await signerStrategy.getSigner(signerConfig);
 
     this.signers.set(chain, signer);
     return signer;

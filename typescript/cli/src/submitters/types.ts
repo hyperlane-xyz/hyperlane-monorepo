@@ -12,6 +12,7 @@ import {
 export const CustomTxSubmitterType = {
   ...TxSubmitterType,
   FILE: 'file',
+  GCP_KMS: 'gcpKms',
 } as const;
 
 export const FileTxSubmitterPropsSchema = z.object({
@@ -24,13 +25,31 @@ const FileSubmitterMetadataSchema = z.object({
   ...FileTxSubmitterPropsSchema.shape,
 });
 
-type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
+export const GcpKmsSubmitterPropsSchema = z.object({
+  keyId: z.string(),
+  chain: ZChainName,
+});
 
-type ExtendedSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
+const GcpKmsSubmitterMetadataSchema = z.object({
+  type: z.literal(CustomTxSubmitterType.GCP_KMS),
+  ...GcpKmsSubmitterPropsSchema.shape,
+});
+
+export type GcpKmsSubmitterProps = z.infer<typeof GcpKmsSubmitterPropsSchema>;
+
+type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
+type GcpKmsSubmitterMetadata = z.infer<typeof GcpKmsSubmitterMetadataSchema>;
+
+type ExtendedSubmitterMetadata =
+  | SubmitterMetadata
+  | FileSubmitterMetadata
+  | GcpKmsSubmitterMetadata;
 
 // @ts-expect-error recursive schema causes type inference errors
 const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
-  SubmitterMetadataSchema.or(FileSubmitterMetadataSchema);
+  SubmitterMetadataSchema.or(FileSubmitterMetadataSchema).or(
+    GcpKmsSubmitterMetadataSchema,
+  );
 
 export const ExtendedSubmissionStrategySchema: z.ZodSchema<{
   submitter: ExtendedSubmitterMetadata;

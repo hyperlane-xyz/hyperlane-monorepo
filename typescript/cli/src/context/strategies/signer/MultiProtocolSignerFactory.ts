@@ -13,6 +13,7 @@ import {
   type IMultiProtocolSigner,
   type SignerConfig,
 } from './BaseMultiProtocolSigner.js';
+import { GcpKmsSigner } from './GcpKmsSigner.js';
 
 export class MultiProtocolSignerFactory {
   static getSignerStrategy(
@@ -26,6 +27,29 @@ export class MultiProtocolSignerFactory {
       default:
         throw new Error(`Unsupported protocol: ${protocol}`);
     }
+  }
+}
+
+export class GcpKmsSignerStrategy implements IMultiProtocolSigner {
+  constructor(private readonly multiProtocolProvider: MultiProtocolProvider) {}
+
+  async getSigner(config: SignerConfig & { keyId: string }): Promise<Signer> {
+    const { protocol, technicalStack } =
+      this.multiProtocolProvider.getChainMetadata(config.chain);
+
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      throw new Error(
+        `GCP KMS signing is not yet supported for ZkSync chain ${config.chain}`,
+      );
+    }
+
+    if (protocol === ProtocolType.Tron) {
+      throw new Error(
+        `GCP KMS signing is not yet supported for Tron chain ${config.chain}`,
+      );
+    }
+
+    return new GcpKmsSigner(config.keyId);
   }
 }
 
