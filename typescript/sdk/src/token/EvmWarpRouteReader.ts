@@ -92,6 +92,7 @@ import {
   OpL2TokenConfig,
   OwnerStatus,
   TokenMetadata,
+  XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
@@ -897,15 +898,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] = [];
 
     try {
-      const extraBridgesLimits = await getExtraLockBoxConfigs({
+      extraBridgesLimits = await getExtraLockBoxConfigs({
         chain: this.chain,
         multiProvider: this.multiProvider,
         xERC20Address,
         logger: this.logger,
       });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to derive extra xERC20 lockbox configs for token at ${xERC20Address} on chain ${this.chain}`,
+        error,
+      );
+    }
 
+    try {
       // TODO: fix this such that it fetches from WL's values too
       return {
         xERC20: {
