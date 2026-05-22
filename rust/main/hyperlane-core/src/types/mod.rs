@@ -259,8 +259,6 @@ pub struct SameChainCcrSwap {
     pub source_router: H256,
     /// Address of the destination CCR contract (emitted ReceivedTransferRemote)
     pub destination_router: H256,
-    /// Amount of source token transferred in (from ERC20 Transfer)
-    pub amount_sent: U256,
     /// Amount of destination token transferred out (from ReceivedTransferRemote)
     pub amount_received: U256,
     /// Final token recipient

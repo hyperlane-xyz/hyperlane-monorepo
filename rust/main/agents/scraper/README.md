@@ -51,7 +51,7 @@ Each swap is represented as:
 | `sender` | source CCR router address (origin mailbox) |
 | `recipient` | destination CCR router address (destination mailbox) |
 | `body` | TokenMessage: `recipient_bytes32 \|\| amount_received_uint256` (from `ReceivedTransferRemote`, post-fee, matches how cross-chain CCR Hyperlane messages encode the transfer amount) |
-| `nonce` | `msg_id bytes [4..8] % 2^31` — derived from the msg_id hash so nonce collision ↔ msg_id collision, keeping the DB upsert idempotent; fits PostgreSQL's signed INT4 range |
+| `nonce` | sequential counter per `(domain, source_router)` pair, starting at 0 — unique by construction, no collision possible |
 | `msg_id` | `0x00000000 \|\| keccak256("SameChainCCR" \|\| txHash32 \|\| logIndex8)[0..28]` — 4-byte zero prefix makes synthetic IDs immediately distinguishable from real message IDs |
 
 A matching `delivered_message` row pointing to the same transaction is inserted immediately, so the swap appears as an instantly-delivered transfer in the explorer.
@@ -64,7 +64,7 @@ One property uniquely identifies a synthetic same-chain CCR swap message:
 
 1. **`msg_id` starts with 8 zero hex chars** — `msg_id LIKE '0x00000000%'`
 
-Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 4-byte / 8 hex char prefix being all zeros is ~1 in 2^32 (~4.3×10^9)). The nonce is not a reliable identifier: it is hash-derived (range `[0, 2^31)`) and can coincide with real sequential nonces.
+Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 4-byte / 8 hex char prefix being all zeros is ~1 in 2^32 (~4.3×10^9)). The nonce is not a reliable identifier: it is a sequential counter scoped to each `(domain, source_router)` pair and can coincide with real sequential nonces from other mailboxes.
 
 ### Recalculating the msg_id
 

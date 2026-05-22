@@ -7,7 +7,7 @@ use ethers::prelude::Middleware;
 use ethers::types::{Filter, Log, TransactionReceipt, H160 as EthersH160, H256 as EthersH256};
 use ethers_contract::LogMeta as EthersLogMeta;
 use ethers_core::utils::keccak256;
-use futures_util::future::try_join_all;
+use futures_util::{stream, StreamExt, TryStreamExt};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Indexed, Indexer, LogMeta,
     SameChainCcrSwap, H160, H256, U256,
@@ -59,6 +59,7 @@ impl<M> CcrSwapIndexer<M>
 where
     M: Middleware + 'static,
 {
+    /// Create a new `CcrSwapIndexer`.
     pub fn new(
         provider: Arc<M>,
         local_domain: u32,
@@ -91,38 +92,45 @@ where
     }
 
     /// Search a pre-fetched receipt for the ERC20 Transfer that identifies the
-    /// source router and sent amount for a same-chain CCR swap arriving at
-    /// `destination_router`.
+    /// source router for a same-chain CCR swap arriving at `destination_router`.
+    ///
+    /// Scopes the search to logs that precede `rtr_log_index` and returns the
+    /// last (highest log-index) match, so that each RTR in a multi-swap transaction
+    /// is paired with its own Transfer rather than the first Transfer in the tx.
     fn find_source_in_receipt(
         &self,
         receipt: &TransactionReceipt,
         destination_router: EthersH160,
-    ) -> Option<(EthersH160, U256)> {
+        rtr_log_index: u64,
+    ) -> Option<EthersH160> {
         let mut dst_topic = EthersH256::zero();
         dst_topic.0[12..].copy_from_slice(&destination_router.0);
 
-        receipt.logs.iter().find_map(|log| {
-            // Pre-filter 1: only ERC20 logs from known collateral contracts.
-            if !self.known_collaterals.contains(&log.address) {
-                return None;
-            }
-            // Pre-filter 2: must be an ERC20 Transfer event.
-            if log.topics.first() != Some(&self.erc20_transfer_topic) {
-                return None;
-            }
-            // Compare topic2 (`to`) directly as a 32-byte value — no decoding needed.
-            // `to` is the source CCR router: a known CCR address other than the destination.
-            let topic2 = log.topics.get(2)?;
-            if !self.ccr_router_topics.contains(topic2) || topic2 == &dst_topic {
-                return None;
-            }
-            if log.data.len() < 32 {
-                return None;
-            }
-            let value = U256::from_big_endian(&log.data[..32]);
-            let source_router = EthersH160::from_slice(&topic2.0[12..]);
-            Some((source_router, value))
-        })
+        receipt
+            .logs
+            .iter()
+            .rev()
+            .filter(|log| {
+                log.log_index
+                    .map_or(false, |idx| idx.as_u64() < rtr_log_index)
+            })
+            .find_map(|log| {
+                // Pre-filter 1: only ERC20 logs from known collateral contracts.
+                if !self.known_collaterals.contains(&log.address) {
+                    return None;
+                }
+                // Pre-filter 2: must be an ERC20 Transfer event.
+                if log.topics.first() != Some(&self.erc20_transfer_topic) {
+                    return None;
+                }
+                // Compare topic2 (`to`) directly as a 32-byte value — no decoding needed.
+                // `to` is the source CCR router: a known CCR address other than the destination.
+                let topic2 = log.topics.get(2)?;
+                if !self.ccr_router_topics.contains(topic2) || topic2 == &dst_topic {
+                    return None;
+                }
+                Some(EthersH160::from_slice(&topic2.0[12..]))
+            })
     }
 }
 
@@ -151,6 +159,9 @@ where
         struct Candidate {
             log: Log,
             tx_hash: EthersH256,
+            /// Log index of the RTR event within the transaction — used to scope
+            /// the ERC-20 Transfer search to preceding logs.
+            rtr_log_index: u64,
             destination_router: EthersH160,
             recipient: H256,
             amount_received: U256,
@@ -164,10 +175,12 @@ where
                     return None;
                 }
                 let tx_hash = log.transaction_hash?;
+                let rtr_log_index = log.log_index?.as_u64();
                 Some(Candidate {
                     destination_router: log.address,
                     log,
                     tx_hash,
+                    rtr_log_index,
                     recipient,
                     amount_received,
                 })
@@ -182,8 +195,10 @@ where
             .into_iter()
             .collect();
 
-        let receipts: HashMap<EthersH256, TransactionReceipt> =
-            try_join_all(unique_hashes.into_iter().map(|tx_hash| {
+        const RECEIPT_FETCH_CONCURRENCY: usize = 20;
+
+        let receipts: HashMap<EthersH256, TransactionReceipt> = stream::iter(unique_hashes)
+            .map(|tx_hash| {
                 let provider = Arc::clone(&self.provider);
                 async move {
                     let receipt = provider
@@ -192,11 +207,11 @@ where
                         .map_err(ChainCommunicationError::from_other)?;
                     Ok::<_, ChainCommunicationError>((tx_hash, receipt))
                 }
-            }))
-            .await?
-            .into_iter()
-            .filter_map(|(hash, receipt)| receipt.map(|r| (hash, r)))
-            .collect();
+            })
+            .buffer_unordered(RECEIPT_FETCH_CONCURRENCY)
+            .try_filter_map(|(hash, receipt)| async move { Ok(receipt.map(|r| (hash, r))) })
+            .try_collect()
+            .await?;
 
         // Assemble swap records using the cached receipts.
         let mut results = Vec::new();
@@ -204,8 +219,8 @@ where
             let Some(receipt) = receipts.get(&c.tx_hash) else {
                 continue;
             };
-            let Some((source_router, amount_sent)) =
-                self.find_source_in_receipt(receipt, c.destination_router)
+            let Some(source_router) =
+                self.find_source_in_receipt(receipt, c.destination_router, c.rtr_log_index)
             else {
                 continue;
             };
@@ -221,7 +236,6 @@ where
                 domain: self.local_domain,
                 source_router: H256::from(src_bytes),
                 destination_router: H256::from(dst_bytes),
-                amount_sent,
                 amount_received: c.amount_received,
                 recipient: c.recipient,
             };
@@ -240,8 +254,11 @@ where
 /// Builder for `CcrSwapIndexer`. Carries the CCR config so it can be passed
 /// through `BuildableWithProvider` (which only exposes the ethers provider).
 pub struct CcrSwapIndexerBuilder {
+    /// Local domain ID of the chain being indexed.
     pub local_domain: u32,
+    /// Map of CCR router address → collateral ERC20 address for this chain.
     pub ccr_to_erc20: HashMap<H160, H160>,
+    /// Reorg safety period for this chain.
     pub reorg_period: EthereumReorgPeriod,
 }
 

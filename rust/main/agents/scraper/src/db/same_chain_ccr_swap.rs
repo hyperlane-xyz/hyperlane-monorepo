@@ -1,11 +1,16 @@
 use ethers::utils::keccak256;
 use eyre::Result;
+use sea_orm::{prelude::*, ActiveValue::*, QueryOrder, QuerySelect};
 use tracing::instrument;
 
-use hyperlane_core::{HyperlaneMessage, LogMeta, SameChainCcrSwap, H256};
+use hyperlane_core::{
+    address_to_bytes, h256_to_bytes, HyperlaneMessage, LogMeta, SameChainCcrSwap, H256,
+};
 
 use crate::db::ScraperDb;
 use crate::db::{StorableDelivery, StorableMessage};
+
+use super::generated::message;
 
 /// Compute the synthetic message ID for a same-chain CCR swap.
 ///
@@ -39,6 +44,37 @@ pub struct StorableCcrSwap<'a> {
 }
 
 impl ScraperDb {
+    /// Returns the next nonce to use for a synthetic CCR swap from `source_router`
+    /// on `domain`. Reads the current maximum nonce for that (origin, origin_mailbox)
+    /// pair and returns max + 1, or 0 if no rows exist yet.
+    ///
+    /// Safe because the scraper processes one block range at a time per domain —
+    /// no concurrent writers can race to claim the same nonce.
+    async fn ccr_next_nonce(&self, domain: u32, source_router: &H256) -> Result<u32> {
+        let mailbox_bytes = address_to_bytes(source_router);
+        let max: Option<i32> = message::Entity::find()
+            .filter(message::Column::Origin.eq(domain as i32))
+            .filter(message::Column::OriginMailbox.eq(mailbox_bytes))
+            .select_only()
+            .column(message::Column::Nonce)
+            .order_by_desc(message::Column::Nonce)
+            .limit(1)
+            .into_tuple::<i32>()
+            .one(&self.0)
+            .await?;
+        Ok(max.map_or(0, |n| (n as u32).wrapping_add(1)))
+    }
+
+    /// Returns true if a message with this `msg_id` is already stored.
+    /// Used to skip re-insertion when re-indexing a block range.
+    async fn ccr_msg_already_stored(&self, msg_id: H256) -> Result<bool> {
+        let count = message::Entity::find()
+            .filter(message::Column::MsgId.eq(h256_to_bytes(&msg_id)))
+            .count(&self.0)
+            .await?;
+        Ok(count > 0)
+    }
+
     /// Store same-chain CCR swaps as synthetic Hyperlane messages so the
     /// explorer can display them without any Hasura or explorer code changes.
     /// origin == destination (same domain), source_router = origin_mailbox,
@@ -47,9 +83,9 @@ impl ScraperDb {
     /// The message ID has a 4-byte zero prefix for immediate recognition:
     /// `0x00000000 || keccak256("SameChainCCR" || txHash || logIndex)[0..28]`
     ///
-    /// The nonce is derived from msg_id bytes [4..8] (% 2^31 for PostgreSQL's signed INT4)
-    /// so that a nonce collision implies a msg_id collision, making the OnConflict upsert
-    /// genuinely idempotent.
+    /// Nonce is a sequential counter per (domain, source_router) pair, derived
+    /// by querying the current max nonce and incrementing. This avoids birthday
+    /// collisions entirely. Idempotency is handled by a pre-check on msg_id.
     #[instrument(skip_all)]
     pub async fn store_ccr_swaps_as_messages(
         &self,
@@ -62,11 +98,14 @@ impl ScraperDb {
 
             let msg_id = synthetic_ccr_msg_id(storable.meta);
 
-            // Derive nonce from msg_id bytes [4..8] (first 4 bytes of the hash payload)
-            // so nonce collision ↔ msg_id collision, keeping OnConflict idempotent.
-            // % 2^31 keeps the value in PostgreSQL's signed INT4 range.
-            let nonce =
-                u32::from_be_bytes(msg_id.as_bytes()[4..8].try_into().unwrap()) % 2_147_483_648;
+            // Skip if already indexed — sequential nonce is not deterministic
+            // across re-index runs so we guard on msg_id instead of relying on
+            // ON CONFLICT.
+            if self.ccr_msg_already_stored(msg_id).await? {
+                continue;
+            }
+
+            let nonce = self.ccr_next_nonce(domain, &swap.source_router).await?;
 
             // TokenMessage body: recipient_bytes32 ++ amount_received_uint256
             // Uses amount_received (from ReceivedTransferRemote, post-fee) to match
@@ -136,10 +175,6 @@ mod tests {
         }
     }
 
-    fn nonce_from_msg_id(id: &H256) -> u32 {
-        u32::from_be_bytes(id.as_bytes()[4..8].try_into().unwrap()) % 2_147_483_648
-    }
-
     /// Fixture shared with typescript/utils/src/messages.test.ts.
     /// Both sides must produce the identical hex string for the same inputs.
     #[test]
@@ -154,47 +189,33 @@ mod tests {
         assert_eq!(msg_id, expected);
     }
 
-    /// Same (txHash, logIndex) must always produce the same nonce — idempotent upserts.
+    /// Same (txHash, logIndex) must always produce the same msg_id — deterministic.
     #[test]
-    fn same_inputs_produce_same_nonce() {
+    fn same_inputs_produce_same_msg_id() {
         let tx_hash: H256 = "0x1111111111111111111111111111111111111111111111111111111111111111"
             .parse()
             .unwrap();
         let id1 = synthetic_ccr_msg_id(&make_meta(tx_hash, 5));
         let id2 = synthetic_ccr_msg_id(&make_meta(tx_hash, 5));
         assert_eq!(id1, id2);
-        assert_eq!(nonce_from_msg_id(&id1), nonce_from_msg_id(&id2));
     }
 
-    /// The nonce derivation `msg_id[4..8] % 2^31` maps the full u32 range [0, 2^32)
-    /// onto [0, 2^31): any two msg_ids whose bytes[4..8] differ by exactly 2^31 produce
-    /// the same nonce despite being distinct msg_ids.
-    ///
-    /// When this happens and both swaps share (origin, origin_mailbox), the ON CONFLICT
-    /// update on (Origin, OriginMailbox, Nonce) overwrites the first row's Sender,
-    /// Recipient, and MsgBody with the second swap's values while keeping the first
-    /// swap's MsgId — silently corrupting the row.
-    ///
-    /// Fix: store nonce as i32 (signed bit-reinterpretation of the 4 bytes) rather
-    /// than truncating with % 2^31; the i32 range covers all 2^32 distinct 4-byte
-    /// patterns injectively within PostgreSQL's INT4 column.
+    /// Different (txHash, logIndex) pairs must produce different msg_ids.
     #[test]
-    fn nonce_derivation_is_not_injective() {
-        // Construct two synthetic msg_ids whose bytes[4..8] differ by 2^31.
-        // Both are valid synthetic IDs (0x00000000 prefix).
-        let mut id_a = [0u8; 32];
-        id_a[4..8].copy_from_slice(&0x00000001u32.to_be_bytes());
-        let msg_id_a = H256::from(id_a);
-
-        let mut id_b = [0u8; 32];
-        id_b[4..8].copy_from_slice(&0x80000001u32.to_be_bytes());
-        let msg_id_b = H256::from(id_b);
-
-        assert_ne!(msg_id_a, msg_id_b, "distinct msg_ids");
-        assert_eq!(
-            nonce_from_msg_id(&msg_id_a),
-            nonce_from_msg_id(&msg_id_b),
-            "same nonce despite different msg_ids — nonce collision ↔ msg_id collision is false"
+    fn different_inputs_produce_different_msg_ids() {
+        let tx_a: H256 = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .parse()
+            .unwrap();
+        let tx_b: H256 = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            .parse()
+            .unwrap();
+        assert_ne!(
+            synthetic_ccr_msg_id(&make_meta(tx_a, 0)),
+            synthetic_ccr_msg_id(&make_meta(tx_b, 0)),
+        );
+        assert_ne!(
+            synthetic_ccr_msg_id(&make_meta(tx_a, 0)),
+            synthetic_ccr_msg_id(&make_meta(tx_a, 1)),
         );
     }
 }

@@ -270,6 +270,9 @@ export async function writeAgentConfig(
       }
       delete chainConfig.transactionOverrides;
     }
+    // Replace ccrRouters with the freshly computed value so removed routers
+    // don't persist across regenerations (objMerge would otherwise keep stale entries).
+    delete (currentAgentConfig as Record<string, unknown>).ccrRouters;
     writeAndFormatJsonAtPath(
       filepath,
       objMerge(currentAgentConfig, fullConfig),
