@@ -999,14 +999,25 @@ export abstract class SealevelHypTokenAdapter
     const tokenData = await this.getTokenAccountData();
     const igpState = await this.innerIgpFeeState.get();
 
-    // Non-CC routes pass H256::zero() per the fee program's seed macros; CC
-    // override its own populateTransferRemoteToTx.
+    // The non-CC `transfer_remote` CPIs `QuoteFee` with
+    // `target_router = token.router(destination_domain)` (i.e. the enrolled
+    // remote router, see hyperlane-sealevel-token's `transfer_remote`). The
+    // fee program's CC-routing variant keys its specific-scope standing PDA
+    // off `data.target_router`, so the cascade simulation here must use the
+    // same router bytes the runtime CPI will pass — otherwise the simulated
+    // PDA slot at `(dest, ZERO)` mismatches the runtime expectation at
+    // `(dest, enrolled_router)` and `process_quote_fee` errors with
+    // `InvalidTransientSlot`. Non-CC fee variants (Leaf / Routing) ignore
+    // `data.target_router` (the on-chain `standing_target_router = ZERO`
+    // arm fires), so passing the enrolled router is a no-op for them.
     const feeSection = tokenData.fee_config
       ? await this.buildFeeSectionKeys({
           feeConfig: tokenData.fee_config,
           payer: fromWalletPubKey,
           destination,
-          targetRouter: new Uint8Array(32),
+          targetRouter: new Uint8Array(
+            await this.getRouterAddress(destination),
+          ),
           scopedSalt: clientSalt,
         })
       : undefined;
