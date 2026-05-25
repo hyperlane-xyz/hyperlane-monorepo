@@ -350,7 +350,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         recipient,
         targetRouter: resolved.addressOrDenom,
         fromAccountOwner: sender,
-        clientSalt: scopedSalt,
+        scopedSalt,
       });
     } else {
       bundle = await adapter.getTransferRemoteIxBundle({
@@ -358,7 +358,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         destination: destinationDomainId,
         recipient,
         fromAccountOwner: sender,
-        clientSalt: scopedSalt,
+        scopedSalt,
       });
     }
 

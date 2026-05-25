@@ -454,10 +454,11 @@ export class SealevelHypCrossCollateralAdapter
    * prepends `SubmitFeeQuote` / `SubmitIgpQuote` ixs between the compute-
    * budget head and the transfer ix.
    *
-   * `clientSalt` (optional) is the pre-scoped 32-byte salt for a same-tx
-   * offchain transient quote — threaded through to the fee + IGP cascade
-   * simulations so their PDA enumeration includes the transient quote PDA.
-   * Standing-only callers omit it.
+   * `scopedSalt` (optional) is the 32-byte `keccak256(payer || clientSalt)`
+   * for a same-tx offchain transient quote — threaded through to the fee +
+   * IGP cascade simulations so their PDA enumeration includes the transient
+   * quote PDA. Matches the on-chain `scoped_salt` field. Standing-only
+   * callers omit it.
    */
   async getTransferRemoteToIxBundle({
     amount,
@@ -466,10 +467,10 @@ export class SealevelHypCrossCollateralAdapter
     fromAccountOwner,
     targetRouter,
     extraSigners,
-    clientSalt,
+    scopedSalt,
   }: TransferRemoteToParams & {
     /** Sealevel-only — see method docs. */
-    clientSalt?: Uint8Array;
+    scopedSalt?: Uint8Array;
   }): Promise<SealevelTransferBundle> {
     assert(fromAccountOwner, 'fromAccountOwner required for Sealevel');
 
@@ -490,7 +491,7 @@ export class SealevelHypCrossCollateralAdapter
           payer: sender,
           destination,
           targetRouter: targetRouterBytes,
-          scopedSalt: clientSalt,
+          scopedSalt,
         })
       : undefined;
 
@@ -524,7 +525,7 @@ export class SealevelHypCrossCollateralAdapter
               innerIgpAccount: igpState.innerIgpAccount,
               payer: sender,
               destination,
-              scopedSalt: clientSalt,
+              scopedSalt,
             })
           : undefined;
       keys = await this.getTransferRemoteToRemoteKeyList({
