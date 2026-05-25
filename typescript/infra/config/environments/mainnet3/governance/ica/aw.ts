@@ -145,4 +145,8 @@ export const awIcas: ChainMap<Address> = {
   // May 11, 2026 - Moonpay CROSS/USDC route
   // ----------------------------------------------------------
   citrea: '0x682bc0Aca87491ECB3683911996F1d573F989141',
+
+  // May 25, 2026
+  // ----------------------------------------------------------
+  nesa: '0x1A41fdB5908A7bb48d923cc184402ef750c57C0b',
 } as const;
