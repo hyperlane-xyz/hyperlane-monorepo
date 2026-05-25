@@ -2,7 +2,7 @@ import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import { type Hex, bytesToHex, hexToBytes, keccak256 } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProviderType } from '../providers/ProviderType.js';
 import { IToken } from '../token/IToken.js';
@@ -84,15 +84,6 @@ function toSealevelSvmSignedQuote(
 export interface SealevelQuotedTransferProviderOpts {
   feeQuotingClient: FeeQuotingV2Client;
   connection: Connection;
-  feeProgramId: PublicKey;
-  feeAccount: PublicKey;
-  /**
-   * Omit until SVM IGP supports `SubmitIgpQuote` on-chain. When set, provider
-   * fetches a parallel IGP quote and prepends a second submit ix before the
-   * transfer ix.
-   */
-  igpProgramId?: PublicKey;
-  igpAccount?: PublicKey;
   /**
    * Random-salt source — override for deterministic tests. Defaults to
    * `crypto.getRandomValues` (works in Node + browser).
@@ -220,7 +211,13 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       txSubmitter: sender,
     };
 
-    const igpEnabled = !!(this.opts.igpProgramId && this.opts.igpAccount);
+    const igpState = await adapter.innerIgpFeeState.get();
+    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
+    const igpAccount = igpState?.innerIgpAccount;
+    const igpEnabled =
+      !isNullish(igpProgramId) &&
+      !isNullish(igpAccount) &&
+      !isNullish(igpState?.feeConfig);
     const igpReq: FeeQuotingV2IgpParams | null = igpEnabled
       ? {
           origin: token.chainName,
@@ -276,8 +273,8 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
 
     const submitFeeIx = await buildSubmitFeeQuoteIx({
       connection: this.opts.connection,
-      feeProgramId: this.opts.feeProgramId,
-      feeAccount: this.opts.feeAccount,
+      feeProgramId: tokenData.fee_config.feeProgram,
+      feeAccount: tokenData.fee_config.feeAccount,
       payer: senderPubkey,
       signedQuote: toSealevelSvmSignedQuote(decodedWarp.signedQuote),
       scopedSalt,
@@ -299,15 +296,12 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       // IGP standing PDA seeds carry `(igp, fee_token_mint, dest, sender)`;
       // SOL-paying routes use `Pubkey::default` for `fee_token_mint`, and the
       // sender is the warp router program ID.
+      assert(igpProgramId && igpAccount, 'igpProgramId/igpAccount required');
       const quotePda = scopedSalt
-        ? deriveIgpTransientQuotePda(
-            this.opts.igpProgramId!,
-            this.opts.igpAccount!,
-            scopedSalt,
-          )
+        ? deriveIgpTransientQuotePda(igpProgramId, igpAccount, scopedSalt)
         : deriveIgpStandingQuotePda(
-            this.opts.igpProgramId!,
-            this.opts.igpAccount!,
+            igpProgramId,
+            igpAccount,
             // SOL-paying routes only — the IGP standing PDA seeds include
             // `fee_token_mint`, which is `Pubkey::default()` for native SOL
             // payment. SPL-paying IGPs aren't supported by this provider
@@ -318,8 +312,8 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
             new PublicKey(token.addressOrDenom),
           );
       submitIgpIx = buildSubmitIgpQuoteIx({
-        igpProgramId: this.opts.igpProgramId!,
-        igpAccount: this.opts.igpAccount!,
+        igpProgramId,
+        igpAccount,
         payer: senderPubkey,
         quotePda,
         signedQuote: toSealevelSvmSignedQuote(decodedIgp.signedQuote),
@@ -382,6 +376,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         category: WarpTxCategory.Transfer,
         type: ProviderType.SolanaWeb3,
         transaction: tx,
+        extraSigners: bundle.signers,
       },
     ];
   }
