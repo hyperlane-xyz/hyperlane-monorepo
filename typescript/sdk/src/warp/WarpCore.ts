@@ -483,8 +483,10 @@ export class WarpCore {
     attestation?: PredicateAttestation;
     destinationToken?: IToken;
     /**
-     * Backcompat sugar — wraps into an `EvmQuotedTransferProvider` internally.
-     * New callers should prefer `quotedTransfer` (protocol-agnostic).
+     * @deprecated Use `quotedTransfer` instead. Backcompat sugar — wraps into
+     * an `EvmQuotedTransferProvider` internally. EVM-only; new code should
+     * construct a `QuotedTransferProvider` directly and pass it via
+     * `quotedTransfer` for protocol-agnostic dispatch.
      */
     quotedCalls?: QuotedCallsParams;
     /**
