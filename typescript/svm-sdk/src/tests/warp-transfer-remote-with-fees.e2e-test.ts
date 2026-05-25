@@ -30,7 +30,8 @@ import {
 } from '../constants.js';
 import { SvmCrossCollateralRoutingFeeWriter } from '../fee/cross-collateral-routing-fee.js';
 import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
-import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import { u128le, u32le, u64le } from '../codecs/binary.js';
+import { DEFAULT_FEE_SALT, FeeStrategyKind } from '../fee/types.js';
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
 import { SvmMailboxWriter } from '../core/mailbox.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
@@ -115,21 +116,6 @@ function u48BE(seconds: bigint): Uint8Array {
   return out;
 }
 
-function u128LE(value: bigint): Uint8Array {
-  const out = new Uint8Array(16);
-  for (let i = 0; i < 16; i += 1) {
-    out[i] = Number(value & 0xffn);
-    value >>= 8n;
-  }
-  return out;
-}
-
-function u32LE(value: number): Uint8Array {
-  const out = new Uint8Array(4);
-  new DataView(out.buffer).setUint32(0, value, true);
-  return out;
-}
-
 const addrCodec = getAddressCodec();
 
 /**
@@ -144,7 +130,7 @@ function buildIgpQuoteContext(
 ): Uint8Array {
   const out = new Uint8Array(68);
   // fee_token_mint = Pubkey::default() = zero bytes (SOL)
-  out.set(u32LE(destinationDomain), 32);
+  out.set(u32le(destinationDomain), 32);
   out.set(addrCodec.encode(sender), 36);
   return out;
 }
@@ -161,18 +147,9 @@ function buildIgpQuoteData(
   tokenDecimals: number,
 ): Uint8Array {
   const out = new Uint8Array(33);
-  out.set(u128LE(tokenExchangeRate), 0);
-  out.set(u128LE(gasPrice), 16);
+  out.set(u128le(tokenExchangeRate), 0);
+  out.set(u128le(gasPrice), 16);
   out[32] = tokenDecimals;
-  return out;
-}
-
-function u64LE(value: bigint): Uint8Array {
-  const out = new Uint8Array(8);
-  for (let i = 0; i < 8; i += 1) {
-    out[i] = Number(value & 0xffn);
-    value >>= 8n;
-  }
   return out;
 }
 
@@ -188,9 +165,9 @@ function buildFeeQuoteContext(
   amount: bigint,
 ): Uint8Array {
   const out = new Uint8Array(44);
-  out.set(u32LE(destinationDomain), 0);
+  out.set(u32le(destinationDomain), 0);
   out.set(recipient, 4);
-  out.set(u64LE(amount), 36);
+  out.set(u64le(amount), 36);
   return out;
 }
 
@@ -202,9 +179,9 @@ function buildFeeQuoteContext(
  */
 function buildFeeQuoteData(maxFee: bigint, halfAmount: bigint): Uint8Array {
   const out = new Uint8Array(17);
-  out[0] = 0; // FeeStrategyKind.Linear
-  out.set(u64LE(maxFee), 1);
-  out.set(u64LE(halfAmount), 9);
+  out[0] = FeeStrategyKind.Linear;
+  out.set(u64le(maxFee), 1);
+  out.set(u64le(halfAmount), 9);
   return out;
 }
 
@@ -222,9 +199,9 @@ function buildCcFeeQuoteContext(
   targetRouter: Uint8Array,
 ): Uint8Array {
   const out = new Uint8Array(76);
-  out.set(u32LE(destinationDomain), 0);
+  out.set(u32le(destinationDomain), 0);
   out.set(recipient, 4);
-  out.set(u64LE(amount), 36);
+  out.set(u64le(amount), 36);
   out.set(targetRouter, 44);
   return out;
 }
@@ -1198,9 +1175,9 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     const escrowAccount = await rpc
       .getAccountInfo(escrowPda, { encoding: 'base64' })
       .send();
-    expect(escrowAccount.value, 'escrow account exists').to.exist;
+    assert(escrowAccount.value, 'escrow account exists');
     const escrowAmount = Buffer.from(
-      escrowAccount.value!.data[0],
+      escrowAccount.value.data[0],
       'base64',
     ).readBigUInt64LE(64);
     expect(escrowAmount).to.equal(
@@ -1214,9 +1191,9 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     const beneficiaryAtaAccount = await rpc
       .getAccountInfo(feeBeneficiaryAta, { encoding: 'base64' })
       .send();
-    expect(beneficiaryAtaAccount.value, 'beneficiary ATA exists').to.exist;
+    assert(beneficiaryAtaAccount.value, 'beneficiary ATA exists');
     const beneficiaryAtaAmount = Buffer.from(
-      beneficiaryAtaAccount.value!.data[0],
+      beneficiaryAtaAccount.value.data[0],
       'base64',
     ).readBigUInt64LE(64);
     expect(beneficiaryAtaAmount).to.equal(

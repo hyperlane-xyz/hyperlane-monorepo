@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
+  chunk,
   difference,
   isNullish,
   normalizeAddressSealevel,
@@ -74,14 +75,6 @@ export interface SvmDeployedAlt {
    * frozen. Not user-configurable — surfaced from on-chain state.
    */
   authority: Address | null;
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(items.slice(i, i + size));
-  }
-  return out;
 }
 
 function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
@@ -222,6 +215,13 @@ export class SvmAddressLookupTableWriter
     ];
   }
 
+  /**
+   * Returns the unsigned txs needed to reconcile the on-chain ALT with
+   * `artifact.config`. After landing any extend txs returned here,
+   * callers must wait at least one slot before referencing the table in
+   * a v0 tx — otherwise the runtime rejects the tx with "address lookup
+   * table is not activated".
+   */
   async update(
     artifact: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>,
   ): Promise<AnnotatedSvmTransaction[]> {
