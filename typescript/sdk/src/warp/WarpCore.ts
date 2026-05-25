@@ -494,9 +494,16 @@ export class WarpCore {
     );
 
     if (provider) {
+      const tokenProtocol = originTokenAmount.token.protocol;
+      // EVM-family protocols (Ethereum, Tron) share the EvmQuotedTransferProvider
+      // wire format, so allow them to match each other; otherwise require
+      // strict equality with the provider's declared protocol.
+      const protocolMatches =
+        provider.protocol === tokenProtocol ||
+        (isEVMLike(provider.protocol) && isEVMLike(tokenProtocol));
       assert(
-        provider.protocol === originTokenAmount.token.protocol,
-        `Quoted-transfer provider protocol (${provider.protocol}) does not match origin token protocol (${originTokenAmount.token.protocol})`,
+        protocolMatches,
+        `Quoted-transfer provider protocol (${provider.protocol}) does not match origin token protocol (${tokenProtocol})`,
       );
       return provider.buildQuotedTransferTxs({
         warpCore: this,
@@ -868,10 +875,6 @@ export class WarpCore {
     assert(
       isAddress(args.sender),
       `QuotedCalls sender must be a valid EVM address: ${args.sender}`,
-    );
-    assert(
-      isAddress(args.recipient),
-      `QuotedCalls recipient must be a valid EVM address: ${args.recipient}`,
     );
     const provider = new EvmQuotedTransferProvider(args.quotedCalls);
     return provider.getQuotedTransferFee({
