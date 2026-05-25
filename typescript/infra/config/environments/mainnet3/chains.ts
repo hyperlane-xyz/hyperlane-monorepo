@@ -147,6 +147,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
   // unichain: {
   //   blocks: {
+  //     confirmations: 8,
+  //   },
+  // },
+  // optimism: {
+  //   blocks: {
   //     confirmations: 5,
   //   },
   // },

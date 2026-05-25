@@ -138,4 +138,8 @@ export const warpFeesIcas: ChainMap<Address> = {
   // mocachain: '0x4a7Ed59F34F00b151C818778403D4C94A53620D4',
   // fluent: '0x4a7Ed59F34F00b151C818778403D4C94A53620D4',
   // kiichain: '0x4a7Ed59F34F00b151C818778403D4C94A53620D4',
+
+  // May 25, 2026
+  // ----------------------------------------------------------
+  nesa: '0x13517844C1F812884Bff1d6011817A7096DCa484',
 };

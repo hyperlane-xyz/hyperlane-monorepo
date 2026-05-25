@@ -548,6 +548,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xd2e26f9089e9ff6a1ea9f7e90575e985cfea7f03',
+        alias: 'Citrea',
+      },
     ],
   },
 
@@ -736,6 +740,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x36a669703ad0e11a0382b098574903d2084be22c',
         alias: 'Enigma',
+      },
+      {
+        address: '0xef2e5bb2bc45dd092ff7f9d4d4485f022185aeae',
+        alias: 'Citrea',
       },
     ],
   },
@@ -1529,12 +1537,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   nesa: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x990f548e766b830f69642d36cdd47fb20a2aa405',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
