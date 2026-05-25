@@ -81,7 +81,6 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
     feeQuotes: Quote[][];
   }> {
     assert(isAddress(sender), `Invalid EVM sender address: ${sender}`);
-    assert(isAddress(recipient), `Invalid EVM recipient address: ${recipient}`);
 
     const { token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -157,7 +156,6 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
     assert(isAddress(sender), `Invalid EVM sender address: ${sender}`);
-    assert(isAddress(recipient), `Invalid EVM recipient address: ${recipient}`);
 
     const { token } = originTokenAmount;
     const transactions: Array<WarpTypedTransaction> = [];
@@ -269,7 +267,9 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
     warpCore: WarpCore;
     originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
-    recipient: Address;
+    // `recipient` is a destination-protocol address (EVM hex, SVM base58,
+    // Cosmos bech32, ...) — encoded to bytes32 below, not narrowed to EVM.
+    recipient: string;
     destinationToken?: IToken;
   }) {
     const { token, amount } = originTokenAmount;
