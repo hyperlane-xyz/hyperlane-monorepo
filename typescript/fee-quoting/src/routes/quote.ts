@@ -1,5 +1,5 @@
 import { Request, Response, Router } from 'express';
-import type { Address, Hex } from 'viem';
+import { type Address, type Hex, isAddress, isHex } from 'viem';
 import { z } from 'zod';
 
 import { FeeQuotingCommand } from '@hyperlane-xyz/sdk';
@@ -9,9 +9,21 @@ import type { QuoteService } from '../services/quoteService.js';
 import { asyncHandler } from './asyncHandler.js';
 import { parseAndValidate } from './parseAndValidate.js';
 
-const addressSchema = z.string().startsWith('0x').length(42);
-const bytes32Schema = z.string().startsWith('0x').length(66);
-const domainSchema = z.string().regex(/^\d+$/);
+const addressSchema = z.custom<Address>(
+  (v): boolean => typeof v === 'string' && isAddress(v),
+  'Invalid EVM address',
+);
+
+const bytes32Schema = z.custom<Hex>(
+  (v): boolean =>
+    typeof v === 'string' && isHex(v, { strict: true }) && v.length === 66,
+  'Invalid bytes32 hex (must be 0x + 64 hex chars)',
+);
+
+const domainSchema = z
+  .string()
+  .regex(/^\d+$/, 'Domain must be a numeric string')
+  .transform((s) => parseInt(s, 10));
 
 const WarpQuerySchema = z.object({
   origin: z.string().min(1),
@@ -41,10 +53,10 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         command,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
-        data.recipient as Hex,
+        data.router,
+        data.destination,
+        data.salt,
+        data.recipient,
       );
       res.json(response);
     };
@@ -56,9 +68,9 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         command,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
+        data.router,
+        data.destination,
+        data.salt,
       );
       res.json(response);
     };
@@ -75,11 +87,11 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         FeeQuotingCommand.TransferRemoteTo,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
-        data.recipient as Hex,
-        data.targetRouter as Hex | undefined,
+        data.router,
+        data.destination,
+        data.salt,
+        data.recipient,
+        data.targetRouter,
       );
       res.json(response);
     }),
