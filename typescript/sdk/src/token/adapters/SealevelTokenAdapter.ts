@@ -457,7 +457,7 @@ export abstract class SealevelHypTokenAdapter
   /// and to build the new-flow QuoteGasPayment account list. For OverheadIgp
   /// routes the inner Igp address is resolved via an extra RPC on the
   /// OverheadIgp PDA.
-  protected readonly innerIgpFeeState = new LazyAsync(() =>
+  public readonly innerIgpFeeState = new LazyAsync(() =>
     this.loadInnerIgpFeeState(),
   );
 

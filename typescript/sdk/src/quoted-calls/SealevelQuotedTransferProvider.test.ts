@@ -70,7 +70,6 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
   const ROUTER_PUBKEY = 'SysvarRent111111111111111111111111111111111';
   const SENDER = '11111111111111111111111111111111';
   const RECIPIENT: Hex = `0x${'aa'.repeat(20)}`;
-  const FEE_PROGRAM = new PublicKey('11111111111111111111111111111111');
   const FEE_ACCOUNT = new PublicKey(
     'SysvarRent111111111111111111111111111111111',
   );
@@ -87,6 +86,9 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
     adapter.getRouterAddress.resolves(
       Buffer.from(new Uint8Array(32).fill(0xaa)),
     );
+    Object.defineProperty(adapter, 'innerIgpFeeState', {
+      value: { get: sinon.stub().resolves(undefined) },
+    });
     return adapter;
   }
 
@@ -144,8 +146,6 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
     return new SealevelQuotedTransferProvider({
       feeQuotingClient: client,
       connection: sinon.createStubInstance(Connection),
-      feeProgramId: FEE_PROGRAM,
-      feeAccount: FEE_ACCOUNT,
     });
   }
 
