@@ -30,7 +30,6 @@ import {
   ProviderType,
   type QuotedCallsParams,
   type QuotedTransferProvider,
-  SealevelHypTokenAdapter,
   SealevelQuotedTransferProvider,
   type Token,
   TokenAmount,
@@ -626,18 +625,6 @@ async function executeDelivery({
         // Server's `quoteMode` config drives standing vs transient; the
         // provider infers mode from the response and composes a single
         // atomic tx (submitFeeQuote + transferRemote).
-        const adapter = token.getHypAdapter(warpMultiProvider, destination);
-        assert(
-          adapter instanceof SealevelHypTokenAdapter,
-          `Expected SealevelHypTokenAdapter for ${origin}, got ${adapter.constructor.name}`,
-        );
-        const tokenData = await adapter.getTokenAccountData();
-        const feeConfig = tokenData.fee_config;
-        assert(
-          feeConfig,
-          `Origin token on ${origin} has no fee_config — offchain quoting requires a fee-enabled SVM warp route`,
-        );
-
         logBlue('Fetching offchain fee quote (Sealevel)...');
         quotedTransfer = new SealevelQuotedTransferProvider({
           feeQuotingClient: new FeeQuotingV2Client({
@@ -645,8 +632,6 @@ async function executeDelivery({
             apiKey: feeQuotingApiKey,
           }),
           connection: multiProtocolProvider.getSolanaWeb3Provider(origin),
-          feeProgramId: feeConfig.feeProgram,
-          feeAccount: feeConfig.feeAccount,
         });
         break;
       }
