@@ -40,7 +40,7 @@ import {
   isSealevelDeployedWarpAddress,
   signSvmQuote,
 } from '@hyperlane-xyz/sealevel-sdk';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { QuoteMode } from '../config.js';
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
@@ -360,9 +360,10 @@ function ensureSealevelProtocolRegistered(): void {
 
 /**
  * Reads warp + fee + IGP hook artifacts for a single SVM route via the
- * Sealevel `ProtocolProvider`. Failures in sub-reads degrade gracefully
- * (mirroring EVM's tolerant resolve): a half-configured route can still
- * answer the half of v2 that's wired up.
+ * Sealevel `ProtocolProvider`. Failures during read are fatal so a
+ * misconfigured deployment doesn't quietly start (matches EVM). Routes
+ * without a configured fee program or IGP hook are not errors and resolve
+ * to `fee: undefined` / `igp: undefined` respectively.
  */
 async function readSvmRouteState(
   provider: ReturnType<typeof getProtocolProvider>,
@@ -376,20 +377,19 @@ async function readSvmRouteState(
   if (isSealevelDeployedWarpAddress(warpArtifact.deployed)) {
     const feeConfig = warpArtifact.deployed.feeConfig;
     if (feeConfig) {
-      fee = await tryReadSvmFee(
+      fee = await readSvmFee(
         provider,
         spec,
         warpArtifact,
         feeConfig.feeProgram,
         feeConfig.feeAccount,
-        logger,
       );
     }
   }
 
   const hookProgramId = warpArtifact.config.hook?.deployed.address;
   const igp = hookProgramId
-    ? await tryReadSvmIgp(provider, spec, hookProgramId, logger)
+    ? await readSvmIgp(provider, spec, hookProgramId, logger)
     : undefined;
 
   return {
@@ -400,14 +400,13 @@ async function readSvmRouteState(
   };
 }
 
-async function tryReadSvmFee(
+async function readSvmFee(
   provider: ReturnType<typeof getProtocolProvider>,
   spec: SvmRouteSpec,
   warpArtifact: DeployedRawWarpArtifact,
   feeProgram: string,
   feeAccountPda: string,
-  logger: Logger,
-): Promise<SvmRouteState['fee'] | undefined> {
+): Promise<SvmRouteState['fee']> {
   // The on-chain SVM CC fee program stores route signers under
   // non-enumerable PDAs keyed by `(destination, target_router)`, so the fee
   // reader needs the set of `(destination, router)` pairs to look up. Build
@@ -422,50 +421,31 @@ async function tryReadSvmFee(
   };
   const ctx = buildFeeReadContextFromWarpArtifactConfig(warpView);
   const feeMgr = provider.createFeeArtifactManager(spec.chainMetadata, ctx);
-  if (!feeMgr) {
-    logger.warn(
-      { chainName: spec.origin },
-      'Sealevel fee artifact manager unavailable — skipping warp fee for this route',
-    );
-    return undefined;
-  }
-  try {
-    const artifact = await feeMgr.readFee(feeProgram, ctx);
-    return { feeAccountPda, config: artifact.config };
-  } catch (err) {
-    logger.warn(
-      { chainName: spec.origin, feeProgram, err },
-      'Failed to read SVM fee artifact — skipping warp fee for this route',
-    );
-    return undefined;
-  }
+  assert(
+    feeMgr,
+    `Sealevel fee artifact manager unavailable for ${spec.origin}/${feeProgram}`,
+  );
+  const artifact = await feeMgr.readFee(feeProgram, ctx);
+  return { feeAccountPda, config: artifact.config };
 }
 
-async function tryReadSvmIgp(
+async function readSvmIgp(
   provider: ReturnType<typeof getProtocolProvider>,
   spec: SvmRouteSpec,
   hookProgramId: string,
   logger: Logger,
 ): Promise<SvmRouteState['igp'] | undefined> {
   const hookMgr = provider.createHookArtifactManager(spec.chainMetadata);
-  try {
-    const artifact = await hookMgr.readHook(hookProgramId);
-    if (!isSealevelDeployedIgpHook(artifact.deployed)) {
-      logger.debug(
-        { chainName: spec.origin, hookProgramId },
-        'SVM hook is not an IGP — skipping IGP quoter for this route',
-      );
-      return undefined;
-    }
-    const signers = artifact.deployed.feeConfig?.signers ?? [];
-    return { igpAccountPda: artifact.deployed.igpPda, signers };
-  } catch (err) {
-    logger.warn(
-      { chainName: spec.origin, hookProgramId, err },
-      'Failed to read SVM IGP artifact — skipping IGP quoter for this route',
+  const artifact = await hookMgr.readHook(hookProgramId);
+  if (!isSealevelDeployedIgpHook(artifact.deployed)) {
+    logger.debug(
+      { chainName: spec.origin, hookProgramId },
+      'SVM hook is not an IGP — skipping IGP quoter for this route',
     );
     return undefined;
   }
+  const signers = artifact.deployed.feeConfig?.signers ?? [];
+  return { igpAccountPda: artifact.deployed.igpPda, signers };
 }
 
 // ============ fee-tree walking (artifact API) ============
