@@ -91,7 +91,6 @@ function createTestService(overrides: TestServiceOverrides = {}): QuoteService {
     ],
   });
   return new QuoteService({
-    evm,
     services: new Map([[ProtocolType.Ethereum, evm]]),
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: overrides.quoteMode ?? 'transient',

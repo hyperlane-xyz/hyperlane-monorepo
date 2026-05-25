@@ -77,7 +77,6 @@ function createTestApp(): Express {
   });
 
   const quoteService = new QuoteService({
-    evm,
     services: new Map([[ProtocolType.Ethereum, evm]]),
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
