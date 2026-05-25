@@ -116,7 +116,6 @@ export class FeeQuotingServer {
     }
 
     const quoteService = new QuoteService({
-      evm,
       services,
       protocolByChain,
       quoteMode: this.config.quoteMode,

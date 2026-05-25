@@ -139,7 +139,6 @@ function createTestApp(opts: ContextOverrides = {}): Express {
   });
 
   const quoteService = new QuoteService({
-    evm,
     services: new Map([[ProtocolType.Ethereum, evm]]),
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
@@ -224,7 +223,6 @@ function createSvmTestApp(opts: SvmContextOverrides = {}): Express {
   });
 
   const quoteService = new QuoteService({
-    evm,
     services: new Map([
       [ProtocolType.Ethereum, evm],
       [ProtocolType.Sealevel, svm],

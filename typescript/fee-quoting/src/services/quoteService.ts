@@ -10,11 +10,12 @@ import {
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { QuoteMode } from '../config.js';
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
 
-import type { EvmQuoteService } from './evmQuoteService.js';
+import { EvmQuoteService } from './evmQuoteService.js';
 import type {
   IProtocolQuoteService,
   IgpQuoteRequest,
@@ -24,14 +25,10 @@ import type {
 
 export interface QuoteServiceOptions {
   /**
-   * Typed handle to the EVM service. v1 (`/quote/*`) calls `getV1Quotes` on
-   * this directly — `getV1Quotes` is EVM-only and intentionally not on
-   * `IProtocolQuoteService`.
-   */
-  evm: EvmQuoteService;
-  /**
-   * Per-protocol services for v2 dispatch. The caller is responsible for
-   * including the EVM service here too so v2 EVM requests resolve.
+   * Per-protocol services for v2 dispatch. Must include an `EvmQuoteService`
+   * under `ProtocolType.Ethereum` — v1 (`/quote/*`) is EVM-only and reaches
+   * `getV1Quotes` on that entry directly (intentionally not on
+   * `IProtocolQuoteService`).
    */
   services: ReadonlyMap<ProtocolType, IProtocolQuoteService>;
   /** Chain name → protocol. Populated at startup from the warp configs. */
@@ -67,7 +64,12 @@ export class QuoteService {
   private readonly quotesServed?: Counter<string>;
 
   constructor(options: QuoteServiceOptions) {
-    this.evm = options.evm;
+    const evm = options.services.get(ProtocolType.Ethereum);
+    assert(
+      evm instanceof EvmQuoteService,
+      'QuoteService requires an EvmQuoteService under ProtocolType.Ethereum in `services`',
+    );
+    this.evm = evm;
     this.services = options.services;
     this.protocolByChain = options.protocolByChain;
     this.quoteMode = options.quoteMode;
