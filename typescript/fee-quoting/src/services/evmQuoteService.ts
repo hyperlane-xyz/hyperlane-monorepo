@@ -568,6 +568,9 @@ function findIgpForDestination(
  * the static gap without spraying casts at each recursion site.
  */
 function bridgeDerivedHook(v: HookConfig): DerivedHookConfig | Address {
+  // CAST: SDK types declare the recursive slots as the base `HookConfig`, but
+  // `EvmHookReader` always returns `DerivedHookConfig | Address`. Fixing this
+  // requires widening the SDK's recursive hook types, which is out of scope.
   return v as DerivedHookConfig | Address;
 }
 
@@ -580,10 +583,10 @@ function toSubmitQuoteCommand(entry: EthereumQuoteV2Entry): SubmitQuoteCommand {
   };
 }
 
-/** Narrow a `string` (utils `Address`) to viem's strict `\`0x${string}\``. */
+/** Narrow a `string` (utils `Address`) to viem's strict `\`0x${string}\``.
+ *  Used on addresses sourced from server-derived state (on-chain reads at
+ *  startup), so a failure is an invariant violation, not user input. */
 function narrowAddress(value: string, label: string): Address {
-  if (!isAddress(value)) {
-    throw new Error(`Invalid EVM address for ${label}: ${value}`);
-  }
+  assert(isAddress(value), `Invalid EVM address for ${label}: ${value}`);
   return value;
 }

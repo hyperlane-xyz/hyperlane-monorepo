@@ -284,10 +284,7 @@ export class FeeQuotingServer {
     const warpRouteAddress = token.addressOrDenom;
     assert(warpRouteAddress, `No address for token on chain: ${chainName}`);
 
-    const feeTokenRaw =
-      token.igpTokenAddressOrDenom ??
-      token.addressOrDenom ??
-      '0x0000000000000000000000000000000000000000';
+    const feeTokenRaw = token.igpTokenAddressOrDenom ?? warpRouteAddress;
     assert(
       isAddress(feeTokenRaw),
       `Fee token for ${chainName} is not a valid EVM address: ${feeTokenRaw}`,
