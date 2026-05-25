@@ -1,6 +1,6 @@
 import type { Address, Hex } from 'viem';
 
-import type { ProtocolType } from '@hyperlane-xyz/utils';
+import type { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 /** Command types matching QuotedCalls.sol constants */
 export enum QuotedCallsCommand {
