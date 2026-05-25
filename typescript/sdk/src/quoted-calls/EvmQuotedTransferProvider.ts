@@ -1,8 +1,8 @@
 import type { Address, Hex } from 'viem';
 import { isAddress, isHex } from 'viem';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  ProtocolType,
   addressToBytes32,
   assert,
   isEVMLike,

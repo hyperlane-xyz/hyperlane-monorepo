@@ -1,7 +1,8 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import { type Hex, bytesToHex, hexToBytes, keccak256 } from 'viem';
 
-import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { ProviderType } from '../providers/ProviderType.js';
 import { IToken } from '../token/IToken.js';

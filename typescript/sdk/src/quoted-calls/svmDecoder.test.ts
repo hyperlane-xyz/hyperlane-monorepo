@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { hexToBytes } from 'viem';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { decodeSealevelQuoteEntry } from './svmDecoder.js';
 import type { SealevelQuoteV2Entry } from './types.js';
