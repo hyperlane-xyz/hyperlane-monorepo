@@ -19,7 +19,6 @@ import {
   EvmHookReader,
   EvmWarpRouteReader,
   FeeQuotingCommand,
-  type HookConfig,
   HookType,
   type HyperlaneCore,
   type IgpHookConfig,
@@ -515,63 +514,54 @@ function pickFeeLeaf(
   }
 }
 
+const isIgpHook = (v: unknown): v is WithAddress<IgpHookConfig> =>
+  typeof v === 'object' &&
+  v !== null &&
+  'type' in v &&
+  v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+  'address' in v;
+
 /**
  * Walks a hook tree looking for the IGP that applies to `destChainName`.
- * Handles routing/fallback-routing unwrapping and aggregation recursion in a
- * single pass. Returns the typed IGP node (with `.address`) or undefined.
+ * Routing-aware at every depth: at any `ROUTING`/`FALLBACK_ROUTING` node the
+ * walker takes only the branch matching `destChainName` (plus the fallback
+ * for `FALLBACK_ROUTING`), so an aggregation-of-routings can't return the
+ * wrong domain's IGP. Other wrapper hook types (aggregation, amount-routing,
+ * arb/op rollup, etc.) recurse generically into their child fields.
  */
 function findIgpForDestination(
-  hook: DerivedHookConfig | Address,
+  hook: unknown,
   destChainName: string,
+  depth = 10,
 ): WithAddress<IgpHookConfig> | undefined {
-  if (typeof hook === 'string') return undefined;
+  assert(depth > 0, 'findIgpForDestination max depth reached');
+  if (typeof hook !== 'object' || hook === null) return undefined;
+  if (isIgpHook(hook)) return hook;
 
-  switch (hook.type) {
-    case HookType.INTERCHAIN_GAS_PAYMASTER:
-      return hook;
-    case HookType.AGGREGATION: {
-      for (const child of hook.hooks) {
-        const found = findIgpForDestination(
-          bridgeDerivedHook(child),
-          destChainName,
-        );
-        if (found) return found;
-      }
-      return undefined;
+  if ('type' in hook) {
+    if (
+      hook.type === HookType.ROUTING ||
+      hook.type === HookType.FALLBACK_ROUTING
+    ) {
+      const routing = hook as DerivedHookConfig & {
+        domains: Record<string, unknown>;
+        fallback?: unknown;
+      };
+      const branch =
+        routing.domains[destChainName] ??
+        (hook.type === HookType.FALLBACK_ROUTING
+          ? routing.fallback
+          : undefined);
+      return findIgpForDestination(branch, destChainName, depth - 1);
     }
-    case HookType.ROUTING:
-    case HookType.FALLBACK_ROUTING: {
-      const destHook = hook.domains[destChainName];
-      if (destHook) {
-        return findIgpForDestination(
-          bridgeDerivedHook(destHook),
-          destChainName,
-        );
-      }
-      if (hook.type === HookType.FALLBACK_ROUTING) {
-        return findIgpForDestination(
-          bridgeDerivedHook(hook.fallback),
-          destChainName,
-        );
-      }
-      return undefined;
-    }
-    default:
-      return undefined;
   }
-}
 
-/**
- * SDK widening bridge: `RoutingHookConfig.domains[X]` / `AggregationHookConfig.hooks[i]`
- * are typed as the base `HookConfig`, but `EvmHookReader` recursively populates
- * every level as `DerivedHookConfig | Address` at runtime. This helper bridges
- * the static gap without spraying casts at each recursion site.
- */
-function bridgeDerivedHook(v: HookConfig): DerivedHookConfig | Address {
-  // CAST: SDK types declare the recursive slots as the base `HookConfig`, but
-  // `EvmHookReader` always returns `DerivedHookConfig | Address`. Fixing this
-  // requires widening the SDK's recursive hook types, which is out of scope.
-  return v as DerivedHookConfig | Address;
+  const entries = Array.isArray(hook) ? hook : Object.values(hook);
+  for (const child of entries) {
+    const found = findIgpForDestination(child, destChainName, depth - 1);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 /** Repack an EVM v2 entry into the v1 `SubmitQuoteCommand` wire shape. */
