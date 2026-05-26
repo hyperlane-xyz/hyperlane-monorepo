@@ -1185,6 +1185,7 @@ describe('WarpTokenWriter', () => {
 
     let feeCreateWriter: WarpTokenWriter;
     let mockFeeCreateStub: Sinon.SinonStub;
+    let mockFeeUpdateStubForCreate: Sinon.SinonStub;
 
     const linearFeeConfig: FeeArtifactConfig = {
       type: FeeType.linear,
@@ -1204,13 +1205,14 @@ describe('WarpTokenWriter', () => {
         let currentFeeManager: IRawFeeArtifactManager;
         registerProtocol(FEE_CREATE_PROTOCOL, () => {
           mockFeeCreateStub = Sinon.stub().resolves([deployedFee, []]);
+          mockFeeUpdateStubForCreate = Sinon.stub().resolves([]);
           currentFeeManager = {
             readFee: Sinon.stub().resolves(deployedFee),
             createReader: Sinon.stub(),
             createWriter: Sinon.stub().returns({
               read: Sinon.stub(),
               create: mockFeeCreateStub,
-              update: Sinon.stub().resolves([]),
+              update: mockFeeUpdateStubForCreate,
             }),
           };
           return {
@@ -1282,6 +1284,13 @@ describe('WarpTokenWriter', () => {
       // Fee writer should receive the warp's settlement asset on its config
       const feeArtifactArg = mockFeeCreateStub.firstCall.args[0];
       expect(feeArtifactArg.config.token).to.equal('uhyp');
+
+      // Post-warp-create the orchestrator calls feeWriter.update so the fee
+      // can finish any per-asset setup it couldn't do at fee.create time.
+      expect(mockFeeUpdateStubForCreate.calledOnce).to.be.true;
+      const updateArtifactArg = mockFeeUpdateStubForCreate.firstCall.args[0];
+      expect(updateArtifactArg.deployed.address).to.equal(FEE_ADDRESS);
+      expect(updateArtifactArg.config.token).to.equal('uhyp');
     });
 
     it('should pass through existing fee address on create', async () => {
