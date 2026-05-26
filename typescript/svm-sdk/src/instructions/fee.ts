@@ -5,7 +5,7 @@ import type {
   ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
-import { getAddressCodec } from '@solana/kit';
+import { address as parseAddress, getAddressCodec } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -26,8 +26,10 @@ import {
   SvmRouteKeyKind,
   type SvmSignedQuote,
 } from '../codecs/fee.js';
+import { fetchMintTokenProgram } from '../accounts/mint.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
+  deriveAssociatedTokenAddress,
   deriveCrossCollateralRoutePda,
   deriveFeeAccountPda,
   deriveRouteDomainPda,
@@ -35,6 +37,8 @@ import {
 } from '../pda.js';
 import { simulateInstructionAccountMetas } from '../simulation.js';
 import type { SvmRpc } from '../types.js';
+
+import { getCreateAssociatedTokenIdempotentInstruction } from './spl-token.js';
 import {
   buildInstruction,
   type InstructionAccountMeta,
@@ -573,4 +577,50 @@ export async function simulateSubmitQuoteAccountMetas(args: {
   return metas.map((m, i) =>
     i === 1 ? writableSignerAddress(args.payerSubstitution) : m,
   );
+}
+
+export interface BuildBeneficiaryAtaIxArgs {
+  rpc: SvmRpc;
+  payer: Address;
+  beneficiary: Address;
+  /**
+   * Address of the asset the fee program receives. When undefined or empty
+   * (native fees, or a fee program not paired with a token-bearing warp) no
+   * setup is needed and the helper returns null.
+   */
+  feeToken: string | undefined;
+}
+
+/**
+ * Returns an idempotent create-Associated-Token-Account instruction for
+ * `(beneficiary, feeToken)` so the next fee-bearing transfer can credit the
+ * beneficiary's ATA. Safe to send whether or not the ATA already exists.
+ * Returns null when `feeToken` is undefined/empty so callers can skip the
+ * setup unconditionally for native flows.
+ *
+ * Not a pure instruction builder — performs one RPC call to detect whether
+ * the mint is owned by the classic SPL Token program or Token-2022.
+ */
+export async function buildBeneficiaryAtaIx(
+  args: BuildBeneficiaryAtaIxArgs,
+): Promise<Instruction | null> {
+  if (!args.feeToken) {
+    return null;
+  }
+
+  const mint = parseAddress(args.feeToken);
+  const tokenProgram = await fetchMintTokenProgram(args.rpc, mint);
+  const ata = await deriveAssociatedTokenAddress({
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
+
+  return getCreateAssociatedTokenIdempotentInstruction({
+    payer: args.payer,
+    ata: ata.address,
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
 }
