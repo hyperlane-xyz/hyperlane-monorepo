@@ -1,4 +1,4 @@
-import { address } from '@solana/kit';
+import { address, generateKeyPairSigner } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
@@ -8,6 +8,7 @@ import {
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -16,9 +17,10 @@ import {
 } from '../fee/cross-collateral-routing-fee.js';
 import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { deriveAssociatedTokenAddress } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
-import { airdropSol } from '../testing/setup.js';
+import { airdropSol, createSplMint } from '../testing/setup.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -270,6 +272,60 @@ describe('SVM Cross-Collateral Routing Fee E2E Tests', function () {
     expect(readResult.config.routes[10]?.[ROUTER_A]?.type).to.equal(
       FeeStrategyType.regressive,
     );
+  });
+
+  it('should update beneficiary and create ATA when token is set', async () => {
+    const [deployed] = await writer.create({
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        routes: {
+          10: {
+            [ROUTER_A]: {
+              type: FeeStrategyType.linear,
+              params: raw('1000', '500'),
+            },
+          },
+        },
+      },
+    });
+
+    const mint = await createSplMint(rpc, signer, 9);
+    const newBeneficiary = await generateKeyPairSigner();
+    const updateTxs = await writer.update({
+      ...deployed,
+      config: {
+        ...deployed.config,
+        beneficiary: newBeneficiary.address,
+        token: mint,
+      },
+    });
+
+    expect(updateTxs).to.have.length(1);
+    const [updateTx] = updateTxs;
+    assert(updateTx, 'expected one update tx');
+    expect(updateTx.instructions).to.have.length(2);
+    for (const tx of updateTxs) {
+      await signer.send(tx);
+    }
+
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
+    const readResult = await reader.read(deployed.deployed.programId);
+    expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
+
+    const expectedAta = await deriveAssociatedTokenAddress({
+      wallet: newBeneficiary.address,
+      mint,
+    });
+    const ataInfo = await rpc
+      .getAccountInfo(expectedAta.address, { encoding: 'base64' })
+      .send();
+    expect(ataInfo.value).to.not.be.null;
   });
 
   it('should remove a CC route pair via update', async () => {

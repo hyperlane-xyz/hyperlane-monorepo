@@ -25,6 +25,7 @@ import {
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
+  buildBeneficiaryAtaIx,
   getInitFeeInstruction,
   getSetBeneficiaryInstruction,
   getTransferFeeOwnershipInstruction,
@@ -241,17 +242,25 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
 
     // 2. Diff beneficiary
     if (!eqAddressSol(currentConfig.beneficiary, expected.beneficiary)) {
+      const newBeneficiary = parseAddress(expected.beneficiary);
+      const setBeneficiaryIx = getSetBeneficiaryInstruction(
+        programId,
+        feeAccountPda,
+        ownerAddress,
+        newBeneficiary,
+      );
+      const ataIx = await buildBeneficiaryAtaIx({
+        rpc: this.rpc,
+        payer: ownerAddress,
+        beneficiary: newBeneficiary,
+        feeToken: expected.token,
+      });
       txs.push({
         feePayer: ownerAddress,
-        instructions: [
-          getSetBeneficiaryInstruction(
-            programId,
-            feeAccountPda,
-            ownerAddress,
-            parseAddress(expected.beneficiary),
-          ),
-        ],
-        annotation: 'Update fee beneficiary',
+        instructions: ataIx ? [ataIx, setBeneficiaryIx] : [setBeneficiaryIx],
+        annotation: ataIx
+          ? 'Update fee beneficiary and create ata'
+          : 'Update fee beneficiary',
       });
     }
 
