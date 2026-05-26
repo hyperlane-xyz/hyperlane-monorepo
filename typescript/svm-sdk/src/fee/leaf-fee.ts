@@ -168,6 +168,19 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
       this.salt,
     );
 
+    // Ensure the beneficiary's ATA exists when the fee config carries the
+    // settlement asset. No-op when `token` is undefined (native flows) or
+    // when the ATA already exists on chain.
+    const initAtaIx = await buildBeneficiaryAtaIx({
+      rpc: this.rpc,
+      payer: this.svmSigner.signer.address,
+      beneficiary: parseAddress(feeConfig.beneficiary),
+      feeToken: feeConfig.token,
+    });
+    if (initAtaIx) {
+      receipts.push(await this.svmSigner.send({ instructions: [initAtaIx] }));
+    }
+
     if (
       !eqOptionalAddress(
         this.svmSigner.signer.address,
