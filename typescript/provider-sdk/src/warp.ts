@@ -192,6 +192,12 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   symbol: string;
   decimals: number;
   metadataUri?: string;
+  /**
+   * Address of the token the hyp adapter deployed alongside the synthetic
+   * warp. Populated by the protocol-specific reader/writer after deploy.
+   * Undefined before the warp is deployed.
+   */
+  token?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -727,6 +733,30 @@ export function buildFeeReadContextFromWarpArtifactConfig(
   }
 
   return { knownRoutersPerDomain };
+}
+
+/**
+ * Returns the settlement asset address the warp route operates against, when
+ * applicable. Used by the warp orchestrator to populate the paired fee
+ * config's `token` field at deploy/update time.
+ *
+ * - `collateral` / `crossCollateral`: the configured collateral token.
+ * - `synthetic`: the token the adapter deployed (populated post-deploy by the
+ *   protocol-specific writer/reader; undefined before deploy).
+ * - `native`: undefined.
+ */
+export function resolveFeeTokenFromWarpArtifactConfig(
+  config: WarpArtifactConfig,
+): string | undefined {
+  switch (config.type) {
+    case TokenType.collateral:
+    case TokenType.crossCollateral:
+      return config.token;
+    case TokenType.synthetic:
+      return config.token;
+    case TokenType.native:
+      return undefined;
+  }
 }
 
 // Warp Router Update Utilities

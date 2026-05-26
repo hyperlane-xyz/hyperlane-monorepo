@@ -96,6 +96,18 @@ export type FeeType = (typeof FeeType)[keyof typeof FeeType];
 export interface BaseFeeConfig {
   owner: string;
   beneficiary: string;
+  /**
+   * Address of the asset the fee program receives. Populated by the warp
+   * orchestrator at deploy/update time from the paired warp route's
+   * settlement asset (see `resolveFeeTokenFromWarpArtifactConfig`). Undefined
+   * for native warps and for fee programs that are not paired with a
+   * token-bearing warp.
+   *
+   * Read paths may leave this undefined on protocols that don't persist the
+   * fee asset on-chain. On such protocols, the orchestrator re-populates this
+   * field on every write call.
+   */
+  token?: string;
 }
 
 export interface LinearFeeConfig extends BaseFeeConfig {
