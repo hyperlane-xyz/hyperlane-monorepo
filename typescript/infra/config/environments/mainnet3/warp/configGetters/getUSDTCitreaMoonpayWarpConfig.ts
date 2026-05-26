@@ -235,6 +235,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.polygon.USDT,
       mailbox: routerConfig.polygon.mailbox,
       owner: polygonOwner,
+      ...oftRebalancingConfigByChain.polygon,
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'polygon',

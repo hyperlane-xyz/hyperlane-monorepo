@@ -19,10 +19,10 @@ const lzEids: Record<DeploymentChain, number> = {
 };
 
 const oftAddresses: Record<DeploymentChain, string> = {
-  ethereum: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee',
-  arbitrum: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92',
-  plasma: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9',
-  polygon: '', // TODO
+  ethereum: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee', // Official Ethereum Lock/Unlock Adapter
+  arbitrum: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Arbitrum Interoperability Proxy
+  plasma: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Plasma Network Native OFT Root
+  polygon: '0x6ba10300f0dc58b7a1e4c0e41f5dabb7d7829e13', // Polygon OFT Adapter
 };
 
 const ownersByChain: Record<DeploymentChain, string> = {

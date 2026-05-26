@@ -15,6 +15,7 @@ import {
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeOft__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -278,6 +279,7 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
+      ...this.createDomainMappingsUpdateTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -401,6 +403,57 @@ export class EvmWarpModule extends HyperlaneModule<
         [routesToUnenroll.map((k) => Number(k))],
       ),
     });
+
+    return updateTransactions;
+  }
+
+  createDomainMappingsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (!isOftTokenConfig(expectedConfig) || !isOftTokenConfig(actualConfig)) {
+      return [];
+    }
+
+    const iface = TokenBridgeOft__factory.createInterface();
+    const chainId = this.multiProvider.getEvmChainId(this.args.chain);
+    const to = this.args.addresses.deployedTokenRoute;
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    const actualMappings: Record<number, number> = Object.fromEntries(
+      Object.entries(actualConfig.domainMappings ?? {}).map(([k, v]) => [
+        Number(k),
+        v,
+      ]),
+    );
+    const expectedMappings = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.domainMappings ?? {},
+    );
+
+    for (const [domain, lzEid] of Object.entries(expectedMappings)) {
+      const domainNum = Number(domain);
+      if (actualMappings[domainNum] !== lzEid) {
+        updateTransactions.push({
+          chainId,
+          to,
+          annotation: `Adding OFT domain mapping ${domainNum} -> lzEid ${lzEid} on ${this.args.chain}`,
+          data: iface.encodeFunctionData('addDomain', [domainNum, lzEid]),
+        });
+      }
+    }
+
+    for (const domain of Object.keys(actualMappings)) {
+      const domainNum = Number(domain);
+      if (!(domainNum in expectedMappings)) {
+        updateTransactions.push({
+          chainId,
+          to,
+          annotation: `Removing OFT domain mapping ${domainNum} on ${this.args.chain}`,
+          data: iface.encodeFunctionData('removeDomain', [domainNum]),
+        });
+      }
+    }
 
     return updateTransactions;
   }
