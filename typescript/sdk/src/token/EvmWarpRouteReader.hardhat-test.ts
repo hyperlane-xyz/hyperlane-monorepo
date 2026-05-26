@@ -108,6 +108,12 @@ describe('EvmWarpRouteReader', async () => {
     [signer] = await hre.ethers.getSigners();
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      multiProvider.metadata[chainName] = {
+        ...multiProvider.metadata[chainName],
+        blockExplorers: [],
+      };
+    }
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
@@ -160,6 +166,12 @@ describe('EvmWarpRouteReader', async () => {
   beforeEach(async () => {
     // Reset the MultiProvider and create a new deployer for each test
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      multiProvider.metadata[chainName] = {
+        ...multiProvider.metadata[chainName],
+        blockExplorers: [],
+      };
+    }
     contractVerifier = new ContractVerifier(
       multiProvider,
       {},

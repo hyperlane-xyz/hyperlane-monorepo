@@ -26,6 +26,7 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  isZeroishAddress,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -36,6 +37,10 @@ import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import {
+  isMissingSelectorCallException,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 
 import {
   AggregationHookConfig,
@@ -57,6 +62,18 @@ import {
   RateLimitedHookConfig,
   RoutingHookConfig,
 } from './types.js';
+
+function isUnsupportedIgpDomainError(
+  error: unknown,
+  domainId: number,
+): boolean {
+  // Mirrors InterchainGasPaymaster.getExchangeRateAndGasPrice in
+  // solidity/contracts/hooks/igp/InterchainGasPaymaster.sol.
+  return (
+    error instanceof Error &&
+    error.message.includes(`Configured IGP doesn't support domain ${domainId}`)
+  );
+}
 
 export interface HookReader {
   deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
@@ -196,12 +213,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
           );
       }
-    } catch (e: any) {
+    } catch (e) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
+      if (!onchainHookType && isMissingSelectorCallException(e)) {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );
@@ -242,27 +256,59 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.deriveHookConfig(hook),
-          ),
+          objMap(config.domains, async (_, hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            return this.preserveUnredeployable(hook, derived);
+          }),
         );
 
-        if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await this.deriveHookConfig(config.fallback);
+        if (config.type === HookType.FALLBACK_ROUTING) {
+          const derived = await this.deriveHookConfig(config.fallback);
+          config.fallback = this.preserveUnredeployable(
+            config.fallback,
+            derived,
+          );
+        }
         break;
+      case HookType.CCTP:
+        return config;
       case HookType.AGGREGATION:
         config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
+          config.hooks.map(async (hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            return this.preserveUnredeployable(hook, derived);
+          }),
         );
         break;
-      case HookType.AMOUNT_ROUTING:
-        [config.lowerHook, config.upperHook] = await Promise.all([
-          this.deriveHookConfig(config.lowerHook),
-          this.deriveHookConfig(config.upperHook),
+      case HookType.AMOUNT_ROUTING: {
+        const lowerOrig = config.lowerHook;
+        const upperOrig = config.upperHook;
+        const [lowerDerived, upperDerived] = await Promise.all([
+          this.deriveHookConfig(lowerOrig),
+          this.deriveHookConfig(upperOrig),
         ]);
+        config.lowerHook = this.preserveUnredeployable(lowerOrig, lowerDerived);
+        config.upperHook = this.preserveUnredeployable(upperOrig, upperDerived);
         break;
+      }
     }
     return config as DerivedHookConfig;
+  }
+
+  // Returns original HookConfig for non-redeployable types (CCTP, PREDICATE) so that
+  // normalizeConfig — which strips 'address' from all objects — does not discard
+  // the address. Returns the address as a bare string so it survives normalizeConfig
+  // and deploy() reaches the string branch intact, regardless of whether the original
+  // was already a string or an object with an address field.
+  private preserveUnredeployable(
+    original: HookConfig,
+    derived: DerivedHookConfig,
+  ): HookConfig {
+    if (derived.type !== HookType.CCTP && derived.type !== HookType.PREDICATE) {
+      return derived;
+    }
+    if (typeof original === 'string') return original;
+    return derived.address;
   }
 
   async deriveMailboxDefaultHookConfig(
@@ -286,27 +332,29 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
     // First check if it's a CCIP hook
+    const ccipHook = CCIPHook__factory.connect(address, this.provider);
     try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
       // This method only exists on CCIPHook
       await ccipHook.ccipDestination();
-      return this.deriveCcipConfig(address);
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+
       // Not a CCIP hook, try OPStack
+      const opStackHook = OPStackHook__factory.connect(address, this.provider);
       try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
         // This method only exists on OPStackHook
         await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
-      } catch {
+      } catch (innerError) {
+        throwIfNotMissingSelector(innerError);
         throw new Error(
           `Could not determine hook type - neither CCIP nor OPStack methods found`,
         );
       }
+
+      return this.deriveOpStackConfig(address);
     }
+
+    return this.deriveCcipConfig(address);
   }
 
   async deriveCcipConfig(
@@ -381,10 +429,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.AGGREGATION);
 
-    const hookConfigs: DerivedHookConfig[] = await concurrentMap(
+    const hookConfigs = await concurrentMap(
       this.concurrency,
       hooks,
-      (hook) => this.deriveHookConfig(hook),
+      async (hookAddress) => {
+        const derived = await this.deriveHookConfigFromAddress(hookAddress);
+        return this.preserveUnredeployable(hookAddress, derived);
+      },
     );
 
     const config: WithAddress<AggregationHookConfig> = {
@@ -427,7 +478,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       hook.owner(),
       hook.beneficiary(),
       // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch(() => {
+      hook.quoteSigners().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           'quoteSigners() not available on this IGP version, skipping',
         );
@@ -466,7 +518,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             this.provider,
           );
           return oracle.owner();
-        } catch {
+        } catch (error) {
+          if (!isUnsupportedIgpDomainError(error, domainId)) throw error;
           this.logger.debug(
             'Domain not configured on IGP Hook',
             domainId,
@@ -583,7 +636,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    const childHookConfig = await this.deriveHookConfig(childHookAddress);
+    const derivedChild =
+      await this.deriveHookConfigFromAddress(childHookAddress);
+    const childHookConfig = this.preserveUnredeployable(
+      childHookAddress,
+      derivedChild,
+    );
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
@@ -642,7 +700,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
 
-    const fallbackHookConfig = await this.deriveHookConfig(fallbackHookAddress);
+    const derivedFallback =
+      await this.deriveHookConfigFromAddress(fallbackHookAddress);
+    const fallbackHookConfig = this.preserveUnredeployable(
+      fallbackHookAddress,
+      derivedFallback,
+    );
 
     const config: WithAddress<FallbackRoutingHookConfig> = {
       owner,
@@ -666,16 +729,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.possibleDomainIds(),
       async (domainId) => {
         const chainName = this.multiProvider.getChainName(domainId);
-        try {
-          const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
-            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
-          }
-        } catch {
-          this.logger.debug(
-            `Domain not configured on ${hook.constructor.name}`,
-            domainId,
-            chainName,
+        const domainHook = await hook.hooks(domainId);
+        if (!isZeroishAddress(domainHook)) {
+          const derived = await this.deriveHookConfigFromAddress(domainHook);
+          domainHooks[chainName] = this.preserveUnredeployable(
+            domainHook,
+            derived,
           );
         }
       },
@@ -727,10 +786,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
 
     // Parallelize hook config derivation
-    const [lowerHookConfig, upperHookConfig] = await Promise.all([
-      this.deriveHookConfig(lowerHookAddress),
-      this.deriveHookConfig(upperHookAddress),
+    const [lowerDerived, upperDerived] = await Promise.all([
+      this.deriveHookConfigFromAddress(lowerHookAddress),
+      this.deriveHookConfigFromAddress(upperHookAddress),
     ]);
+    const lowerHookConfig = this.preserveUnredeployable(
+      lowerHookAddress,
+      lowerDerived,
+    );
+    const upperHookConfig = this.preserveUnredeployable(
+      upperHookAddress,
+      upperDerived,
+    );
 
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,

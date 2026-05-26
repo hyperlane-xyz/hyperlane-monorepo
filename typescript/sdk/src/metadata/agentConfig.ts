@@ -529,6 +529,12 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
+  ccrRouters: z
+    .record(z.record(z.string()))
+    .optional()
+    .describe(
+      'Per-domain CCR router → underlying ERC20 token mapping. Domain ID → { router_address → token_address }. Auto-populated from registry.',
+    ),
 });
 
 export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;

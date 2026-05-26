@@ -40,17 +40,17 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '583356e-20260507-153316',
-  relayerRC: '583356e-20260507-153316',
-  relayerFastPath: '583356e-20260507-153316',
-  validator: '7eb690c-20260406-142107',
-  validatorRC: '7eb690c-20260406-142107',
-  scraper: 'caa8162-20260409-132508',
+  relayer: '81821ef-20260520-124638',
+  relayerRC: '81821ef-20260520-124638',
+  relayerFastPath: '81821ef-20260520-124638',
+  validator: '81821ef-20260520-124638',
+  validatorRC: '81821ef-20260520-124638',
+  scraper: 'da1cfb1-20260522-132959',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
-  warpMonitor: 'a915865-20260424-083851',
+  warpMonitor: '744b3bb-20260521-215958',
   rebalancer: '1a19513-20260413-090011',
   feeQuoting: '12d899d-20260325-184337',
 };
@@ -62,7 +62,7 @@ export const testnetDockerTags: BaseDockerTags = {
   relayerFastPath: '81d5295-20260506-151439',
   validator: '7eb690c-20260406-142107',
   validatorRC: '7eb690c-20260406-142107',
-  scraper: 'caa8162-20260409-132508',
+  scraper: 'da1cfb1-20260522-132959',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
 };

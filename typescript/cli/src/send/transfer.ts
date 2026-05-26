@@ -679,20 +679,12 @@ async function executeDelivery({
     throw new Error('No transfer transaction receipt found');
   }
 
-  const extracted = core.extractMessageIds(origin, transferReceipt);
+  const extracted = await core.extractMessageIds(origin, transferReceipt);
   const messageId = extracted[0]?.messageId;
   if (!messageId) {
     // Same-chain transfers don't dispatch an interchain message.
     if (origin === destination) {
       logGreen(`Same-chain transfer on ${origin} completed.`);
-      return;
-    }
-    // Aleo receipt parsing is not yet implemented; message was dispatched on-chain
-    // but the message ID cannot be extracted. Skip post-send polling.
-    if (originProtocol === ProtocolType.Aleo) {
-      logGreen(
-        `Transfer from ${origin} to ${destination} dispatched. Message ID extraction from Aleo receipts is not yet supported; skipping delivery confirmation.`,
-      );
       return;
     }
     throw new Error('No dispatched message found in transfer receipt');

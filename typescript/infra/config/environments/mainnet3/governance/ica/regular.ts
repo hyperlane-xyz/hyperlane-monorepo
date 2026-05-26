@@ -171,4 +171,8 @@ export const regularIcas: ChainMap<Address> = {
   mocachain: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
   fluent: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
   kiichain: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
+
+  // May 25, 2026
+  // ----------------------------------------------------------
+  nesa: '0x661a4896f7f8B203E23e326500f754b9ED9571Eb',
 } as const;

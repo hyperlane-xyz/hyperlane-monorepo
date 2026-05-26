@@ -86,6 +86,12 @@ describe('TokenDeployer', async () => {
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      multiProvider.metadata[chainName] = {
+        ...multiProvider.metadata[chainName],
+        blockExplorers: [],
+      };
+    }
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),

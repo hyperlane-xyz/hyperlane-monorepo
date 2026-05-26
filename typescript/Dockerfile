@@ -8,7 +8,8 @@
 # Runtime env:
 #   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
-FROM node:24-slim AS builder
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-slim AS builder
 
 WORKDIR /hyperlane-monorepo
 
@@ -161,7 +162,7 @@ RUN SERVICES_DIR=/hyperlane-monorepo/services && \
     done
 
 # Production stage - minimal Alpine image with all service bundles
-FROM node:24-alpine AS runner
+FROM node:${NODE_VERSION}-alpine AS runner
 
 WORKDIR /app
 

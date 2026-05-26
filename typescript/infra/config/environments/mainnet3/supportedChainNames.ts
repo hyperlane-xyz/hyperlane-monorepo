@@ -88,6 +88,7 @@ export const mainnet3SupportedChainNames = [
   'monad',
   'moonbeam',
   'morph',
+  'nesa',
   'neutron',
   'nibiru',
   'noble',

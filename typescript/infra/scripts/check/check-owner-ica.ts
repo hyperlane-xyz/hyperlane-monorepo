@@ -3,6 +3,7 @@ import {
   Address,
   LogFormat,
   LogLevel,
+  bytes32ToAddress,
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
@@ -18,6 +19,7 @@ import {
   chainsToSkip,
   legacyEthIcaRouter,
   legacyIcaChains,
+  minimalIcaChains,
 } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
@@ -92,10 +94,21 @@ async function main() {
         : ownerChainInterchainAccountRouter;
 
       try {
-        const actualAccount = await interchainAccountApp.getAccount(chain, {
-          ...ownerConfig,
-          localRouter: icaRouter,
-        });
+        const destinationRouter =
+          interchainAccountApp.contractsMap[chain].interchainAccountRouter;
+        const originDomain = multiProvider.getDomainId(ownerConfig.origin);
+        const destinationIsm = bytes32ToAddress(
+          await destinationRouter.isms(originDomain),
+        );
+        const actualAccount = minimalIcaChains.includes(chain)
+          ? await destinationRouter[
+              'getLocalInterchainAccount(uint32,address,address,address)'
+            ](originDomain, ownerConfig.owner, icaRouter, destinationIsm)
+          : await interchainAccountApp.getAccount(chain, {
+              ...ownerConfig,
+              localRouter: icaRouter,
+            });
+
         if (!eqAddress(expectedAddress, actualAccount)) {
           return {
             chain,
@@ -107,15 +120,16 @@ async function main() {
         }
         return { chain, result: null };
       } catch (error) {
-        rootLogger.error(`Error processing chain ${chain}:`, error);
         return { chain, error };
       }
     },
     (chain) => chain,
   );
 
+  const failedChains: string[] = [];
   for (const [chain, value] of fulfilled) {
     if ('error' in value && value.error) {
+      failedChains.push(chain);
       rootLogger.error(`Failed to process ${chain}:`, value.error);
     } else if (value.result) {
       mismatchedResults[chain] = value.result;
@@ -123,6 +137,7 @@ async function main() {
   }
 
   for (const [chain, error] of rejected) {
+    failedChains.push(chain);
     rootLogger.error(`Promise rejected for ${chain}:`, error);
   }
 
@@ -130,6 +145,9 @@ async function main() {
     rootLogger.error('\nMismatched ICAs found:');
     // eslint-disable-next-line no-console
     console.table(mismatchedResults);
+    process.exit(1);
+  } else if (failedChains.length > 0) {
+    rootLogger.error(`Failed to process chains: ${failedChains.join(', ')}`);
     process.exit(1);
   } else {
     rootLogger.info('✅ All ICAs match the expected addresses.');

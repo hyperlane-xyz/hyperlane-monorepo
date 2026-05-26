@@ -102,6 +102,27 @@ const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
+}
+
+function errorChainHasMessage(error: unknown, message: string): boolean {
+  let current = error;
+  while (current instanceof Error) {
+    if (getErrorMessage(current) === message) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+function getMostDiagnosticUnhandledError(errors: Error[]): Error {
+  return (
+    errors.find((error) =>
+      errorChainHasMessage(error, 'Invalid response from provider'),
+    ) ?? errors[0]
+  );
+}
+
 export class BlockchainError extends Error {
   public readonly isRecoverable = false;
 
@@ -660,7 +681,9 @@ export class HyperlaneSmartProvider
       );
       return class extends Error {
         constructor() {
-          super(fallbackMsg);
+          super(fallbackMsg, {
+            cause: getMostDiagnosticUnhandledError(errors),
+          });
         }
       };
     }

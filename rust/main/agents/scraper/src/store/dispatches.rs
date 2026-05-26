@@ -81,7 +81,12 @@ impl HyperlaneDbStore {
                 txns.get(&meta.transaction_id)
                     .map(|t| (message.inner().clone(), meta, t.id))
             })
-            .map(|(msg, meta, txn_id)| StorableMessage { msg, meta, txn_id });
+            .map(|(msg, meta, txn_id)| StorableMessage {
+                msg,
+                meta,
+                txn_id,
+                id_override: None,
+            });
         let stored = self
             .db
             .store_dispatched_messages(self.domain.id(), &self.mailbox_address, storable)

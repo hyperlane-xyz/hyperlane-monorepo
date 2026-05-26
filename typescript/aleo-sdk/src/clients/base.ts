@@ -22,7 +22,7 @@ import {
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
 } from '../utils/helper.js';
-import { toAleoNetworkId } from '../utils/types.js';
+import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -126,6 +126,23 @@ export class AleoBase {
     programManager.setAccount(account);
 
     return programManager;
+  }
+
+  private get networkPath(): string {
+    return this.chainId === AleoNetworkId.TESTNET ? 'testnet' : 'mainnet';
+  }
+
+  protected async findBlockHashByTxId(txId: string): Promise<string> {
+    const url = `${this.rpcUrls[0]}/${this.networkPath}/find/blockHash/${txId}`;
+    return retryAsync(
+      async () => {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return JSON.parse(await res.text()) as string;
+      },
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
+    );
   }
 
   protected async queryMappingValue(

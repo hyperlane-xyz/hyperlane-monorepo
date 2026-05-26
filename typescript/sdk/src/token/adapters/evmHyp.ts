@@ -11,10 +11,8 @@ export function createEvmHypAdapter(
   return createEvmLikeHypAdapter(multiProvider, token, {
     native: TokenStandard.EvmNative,
     hypNative: TokenStandard.EvmHypNative,
-    hypCollateral: [
-      TokenStandard.EvmHypCollateral,
-      TokenStandard.EvmHypOwnerCollateral,
-    ],
+    hypCollateral: [TokenStandard.EvmHypCollateral],
+    hypOwnerCollateral: TokenStandard.EvmHypOwnerCollateral,
     hypCrossCollateralRouter: TokenStandard.EvmHypCrossCollateralRouter,
     hypRebaseCollateral: TokenStandard.EvmHypRebaseCollateral,
     hypCollateralFiat: TokenStandard.EvmHypCollateralFiat,

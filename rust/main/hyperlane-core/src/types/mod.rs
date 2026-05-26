@@ -247,6 +247,24 @@ impl Decode for InterchainGasPaymentMeta {
     }
 }
 
+/// A same-chain swap between two CrossCollateralRouter contracts.
+/// Indexed from `ReceivedTransferRemote` events where `origin == localDomain`,
+/// correlated with ERC20 `Transfer` logs in the same transaction to identify
+/// the source router and sent amount.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SameChainCcrSwap {
+    /// Domain ID of the chain (same for both sides)
+    pub domain: u32,
+    /// Address of the source CCR contract (token sent from)
+    pub source_router: H256,
+    /// Address of the destination CCR contract (emitted ReceivedTransferRemote)
+    pub destination_router: H256,
+    /// Amount of destination token transferred out (from ReceivedTransferRemote)
+    pub amount_received: U256,
+    /// Final token recipient
+    pub recipient: H256,
+}
+
 impl From<&LogMeta> for InterchainGasPaymentMeta {
     fn from(meta: &LogMeta) -> Self {
         Self {

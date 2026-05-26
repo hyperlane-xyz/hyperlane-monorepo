@@ -467,13 +467,13 @@ Use the provided variable name(s) to build the command.
 
 ### 7d: Build and Show the Command
 
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt:
+Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt.
+
+> **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
 ```bash
-cd typescript/cli
-
-pnpm hyperlane warp deploy \
-  --registry $REGISTRY_PATH \
+cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
+  --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
   --key.ethereum $MY_ETH_KEY_VAR \
   [--key.sealevel $MY_SOL_KEY_VAR]   # only if sealevel chains present
@@ -481,7 +481,7 @@ pnpm hyperlane warp deploy \
   --yes
 ```
 
-Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
+Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
 
 Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. Then ask:
 
@@ -494,7 +494,7 @@ Show the user the exact command with env variable names substituted (e.g. `$MY_E
 If the user confirms, first start the HTTP registry in the background to get private RPC URLs from Secret Manager:
 
 ```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry
+cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
 Run with `run_in_background: true`. Wait for the server to be ready by checking the logs for a line like `Listening on http://localhost:<port>`. Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
@@ -506,11 +506,10 @@ Tell the user upfront:
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`. Pass the local registry path **first** and the HTTP registry **second** — later entries take priority for reads (so HTTP private RPCs win), but both are in the merged write set (so local writes succeed when HTTP returns 405). Always use a 10-minute timeout (600000ms). Always include `--yes`:
+Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`:
 
 ```bash
 cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
   --key.ethereum $MY_ETH_KEY_VAR \
@@ -559,7 +558,6 @@ cd /path/to/hyperlane-monorepo/typescript/cli
 
 # Forward (no fee on this direction for standard routes)
 pnpm hyperlane warp send \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --origin <chain1> --destination <chain2> \
   --amount 10000 --key $MY_PK \
@@ -567,7 +565,6 @@ pnpm hyperlane warp send \
 
 # Return (fee charged — use reduced amount)
 pnpm hyperlane warp send \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --origin <chain2> --destination <chain1> \
   --amount 9000 --key $MY_PK \
@@ -583,7 +580,6 @@ cd /path/to/hyperlane-monorepo/typescript/cli
 
 # For each synthetic chain: send native → synthetic (forward, no fee)
 pnpm hyperlane warp send \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --origin <native-chain> --destination <synthetic-chain> \
   --amount 10000 --key $MY_PK \
@@ -591,7 +587,6 @@ pnpm hyperlane warp send \
 
 # Then return: synthetic → native (fee charged — use reduced amount)
 pnpm hyperlane warp send \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --origin <synthetic-chain> --destination <native-chain> \
   --amount 9000 --key $MY_PK \
