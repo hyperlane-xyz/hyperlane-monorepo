@@ -594,12 +594,12 @@ export interface BuildBeneficiaryAtaIxArgs {
 /**
  * Returns an idempotent create-Associated-Token-Account instruction for
  * `(beneficiary, feeToken)` so the next fee-bearing transfer can credit the
- * beneficiary's ATA. Safe to send whether or not the ATA already exists.
- * Returns null when `feeToken` is undefined/empty so callers can skip the
- * setup unconditionally for native flows.
+ * beneficiary's ATA. Returns null when:
+ *   - `feeToken` is undefined/empty (native flows / no setup needed), or
+ *   - the (beneficiary, feeToken) ATA already exists on-chain.
  *
- * Not a pure instruction builder — performs one RPC call to detect whether
- * the mint is owned by the classic SPL Token program or Token-2022.
+ * Not a pure instruction builder — performs two RPC calls: one to detect
+ * whether the mint is classic SPL or Token-2022, one to check ATA existence.
  */
 export async function buildBeneficiaryAtaIx(
   args: BuildBeneficiaryAtaIxArgs,
@@ -615,6 +615,13 @@ export async function buildBeneficiaryAtaIx(
     mint,
     tokenProgram,
   });
+
+  const ataInfo = await args.rpc
+    .getAccountInfo(ata.address, { encoding: 'base64' })
+    .send();
+  if (ataInfo.value) {
+    return null;
+  }
 
   return getCreateAssociatedTokenIdempotentInstruction({
     payer: args.payer,

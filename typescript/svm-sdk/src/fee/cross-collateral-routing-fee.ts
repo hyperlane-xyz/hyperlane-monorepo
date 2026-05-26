@@ -361,27 +361,38 @@ export class SvmCrossCollateralRoutingFeeWriter
       });
     }
 
-    // 4. Diff beneficiary
-    if (!eqAddressSol(currentConfig.beneficiary, expected.beneficiary)) {
-      const newBeneficiary = parseAddress(expected.beneficiary);
+    // 4. Diff beneficiary + ensure beneficiary's ATA exists when token is set.
+    const expectedBeneficiary = parseAddress(expected.beneficiary);
+    const ataIx = await buildBeneficiaryAtaIx({
+      rpc: this.rpc,
+      payer: ownerAddress,
+      beneficiary: expectedBeneficiary,
+      feeToken: expected.token,
+    });
+    const beneficiaryChanged = !eqAddressSol(
+      currentConfig.beneficiary,
+      expected.beneficiary,
+    );
+
+    if (beneficiaryChanged) {
       const setBeneficiaryIx = getSetBeneficiaryInstruction(
         programId,
         feeAccountPda,
         ownerAddress,
-        newBeneficiary,
+        expectedBeneficiary,
       );
-      const ataIx = await buildBeneficiaryAtaIx({
-        rpc: this.rpc,
-        payer: ownerAddress,
-        beneficiary: newBeneficiary,
-        feeToken: expected.token,
-      });
       txs.push({
         feePayer: ownerAddress,
         instructions: ataIx ? [ataIx, setBeneficiaryIx] : [setBeneficiaryIx],
         annotation: ataIx
           ? 'Update fee beneficiary and create ata'
           : 'Update fee beneficiary',
+      });
+    } else if (ataIx) {
+      txs.push({
+        feePayer: ownerAddress,
+        instructions: [ataIx],
+        annotation: 'Create beneficiary ata',
       });
     }
 
