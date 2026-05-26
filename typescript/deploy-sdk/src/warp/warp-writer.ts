@@ -15,8 +15,10 @@ import {
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedFeeAddress,
+  DeployedFeeArtifact,
   FeeArtifactConfig,
   mergeFeeArtifacts,
+  withFeeAssetConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   DeployedHookAddress,
@@ -36,6 +38,7 @@ import {
   RawWarpArtifactConfig,
   WarpArtifactConfig,
   buildFeeReadContextFromWarpArtifactConfig,
+  resolveFeeTokenFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -181,7 +184,14 @@ export class WarpTokenWriter
           'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
         );
       } else if (isArtifactNew(config.fee)) {
-        const [deployedFee, feeReceipts] = await feeWriter.create(config.fee);
+        const feeAsset = resolveFeeTokenFromWarpArtifactConfig(config);
+        const feeArtifactToCreate: ArtifactNew<FeeArtifactConfig> = {
+          artifactState: ArtifactState.NEW,
+          config: withFeeAssetConfig(config.fee.config, feeAsset),
+        };
+
+        const [deployedFee, feeReceipts] =
+          await feeWriter.create(feeArtifactToCreate);
         allReceipts.push(...feeReceipts);
         onChainFeeArtifact = deployedFee;
       } else {
@@ -373,16 +383,35 @@ export class WarpTokenWriter
         onChainFeeArtifact = currentFee;
       } else {
         const mergedFeeConfig = mergeFeeArtifacts(currentFee, expectedFee);
+        // Prefer the freshly-read warp asset (synthetic warps populate it
+        // post-deploy), falling back to the expected warp config when the
+        // current read doesn't carry one.
+        const feeAsset =
+          resolveFeeTokenFromWarpArtifactConfig(currentArtifact.config) ??
+          resolveFeeTokenFromWarpArtifactConfig(config);
+        const mergedConfigWithAsset = withFeeAssetConfig(
+          mergedFeeConfig.config,
+          feeAsset,
+        );
 
         if (isArtifactNew(mergedFeeConfig)) {
-          const [deployedFee] = await feeWriter.create(mergedFeeConfig);
+          const feeArtifactToCreate: ArtifactNew<FeeArtifactConfig> = {
+            artifactState: ArtifactState.NEW,
+            config: mergedConfigWithAsset,
+          };
+          const [deployedFee] = await feeWriter.create(feeArtifactToCreate);
 
           onChainFeeArtifact = {
             artifactState: ArtifactState.UNDERIVED,
             deployed: { address: deployedFee.deployed.address },
           };
         } else if (isArtifactDeployed(mergedFeeConfig)) {
-          const txs = await feeWriter.update(mergedFeeConfig);
+          const feeArtifactToUpdate: DeployedFeeArtifact = {
+            artifactState: ArtifactState.DEPLOYED,
+            config: mergedConfigWithAsset,
+            deployed: mergedFeeConfig.deployed,
+          };
+          const txs = await feeWriter.update(feeArtifactToUpdate);
 
           updateTxs.push(...txs);
           onChainFeeArtifact = {

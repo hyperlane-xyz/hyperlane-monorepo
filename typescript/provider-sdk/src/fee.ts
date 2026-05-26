@@ -640,6 +640,61 @@ export function shouldDeployNewFee(
  * Merges current on-chain fee artifact with expected fee artifact.
  * Determines whether to deploy a new fee or update/reuse existing one.
  */
+/**
+ * Returns a fee artifact config identical to the input except for the
+ * `token` field, which is set to the provided value. Explicit per-variant
+ * construction so future additions to any variant break this site at
+ * compile time instead of being silently absorbed by a spread.
+ */
+export function withFeeAssetConfig(
+  config: FeeArtifactConfig,
+  token: string | undefined,
+): FeeArtifactConfig {
+  switch (config.type) {
+    case FeeType.linear:
+    case FeeType.regressive:
+    case FeeType.progressive:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        params: config.params,
+        token,
+      };
+    case FeeType.offchainQuotedLinear:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        params: config.params,
+        quoteSigners: config.quoteSigners,
+        token,
+      };
+    case FeeType.routing:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        routes: config.routes,
+        token,
+      };
+    case FeeType.crossCollateralRouting:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        routes: config.routes,
+        token,
+      };
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(
+        `Unsupported fee type for withFeeAssetConfig: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
+  }
+}
+
 export function mergeFeeArtifacts(
   currentArtifact: DeployedFeeArtifact | undefined,
   expectedArtifact: ArtifactNew<FeeArtifactConfig> | DeployedFeeArtifact,

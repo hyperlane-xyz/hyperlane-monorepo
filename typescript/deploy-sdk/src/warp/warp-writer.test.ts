@@ -1278,6 +1278,10 @@ describe('WarpTokenWriter', () => {
       expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
       // Returned artifact should include deployed fee
       expect(deployed.config.fee).to.not.be.undefined;
+
+      // Fee writer should receive the warp's settlement asset on its config
+      const feeArtifactArg = mockFeeCreateStub.firstCall.args[0];
+      expect(feeArtifactArg.config.token).to.equal('uhyp');
     });
 
     it('should pass through existing fee address on create', async () => {
@@ -1493,6 +1497,10 @@ describe('WarpTokenWriter', () => {
 
       // Fee update tx should be included
       expect(updateTxs).to.include(feeTx);
+
+      // Fee writer should receive the warp's settlement asset on its config
+      const feeArtifactArg = mockFeeUpdateStub.firstCall.args[0];
+      expect(feeArtifactArg.config.token).to.equal('uhyp');
     });
 
     it('should pass through UNDERIVED fee without creating fee writer', async () => {
