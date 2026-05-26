@@ -21,6 +21,7 @@ Additional Use Grant and Change Date.
 ## Directory Breakdown
 
 ### Apache 2.0 (or MIT OR Apache-2.0)
+
 - `solidity/contracts/Mailbox.sol`
 - `solidity/contracts/interfaces/` (all)
 - `solidity/contracts/libs/`
@@ -41,6 +42,7 @@ Additional Use Grant and Change Date.
 - `typescript/utils/`
 
 ### BUSL-1.1
+
 - `solidity/contracts/token/TokenBridgeCctpBase.sol`
 - `solidity/contracts/token/TokenBridgeCctpV1.sol`
 - `solidity/contracts/token/TokenBridgeCctpV2.sol`
