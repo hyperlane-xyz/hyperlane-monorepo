@@ -130,6 +130,8 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  /** Address of the token the adapter deployed (populated post-deploy). */
+  token?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -587,6 +589,7 @@ export function warpArtifactToDerivedConfig(
         ...baseDerivedConfig,
         type: TokenType.synthetic,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
 
     case 'native':
