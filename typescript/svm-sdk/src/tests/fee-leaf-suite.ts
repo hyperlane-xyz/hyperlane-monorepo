@@ -111,6 +111,42 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
   });
 
+  it('should create beneficiary ATA when token is introduced without beneficiary change', async () => {
+    const { writer, reader, signer, rpc, makeConfig } = getContext();
+    const [deployed] = await writer.create({ config: makeConfig() });
+
+    const mint = await createSplMint(rpc, signer, 9);
+    const updateTxs = await writer.update({
+      ...deployed,
+      config: makeConfig({ token: mint }),
+    });
+
+    // Standalone ATA-create tx (beneficiary unchanged, token now set).
+    expect(updateTxs).to.have.length(1);
+    const [updateTx] = updateTxs;
+    assert(updateTx, 'expected one update tx');
+    expect(updateTx.instructions).to.have.length(1);
+    await executeUpdateTxs(updateTxs);
+
+    const readResult = await reader.read(deployed.deployed.programId);
+    const expectedAta = await deriveAssociatedTokenAddress({
+      wallet: address(readResult.config.beneficiary),
+      mint,
+    });
+    const ataInfo = await rpc
+      .getAccountInfo(expectedAta.address, { encoding: 'base64' })
+      .send();
+    expect(ataInfo.value).to.not.be.null;
+
+    // Re-running update with the same (token, beneficiary) is a no-op since
+    // the ATA already exists.
+    const followupTxs = await writer.update({
+      ...deployed,
+      config: makeConfig({ token: mint }),
+    });
+    expect(followupTxs).to.have.length(0);
+  });
+
   it('should update beneficiary and create ATA when token is set', async () => {
     const { writer, reader, signer, rpc, makeConfig } = getContext();
     const [deployed] = await writer.create({ config: makeConfig() });

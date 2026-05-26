@@ -174,11 +174,12 @@ export class WarpTokenWriter
     let onChainFeeArtifact:
       | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
       | undefined;
+    const feeWriter = config.fee
+      ? createFeeWriter(this.chainMetadata, this.signer, {
+          knownRoutersPerDomain: {},
+        })
+      : null;
     if (config.fee) {
-      const feeWriter = createFeeWriter(this.chainMetadata, this.signer, {
-        knownRoutersPerDomain: {},
-      });
-
       if (!feeWriter) {
         rootLogger.warn(
           'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
@@ -214,6 +215,28 @@ export class WarpTokenWriter
     const writer = this.artifactManager.createWriter(config.type, this.signer);
     const [deployed, tokenReceipts] = await writer.create(rawArtifact);
     allReceipts.push(...tokenReceipts);
+
+    // Now that the warp is deployed, re-resolve its settlement asset (which
+    // may have only become derivable post-deploy, e.g. SVM synthetic mints)
+    // and call feeWriter.update so the fee program can finish any per-asset
+    // setup (e.g. beneficiary ATA creation) it couldn't do at fee.create time.
+    if (
+      feeWriter &&
+      onChainFeeArtifact &&
+      isArtifactDeployed(onChainFeeArtifact)
+    ) {
+      const feeAsset = resolveFeeTokenFromWarpArtifactConfig(deployed.config);
+      const feeArtifactWithAsset: DeployedFeeArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: withFeeAssetConfig(onChainFeeArtifact.config, feeAsset),
+        deployed: onChainFeeArtifact.deployed,
+      };
+      const fixupTxs = await feeWriter.update(feeArtifactWithAsset);
+      for (const tx of fixupTxs) {
+        const receipt = await this.signer.sendAndConfirmTransaction(tx);
+        allReceipts.push(receipt);
+      }
+    }
 
     // Return deployed config
     return [
