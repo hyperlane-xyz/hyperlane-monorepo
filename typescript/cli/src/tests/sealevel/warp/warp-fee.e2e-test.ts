@@ -12,6 +12,11 @@ import {
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
+import { Connection, PublicKey } from '@solana/web3.js';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -227,5 +232,60 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     );
     expect(fee.beneficiary).to.equal(beneficiaryAddress);
     expect(fee.beneficiary).to.not.equal(ownerAddress);
+  });
+
+  it('should create beneficiary ATA when deploying a synthetic warp with SPL fee', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const beneficiaryAddress = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const SYMBOL = 'SFATA';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    const deployConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.synthetic,
+        name: 'Synthetic Fee ATA Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        metadataUri: 'https://test.example.com/sfata-metadata.json',
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ownerAddress,
+          beneficiary: beneficiaryAddress,
+          bps: 50,
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    // The reverse mapper uplifts the adapter-deployed mint into the synthetic
+    // config's `token` field — the orchestrator's post-warp-create
+    // feeWriter.update is the only thing that can resolve and set up the
+    // beneficiary ATA for that mint, so its presence proves the path ran.
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+    const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const chainConfig = readConfig[CHAIN_NAME];
+    assert(
+      chainConfig.type === TokenType.synthetic,
+      `Expected synthetic warp, got ${chainConfig.type}`,
+    );
+    const syntheticMint = chainConfig.token;
+    assert(
+      syntheticMint,
+      'Expected synthetic warp config to expose the adapter-deployed mint',
+    );
+
+    const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
+    const connection = new Connection(rpcUrl, 'confirmed');
+    const ata = getAssociatedTokenAddressSync(
+      new PublicKey(syntheticMint),
+      new PublicKey(beneficiaryAddress),
+      true,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const ataInfo = await connection.getAccountInfo(ata);
+    expect(ataInfo).to.not.be.null;
   });
 });
