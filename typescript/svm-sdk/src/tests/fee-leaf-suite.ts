@@ -10,11 +10,13 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 
 import type { BaseFeeConfig, FeeParams } from '@hyperlane-xyz/provider-sdk/fee';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import type { SvmDeployedFee } from '../fee/types.js';
+import { deriveAssociatedTokenAddress } from '../pda.js';
 import type { createRpc } from '../rpc.js';
-import { airdropSol } from '../testing/setup.js';
+import { airdropSol, createSplMint } from '../testing/setup.js';
 
 /** Any fee config with params — covers leaf types and offchainQuotedLinear. */
 type ParamsFeeConfig = BaseFeeConfig & { type: string; params: FeeParams };
@@ -100,10 +102,44 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     });
 
     expect(updateTxs).to.have.length(1);
+    const [updateTx] = updateTxs;
+    assert(updateTx, 'expected one update tx');
+    expect(updateTx.instructions).to.have.length(1);
     await executeUpdateTxs(updateTxs);
 
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
+  });
+
+  it('should update beneficiary and create ATA when token is set', async () => {
+    const { writer, reader, signer, rpc, makeConfig } = getContext();
+    const [deployed] = await writer.create({ config: makeConfig() });
+
+    const mint = await createSplMint(rpc, signer, 9);
+    const newBeneficiary = await generateKeyPairSigner();
+    const updateTxs = await writer.update({
+      ...deployed,
+      config: makeConfig({ beneficiary: newBeneficiary.address, token: mint }),
+    });
+
+    expect(updateTxs).to.have.length(1);
+    const [updateTx] = updateTxs;
+    assert(updateTx, 'expected one update tx');
+    // ATA-idempotent ix prepended to the SetBeneficiary ix in the same tx.
+    expect(updateTx.instructions).to.have.length(2);
+    await executeUpdateTxs(updateTxs);
+
+    const readResult = await reader.read(deployed.deployed.programId);
+    expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
+
+    const expectedAta = await deriveAssociatedTokenAddress({
+      wallet: newBeneficiary.address,
+      mint,
+    });
+    const ataInfo = await rpc
+      .getAccountInfo(expectedAta.address, { encoding: 'base64' })
+      .send();
+    expect(ataInfo.value).to.not.be.null;
   });
 
   it('should transfer ownership and new owner can update', async () => {

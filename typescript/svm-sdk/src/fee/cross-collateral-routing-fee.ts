@@ -28,6 +28,7 @@ import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitFeeInstruction,
   getRemoveRemoteFeeRouteInstruction,
+  buildBeneficiaryAtaIx,
   getSetBeneficiaryInstruction,
   getSetRemoteFeeRouteInstruction,
   getSetWildcardQuoteSignersInstruction,
@@ -362,17 +363,25 @@ export class SvmCrossCollateralRoutingFeeWriter
 
     // 4. Diff beneficiary
     if (!eqAddressSol(currentConfig.beneficiary, expected.beneficiary)) {
+      const newBeneficiary = parseAddress(expected.beneficiary);
+      const setBeneficiaryIx = getSetBeneficiaryInstruction(
+        programId,
+        feeAccountPda,
+        ownerAddress,
+        newBeneficiary,
+      );
+      const ataIx = await buildBeneficiaryAtaIx({
+        rpc: this.rpc,
+        payer: ownerAddress,
+        beneficiary: newBeneficiary,
+        feeToken: expected.token,
+      });
       txs.push({
         feePayer: ownerAddress,
-        instructions: [
-          getSetBeneficiaryInstruction(
-            programId,
-            feeAccountPda,
-            ownerAddress,
-            parseAddress(expected.beneficiary),
-          ),
-        ],
-        annotation: 'Update fee beneficiary',
+        instructions: ataIx ? [ataIx, setBeneficiaryIx] : [setBeneficiaryIx],
+        annotation: ataIx
+          ? 'Update fee beneficiary and create ata'
+          : 'Update fee beneficiary',
       });
     }
 
