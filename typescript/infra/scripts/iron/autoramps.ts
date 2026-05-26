@@ -1,15 +1,21 @@
 /**
- * Manages Iron autoramps for USDC ↔ ctUSD direct deposits on the CROSS/moonpay route.
+ * Manages Iron autoramps for the CROSS/moonpay route (USDC and USDT).
  *
- * Source of truth: deployments/warp_routes/USDC/moonpay-config.yaml in the registry.
+ * Sources of truth (registry):
+ *   deployments/warp_routes/USDC/moonpay-config.yaml
+ *   deployments/warp_routes/USDT/moonpay-config.yaml
  *
- * For every EVM chain in that YAML that connects to citrea (the ctUSD hub), two
- * autoramps are expected:
- *   Mint   – user deposits USDC on the EVM chain → Iron forwards to the citrea warp router
- *   Redeem – user deposits ctUSD on citrea → Iron forwards to the EVM chain warp router
+ * Only pairs involving a hub chain (citrea = ctUSD, solanamainnet = XO) get autoramps.
+ * ctUSD↔XO pairs are excluded.
  *
- * When the YAML gains a new chain (e.g. polygon), `status` will show it as MISSING
- * and `sync` will create the two autoramps.
+ * Per direction two autoramps are expected for citrea pairs:
+ *   direct    – "CROSS/moonpay Mint …"    – routes to the warp router
+ *   inventory – "CROSS/moonpay Inventory Mint …" – routes to the operator
+ *
+ * XO (solanamainnet) pairs get inventory lanes only.
+ *
+ * Matching uses chain pair + name pattern ("Inventory" substring) to tell the two
+ * apart, since both can exist for the same origin↔dest.
  *
  * Commands:
  *   status  Show expected lanes with live Iron status and deposit addresses
@@ -28,7 +34,7 @@ import 'dotenv/config';
 import yargs from 'yargs';
 
 import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
@@ -38,12 +44,31 @@ import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js
 const IRON_API_BASE = 'https://api.iron.xyz/api';
 const CID = '019ce28c-eead-7cf0-985f-64c711cb4e58';
 
-// The warp route that defines which chains and routers exist.
-const WARP_ROUTE_ID = WarpRouteIds.USDCCitreaMoonpay; // 'USDC/moonpay'
+// Hub chains: only pairs involving exactly one of these get autoramps.
+// citrea pairs → direct + inventory lanes; solanamainnet pairs → inventory only.
+const CITREA = 'citrea';
+const SOLANA = 'solanamainnet';
+const HUB_CHAINS = new Set([CITREA, SOLANA]);
 
-// The hub chain — every other EVM chain pairs with it.
-const HUB = 'citrea';
-const HUB_SYMBOL = 'ctUSD';
+// Recipient for all inventory autoramps.
+const INVENTORY_RECIPIENT = '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9';
+
+interface RouteConfig {
+  warpRouteId: string;
+  /** Display label used in section headers. */
+  label: string;
+}
+
+const ROUTE_CONFIGS: RouteConfig[] = [
+  {
+    warpRouteId: WarpRouteIds.USDCCitreaMoonpay,
+    label: 'USDC/moonpay',
+  },
+  {
+    warpRouteId: WarpRouteIds.USDTCitreaMoonpay,
+    label: 'USDT/moonpay',
+  },
+];
 
 // ── Iron API types ─────────────────────────────────────────────────────────────
 
@@ -54,6 +79,7 @@ interface IronAutoramp {
   status: string | null;
   deposit_account: { address: string; chain: string } | null;
   recipient: { address: string; blockchain: string } | null;
+  operator: { id: string; name: string } | null;
 }
 
 interface IronListResponse {
@@ -105,11 +131,12 @@ async function fetchAllAutoramps(key: string): Promise<IronAutoramp[]> {
   return items;
 }
 
-// ── Chain name helpers ─────────────────────────────────────────────────────────
+// ── Chain / symbol name helpers ────────────────────────────────────────────────
 
 // Iron uses title-case names (Arbitrum, Base, Ethereum, Citrea, Polygon …).
-// Simple capitalize works for all current chains; add overrides below if needed.
-const IRON_NAME_OVERRIDES: Record<string, string> = {};
+const IRON_NAME_OVERRIDES: Record<string, string> = {
+  solanamainnet: 'Solana',
+};
 
 function toIron(chain: string): string {
   return (
@@ -117,8 +144,24 @@ function toIron(chain: string): string {
   );
 }
 
+// Inverted overrides for reverse lookups: 'solana' → 'solanamainnet'.
+const IRON_NAME_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(IRON_NAME_OVERRIDES).map(([k, v]) => [v.toLowerCase(), k]),
+);
+
 function fromIron(ironName: string): string {
-  return ironName.toLowerCase();
+  const lower = ironName.toLowerCase();
+  return IRON_NAME_REVERSE[lower] ?? lower;
+}
+
+// Normalise token symbols that vary by chain to a canonical Iron-friendly name.
+// e.g. Arbitrum's native USDT is registered as "USD₮0" in the registry.
+const IRON_SYMBOL_OVERRIDES: Record<string, string> = {
+  'USD₮0': 'USDT',
+};
+
+function toIronSymbol(symbol: string): string {
+  return IRON_SYMBOL_OVERRIDES[symbol] ?? symbol;
 }
 
 // ── Registry helpers ───────────────────────────────────────────────────────────
@@ -131,81 +174,121 @@ interface LaneSpec {
   recipientAddress: string;
   originSymbol: string;
   destSymbol: string;
+  /** direct = USDC↔ctUSD warp-router deposit; inventory = operator-managed rebalancing */
+  type: 'direct' | 'inventory';
+  /** Which moonpay route this lane belongs to */
+  routeLabel: string;
 }
 
 /**
- * Derive the expected lane specs from the USDC/moonpay warp route YAML.
- * Lanes are created for every EVM chain that has a direct connection to the hub (citrea).
+ * Derive all expected lane specs for a single moonpay warp route.
+ *
+ * Only pairs involving exactly one hub chain (citrea or solanamainnet) are included.
+ * For citrea pairs: both a direct and an inventory spec are emitted.
+ * For solanamainnet pairs: inventory only.
  */
-function loadLanesFromRegistry(): LaneSpec[] {
+function loadLanesForRoute(config: RouteConfig): LaneSpec[] {
   const registry = getRegistry();
-  const route = registry.getWarpRoute(WARP_ROUTE_ID) as WarpCoreConfig | null;
-  assert(route, `Warp route '${WARP_ROUTE_ID}' not found in registry`);
 
-  // Build chainName → router address map for all EVM tokens.
-  const evmRouters = new Map<string, string>();
-  for (const token of route.tokens) {
-    if (token.standard?.startsWith('Evm') && token.addressOrDenom) {
-      evmRouters.set(token.chainName, token.addressOrDenom);
-    }
-  }
+  const route = registry.getWarpRoute(
+    config.warpRouteId,
+  ) as WarpCoreConfig | null;
+  assert(route, `Warp route '${config.warpRouteId}' not found in registry`);
 
-  const hubRouter = evmRouters.get(HUB);
-  assert(hubRouter, `No '${HUB}' EVM token found in route '${WARP_ROUTE_ID}'`);
+  // All tokens with a router address (EVM and Sealevel).
+  const tokens = route.tokens.filter((t) => t.addressOrDenom);
 
-  // Collect EVM chains that connect to the hub (excluding the hub itself).
-  const evmChains = route.tokens
-    .filter(
-      (t) =>
-        t.standard?.startsWith('Evm') &&
-        t.chainName !== HUB &&
-        t.connections?.some((c) => c.token.includes(`|${HUB}|`)),
-    )
-    .map((t) => ({
-      chain: t.chainName,
-      router: t.addressOrDenom!,
-      symbol: t.symbol,
-    }));
-
-  assert(
-    evmChains.length > 0,
-    `No EVM chains with citrea connections found in '${WARP_ROUTE_ID}'`,
+  const router = new Map<string, string>(
+    tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+  );
+  const symbol = new Map<string, string>(
+    tokens.map((t) => [t.chainName, t.symbol]),
   );
 
   const lanes: LaneSpec[] = [];
-  for (const { chain, router, symbol } of evmChains) {
-    // Mint: USDC on EVM chain → Iron deposits to citrea warp router → ctUSD
-    lanes.push({
-      origin: chain,
-      dest: HUB,
-      kind: 'Mint',
-      recipientAddress: hubRouter,
-      originSymbol: symbol,
-      destSymbol: HUB_SYMBOL,
-    });
-    // Redeem: ctUSD on citrea → Iron deposits to EVM warp router → USDC
-    lanes.push({
-      origin: HUB,
-      dest: chain,
-      kind: 'Redeem',
-      recipientAddress: router,
-      originSymbol: HUB_SYMBOL,
-      destSymbol: symbol,
-    });
+  const seen = new Set<string>();
+
+  for (const a of tokens) {
+    for (const conn of a.connections ?? []) {
+      const bChain = conn.token.split('|')[1];
+
+      if (!router.has(bChain)) continue;
+
+      const pairKey = [a.chainName, bChain].sort().join('↔');
+      if (seen.has(pairKey)) continue;
+      seen.add(pairKey);
+
+      // Only pairs involving exactly one hub chain.
+      const aIsHub = HUB_CHAINS.has(a.chainName);
+      const bIsHub = HUB_CHAINS.has(bChain);
+      if (aIsHub === bIsHub) continue;
+
+      const hubChain = aIsHub ? a.chainName : bChain;
+      const isCitreaPair = hubChain === CITREA;
+
+      const base = {
+        origin: a.chainName,
+        dest: bChain,
+        recipientAddress: router.get(bChain)!,
+        originSymbol: symbol.get(a.chainName)!,
+        destSymbol: symbol.get(bChain)!,
+        routeLabel: config.label,
+      };
+      const baseRedeem = {
+        origin: bChain,
+        dest: a.chainName,
+        recipientAddress: router.get(a.chainName)!,
+        originSymbol: symbol.get(bChain)!,
+        destSymbol: symbol.get(a.chainName)!,
+        routeLabel: config.label,
+      };
+
+      // Citrea pairs: direct + inventory. Solanamainnet pairs: inventory only.
+      const types: Array<'direct' | 'inventory'> = isCitreaPair
+        ? ['direct', 'inventory']
+        : ['inventory'];
+
+      for (const type of types) {
+        const recipientOverride =
+          type === 'inventory' ? INVENTORY_RECIPIENT : undefined;
+        lanes.push({
+          ...base,
+          kind: 'Mint',
+          type,
+          ...(recipientOverride && { recipientAddress: recipientOverride }),
+        });
+        lanes.push({
+          ...baseRedeem,
+          kind: 'Redeem',
+          type,
+          ...(recipientOverride && { recipientAddress: recipientOverride }),
+        });
+      }
+    }
   }
 
   return lanes;
 }
 
+function loadAllLanes(): LaneSpec[] {
+  return ROUTE_CONFIGS.flatMap(loadLanesForRoute);
+}
+
 // ── Lane matching ──────────────────────────────────────────────────────────────
 
-function laneKey(origin: string, dest: string): string {
-  return `${origin}→${dest}`;
+function isInventoryName(name: string | null): boolean {
+  return (name ?? '').includes('Inventory');
 }
 
 /**
- * Match Iron autoramps to lane specs by origin+dest chain pair.
- * Returns the best match (verifying recipient address) or null.
+ * Match an Iron autoramp to a lane spec by chain pair and name pattern.
+ *
+ * Direct lanes match autoramps whose name does NOT contain "Inventory".
+ * Inventory lanes match autoramps whose name DOES contain "Inventory".
+ *
+ * This separates the two autoramps that can exist for the same chain pair
+ * (e.g. both "CROSS/moonpay Mint Polygon USDC -> Citrea ctUSD" and
+ * "CROSS/moonpay Inventory Mint Polygon USDC -> Citrea ctUSD").
  */
 function matchAutoramp(
   candidates: IronAutoramp[],
@@ -215,11 +298,8 @@ function matchAutoramp(
     const aOrigin = fromIron(a.deposit_account?.chain ?? '');
     const aDest = fromIron(a.recipient?.blockchain ?? '');
     if (aOrigin !== lane.origin || aDest !== lane.dest) continue;
-
-    // Verify the recipient address matches the expected warp router.
-    const aRecipient = a.recipient?.address ?? '';
-    if (!eqAddress(aRecipient, lane.recipientAddress)) continue;
-
+    if (lane.type === 'inventory' && !isInventoryName(a.name)) continue;
+    if (lane.type === 'direct' && isInventoryName(a.name)) continue;
     return a;
   }
   return null;
@@ -238,48 +318,65 @@ function printTable(headers: string[], rows: string[][]): void {
   for (const row of rows) console.log(fmt(row));
 }
 
+const trunc = (v: string | null | undefined, n: number) => {
+  const s = v ?? '';
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+};
+
 // ── status ─────────────────────────────────────────────────────────────────────
 
 async function cmdStatus(key: string): Promise<void> {
-  const lanes = loadLanesFromRegistry();
+  const lanes = loadAllLanes();
   const autoramps = await fetchAllAutoramps(key);
 
   const matchedIds = new Set<string>();
 
-  // Split into Mint and Redeem sections for readability.
-  for (const kindLabel of ['Mint', 'Redeem'] as const) {
-    const section = lanes.filter((l) => l.kind === kindLabel);
-    const direction =
-      kindLabel === 'Mint'
-        ? `EVM → ${HUB} (${HUB_SYMBOL})`
-        : `${HUB} (${HUB_SYMBOL}) → EVM`;
-
-    console.log(`\n${kindLabel} — ${direction}`);
-
-    const rows: string[][] = [];
-    for (const lane of section) {
-      const match = matchAutoramp(autoramps, lane);
-      if (match?.id) matchedIds.add(match.id);
-
-      rows.push([
-        `${lane.origin} → ${lane.dest}`,
-        match ? (match.status ?? '—') : 'MISSING',
-        match?.id ?? '—',
-        match?.deposit_account?.address ?? '—',
-        lane.recipientAddress,
-      ]);
-    }
-
-    printTable(
-      [
-        'Lane',
-        'Status',
-        'Autoramp ID',
-        'Deposit address',
-        'Recipient (warp router)',
-      ],
-      rows,
+  for (const routeConfig of ROUTE_CONFIGS) {
+    const routeLanes = lanes.filter((l) => l.routeLabel === routeConfig.label);
+    console.log(
+      `\n${'═'.repeat(60)}\n${routeConfig.label.toUpperCase()}\n${'═'.repeat(60)}`,
     );
+
+    for (const type of ['direct', 'inventory'] as const) {
+      const section = routeLanes.filter((l) => l.type === type);
+      if (section.length === 0) continue;
+
+      console.log(`\n── ${type} ──`);
+
+      for (const kindLabel of ['Mint', 'Redeem'] as const) {
+        const kindSection = section.filter((l) => l.kind === kindLabel);
+        if (kindSection.length === 0) continue;
+
+        console.log(`\n${kindLabel}`);
+
+        const rows: string[][] = [];
+        for (const lane of kindSection) {
+          const match = matchAutoramp(autoramps, lane);
+          if (match?.id) matchedIds.add(match.id);
+
+          rows.push([
+            `${lane.origin} → ${lane.dest}`,
+            match ? (match.status ?? '—') : 'MISSING',
+            match?.id ?? '—',
+            match?.deposit_account?.address ?? '—',
+            lane.recipientAddress,
+            match?.operator?.name ?? '—',
+          ]);
+        }
+
+        printTable(
+          [
+            'Lane',
+            'Status',
+            'Autoramp ID',
+            'Deposit address',
+            'Recipient',
+            'Operator',
+          ],
+          rows,
+        );
+      }
+    }
   }
 
   // Show unmatched autoramps so they're visible.
@@ -288,19 +385,28 @@ async function cmdStatus(key: string): Promise<void> {
     console.log(`\nOther autoramps under this CID: ${unmatched.length}`);
     const rows = unmatched.map((a) => [
       a.id,
-      a.name?.slice(0, 50) ?? '',
+      trunc(a.name, 50),
       a.kind ?? '—',
       a.status ?? '—',
       `${a.deposit_account?.address ?? '—'} (${a.deposit_account?.chain ?? '?'})`,
+      a.operator?.name ?? '—',
     ]);
-    printTable(['ID', 'Name', 'Kind', 'Status', 'Deposit (chain)'], rows);
+    printTable(
+      ['ID', 'Name', 'Kind', 'Status', 'Deposit (chain)', 'Operator'],
+      rows,
+    );
   }
 }
 
 // ── sync ───────────────────────────────────────────────────────────────────────
 
+function buildName(lane: LaneSpec): string {
+  const inventory = lane.type === 'inventory' ? 'Inventory ' : '';
+  return `CROSS/moonpay ${inventory}${lane.kind} ${toIron(lane.origin)} ${toIronSymbol(lane.originSymbol)} -> ${toIron(lane.dest)} ${toIronSymbol(lane.destSymbol)}`;
+}
+
 async function cmdSync(key: string, dryRun: boolean): Promise<void> {
-  const lanes = loadLanesFromRegistry();
+  const lanes = loadAllLanes();
   const autoramps = await fetchAllAutoramps(key);
 
   const missing = lanes.filter((l) => matchAutoramp(autoramps, l) === null);
@@ -315,9 +421,10 @@ async function cmdSync(key: string, dryRun: boolean): Promise<void> {
   );
 
   for (const lane of missing) {
+    const name = buildName(lane);
     const body = {
       cid: CID,
-      name: `CROSS/moonpay ${lane.kind} ${toIron(lane.origin)} ${lane.originSymbol} -> ${toIron(lane.dest)} ${lane.destSymbol}`,
+      name,
       kind: lane.kind,
       deposit_account: { chain: toIron(lane.origin) },
       recipient: {
@@ -326,7 +433,10 @@ async function cmdSync(key: string, dryRun: boolean): Promise<void> {
       },
     };
 
-    console.log(`  ${lane.origin} → ${lane.dest}  (${lane.kind})`);
+    console.log(
+      `  [${lane.type}] ${lane.origin} → ${lane.dest}  (${lane.kind})`,
+    );
+    console.log(`  name:      ${name}`);
     console.log(`  recipient: ${lane.recipientAddress}`);
 
     if (dryRun) {
