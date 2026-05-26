@@ -285,6 +285,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
             to: bytes32ToAddress(call.to),
             data: call.data,
             value: call.value,
+            from: destinationRouter.address,
           }),
         ),
       );

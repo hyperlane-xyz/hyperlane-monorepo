@@ -18,6 +18,7 @@ export interface EstimateCallGasParams {
   to: Address;
   data: string;
   value?: BigNumber;
+  from?: Address;
   fallback?: BigNumber;
 }
 
@@ -55,6 +56,7 @@ export async function estimateCallGas(
       to: params.to,
       data: params.data,
       value: params.value,
+      from: params.from,
     });
   } catch {
     return fallback;
