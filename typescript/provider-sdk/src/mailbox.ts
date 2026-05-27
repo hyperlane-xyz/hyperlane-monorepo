@@ -34,6 +34,7 @@ export interface MailboxArtifactConfig {
   defaultIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>; // ISM artifact reference
   defaultHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
   requiredHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
+  contractVersion?: string;
 }
 
 /**
