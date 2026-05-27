@@ -186,9 +186,16 @@ export class WarpTokenWriter
         );
       } else if (isArtifactNew(config.fee)) {
         const feeAsset = resolveFeeTokenFromWarpArtifactConfig(config);
+        // Deploy the fee with the signer as the initial owner — transfer to
+        // the configured owner is deferred to the post-warp-create
+        // `feeWriter.update` so per-asset setup (e.g. SVM beneficiary ATA
+        // creation) still runs under a signer that controls the program.
         const feeArtifactToCreate: ArtifactNew<FeeArtifactConfig> = {
           artifactState: ArtifactState.NEW,
-          config: withFeeAssetConfig(config.fee.config, feeAsset),
+          config: {
+            ...withFeeAssetConfig(config.fee.config, feeAsset),
+            owner: this.signer.getSignerAddress(),
+          },
         };
 
         const [deployedFee, feeReceipts] =
@@ -220,6 +227,15 @@ export class WarpTokenWriter
     // may have only become derivable post-deploy, e.g. SVM synthetic mints)
     // and call feeWriter.update so the fee program can finish any per-asset
     // setup (e.g. beneficiary ATA creation) it couldn't do at fee.create time.
+    //
+    // TODO: this pattern assumes fee programs are mutable post-deploy (true
+    // on SVM via SetBeneficiary / TransferOwnership / etc.). Once EVM fee
+    // contracts pass through these cross-VM abstractions, the post-create
+    // update flow won't work for them — EVM fees are immutable, owner is
+    // constructor-set. The alternatives we considered (reorder warp→fee so
+    // the warp's settlement asset is known at fee.create time, or have the
+    // warp writer expose an attachFee method) each have their own cost.
+    // Revisit when wiring up the EVM fee writer.
     if (
       feeWriter &&
       onChainFeeArtifact &&
