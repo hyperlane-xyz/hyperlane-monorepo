@@ -61,7 +61,7 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
       TEST_PRIVATE_KEY,
     );
-    await airdropSol(rpc, address(signer.getSignerAddress()), 50_000_000_000n);
+    await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
 
     // Deploy the shared test ISM used as the default ISM for every mailbox
     // deployed below.
@@ -185,7 +185,7 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
     expect(updateTxs).to.have.length(0);
   });
 
-  it('should remain fully functional after upgrade from legacy', async () => {
+  it('should apply upgrade, ISM swap, and ownership transfer in one update', async () => {
     // Deploy a legacy mailbox owned by signer.
     const legacyWriter = new SvmMailboxWriter(
       {

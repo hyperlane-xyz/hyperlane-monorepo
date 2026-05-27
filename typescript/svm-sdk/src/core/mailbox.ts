@@ -191,9 +191,9 @@ export class SvmMailboxWriter
     const ownerAddress = parseAddress(current.config.owner);
     const txs: AnnotatedSvmTransaction[] = [];
 
-    // Run the program upgrade pre-pass before config mutations so any
-    // version-gated logic in subsequent updates lands against the new
-    // program. Matches the warp/IGP writers' ordering.
+    // Mirror warp/IGP writer ordering: upgrade before config mutations.
+    // No `upgradingToVersion` ratchet needed — mailbox has no
+    // version-gated config instructions today.
     if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
