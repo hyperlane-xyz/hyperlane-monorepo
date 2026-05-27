@@ -239,12 +239,18 @@ export class WarpTokenWriter
     if (
       feeWriter &&
       onChainFeeArtifact &&
-      isArtifactDeployed(onChainFeeArtifact)
+      isArtifactDeployed(onChainFeeArtifact) &&
+      config.fee &&
+      !isArtifactUnderived(config.fee)
     ) {
       const feeAsset = resolveFeeTokenFromWarpArtifactConfig(deployed.config);
+      // Use the user-provided fee config (with their intended owner) as the
+      // expected state — fee.create above was called with the signer as
+      // initial owner, so update will diff and emit a TransferOwnership tx
+      // to the configured owner alongside any per-asset setup (e.g. ATA).
       const feeArtifactWithAsset: DeployedFeeArtifact = {
         artifactState: ArtifactState.DEPLOYED,
-        config: withFeeAssetConfig(onChainFeeArtifact.config, feeAsset),
+        config: withFeeAssetConfig(config.fee.config, feeAsset),
         deployed: onChainFeeArtifact.deployed,
       };
       const fixupTxs = await feeWriter.update(feeArtifactWithAsset);
