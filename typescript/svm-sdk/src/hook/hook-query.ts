@@ -1,7 +1,6 @@
 import { type Address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
-import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   decodeIgpAccount,
@@ -17,12 +16,7 @@ import {
   deriveOverheadIgpAccountPda,
 } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
-import {
-  FALLBACK_SIMULATION_PAYER,
-  queryProgramVersion,
-} from '../version/version-query.js';
-
-const logger = rootLogger.child({ module: 'hook-query' });
+import { queryProgramVersionWithOwnerFallback } from '../version/version-query.js';
 
 export const decodeHookAccount = {
   igpProgramData: decodeIgpProgramDataAccount,
@@ -85,29 +79,9 @@ export async function fetchIgpProgramVersion(
   owner: Address | null,
   { allowFailure = true }: { allowFailure?: boolean } = {},
 ): Promise<string | null> {
-  if (owner) {
-    try {
-      return await queryProgramVersion(rpc, programId, owner);
-    } catch (err) {
-      logger.debug(
-        'Owner-as-payer simulation failed; retrying with fallback payer',
-        { programId, owner, err },
-      );
-    }
-  }
-  try {
-    return await queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
-  } catch (err) {
-    logger.debug('Fallback-payer simulation failed', {
-      programId,
-      allowFailure,
-      err,
-    });
-
-    if (!allowFailure) throw err;
-
-    return null;
-  }
+  return queryProgramVersionWithOwnerFallback(rpc, programId, owner, {
+    allowFailure,
+  });
 }
 
 export async function detectHookType(
