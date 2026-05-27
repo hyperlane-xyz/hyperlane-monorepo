@@ -10,6 +10,7 @@ import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { FALLBACK_SIMULATION_PAYER } from '../version/version-query.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -66,6 +67,10 @@ describe('SVM Mailbox E2E Tests', function () {
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 50_000_000_000n);
+    // Fund the simulation fallback payer so `read()` after renounce (owner
+    // becomes null) can still simulate GetProgramVersion via the fallback
+    // path. Mainnet has this address funded; localnet does not.
+    await airdropSol(rpc, FALLBACK_SIMULATION_PAYER, 10_000_000_000n);
 
     // Deploy Test ISM — required as the default ISM for mailbox init.
     testIsmAddress = TEST_PROGRAM_IDS.testIsm;
