@@ -26,6 +26,7 @@ export const CoreConfigSchema = OwnableSchema.extend({
   interchainAccountRouter: IcaRouterConfigSchema.optional(),
   // Override canonical Permit2 address for QuotedCalls deployment
   permit2: z.string().optional(),
+  contractVersion: z.string().optional(),
 });
 
 export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
