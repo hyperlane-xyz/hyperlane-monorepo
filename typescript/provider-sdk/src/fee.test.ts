@@ -130,6 +130,7 @@ describe('fee type support', () => {
             params: rawParams('2000', '1000'),
           },
         },
+        token: undefined,
       };
       expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });
@@ -162,6 +163,7 @@ describe('fee type support', () => {
             },
           },
         },
+        token: undefined,
       };
       expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });

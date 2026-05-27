@@ -486,6 +486,7 @@ export function feeConfigToArtifact(
           owner: config.owner,
           beneficiary: config.beneficiary,
           routes: convertRoutesToArtifact(config.routes, chainLookup),
+          token: config.token,
         },
       };
 
@@ -497,6 +498,7 @@ export function feeConfigToArtifact(
           owner: config.owner,
           beneficiary: config.beneficiary,
           routes: convertCCRoutesToArtifact(config.routes, chainLookup),
+          token: config.token,
         },
       };
 
