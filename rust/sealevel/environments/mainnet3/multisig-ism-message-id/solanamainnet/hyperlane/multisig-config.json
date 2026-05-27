@@ -193,11 +193,10 @@
   },
   "celestia": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0x6dbc192c06907784fb0af0c0c2d8809ea50ba675",
       "0x761980c3debdc8ddb69a2713cf5126d4db900f0f",
-      "0x885a8c1ef7f7eea8955c8f116fc1fbe1113c4a78",
       "0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab",
       "0x21e93a81920b73c0e98aed8e6b058dae409e4909",
       "0x7b8606d61bc990165d1e5977037ddcf7f2de74d6"
@@ -229,7 +228,8 @@
     "threshold": 2,
     "validators": [
       "0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
+      "0xd2e26f9089e9ff6a1ea9f7e90575e985cfea7f03"
     ]
   },
   "coredao": {
@@ -306,7 +306,8 @@
       "0x3786083ca59dc806d894104e65a13a70c2b39276",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
       "0x29d783efb698f9a2d3045ef4314af1f5674f52c5",
-      "0x36a669703ad0e11a0382b098574903d2084be22c"
+      "0x36a669703ad0e11a0382b098574903d2084be22c",
+      "0xef2e5bb2bc45dd092ff7f9d4d4485f022185aeae"
     ]
   },
   "everclear": {
@@ -569,11 +570,10 @@
   },
   "mantapacific": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0x8e668c97ad76d0e28375275c41ece4972ab8a5bc",
       "0x521a3e6bf8d24809fde1c1fd3494a859a16f132c",
-      "0x14025fe092f5f8a401dd9819704d9072196d2125",
       "0x25b9a0961c51e74fd83295293bc029131bf1e05a",
       "0xa0eE95e280D46C14921e524B075d0C341e7ad1C8",
       "0xcc9a0b6de7fe314bd99223687d784730a75bb957"
@@ -714,6 +714,14 @@
     "validators": [
       "0x4884535f393151ec419add872100d352f71af380",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "nesa": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x990f548e766b830f69642d36cdd47fb20a2aa405",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
