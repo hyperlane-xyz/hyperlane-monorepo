@@ -234,9 +234,10 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     expect(fee.beneficiary).to.not.equal(ownerAddress);
   });
 
-  it('should create beneficiary ATA when deploying a synthetic warp with SPL fee', async function () {
+  it('should create beneficiary ATA and transfer fee owner when deploying a synthetic warp with SPL fee', async function () {
     const ownerAddress = signer.getSignerAddress();
-    const beneficiaryAddress = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const customFeeOwner = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const beneficiaryAddress = customFeeOwner;
     const SYMBOL = 'SFATA';
     const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
 
@@ -251,7 +252,7 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
         owner: ownerAddress,
         tokenFee: {
           type: TokenFeeType.LinearFee,
-          owner: ownerAddress,
+          owner: customFeeOwner,
           beneficiary: beneficiaryAddress,
           bps: 50,
         },
@@ -260,10 +261,6 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
     await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
 
-    // The reverse mapper uplifts the adapter-deployed mint into the synthetic
-    // config's `token` field — the orchestrator's post-warp-create
-    // feeWriter.update is the only thing that can resolve and set up the
-    // beneficiary ATA for that mint, so its presence proves the path ran.
     const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
     const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     const chainConfig = readConfig[CHAIN_NAME];
@@ -276,6 +273,11 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
       syntheticMint,
       'Expected synthetic warp config to expose the adapter-deployed mint',
     );
+
+    const fee = chainConfig.tokenFee;
+    assert(fee, 'Expected tokenFee after deploy');
+    expect(fee.owner).to.equal(customFeeOwner);
+    expect(fee.owner).to.not.equal(ownerAddress);
 
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
     const connection = new Connection(rpcUrl, 'confirmed');
