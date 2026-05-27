@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
-import {AtomicLocalRebalancingBridge, CallInvariant} from "contracts/token/AtomicLocalRebalancingBridge.sol";
+import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
 
@@ -132,10 +132,7 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     ) internal {
         vm.createSelectFork(vm.rpcUrl(rpcAlias));
 
-        bridge = new AtomicLocalRebalancingBridge(
-            localDomain,
-            CallInvariant.RequiredDelta
-        );
+        bridge = new AtomicLocalRebalancingBridge(localDomain);
         sourceRouter = new MockForkRouter(sourceToken, localDomain, 1, 1);
         destinationRouter = new MockForkRouter(
             destinationToken,

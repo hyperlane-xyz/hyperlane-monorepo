@@ -13,14 +13,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @notice Optional invariant enforced after rebalancer calls complete.
-/// @dev `RequiredDelta` checks destination balance delta against `amountIn`
-/// normalized from source token decimals to destination token decimals.
-enum CallInvariant {
-    None,
-    RequiredDelta
-}
-
 /// @title AtomicLocalRebalancingBridge
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
 /// @dev The wrapper must be configured as an allowed rebalancer/bridge on the
@@ -33,18 +25,17 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         keccak256("hyperlane.atomicLocalRebalancingBridge.callbackRecipient");
 
     uint32 public immutable localDomain;
-    CallInvariant public immutable callInvariant;
 
     error RebalanceAlreadyActive();
     error NoActiveRebalance();
     error InvalidCallback();
     error InsufficientOutput();
+    error InvalidInputDelta();
     error UnauthorizedRebalancer();
     error InvalidToken();
 
-    constructor(uint32 _localDomain, CallInvariant _callInvariant) {
+    constructor(uint32 _localDomain) {
         localDomain = _localDomain;
-        callInvariant = _callInvariant;
     }
 
     /// @notice Executes a same-chain rebalance into an enrolled destination
@@ -66,6 +57,49 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             revert UnauthorizedRebalancer();
         }
 
+        address inputToken = source.token();
+        if (inputToken == address(0)) revert InvalidToken();
+        uint256 sourceBalanceBefore = IERC20(inputToken).balanceOf(
+            sourceRouter
+        );
+
+        address destinationRouter = _rebalanceSource(
+            source,
+            sourceRouter,
+            amountIn
+        );
+        address outputToken = MovableCollateralRouter(destinationRouter)
+            .token();
+        if (outputToken == address(0)) revert InvalidToken();
+        uint256 requiredDelta = _requiredDelta(
+            inputToken,
+            outputToken,
+            amountIn
+        );
+        uint256 destinationBalanceBefore = IERC20(outputToken).balanceOf(
+            destinationRouter
+        );
+        CallLib.multicallCalldata(calls);
+
+        // Source may be topped up, but calls must not drain more than amountIn.
+        if (
+            IERC20(inputToken).balanceOf(sourceRouter) <
+            sourceBalanceBefore - amountIn
+        ) {
+            revert InvalidInputDelta();
+        }
+        if (
+            IERC20(outputToken).balanceOf(destinationRouter) -
+                destinationBalanceBefore <
+            requiredDelta
+        ) revert InsufficientOutput();
+    }
+
+    function _rebalanceSource(
+        MovableCollateralRouter source,
+        address sourceRouter,
+        uint256 amountIn
+    ) internal returns (address destinationRouter) {
         _CALLBACK_RECIPIENT_SLOT.store(
             TypeCasts.addressToBytes32(sourceRouter)
         );
@@ -73,35 +107,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         // Enters this contract via transferRemote, which escrows source funds
         // and writes the destination recipient into transient storage.
         source.rebalance(localDomain, amountIn, this);
-        bytes32 recipient = _CALLBACK_RECIPIENT_SLOT.loadBytes32();
+        destinationRouter = TypeCasts.bytes32ToAddress(
+            _CALLBACK_RECIPIENT_SLOT.loadBytes32()
+        );
         _CALLBACK_RECIPIENT_SLOT.clear();
-
-        if (callInvariant == CallInvariant.None) {
-            CallLib.multicallCalldata(calls);
-            return;
-        }
-
-        address destinationRouter = TypeCasts.bytes32ToAddress(recipient);
-        MovableCollateralRouter destination = MovableCollateralRouter(
-            destinationRouter
-        );
-        address inputToken = source.token();
-        address outputToken = destination.token();
-        uint256 requiredDelta = _requiredDelta(
-            inputToken,
-            outputToken,
-            amountIn
-        );
-
-        uint256 balanceBefore = IERC20(outputToken).balanceOf(
-            destinationRouter
-        );
-
-        CallLib.multicallCalldata(calls);
-
-        uint256 delta = IERC20(outputToken).balanceOf(destinationRouter) -
-            balanceBefore;
-        if (delta < requiredDelta) revert InsufficientOutput();
     }
 
     /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
@@ -150,12 +159,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         address outputToken,
         uint256 amountIn
     ) internal view returns (uint256 requiredDelta) {
-        if (inputToken == address(0) || outputToken == address(0))
-            revert InvalidToken();
-
         uint256 inputScale = _decimalScale(inputToken);
         uint256 outputScale = _decimalScale(outputToken);
         if (inputScale == outputScale) return amountIn;
+        // Round up so decimal conversion never underfunds the destination.
         return Math.mulDiv(amountIn, outputScale, inputScale, Math.Rounding.Up);
     }
 

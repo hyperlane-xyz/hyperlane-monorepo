@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {TestSwapTarget} from "contracts/test/TestSwapTarget.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
-import {AtomicLocalRebalancingBridge, CallInvariant} from "contracts/token/AtomicLocalRebalancingBridge.sol";
+import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
@@ -170,10 +170,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     address internal other = makeAddr("other");
 
     function setUp() public {
-        bridge = new AtomicLocalRebalancingBridge(
-            LOCAL_DOMAIN,
-            CallInvariant.RequiredDelta
-        );
+        bridge = new AtomicLocalRebalancingBridge(LOCAL_DOMAIN);
         inputToken = new ERC20Test("Input", "IN", 0, 6);
         outputToken = new ERC20Test("Output", "OUT", 0, 6);
 
@@ -439,6 +436,59 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
     }
 
+    function test_transferRemote_revertsWhenCallsDrainSourceCollateral()
+        public
+    {
+        swapTarget.setOutputAmount(100e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = rebalanceCalls[2];
+        calls[3] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(
+                IERC20.transferFrom,
+                (address(sourceRouter), other, 1e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InvalidInputDelta.selector
+        );
+        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+    }
+
+    function test_transferRemote_allowsCallsToTopUpSourceCollateral() public {
+        swapTarget.setOutputAmount(100e6);
+        inputToken.mintTo(rebalancer, 1e6);
+        vm.prank(rebalancer);
+        inputToken.approve(address(bridge), 1e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = rebalanceCalls[2];
+        calls[3] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(
+                IERC20.transferFrom,
+                (rebalancer, address(sourceRouter), 1e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+
+        assertEq(inputToken.balanceOf(address(sourceRouter)), 999_901e6);
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
+    }
+
     function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
         outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
         destinationRouter = new MockRebalanceRouter(
@@ -510,6 +560,22 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(address(sourceRouter), 100e6, noCalls);
     }
 
+    function test_localRebalance_revertsForInvalidInputToken() public {
+        sourceRouter = new MockRebalanceRouter(
+            ERC20Test(address(0)),
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.addRebalancer(rebalancer);
+
+        CallLib.Call[] memory noCalls = new CallLib.Call[](0);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidToken.selector);
+        bridge.localRebalance(address(sourceRouter), 100e6, noCalls);
+    }
+
     function test_localRebalance_allowsDecimalNormalizedRequiredDeltaDown()
         public
     {
@@ -573,27 +639,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 2);
-    }
-
-    function test_transferRemote_withoutCallInvariantAllowsUnderpayment()
-        public
-    {
-        bridge = new AtomicLocalRebalancingBridge(
-            LOCAL_DOMAIN,
-            CallInvariant.None
-        );
-        sourceRouter.approveTokenForBridge(bridge);
-        sourceRouter.addRebalancer(address(bridge));
-        swapTarget.setOutputAmount(89e6);
-
-        vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(sourceRouter),
-            100e6,
-            _rebalancerCallsTo(100e6, address(destinationRouter), 89e6)
-        );
-
-        assertEq(outputToken.balanceOf(address(destinationRouter)), 89e6);
     }
 
     function test_transferRemote_revertsWhenRebalancerCallReverts() public {
