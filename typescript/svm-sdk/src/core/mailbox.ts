@@ -33,6 +33,7 @@ import {
 import {
   fetchMailboxInboxAccount,
   fetchMailboxOutboxAccount,
+  fetchMailboxProgramVersion,
 } from './mailbox-query.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmMailboxConfig } from './types.js';
@@ -58,6 +59,12 @@ export class SvmMailboxReader implements ArtifactReader<
     const outbox = await fetchMailboxOutboxAccount(this.rpc, programId);
     assert(outbox, `Mailbox outbox not initialized at ${programId}`);
 
+    const contractVersion = await fetchMailboxProgramVersion(
+      this.rpc,
+      programId,
+      outbox.owner,
+    );
+
     // On SVM the mailbox IS the merkle tree hook — return the mailbox
     // address for both defaultHook and requiredHook as UNDERIVED artifacts.
     // NOTE: This is lossy. The SVM outbox account has no hook fields, so we
@@ -78,6 +85,7 @@ export class SvmMailboxReader implements ArtifactReader<
       },
       defaultHook: mailboxHookRef,
       requiredHook: mailboxHookRef,
+      contractVersion: contractVersion ?? undefined,
     };
 
     return {

@@ -108,6 +108,7 @@ describe('SVM Mailbox E2E Tests', function () {
       expect(onChain.config.defaultIsm.deployed.address).to.equal(
         testIsmAddress,
       );
+      expect(onChain.config.contractVersion).to.equal('1.0.0');
       expect(onChain.deployed.domainId).to.equal(
         TEST_SVM_CHAIN_METADATA.domainId,
       );
