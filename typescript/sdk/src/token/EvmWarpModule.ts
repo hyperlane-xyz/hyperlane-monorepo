@@ -15,6 +15,7 @@ import {
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
   TokenBridgeOft__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -101,6 +102,7 @@ import {
   derivedHookAddress,
   derivedIsmAddress,
   isCctpTokenConfig,
+  isDepositAddressTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
@@ -261,6 +263,10 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       ),
       ...this.createEnrollCrossCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createSetDestinationConfigsUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
@@ -1075,12 +1081,91 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
+  createSetDestinationConfigsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (!isDepositAddressTokenConfig(expectedConfig)) {
+      return [];
+    }
+
+    assert(
+      isDepositAddressTokenConfig(actualConfig),
+      'actualConfig must be collateralDepositAddress type',
+    );
+
+    const actual = actualConfig.destinationConfigs ?? {};
+    const expected = expectedConfig.destinationConfigs ?? {};
+    const iface = TokenBridgeDepositAddress__factory.createInterface();
+    const to = this.args.addresses.deployedTokenRoute;
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    const allDomains = new Set([
+      ...Object.keys(actual),
+      ...Object.keys(expected),
+    ]);
+
+    for (const domain of allDomains) {
+      const actualByRecipient = actual[domain] ?? {};
+      const expectedByRecipient = expected[domain] ?? {};
+
+      const allRecipients = new Set([
+        ...Object.keys(actualByRecipient).map((r) => r.toLowerCase()),
+        ...Object.keys(expectedByRecipient).map((r) => r.toLowerCase()),
+      ]);
+
+      for (const recipient of allRecipients) {
+        const actualEntry = actualByRecipient[recipient];
+        const expectedEntry = expectedByRecipient[recipient];
+
+        const changed =
+          actualEntry != null &&
+          expectedEntry != null &&
+          (actualEntry.depositAddress.toLowerCase() !==
+            expectedEntry.depositAddress.toLowerCase() ||
+            String(actualEntry.feeBps ?? '0') !==
+              String(expectedEntry.feeBps ?? '0'));
+
+        if (actualEntry != null && (expectedEntry == null || changed)) {
+          updateTransactions.push({
+            annotation: `Removing destination config for domain ${domain} recipient ${recipient} on ${this.chainName}`,
+            chainId: this.chainId,
+            to,
+            data: iface.encodeFunctionData('removeDestinationConfig', [
+              Number(domain),
+              recipient,
+            ]),
+          });
+        }
+
+        if (expectedEntry != null && (actualEntry == null || changed)) {
+          updateTransactions.push({
+            annotation: `Adding destination config for domain ${domain} recipient ${recipient} on ${this.chainName}`,
+            chainId: this.chainId,
+            to,
+            data: iface.encodeFunctionData('addDestinationConfig', [
+              Number(domain),
+              expectedEntry.depositAddress,
+              recipient,
+              expectedEntry.feeBps ?? '0',
+            ]),
+          });
+        }
+      }
+    }
+
+    return updateTransactions;
+  }
+
   createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    // OFT contracts don't have GasRouter interface — no destination gas config
-    if (isOftTokenConfig(expectedConfig)) {
+    // OFT and collateralDepositAddress contracts don't have GasRouter interface — no destination gas config
+    if (
+      isOftTokenConfig(expectedConfig) ||
+      isDepositAddressTokenConfig(expectedConfig)
+    ) {
       return [];
     }
     const updateTransactions: AnnotatedEV5Transaction[] = [];

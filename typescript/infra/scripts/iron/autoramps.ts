@@ -50,8 +50,16 @@ const CITREA = 'citrea';
 const SOLANA = 'solanamainnet';
 const HUB_CHAINS = new Set([CITREA, SOLANA]);
 
-// Recipient for all inventory autoramps.
-const INVENTORY_RECIPIENT = '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9';
+// Recipient for inventory autoramps, keyed by destination chain.
+const INVENTORY_RECIPIENTS: Record<string, string> = {
+  [SOLANA]: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo',
+};
+const INVENTORY_RECIPIENT_DEFAULT =
+  '0x93240AD82ca750da33de564F8dcE8EBEB5885822';
+
+function inventoryRecipient(destChain: string): string {
+  return INVENTORY_RECIPIENTS[destChain] ?? INVENTORY_RECIPIENT_DEFAULT;
+}
 
 interface RouteConfig {
   warpRouteId: string;
@@ -104,10 +112,15 @@ async function apiPost<T>(
   path: string,
   key: string,
   body: unknown,
+  idempotencyKey: string,
 ): Promise<T> {
   const res = await fetch(`${IRON_API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+    headers: {
+      'X-API-Key': key,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok)
@@ -224,22 +237,25 @@ function loadLanesForRoute(config: RouteConfig): LaneSpec[] {
       if (aIsHub === bIsHub) continue;
 
       const hubChain = aIsHub ? a.chainName : bChain;
+      const spokeChain = aIsHub ? bChain : a.chainName;
       const isCitreaPair = hubChain === CITREA;
 
-      const base = {
-        origin: a.chainName,
-        dest: bChain,
-        recipientAddress: router.get(bChain)!,
-        originSymbol: symbol.get(a.chainName)!,
-        destSymbol: symbol.get(bChain)!,
+      // Mint: spoke → hub (user deposits spoke token, hub token is minted/received)
+      // Redeem: hub → spoke (user deposits hub token, spoke token is released)
+      const baseMint = {
+        origin: spokeChain,
+        dest: hubChain,
+        recipientAddress: router.get(hubChain)!,
+        originSymbol: symbol.get(spokeChain)!,
+        destSymbol: symbol.get(hubChain)!,
         routeLabel: config.label,
       };
       const baseRedeem = {
-        origin: bChain,
-        dest: a.chainName,
-        recipientAddress: router.get(a.chainName)!,
-        originSymbol: symbol.get(bChain)!,
-        destSymbol: symbol.get(a.chainName)!,
+        origin: hubChain,
+        dest: spokeChain,
+        recipientAddress: router.get(spokeChain)!,
+        originSymbol: symbol.get(hubChain)!,
+        destSymbol: symbol.get(spokeChain)!,
         routeLabel: config.label,
       };
 
@@ -249,19 +265,21 @@ function loadLanesForRoute(config: RouteConfig): LaneSpec[] {
         : ['inventory'];
 
       for (const type of types) {
-        const recipientOverride =
-          type === 'inventory' ? INVENTORY_RECIPIENT : undefined;
         lanes.push({
-          ...base,
+          ...baseMint,
           kind: 'Mint',
           type,
-          ...(recipientOverride && { recipientAddress: recipientOverride }),
+          ...(type === 'inventory' && {
+            recipientAddress: inventoryRecipient(hubChain),
+          }),
         });
         lanes.push({
           ...baseRedeem,
           kind: 'Redeem',
           type,
-          ...(recipientOverride && { recipientAddress: recipientOverride }),
+          ...(type === 'inventory' && {
+            recipientAddress: inventoryRecipient(spokeChain),
+          }),
         });
       }
     }
@@ -402,7 +420,11 @@ async function cmdStatus(key: string): Promise<void> {
 
 function buildName(lane: LaneSpec): string {
   const inventory = lane.type === 'inventory' ? 'Inventory ' : '';
-  return `CROSS/moonpay ${inventory}${lane.kind} ${toIron(lane.origin)} ${toIronSymbol(lane.originSymbol)} -> ${toIron(lane.dest)} ${toIronSymbol(lane.destSymbol)}`;
+  const operatorSuffix =
+    lane.type === 'inventory'
+      ? ` (operator ${lane.recipientAddress.slice(0, 10)})`
+      : '';
+  return `CROSS/moonpay ${inventory}${lane.kind} ${toIron(lane.origin)} ${toIronSymbol(lane.originSymbol)} -> ${toIron(lane.dest)} ${toIronSymbol(lane.destSymbol)}${operatorSuffix}`;
 }
 
 async function cmdSync(key: string, dryRun: boolean): Promise<void> {
@@ -423,13 +445,24 @@ async function cmdSync(key: string, dryRun: boolean): Promise<void> {
   for (const lane of missing) {
     const name = buildName(lane);
     const body = {
-      cid: CID,
+      customer_id: CID,
       name,
-      kind: lane.kind,
-      deposit_account: { chain: toIron(lane.origin) },
-      recipient: {
-        address: lane.recipientAddress,
+      source_currencies: [
+        {
+          type: 'Crypto',
+          token: toIronSymbol(lane.originSymbol),
+          blockchain: toIron(lane.origin),
+        },
+      ],
+      destination_currency: {
+        type: 'Crypto',
+        token: toIronSymbol(lane.destSymbol),
         blockchain: toIron(lane.dest),
+      },
+      recipient_account: {
+        type: 'Crypto',
+        chain: toIron(lane.dest),
+        address: lane.recipientAddress,
       },
     };
 
@@ -444,7 +477,7 @@ async function cmdSync(key: string, dryRun: boolean): Promise<void> {
       continue;
     }
 
-    const created = await apiPost<IronAutoramp>('/autoramps', key, body);
+    const created = await apiPost<IronAutoramp>('/autoramps', key, body, name);
     const deposit = created.deposit_account?.address ?? '(unknown)';
     console.log(`  ✓ id: ${created.id}`);
     console.log(`    deposit: ${deposit}\n`);

@@ -87,7 +87,7 @@ function getCctpFastRouteAddresses(): Record<EvmChain, string> {
 }
 
 function getTBDAAddresses(): Record<
-  'arbitrum' | 'base' | 'ethereum' | 'citrea',
+  'arbitrum' | 'base' | 'ethereum' | 'citrea' | 'polygon',
   string
 > {
   const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaIronBridge);
@@ -104,6 +104,7 @@ function getTBDAAddresses(): Record<
     base: find('base'),
     ethereum: find('ethereum'),
     citrea: find('citrea'),
+    polygon: find('polygon'),
   };
 }
 
@@ -386,6 +387,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.polygon.mailbox,
       owner: polygonOwner,
       ...cctpRebalancingConfigByChain.polygon,
+      allowedRebalancingBridges: {
+        ...cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
+        [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }],
+      },
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'polygon',

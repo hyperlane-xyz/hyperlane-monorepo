@@ -13,6 +13,9 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   BaseFee__factory,
+  CrossCollateralRouter__factory,
+  CrossCollateralRoutingFee__factory,
+  DomainRoutingHook__factory,
   ERC20__factory,
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
@@ -20,6 +23,8 @@ import {
   MovableCollateralRouter__factory,
   Ownable__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
+  TokenBridgeOft__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
   TimelockController__factory,
@@ -460,6 +465,16 @@ export class GovernTransactionReader {
     // If it's a Warp Module transaction
     if (this.isWarpModuleTransaction(chain, tx)) {
       return this.readWarpModuleTransaction(chain, tx);
+    }
+
+    // If it's a DomainRoutingHook setHooks transaction
+    if (this.isDomainRoutingHookTransaction(tx)) {
+      return this.readDomainRoutingHookTransaction(chain, tx);
+    }
+
+    // If it's a CrossCollateralRoutingFee transaction
+    if (this.isCrossCollateralRoutingFeeTransaction(tx)) {
+      return this.readCrossCollateralRoutingFeeTransaction(chain, tx);
     }
 
     // If it's a Managed Lockbox transaction
@@ -1100,17 +1115,33 @@ export class GovernTransactionReader {
       MovableCollateralRouter__factory.createInterface();
     const cctpV2Interface = TokenBridgeCctpV2__factory.createInterface();
 
+    const crossCollateralRouterInterface =
+      CrossCollateralRouter__factory.createInterface();
+    const depositAddressInterface =
+      TokenBridgeDepositAddress__factory.createInterface();
+    const oftInterface = TokenBridgeOft__factory.createInterface();
+
+    const interfaces = [
+      tokenRouterInterface,
+      crossCollateralRouterInterface,
+      depositAddressInterface,
+      oftInterface,
+      cctpV2Interface,
+    ];
+
     let decoded;
-    try {
-      decoded = tokenRouterInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    } catch {
-      decoded = cctpV2Interface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
+    for (const iface of interfaces) {
+      try {
+        decoded = iface.parseTransaction({ data: tx.data, value: tx.value });
+        break;
+      } catch {
+        // try next
+      }
+    }
+    if (!decoded) {
+      throw new Error(
+        `No matching function for sighash ${tx.data?.slice(0, 10)}`,
+      );
     }
 
     let insight: string | undefined;
@@ -1274,6 +1305,48 @@ export class GovernTransactionReader {
       const [maxFeePpm] = decoded.args;
       const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
       insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
+    }
+
+    if (decoded.functionFragment.name === 'addDomain') {
+      const [domain, lzEid] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Add OFT domain ${domain}${chainName ? ` (${chainName})` : ''} with LayerZero EID ${lzEid}`;
+    }
+
+    if (decoded.functionFragment.name === 'removeDomain') {
+      const [domain] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Remove OFT domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+    }
+
+    if (decoded.functionFragment.name === 'addDestinationConfig') {
+      const [destination, depositAddress, recipient, feeBps] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(destination);
+      insight = `Add deposit address config for domain ${destination}${chainName ? ` (${chainName})` : ''}: depositAddress=${depositAddress}, recipient=${recipient}, feeBps=${feeBps}`;
+    }
+
+    if (decoded.functionFragment.name === 'removeDestinationConfig') {
+      const [destination, recipient] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(destination);
+      insight = `Remove deposit address config for domain ${destination}${chainName ? ` (${chainName})` : ''}, recipient=${recipient}`;
+    }
+
+    if (decoded.functionFragment.name === 'enrollCrossCollateralRouters') {
+      const [domains, routers] = decoded.args;
+      const insights = (domains as number[]).map((domain, index) => {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        return `domain ${domain}${chainName ? ` (${chainName})` : ''} -> ${routers[index]}`;
+      });
+      insight = `Enroll cross-collateral routers for ${insights.join(', ')}`;
+    }
+
+    if (decoded.functionFragment.name === 'unenrollCrossCollateralRouters') {
+      const [domains] = decoded.args;
+      const insights = (domains as number[]).map((domain) => {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        return `domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+      });
+      insight = `Unenroll cross-collateral routers for ${insights.join(', ')}`;
     }
 
     let ownableTx = {};
@@ -1495,6 +1568,74 @@ export class GovernTransactionReader {
         token: feeConfig.token,
         owner: feeConfig.owner,
       },
+    };
+  }
+
+  // DomainRoutingHook selector: setHooks((uint32,address)[]) = 0x843cb363
+  private static readonly DOMAIN_ROUTING_HOOK_SELECTORS = new Set([
+    '0x843cb363', // setHooks((uint32,address)[])
+  ]);
+
+  private isDomainRoutingHookTransaction(tx: AnnotatedEV5Transaction): boolean {
+    if (!tx.data) return false;
+    return GovernTransactionReader.DOMAIN_ROUTING_HOOK_SELECTORS.has(
+      tx.data.slice(0, 10).toLowerCase(),
+    );
+  }
+
+  private readDomainRoutingHookTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    assert(tx.data, 'No data in DomainRoutingHook transaction');
+    const iface = DomainRoutingHook__factory.createInterface();
+    const decoded = iface.parseTransaction({ data: tx.data, value: tx.value });
+    const [configs] = decoded.args;
+    const insights = (configs as { hook: number; domain: string }[]).map(
+      (c: any) => {
+        const chainName = this.multiProvider.tryGetChainName(c[0]);
+        return `domain ${c[0]}${chainName ? ` (${chainName})` : ''} -> hook ${c[1]}`;
+      },
+    );
+    return {
+      chain,
+      to: `DomainRoutingHook (${chain} ${tx.to})`,
+      signature: decoded.signature,
+      insight: `Set hooks: ${insights.join(', ')}`,
+    };
+  }
+
+  // CrossCollateralRoutingFee selector: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[]) = 0x48d676e1
+  private static readonly CROSS_COLLATERAL_ROUTING_FEE_SELECTORS = new Set([
+    '0x48d676e1', // setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+  ]);
+
+  private isCrossCollateralRoutingFeeTransaction(
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.data) return false;
+    return GovernTransactionReader.CROSS_COLLATERAL_ROUTING_FEE_SELECTORS.has(
+      tx.data.slice(0, 10).toLowerCase(),
+    );
+  }
+
+  private readCrossCollateralRoutingFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    assert(tx.data, 'No data in CrossCollateralRoutingFee transaction');
+    const iface = CrossCollateralRoutingFee__factory.createInterface();
+    const decoded = iface.parseTransaction({ data: tx.data, value: tx.value });
+    const [domains, routers, feeContracts] = decoded.args;
+    const insights = (domains as number[]).map((domain, i) => {
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      return `domain ${domain}${chainName ? ` (${chainName})` : ''}: router=${routers[i]}, feeContract=${feeContracts[i]}`;
+    });
+    return {
+      chain,
+      to: `CrossCollateralRoutingFee (${chain} ${tx.to})`,
+      signature: decoded.signature,
+      insight: `Set cross-collateral router fee contracts: ${insights.join('; ')}`,
     };
   }
 
