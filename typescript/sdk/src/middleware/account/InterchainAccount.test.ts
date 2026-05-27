@@ -364,6 +364,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
 
     // Stub getProvider after app creation to avoid affecting constructor
     sandbox.stub(multiProvider, 'getProvider').returns(mockProvider as any);
+    sandbox.stub(multiProvider, 'getSignerAddress').resolves(randomAddress());
   });
 
   afterEach(() => {

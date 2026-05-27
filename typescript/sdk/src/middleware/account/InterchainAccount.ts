@@ -278,6 +278,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
     try {
       const provider = this.multiProvider.getProvider(destination);
+      let from: string | undefined;
+      try {
+        from = await this.multiProvider.getSignerAddress(destination);
+      } catch {
+        // Signer not available — estimate without from (works on older chains)
+      }
       const individualEstimates = await Promise.all(
         formattedCalls.map((call) =>
           estimateCallGas({
@@ -285,6 +291,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
             to: bytes32ToAddress(call.to),
             data: call.data,
             value: call.value,
+            from,
           }),
         ),
       );
