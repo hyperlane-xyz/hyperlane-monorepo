@@ -250,7 +250,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     }
 
     function test_constructorRevertsIfRouterIsZero() external {
-        vm.expectRevert("InvalidCollateral");
+        vm.expectRevert("InvalidRouter");
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(0),

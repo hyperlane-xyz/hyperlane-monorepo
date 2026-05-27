@@ -38,10 +38,15 @@ contract NetFlowRateLimitedHookIsm is
 
     mapping(bytes32 messageId => bool validated) public messageValidated;
 
+    /// @notice Emitted when `messageId` is first observed (either via `verify`
+    /// or `_postDispatch`). Provides an event trail for replay-bit transitions.
+    event MessageValidated(bytes32 indexed messageId);
+
     modifier validateMessageOnce(bytes calldata _message) {
         bytes32 messageId = _message.id();
         require(!messageValidated[messageId], "MessageAlreadyValidated");
         messageValidated[messageId] = true;
+        emit MessageValidated(messageId);
         _;
     }
 
@@ -55,12 +60,19 @@ contract NetFlowRateLimitedHookIsm is
         _;
     }
 
+    /// @param _mailbox Local mailbox address. Used to read `processedAt` for
+    ///        inbound replay protection and `nonce` for the outbound nonce
+    ///        floor (`minOutboundNonce`).
+    /// @param _router The local warp router this hook/ISM guards. Must be the
+    ///        same router that has this contract installed as its hook AND ISM.
+    /// @param _maxFlowBps Net outflow allowed per `DURATION` window, expressed
+    ///        as basis points of the live TVL. Strictly less than 10_000.
     constructor(
         address _mailbox,
         address _router,
         uint256 _maxFlowBps
     ) MailboxClient(_mailbox) NetFlowRateLimited(_router, _maxFlowBps) {
-        require(_router != address(0), "InvalidRouter");
+        // _router != address(0) is enforced by NetFlowRateLimited's constructor.
         router = _router;
         minOutboundNonce = mailbox.nonce();
         deployedAtBlock = uint48(block.number);
@@ -80,6 +92,14 @@ contract NetFlowRateLimitedHookIsm is
     }
 
     /// @inheritdoc IInterchainSecurityModule
+    /// @dev `processedAt(id) == block.number` confirms that `Mailbox.process()`
+    ///      is the active caller (it writes `deliveries[id].blockNumber` just
+    ///      before invoking `ism.verify(...)` — see `Mailbox.sol::process`).
+    ///      This binds the rate-limit consumption to the message being processed
+    ///      *in this same transaction* and prevents callers from invoking
+    ///      `verify()` directly to consume the bucket without going through the
+    ///      mailbox. (Note: this is NOT authentication — see contract-level
+    ///      docstring on composition with an authenticating ISM.)
     function verify(
         bytes calldata,
         bytes calldata _message

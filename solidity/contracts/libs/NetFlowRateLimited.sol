@@ -10,6 +10,25 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
  * @notice Token bucket for local collateral net outflow.
  * @dev Capacity is derived from local collateral TVL. Consumes represent local
  * collateral leaving the router. Credits represent local collateral entering it.
+ *
+ * @dev TVL is assumed to change only via Hyperlane operations (inbound process /
+ * outbound dispatch), each of which touches the bucket. Under this assumption,
+ * `maxCapacity()` evolves only across bucket touches, and the
+ * `min(filledLevel, capacity)` clamp in `calculateCurrentLevel` is defensive
+ * (it only fires under externally-driven TVL changes, which are out of scope
+ * for warp routes). Donations to the router are tolerated but only grow TVL,
+ * never shrink it.
+ *
+ * @dev Intended usage: routes whose `_message.body().amount()` is denominated
+ * in the same units as `localCollateral()` — namely HypERC20, HypERC20Collateral,
+ * HypNative, and HypERC4626Collateral (shares-on-shares). NOT for HypXERC20 /
+ * HypXERC20Lockbox / HypFiatToken: those mint/burn external tokens so
+ * `balanceOf(router) == 0` and capacity collapses; they have their own bridge-
+ * level rate limits.
+ *
+ * @dev Intended usage: composed under an authenticating ISM (e.g. AggregationIsm
+ * with MultisigIsm). `verify()` here authenticates flow only — composition
+ * with a signature-validating ISM is the responsibility of the deployer.
  */
 contract NetFlowRateLimited {
     enum TvlSource {
@@ -32,15 +51,19 @@ contract NetFlowRateLimited {
     event ConsumedNetFlow(uint256 filledLevel, uint256 lastUpdated);
     event CreditedNetFlow(uint256 filledLevel, uint256 lastUpdated);
 
-    constructor(address _collateral, uint256 _maxFlowBps) {
-        require(_collateral != address(0), "InvalidCollateral");
-        require(_maxFlowBps <= BPS_DENOMINATOR, "InvalidMaxFlowBps");
+    constructor(address _router, uint256 _maxFlowBps) {
+        require(_router != address(0), "InvalidRouter");
+        // Bps == 10_000 is degenerate: in the synthetic-outbound case the router
+        // burns sender supply before `_postDispatch` runs, so `totalSupply()`
+        // (and hence capacity) collapses to (pre-burn − amount), gating the
+        // dispatch on filledLevel without any usable headroom.
+        require(_maxFlowBps < BPS_DENOMINATOR, "InvalidMaxFlowBps");
 
-        address _token = TokenRouter(_collateral).token();
+        address _token = TokenRouter(_router).token();
         token = _token;
-        collateral = _collateral;
+        collateral = _router;
         maxFlowBps = _maxFlowBps;
-        tvlSource = _token == _collateral
+        tvlSource = _token == _router
             ? TvlSource.TOTAL_SUPPLY
             : TvlSource.BALANCE;
     }

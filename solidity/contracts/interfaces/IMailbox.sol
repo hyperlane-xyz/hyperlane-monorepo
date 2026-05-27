@@ -48,6 +48,12 @@ interface IMailbox {
 
     function delivered(bytes32 messageId) external view returns (bool);
 
+    /// @notice Returns the block number at which `messageId` was processed,
+    /// or 0 if it has not been processed.
+    /// @dev Implementation in `Mailbox.sol::processedAt`. The block number is
+    /// written to `deliveries[id].blockNumber` inside `process(...)` *before*
+    /// the ISM verify call, so within a single `process(...)` transaction,
+    /// `processedAt(id) == block.number` is true while the ISM is running.
     function processedAt(bytes32 messageId) external view returns (uint48);
 
     function defaultIsm() external view returns (IInterchainSecurityModule);
