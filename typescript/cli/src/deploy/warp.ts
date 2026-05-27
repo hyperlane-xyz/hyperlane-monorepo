@@ -1181,11 +1181,10 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     },
   };
 
-  // if the requested chain is not defined in the config, transaction submission will crash
-  const submissionStrategy: ExtendedSubmissionStrategy | undefined =
-    strategyUrl && !isExtendedChain
-      ? readChainSubmissionStrategy(strategyUrl)[chain]
-      : defaultSubmitter;
+  // if the requested chain is not defined in the config, falls back to defaultSubmitter below
+  const submissionStrategy: ExtendedSubmissionStrategy | undefined = strategyUrl
+    ? readChainSubmissionStrategy(strategyUrl)[chain]
+    : undefined;
 
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
   const protocol = multiProvider.getProtocol(chain);
@@ -1228,7 +1227,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,
     }),
-    config: submissionStrategy,
+    config: strategyToUse,
   };
 }
 
