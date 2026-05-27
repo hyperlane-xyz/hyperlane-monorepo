@@ -80,6 +80,11 @@ export class EvmCoreReader implements CoreReader {
             ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
             : undefined,
           proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
+          // PACKAGE_VERSION introduced in @hyperlane-xyz/core@5.4.0 —
+          // pre-5.4.0 mailboxes throw CALL_EXCEPTION; treat as unknown.
+          contractVersion: mailboxInstance
+            .PACKAGE_VERSION()
+            .catch(() => undefined),
         },
         async (_, readerCall) => {
           try {
