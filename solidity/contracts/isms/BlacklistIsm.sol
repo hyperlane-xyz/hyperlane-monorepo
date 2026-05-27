@@ -14,6 +14,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @notice Rejects messages whose ID is blacklisted.
  * Provides per-message-ID granularity for blocking reorged or malicious messages.
  * For bulk nonce-range blocking, prefer NonceFloorIsm composed with DomainRoutingIsm.
+ * @dev Append-only: entries are permanent and cannot be removed. Compose with
+ * `DomainRoutingIsm` to swap modules if recovery is needed.
  */
 contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     using Message for bytes;
