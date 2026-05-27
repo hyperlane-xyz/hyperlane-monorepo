@@ -171,6 +171,7 @@ export function validateWarpConfigForAltVM(
         symbol: config.symbol,
         decimals: config.decimals,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
       return result;
     }
