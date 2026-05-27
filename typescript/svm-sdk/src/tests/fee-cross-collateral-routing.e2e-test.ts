@@ -11,6 +11,7 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
+import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '../constants.js';
 import {
   SvmCrossCollateralRoutingFeeReader,
   SvmCrossCollateralRoutingFeeWriter,
@@ -337,6 +338,9 @@ describe('SVM Cross-Collateral Routing Fee E2E Tests', function () {
     const [updateTx] = updateTxs;
     assert(updateTx, 'expected one update tx');
     expect(updateTx.instructions).to.have.length(2);
+    expect(updateTx.instructions[0]?.programAddress).to.equal(
+      ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    );
     for (const tx of updateTxs) {
       await signer.send(tx);
     }
