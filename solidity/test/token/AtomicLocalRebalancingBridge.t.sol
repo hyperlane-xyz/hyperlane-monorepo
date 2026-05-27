@@ -489,6 +489,67 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
+    function testFuzz_localRebalance_doesNotDecreaseRouterTokenSum(
+        bytes32 actions,
+        uint256 rawAmountIn
+    ) public {
+        uint256 amountIn = bound(rawAmountIn, 1, 1_000e6);
+        ERC20Test sharedToken = new ERC20Test("Shared", "SHR", 0, 6);
+
+        inputToken = sharedToken;
+        outputToken = sharedToken;
+        sourceRouter = new MockRebalanceRouter(sharedToken, LOCAL_DOMAIN, 1, 1);
+        destinationRouter = new MockRebalanceRouter(
+            sharedToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        sourceRouter.addRebalancer(rebalancer);
+        sourceRouter.addRebalancer(address(bridge));
+
+        sharedToken.mintTo(address(sourceRouter), 1_000_000e6);
+        sharedToken.mintTo(address(destinationRouter), 1_000e6);
+        sharedToken.mintTo(rebalancer, 1_000_000e6);
+        sharedToken.mintTo(other, 1_000_000e6);
+        sourceRouter.approveTokenForBridge(bridge);
+        destinationRouter.approveTokenForBridge(bridge);
+        vm.prank(rebalancer);
+        sharedToken.approve(address(bridge), type(uint256).max);
+        vm.prank(other);
+        sharedToken.approve(address(bridge), type(uint256).max);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](9);
+        for (uint256 i = 0; i < 8; ++i) {
+            calls[i] = _adversarialTokenCall(
+                sharedToken,
+                uint8(actions[i]),
+                (uint256(uint8(actions[i + 8])) * amountIn) / type(uint8).max
+            );
+        }
+        calls[8] = CallLib.build(
+            address(sharedToken),
+            0,
+            abi.encodeCall(
+                IERC20.transfer,
+                (address(destinationRouter), amountIn)
+            )
+        );
+
+        uint256 routerSumBefore = sharedToken.balanceOf(address(sourceRouter)) +
+            sharedToken.balanceOf(address(destinationRouter));
+
+        vm.prank(rebalancer);
+        try bridge.localRebalance(address(sourceRouter), amountIn, calls) {
+            assertGe(
+                sharedToken.balanceOf(address(sourceRouter)) +
+                    sharedToken.balanceOf(address(destinationRouter)),
+                routerSumBefore
+            );
+        } catch {}
+    }
+
     function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
         outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
         destinationRouter = new MockRebalanceRouter(
@@ -773,6 +834,117 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             0,
             abi.encodeCall(IERC20.transfer, (rebalancer, refund))
         );
+    }
+
+    function _adversarialTokenCall(
+        ERC20Test token,
+        uint8 action,
+        uint256 amount
+    ) internal view returns (CallLib.Call memory) {
+        action = action % 10;
+        if (action == 0) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(IERC20.approve, (other, amount))
+                );
+        }
+        if (action == 1) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(IERC20.approve, (rebalancer, amount))
+                );
+        }
+        if (action == 2) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(IERC20.transfer, (other, amount))
+                );
+        }
+        if (action == 3) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transfer,
+                        (address(destinationRouter), amount)
+                    )
+                );
+        }
+        if (action == 4) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (address(sourceRouter), other, amount)
+                    )
+                );
+        }
+        if (action == 5) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (
+                            address(sourceRouter),
+                            address(destinationRouter),
+                            amount
+                        )
+                    )
+                );
+        }
+        if (action == 6) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (address(destinationRouter), other, amount)
+                    )
+                );
+        }
+        if (action == 7) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (rebalancer, address(destinationRouter), amount)
+                    )
+                );
+        }
+        if (action == 8) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (rebalancer, address(sourceRouter), amount)
+                    )
+                );
+        }
+        return
+            CallLib.build(
+                address(token),
+                0,
+                abi.encodeCall(
+                    IERC20.transferFrom,
+                    (other, address(destinationRouter), amount)
+                )
+            );
     }
 
     function _toBytes32(address account) internal pure returns (bytes32) {
