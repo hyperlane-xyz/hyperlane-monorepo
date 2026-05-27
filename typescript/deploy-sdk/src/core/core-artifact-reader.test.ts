@@ -58,6 +58,8 @@ describe('CoreArtifactReader', () => {
   let chainMetadata: ChainMetadataForAltVM;
   let coreReader: CoreArtifactReader;
 
+  const mockContractVersion = '1.2.3';
+
   const mockRawMailbox: DeployedRawMailboxArtifact = {
     artifactState: ArtifactState.DEPLOYED,
     config: {
@@ -74,6 +76,7 @@ describe('CoreArtifactReader', () => {
         artifactState: ArtifactState.UNDERIVED,
         deployed: { address: mockRequiredHookAddress },
       },
+      contractVersion: mockContractVersion,
     },
     deployed: { address: mockMailboxAddress, domainId: mockDomainId },
   };
@@ -187,6 +190,7 @@ describe('CoreArtifactReader', () => {
       expect(result.config.requiredHook).to.deep.equal(
         mockExpandedRequiredHook,
       );
+      expect(result.config.contractVersion).to.equal(mockContractVersion);
 
       sinon.assert.calledOnceWithExactly(readMailboxStub, mockMailboxAddress);
       sinon.assert.calledOnceWithExactly(mockIsmReader.read, mockIsmAddress);
