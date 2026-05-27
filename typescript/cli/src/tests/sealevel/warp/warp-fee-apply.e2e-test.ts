@@ -12,7 +12,7 @@ import {
   SvmWarpArtifactManager,
   createRpc,
 } from '@hyperlane-xyz/sealevel-sdk';
-import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
+import { airdropSol, createSplMint } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
@@ -461,6 +461,80 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       new PublicKey(newBeneficiary),
       true,
       TOKEN_2022_PROGRAM_ID,
+    );
+    const ataInfo = await connection.getAccountInfo(ata);
+    expect(ataInfo).to.not.be.null;
+  });
+
+  it('should create new beneficiary ATA when rotating beneficiary on a collateral warp via apply', async function () {
+    const mint = await createSplMint(rpc, signer, 9);
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'CROT';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    const baseConfig = {
+      type: TokenType.collateral,
+      token: String(mint),
+      name: 'Collateral Rotate Token',
+      symbol: SYMBOL,
+      decimals: 9,
+      mailbox: mailboxAddress,
+      owner: ownerAddress,
+      tokenFee: {
+        type: TokenFeeType.LinearFee,
+        owner: ownerAddress,
+        bps: 50,
+      },
+    };
+
+    const deployConfig: WarpRouteDeployConfig = { [CHAIN_NAME]: baseConfig };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+
+    const newBeneficiary = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const applyConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        ...baseConfig,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ownerAddress,
+          beneficiary: newBeneficiary,
+          bps: 50,
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, applyConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+    await warpCommands.applyRaw({
+      warpRouteId,
+      privateKey: SVM_KEY,
+      skipConfirmationPrompts: true,
+    });
+
+    const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const chainConfig = readConfig[CHAIN_NAME];
+    assert(
+      chainConfig.type === TokenType.collateral,
+      `Expected collateral warp, got ${chainConfig.type}`,
+    );
+    const fee = chainConfig.tokenFee;
+    assert(fee, 'Expected tokenFee after apply');
+    expect(fee.beneficiary).to.equal(newBeneficiary);
+
+    // Collateral mint is classic SPL (created via `createSplMint`), so the
+    // ATA is derived against the default SPL token program — NOT Token-2022.
+    const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
+    const connection = new Connection(rpcUrl, 'confirmed');
+    const ata = getAssociatedTokenAddressSync(
+      new PublicKey(String(mint)),
+      new PublicKey(newBeneficiary),
+      true,
     );
     const ataInfo = await connection.getAccountInfo(ata);
     expect(ataInfo).to.not.be.null;
