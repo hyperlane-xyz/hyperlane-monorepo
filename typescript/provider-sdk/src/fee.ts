@@ -637,10 +637,6 @@ export function shouldDeployNewFee(
 }
 
 /**
- * Merges current on-chain fee artifact with expected fee artifact.
- * Determines whether to deploy a new fee or update/reuse existing one.
- */
-/**
  * Returns a fee artifact config identical to the input except for the
  * `token` field, which is set to the provided value. Explicit per-variant
  * construction so future additions to any variant break this site at
@@ -695,6 +691,10 @@ export function withFeeAssetConfig(
   }
 }
 
+/**
+ * Merges current on-chain fee artifact with expected fee artifact.
+ * Determines whether to deploy a new fee or update/reuse existing one.
+ */
 export function mergeFeeArtifacts(
   currentArtifact: DeployedFeeArtifact | undefined,
   expectedArtifact: ArtifactNew<FeeArtifactConfig> | DeployedFeeArtifact,

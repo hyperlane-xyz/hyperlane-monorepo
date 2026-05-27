@@ -761,6 +761,12 @@ export function resolveFeeTokenFromWarpArtifactConfig(
       return config.token;
     case TokenType.native:
       return undefined;
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(
+        `Unsupported warp type for resolveFeeTokenFromWarpArtifactConfig: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
   }
 }
 

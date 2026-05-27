@@ -13,6 +13,7 @@ import type { BaseFeeConfig, FeeParams } from '@hyperlane-xyz/provider-sdk/fee';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
+import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '../constants.js';
 import type { SvmDeployedFee } from '../fee/types.js';
 import { deriveAssociatedTokenAddress } from '../pda.js';
 import type { createRpc } from '../rpc.js';
@@ -156,6 +157,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     const [updateTx] = updateTxs;
     assert(updateTx, 'expected one update tx');
     expect(updateTx.instructions).to.have.length(1);
+    expect(updateTx.instructions[0]?.programAddress).to.equal(
+      ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    );
     await executeUpdateTxs(updateTxs);
 
     const readResult = await reader.read(deployed.deployed.programId);
@@ -193,6 +197,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     assert(updateTx, 'expected one update tx');
     // ATA-idempotent ix prepended to the SetBeneficiary ix in the same tx.
     expect(updateTx.instructions).to.have.length(2);
+    expect(updateTx.instructions[0]?.programAddress).to.equal(
+      ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    );
     await executeUpdateTxs(updateTxs);
 
     const readResult = await reader.read(deployed.deployed.programId);
