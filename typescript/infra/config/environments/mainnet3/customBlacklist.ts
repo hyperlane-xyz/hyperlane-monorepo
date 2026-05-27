@@ -365,4 +365,9 @@ export const blacklistedMessageIds = [
 
   // krown -> base
   '0xc1f409b71e923793532c9677367e0ce087f472a5ccc7b96076727df854ad80de',
+
+  // USDT/krown -> ethereum, temporarily denylisted to force the sibling ETH/krown
+  // msg to submit as a single payload. Multicall3.aggregate3 batching changes msg.sender
+  // and breaks the krown ISM's TrustedRelayerIsm check. Remove after sibling delivers. [2026-05-27]
+  '0xca880ac0d36949c175d99875eaacd7ba427abf5d88e6394006de91f18f5875c7',
 ];
