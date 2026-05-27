@@ -9,10 +9,13 @@ import {PackageVersioned} from "../PackageVersioned.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Optional invariant enforced after rebalancer calls complete.
-/// @dev `RequiredDelta` checks destination balance delta against `amountIn`.
+/// @dev `RequiredDelta` checks destination balance delta against `amountIn`
+/// normalized from source token decimals to destination token decimals.
 enum CallInvariant {
     None,
     RequiredDelta
@@ -37,6 +40,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error InvalidCallback();
     error InsufficientOutput();
     error UnauthorizedRebalancer();
+    error InvalidToken();
 
     constructor(uint32 _localDomain, CallInvariant _callInvariant) {
         localDomain = _localDomain;
@@ -53,12 +57,14 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         uint256 amountIn,
         CallLib.Call[] calldata calls
     ) external payable {
-        if (_CALLBACK_RECIPIENT_SLOT.loadBytes32() != bytes32(0))
+        if (_CALLBACK_RECIPIENT_SLOT.loadBytes32() != bytes32(0)) {
             revert RebalanceAlreadyActive();
+        }
 
         MovableCollateralRouter source = MovableCollateralRouter(sourceRouter);
-        if (!_isAllowedRebalancer(source, msg.sender))
+        if (!source.isAllowedRebalancer(msg.sender)) {
             revert UnauthorizedRebalancer();
+        }
 
         _CALLBACK_RECIPIENT_SLOT.store(
             TypeCasts.addressToBytes32(sourceRouter)
@@ -76,16 +82,26 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         }
 
         address destinationRouter = TypeCasts.bytes32ToAddress(recipient);
-
-        IERC20 token = IERC20(
-            MovableCollateralRouter(destinationRouter).token()
+        MovableCollateralRouter destination = MovableCollateralRouter(
+            destinationRouter
         );
-        uint256 balanceBefore = token.balanceOf(destinationRouter);
+        address inputToken = source.token();
+        address outputToken = destination.token();
+        uint256 requiredDelta = _requiredDelta(
+            inputToken,
+            outputToken,
+            amountIn
+        );
+
+        uint256 balanceBefore = IERC20(outputToken).balanceOf(
+            destinationRouter
+        );
 
         CallLib.multicallCalldata(calls);
 
-        uint256 delta = token.balanceOf(destinationRouter) - balanceBefore;
-        if (delta < amountIn) revert InsufficientOutput();
+        uint256 delta = IERC20(outputToken).balanceOf(destinationRouter) -
+            balanceBefore;
+        if (delta < requiredDelta) revert InsufficientOutput();
     }
 
     /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
@@ -115,8 +131,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         bytes32 activeSourceRouter = _CALLBACK_RECIPIENT_SLOT.loadBytes32();
         if (activeSourceRouter == bytes32(0)) revert NoActiveRebalance();
         if (destination != localDomain) revert InvalidCallback();
-        if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender)
+        if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
             revert InvalidCallback();
+        }
         IERC20(MovableCollateralRouter(msg.sender).token()).safeTransferFrom(
             msg.sender,
             address(this),
@@ -128,15 +145,21 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         return bytes32(0);
     }
 
-    function _isAllowedRebalancer(
-        MovableCollateralRouter source,
-        address rebalancer
-    ) internal view returns (bool) {
-        address[] memory allowedRebalancers = source.allowedRebalancers();
-        uint256 length = allowedRebalancers.length;
-        for (uint256 i = 0; i < length; ++i) {
-            if (allowedRebalancers[i] == rebalancer) return true;
-        }
-        return false;
+    function _requiredDelta(
+        address inputToken,
+        address outputToken,
+        uint256 amountIn
+    ) internal view returns (uint256 requiredDelta) {
+        if (inputToken == address(0) || outputToken == address(0))
+            revert InvalidToken();
+
+        uint256 inputScale = _decimalScale(inputToken);
+        uint256 outputScale = _decimalScale(outputToken);
+        if (inputScale == outputScale) return amountIn;
+        return Math.mulDiv(amountIn, outputScale, inputScale, Math.Rounding.Up);
+    }
+
+    function _decimalScale(address token) internal view returns (uint256) {
+        return 10 ** uint256(IERC20Metadata(token).decimals());
     }
 }

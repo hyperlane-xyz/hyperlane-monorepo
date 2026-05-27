@@ -7,8 +7,10 @@ import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {TestSwapTarget} from "contracts/test/TestSwapTarget.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge, CallInvariant} from "contracts/token/AtomicLocalRebalancingBridge.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MockRebalanceRouter {
@@ -26,7 +28,10 @@ contract MockRebalanceRouter {
     mapping(address => bool) public isAllowedRebalancer;
 
     bytes32 public callbackRecipient;
+    uint32 public callbackDomain;
+    address public callbackSender;
     bool public quoteOnly;
+    bool public reenter;
 
     constructor(
         ERC20Test _token,
@@ -36,6 +41,7 @@ contract MockRebalanceRouter {
     ) {
         wrappedToken = _token;
         localDomain = _localDomain;
+        callbackDomain = _localDomain;
         scaleNumerator = _scaleNumerator;
         scaleDenominator = _scaleDenominator;
     }
@@ -64,8 +70,20 @@ contract MockRebalanceRouter {
         callbackRecipient = _toBytes32(recipient);
     }
 
+    function setCallbackDomain(uint32 domain) external {
+        callbackDomain = domain;
+    }
+
+    function setCallbackSender(address sender) external {
+        callbackSender = sender;
+    }
+
     function setQuoteOnly(bool _quoteOnly) external {
         quoteOnly = _quoteOnly;
+    }
+
+    function setReenter(bool _reenter) external {
+        reenter = _reenter;
     }
 
     function approveTokenForBridge(ITokenBridge bridge) external {
@@ -94,12 +112,42 @@ contract MockRebalanceRouter {
             callbackRecipient,
             collateralAmount
         );
+        if (reenter) {
+            CallLib.Call[] memory calls = new CallLib.Call[](0);
+            AtomicLocalRebalancingBridge(address(bridge)).localRebalance(
+                address(this),
+                collateralAmount,
+                calls
+            );
+        }
         if (quoteOnly) return;
         require(
             quotes.extract(address(wrappedToken)) <= collateralAmount,
             "unexpected fees"
         );
-        bridge.transferRemote(domain, callbackRecipient, collateralAmount);
+        if (callbackSender == address(0)) {
+            bridge.transferRemote(
+                callbackDomain,
+                callbackRecipient,
+                collateralAmount
+            );
+        } else {
+            MockRebalanceRouter(callbackSender).callbackTransfer(
+                bridge,
+                callbackDomain,
+                callbackRecipient,
+                collateralAmount
+            );
+        }
+    }
+
+    function callbackTransfer(
+        ITokenBridge bridge,
+        uint32 domain,
+        bytes32 recipient,
+        uint256 amount
+    ) external {
+        bridge.transferRemote(domain, recipient, amount);
     }
 
     function _toBytes32(address account) internal pure returns (bytes32) {
@@ -190,6 +238,47 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
+    function test_localRebalance_integrationUsesRealSourceRouterRebalanceFlow()
+        public
+    {
+        HypERC20Collateral source = new HypERC20Collateral(
+            address(inputToken),
+            1,
+            1,
+            address(new MockMailbox(LOCAL_DOMAIN))
+        );
+        HypERC20Collateral destination = new HypERC20Collateral(
+            address(outputToken),
+            1,
+            1,
+            address(new MockMailbox(LOCAL_DOMAIN))
+        );
+        source.initialize(address(0), address(0), address(this));
+        destination.initialize(address(0), address(0), address(this));
+
+        source.enrollRemoteRouter(
+            LOCAL_DOMAIN,
+            _toBytes32(address(destination))
+        );
+        source.addBridge(LOCAL_DOMAIN, bridge);
+        source.addRebalancer(rebalancer);
+        source.addRebalancer(address(bridge));
+
+        inputToken.mintTo(address(source), 100e6);
+        swapTarget.setOutputAmount(100e6);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(source),
+            100e6,
+            _rebalancerCallsTo(100e6, address(destination), 100e6)
+        );
+
+        assertEq(inputToken.balanceOf(address(source)), 0);
+        assertEq(inputToken.balanceOf(address(bridge)), 0);
+        assertEq(outputToken.balanceOf(address(destination)), 100e6);
+    }
+
     function test_localRebalance_usesSourceRecipient() public {
         MockRebalanceRouter unlisted = new MockRebalanceRouter(
             outputToken,
@@ -215,6 +304,56 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter.setQuoteOnly(true);
         vm.prank(rebalancer);
         vm.expectRevert();
+        bridge.localRebalance(
+            address(sourceRouter),
+            100e6,
+            _rebalancerCalls(100e6)
+        );
+    }
+
+    function test_localRebalance_revertsIfAlreadyActive() public {
+        sourceRouter.setReenter(true);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.RebalanceAlreadyActive.selector
+        );
+        bridge.localRebalance(
+            address(sourceRouter),
+            100e6,
+            _rebalancerCalls(100e6)
+        );
+    }
+
+    function test_quoteTransferRemote_revertsForNonLocalDomain() public {
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
+        bridge.quoteTransferRemote(LOCAL_DOMAIN + 1, bytes32(0), 100e6);
+    }
+
+    function test_transferRemote_revertsWithoutActiveRebalance() public {
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.NoActiveRebalance.selector
+        );
+        bridge.transferRemote(LOCAL_DOMAIN, bytes32(0), 100e6);
+    }
+
+    function test_transferRemote_revertsForNonLocalDomain() public {
+        sourceRouter.setCallbackDomain(LOCAL_DOMAIN + 1);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
+        bridge.localRebalance(
+            address(sourceRouter),
+            100e6,
+            _rebalancerCalls(100e6)
+        );
+    }
+
+    function test_transferRemote_revertsForUnexpectedSourceRouter() public {
+        sourceRouter.setCallbackSender(address(altDestinationRouter));
+
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
@@ -298,6 +437,142 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             100e6,
             _rebalancerCallsTo(100e6, address(destinationRouter), 89e6)
         );
+    }
+
+    function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
+        outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
+        destinationRouter = new MockRebalanceRouter(
+            outputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        swapTarget = new TestSwapTarget(
+            address(inputToken),
+            address(outputToken)
+        );
+        outputToken.mintTo(address(swapTarget), type(uint128).max);
+        swapTarget.setOutputAmount(100e18);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            100e6,
+            _rebalancerCallsTo(100e6, address(destinationRouter), 100e18)
+        );
+
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 100e18);
+    }
+
+    function test_localRebalance_revertsWhenBelowDecimalNormalizedRequiredDelta()
+        public
+    {
+        outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
+        destinationRouter = new MockRebalanceRouter(
+            outputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        swapTarget = new TestSwapTarget(
+            address(inputToken),
+            address(outputToken)
+        );
+        outputToken.mintTo(address(swapTarget), type(uint128).max);
+        swapTarget.setOutputAmount(100e6);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InsufficientOutput.selector
+        );
+        bridge.localRebalance(
+            address(sourceRouter),
+            100e6,
+            _rebalancerCallsTo(100e6, address(destinationRouter), 100e6)
+        );
+    }
+
+    function test_localRebalance_revertsForInvalidOutputToken() public {
+        destinationRouter = new MockRebalanceRouter(
+            ERC20Test(address(0)),
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+
+        CallLib.Call[] memory noCalls = new CallLib.Call[](0);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidToken.selector);
+        bridge.localRebalance(address(sourceRouter), 100e6, noCalls);
+    }
+
+    function test_localRebalance_allowsDecimalNormalizedRequiredDeltaDown()
+        public
+    {
+        inputToken = new ERC20Test("Input18", "IN18", 0, 18);
+        sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
+        destinationRouter = new MockRebalanceRouter(
+            outputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        inputToken.mintTo(address(sourceRouter), 1_000_000e18);
+        sourceRouter.approveTokenForBridge(bridge);
+        sourceRouter.addRebalancer(rebalancer);
+        sourceRouter.addRebalancer(address(bridge));
+        swapTarget = new TestSwapTarget(
+            address(inputToken),
+            address(outputToken)
+        );
+        outputToken.mintTo(address(swapTarget), type(uint128).max);
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        swapTarget.setOutputAmount(90e6);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            90e18,
+            _rebalancerCallsTo(90e18, address(destinationRouter), 90e6)
+        );
+
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 90e6);
+    }
+
+    function test_localRebalance_roundsRequiredDeltaUp() public {
+        inputToken = new ERC20Test("Input18", "IN18", 0, 18);
+        sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
+        destinationRouter = new MockRebalanceRouter(
+            outputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        inputToken.mintTo(address(sourceRouter), 1_000_000e18);
+        sourceRouter.approveTokenForBridge(bridge);
+        sourceRouter.addRebalancer(rebalancer);
+        sourceRouter.addRebalancer(address(bridge));
+        swapTarget = new TestSwapTarget(
+            address(inputToken),
+            address(outputToken)
+        );
+        outputToken.mintTo(address(swapTarget), type(uint128).max);
+        swapTarget.setOutputAmount(2);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            1e12 + 1,
+            _rebalancerCallsTo(1e12 + 1, address(destinationRouter), 2)
+        );
+
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 2);
     }
 
     function test_transferRemote_withoutCallInvariantAllowsUnderpayment()
@@ -453,5 +728,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             0,
             abi.encodeCall(IERC20.transfer, (rebalancer, refund))
         );
+    }
+
+    function _toBytes32(address account) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(account)));
     }
 }

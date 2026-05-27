@@ -30,10 +30,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     );
 
     modifier onlyRebalancer() {
-        require(
-            allowed.rebalancers.contains(_msgSender()),
-            "MCR: Only Rebalancer"
-        );
+        require(isAllowedRebalancer(_msgSender()), "MCR: Only Rebalancer");
         _;
     }
 
@@ -46,6 +43,13 @@ abstract contract MovableCollateralRouter is TokenRouter {
     /// @notice Set of addresses that are allowed to rebalance.
     function allowedRebalancers() external view returns (address[] memory) {
         return allowed.rebalancers.values();
+    }
+
+    /// @notice Returns whether an address is allowed to rebalance.
+    function isAllowedRebalancer(
+        address rebalancer
+    ) public view returns (bool) {
+        return allowed.rebalancers.contains(rebalancer);
     }
 
     /// @notice Mapping of domain to allowed rebalance recipient.

@@ -264,12 +264,14 @@ contract MovableCollateralRouterTest is Test {
         address rebalancer = address(1);
         router.addRebalancer(rebalancer);
         assertEq(router.allowedRebalancers()[0], rebalancer);
+        assertTrue(router.isAllowedRebalancer(rebalancer));
     }
 
     function testRemoveRebalancer() public {
         router.addRebalancer(address(1));
         router.removeRebalancer(address(1));
         assertEq(router.allowedRebalancers().length, 0);
+        assertFalse(router.isAllowedRebalancer(address(1)));
     }
 
     function testSetRecipient() public {
