@@ -9,6 +9,7 @@ import { address as parseAddress, getAddressCodec } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { fetchMintTokenProgram } from '../accounts/mint.js';
 import { concatBytes, i64le, option, u8, u32le } from '../codecs/binary.js';
 import {
   encodeBTreeSetH160,
@@ -26,7 +27,6 @@ import {
   SvmRouteKeyKind,
   type SvmSignedQuote,
 } from '../codecs/fee.js';
-import { fetchMintTokenProgram } from '../accounts/mint.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
   deriveAssociatedTokenAddress,
