@@ -104,7 +104,17 @@ Wait for confirmation before proceeding. If the user provides corrections, updat
 
 ### 10b: Update deploy.yaml with Real Owners
 
-Update the deploy.yaml by replacing the deployer address with the correct real owner per chain. Only update explicit `owner` keys: the chain-level `owner` field and `owner` inside any `tokenFee` and `feeContracts` blocks. Do not do a global string replace — parse the YAML structure and target only these specific keys.
+Update the deploy.yaml by replacing the deployer address with the correct real owner per chain. Target these specific `owner` keys — do NOT do a global string replace:
+
+1. **Chain-level `owner`** — the top-level `owner` field for each chain entry
+2. **`tokenFee` and `feeContracts` owners** — `owner` inside any `tokenFee` and `feeContracts` blocks
+3. **ISM module owners** — `owner` inside every `interchainSecurityModule.modules[]` entry (i.e. the `defaultFallbackRoutingIsm`, `pausableIsm`, and `rateLimitedIsm` entries). For each EVM chain, look up the AW safe/ICA owner:
+   - `ethereum` → `awSafes.ethereum` = `0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6`
+   - Other EVM chains → `awIcas[chain]` from `typescript/infra/config/environments/mainnet3/governance/ica/aw.ts`
+   - If not in `awIcas`, use `awSafes[chain]` from `typescript/infra/config/environments/mainnet3/governance/safe/aw.ts`
+   - If not in either file, warn the user and ask for the AW ICA/safe address (or use the ticket-specified ICA if it's an AW-controlled ICA)
+
+Note: ISM module owners may differ from chain-level token owners (e.g. chain uses a route-specific ICA for token ownership, but the AW safe governs the ISM).
 
 Write the updated deploy.yaml back to the registry path. Show the user the diff (old → new owners).
 

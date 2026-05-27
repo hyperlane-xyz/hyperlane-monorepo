@@ -53,18 +53,19 @@ Show the user the ticket title and description before proceeding.
 
 Parse the ticket description to extract the following. Ask the user to clarify anything that is ambiguous or missing:
 
-| Field                            | Description                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Token name**                   | Full name (e.g. `RISE`)                                                                       |
-| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                          |
-| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure |
-| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes             |
-| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC         |
-| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                          |
-| **Warp fee**                     | Fee in basis points (bps), if specified (e.g. `6bps`)                                         |
-| **Fee owner**                    | Address that receives fees — defaults to the chain's `owner` if not specified                 |
-| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                         |
-| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)           |
+| Field                            | Description                                                                                                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Token name**                   | Full name (e.g. `RISE`)                                                                                                                                                 |
+| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                                                                                                    |
+| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure                                                                           |
+| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes                                                                                       |
+| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC                                                                                   |
+| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                                                                                                    |
+| **Warp fee**                     | Fee in basis points (bps), if specified (e.g. `6bps`)                                                                                                                   |
+| **Fee owner**                    | Address that receives fees — defaults to the chain's `owner` if not specified                                                                                           |
+| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                                                                                                   |
+| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                     |
+| **Daily Rate Limit**             | Per-day token limit for the rate-limited ISM (e.g. `5,000,000`), in full token units (not wei). Required for all routes. Ask the user if the ticket doesn't include it. |
 
 **Yield routes**: if the ticket mentions "yield", "ERC4626", "vault", "rebasing", "Aave", or the token is a known yield-bearing token (sUSDS, sDAI, etc.), it is a yield route. There are two subtypes:
 
@@ -179,6 +180,51 @@ Save this address — it is used as the `hook` field in Step 4.
 ## Step 4: Generate deploy.yaml
 
 Compose the deploy.yaml using the extracted details and mailbox addresses.
+
+### ISM Configuration for Ethereum-based (EVM) Chains
+
+For every Ethereum-protocol (EVM) chain in the route, add a 3/3 `staticAggregationIsm`. Do NOT add this ISM block to Sealevel (Solana, Eclipse), Cosmos, Starknet, Radix, or other non-EVM chains — `rateLimitedIsm` is only supported on EVM chains.
+
+The aggregation contains three modules:
+
+1. `defaultFallbackRoutingIsm` — standard routing ISM
+2. `pausableIsm` — allows emergency pausing
+3. `rateLimitedIsm` — rate-limits daily token flow
+
+**ISM module `owner` fields**: Use the deployer address (same as all other `owner` fields). Real AW safe/ICA ownership is transferred in the `/warp-deploy-update-owners` step via `warp apply`.
+
+**`maxCapacity` calculation**:
+
+```
+maxCapacity = floor(dailyRateLimit × 10^decimals ÷ 86400) × 86400
+```
+
+Express as a decimal integer string. Example: 5,000,000 tokens with 18 decimals →
+`floor(5_000_000 × 10^18 / 86400) × 86400 = 57870370370370370370370 × 86400 = "4999999999999999999968000"`
+
+Do NOT include a `recipient` field on `rateLimitedIsm` — the CLI sets it automatically to the deployed token address.
+
+**ISM YAML block** (add to every EVM chain entry, regardless of token type):
+
+```yaml
+interchainSecurityModule:
+  modules:
+    - domains: {}
+      owner: '<deployer-address>'
+      type: defaultFallbackRoutingIsm
+    - owner: '<deployer-address>'
+      paused: false
+      type: pausableIsm
+    - maxCapacity: '<maxCapacity-value>'
+      owner: '<deployer-address>'
+      type: rateLimitedIsm
+  threshold: 3
+  type: staticAggregationIsm
+```
+
+The rate-limited ISM is deployed as part of `warp deploy` — the CLI wires the token address in automatically after token deployment.
+
+---
 
 **Multi-collateral format** (multiple collateral chains + one synthetic): same as standard but repeated for each collateral chain, each with its own `token` address and `owner`:
 
@@ -392,7 +438,8 @@ solanamainnet:
 - `name` and `symbol` omitted on `native` type; `decimals` IS included
 - `collateralChainName` is REQUIRED on every `syntheticRebase` chain; omit on all other types
 - `tokenFee` goes on the synthetic chain only (or all chains if all-native route)
-- Do NOT include `interchainSecurityModule`, `proxyAdmin`, or `remoteRouters` — those are added post-deployment
+- Include `interchainSecurityModule` for every EVM chain (see ISM Configuration section above); omit for non-EVM chains
+- Do NOT include `proxyAdmin` or `remoteRouters` — those are added post-deployment
 
 ---
 
