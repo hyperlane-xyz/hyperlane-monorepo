@@ -36,6 +36,9 @@ export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/mu
 // Program bytes (auto-generated from compiled .so binaries)
 export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 
+// Version-query helpers and the known-funded simulation fallback payer
+export { FALLBACK_SIMULATION_PAYER } from './version/version-query.js';
+
 // Low-level instruction builders
 export {
   getCloseIgpStandingQuoteInstruction,
