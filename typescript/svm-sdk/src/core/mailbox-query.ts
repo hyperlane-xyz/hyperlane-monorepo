@@ -1,12 +1,20 @@
 import { getAddressCodec, type Address } from '@solana/kit';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import type { ByteCursor } from '../codecs/binary.js';
 import { decodeAccountData } from '../codecs/account-data.js';
 import { deriveMailboxInboxPda, deriveMailboxOutboxPda } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
+import {
+  FALLBACK_SIMULATION_PAYER,
+  queryProgramVersion,
+} from '../version/version-query.js';
 
 const ADDRESS_CODEC = getAddressCodec();
+
+const logger = rootLogger.child({ module: 'mailbox-query' });
 
 // Merkle tree on-chain size: 32 branches * 32 bytes + 8 bytes count.
 const MERKLE_TREE_SIZE = 32 * 32 + 8;
@@ -88,4 +96,39 @@ export async function fetchMailboxOutboxAccount(
   const raw = await fetchAccountDataRaw(rpc, outboxPda);
   if (!raw) return null;
   return decodeMailboxOutboxAccount(raw);
+}
+
+/**
+ * Queries the on-chain program version for a mailbox program.
+ *
+ * Uses the mailbox owner as the simulation fee payer when present, falling
+ * back to a known-funded mainnet address when the owner is null or the
+ * owner-paid simulation fails (e.g. production owner has no SOL).
+ * Returns null when both attempts fail (e.g. fallback payer absent on
+ * this chain), so reads remain best-effort.
+ */
+export async function fetchMailboxProgramVersion(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+): Promise<string | null> {
+  if (owner) {
+    try {
+      return await queryProgramVersion(rpc, programId, owner);
+    } catch (err) {
+      logger.debug(
+        'Owner-as-payer simulation failed; retrying with fallback payer',
+        { programId, owner, err },
+      );
+    }
+  }
+  try {
+    return await queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
+  } catch (err) {
+    logger.debug(
+      'Fallback-payer simulation failed; returning null contractVersion',
+      { programId, err },
+    );
+    return null;
+  }
 }
