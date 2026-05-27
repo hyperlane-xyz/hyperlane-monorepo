@@ -24,9 +24,9 @@ import {
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
+  buildBeneficiaryAtaIx,
   getInitFeeInstruction,
   getRemoveRemoteFeeRouteInstruction,
-  buildBeneficiaryAtaIx,
   getSetBeneficiaryInstruction,
   getSetRemoteFeeRouteInstruction,
   getSetWildcardQuoteSignersInstruction,

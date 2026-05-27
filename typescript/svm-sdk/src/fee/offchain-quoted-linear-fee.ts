@@ -24,8 +24,8 @@ import type { SvmSigner } from '../clients/signer.js';
 import { SetQuoteSignerOp } from '../codecs/fee.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
-  getInitFeeInstruction,
   buildBeneficiaryAtaIx,
+  getInitFeeInstruction,
   getSetBeneficiaryInstruction,
   getSetQuoteSignerInstruction,
   getTransferFeeOwnershipInstruction,
