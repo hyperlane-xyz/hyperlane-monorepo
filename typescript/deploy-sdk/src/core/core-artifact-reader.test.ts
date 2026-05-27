@@ -337,6 +337,7 @@ describe('CoreArtifactReader', () => {
       expect(result.defaultIsm).to.be.an('object');
       expect(result.defaultHook).to.be.an('object');
       expect(result.requiredHook).to.be.an('object');
+      expect(result.contractVersion).to.equal(mockContractVersion);
 
       sinon.assert.calledOnce(readMailboxStub);
       sinon.assert.calledOnce(mockIsmReader.read);

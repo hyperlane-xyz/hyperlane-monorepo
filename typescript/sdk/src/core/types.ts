@@ -31,6 +31,7 @@ const CoreConfigBaseSchema = OwnableSchema.extend({
   permit2: z.string().optional(),
   // Set false for chains that should keep legacy core artifacts only.
   deployQuotedCalls: z.boolean().optional(),
+  contractVersion: z.string().optional(),
 });
 
 const rejectRateLimitedDefaultIsm = (

@@ -145,7 +145,8 @@ export function mailboxArtifactToDerivedCoreConfig(
     ) => DerivedHookConfig;
   },
 ): DerivedCoreConfig {
-  const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
+  const { defaultIsm, defaultHook, requiredHook, owner, contractVersion } =
+    artifact.config;
 
   return {
     owner,
@@ -158,6 +159,7 @@ export function mailboxArtifactToDerivedCoreConfig(
     requiredHook: fromOnChainArtifact(requiredHook, 'requiredHook', (a) =>
       converters.hookArtifactToDerivedConfig(a, chainLookup),
     ),
+    contractVersion,
   };
 }
 

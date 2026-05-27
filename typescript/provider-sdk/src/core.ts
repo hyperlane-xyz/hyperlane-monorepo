@@ -32,6 +32,7 @@ export interface CoreConfig {
   defaultIsm: IsmConfig | string;
   defaultHook: HookConfig | string;
   requiredHook: HookConfig | string;
+  contractVersion?: string;
 }
 
 export interface DerivedCoreConfig extends CoreConfig {
@@ -114,6 +115,7 @@ export function coreConfigToArtifact(
       defaultIsm: defaultIsmArtifact,
       defaultHook: defaultHookArtifact,
       requiredHook: requiredHookArtifact,
+      contractVersion: config.contractVersion,
     },
   };
 }
