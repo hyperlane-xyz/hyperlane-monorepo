@@ -142,7 +142,21 @@ async function resolveWarpConfigChains(
     argv.context.chains.length !== 0,
     'No chains found in warp route deployment config',
   );
-  return argv.context.chains;
+
+  const chains = new Set<ChainName>(argv.context.chains);
+
+  // Include chains referenced by the submission strategy (e.g. ICA origin chains)
+  // so signers are set up for them before transaction submission.
+  if (argv.strategy) {
+    const strategy = readChainSubmissionStrategy(argv.strategy);
+    for (const config of Object.values(strategy)) {
+      for (const c of getSubmitterChains(config.submitter)) {
+        chains.add(c);
+      }
+    }
+  }
+
+  return Array.from(chains);
 }
 
 async function resolveWarpCheckChains(

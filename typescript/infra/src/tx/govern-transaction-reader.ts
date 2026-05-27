@@ -22,6 +22,7 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  RateLimitedIsm__factory,
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
   TokenBridgeOft__factory,
@@ -152,6 +153,10 @@ const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
 ].map((func) => ethers.utils.id(func).substring(0, 10));
+
+const rateLimitedIsmSelectors = ['setRefillRate(uint256)'].map((func) =>
+  ethers.utils.id(func).substring(0, 10),
+);
 
 // ICA router interface with hookMetadata parameter
 // This overload is used by the SDK when building ICA calls with custom hook metadata
@@ -503,6 +508,11 @@ export class GovernTransactionReader {
       return this.readNativeTokenTransfer(chain, tx);
     }
 
+    // If it's a RateLimitedIsm transaction (e.g. setRefillRate)
+    if (this.isRateLimitedIsmTransaction(tx)) {
+      return this.readRateLimitedIsmTransaction(chain, tx);
+    }
+
     const insight = '⚠️ Unknown transaction type';
     // If we get here, it's an unknown transaction
     this.errors.push({
@@ -532,6 +542,36 @@ export class GovernTransactionReader {
     '0x16068373', // setFeeContract(uint32,address) - RoutingFee
     '0x1e83409a', // claim(address) - BaseFee
   ]);
+
+  private isRateLimitedIsmTransaction(tx: AnnotatedEV5Transaction): boolean {
+    if (!tx.to || !tx.data) return false;
+    return rateLimitedIsmSelectors.includes(tx.data.slice(0, 10).toLowerCase());
+  }
+
+  private readRateLimitedIsmTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    assert(tx.data, 'No data in RateLimitedIsm transaction');
+    assert(tx.to, 'No to address in RateLimitedIsm transaction');
+
+    const iface = RateLimitedIsm__factory.createInterface();
+    const decoded = iface.parseTransaction({ data: tx.data });
+    const [newCapacity] = decoded.args;
+
+    const insight = `Set rate limit maxCapacity to ${newCapacity.toString()} (≈${(
+      Number(newCapacity.toString()) / 1e18
+    ).toFixed(4)} tokens/day)`;
+
+    return {
+      chain,
+      insight,
+      signature: decoded.signature,
+      to: `RateLimitedIsm (${chain} ${tx.to})`,
+      args: { newCapacity: newCapacity.toString() },
+      tx,
+    };
+  }
 
   private async isFeeTransaction(
     chain: ChainName,

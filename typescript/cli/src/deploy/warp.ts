@@ -469,22 +469,27 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const updateTransactions = await updateExistingWarpRoute(
-    params,
-    apiKeys,
-    warpDeployConfig,
-    updatedWarpCoreConfig,
-  );
+  const { txs: updateTransactions, feeTxs: feeUpdateTransactions } =
+    await updateExistingWarpRoute(
+      params,
+      apiKeys,
+      warpDeployConfig,
+      updatedWarpCoreConfig,
+    );
 
   // Check if update transactions are empty
-  const hasAnyTx = Object.values(updateTransactions).some(
-    (txs) => txs.length > 0,
-  );
+  const hasAnyTx =
+    Object.values(updateTransactions).some((txs) => txs.length > 0) ||
+    Object.values(feeUpdateTransactions).some((txs) => txs.length > 0);
 
   if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, updateTransactions);
+  await submitWarpApplyTransactions(
+    params,
+    updateTransactions,
+    feeUpdateTransactions,
+  );
 }
 
 /**
@@ -706,13 +711,18 @@ export async function extendWarpRoute(
   return updatedWarpCoreConfig;
 }
 
+type WarpApplyTransactions = {
+  txs: ChainMap<TypedAnnotatedTransaction[]>;
+  feeTxs: ChainMap<TypedAnnotatedTransaction[]>;
+};
+
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
+): Promise<WarpApplyTransactions> {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, altVmSigners, registry } = params.context;
 
@@ -727,6 +737,7 @@ async function updateExistingWarpRoute(
   );
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -772,9 +783,10 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const transactions =
-              await evmERC20WarpModule.update(configWithMailbox);
-            updateTransactions[chain] = transactions;
+            const { txs, feeTxs } =
+              await evmERC20WarpModule.updateSplit(configWithMailbox);
+            updateTransactions[chain] = txs;
+            feeUpdateTransactions[chain] = feeTxs;
             break;
           }
           default: {
@@ -806,7 +818,7 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return updateTransactions;
+  return { txs: updateTransactions, feeTxs: feeUpdateTransactions };
 }
 
 /**
@@ -1005,12 +1017,68 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
 }
 
 /**
+ * Builds a fee submitter from the feeSubmitter field in the strategy config.
+ * Returns undefined if no feeSubmitter is configured for the chain.
+ */
+async function getFeeSubmitterByStrategy<T extends ProtocolType>({
+  chain,
+  context,
+  strategyUrl,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+}): Promise<TxSubmitterBuilder<T> | undefined> {
+  const { multiProvider, altVmSigners, registry } = context;
+
+  if (!strategyUrl) return undefined;
+
+  const submissionStrategy = readChainSubmissionStrategy(strategyUrl)[chain];
+  if (!submissionStrategy?.feeSubmitter) return undefined;
+
+  const feeStrategy: ExtendedSubmissionStrategy = {
+    submitter: submissionStrategy.feeSubmitter,
+  };
+
+  const protocol = multiProvider.getProtocol(chain);
+  const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+    [ProtocolType.Ethereum]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+  };
+
+  if (!isEVMLike(protocol)) {
+    const signer = mustGet(altVmSigners, chain);
+    additionalSubmitterFactories[protocol] = {
+      jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.FILE]: (
+        _multiProvider: MultiProvider,
+        metadata: any,
+      ) => new AltVMFileSubmitter(signer, metadata),
+    };
+  }
+
+  return getSubmitterBuilder<T>({
+    submissionStrategy: feeStrategy as SubmissionStrategy,
+    multiProvider,
+    coreAddressesByChain: await registry.getAddresses(),
+    additionalSubmitterFactories,
+  });
+}
+
+/**
  * Submits transactions for a single chain and handles receipts/self-relay
  */
 async function submitChainTransactions(
   params: WarpApplyParams,
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
+  feeTxs: TypedAnnotatedTransaction[],
   isExtendedChain: boolean,
 ): Promise<void> {
   const protocol = params.context.multiProvider.getProtocol(chain);
@@ -1023,22 +1091,53 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
+      const transactionReceipts =
+        transactions.length > 0
+          ? await submitter.submit(...(transactions as any[]))
+          : undefined;
+
+      let feeReceipts: Awaited<ReturnType<typeof submitter.submit>> | undefined;
+      let feeSubmitterType: string | undefined;
+      if (feeTxs.length > 0) {
+        const feeSubmitter = await getFeeSubmitterByStrategy({
+          chain,
+          context: params.context,
+          strategyUrl: params.strategyUrl,
+        });
+        if (!feeSubmitter) {
+          warnYellow(
+            `Chain ${chain} has ${feeTxs.length} fee transaction(s) but no feeSubmitter configured in strategy. Bundling with main submitter.`,
+          );
+          feeReceipts = await submitter.submit(...(feeTxs as any[]));
+          feeSubmitterType = submitter.txSubmitterType;
+        } else {
+          feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
+          feeSubmitterType = feeSubmitter.txSubmitterType;
+        }
+      }
 
       if (!isEVMLike(protocol)) {
         return;
       }
 
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
+      const writeReceipts = (
+        receipts: Awaited<ReturnType<typeof submitter.submit>>,
+        submitterType: string,
+        label: string,
+      ) => {
+        const receiptPath = `${params.receiptsDir}/${chain}-${submitterType}-${Date.now()}-receipts.json`;
+        writeYamlOrJson(receiptPath, receipts);
         logGreen(
-          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+          `Transaction receipts for ${protocol} chain ${chain} (${label}) successfully written to ${receiptPath}`,
         );
+      };
+
+      if (transactionReceipts) {
+        writeReceipts(transactionReceipts, submitter.txSubmitterType, 'main');
+      }
+
+      if (feeReceipts && feeSubmitterType) {
+        writeReceipts(feeReceipts, feeSubmitterType, 'fee');
       }
 
       const canRelay = canSelfRelay(
@@ -1078,6 +1177,7 @@ async function submitChainTransactions(
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
+  feeUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
@@ -1090,7 +1190,11 @@ async function submitWarpApplyTransactions(
   // private key is used across multiple chains, parallel tx submission causes
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
-  const chains = Object.keys(updateTransactions);
+  const allChains = new Set([
+    ...Object.keys(updateTransactions),
+    ...Object.keys(feeUpdateTransactions),
+  ]);
+  const chains = [...allChains];
   const evmChains = chains.filter((chain) =>
     isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
@@ -1109,7 +1213,8 @@ async function submitWarpApplyTransactions(
         submitChainTransactions(
           params,
           chain,
-          updateTransactions[chain],
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
       (chain) => chain,
@@ -1133,7 +1238,8 @@ async function submitWarpApplyTransactions(
       await submitChainTransactions(
         params,
         chain,
-        updateTransactions[chain],
+        updateTransactions[chain] ?? [],
+        feeUpdateTransactions[chain] ?? [],
         isExtended(chain),
       );
     } catch (e) {

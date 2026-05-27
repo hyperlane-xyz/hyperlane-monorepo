@@ -32,10 +32,9 @@ type ExtendedSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
 const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
   SubmitterMetadataSchema.or(FileSubmitterMetadataSchema);
 
-export const ExtendedSubmissionStrategySchema: z.ZodSchema<{
-  submitter: ExtendedSubmitterMetadata;
-}> = z.object({
+export const ExtendedSubmissionStrategySchema = z.object({
   submitter: ExtendedSubmitterMetadataSchema,
+  feeSubmitter: ExtendedSubmitterMetadataSchema.optional(),
 });
 
 export type ExtendedSubmissionStrategy = z.infer<
