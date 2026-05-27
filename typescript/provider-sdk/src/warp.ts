@@ -86,6 +86,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  token?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -434,6 +435,7 @@ export function warpConfigToArtifact(
           symbol: config.symbol,
           decimals: config.decimals,
           metadataUri: config.metadataUri,
+          token: config.token,
         },
       };
 
