@@ -21,8 +21,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
-import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
+import {
+  hasProgramBytes,
+  type AnnotatedSvmTransaction,
+  type SvmReceipt,
+  type SvmRpc,
+} from '../types.js';
 
 import {
   buildInitMailboxInstruction,
@@ -184,6 +190,22 @@ export class SvmMailboxWriter
     const expected = artifact.config;
     const ownerAddress = parseAddress(current.config.owner);
     const txs: AnnotatedSvmTransaction[] = [];
+
+    // Run the program upgrade pre-pass before config mutations so any
+    // version-gated logic in subsequent updates lands against the new
+    // program. Matches the warp/IGP writers' ordering.
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        expected.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `mailbox ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
 
     // 1. Default ISM update
     const currentIsm = current.config.defaultIsm.deployed.address;
