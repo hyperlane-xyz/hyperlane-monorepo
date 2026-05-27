@@ -559,7 +559,7 @@ export function warpArtifactToDerivedConfig(
     feeConfig = feeArtifactToDerivedConfig(
       config.fee,
       chainLookup,
-      getCollateralToken(config),
+      resolveFeeTokenFromWarpArtifactConfig(config) ?? ZERO_ADDRESS,
     );
   }
 
@@ -622,28 +622,6 @@ export function warpArtifactToDerivedConfig(
 // Warp Config Utilities
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
-/**
- * Returns the collateral token address from a warp artifact config.
- * Collateral and crossCollateral types have a token field;
- * native and synthetic use the zero address (no collateral token).
- */
-function getCollateralToken(config: WarpArtifactConfig): string {
-  switch (config.type) {
-    case TokenType.collateral:
-    case TokenType.crossCollateral:
-      return config.token;
-    case TokenType.native:
-    case TokenType.synthetic:
-      return ZERO_ADDRESS;
-    default: {
-      const _exhaustive: never = config;
-      throw new Error(
-        `Unhandled warp token type: ${JSON.stringify(_exhaustive)}`,
-      );
-    }
-  }
-}
 
 // Cross-Collateral Router Utilities
 
