@@ -61,6 +61,36 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(readResult.config.beneficiary).to.equal(signer.getSignerAddress());
   });
 
+  it('should create beneficiary ATA at fee deploy when token is set', async () => {
+    const { writer, signer, rpc, makeConfig } = getContext();
+
+    const mint = await createSplMint(rpc, signer, 9);
+    const beneficiary = await generateKeyPairSigner();
+    const config = makeConfig({
+      beneficiary: beneficiary.address,
+      token: mint,
+    });
+
+    const [deployed] = await writer.create({ config });
+
+    const expectedAta = await deriveAssociatedTokenAddress({
+      wallet: beneficiary.address,
+      mint,
+    });
+    const ataInfo = await rpc
+      .getAccountInfo(expectedAta.address, { encoding: 'base64' })
+      .send();
+    expect(ataInfo.value).to.not.be.null;
+
+    // Re-reading and re-running update should be a no-op since the ATA is
+    // already in place and no other fields changed.
+    const followupTxs = await writer.update({
+      ...deployed,
+      config,
+    });
+    expect(followupTxs).to.have.length(0);
+  });
+
   it('should return empty transactions when config is unchanged', async () => {
     const { writer, makeConfig } = getContext();
     const [deployed] = await writer.create({ config: makeConfig() });
