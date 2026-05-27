@@ -355,6 +355,29 @@ describe('CoreWriter', () => {
       sinon.assert.calledWith(createVAWriterStub, 'validatorAnnounce', signer);
     });
 
+    it('should forward contractVersion onto the deployed mailbox artifact', async () => {
+      // ARRANGE
+      const expectedContractVersion = '1.0.0';
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+          contractVersion: expectedContractVersion,
+        },
+      };
+
+      // ACT
+      const [result] = await coreWriter.create(artifact);
+
+      // ASSERT
+      expect(result.mailbox.config.contractVersion).to.equal(
+        expectedContractVersion,
+      );
+    });
+
     it('should use existing ISM when DEPLOYED', async () => {
       // ARRANGE
       const artifact: ArtifactNew<MailboxArtifactConfig> = {
