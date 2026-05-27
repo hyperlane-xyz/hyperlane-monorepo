@@ -263,6 +263,7 @@ describe('CoreArtifactReader', () => {
             artifactState: ArtifactState.UNDERIVED,
             deployed: { address: ZERO_ADDRESS_HEX_32 },
           },
+          contractVersion: mockContractVersion,
         },
         deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
@@ -277,6 +278,7 @@ describe('CoreArtifactReader', () => {
       // ASSERT
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(result.config.owner).to.equal(mockOwner);
+      expect(result.config.contractVersion).to.equal(mockContractVersion);
 
       // Nested artifacts should remain UNDERIVED (not expanded)
       expect(result.config.defaultIsm.artifactState).to.equal(
