@@ -105,6 +105,37 @@ describe('SVM Cross-Collateral Routing Fee E2E Tests', function () {
     );
   });
 
+  it('should create beneficiary ATA at fee deploy when token is set', async () => {
+    const mint = await createSplMint(rpc, signer, 9);
+    const beneficiary = await generateKeyPairSigner();
+
+    await writer.create({
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner: signer.getSignerAddress(),
+        beneficiary: beneficiary.address,
+        token: mint,
+        routes: {
+          10: {
+            [ROUTER_A]: {
+              type: FeeStrategyType.linear,
+              params: raw('1000', '500'),
+            },
+          },
+        },
+      },
+    });
+
+    const expectedAta = await deriveAssociatedTokenAddress({
+      wallet: beneficiary.address,
+      mint,
+    });
+    const ataInfo = await rpc
+      .getAccountInfo(expectedAta.address, { encoding: 'base64' })
+      .send();
+    expect(ataInfo.value).to.not.be.null;
+  });
+
   it('should return empty transactions when config is unchanged', async () => {
     const [deployed] = await writer.create({
       config: {
