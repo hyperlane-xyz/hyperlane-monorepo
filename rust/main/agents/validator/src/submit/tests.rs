@@ -210,6 +210,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        None,
     );
 
     // mock the correctness checkpoint response
@@ -328,6 +329,7 @@ async fn sign_and_submit_checkpoint_same_signature() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        None,
     );
 
     // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.
@@ -447,6 +449,7 @@ async fn sign_and_submit_checkpoint_different_signature() {
         dummy_metrics(),
         50,
         Arc::new(mock_reorg_reporter),
+        None,
     );
 
     // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.

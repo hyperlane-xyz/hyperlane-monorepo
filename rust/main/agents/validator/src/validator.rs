@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, str::FromStr, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -21,6 +21,7 @@ use hyperlane_base::{
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
+use ethers::types::H160;
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
@@ -34,7 +35,7 @@ use crate::reorg_reporter::{
 use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
-    submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
+    submit::{OnChainSubmitConfig, ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
@@ -148,7 +149,21 @@ impl BaseAgent for Validator {
             LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?;
         let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
 
-        let checkpoint_syncer_result = settings.checkpoint_syncer.build_and_validate(None).await;
+        // For on-chain checkpoint syncer, set the validator address and RPC URL
+        let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
+        let rpc_url = origin_chain_conf
+            .rpc_connection
+            .rpc_urls()
+            .first()
+            .map(|u| u.url.clone())
+            .unwrap_or_default();
+        let mut checkpoint_syncer_conf = settings.checkpoint_syncer.clone();
+        if let Some(_) = checkpoint_syncer_conf.onchain_chain_name() {
+            let validator_address: H160 = raw_signer.eth_address();
+            checkpoint_syncer_conf.set_validator_address(validator_address);
+            checkpoint_syncer_conf.set_rpc_url(rpc_url);
+        }
+        let checkpoint_syncer_result = checkpoint_syncer_conf.build_and_validate(None).await;
 
         Self::report_latest_checkpoints_from_each_endpoint(
             &reorg_reporter,
@@ -172,8 +187,6 @@ impl BaseAgent for Validator {
             )
             .await?;
         let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
-
-        let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
@@ -387,6 +400,40 @@ impl Validator {
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {
+        // Build on-chain config if the checkpoint syncer is OnChain
+        let on_chain_config = {
+            let rpc_url = self
+                .origin_chain_conf
+                .rpc_connection
+                .rpc_urls()
+                .first()
+                .map(|u| u.url.clone())
+                .unwrap_or_default();
+            // Try to downcast to OnChainCheckpointSyncer
+            // We use a simpler approach: check if the syncer's announcement_location
+            // starts with "onchain://"
+            let ann_loc = self.checkpoint_syncer.announcement_location();
+            if ann_loc.starts_with("onchain://") {
+                // Parse the contract address from the announcement location
+                let parts: Vec<&str> = ann_loc.split('/').collect();
+                if parts.len() >= 3 {
+                    let addr_str = parts[2];
+                    if let Ok(contract_address) = H160::from_str(addr_str) {
+                        Some(OnChainSubmitConfig {
+                            rpc_url,
+                            contract_address,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period.clone(),
@@ -398,6 +445,7 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
             self.reorg_reporter.clone(),
+            on_chain_config,
         );
 
         let tip_tree = self

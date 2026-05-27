@@ -7,11 +7,13 @@ use prometheus::IntGauge;
 use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
+use ethers::types::H160;
+
 use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
 
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, OnChainCheckpointSyncer, S3Storage,
+    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 
 /// Checkpoint Syncer types
@@ -43,6 +45,49 @@ pub enum CheckpointSyncerConf {
         /// `gcloud auth application-default login`
         user_secrets: Option<String>,
     },
+    /// An on-chain checkpoint syncer via the CheckpointStorage contract
+    OnChain {
+        /// The chain name (e.g. "ethereum", "citrea")
+        chain_name: String,
+        /// The CheckpointStorage contract address
+        contract_address: H160,
+        /// The validator's address (optional, set by the agent)
+        validator_address: Option<H160>,
+        /// The RPC URL for the chain (optional, set by the agent)
+        rpc_url: Option<String>,
+    },
+}
+
+impl CheckpointSyncerConf {
+    /// Set the validator address for on-chain checkpoint syncer
+    pub fn set_validator_address(&mut self, address: H160) {
+        if let CheckpointSyncerConf::OnChain {
+            ref mut validator_address,
+            ..
+        } = self
+        {
+            *validator_address = Some(address);
+        }
+    }
+
+    /// Set the RPC URL for on-chain checkpoint syncer
+    pub fn set_rpc_url(&mut self, url: String) {
+        if let CheckpointSyncerConf::OnChain {
+            ref mut rpc_url, ..
+        } = self
+        {
+            *rpc_url = Some(url);
+        }
+    }
+
+    /// Returns the chain name if this is an on-chain syncer
+    pub fn onchain_chain_name(&self) -> Option<&str> {
+        if let CheckpointSyncerConf::OnChain { chain_name, .. } = self {
+            Some(chain_name.as_str())
+        } else {
+            None
+        }
+    }
 }
 
 /// Checkpoint Syncer errors
@@ -85,6 +130,22 @@ impl FromStr for CheckpointSyncerConf {
             "file" => Ok(CheckpointSyncerConf::LocalStorage {
                 path: suffix.into(),
             }),
+            "onchain" => {
+                let url_components = suffix.split('/').collect::<Vec<&str>>();
+                let (chain_name, contract_address) = match url_components.len() {
+                    2 => Ok((url_components[0].to_owned(), url_components[1].to_owned())),
+                    _ => Err(eyre!("Error parsing storage location; expected onchain://chainName/contractAddress ({suffix})"))
+                }?;
+                let contract_address = contract_address.strip_prefix("0x").unwrap_or(&contract_address);
+                let contract_address = H160::from_str(contract_address)
+                    .map_err(|_| eyre!("Invalid contract address in onchain storage location: {contract_address}"))?;
+                Ok(CheckpointSyncerConf::OnChain {
+                    chain_name,
+                    contract_address,
+                    validator_address: None,
+                    rpc_url: None,
+                })
+            }
             // for google cloud both options (with or without folder) from str are for anonymous access only
             // or env variables parsing
             "gs" => {
@@ -179,6 +240,32 @@ impl CheckpointSyncerConf {
                         .build(bucket, folder.to_owned())
                         .await?,
                 )
+            }
+            CheckpointSyncerConf::OnChain {
+                chain_name,
+                contract_address,
+                validator_address,
+                rpc_url,
+            } => {
+                let validator_address = validator_address.ok_or_else(|| {
+                    eyre::eyre!(
+                        "OnChain checkpoint syncer requires a validator address. \
+                         Set it in the validator config or pass it when building."
+                    )
+                })?;
+                let rpc_url = rpc_url.clone().ok_or_else(|| {
+                    eyre::eyre!(
+                        "OnChain checkpoint syncer requires an RPC URL. \
+                         Set it in the validator config or pass it when building."
+                    )
+                })?;
+                Box::new(OnChainCheckpointSyncer::new(
+                    chain_name.clone(),
+                    *contract_address,
+                    validator_address,
+                    rpc_url,
+                    None,
+                ))
             }
         })
     }
