@@ -691,12 +691,14 @@ contract IGPOffchainQuotingTest is Test {
         );
 
         // Advance time so the newer quote's issuedAt is not future-dated.
-        vm.warp(block.timestamp + 1);
-        uint48 later = uint48(block.timestamp);
+        // Use `now_ + 1` directly rather than re-reading block.timestamp into a
+        // local — under FOUNDRY_PROFILE=coverage --ir-minimum the optimizer can
+        // reorder a `block.timestamp` read above the preceding `vm.warp(...)`.
+        uint48 later = now_ + 1;
+        vm.warp(later);
 
         uint128 newRate = 3e10;
         uint128 newPrice = 200;
-        vm.warp(now_ + 1);
         _submitStanding(
             address(0),
             DEST,
