@@ -186,7 +186,14 @@ where
         tx: &TypedTransaction,
         function: &Function,
     ) -> ChainResult<U256> {
-        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let mut contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        // Set the from address to the signer's address if available, so that chains
+        // which check the sender's balance (e.g. Citrea) don't fail when estimating
+        // gas with the default address(0) which has no funds.
+        // Context: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+        if let Some(signer) = self.get_signer() {
+            contract_call = contract_call.from(signer);
+        }
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
