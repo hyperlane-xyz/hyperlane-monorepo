@@ -278,7 +278,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kaia: true,
     katana: true,
     kiichain: true,
-    krown: false,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,

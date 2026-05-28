@@ -134,6 +134,8 @@ export enum WarpRouteIds {
   EniUSDT = 'USDT/eni',
   EniBNB = 'BNB/eni',
   Eni1Piece = '1Piece/eni',
+  BscEvENI = 'evENI/bsc',
+  EniPB = 'PB/eni',
 
   ModeUSDTSTAGE = 'USDTSTAGE/mode',
 
