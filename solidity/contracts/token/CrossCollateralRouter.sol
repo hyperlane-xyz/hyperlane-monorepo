@@ -156,6 +156,15 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
 
     // ============ Movable Collateral Overrides ============
 
+    /// @notice Emitted when the CCR override `setRecipient` writes the
+    /// per-domain rebalance recipient. Distinct from any base-contract event
+    /// so off-chain consumers can attribute changes to the CCR admin path.
+    event CCRRecipientSet(uint32 indexed domain, bytes32 recipient);
+
+    /// @notice Emitted when the CCR override `addBridge` registers a new
+    /// rebalance bridge for a CCR-enrolled domain.
+    event CCRBridgeAdded(uint32 indexed domain, address indexed bridge);
+
     /// @dev Widens MovableCollateralRouter's rebalance-domain check to also
     /// accept CCR-enrolled domains. For CCR-only domains, `setRecipient` must
     /// be called to pin a target router — `_recipient`'s fallback would
@@ -164,19 +173,21 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32 domain,
         bytes32 recipient
     ) external override onlyOwner {
-        _requireEnrolled(domain);
+        _requireEnrolledRouter(domain);
         allowed.recipient[domain] = recipient;
+        emit CCRRecipientSet(domain, recipient);
     }
 
     function addBridge(
         uint32 domain,
         ITokenBridge bridge
     ) external override onlyOwner {
-        _requireEnrolled(domain);
+        _requireEnrolledRouter(domain);
         _addBridge(domain, bridge);
+        emit CCRBridgeAdded(domain, address(bridge));
     }
 
-    function _requireEnrolled(uint32 domain) internal view {
+    function _requireEnrolledRouter(uint32 domain) internal view {
         require(
             routers(domain) != bytes32(0) ||
                 _crossCollateralRouters[domain].length() > 0,
