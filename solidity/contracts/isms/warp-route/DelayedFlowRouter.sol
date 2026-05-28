@@ -67,7 +67,7 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
     /// worst-case UX bound.
     uint48 public immutable maxDelay;
 
-    uint256 internal constant _BPS = 10_000;
+    uint256 public constant BPS_DENOMINATOR = 10_000;
 
     // ============ Storage ============
 
@@ -86,7 +86,7 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         TimelockRouter(address(_warpRouter.mailbox()), 0)
         RateLimited(0) // capacity derived dynamically; storage refillRate unused
     {
-        require(_thresholdBps <= _BPS, "thresholdBps > 100%");
+        require(_thresholdBps <= BPS_DENOMINATOR, "thresholdBps > 100%");
         warpRouter = address(_warpRouter);
         capacityToken = _warpRouter.token();
         thresholdBps = _thresholdBps;
@@ -116,7 +116,7 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         } else {
             base = IERC20(capacityToken).balanceOf(warpRouter);
         }
-        return (base * thresholdBps) / _BPS;
+        return (base * thresholdBps) / BPS_DENOMINATOR;
     }
 
     // ============ TimelockRouter overrides ============
@@ -135,9 +135,12 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
             message.senderAddress() == warpRouter,
             "DelayedFlowRouter: wrong sender"
         );
-        uint32 n = message.nonce();
-        require(n > lastCreditedNonce, "DelayedFlowRouter: already credited");
-        lastCreditedNonce = n;
+        uint32 messageNonce = message.nonce();
+        require(
+            messageNonce > lastCreditedNonce,
+            "DelayedFlowRouter: already credited"
+        );
+        lastCreditedNonce = messageNonce;
 
         uint256 amount = message.body().amount();
         _credit(amount);
@@ -148,6 +151,23 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
             message.destination(),
             abi.encode(id, amount)
         );
+    }
+
+    /// @dev Matches the `(id, amount)` payload shape that `postDispatch`
+    /// actually dispatches. The fee under the default `IGP` doesn't scale
+    /// with payload length, but keeping the quote consistent with the real
+    /// dispatch payload future-proofs the contract against fee-table changes.
+    function quoteDispatch(
+        bytes calldata /*metadata*/,
+        bytes calldata message
+    ) external view override returns (uint256) {
+        bytes32 id = message.id();
+        uint256 amount = message.body().amount();
+        return
+            _Router_quoteDispatch(
+                message.destination(),
+                abi.encode(id, amount)
+            );
     }
 
     /// @dev Recipient binding prevents verifying messages that aren't
