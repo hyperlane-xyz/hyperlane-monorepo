@@ -19,6 +19,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use serde::Deserialize;
 use futures_util::future::join_all;
 use tokio::sync::Mutex;
 use tokio::try_join;
@@ -422,6 +423,37 @@ where
         es(base_fee_per_gas, fee_history.reward)
     } else {
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
+    };
+
+    // Also try eth_maxPriorityFeePerGas as a more accurate source for the
+    // priority fee recommendation. Some chains (e.g., custom POA geth chains
+    // with miner.gasprice set) may have a minimum priority fee that is higher
+    // than what the fee history estimation suggests. Using the higher of the
+    // two values ensures transactions are not stuck pending with too low a
+    // priority fee.
+    // Context: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3169
+    let max_priority_fee_per_gas = {
+        match provider
+            .inner()
+            .request::<_, ethers_core::types::U256>("eth_maxPriorityFeePerGas", ())
+            .await
+        {
+            Ok(rpc_priority_fee) => {
+                debug!(
+                    ?rpc_priority_fee,
+                    ?max_priority_fee_per_gas,
+                    "eth_maxPriorityFeePerGas RPC result"
+                );
+                max_priority_fee_per_gas.max(rpc_priority_fee)
+            }
+            Err(err) => {
+                debug!(
+                    ?err,
+                    "eth_maxPriorityFeePerGas not available, using fee history estimate"
+                );
+                max_priority_fee_per_gas
+            }
+        }
     };
 
     Ok((
