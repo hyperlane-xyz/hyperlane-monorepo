@@ -1,0 +1,16 @@
+knownFallback:
+  chain: ethereum
+  decoderMatch:
+    confidence: selector-only
+    insight: unverified ABI match
+  insight: Set hook for destination 137 (polygon) to
+    0x2222222222222222222222222222222222222222
+  signature: setHook(uint32,address)
+  to: DomainRoutingHook (ethereum 0x1111111111111111111111111111111111111111)
+scalarDestinationGas:
+  chain: ethereum
+  insight: Set destination gas for domain 1 (ethereum) to 68000
+  signature: setDestinationGas(uint32,uint256)
+  to: TST (Test Token, EvmHypCollateral,
+    0x3333333333333333333333333333333333333333)
+  value: 0.0 ETH

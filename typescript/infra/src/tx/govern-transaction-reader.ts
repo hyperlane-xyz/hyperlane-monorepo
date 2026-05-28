@@ -219,6 +219,30 @@ function summarizeError(error: unknown): string {
   return 'unknown error';
 }
 
+const RECOVERABLE_NESTED_DECODE_ERROR_CODES = new Set([
+  'CALL_EXCEPTION',
+  'INVALID_ARGUMENT',
+  'NETWORK_ERROR',
+  'SERVER_ERROR',
+  'TIMEOUT',
+]);
+
+function isRecoverableNestedDecodeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (
+    typeof code === 'string' &&
+    RECOVERABLE_NESTED_DECODE_ERROR_CODES.has(code)
+  ) {
+    return true;
+  }
+
+  return /no matching function|invalid sighash|data signature|no data in|failed to decode|could not decode/i.test(
+    error.message,
+  );
+}
+
 function matchesFunctionSignature(
   decoded: ethers.utils.TransactionDescription,
   iface: ethers.utils.Interface,
@@ -231,8 +255,66 @@ function matchesFunctionSignature(
   }
 }
 
+type DiagnosticSeverity = 'fatal' | 'warning';
+
+export interface GovernanceDecodeDiagnostic {
+  severity: DiagnosticSeverity;
+  info: string;
+  [key: string]: unknown;
+}
+
+export class DiagnosticCollector {
+  private readonly diagnostics: GovernanceDecodeDiagnostic[] = [];
+
+  addFatal(diagnostic: Record<string, unknown> & { info: string }) {
+    this.add('fatal', diagnostic);
+  }
+
+  addWarning(diagnostic: Record<string, unknown> & { info: string }) {
+    this.add('warning', diagnostic);
+  }
+
+  merge(other: DiagnosticCollector) {
+    this.diagnostics.push(...other.all);
+  }
+
+  get all(): GovernanceDecodeDiagnostic[] {
+    return [...this.diagnostics];
+  }
+
+  get fatal(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.filter(({ severity }) => severity === 'fatal');
+  }
+
+  get warnings(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.filter(({ severity }) => severity === 'warning');
+  }
+
+  private add(
+    severity: DiagnosticSeverity,
+    diagnostic: Record<string, unknown> & { info: string },
+  ): void {
+    this.diagnostics.push({
+      severity,
+      ...diagnostic,
+    });
+  }
+}
+
+export interface DecodeContext {
+  chain: ChainName;
+  tx: AnnotatedEV5Transaction;
+}
+
+export interface GovernanceDecoder {
+  id: string;
+  priority: number;
+  match(context: DecodeContext): boolean | Promise<boolean>;
+  decode(context: DecodeContext): Promise<GovernTransaction>;
+}
+
 export class GovernTransactionReader {
-  errors: any[] = [];
+  readonly diagnostics = new DiagnosticCollector();
 
   protected readonly logger = rootLogger.child({
     module: 'GovernTransactionReader',
@@ -247,6 +329,19 @@ export class GovernTransactionReader {
   readonly xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>> = {};
 
   private rawWarpRouteConfigMap: Record<string, WarpCoreConfig>;
+  private readonly decoders: GovernanceDecoder[];
+
+  get errors(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.fatal;
+  }
+
+  get warnings(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.warnings;
+  }
+
+  get decoderIds(): string[] {
+    return this.decoders.map(({ id }) => id);
+  }
 
   static async create(
     environment: DeployEnvironment,
@@ -300,6 +395,7 @@ export class GovernTransactionReader {
     readonly timelocks: ChainMap<string>,
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
+    this.decoders = this.buildGovernanceDecoders();
   }
 
   async init() {
@@ -387,86 +483,126 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(tx)) {
-      return this.readOwnableTransaction(chain, tx);
+    const context = { chain, tx };
+    for (const decoder of this.decoders) {
+      if (await decoder.match(context)) {
+        return decoder.decode(context);
+      }
     }
 
-    // If it's to another Safe
-    if (this.isSafeTransaction(chain, tx)) {
-      return this.readSafeTransaction(chain, tx);
-    }
+    return this.readUnknownTransaction(chain, tx);
+  }
 
-    // If it's to an ICA
-    if (this.isIcaTransaction(chain, tx)) {
-      return this.readIcaTransaction(chain, tx);
-    }
+  private buildGovernanceDecoders(): GovernanceDecoder[] {
+    const decoders: GovernanceDecoder[] = [
+      {
+        id: 'ownable',
+        priority: 10,
+        match: ({ tx }) => this.isOwnableTransaction(tx),
+        decode: ({ chain, tx }) => this.readOwnableTransaction(chain, tx),
+      },
+      {
+        id: 'safe',
+        priority: 20,
+        match: ({ chain, tx }) => this.isSafeTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readSafeTransaction(chain, tx),
+      },
+      {
+        id: 'ica',
+        priority: 30,
+        match: ({ chain, tx }) => this.isIcaTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readIcaTransaction(chain, tx),
+      },
+      {
+        id: 'mailbox',
+        priority: 40,
+        match: ({ chain, tx }) => this.isMailboxTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readMailboxTransaction(chain, tx),
+      },
+      {
+        id: 'timelock',
+        priority: 50,
+        match: ({ chain, tx }) =>
+          this.isTimelockControllerTransaction(chain, tx),
+        decode: ({ chain, tx }) =>
+          this.readTimelockControllerTransaction(chain, tx),
+      },
+      {
+        id: 'multisend',
+        priority: 60,
+        match: ({ tx }) => this.isMultisendTransaction(tx),
+        decode: ({ chain, tx }) => this.readMultisendTransaction(chain, tx),
+      },
+      {
+        id: 'erc20',
+        priority: 70,
+        match: ({ chain, tx }) => this.isErc20Transaction(chain, tx),
+        decode: ({ chain, tx }) => this.readErc20Transaction(chain, tx),
+      },
+      {
+        id: 'warp-module',
+        priority: 80,
+        match: ({ chain, tx }) => this.isWarpModuleTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readWarpModuleTransaction(chain, tx),
+      },
+      {
+        id: 'managed-lockbox',
+        priority: 90,
+        match: ({ chain, tx }) => this.isManagedLockboxTransaction(chain, tx),
+        decode: async ({ chain, tx }) =>
+          this.readManagedLockboxTransaction(chain, tx),
+      },
+      {
+        id: 'xerc20',
+        priority: 100,
+        match: async ({ chain, tx }) =>
+          (await this.isXERC20Transaction(chain, tx)) !== undefined,
+        decode: async ({ chain, tx }) => {
+          const metadata = await this.isXERC20Transaction(chain, tx);
+          assert(metadata, 'Expected XERC20 metadata after decoder match');
+          return this.readXERC20Transaction(chain, tx, metadata);
+        },
+      },
+      {
+        id: 'fee-contract',
+        priority: 110,
+        match: ({ chain, tx }) => this.isFeeTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readFeeTransaction(chain, tx),
+      },
+      {
+        id: 'known-hyperlane-abi-fallback',
+        priority: 120,
+        match: ({ chain, tx }) =>
+          this.tryReadByKnownContractInterface(chain, tx) !== undefined,
+        decode: async ({ chain, tx }) => {
+          const decoded = this.tryReadByKnownContractInterface(chain, tx);
+          assert(decoded, 'Expected known ABI fallback after decoder match');
+          return decoded;
+        },
+      },
+      {
+        id: 'proxy-admin',
+        priority: 130,
+        match: ({ chain, tx }) => this.isProxyAdminTransaction(chain, tx),
+        decode: ({ chain, tx }) => this.readProxyAdminTransaction(chain, tx),
+      },
+      {
+        id: 'native-token-transfer',
+        priority: 140,
+        match: ({ tx }) => this.isNativeTokenTransfer(tx),
+        decode: ({ chain, tx }) => this.readNativeTokenTransfer(chain, tx),
+      },
+    ];
 
-    // If it's to a Mailbox
-    if (this.isMailboxTransaction(chain, tx)) {
-      return this.readMailboxTransaction(chain, tx);
-    }
+    return decoders.sort((a, b) => a.priority - b.priority);
+  }
 
-    // If it's to a TimelockController
-    if (this.isTimelockControllerTransaction(chain, tx)) {
-      return this.readTimelockControllerTransaction(chain, tx);
-    }
-
-    // If it's a Multisend or MultisendCallOnly transaction
-    if (await this.isMultisendTransaction(tx)) {
-      return this.readMultisendTransaction(chain, tx);
-    }
-
-    // If it's an ERC20 transaction (check before warp module since HypERC20 tokens are also ERC20)
-    if (this.isErc20Transaction(chain, tx)) {
-      return this.readErc20Transaction(chain, tx);
-    }
-
-    // If it's a Warp Module transaction
-    if (this.isWarpModuleTransaction(chain, tx)) {
-      return this.readWarpModuleTransaction(chain, tx);
-    }
-
-    // If it's a Managed Lockbox transaction
-    if (this.isManagedLockboxTransaction(chain, tx)) {
-      return this.readManagedLockboxTransaction(chain, tx);
-    }
-
-    // If it's an XERC20 transaction
-    const xerc20Type = await this.isXERC20Transaction(chain, tx);
-    if (xerc20Type) {
-      return this.readXERC20Transaction(chain, tx, xerc20Type);
-    }
-
-    // If it's a fee contract transaction
-    if (await this.isFeeTransaction(chain, tx)) {
-      return this.readFeeTransaction(chain, tx);
-    }
-
-    // Try to decode against known Hyperlane contract ABIs by selector before
-    // falling back to bytecode-pattern matchers. Covers contracts not yet
-    // registered (new warp routes, standalone routing hooks/ISMs, token bridge
-    // adapters, cross-collateral routing fees, etc.). Placed before
-    // isProxyAdminTransaction since its bytecode check can false-positive on
-    // contracts that happen to embed all required selectors.
-    const knownContractDecode = this.tryReadByKnownContractInterface(chain, tx);
-    if (knownContractDecode) {
-      return knownContractDecode;
-    }
-
-    // If it's to a Proxy Admin
-    if (await this.isProxyAdminTransaction(chain, tx)) {
-      return this.readProxyAdminTransaction(chain, tx);
-    }
-
-    // If it's a native token transfer (no data, only value)
-    if (this.isNativeTokenTransfer(tx)) {
-      return this.readNativeTokenTransfer(chain, tx);
-    }
-
+  private readUnknownTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
     const insight = '⚠️ Unknown transaction type';
-    // If we get here, it's an unknown transaction
-    this.errors.push({
+    this.addFatalDiagnostic({
       chain: chain,
       tx,
       info: insight,
@@ -477,6 +613,18 @@ export class GovernTransactionReader {
       insight,
       tx,
     };
+  }
+
+  private addFatalDiagnostic(
+    diagnostic: Record<string, unknown> & { info: string },
+  ): void {
+    this.diagnostics.addFatal(diagnostic);
+  }
+
+  private addWarningDiagnostic(
+    diagnostic: Record<string, unknown> & { info: string },
+  ): void {
+    this.diagnostics.addWarning(diagnostic);
   }
 
   // ERC20 function selectors
@@ -1428,6 +1576,10 @@ export class GovernTransactionReader {
       to: `${contractType} (${chain} ${tx.to})`,
       insight,
       signature: decoded.signature,
+      decoderMatch: {
+        confidence: 'selector-only',
+        insight: 'unverified ABI match',
+      },
     });
 
     // CrossCollateralRouter / MovableCollateralRouter (TokenRouter base) - newly
@@ -2086,7 +2238,7 @@ export class GovernTransactionReader {
       if (!isAddressMatch || !isPaddingCorrect) {
         if (!isAddressMatch) {
           insight = `❌ fatal mismatch, expected ${expectedRouter}`;
-          this.errors.push({
+          this.addFatalDiagnostic({
             chain: chain,
             remoteDomain: domain,
             remoteChain: remoteChainName,
@@ -2099,7 +2251,7 @@ export class GovernTransactionReader {
         if (!isPaddingCorrect) {
           // This is a subtle but important check: the address must be properly padded to 32 bytes
           insight = `❌ fatal mismatch, expected ${addressToBytes32(bytes32ToAddress(routerToBeEnrolled))}`;
-          this.errors.push({
+          this.addFatalDiagnostic({
             chain: chain,
             remoteDomain: domain,
             remoteChain: remoteChainName,
@@ -2281,7 +2433,7 @@ export class GovernTransactionReader {
     const normalizedDerived = normalizeConfig(derivedConfig);
     const normalizedExpected = normalizeConfig(expectedIsmConfig);
     if (!deepEquals(normalizedDerived, normalizedExpected)) {
-      this.errors.push({
+      this.addFatalDiagnostic({
         chain: chain,
         module,
         derivedConfig,
@@ -2321,7 +2473,7 @@ export class GovernTransactionReader {
       addressToBytes32(bytes32ToAddress(router)) === router;
     let routerInsight = '✅ matches expected router from artifacts';
     if (!matchesExpectedRouter) {
-      this.errors.push({
+      this.addFatalDiagnostic({
         chain: chain,
         remoteDomain: destination,
         remoteChain: remoteChainName,
@@ -2334,7 +2486,7 @@ export class GovernTransactionReader {
 
     let ismInsight = '✅ matches expected ISM';
     if (ism !== ethers.constants.HashZero) {
-      this.errors.push({
+      this.addFatalDiagnostic({
         chain: chain,
         remoteDomain: destination,
         remoteChain: remoteChainName,
@@ -2375,7 +2527,7 @@ export class GovernTransactionReader {
             expectedRemoteIcaAddress ??
             expectedLegacyRemoteIcaAddress ??
             '<none>';
-          this.errors.push({
+          this.addFatalDiagnostic({
             chain: chain,
             remoteDomain: destination,
             remoteChain: remoteChainName,
@@ -2390,6 +2542,13 @@ export class GovernTransactionReader {
       this.logger.warn(
         `Failed to derive ICA address for ${remoteChainName}, using expected address: ${summarizeError(error)}`,
       );
+      this.addWarningDiagnostic({
+        chain,
+        remoteDomain: destination,
+        remoteChain: remoteChainName,
+        info: 'Could not verify destination ICA address',
+        error: summarizeError(error),
+      });
       remoteIcaAddress =
         expectedRemoteIcaAddress ?? expectedLegacyRemoteIcaAddress;
       remoteIcaInsight = `⚠️ could not verify ICA on ${remoteChainName} (${summarizeError(error)})`;
@@ -2405,9 +2564,20 @@ export class GovernTransactionReader {
         try {
           return await this.read(remoteChainName, icaCallAsTx);
         } catch (error: unknown) {
+          if (!isRecoverableNestedDecodeError(error)) {
+            throw error;
+          }
           this.logger.warn(
             `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}: ${summarizeError(error)}`,
           );
+          this.addWarningDiagnostic({
+            chain,
+            remoteDomain: destination,
+            remoteChain: remoteChainName,
+            to: icaCallAsTx.to,
+            info: 'Could not decode nested ICA call',
+            error: summarizeError(error),
+          });
           return {
             chain: remoteChainName,
             insight: `⚠️ failed to decode (${summarizeError(error)})`,
@@ -2470,9 +2640,19 @@ export class GovernTransactionReader {
             decoded,
           };
         } catch (error: unknown) {
+          if (!isRecoverableNestedDecodeError(error)) {
+            throw error;
+          }
           this.logger.warn(
             `Failed to decode multisend at index ${index}: ${summarizeError(error)}`,
           );
+          this.addWarningDiagnostic({
+            chain,
+            index,
+            to: multisend.to,
+            info: 'Could not decode nested multisend call',
+            error: summarizeError(error),
+          });
           return {
             chain,
             index,
@@ -2693,6 +2873,7 @@ export class GovernTransactionReader {
       data: approvedTx.data,
       value: BigNumber.from(approvedTx.value),
     });
+    this.diagnostics.merge(reader.diagnostics);
 
     return {
       ...baseResult,

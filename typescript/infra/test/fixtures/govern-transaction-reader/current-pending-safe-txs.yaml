@@ -1,0 +1,37 @@
+calldataSourceBase: https://safe-transaction-mainnet.safe.global/api/v1/multisig-transactions
+capturedAt: 2026-05-28
+transactions:
+  - calldataLength: 50634
+    calldataSha256Parts:
+      - 294d3d22a1820768
+      - 4125a1c6d2e9be16
+      - a24bf90a3467e715
+      - fde36942804cc1ab
+    chain: ethereum
+    governanceType: abacusWorks
+    nonce: 85
+    safe: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+    safeTxHashParts:
+      - '0xdf9aab7a1bed3574'
+      - 6cbf08b64d457f64
+      - 779f250996e04d0a
+      - fcdaa5efb9d5bd1f
+    to: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
+    value: '0'
+  - calldataLength: 12618
+    calldataSha256Parts:
+      - 311de43c700ae7c5
+      - 9f6cf8e857869337
+      - a066e2a62d4680a1
+      - fad5b26b291d2930
+    chain: ethereum
+    governanceType: warpFees
+    nonce: 8
+    safe: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+    safeTxHashParts:
+      - '0x599e6e3388ef2456'
+      - 59c55b2942b60867
+      - 713d20eb4a4b88b0
+      - bb7006cdb0b42a02
+    to: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
+    value: '0'
