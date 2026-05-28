@@ -34,6 +34,18 @@ export function formatDomain(
   return chainName ? `${domainNumber} (${chainName})` : `${domainNumber}`;
 }
 
+export function matchesFunctionSignature(
+  decoded: ethers.utils.TransactionDescription,
+  iface: ethers.utils.Interface,
+  signature: string,
+): boolean {
+  try {
+    return decoded.sighash === iface.getSighash(signature);
+  } catch {
+    return false;
+  }
+}
+
 export async function getOwnerInsight(
   chain: ChainName,
   address: Address,

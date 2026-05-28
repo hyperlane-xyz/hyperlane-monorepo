@@ -133,10 +133,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
-  tryReadByKnownContractInterface(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): GovernTransaction | undefined;
 }
 
 export interface DecodeContext {
