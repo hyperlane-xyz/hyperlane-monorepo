@@ -1558,4 +1558,181 @@ describe('WarpCore', () => {
     stubs.forEach((s) => s.restore());
     adapterStubs.forEach((s) => s.restore());
   });
+
+  describe('estimateTransferRemoteFees / estimateCrossCollateralFees attestation gating', () => {
+    // Regression: amount must only be forwarded to getLocalTransferFeeAmount when attestation is present.
+    // Without this gate, simulating large balances on native routes causes eth_estimateGas failures.
+
+    it('does not forward amount to getLocalTransferFeeAmount when no attestation', async () => {
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('forwards amount to getLocalTransferFeeAmount when attestation is present', async () => {
+      const mockAttestation = { signature: '0xdeadbeef' } as any;
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          attestation: mockAttestation,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.equal(MOCK_BALANCE);
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('does not forward amount in estimateCrossCollateralFees without attestation', async () => {
+      const originCrossStub = sinon
+        .stub(evmHypNative, 'isCrossCollateralToken')
+        .returns(true);
+      const destCrossStub = sinon
+        .stub(evmHypSynthetic, 'isCrossCollateralToken')
+        .returns(true);
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          destinationToken: evmHypSynthetic,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        originCrossStub.restore();
+        destCrossStub.restore();
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+  });
+
+  describe('getMaxTransferAmount fee calculation', () => {
+    // Regression: getInterchainTransferFee must receive the full balance (for percentage-based fees),
+    // and getLocalTransferFeeAmount must receive no amount (to avoid eth_estimateGas failures on
+    // native routes where the full balance leaves nothing to cover gas).
+
+    it('calls getInterchainTransferFee with full balance and getLocalTransferFeeAmount with no amount', async () => {
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        const balance = evmHypNative.amount(MOCK_BALANCE);
+        await warpCore.getMaxTransferAmount({
+          balance,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+        });
+
+        // First call: fee calculation pass with full balance
+        sinon.assert.calledWithMatch(interchainFeeStub.firstCall, {
+          originTokenAmount: sinon.match(
+            (v: TokenAmount) => v.amount === MOCK_BALANCE,
+          ),
+        });
+
+        // getLocalTransferFeeAmount called without amount
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('skips fee calculation and uses provided feeEstimate', async () => {
+      const interchainFeeStub = sinon.stub(
+        warpCore as any,
+        'getInterchainTransferFee',
+      );
+      const localFeeStub = sinon.stub(
+        warpCore as any,
+        'getLocalTransferFeeAmount',
+      );
+
+      try {
+        const balance = evmHypNative.amount(MOCK_BALANCE);
+        const feeEstimate = {
+          interchainQuote: evmHypNative.amount(20_000n),
+          localQuote: evmHypNative.amount(200_000n),
+          tokenFeeQuote: undefined,
+        };
+        const result = await warpCore.getMaxTransferAmount({
+          balance,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          feeEstimate,
+        });
+
+        sinon.assert.notCalled(interchainFeeStub);
+        sinon.assert.notCalled(localFeeStub);
+        expect(result.amount).to.equal(MOCK_BALANCE - 20_000n - 200_000n);
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+  });
 });
