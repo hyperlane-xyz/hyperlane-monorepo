@@ -458,6 +458,36 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
+    function test_transferRemote_sweepsSurplusSharedTokenToRebalancer() public {
+        destinationRouter = new MockRebalanceRouter(
+            inputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(destinationRouter));
+        inputToken.mintTo(rebalancer, 100e6);
+        vm.prank(rebalancer);
+        inputToken.approve(address(bridge), 100e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(
+                IERC20.transferFrom,
+                (rebalancer, address(destinationRouter), 100e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+
+        assertEq(inputToken.balanceOf(rebalancer), 100e6);
+        assertEq(inputToken.balanceOf(address(bridge)), 0);
+        assertEq(inputToken.balanceOf(address(destinationRouter)), 100e6);
+    }
+
     function test_transferRemote_revertsWhenOutputBelowRequiredOut() public {
         swapTarget.setOutputAmount(89e6);
 

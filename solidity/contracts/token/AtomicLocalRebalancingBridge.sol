@@ -96,9 +96,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         }
         // Keep the wrapper stateless for exact-output and variable-output paths.
         _refundTokenBalance(inputToken, msg.sender);
-        if (outputToken != inputToken) {
-            _refundTokenBalance(outputToken, msg.sender);
-        }
+        _refundTokenBalance(outputToken, msg.sender);
     }
 
     function _rebalanceSource(
