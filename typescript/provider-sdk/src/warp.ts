@@ -803,11 +803,7 @@ export function computeRemoteRoutersUpdates(
   )) {
     const domainId = parseInt(domainIdStr);
     const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId];
-    assert(
-      !isNullish(expectedDestinationGas),
-      `Missing destination gas for domain ${domainId} in expected router configuration`,
-    );
+      expectedRoutersConfig.destinationGas[domainId] ?? '0';
     const currentRouterAddress = Object.prototype.hasOwnProperty.call(
       currentRoutersConfig.remoteRouters,
       domainId,
