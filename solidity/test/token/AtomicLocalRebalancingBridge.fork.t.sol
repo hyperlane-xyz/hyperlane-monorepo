@@ -124,11 +124,12 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
 
     function _setUpFork(
         string memory rpcAlias,
+        uint256 blockNumber,
         IERC20 sourceToken,
         IERC20 destinationToken,
         uint32 localDomain
     ) internal {
-        vm.createSelectFork(vm.rpcUrl(rpcAlias));
+        vm.createSelectFork(vm.rpcUrl(rpcAlias), blockNumber);
 
         bridge = new AtomicLocalRebalancingBridge(localDomain);
         sourceRouter = new MockForkRouter(sourceToken, localDomain, 1, 1);
@@ -222,9 +223,16 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
     address internal constant UNISWAP_V3_ROUTER =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
     uint32 internal constant LOCAL_DOMAIN = 1;
+    uint256 internal constant FORK_BLOCK = 22_898_879;
 
     function setUp() public {
-        _setUpFork("mainnet", IERC20(USDC), IERC20(USDT), LOCAL_DOMAIN);
+        _setUpFork(
+            "mainnet",
+            FORK_BLOCK,
+            IERC20(USDC),
+            IERC20(USDT),
+            LOCAL_DOMAIN
+        );
 
         deal(USDC, address(sourceRouter), 1_000e6);
         deal(USDT, rebalancer, 1_000e6);
@@ -315,7 +323,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         bridge.localRebalance(
             address(sourceRouter),
             amountIn,
-            _uniswapCalls(amountIn, 0)
+            _uniswapCallsToBridge(amountIn)
         );
     }
 
@@ -349,6 +357,29 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         }
     }
 
+    function _uniswapCallsToBridge(
+        uint256 amountIn
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](2);
+        calls[0] = _approveInputCall(IERC20(USDC), UNISWAP_V3_ROUTER, amountIn);
+        calls[1] = _targetCall(
+            UNISWAP_V3_ROUTER,
+            abi.encodeWithSelector(
+                IUniswapV3Router.exactInputSingle.selector,
+                IUniswapV3Router.ExactInputSingleParams({
+                    tokenIn: USDC,
+                    tokenOut: USDT,
+                    fee: 500,
+                    recipient: address(bridge),
+                    deadline: block.timestamp + 1 hours,
+                    amountIn: amountIn,
+                    amountOutMinimum: 1,
+                    sqrtPriceLimitX96: 0
+                })
+            )
+        );
+    }
+
     function _uniswapCallsWithRefund(
         uint256 amountIn,
         uint256 topUp,
@@ -377,9 +408,16 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
     address internal constant AERODROME_FACTORY =
         0x420DD381b31aEf6683db6B902084cB0FFECe40Da;
     uint32 internal constant LOCAL_DOMAIN = 8453;
+    uint256 internal constant FORK_BLOCK = 32_739_842;
 
     function setUp() public {
-        _setUpFork("base", IERC20(USDC), IERC20(USDT), LOCAL_DOMAIN);
+        _setUpFork(
+            "base",
+            FORK_BLOCK,
+            IERC20(USDC),
+            IERC20(USDT),
+            LOCAL_DOMAIN
+        );
 
         deal(USDC, address(sourceRouter), 1_000e6);
         deal(USDT, rebalancer, 1_000e6);

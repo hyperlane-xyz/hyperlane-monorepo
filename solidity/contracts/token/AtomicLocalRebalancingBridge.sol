@@ -158,6 +158,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         return bytes32(0);
     }
 
+    /// @dev Converts `amountIn` from input-token units to output-token units.
+    /// Both tokens must implement `decimals()`, and the invariant assumes
+    /// standard balance-stable ERC20 behavior: no fee-on-transfer, reflection,
+    /// rebasing, or balance-altering hooks. Incompatible assets should be
+    /// wrapped or adapted before using this bridge.
     function _requiredDelta(
         address inputToken,
         address outputToken,
@@ -170,6 +175,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         return Math.mulDiv(amountIn, outputScale, inputScale, Math.Rounding.Up);
     }
 
+    /// @dev Reverts if `token` does not implement `IERC20Metadata.decimals()`.
     function _decimalScale(address token) internal view returns (uint256) {
         return 10 ** uint256(IERC20Metadata(token).decimals());
     }
