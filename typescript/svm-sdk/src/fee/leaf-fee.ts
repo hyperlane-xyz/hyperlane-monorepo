@@ -5,7 +5,7 @@ import type {
   ProgressiveFeeConfig,
   RegressiveFeeConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import { FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
+import { computeBps, FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
@@ -93,8 +93,17 @@ export abstract class SvmLeafFeeReader<
     const owner: string = account.owner ?? ZERO_ADDRESS_HEX_32;
     const beneficiary: string = account.beneficiary;
 
+    // Return params in bps shape with raw values carried alongside. The
+    // bps form is what cross-VM comparison (shouldDeployNewFee) keys on
+    // when matched against user input that came in as `bps: N`. The raw
+    // fields are populated from on-chain so callers that need exact raw
+    // values (e.g. SVM writer's UpdateFeeParams diff) can read them
+    // without re-deriving bps→raw.
+    //
     // CAST: safe because LeafFeeConfig excludes OffchainQuotedLinearFeeConfig
     // and all three remaining types share an identical shape.
+    const maxFeeStr = maxFee.toString();
+    const halfAmountStr = halfAmount.toString();
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
@@ -102,9 +111,10 @@ export abstract class SvmLeafFeeReader<
         owner,
         beneficiary,
         params: {
-          type: FeeParamsType.raw,
-          maxFee: maxFee.toString(),
-          halfAmount: halfAmount.toString(),
+          type: FeeParamsType.bps,
+          bps: computeBps(maxFee, halfAmount),
+          maxFee: maxFeeStr,
+          halfAmount: halfAmountStr,
         },
       } as C,
       deployed: { address: programId, programId, feeAccountPda },
