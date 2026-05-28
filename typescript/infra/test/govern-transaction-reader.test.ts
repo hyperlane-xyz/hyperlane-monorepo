@@ -1,0 +1,416 @@
+import { expect } from 'chai';
+import { BigNumber, ethers } from 'ethers';
+
+import {
+  DomainRoutingHook__factory,
+  MovableCollateralRouter__factory,
+  Ownable__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
+import { TokenStandard, interchainAccountFactories } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { readYaml } from '@hyperlane-xyz/utils/fs';
+
+import { GovernTransactionReader } from '../src/tx/govern-transaction-reader.js';
+import { createMultisendDecoder } from '../src/tx/governance/decoders/index.js';
+import type { GovernanceDecoder } from '../src/tx/governance/types.js';
+
+const ETHEREUM = 'ethereum';
+const POLYGON = 'polygon';
+const POLYGON_DOMAIN = 137;
+
+const ADDRESSES = {
+  hook: '0x1111111111111111111111111111111111111111',
+  hookTarget: '0x2222222222222222222222222222222222222222',
+  warpRoute: '0x3333333333333333333333333333333333333333',
+  multisend: '0x4444444444444444444444444444444444444444',
+  mailbox: '0x5555555555555555555555555555555555555555',
+  proxyAdmin: '0x6666666666666666666666666666666666666666',
+  icaRouter: '0x7777777777777777777777777777777777777777',
+  polygonIcaRouter: '0x7777777777777777777777777777777777777778',
+  timelock: '0x8888888888888888888888888888888888888888',
+  abacusWorksSafe: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
+};
+
+const domainToChain: Record<number, string> = {
+  1: ETHEREUM,
+  [POLYGON_DOMAIN]: 'polygon',
+};
+
+function createReader(decoders?: GovernanceDecoder<unknown>[]) {
+  const multiProvider = {
+    getNativeToken: async () => ({
+      decimals: 18,
+      symbol: 'ETH',
+    }),
+    getProvider: () => ({
+      getCode: async () => '0x',
+    }),
+    getChainName: (domain: number) => {
+      const chain = domainToChain[domain];
+      if (!chain) throw new Error(`Unknown domain ${domain}`);
+      return chain;
+    },
+    tryGetChainName: (domain: number) => domainToChain[domain],
+  };
+
+  return new GovernTransactionReader(
+    'mainnet3' as any,
+    multiProvider as any,
+    {
+      [ETHEREUM]: {
+        interchainAccountRouter: ADDRESSES.icaRouter,
+        legacyInterchainAccountRouter: ADDRESSES.icaRouter,
+        mailbox: ADDRESSES.mailbox,
+        proxyAdmin: ADDRESSES.proxyAdmin,
+      },
+      [POLYGON]: {
+        interchainAccountRouter: ADDRESSES.polygonIcaRouter,
+        mailbox: ADDRESSES.mailbox,
+        proxyAdmin: ADDRESSES.proxyAdmin,
+      },
+    } as any,
+    {} as any,
+    {},
+    {},
+    {},
+    {},
+    {},
+    decoders,
+  );
+}
+
+function registerWarpRoute(reader: GovernTransactionReader) {
+  reader.warpRouteIndex[ETHEREUM] = {
+    [ADDRESSES.warpRoute.toLowerCase()]: {
+      addressOrDenom: ADDRESSES.warpRoute,
+      chainName: ETHEREUM,
+      decimals: 18,
+      name: 'Test Token',
+      standard: TokenStandard.EvmHypCollateral,
+      symbol: 'TST',
+    } as any,
+  };
+}
+
+function encodeMultiSendTransaction(tx: {
+  operation: number;
+  to: string;
+  value: BigNumber;
+  data: string;
+}) {
+  const operation = ethers.utils.hexZeroPad(
+    ethers.utils.hexlify(tx.operation),
+    1,
+  );
+  const to = tx.to.toLowerCase();
+  const value = ethers.utils.hexZeroPad(tx.value.toHexString(), 32);
+  const dataLength = ethers.utils.hexZeroPad(
+    ethers.utils.hexlify(ethers.utils.arrayify(tx.data).length),
+    32,
+  );
+  return `${operation.slice(2)}${to.slice(2)}${value.slice(2)}${dataLength.slice(
+    2,
+  )}${tx.data.slice(2)}`;
+}
+
+function encodeMultiSend(
+  txs: Parameters<typeof encodeMultiSendTransaction>[0][],
+) {
+  const multisendInterface = new ethers.utils.Interface([
+    'function multiSend(bytes transactions)',
+  ]);
+  return multisendInterface.encodeFunctionData('multiSend', [
+    `0x${txs.map(encodeMultiSendTransaction).join('')}`,
+  ]);
+}
+
+describe('GovernTransactionReader', () => {
+  it('dispatches through ordered governance decoders', () => {
+    const reader = createReader();
+    expect(reader.decoderIds).to.deep.equal([
+      'ownable',
+      'safe',
+      'ica',
+      'mailbox',
+      'timelock',
+      'multisend',
+      'erc20',
+      'warp-module',
+      'managed-lockbox',
+      'xerc20',
+      'fee-contract',
+      'known-hyperlane-abi-fallback',
+      'proxy-admin',
+      'native-token-transfer',
+    ]);
+  });
+
+  it('matches golden output for selector fallback and overloaded router calls', async () => {
+    const reader = createReader();
+    registerWarpRoute(reader);
+
+    const routingHookInterface = DomainRoutingHook__factory.createInterface();
+    const movableRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
+
+    const knownFallback = await reader.read(ETHEREUM, {
+      to: ADDRESSES.hook,
+      data: routingHookInterface.encodeFunctionData('setHook(uint32,address)', [
+        POLYGON_DOMAIN,
+        ADDRESSES.hookTarget,
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    const scalarDestinationGas = await reader.read(ETHEREUM, {
+      to: ADDRESSES.warpRoute,
+      data: movableRouterInterface.encodeFunctionData(
+        'setDestinationGas(uint32,uint256)',
+        [1, BigNumber.from(68000)],
+      ),
+      value: BigNumber.from(0),
+    });
+
+    const golden = readYaml<Record<string, unknown>>(
+      new URL(
+        './fixtures/govern-transaction-reader/golden.yaml',
+        import.meta.url,
+      ).pathname,
+    );
+
+    expect({ knownFallback, scalarDestinationGas }).to.deep.equal(golden);
+  });
+
+  it('keeps full live Safe parser golden snapshots in fixtures', () => {
+    const snapshots = readYaml<{
+      snapshots: Array<{
+        governanceType: string;
+        result: { multisends: unknown[] };
+      }>;
+    }>(
+      new URL(
+        './fixtures/govern-transaction-reader/live-safe-golden-snapshots.yaml',
+        import.meta.url,
+      ).pathname,
+    );
+
+    expect(
+      snapshots.snapshots.map((snapshot) => snapshot.governanceType),
+    ).to.deep.equal(['abacusWorks', 'warpFees']);
+    expect(snapshots.snapshots[0].result.multisends).to.have.length.greaterThan(
+      1,
+    );
+    expect(snapshots.snapshots[1].result.multisends).to.have.length.greaterThan(
+      1,
+    );
+  });
+
+  it('does not misclassify selector-known calls to ProxyAdmin as proxy admin transactions', async () => {
+    const reader = createReader();
+    const routingHookInterface = DomainRoutingHook__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.proxyAdmin,
+      data: routingHookInterface.encodeFunctionData('setHook(uint32,address)', [
+        POLYGON_DOMAIN,
+        ADDRESSES.hookTarget,
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.to).to.match(/^DomainRoutingHook/);
+    expect(result.signature).to.equal('setHook(uint32,address)');
+  });
+
+  it('falls back when a warp fee recipient config is unreadable', async () => {
+    const reader = createReader();
+    registerWarpRoute(reader);
+    const movableRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.warpRoute,
+      data: movableRouterInterface.encodeFunctionData('setFeeRecipient', [
+        ADDRESSES.hookTarget,
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.insight).to.equal(
+      `Set fee recipient to ${ADDRESSES.hookTarget}`,
+    );
+  });
+
+  it('records recoverable nested multisend decode failures as warnings', async () => {
+    const reader = createReader();
+    registerWarpRoute(reader);
+    reader.multiSendDeployments.push(ADDRESSES.multisend);
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.multisend,
+      data: encodeMultiSend([
+        {
+          operation: 0,
+          to: ADDRESSES.warpRoute,
+          value: BigNumber.from(0),
+          data: '0xdeadbeef',
+        },
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.multisends[0].decoded.insight).to.match(/failed to decode/);
+    expect(reader.errors).to.deep.equal([]);
+    expect(reader.warnings).to.have.lengthOf(1);
+    expect(reader.warnings[0].info).to.equal(
+      'Could not decode nested multisend call',
+    );
+  });
+
+  it('records unknown transactions as fatal diagnostics', async () => {
+    const reader = createReader();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.hook,
+      data: '0xabcdef01',
+      value: BigNumber.from(0),
+    });
+
+    expect(result.insight).to.equal('⚠️ Unknown transaction type');
+    expect(reader.errors).to.have.lengthOf(1);
+    expect(reader.errors[0].info).to.equal('⚠️ Unknown transaction type');
+    expect(reader.warnings).to.deep.equal([]);
+  });
+
+  it('decodes nested Safe execTransaction calls', async () => {
+    const reader = createReader();
+    const safeInterface = new ethers.utils.Interface([
+      'function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures)',
+    ]);
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.abacusWorksSafe,
+      data: safeInterface.encodeFunctionData('execTransaction', [
+        ADDRESSES.hook,
+        0,
+        ownableInterface.encodeFunctionData('transferOwnership(address)', [
+          ADDRESSES.hookTarget,
+        ]),
+        0,
+        0,
+        0,
+        0,
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+        '0x',
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.signature).to.equal(
+      'execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)',
+    );
+    expect(result.nestedTx?.signature).to.equal('transferOwnership(address)');
+  });
+
+  it('decodes nested timelock batch calls', async () => {
+    const reader = createReader();
+    reader.timelocks[ETHEREUM] = ADDRESSES.timelock;
+    const timelockInterface = TimelockController__factory.createInterface();
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.timelock,
+      data: timelockInterface.encodeFunctionData(
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
+        [
+          [ADDRESSES.hook],
+          [0],
+          [
+            ownableInterface.encodeFunctionData('transferOwnership(address)', [
+              ADDRESSES.hookTarget,
+            ]),
+          ],
+          ethers.constants.HashZero,
+          ethers.constants.HashZero,
+          60,
+        ],
+      ),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.innerTxs).to.have.lengthOf(1);
+    expect(result.innerTxs[0].signature).to.equal('transferOwnership(address)');
+  });
+
+  it('decodes nested ICA calls', async () => {
+    const reader = createReader();
+    const icaInterface =
+      interchainAccountFactories.interchainAccountRouter.interface;
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.icaRouter,
+      data: icaInterface.encodeFunctionData(
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])',
+        [
+          POLYGON_DOMAIN,
+          addressToBytes32(ADDRESSES.polygonIcaRouter),
+          ethers.constants.HashZero,
+          [
+            [
+              addressToBytes32(ADDRESSES.hook),
+              0,
+              ownableInterface.encodeFunctionData(
+                'transferOwnership(address)',
+                [ADDRESSES.hookTarget],
+              ),
+            ],
+          ],
+        ],
+      ),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.signature).to.equal(
+      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])',
+    );
+    expect(result.args.calls[0].signature).to.equal(
+      'transferOwnership(address)',
+    );
+  });
+
+  it('does not swallow non-decode programmer errors in nested multisends', async () => {
+    const buggyDecoder: GovernanceDecoder = {
+      id: 'buggy-test-decoder',
+      priority: 999,
+      match: () => true,
+      decode: async () => {
+        throw new TypeError('programmer bug');
+      },
+    };
+    const reader = createReader([createMultisendDecoder(), buggyDecoder]);
+    reader.multiSendDeployments.push(ADDRESSES.multisend);
+
+    try {
+      await reader.read(ETHEREUM, {
+        to: ADDRESSES.multisend,
+        data: encodeMultiSend([
+          {
+            operation: 0,
+            to: ADDRESSES.hook,
+            value: BigNumber.from(0),
+            data: '0xdeadbeef',
+          },
+        ]),
+        value: BigNumber.from(0),
+      });
+      expect.fail('Expected nested TypeError to be rethrown');
+    } catch (error) {
+      expect(error).to.be.instanceOf(TypeError);
+      expect((error as Error).message).to.equal('programmer bug');
+    }
+  });
+});
