@@ -4,7 +4,6 @@ import {
   getMultiSendDeployments,
 } from '@safe-global/safe-deployments';
 import assert from 'assert';
-import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -21,22 +20,17 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
-  DerivedIsmConfig,
-  EvmIsmReader,
   InterchainAccount,
   MultiProvider,
   TokenStandard,
   WarpCoreConfig,
-  coreFactories,
   interchainAccountFactories,
-  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   StandardHookMetadataParams,
   addressToBytes32,
   bytes32ToAddress,
-  deepEquals,
   eqAddress,
   isZeroishAddress,
   parseStandardHookMetadata,
@@ -75,11 +69,6 @@ import {
 } from './governance/types.js';
 
 export type { GovernTransaction } from './governance/types.js';
-
-interface SetDefaultIsmInsight {
-  module: string;
-  insight: string;
-}
 
 interface HookMetadataInsight extends StandardHookMetadataParams {
   raw: string;
@@ -412,9 +401,6 @@ export class GovernTransactionReader {
         this.readOwnableTransaction(chain, tx),
       isIcaTransaction: (chain, tx) => this.isIcaTransaction(chain, tx),
       readIcaTransaction: (chain, tx) => this.readIcaTransaction(chain, tx),
-      isMailboxTransaction: (chain, tx) => this.isMailboxTransaction(chain, tx),
-      readMailboxTransaction: (chain, tx) =>
-        this.readMailboxTransaction(chain, tx),
       isWarpModuleTransaction: (chain, tx) =>
         this.isWarpModuleTransaction(chain, tx),
       readWarpModuleTransaction: (chain, tx) =>
@@ -948,118 +934,6 @@ export class GovernTransactionReader {
     });
   }
 
-  private async readMailboxTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('⚠️ No data in mailbox transaction');
-    }
-    const mailboxInterface = coreFactories.mailbox.interface;
-    const decoded = mailboxInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-    let prettyArgs = args;
-    if (
-      decoded.functionFragment.name ===
-      mailboxInterface.functions['setDefaultIsm(address)'].name
-    ) {
-      prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
-    } else if (decoded.signature === 'transferOwnership(address)') {
-      // Fallback to ownable transaction handling for unknown functions
-      const ownableTx = await this.readOwnableTransaction(chain, tx);
-      return {
-        ...ownableTx,
-        to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
-        signature: decoded.signature,
-      };
-    }
-
-    return {
-      chain,
-      to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
-      signature: decoded.signature,
-      args: prettyArgs,
-    };
-  }
-
-  private ismDerivationsInProgress: ChainMap<boolean> = {};
-
-  private async deriveIsmConfig(
-    chain: string,
-    module: string,
-  ): Promise<DerivedIsmConfig> {
-    const reader = new EvmIsmReader(this.multiProvider, chain);
-
-    // Start recording some info about the deriving
-    const startTime = Date.now();
-    this.logger.info(chalk.italic.gray(`Deriving ISM config for ${chain}...`));
-    this.ismDerivationsInProgress[chain] = true;
-
-    const derivedConfig = await reader.deriveIsmConfig(module);
-
-    // Deriving is done, remove from in progress
-    delete this.ismDerivationsInProgress[chain];
-    this.logger.info(
-      chalk.italic.blue(
-        'Finished deriving ISM config',
-        chain,
-        'in',
-        (Date.now() - startTime) / (1000 * 60),
-        'mins',
-      ),
-    );
-    const remainingInProgress = Object.keys(this.ismDerivationsInProgress);
-    this.logger.info(
-      chalk.italic.gray(
-        'Remaining derivations in progress:',
-        remainingInProgress.length,
-        'chains',
-        remainingInProgress,
-      ),
-    );
-
-    return derivedConfig;
-  }
-
-  private async formatMailboxSetDefaultIsm(
-    chain: ChainName,
-    args: Record<string, any>,
-  ): Promise<SetDefaultIsmInsight> {
-    const { _module: module } = args;
-
-    const derivedConfig = await this.deriveIsmConfig(chain, module);
-    const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
-
-    let insight = '✅ matches expected ISM config';
-    const normalizedDerived = normalizeConfig(derivedConfig);
-    const normalizedExpected = normalizeConfig(expectedIsmConfig);
-    if (!deepEquals(normalizedDerived, normalizedExpected)) {
-      this.addFatalDiagnostic({
-        chain: chain,
-        module,
-        derivedConfig,
-        expectedIsmConfig,
-        info: 'Incorrect default ISM being set',
-      });
-      insight = `❌ fatal mismatch of ISM config`;
-      this.logger.error(
-        chalk.bold.red(`Mismatch of ISM config for chain ${chain}!`),
-      );
-    }
-
-    return {
-      module,
-      insight,
-    };
-  }
-
   private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
@@ -1289,13 +1163,6 @@ export class GovernTransactionReader {
         tx.to,
         this.chainAddresses.ethereum.legacyInterchainAccountRouter,
       )
-    );
-  }
-
-  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].mailbox)
     );
   }
 

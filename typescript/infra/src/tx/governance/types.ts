@@ -112,11 +112,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
-  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean;
-  readMailboxTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
   isWarpModuleTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
