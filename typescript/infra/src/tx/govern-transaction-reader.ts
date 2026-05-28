@@ -13,6 +13,10 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   BaseFee__factory,
+  CrossCollateralRouter__factory,
+  CrossCollateralRoutingFee__factory,
+  DomainRoutingHook__factory,
+  DomainRoutingIsm__factory,
   ERC20__factory,
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
@@ -20,6 +24,8 @@ import {
   MovableCollateralRouter__factory,
   Ownable__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
+  TokenBridgeOft__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
   TimelockController__factory,
@@ -187,59 +193,6 @@ async function parseHookMetadataWithInsight(
     refundAddress,
     insight,
   };
-}
-
-// Ethers.js error codes that are unambiguously transient RPC/transport failures
-const TRANSIENT_RPC_ERROR_CODES = new Set([
-  'SERVER_ERROR',
-  'NETWORK_ERROR',
-  'TIMEOUT',
-]);
-
-/**
- * Returns true only for transient RPC/transport errors that are safe to swallow.
- * CALL_EXCEPTION with revert data or JSON-RPC code 3 indicates a real contract
- * revert (permanent) and is NOT treated as transient — mirroring the distinction
- * in SmartProvider.
- */
-function isRpcOrTransportError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const code = (error as any).code;
-    if (typeof code === 'string') {
-      if (TRANSIENT_RPC_ERROR_CODES.has(code)) return true;
-      // CALL_EXCEPTION: only transient when there's no revert data and no
-      // JSON-RPC error code 3 (which definitively indicates a contract revert)
-      if (code === 'CALL_EXCEPTION') {
-        const data = (error as any).data;
-        const hasRevertData = !!data && data !== '0x' && data !== '';
-        const nestedError = (error as any).error;
-        const jsonRpcErrorCode = nestedError?.error?.code ?? nestedError?.code;
-        const isJsonRpcRevert = jsonRpcErrorCode === 3;
-        const isEmptyReturnDecodeFailure = !hasRevertData && !nestedError;
-        // Real reverts (with data, JSON-RPC code 3, or decode failures) are permanent
-        if (hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure)
-          return false;
-        // No revert data and not a JSON-RPC revert → likely transient RPC issue
-        return true;
-      }
-    }
-    // Common transport-layer patterns
-    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(error.message))
-      return true;
-  }
-  return false;
-}
-
-function isAbiDecodingError(error: unknown): boolean {
-  if (
-    error instanceof Error &&
-    'code' in error &&
-    (error as { code: string }).code === 'INVALID_ARGUMENT' &&
-    error.message.includes('sighash')
-  ) {
-    return true;
-  }
-  return false;
 }
 
 // Patterns that may contain secrets in ethers.js RPC error messages
@@ -476,6 +429,17 @@ export class GovernTransactionReader {
     // If it's a fee contract transaction
     if (await this.isFeeTransaction(chain, tx)) {
       return this.readFeeTransaction(chain, tx);
+    }
+
+    // Try to decode against known Hyperlane contract ABIs by selector before
+    // falling back to bytecode-pattern matchers. Covers contracts not yet
+    // registered (new warp routes, standalone routing hooks/ISMs, token bridge
+    // adapters, cross-collateral routing fees, etc.). Placed before
+    // isProxyAdminTransaction since its bytecode check can false-positive on
+    // contracts that happen to embed all required selectors.
+    const knownContractDecode = this.tryReadByKnownContractInterface(chain, tx);
+    if (knownContractDecode) {
+      return knownContractDecode;
     }
 
     // If it's to a Proxy Admin
@@ -1098,19 +1062,42 @@ export class GovernTransactionReader {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const tokenRouterInterface =
       MovableCollateralRouter__factory.createInterface();
+    const ccrInterface = CrossCollateralRouter__factory.createInterface();
     const cctpV2Interface = TokenBridgeCctpV2__factory.createInterface();
+    const oftInterface = TokenBridgeOft__factory.createInterface();
+    const depositAddrInterface =
+      TokenBridgeDepositAddress__factory.createInterface();
 
-    let decoded;
-    try {
-      decoded = tokenRouterInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    } catch {
-      decoded = cctpV2Interface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
+    // Try each interface; some registry-listed contracts are bridge adapters
+    // (TokenBridgeOft, TokenBridgeDepositAddress) rather than full Routers.
+    const parseAttempts: Array<() => ethers.utils.TransactionDescription> = [
+      () =>
+        tokenRouterInterface.parseTransaction({
+          data: tx.data!,
+          value: tx.value,
+        }),
+      () => ccrInterface.parseTransaction({ data: tx.data!, value: tx.value }),
+      () =>
+        cctpV2Interface.parseTransaction({ data: tx.data!, value: tx.value }),
+      () => oftInterface.parseTransaction({ data: tx.data!, value: tx.value }),
+      () =>
+        depositAddrInterface.parseTransaction({
+          data: tx.data!,
+          value: tx.value,
+        }),
+    ];
+    let decoded: ethers.utils.TransactionDescription | undefined;
+    let lastError: unknown;
+    for (const attempt of parseAttempts) {
+      try {
+        decoded = attempt();
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!decoded) {
+      throw lastError;
     }
 
     let insight: string | undefined;
@@ -1276,6 +1263,80 @@ export class GovernTransactionReader {
       insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
     }
 
+    if (
+      decoded.functionFragment.name ===
+      ccrInterface.functions['enrollCrossCollateralRouters(uint32[],bytes32[])']
+        .name
+    ) {
+      const [domains, routers] = decoded.args;
+      const insights = domains.map((domain: number, index: number) => {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        return `domain ${domain}${chainName ? ` (${chainName})` : ''} to ${routers[index]}`;
+      });
+      insight = `Enroll cross-collateral routers for ${insights.join(', ')}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      ccrInterface.functions[
+        'unenrollCrossCollateralRouters(uint32[],bytes32[])'
+      ].name
+    ) {
+      const [domains, routers] = decoded.args;
+      const insights = domains.map((domain: number, index: number) => {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        return `domain ${domain}${chainName ? ` (${chainName})` : ''} from ${routers[index]}`;
+      });
+      insight = `Unenroll cross-collateral routers for ${insights.join(', ')}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      oftInterface.functions['addDomain(uint32,uint32)'].name
+    ) {
+      const [hypDomain, lzEid] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(hypDomain);
+      insight = `Map Hyperlane domain ${hypDomain}${chainName ? ` (${chainName})` : ''} to LayerZero EID ${lzEid}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      oftInterface.functions['removeDomain(uint32)'].name
+    ) {
+      const [hypDomain] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(hypDomain);
+      insight = `Remove Hyperlane domain ${hypDomain}${chainName ? ` (${chainName})` : ''} mapping`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      oftInterface.functions['setExtraOptions(bytes)'].name
+    ) {
+      const [options] = decoded.args;
+      insight = `Set LayerZero extraOptions to ${options}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      depositAddrInterface.functions[
+        'addDestinationConfig(uint32,address,bytes32,uint256)'
+      ].name
+    ) {
+      const [destination, depositAddress, recipient, feeBps] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(destination);
+      insight = `Add destination config: domain ${destination}${chainName ? ` (${chainName})` : ''}, depositAddress ${depositAddress}, recipient ${recipient}, feeBps ${feeBps.toString()}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      depositAddrInterface.functions['removeDestinationConfig(uint32,bytes32)']
+        .name
+    ) {
+      const [destination, recipient] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(destination);
+      insight = `Remove destination config: domain ${destination}${chainName ? ` (${chainName})` : ''}, recipient ${recipient}`;
+    }
+
     let ownableTx = {};
     if (!insight) {
       ownableTx = await this.readOwnableTransaction(chain, tx);
@@ -1294,6 +1355,293 @@ export class GovernTransactionReader {
       signature: decoded.signature,
       ...(feeDetails && { feeDetails }),
     };
+  }
+
+  /**
+   * Selector-based fallback for known Hyperlane contract types that may not be
+   * present in the warp route registry (e.g. newly-deployed warp routes,
+   * standalone routing hooks/ISMs, token bridge adapters, cross-collateral
+   * routing fee contracts). Returns undefined if no interface matches.
+   */
+  private tryReadByKnownContractInterface(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction | undefined {
+    if (!tx.data || tx.data.length < 10 || !tx.to) return undefined;
+
+    const tryParse = (iface: ethers.utils.Interface) => {
+      try {
+        return iface.parseTransaction({ data: tx.data!, value: tx.value });
+      } catch {
+        return undefined;
+      }
+    };
+
+    const formatBase = (
+      contractType: string,
+      decoded: ethers.utils.TransactionDescription,
+      insight: string,
+    ) => ({
+      chain,
+      to: `${contractType} (${chain} ${tx.to})`,
+      insight,
+      signature: decoded.signature,
+    });
+
+    // CrossCollateralRouter / MovableCollateralRouter (TokenRouter base) - newly
+    // deployed warp routes not yet in the registry.
+    const ccrIface = CrossCollateralRouter__factory.createInterface();
+    const movableIface = MovableCollateralRouter__factory.createInterface();
+    const ccrDecoded = tryParse(ccrIface) ?? tryParse(movableIface);
+    if (ccrDecoded) {
+      const insight = this.formatRouterCallInsight(
+        ccrIface,
+        movableIface,
+        ccrDecoded,
+      );
+      return formatBase('Warp Route (unregistered)', ccrDecoded, insight);
+    }
+
+    // TokenBridgeOft adapter (LayerZero OFT bridge for warp routes).
+    const oftIface = TokenBridgeOft__factory.createInterface();
+    const oftDecoded = tryParse(oftIface);
+    if (oftDecoded) {
+      const insight = this.formatTokenBridgeOftInsight(oftIface, oftDecoded);
+      return formatBase('TokenBridgeOft', oftDecoded, insight);
+    }
+
+    // TokenBridgeDepositAddress adapter (deposit-address-based bridges).
+    const depositAddrIface =
+      TokenBridgeDepositAddress__factory.createInterface();
+    const depositAddrDecoded = tryParse(depositAddrIface);
+    if (depositAddrDecoded) {
+      const insight = this.formatTokenBridgeDepositAddressInsight(
+        depositAddrIface,
+        depositAddrDecoded,
+      );
+      return formatBase(
+        'TokenBridgeDepositAddress',
+        depositAddrDecoded,
+        insight,
+      );
+    }
+
+    // CrossCollateralRoutingFee - per-router fee contract routing.
+    const ccrFeeIface = CrossCollateralRoutingFee__factory.createInterface();
+    const ccrFeeDecoded = tryParse(ccrFeeIface);
+    if (ccrFeeDecoded) {
+      const insight = this.formatCrossCollateralRoutingFeeInsight(
+        ccrFeeIface,
+        ccrFeeDecoded,
+      );
+      return formatBase('CrossCollateralRoutingFee', ccrFeeDecoded, insight);
+    }
+
+    // DomainRoutingHook.setHook / setHooks
+    const routingHookIface = DomainRoutingHook__factory.createInterface();
+    const routingHookDecoded = tryParse(routingHookIface);
+    if (routingHookDecoded) {
+      const insight = this.formatDomainRoutingHookInsight(
+        routingHookIface,
+        routingHookDecoded,
+      );
+      return formatBase('DomainRoutingHook', routingHookDecoded, insight);
+    }
+
+    // DomainRoutingIsm.set / remove
+    const routingIsmIface = DomainRoutingIsm__factory.createInterface();
+    const routingIsmDecoded = tryParse(routingIsmIface);
+    if (routingIsmDecoded) {
+      const insight = this.formatDomainRoutingIsmInsight(
+        routingIsmIface,
+        routingIsmDecoded,
+      );
+      return formatBase('DomainRoutingIsm', routingIsmDecoded, insight);
+    }
+
+    return undefined;
+  }
+
+  private formatRouterCallInsight(
+    ccrIface: ethers.utils.Interface,
+    movableIface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const name = decoded.functionFragment.name;
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+
+    switch (name) {
+      case 'addBridge':
+        return `Set bridge for origin domain ${fmtDomain(args[0])} to ${args[1]}`;
+      case 'removeBridge':
+        return `Remove bridge ${args[1]} from domain ${fmtDomain(args[0])}`;
+      case 'enrollRemoteRouter':
+        return `Enroll remote router for domain ${fmtDomain(args[0])} to ${args[1]}`;
+      case 'enrollRemoteRouters': {
+        const [domains, routers] = args;
+        const lines = domains.map(
+          (d: number, i: number) => `domain ${fmtDomain(d)} to ${routers[i]}`,
+        );
+        return `Enroll remote routers for ${lines.join(', ')}`;
+      }
+      case 'unenrollRemoteRouter':
+        return `Unenroll remote router for domain ${fmtDomain(args[0])}`;
+      case 'unenrollRemoteRouters': {
+        const lines = args[0].map((d: number) => `domain ${fmtDomain(d)}`);
+        return `Unenroll remote routers for ${lines.join(', ')}`;
+      }
+      case 'setDestinationGas': {
+        const lines = args[0].map(
+          (c: { domain: number; gas: BigNumber }) =>
+            `domain ${fmtDomain(c.domain)} to ${c.gas.toString()}`,
+        );
+        return `Set destination gas for ${lines.join(', ')}`;
+      }
+      case 'setHook':
+        return `Set hook to ${args[0]}`;
+      case 'setInterchainSecurityModule':
+        return `Set ISM to ${args[0]}`;
+      case 'setFeeRecipient':
+        return `Set fee recipient to ${args[0]}`;
+      case 'addRebalancer':
+        return `Add rebalancer ${args[0]}`;
+      case 'removeRebalancer':
+        return `Remove rebalancer ${args[0]}`;
+      case 'setRecipient':
+        return `Set rebalance recipient for domain ${fmtDomain(args[0])} to ${args[1]}`;
+      case 'removeRecipient':
+        return `Remove rebalance recipient for domain ${fmtDomain(args[0])}`;
+      case 'approveTokenForBridge':
+        return `Approve token ${args[0]} for bridge ${args[1]}`;
+      case 'enrollCrossCollateralRouters': {
+        const [domains, routers] = args;
+        const lines = domains.map(
+          (d: number, i: number) => `domain ${fmtDomain(d)} to ${routers[i]}`,
+        );
+        return `Enroll cross-collateral routers for ${lines.join(', ')}`;
+      }
+      case 'unenrollCrossCollateralRouters': {
+        const [domains, routers] = args;
+        const lines = domains.map(
+          (d: number, i: number) => `domain ${fmtDomain(d)} from ${routers[i]}`,
+        );
+        return `Unenroll cross-collateral routers for ${lines.join(', ')}`;
+      }
+      default:
+        return `Call ${decoded.signature}`;
+    }
+  }
+
+  private formatTokenBridgeOftInsight(
+    iface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+    switch (decoded.functionFragment.name) {
+      case 'addDomain':
+        return `Map Hyperlane domain ${fmtDomain(args[0])} to LayerZero EID ${args[1]}`;
+      case 'removeDomain':
+        return `Remove Hyperlane domain ${fmtDomain(args[0])} mapping`;
+      case 'setExtraOptions':
+        return `Set extra LayerZero options`;
+      default:
+        return `Call ${decoded.signature}`;
+    }
+  }
+
+  private formatTokenBridgeDepositAddressInsight(
+    iface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+    switch (decoded.functionFragment.name) {
+      case 'addDestinationConfig':
+        return `Add destination config: domain ${fmtDomain(args[0])}, depositAddress ${args[1]}, recipient ${args[2]}, feeBps ${args[3].toString()}`;
+      case 'removeDestinationConfig':
+        return `Remove destination config: domain ${fmtDomain(args[0])}, recipient ${args[1]}`;
+      default:
+        return `Call ${decoded.signature}`;
+    }
+  }
+
+  private formatCrossCollateralRoutingFeeInsight(
+    iface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+    switch (decoded.functionFragment.name) {
+      case 'setCrossCollateralRouterFeeContracts': {
+        const [destinations, targetRouters, feeContracts] = args;
+        const lines = destinations.map(
+          (d: number, i: number) =>
+            `domain ${fmtDomain(d)} router ${targetRouters[i]} → fee ${feeContracts[i]}`,
+        );
+        return `Set per-router fee contracts: ${lines.join(', ')}`;
+      }
+      case 'claim':
+        return `Claim ${args[1]} balance to ${args[0]}`;
+      default:
+        return `Call ${decoded.signature}`;
+    }
+  }
+
+  private formatDomainRoutingHookInsight(
+    iface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+    switch (decoded.functionFragment.name) {
+      case 'setHook':
+        return `Set hook for destination ${fmtDomain(args[0])} to ${args[1]}`;
+      case 'setHooks': {
+        const lines = args[0].map(
+          (cfg: { destination: number; hook: string }) =>
+            `destination ${fmtDomain(cfg.destination)} → ${cfg.hook}`,
+        );
+        return `Set hooks: ${lines.join(', ')}`;
+      }
+      default:
+        return `Call ${decoded.signature}`;
+    }
+  }
+
+  private formatDomainRoutingIsmInsight(
+    iface: ethers.utils.Interface,
+    decoded: ethers.utils.TransactionDescription,
+  ): string {
+    const args = decoded.args;
+    const fmtDomain = (d: number) => {
+      const cn = this.multiProvider.tryGetChainName(d);
+      return cn ? `${d} (${cn})` : `${d}`;
+    };
+    switch (decoded.functionFragment.name) {
+      case 'set':
+        return `Set ISM for origin ${fmtDomain(args[0])} to ${args[1]}`;
+      case 'remove':
+        return `Remove ISM for origin ${fmtDomain(args[0])}`;
+      default:
+        return `Call ${decoded.signature}`;
+    }
   }
 
   /**
@@ -1894,15 +2242,12 @@ export class GovernTransactionReader {
         }
       }
     } catch (error: unknown) {
-      if (!isRpcOrTransportError(error)) {
-        throw error;
-      }
       this.logger.warn(
         `Failed to derive ICA address for ${remoteChainName}, using expected address: ${summarizeError(error)}`,
       );
       remoteIcaAddress =
         expectedRemoteIcaAddress ?? expectedLegacyRemoteIcaAddress;
-      remoteIcaInsight = `⚠️ could not verify ICA (RPC error on ${remoteChainName})`;
+      remoteIcaInsight = `⚠️ could not verify ICA on ${remoteChainName} (${summarizeError(error)})`;
     }
 
     const decodedCalls = await Promise.all(
@@ -1915,15 +2260,12 @@ export class GovernTransactionReader {
         try {
           return await this.read(remoteChainName, icaCallAsTx);
         } catch (error: unknown) {
-          if (!isRpcOrTransportError(error)) {
-            throw error;
-          }
           this.logger.warn(
             `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}: ${summarizeError(error)}`,
           );
           return {
             chain: remoteChainName,
-            insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
+            insight: `⚠️ failed to decode (${summarizeError(error)})`,
             to: icaCallAsTx.to,
             data: call[2],
           };
@@ -1983,9 +2325,6 @@ export class GovernTransactionReader {
             decoded,
           };
         } catch (error: unknown) {
-          if (!isRpcOrTransportError(error) && !isAbiDecodingError(error)) {
-            throw error;
-          }
           this.logger.warn(
             `Failed to decode multisend at index ${index}: ${summarizeError(error)}`,
           );
