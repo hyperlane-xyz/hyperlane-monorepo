@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, Wallet } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
@@ -21,7 +21,7 @@ type TxFile = {
 };
 
 async function main() {
-  const { directory, file, safeAddress, propose } = await withPropose(
+  const { directory, file, safeAddress, propose, key } = await withPropose(
     yargs(process.argv.slice(2))
       .option('directory', {
         type: 'string',
@@ -39,6 +39,11 @@ async function main() {
         describe: 'Safe address to propose transactions to',
         demandOption: true,
         alias: 's',
+      })
+      .option('key', {
+        type: 'string',
+        describe: 'Private key to use as signer (overrides GCP key lookup)',
+        alias: 'k',
       })
       .check((argv) => {
         if (!argv.directory && !argv.file) {
@@ -80,6 +85,11 @@ async function main() {
     true,
   );
 
+  if (key) {
+    const wallet = new Wallet(key);
+    multiProvider.setSharedSigner(wallet);
+  }
+
   for (const filePath of filePaths) {
     const txFile = readJson<TxFile>(filePath);
 
@@ -118,7 +128,7 @@ async function main() {
     }
 
     try {
-      await safeMultiSend.sendTransactions(
+      const hashes = await safeMultiSend.sendTransactions(
         txFile.transactions.map((tx) => ({
           to: tx.to,
           data: tx.data,
@@ -126,6 +136,9 @@ async function main() {
         })),
       );
       rootLogger.info(`[${chainName}] Successfully proposed transactions`);
+      for (const hash of hashes) {
+        rootLogger.info(`[${chainName}] safeTxHash: ${hash}`);
+      }
     } catch (error) {
       rootLogger.error(
         `[${chainName}] Failed to propose transactions: ${error}`,

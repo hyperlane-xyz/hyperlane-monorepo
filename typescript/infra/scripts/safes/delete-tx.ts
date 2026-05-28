@@ -1,3 +1,4 @@
+import { Wallet } from 'ethers';
 import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -11,13 +12,19 @@ import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
-  const { chains, tx, governanceType } = await withGovernanceType(
+  const { chains, tx, governanceType, key } = await withGovernanceType(
     withChains(
-      yargs(process.argv.slice(2)).option('tx', {
-        type: 'string',
-        description: 'Transaction hash to delete',
-        demandOption: true,
-      }),
+      yargs(process.argv.slice(2))
+        .option('tx', {
+          type: 'string',
+          description: 'Transaction hash to delete',
+          demandOption: true,
+        })
+        .option('key', {
+          type: 'string',
+          description:
+            'Private key to use as signer (overrides GCP deployer key)',
+        }),
     ),
   ).argv;
 
@@ -38,6 +45,10 @@ async function main() {
     true,
     chains,
   );
+
+  if (key) {
+    multiProvider.setSharedSigner(new Wallet(key));
+  }
 
   const safes = getGovernanceSafes(governanceType);
   for (const chain of chains) {

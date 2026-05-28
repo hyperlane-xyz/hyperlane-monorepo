@@ -41,8 +41,30 @@ export type ExtendedSubmissionStrategy = z.infer<
   typeof ExtendedSubmissionStrategySchema
 >;
 
+// preprocessChainSubmissionStrategy rebuilds each entry as { submitter: ... } only,
+// dropping feeSubmitter. Save and restore it so Zod sees the full extended shape.
+function preprocessExtendedChainSubmissionStrategy(value: unknown): unknown {
+  const raw = value as Record<string, any>;
+  const feeSubmitters: Record<string, unknown> = {};
+  for (const [chain, config] of Object.entries(raw)) {
+    if (config?.feeSubmitter != null) {
+      feeSubmitters[chain] = config.feeSubmitter;
+    }
+  }
+  const preprocessed = preprocessChainSubmissionStrategy(raw) as Record<
+    string,
+    any
+  >;
+  for (const [chain, feeSubmitter] of Object.entries(feeSubmitters)) {
+    if (preprocessed[chain]) {
+      preprocessed[chain].feeSubmitter = feeSubmitter;
+    }
+  }
+  return preprocessed;
+}
+
 export const ExtendedChainSubmissionStrategySchema = z.preprocess(
-  preprocessChainSubmissionStrategy,
+  preprocessExtendedChainSubmissionStrategy,
   z
     .record(ZChainName, ExtendedSubmissionStrategySchema)
     .superRefine(refineChainSubmissionStrategy),

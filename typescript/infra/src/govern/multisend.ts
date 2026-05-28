@@ -24,7 +24,7 @@ import {
 const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
 
 export abstract class MultiSend {
-  abstract sendTransactions(calls: CallData[]): Promise<void>;
+  abstract sendTransactions(calls: CallData[]): Promise<string[] | void>;
 }
 
 export class SignerMultiSend extends MultiSend {
@@ -89,7 +89,7 @@ export class SafeMultiSend extends MultiSend {
     );
   }
 
-  async sendTransactions(calls: CallData[]) {
+  async sendTransactions(calls: CallData[]): Promise<string[]> {
     // If the multiSend address is the same as the safe address, we need to
     // propose the transactions individually. See: gnosisSafe.js in the SDK.
     if (eqAddress(this.safeSdk.getMultiSendAddress(), this.safeAddress)) {
@@ -98,15 +98,18 @@ export class SafeMultiSend extends MultiSend {
           `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
         ),
       );
-      await this.proposeIndividualTransactions(calls);
+      return this.proposeIndividualTransactions(calls);
     } else {
-      await this.proposeMultiSendTransaction(calls);
+      return this.proposeMultiSendTransaction(calls);
     }
   }
 
   // Helper function to propose individual transactions
-  private async proposeIndividualTransactions(calls: CallData[]) {
+  private async proposeIndividualTransactions(
+    calls: CallData[],
+  ): Promise<string[]> {
     const nonce = SAFE_NONCE_OVERRIDES[this.chain];
+    const hashes: string[] = [];
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
       const safeTransaction = await createSafeTransaction(
@@ -115,16 +118,21 @@ export class SafeMultiSend extends MultiSend {
         undefined,
         nonce,
       );
-      await this.proposeSafeTransaction(
-        this.safeSdk,
-        this.safeService,
-        safeTransaction,
+      hashes.push(
+        await this.proposeSafeTransaction(
+          this.safeSdk,
+          this.safeService,
+          safeTransaction,
+        ),
       );
     }
+    return hashes;
   }
 
   // Helper function to propose a multi-send transaction
-  private async proposeMultiSendTransaction(calls: CallData[]) {
+  private async proposeMultiSendTransaction(
+    calls: CallData[],
+  ): Promise<string[]> {
     const nonce = SAFE_NONCE_OVERRIDES[this.chain];
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
@@ -135,11 +143,12 @@ export class SafeMultiSend extends MultiSend {
       true,
       nonce,
     );
-    await this.proposeSafeTransaction(
+    const hash = await this.proposeSafeTransaction(
       this.safeSdk,
       this.safeService,
       safeTransaction,
     );
+    return [hash];
   }
 
   // Helper function to propose a safe transaction
@@ -147,9 +156,9 @@ export class SafeMultiSend extends MultiSend {
     safeSdk: Safe.default,
     safeService: SafeApiKit.default,
     safeTransaction: SafeTransaction,
-  ) {
+  ): Promise<string> {
     const signer = this.multiProvider.getSigner(this.chain);
-    await proposeSafeTransaction(
+    return proposeSafeTransaction(
       this.chain,
       safeSdk,
       safeService,
