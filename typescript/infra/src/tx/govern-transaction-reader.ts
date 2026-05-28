@@ -427,8 +427,6 @@ export class GovernTransactionReader {
       isOwnableTransaction: (tx) => this.isOwnableTransaction(tx),
       readOwnableTransaction: (chain, tx) =>
         this.readOwnableTransaction(chain, tx),
-      isSafeTransaction: (chain, tx) => this.isSafeTransaction(chain, tx),
-      readSafeTransaction: (chain, tx) => this.readSafeTransaction(chain, tx),
       isIcaTransaction: (chain, tx) => this.isIcaTransaction(chain, tx),
       readIcaTransaction: (chain, tx) => this.readIcaTransaction(chain, tx),
       isMailboxTransaction: (chain, tx) => this.isMailboxTransaction(chain, tx),
@@ -460,6 +458,8 @@ export class GovernTransactionReader {
       multiSendDeployments: this.multiSendDeployments,
       xerc20Deployments: this.xerc20Deployments,
       diagnostics: this.diagnostics,
+      createReader: (environment, governanceType) =>
+        GovernTransactionReader.create(environment, governanceType),
     };
   }
 
@@ -2054,180 +2054,6 @@ export class GovernTransactionReader {
   async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
-  }
-
-  private isSafeTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): boolean {
-    return (
-      tx.to !== undefined &&
-      getAllSafesForChain(chain).some((safe) => eqAddress(tx.to!, safe))
-    );
-  }
-
-  private async readSafeTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in Safe transaction');
-    }
-
-    if (!tx.to) {
-      throw new Error('No to address in Safe transaction');
-    }
-
-    const decoded = parseSafeTx(tx);
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    const { governanceType } = await determineGovernanceType(chain, tx.to);
-    const toInsight = `${governanceType.toUpperCase()} Safe (${chain} ${
-      tx.to
-    })`;
-
-    if (decoded.functionFragment.name === 'approveHash') {
-      return this.readApproveHashTransaction(
-        chain,
-        args,
-        toInsight,
-        decoded.signature,
-        governanceType,
-      );
-    }
-
-    return this.readGeneralSafeTransaction(chain, decoded, args, toInsight);
-  }
-
-  private async readApproveHashTransaction(
-    chain: ChainName,
-    args: Record<string, any>,
-    toInsight: string,
-    signature: string,
-    governanceType: GovernanceType,
-  ): Promise<GovernTransaction> {
-    const approvedTx = await getSafeTx(
-      chain,
-      this.multiProvider,
-      args.hashToApprove,
-    );
-
-    const baseResult = {
-      chain,
-      to: toInsight,
-      insight: `Approve hash: ${args.hashToApprove}`,
-      args,
-      signature,
-    };
-
-    if (!approvedTx) {
-      return {
-        ...baseResult,
-        insight: `${baseResult.insight} (transaction not found)`,
-      };
-    }
-
-    const reader = await GovernTransactionReader.create(
-      this.environment,
-      governanceType,
-    );
-
-    const innerTx = await reader.read(chain, {
-      to: approvedTx.to,
-      data: approvedTx.data,
-      value: BigNumber.from(approvedTx.value),
-    });
-    this.diagnostics.merge(reader.diagnostics);
-
-    return {
-      ...baseResult,
-      nestedTx: innerTx,
-    };
-  }
-
-  private async readGeneralSafeTransaction(
-    chain: ChainName,
-    decoded: {
-      functionFragment: ethers.utils.FunctionFragment;
-      args: Result;
-      signature: string;
-    },
-    args: Record<string, any>,
-    toInsight: string,
-  ): Promise<GovernTransaction> {
-    let insight;
-    let innerTx;
-    switch (decoded.functionFragment.name) {
-      case 'execTransaction': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
-        insight = `Execute transaction`;
-        break;
-      }
-      case 'execTransactionFromModule': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
-        insight = `Execute transaction from module`;
-        break;
-      }
-      case 'execTransactionFromModuleReturnData': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
-        insight = `Execute transaction from module with return data`;
-        break;
-      }
-      case 'addOwnerWithThreshold':
-        insight = `Add owner ${args.owner} with threshold ${args._threshold}`;
-        break;
-      case 'removeOwner':
-        insight = `Remove owner ${args.owner} with new threshold ${args._threshold}`;
-        break;
-      case 'swapOwner':
-        insight = `Swap owner ${args.oldOwner} with ${args.newOwner}`;
-        break;
-      case 'changeThreshold':
-        insight = `Change threshold to ${args._threshold}`;
-        break;
-      case 'enableModule':
-        insight = `Enable module ${args.module}`;
-        break;
-      case 'disableModule':
-        insight = `Disable module ${args.module}`;
-        break;
-      case 'setGuard':
-        insight = `Set guard to ${args.guard}`;
-        break;
-      case 'setFallbackHandler':
-        insight = `Set fallback handler to ${args.handler}`;
-        break;
-      case 'setup':
-        insight = `Setup Safe with ${args._owners.length} owners, threshold ${args._threshold}, fallback handler ${args.fallbackHandler}`;
-        break;
-      case 'simulateAndRevert':
-        insight = `Simulate and revert transaction to ${args.targetContract}`;
-        break;
-    }
-
-    return {
-      chain,
-      to: toInsight,
-      insight: insight ?? '⚠️ Unknown Safe operation',
-      signature: decoded.signature,
-      ...(innerTx ? { nestedTx: innerTx } : {}),
-      ...(insight ? {} : { args }),
-    };
   }
 }
 

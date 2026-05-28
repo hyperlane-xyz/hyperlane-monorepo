@@ -11,6 +11,7 @@ import type {
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { DeployEnvironment } from '../../config/deploy-environment.js';
+import type { GovernanceType } from '../../governanceTypes.js';
 
 export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
@@ -38,6 +39,16 @@ export interface GovernanceDecoderState {
   multiSendDeployments: Address[];
   xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>>;
   diagnostics: DiagnosticCollector;
+  createReader(
+    environment: DeployEnvironment,
+    governanceType: GovernanceType,
+  ): Promise<{
+    read(
+      chain: ChainName,
+      tx: AnnotatedEV5Transaction,
+    ): Promise<GovernTransaction>;
+    diagnostics: DiagnosticCollector;
+  }>;
 }
 
 type DiagnosticSeverity = 'fatal' | 'warning';
@@ -93,11 +104,6 @@ export interface GovernanceDecoderRuntime {
   ): Promise<GovernTransaction>;
   isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean>;
   readOwnableTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
-  isSafeTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean;
-  readSafeTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
