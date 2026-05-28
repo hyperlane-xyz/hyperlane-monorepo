@@ -21,8 +21,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
+import { getSetUpgradeAuthorityInstruction } from '../instructions/loader.js';
 import {
   hasProgramBytes,
   type AnnotatedSvmTransaction,
@@ -224,13 +226,14 @@ export class SvmMailboxWriter
       });
     }
 
-    // 2. Ownership transfer — always last
+    const expectedOwner = !isEmptyAddress(expected.owner)
+      ? parseAddress(expected.owner)
+      : null;
+
+    // 2. Ownership transfer
     if (
       !eqOptionalAddress(current.config.owner, expected.owner, eqAddressSol)
     ) {
-      const expectedOwner = !isEmptyAddress(expected.owner)
-        ? parseAddress(expected.owner)
-        : null;
       txs.push({
         feePayer: ownerAddress,
         instructions: [
@@ -241,6 +244,36 @@ export class SvmMailboxWriter
           ),
         ],
         annotation: `Update mailbox ${programId}: transfer ownership`,
+      });
+    }
+
+    // 3. BPF upgrade authority — always last tx.
+    // Skip when the program is immutable (no current authority). Mirrors
+    // SvmCollateralTokenWriter so a `core apply` ownership transfer also
+    // moves the executable-upgrade authority, instead of leaving it with
+    // the previous deployer.
+    const currentUpgradeAuthority = await getProgramUpgradeAuthority(
+      this.rpc,
+      programId,
+    );
+    if (
+      currentUpgradeAuthority &&
+      !eqOptionalAddress(
+        currentUpgradeAuthority,
+        expectedOwner ?? undefined,
+        eqAddressSol,
+      )
+    ) {
+      txs.push({
+        feePayer: currentUpgradeAuthority,
+        instructions: [
+          await getSetUpgradeAuthorityInstruction(
+            programId,
+            currentUpgradeAuthority,
+            expectedOwner,
+          ),
+        ],
+        annotation: `Update mailbox ${programId}: ${expectedOwner ? 'transfer' : 'renounce'} upgrade authority`,
       });
     }
 
