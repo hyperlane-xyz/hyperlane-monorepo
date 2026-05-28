@@ -240,12 +240,11 @@ export class WarpTokenWriter
       }
     }
 
-    // Return deployed config
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          ...artifact.config,
+          ...deployed.config,
           interchainSecurityModule: onChainIsmArtifact,
           hook: onChainHookArtifact,
           fee: onChainFeeArtifact,
