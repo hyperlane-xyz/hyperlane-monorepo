@@ -5850,6 +5850,7 @@ dependencies = [
  "snarkvm",
  "snarkvm-algorithms",
  "snarkvm-console-account",
+ "snarkvm-synthesizer-error",
  "sodiumbox",
  "thiserror 1.0.63",
  "tokio",

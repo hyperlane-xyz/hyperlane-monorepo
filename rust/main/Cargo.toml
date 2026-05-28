@@ -226,6 +226,7 @@ snarkvm = { version = "4.6.4", features = [
 ] }
 snarkvm-algorithms = { version = "4.6.4" }
 snarkvm-console-account = { version = "4.6.4" }
+snarkvm-synthesizer-error = { version = "4.6.4" }
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 

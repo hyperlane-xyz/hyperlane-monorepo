@@ -206,7 +206,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut process_guard = vm_process.write();
         process_guard
             .add_program_with_edition(&program, latest_edition)
-            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
+            .map_err(HyperlaneAleoError::from)?;
 
         Ok(())
     }
@@ -225,7 +225,7 @@ impl<C: AleoClient> AleoProvider<C> {
             .process()
             .read()
             .get_stack(program_id)
-            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
+            .map_err(HyperlaneAleoError::from)?;
 
         let height = self.get_latest_height().await?;
         let consensus_version = N::CONSENSUS_VERSION(height).map_err(HyperlaneAleoError::from)?;
@@ -319,7 +319,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 input.into_iter(),
                 &mut rng,
             )
-            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
+            .map_err(HyperlaneAleoError::from)?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
@@ -466,7 +466,7 @@ impl<C: AleoClient> AleoProvider<C> {
                     .map_err(HyperlaneAleoError::from)?,
                 &mut rng,
             )
-            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
+            .map_err(HyperlaneAleoError::from)?;
 
         // Either use the proving service (with local fallback) or generate the proof locally
         let transaction = match self.proving_service {
@@ -592,7 +592,7 @@ impl<C: AleoClient> AleoProvider<C> {
 
         let fee = confirmed_tx
             .fee_amount()
-            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
+            .map_err(HyperlaneAleoError::from)?;
 
         // There is no concept of gas for Aleo, only the total credits that were spent
         // We mimic gas by setting the gas price to 1 and using the tokens spent as the gas_used

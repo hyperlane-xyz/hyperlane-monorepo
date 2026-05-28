@@ -1,6 +1,7 @@
 use std::{ffi::FromBytesUntilNulError, str::Utf8Error};
 
 use hyperlane_core::ChainCommunicationError;
+use snarkvm_synthesizer_error::VmAuthError;
 
 /// Errors from the crates specific to the hyperlane-aleo
 #[derive(Debug, thiserror::Error)]
@@ -60,6 +61,9 @@ pub enum HyperlaneAleoError {
         /// Transition
         transition: String,
     },
+    /// VmAuthError
+    #[error("{0}")]
+    VmAuthError(#[from] VmAuthError),
     /// Other errors
     #[error("{0}")]
     Other(String),
