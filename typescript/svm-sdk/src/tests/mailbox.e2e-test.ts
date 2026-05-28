@@ -215,6 +215,9 @@ describe('SVM Mailbox E2E Tests', function () {
       expect(afterTransfer.config.owner).to.equal(
         newOwnerSigner.getSignerAddress(),
       );
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
+        newOwnerSigner.getSignerAddress(),
+      );
 
       // Transfer back so subsequent tests still work.
       const transferBackTxs = await mailboxWriter.update({
@@ -229,79 +232,9 @@ describe('SVM Mailbox E2E Tests', function () {
 
       const restored = await mailboxWriter.read(mailboxAddress);
       expect(restored.config.owner).to.equal(signer.getSignerAddress());
-    });
-
-    it('should transfer BPF upgrade authority alongside mailbox owner', async () => {
-      // Use a freshly-deployed mailbox so this test does not mutate the
-      // shared one used by sibling tests.
-      const writer = new SvmMailboxWriter(
-        {
-          program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
-          domainId: TEST_SVM_CHAIN_METADATA.domainId,
-        },
-        rpc,
-        signer,
-      );
-      const [deployed] = await writer.create({
-        artifactState: ArtifactState.NEW,
-        config: makeMailboxConfig(),
-      });
-      const programId = address(deployed.deployed.address);
-
-      // Sanity: deployer (signer) holds the BPF upgrade authority.
-      expect(await getProgramUpgradeAuthority(rpc, programId)).to.equal(
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
         signer.getSignerAddress(),
       );
-
-      const newOwnerSigner = await SvmSigner.connectWithSigner(
-        [TEST_SVM_CHAIN_METADATA.rpcUrl],
-        TEST_PRIVATE_KEY_2,
-      );
-
-      const current = await writer.read(programId);
-      const updateTxs = await writer.update({
-        ...current,
-        config: makeMailboxConfig({
-          owner: newOwnerSigner.getSignerAddress(),
-        }),
-        deployed: deployed.deployed,
-      });
-      await executeUpdateTxs(updateTxs);
-
-      // Mailbox-level ownership and BPF upgrade authority both moved.
-      const after = await writer.read(programId);
-      expect(after.config.owner).to.equal(newOwnerSigner.getSignerAddress());
-      expect(await getProgramUpgradeAuthority(rpc, programId)).to.equal(
-        newOwnerSigner.getSignerAddress(),
-      );
-    });
-
-    it('should renounce BPF upgrade authority when mailbox owner is renounced', async () => {
-      const writer = new SvmMailboxWriter(
-        {
-          program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
-          domainId: TEST_SVM_CHAIN_METADATA.domainId,
-        },
-        rpc,
-        signer,
-      );
-      const [deployed] = await writer.create({
-        artifactState: ArtifactState.NEW,
-        config: makeMailboxConfig(),
-      });
-      const programId = address(deployed.deployed.address);
-
-      const current = await writer.read(programId);
-      const renounceTxs = await writer.update({
-        ...current,
-        config: makeMailboxConfig({ owner: ZERO_ADDRESS_HEX_32 }),
-        deployed: deployed.deployed,
-      });
-      await executeUpdateTxs(renounceTxs);
-
-      const after = await writer.read(programId);
-      expect(after.config.owner).to.equal(ZERO_ADDRESS_HEX_32);
-      expect(await getProgramUpgradeAuthority(rpc, programId)).to.be.null;
     });
 
     it('should renounce ownership via update', async () => {
@@ -328,6 +261,9 @@ describe('SVM Mailbox E2E Tests', function () {
 
       // Renounce from throwaway.
       const afterTransfer = await mailboxWriter.read(mailboxAddress);
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
+        throwawayOwner.getSignerAddress(),
+      );
       const renounceTxs = await mailboxWriter.update({
         ...afterTransfer,
         config: makeMailboxConfig({
@@ -341,6 +277,7 @@ describe('SVM Mailbox E2E Tests', function () {
 
       const renounced = await mailboxWriter.read(mailboxAddress);
       expect(renounced.config.owner).to.equal(ZERO_ADDRESS_HEX_32);
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.be.null;
     });
   });
 
