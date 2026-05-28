@@ -161,11 +161,13 @@ export async function estimateTransactionFeeSolanaWeb3({
   assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
   const gasUnits = BigInt(value.unitsConsumed || 0);
   const recentFees = await connection.getRecentPrioritizationFees();
-  const gasPrice = BigInt(recentFees[0].prioritizationFee);
+  // prioritizationFee is in micro-lamports per compute unit; divide by 1e6 to get lamports
+  const microLamportsPerCu = BigInt(recentFees[0]?.prioritizationFee ?? 0);
+  const fee = (gasUnits * microLamportsPerCu) / 1_000_000n;
   return {
     gasUnits,
-    gasPrice,
-    fee: gasUnits * gasPrice,
+    gasPrice: microLamportsPerCu,
+    fee,
   };
 }
 
