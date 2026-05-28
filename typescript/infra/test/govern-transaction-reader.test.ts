@@ -7,7 +7,8 @@ import {
   Ownable__factory,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { TokenStandard } from '@hyperlane-xyz/sdk';
+import { TokenStandard, interchainAccountFactories } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { GovernTransactionReader } from '../src/tx/govern-transaction-reader.js';
@@ -15,6 +16,7 @@ import { createMultisendDecoder } from '../src/tx/governance/decoders/index.js';
 import type { GovernanceDecoder } from '../src/tx/governance/types.js';
 
 const ETHEREUM = 'ethereum';
+const POLYGON = 'polygon';
 const POLYGON_DOMAIN = 137;
 
 const ADDRESSES = {
@@ -25,6 +27,7 @@ const ADDRESSES = {
   mailbox: '0x5555555555555555555555555555555555555555',
   proxyAdmin: '0x6666666666666666666666666666666666666666',
   icaRouter: '0x7777777777777777777777777777777777777777',
+  polygonIcaRouter: '0x7777777777777777777777777777777777777778',
   timelock: '0x8888888888888888888888888888888888888888',
   abacusWorksSafe: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
 };
@@ -58,6 +61,11 @@ function createReader(decoders?: GovernanceDecoder<unknown>[]) {
       [ETHEREUM]: {
         interchainAccountRouter: ADDRESSES.icaRouter,
         legacyInterchainAccountRouter: ADDRESSES.icaRouter,
+        mailbox: ADDRESSES.mailbox,
+        proxyAdmin: ADDRESSES.proxyAdmin,
+      },
+      [POLYGON]: {
+        interchainAccountRouter: ADDRESSES.polygonIcaRouter,
         mailbox: ADDRESSES.mailbox,
         proxyAdmin: ADDRESSES.proxyAdmin,
       },
@@ -174,6 +182,66 @@ describe('GovernTransactionReader', () => {
     expect({ knownFallback, scalarDestinationGas }).to.deep.equal(golden);
   });
 
+  it('keeps full live Safe parser golden snapshots in fixtures', () => {
+    const snapshots = readYaml<{
+      snapshots: Array<{
+        governanceType: string;
+        result: { multisends: unknown[] };
+      }>;
+    }>(
+      new URL(
+        './fixtures/govern-transaction-reader/live-safe-golden-snapshots.yaml',
+        import.meta.url,
+      ).pathname,
+    );
+
+    expect(
+      snapshots.snapshots.map((snapshot) => snapshot.governanceType),
+    ).to.deep.equal(['abacusWorks', 'warpFees']);
+    expect(snapshots.snapshots[0].result.multisends).to.have.length.greaterThan(
+      1,
+    );
+    expect(snapshots.snapshots[1].result.multisends).to.have.length.greaterThan(
+      1,
+    );
+  });
+
+  it('does not misclassify selector-known calls to ProxyAdmin as proxy admin transactions', async () => {
+    const reader = createReader();
+    const routingHookInterface = DomainRoutingHook__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.proxyAdmin,
+      data: routingHookInterface.encodeFunctionData('setHook(uint32,address)', [
+        POLYGON_DOMAIN,
+        ADDRESSES.hookTarget,
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.to).to.match(/^DomainRoutingHook/);
+    expect(result.signature).to.equal('setHook(uint32,address)');
+  });
+
+  it('falls back when a warp fee recipient config is unreadable', async () => {
+    const reader = createReader();
+    registerWarpRoute(reader);
+    const movableRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.warpRoute,
+      data: movableRouterInterface.encodeFunctionData('setFeeRecipient', [
+        ADDRESSES.hookTarget,
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.insight).to.equal(
+      `Set fee recipient to ${ADDRESSES.hookTarget}`,
+    );
+  });
+
   it('records recoverable nested multisend decode failures as warnings', async () => {
     const reader = createReader();
     registerWarpRoute(reader);
@@ -275,6 +343,43 @@ describe('GovernTransactionReader', () => {
 
     expect(result.innerTxs).to.have.lengthOf(1);
     expect(result.innerTxs[0].signature).to.equal('transferOwnership(address)');
+  });
+
+  it('decodes nested ICA calls', async () => {
+    const reader = createReader();
+    const icaInterface =
+      interchainAccountFactories.interchainAccountRouter.interface;
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.icaRouter,
+      data: icaInterface.encodeFunctionData(
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])',
+        [
+          POLYGON_DOMAIN,
+          addressToBytes32(ADDRESSES.polygonIcaRouter),
+          ethers.constants.HashZero,
+          [
+            [
+              addressToBytes32(ADDRESSES.hook),
+              0,
+              ownableInterface.encodeFunctionData(
+                'transferOwnership(address)',
+                [ADDRESSES.hookTarget],
+              ),
+            ],
+          ],
+        ],
+      ),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.signature).to.equal(
+      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])',
+    );
+    expect(result.args.calls[0].signature).to.equal(
+      'transferOwnership(address)',
+    );
   });
 
   it('does not swallow non-decode programmer errors in nested multisends', async () => {

@@ -1,0 +1,1901 @@
+anchors:
+  calldataSourceBase: https://safe-transaction-mainnet.safe.global/api/v1/multisig-transactions
+  capturedAt: 2026-05-28
+  transactions:
+    - calldataLength: 50634
+      calldataSha256Parts:
+        - 294d3d22a1820768
+        - 4125a1c6d2e9be16
+        - a24bf90a3467e715
+        - fde36942804cc1ab
+      chain: ethereum
+      governanceType: abacusWorks
+      nonce: 85
+      safe: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      safeTxHashParts:
+        - '0xdf9aab7a1bed3574'
+        - 6cbf08b64d457f64
+        - 779f250996e04d0a
+        - fcdaa5efb9d5bd1f
+      to: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
+      value: '0'
+    - calldataLength: 12618
+      calldataSha256Parts:
+        - 311de43c700ae7c5
+        - 9f6cf8e857869337
+        - a066e2a62d4680a1
+        - fad5b26b291d2930
+      chain: ethereum
+      governanceType: warpFees
+      nonce: 8
+      safe: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+      safeTxHashParts:
+        - '0x599e6e3388ef2456'
+        - 59c55b2942b60867
+        - 713d20eb4a4b88b0
+        - bb7006cdb0b42a02
+      to: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
+      value: '0'
+capturedAt: 2026-05-28
+snapshots:
+  - governanceType: abacusWorks
+    outputKey:
+      stringParts:
+        - ethereum-85-
+        - hexParts:
+            - 0x
+            - 6cbf08b64d457f64
+            - 779f250996e04d0a
+            - df9aab7a1bed3574
+            - fcdaa5efb9d5bd1f
+    result:
+      chain: ethereum
+      multisends:
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: arbitrum
+                  insight: Map Hyperlane domain 137 (polygon) to LayerZero EID 30109
+                  signature: addDomain(uint32,uint32)
+                  to: USDT (Tether USD, EvmHypCollateral,
+                    0xe4c1a1e54c232454311cf68610c3885fdd991c0e)
+                  value: 0.0 ETH
+              destination:
+                chain: arbitrum
+                domain: 42161
+              destinationIca:
+                address: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - c32c3965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000f90a3d40
+                    - 0x
+                    - 6c6f8321fe118861
+                    - a357f4d7107760d7
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000049483098176017 ETH
+          index: 0
+          operation: Call
+          value: 0.000049483098176017 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight: Map Hyperlane domain 137 (polygon) to LayerZero EID 30109
+            signature: addDomain(uint32,uint32)
+            to: USDT (Tether USD, EvmHypCollateral,
+              0x7bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6)
+            value: 0.0 ETH
+          index: 1
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: plasma
+                  insight: Map Hyperlane domain 137 (polygon) to LayerZero EID 30109
+                  signature: addDomain(uint32,uint32)
+                  to: USDT (Tether USD, EvmHypCollateral,
+                    0x93bffa2231fba5029997603fb68d9ac08024baa2)
+                  value: 0.0 XPL
+              destination:
+                chain: plasma
+                domain: 9745
+              destinationIca:
+                address: '0x5f132a9a16F8e4AE1E2ec2F2bcEdf074d1496c3f'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - c32c3965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 000000009fe454aa
+                    - 0x
+                    - 2b01fc7a2a777ae5
+                    - 61bc58ce560cd5a9
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000109962439950178 ETH
+          index: 2
+          operation: Call
+          value: 0.000109962439950178 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: citrea
+                  insight:
+                    stringParts:
+                      - 'Add destination config: domain 137 (polygon),
+                        depositAddress
+                        0x5B1527569edCEFC2f178b995DC5e83ed5b225Ee3, recipient '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                      - ', feeBps 0'
+                  signature: addDestinationConfig(uint32,address,bytes32,uint256)
+                  to: ctUSD (Citrea USD, EvmHypCollateral,
+                    0x5ef92fe56db2d7c6934fd160a88099ff91f93907)
+                  value: 0.0 CBTC
+              destination:
+                chain: citrea
+                domain: 4114
+              destinationIca:
+                address: '0x682bc0Aca87491ECB3683911996F1d573F989141'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - c32c3965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000033aa12b4
+                    - 0x
+                    - 2ec7d2ce02129dd4
+                    - e8e79ca551ca9d1f
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000109962445913312 ETH
+          index: 3
+          operation: Call
+          value: 0.000109962445913312 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set ISM for origin 137 (polygon) to
+                    0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f
+                  signature: set(uint32,address)
+                  to: DomainRoutingIsm (arbitrum 0x758EA1Cd3Fad7FcA8f1d63da1AA3dB95bb12a69B)
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 137 (polygon) →
+                    0xA64D1b998E2774cf31Db55082F1a6D92B3F064Ae'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (arbitrum 0xA5bD573fC00A2683F108b8F04220ca530321436c)
+                - chain: arbitrum
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 137 (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: USD₮0 (USD₮0, EvmHypCrossCollateralRouter,
+                    0x75a9297db5f0349fd1d6f4030953fe17175e06d4)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: USD₮0 (USD₮0, EvmHypCrossCollateralRouter,
+                    0x75a9297db5f0349fd1d6f4030953fe17175e06d4)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 137
+                    (polygon) to 68000, domain 4114 (citrea) to 68000, domain
+                    8453 (base) to 68000, domain 1399811149 (solanamainnet) to
+                    68000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: USD₮0 (USD₮0, EvmHypCrossCollateralRouter,
+                    0x75a9297db5f0349fd1d6f4030953fe17175e06d4)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight: Set bridge for origin domain 137 to
+                    0xE4c1A1E54C232454311cF68610c3885FdD991c0E
+                  signature: addBridge(uint32,address)
+                  to: USD₮0 (USD₮0, EvmHypCrossCollateralRouter,
+                    0x75a9297db5f0349fd1d6f4030953fe17175e06d4)
+                  value: 0.0 ETH
+              destination:
+                chain: arbitrum
+                domain: 42161
+              destinationIca:
+                address: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '418000'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000006'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 60d03965ac3d2956
+                    - 6a9cd7c6c5b6
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000f90a3d40
+                    - 0x
+                    - 6c6f8321fe118861
+                    - a357f4d7107760d7
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000098627143057267 ETH
+          index: 4
+          operation: Call
+          value: 0.000098627143057267 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set ISM for origin 137 (polygon) to
+                    0x31169ee5A8C0D680de74461d7B5394fFc7C3576B
+                  signature: set(uint32,address)
+                  to: DomainRoutingIsm (base 0x7a255888206C6f5E38f0f42236A19E95E4284460)
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 42161 (arbitrum) →
+                    0x43514c193405e4e09F275A9E10895D1469cEbf6c, destination 137
+                    (polygon) → 0x93d30b702d0B222cb2263DAf91EE849879ef1F9d'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (base 0xa17f241a706e4a28f87136FCF999FAdc4b7c7429)
+                - chain: base
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 137 (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+                    0x7abbb4ea8a5895127500cf0c15830c9eb9f61f96)
+                  value: 0.0 ETH
+                - chain: base
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+                    0x7abbb4ea8a5895127500cf0c15830c9eb9f61f96)
+                  value: 0.0 ETH
+                - chain: base
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 137
+                    (polygon) to 68000, domain 4114 (citrea) to 68000, domain
+                    42161 (arbitrum) to 68000, domain 1399811149 (solanamainnet)
+                    to 68000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+                    0x7abbb4ea8a5895127500cf0c15830c9eb9f61f96)
+                  value: 0.0 ETH
+              destination:
+                chain: base
+                domain: 8453
+              destinationIca:
+                address: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '357500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000005'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - 747c3965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000044647cd9
+                    - 0x
+                    - 83e80558793780f9
+                    - a0c7c2aa9f384d07
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000049332408096081 ETH
+          index: 5
+          operation: Call
+          value: 0.000049332408096081 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 42161 (arbitrum) →
+                    0x242bDb9605cC5b5C5f4613AD226cc465b5940469, destination 8453
+                    (base) → 0x543a5B64A61194cCc88c73095341681bEa9C515E,
+                    destination 1 (ethereum) →
+                    0x999Cc3aa2b2265B0485A3A01ED86862c6C8adcAD'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (polygon 0xc300B6CF4a5B54e24f5628dF0aD2b828a21D1CBc)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 1 (ethereum) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000eb1b48b2
+                          - 0x
+                          - 1b6bffdf41163ae3
+                          - 38e15a62e1858a60
+                      - ', domain 8453 (base) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 000000007abbb4ea
+                          - 0x
+                          - 15830c9eb9f61f96
+                          - 8a5895127500cf0c
+                      - ', domain 42161 (arbitrum) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000075a9297d
+                          - 0953fe17175e06d4
+                          - 0x
+                          - b5f0349fd1d6f403
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: Warp Route (unregistered) (polygon
+                    0x766A80a7a6BBA555731DC1726DB5BFa030631270)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: Warp Route (unregistered) (polygon
+                    0x766A80a7a6BBA555731DC1726DB5BFa030631270)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 4114
+                    (citrea) to 68000, domain 8453 (base) to 68000, domain 42161
+                    (arbitrum) to 68000, domain 1399811149 (solanamainnet) to
+                    68000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: Warp Route (unregistered) (polygon
+                    0x766A80a7a6BBA555731DC1726DB5BFa030631270)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 1 (ethereum) to
+                    0x361A7DA84A1f4A0c565772C45Ed838C6a0fAea94
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x766A80a7a6BBA555731DC1726DB5BFa030631270)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 42161 (arbitrum) to
+                    0x361A7DA84A1f4A0c565772C45Ed838C6a0fAea94
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x766A80a7a6BBA555731DC1726DB5BFa030631270)
+              destination:
+                chain: polygon
+                domain: 137
+              destinationIca:
+                address: '0x8708C96f9879805c2E54818865cbFF27fb64000D'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '418000'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000006'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 60d03965ac3d2956
+                    - 6a9cd7c6c5b6
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000d8b641fe
+                    - 0x
+                    - 44ccea426dff04a3
+                    - b587844854aec975
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000054792857034303 ETH
+          index: 6
+          operation: Call
+          value: 0.000054792857034303 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            decoderMatch:
+              confidence: selector-only
+              insight: unverified ABI match
+            insight: Set ISM for origin 137 (polygon) to
+              0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07
+            signature: set(uint32,address)
+            to: DomainRoutingIsm (ethereum 0x392723aB710CFF55043Ea82359d15347a90FCE84)
+          index: 7
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            decoderMatch:
+              confidence: selector-only
+              insight: unverified ABI match
+            insight: 'Set hooks: destination 137 (polygon) →
+              0x811b2Fef06817b66b6CE7882F4906c38CBEeCeD0'
+            signature: setHooks((uint32,address)[])
+            to: DomainRoutingHook (ethereum 0x0383358bc735fFA9ba91592305932f69CA01927b)
+          index: 8
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              stringParts:
+                - 'Enroll remote routers for domain 137 (polygon) to '
+                - hexParts:
+                    - '0000000000000000'
+                    - 00000000766a80a7
+                    - 0x
+                    - 6db5bfa030631270
+                    - a6bba555731dc172
+            signature: enrollRemoteRouters(uint32[],bytes32[])
+            to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+              0xeb1b48b238e15a62e1858a601b6bffdf41163ae3)
+            value: 0.0 ETH
+          index: 9
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              stringParts:
+                - 'Enroll cross-collateral routers for domain 137 (polygon) to '
+                - hexParts:
+                    - '0000000000000000'
+                    - 0000000028a96f99
+                    - 0x
+                    - 28db06317356caac
+                    - d5641c4fde4424c7
+            signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+            to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+              0xeb1b48b238e15a62e1858a601b6bffdf41163ae3)
+            value: 0.0 ETH
+          index: 10
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              Set destination gas for domain 137 (polygon) to 68000, domain 4114
+              (citrea) to 68000, domain 8453 (base) to 68000, domain 42161
+              (arbitrum) to 68000, domain 1399811149 (solanamainnet) to 68000
+            signature: setDestinationGas((uint32,uint256)[])
+            to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+              0xeb1b48b238e15a62e1858a601b6bffdf41163ae3)
+            value: 0.0 ETH
+          index: 11
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight: Set bridge for origin domain 137 to
+              0x7Bb4fe8f406fB7B22487Fa2e3BCbCb6A38cF29E6
+            signature: addBridge(uint32,address)
+            to: USDT (Tether USD, EvmHypCrossCollateralRouter,
+              0xeb1b48b238e15a62e1858a601b6bffdf41163ae3)
+            value: 0.0 ETH
+          index: 12
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: citrea
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 137 (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: ctUSD (Citrea USD, EvmHypCrossCollateralRouter,
+                    0x2bef59e84615371304bd731601f6344f5f304504)
+                  value: 0.0 CBTC
+                - chain: citrea
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: ctUSD (Citrea USD, EvmHypCrossCollateralRouter,
+                    0x2bef59e84615371304bd731601f6344f5f304504)
+                  value: 0.0 CBTC
+                - chain: citrea
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 137
+                    (polygon) to 68000, domain 8453 (base) to 68000, domain
+                    42161 (arbitrum) to 68000, domain 1399811149 (solanamainnet)
+                    to 300000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: ctUSD (Citrea USD, EvmHypCrossCollateralRouter,
+                    0x2bef59e84615371304bd731601f6344f5f304504)
+                  value: 0.0 CBTC
+                - chain: citrea
+                  insight: Set bridge for origin domain 137 to
+                    0x5eF92fe56Db2d7c6934fD160a88099fF91F93907
+                  signature: addBridge(uint32,address)
+                  to: ctUSD (Citrea USD, EvmHypCrossCollateralRouter,
+                    0x2bef59e84615371304bd731601f6344f5f304504)
+                  value: 0.0 CBTC
+              destination:
+                chain: citrea
+                domain: 4114
+              destinationIca:
+                address: '0x682bc0Aca87491ECB3683911996F1d573F989141'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '297000'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000004'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - 88283965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000033aa12b4
+                    - 0x
+                    - 2ec7d2ce02129dd4
+                    - e8e79ca551ca9d1f
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000175487842378907 ETH
+          index: 13
+          operation: Call
+          value: 0.000175487842378907 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set ISM for origin 137 (polygon) to
+                    0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f
+                  signature: set(uint32,address)
+                  to: DomainRoutingIsm (arbitrum 0x42adcd75855e689c3E26d3C8963C1b988AdE8d82)
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 137 (polygon) →
+                    0x5643B36BD9E56cAD9379631455513f8FAfCc23A8'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (arbitrum 0xcE3471693D16D2D17Ce94A43B83071f0349e7f35)
+                - chain: arbitrum
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 137 (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0xebc079d41c41a0ef7e54aa7af867df9a621c9be0)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0xebc079d41c41a0ef7e54aa7af867df9a621c9be0)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 137
+                    (polygon) to 68000, domain 4114 (citrea) to 68000, domain
+                    8453 (base) to 68000, domain 1399811149 (solanamainnet) to
+                    300000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0xebc079d41c41a0ef7e54aa7af867df9a621c9be0)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight: Set bridge for origin domain 137 to
+                    0x4c19c653a8419A475d9B6735511cB81C15b8d9b2
+                  signature: addBridge(uint32,address)
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0xebc079d41c41a0ef7e54aa7af867df9a621c9be0)
+                  value: 0.0 ETH
+                - chain: arbitrum
+                  insight: Set bridge for origin domain 137 to
+                    0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f
+                  signature: addBridge(uint32,address)
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0xebc079d41c41a0ef7e54aa7af867df9a621c9be0)
+                  value: 0.0 ETH
+              destination:
+                chain: arbitrum
+                domain: 42161
+              destinationIca:
+                address: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '478500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000007'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 4d243965ac3d2956
+                    - 6a9cd7c6c5b6
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000f90a3d40
+                    - 0x
+                    - 6c6f8321fe118861
+                    - a357f4d7107760d7
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000108455952033517 ETH
+          index: 14
+          operation: Call
+          value: 0.000108455952033517 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set ISM for origin 137 (polygon) to
+                    0x31169ee5A8C0D680de74461d7B5394fFc7C3576B
+                  signature: set(uint32,address)
+                  to: DomainRoutingIsm (base 0xEC4D8e808163c80C4d5913fe3e351cF5674eBDA6)
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 137 (polygon) →
+                    0x5efb60D17E5C77C23297a3E0a0884FE6bC20FFBd'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (base 0xD151d5CB8F5FDBb34D6f03C358a3804f6c746171)
+                - chain: base
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 137 (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 0000000028a96f99
+                          - 0x
+                          - 28db06317356caac
+                          - d5641c4fde4424c7
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0x253821543c24623ecd3cebced704359af16cf38f)
+                  value: 0.0 ETH
+                - chain: base
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0x253821543c24623ecd3cebced704359af16cf38f)
+                  value: 0.0 ETH
+                - chain: base
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 137
+                    (polygon) to 68000, domain 4114 (citrea) to 68000, domain
+                    42161 (arbitrum) to 68000, domain 1399811149 (solanamainnet)
+                    to 300000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0x253821543c24623ecd3cebced704359af16cf38f)
+                  value: 0.0 ETH
+                - chain: base
+                  insight: Set bridge for origin domain 137 to
+                    0x33e94B6D2ae697c16a750dB7c3d9443622C4405a
+                  signature: addBridge(uint32,address)
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0x253821543c24623ecd3cebced704359af16cf38f)
+                  value: 0.0 ETH
+                - chain: base
+                  insight: Set bridge for origin domain 137 to
+                    0x31169ee5A8C0D680de74461d7B5394fFc7C3576B
+                  signature: addBridge(uint32,address)
+                  to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+                    0x253821543c24623ecd3cebced704359af16cf38f)
+                  value: 0.0 ETH
+              destination:
+                chain: base
+                domain: 8453
+              destinationIca:
+                address: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '478500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000007'
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 4d243965ac3d2956
+                    - 6a9cd7c6c5b6
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000044647cd9
+                    - 0x
+                    - 83e80558793780f9
+                    - a0c7c2aa9f384d07
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000060253307019081 ETH
+          index: 15
+          operation: Call
+          value: 0.000060253307019081 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: 'Set hooks: destination 42161 (arbitrum) →
+                    0x02b12709FC559B236338e3BB18F9C4f44089A87c, destination 8453
+                    (base) → 0x130f75f13e66AA5c536E685A8Aaf23aae856A8FE,
+                    destination 1 (ethereum) →
+                    0xf8302DDcECbC2a2d5e58Cb4cFC1335c1a92B4514'
+                  signature: setHooks((uint32,address)[])
+                  to: DomainRoutingHook (polygon 0xCee5DaBf1D8FD27aB306B51c8A9124a833A26840)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Enroll remote routers for domain 1 (ethereum) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000a9c9a8fb
+                          - 0x
+                          - 36ce3e5ffbac3757
+                          - da7141262723541f
+                      - ', domain 4114 (citrea) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 000000002bef59e8
+                          - 01f6344f5f304504
+                          - 0x
+                          - 4615371304bd7316
+                      - ', domain 8453 (base) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - '0000000025382154'
+                          - 0x
+                          - 3c24623ecd3cebce
+                          - d704359af16cf38f
+                      - ', domain 42161 (arbitrum) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000ebc079d4
+                          - 0x
+                          - 1c41a0ef7e54aa7a
+                          - f867df9a621c9be0
+                      - ', domain 1399811149 (solanamainnet) to '
+                      - hexParts:
+                          - 0x
+                          - 14241cd27a9b788b
+                          - 2fb738d13de87ee3
+                          - 9cb9b6629ea6566c
+                          - f5324d5c5be7eb84
+                  signature: enrollRemoteRouters(uint32[],bytes32[])
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Enroll cross-collateral routers for domain 137
+                        (polygon) to '
+                      - hexParts:
+                          - '0000000000000000'
+                          - 00000000766a80a7
+                          - 0x
+                          - 6db5bfa030631270
+                          - a6bba555731dc172
+                  signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    Set destination gas for domain 1 (ethereum) to 68000, domain 4114
+                    (citrea) to 68000, domain 8453 (base) to 68000, domain 42161
+                    (arbitrum) to 68000, domain 1399811149 (solanamainnet) to
+                    300000
+                  signature: setDestinationGas((uint32,uint256)[])
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 1 (ethereum) to
+                    0x33e94B6D2ae697c16a750dB7c3d9443622C4405a
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 1 (ethereum) to
+                    0x07d89DE0F7E18c9bcAAE81F44aee9CA02EBeE872
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 4114 (citrea) to
+                    0x9E70c8eF4B62fba0da0Fb9430e82b7ca96a262E2
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 8453 (base) to
+                    0x33e94B6D2ae697c16a750dB7c3d9443622C4405a
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 8453 (base) to
+                    0x07d89DE0F7E18c9bcAAE81F44aee9CA02EBeE872
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 42161 (arbitrum) to
+                    0x33e94B6D2ae697c16a750dB7c3d9443622C4405a
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+                - chain: polygon
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight: Set bridge for origin domain 42161 (arbitrum) to
+                    0x07d89DE0F7E18c9bcAAE81F44aee9CA02EBeE872
+                  signature: addBridge(uint32,address)
+                  to: Warp Route (unregistered) (polygon
+                    0x28a96f9928dB06317356caACd5641C4Fde4424C7)
+              destination:
+                chain: polygon
+                domain: 137
+              destinationIca:
+                address: '0x8708C96f9879805c2E54818865cbFF27fb64000D'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '720500'
+                insight:
+                  ✅ refund to 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6 (ABACUSWORKS
+                  SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 000000000000000a
+                    - '0001000000000000'
+                    - 0x
+                    - 41e452e0ea896a08
+                    - 6a9cd7c6c5b6
+                    - fe743965ac3d2956
+                refundAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000d8b641fe
+                    - 0x
+                    - 44ccea426dff04a3
+                    - b587844854aec975
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000082095104081063 ETH
+          index: 16
+          operation: Call
+          value: 0.000082095104081063 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            decoderMatch:
+              confidence: selector-only
+              insight: unverified ABI match
+            insight: Set ISM for origin 137 (polygon) to
+              0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07
+            signature: set(uint32,address)
+            to: DomainRoutingIsm (ethereum 0x66139Efa982848470A500360496834B74250D564)
+          index: 17
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            decoderMatch:
+              confidence: selector-only
+              insight: unverified ABI match
+            insight: 'Set hooks: destination 137 (polygon) →
+              0x0639A68C74a6dc8f07e66946BD8453C7DBb184CE'
+            signature: setHooks((uint32,address)[])
+            to: DomainRoutingHook (ethereum 0x9fc73F6e4753129EEe52F7893F5044DF30220d5c)
+          index: 18
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              stringParts:
+                - 'Enroll remote routers for domain 137 (polygon) to '
+                - hexParts:
+                    - '0000000000000000'
+                    - 0000000028a96f99
+                    - 0x
+                    - 28db06317356caac
+                    - d5641c4fde4424c7
+            signature: enrollRemoteRouters(uint32[],bytes32[])
+            to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+              0xa9c9a8fb36ce3e5ffbac3757da7141262723541f)
+            value: 0.0 ETH
+          index: 19
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              stringParts:
+                - 'Enroll cross-collateral routers for domain 137 (polygon) to '
+                - hexParts:
+                    - '0000000000000000'
+                    - 00000000766a80a7
+                    - 0x
+                    - 6db5bfa030631270
+                    - a6bba555731dc172
+            signature: enrollCrossCollateralRouters(uint32[],bytes32[])
+            to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+              0xa9c9a8fb36ce3e5ffbac3757da7141262723541f)
+            value: 0.0 ETH
+          index: 20
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight:
+              Set destination gas for domain 137 (polygon) to 68000, domain 4114
+              (citrea) to 68000, domain 8453 (base) to 68000, domain 42161
+              (arbitrum) to 68000, domain 1399811149 (solanamainnet) to 300000
+            signature: setDestinationGas((uint32,uint256)[])
+            to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+              0xa9c9a8fb36ce3e5ffbac3757da7141262723541f)
+            value: 0.0 ETH
+          index: 21
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight: Set bridge for origin domain 137 to
+              0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23
+            signature: addBridge(uint32,address)
+            to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+              0xa9c9a8fb36ce3e5ffbac3757da7141262723541f)
+            value: 0.0 ETH
+          index: 22
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            chain: ethereum
+            insight: Set bridge for origin domain 137 to
+              0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07
+            signature: addBridge(uint32,address)
+            to: USDC (USD Coin, EvmHypCrossCollateralRouter,
+              0xa9c9a8fb36ce3e5ffbac3757da7141262723541f)
+            value: 0.0 ETH
+          index: 23
+          operation: Call
+          value: 0.0 ETH
+  - governanceType: warpFees
+    outputKey:
+      stringParts:
+        - ethereum-8-
+        - hexParts:
+            - 0x
+            - 599e6e3388ef2456
+            - 59c55b2942b60867
+            - 713d20eb4a4b88b0
+            - bb7006cdb0b42a02
+    result:
+      chain: ethereum
+      multisends:
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0x7027332b70f9DA1384347f30Be699E2E1A1B51Bc'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (arbitrum
+                    0x6b39a2039532Ee1F3B5081E87317C4AFeb3Db175)
+              destination:
+                chain: arbitrum
+                domain: 42161
+              destinationIca:
+                address: '0x6f0Cfe5fD2E4188AD68b7f8ceB135DD68DF629C7'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000f90a3d40
+                    - 0x
+                    - 6c6f8321fe118861
+                    - a357f4d7107760d7
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000049483098176017 ETH
+          index: 0
+          operation: Call
+          value: 0.000049483098176017 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0xFf726CF9F58BaFD8a20CE4312Cf277A5CA2bdd77'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (base 0x9ef7c570d0FDde2ED73D0CF6A9B250f93f438Fa6)
+              destination:
+                chain: base
+                domain: 8453
+              destinationIca:
+                address: '0x957019c916D05dDF70816Cad43ebF5D417bE81C8'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000044647cd9
+                    - 0x
+                    - 83e80558793780f9
+                    - a0c7c2aa9f384d07
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000027490610250081 ETH
+          index: 1
+          operation: Call
+          value: 0.000027490610250081 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: ethereum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0xa1c3CDdf3f98d0CE1612d87046CD8E240EF105e1'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (ethereum
+                    0x91b1F9DE8f67063FB429ea2c1B4ea2A4aC58eB1B)
+              destination:
+                chain: ethereum
+                domain: 1
+              destinationIca:
+                address: '0x89d295dBB62aAb434BEd1D372b04c468e828eC9b'
+                insight:
+                  ⚠️ could not verify ICA on ethereum (Origin router address is zero for
+                  ethereum on ethereum)
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000c00b94c1
+                    - 0373c33e9b72a4a9
+                    - 0x
+                    - 15742f711a6f9ea9
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.0 ETH
+          index: 2
+          operation: Call
+          value: 0.0 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: citrea
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0x4886c82dABE61a4BeC31D1225A417451c33858BD'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (citrea
+                    0x58E16564F60A7C16669B076d239A23d8C5164918)
+              destination:
+                chain: citrea
+                domain: 4114
+              destinationIca:
+                address: '0x656ced4a881e4D618B635984Cf0D1D1e051E8513'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000033aa12b4
+                    - 0x
+                    - 2ec7d2ce02129dd4
+                    - e8e79ca551ca9d1f
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000109962445913312 ETH
+          index: 3
+          operation: Call
+          value: 0.000109962445913312 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: arbitrum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0xcd4Dd5B67664403A246C492dbf731BE59025F758'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (arbitrum
+                    0x08A6b269cEE8CE23950279bC0aFfBCEf93De6DC8)
+              destination:
+                chain: arbitrum
+                domain: 42161
+              destinationIca:
+                address: '0x6f0Cfe5fD2E4188AD68b7f8ceB135DD68DF629C7'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000f90a3d40
+                    - 0x
+                    - 6c6f8321fe118861
+                    - a357f4d7107760d7
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000049483098176017 ETH
+          index: 4
+          operation: Call
+          value: 0.000049483098176017 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: base
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0x48d03AbAAC7204d21110FA12d46De552173E909b'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (base 0x57c14DaE50c8D32E5073EE0a76422E276Ae98b15)
+              destination:
+                chain: base
+                domain: 8453
+              destinationIca:
+                address: '0x957019c916D05dDF70816Cad43ebF5D417bE81C8'
+                insight: ✅ matches expected ICA
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 0000000044647cd9
+                    - 0x
+                    - 83e80558793780f9
+                    - a0c7c2aa9f384d07
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.000027490610250081 ETH
+          index: 5
+          operation: Call
+          value: 0.000027490610250081 ETH
+        - chain: ethereum
+          decoded:
+            args:
+              calls:
+                - chain: ethereum
+                  decoderMatch:
+                    confidence: selector-only
+                    insight: unverified ABI match
+                  insight:
+                    stringParts:
+                      - 'Set per-router fee contracts: domain 137 (polygon)
+                        router '
+                      - hexParts:
+                          - 0x
+                          - 362acc674eacaf47
+                          - 516856666e2c1465
+                          - 6e086cd647d6eb8b
+                          - fb8a6a58d3a75938
+                      - ' → fee 0xFbA148a382adb63Ed925F4a5D33CBE1d3636EAC3'
+                  signature: setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])
+                  to: CrossCollateralRoutingFee (ethereum
+                    0xb4fc789e9F3C251cFC12669772C229Ac4d9BC2fA)
+              destination:
+                chain: ethereum
+                domain: 1
+              destinationIca:
+                address: '0x89d295dBB62aAb434BEd1D372b04c468e828eC9b'
+                insight:
+                  ⚠️ could not verify ICA on ethereum (Origin router address is zero for
+                  ethereum on ethereum)
+              hookMetadata:
+                gasLimit: '115500'
+                insight: ✅ refund to 0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0 (WARPFEES SAFE)
+                msgValue: '0'
+                raw:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000001'
+                    - '0001000000000000'
+                    - 0x
+                    - a51c304c09b0
+                    - b00e65bd93d9f662
+                    - c32c8ff4c563f26d
+                refundAddress: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0'
+              ism:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - '0000000000000000'
+                    - 0x
+                insight: ✅ matches expected ISM
+              router:
+                address:
+                  hexParts:
+                    - '0000000000000000'
+                    - 00000000c00b94c1
+                    - 0373c33e9b72a4a9
+                    - 0x
+                    - 15742f711a6f9ea9
+                insight: ✅ matches expected router from artifacts
+            chain: ethereum
+            signature: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+            to: ICA Router (ethereum 0xC00b94c115742f711a6F9EA90373c33e9B72A4A9)
+            value: 0.0 ETH
+          index: 6
+          operation: Call
+          value: 0.0 ETH
