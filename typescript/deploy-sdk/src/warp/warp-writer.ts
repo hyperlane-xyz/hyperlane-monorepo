@@ -169,35 +169,47 @@ export class WarpTokenWriter
       }
     }
 
-    // Deploy Fee if configured as a NEW artifact
-    // No FeeReadContext needed on create - deploying from scratch
+    // Deploy warp WITHOUT fee — the fee is deployed and attached post-warp
+    // so that (a) the fee program can be initialized with the warp's
+    // settlement asset already known (e.g. SVM synthetic mints, which only
+    // exist post-deploy), and (b) the fee can be deployed with its real
+    // owner from the start rather than via a signer-as-initial-owner /
+    // TransferOwnership dance.
+    const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
+      artifactState: ArtifactState.NEW,
+      config: {
+        ...config,
+        interchainSecurityModule: onChainIsmArtifact,
+        hook: onChainHookArtifact,
+        fee: undefined,
+      },
+    };
+
+    const writer = this.artifactManager.createWriter(config.type, this.signer);
+    const [deployed, tokenReceipts] = await writer.create(rawArtifact);
+    allReceipts.push(...tokenReceipts);
+
+    // Deploy / resolve the fee now that the warp is on-chain and its
+    // settlement asset is known.
     let onChainFeeArtifact:
       | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
       | undefined;
-    const feeWriter = config.fee
-      ? createFeeWriter(this.chainMetadata, this.signer, {
-          knownRoutersPerDomain: {},
-        })
-      : null;
     if (config.fee) {
+      const feeWriter = createFeeWriter(this.chainMetadata, this.signer, {
+        knownRoutersPerDomain: buildFeeReadContextFromWarpArtifactConfig(
+          deployed.config,
+        ).knownRoutersPerDomain,
+      });
       if (!feeWriter) {
         rootLogger.warn(
           'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
         );
       } else if (isArtifactNew(config.fee)) {
-        const feeAsset = resolveFeeTokenFromWarpArtifactConfig(config);
-        // Deploy the fee with the signer as the initial owner — transfer to
-        // the configured owner is deferred to the post-warp-create
-        // `feeWriter.update` so per-asset setup (e.g. SVM beneficiary ATA
-        // creation) still runs under a signer that controls the program.
+        const feeAsset = resolveFeeTokenFromWarpArtifactConfig(deployed.config);
         const feeArtifactToCreate: ArtifactNew<FeeArtifactConfig> = {
           artifactState: ArtifactState.NEW,
-          config: {
-            ...withFeeAssetConfig(config.fee.config, feeAsset),
-            owner: this.signer.getSignerAddress(),
-          },
+          config: withFeeAssetConfig(config.fee.config, feeAsset),
         };
-
         const [deployedFee, feeReceipts] =
           await feeWriter.create(feeArtifactToCreate);
         allReceipts.push(...feeReceipts);
@@ -207,54 +219,22 @@ export class WarpTokenWriter
       }
     }
 
-    // Convert to raw artifact config (flatten nested artifacts)
-    const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
-      artifactState: ArtifactState.NEW,
-      config: {
-        ...config,
-        interchainSecurityModule: onChainIsmArtifact,
-        hook: onChainHookArtifact,
-        fee: onChainFeeArtifact,
-      },
-    };
-
-    // Delegate to protocol-specific writer
-    const writer = this.artifactManager.createWriter(config.type, this.signer);
-    const [deployed, tokenReceipts] = await writer.create(rawArtifact);
-    allReceipts.push(...tokenReceipts);
-
-    // Now that the warp is deployed, re-resolve its settlement asset (which
-    // may have only become derivable post-deploy, e.g. SVM synthetic mints)
-    // and call feeWriter.update so the fee program can finish any per-asset
-    // setup (e.g. beneficiary ATA creation) it couldn't do at fee.create time.
-    //
-    // TODO: this pattern assumes fee programs are mutable post-deploy (true
-    // on SVM via SetBeneficiary / TransferOwnership / etc.). Once EVM fee
-    // contracts pass through these cross-VM abstractions, the post-create
-    // update flow won't work for them — EVM fees are immutable, owner is
-    // constructor-set. The alternatives we considered (reorder warp→fee so
-    // the warp's settlement asset is known at fee.create time, or have the
-    // warp writer expose an attachFee method) each have their own cost.
-    // Revisit when wiring up the EVM fee writer.
-    if (
-      feeWriter &&
-      onChainFeeArtifact &&
-      isArtifactDeployed(onChainFeeArtifact) &&
-      config.fee &&
-      !isArtifactUnderived(config.fee)
-    ) {
-      const feeAsset = resolveFeeTokenFromWarpArtifactConfig(deployed.config);
-      // Use the user-provided fee config (with their intended owner) as the
-      // expected state — fee.create above was called with the signer as
-      // initial owner, so update will diff and emit a TransferOwnership tx
-      // to the configured owner alongside any per-asset setup (e.g. ATA).
-      const feeArtifactWithAsset: DeployedFeeArtifact = {
+    // Attach the fee to the warp via the regular update path. The warp diff
+    // emits the SetTokenFeeConfig tx (current=no-fee, expected=fee); the
+    // fee writer's read sees current=expected since we just deployed it,
+    // so no fee-program diff txs are emitted.
+    if (onChainFeeArtifact) {
+      const attachTxs = await this.update({
         artifactState: ArtifactState.DEPLOYED,
-        config: withFeeAssetConfig(config.fee.config, feeAsset),
-        deployed: onChainFeeArtifact.deployed,
-      };
-      const fixupTxs = await feeWriter.update(feeArtifactWithAsset);
-      for (const tx of fixupTxs) {
+        config: {
+          ...config,
+          interchainSecurityModule: onChainIsmArtifact,
+          hook: onChainHookArtifact,
+          fee: onChainFeeArtifact,
+        },
+        deployed: deployed.deployed,
+      });
+      for (const tx of attachTxs) {
         const receipt = await this.signer.sendAndConfirmTransaction(tx);
         allReceipts.push(receipt);
       }
