@@ -125,14 +125,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
-  isFeeTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean>;
-  readFeeTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
 }
 
 export interface DecodeContext {
