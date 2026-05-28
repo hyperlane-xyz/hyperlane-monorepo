@@ -16,7 +16,7 @@ use snarkvm::{
         ConfirmedTransaction,
     },
     prelude::{
-        cost_in_microcredits_v3, execution_cost_for_authorization, Authorization, CanaryV0,
+        execution_cost_for_authorization, minimum_cost_in_microcredits_v3, Authorization, CanaryV0,
         Identifier, MainnetV0, Network, ProgramID, TestnetV0, Value, VM,
     },
 };
@@ -206,7 +206,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut process_guard = vm_process.write();
         process_guard
             .add_program_with_edition(&program, latest_edition)
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
 
         Ok(())
     }
@@ -225,14 +225,14 @@ impl<C: AleoClient> AleoProvider<C> {
             .process()
             .read()
             .get_stack(program_id)
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
 
         let height = self.get_latest_height().await?;
         let consensus_version = N::CONSENSUS_VERSION(height).map_err(HyperlaneAleoError::from)?;
 
         // Get the finalize cost.
-        let finalize_cost =
-            cost_in_microcredits_v3(&stack, function_name).map_err(HyperlaneAleoError::from)?;
+        let finalize_cost = minimum_cost_in_microcredits_v3(&stack, function_name)
+            .map_err(HyperlaneAleoError::from)?;
         let execution_cost = execution_cost_for_authorization(
             &vm.process().read(),
             authorization,
@@ -319,7 +319,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 input.into_iter(),
                 &mut rng,
             )
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
@@ -466,7 +466,7 @@ impl<C: AleoClient> AleoProvider<C> {
                     .map_err(HyperlaneAleoError::from)?,
                 &mut rng,
             )
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
 
         // Either use the proving service (with local fallback) or generate the proof locally
         let transaction = match self.proving_service {
@@ -592,7 +592,7 @@ impl<C: AleoClient> AleoProvider<C> {
 
         let fee = confirmed_tx
             .fee_amount()
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::from(anyhow::Error::from(e)))?;
 
         // There is no concept of gas for Aleo, only the total credits that were spent
         // We mimic gas by setting the gas price to 1 and using the tokens spent as the gas_used
