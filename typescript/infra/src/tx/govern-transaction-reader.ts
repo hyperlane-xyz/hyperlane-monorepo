@@ -17,10 +17,7 @@ import {
   CrossCollateralRoutingFee__factory,
   DomainRoutingHook__factory,
   DomainRoutingIsm__factory,
-  ERC20__factory,
   HypXERC20Lockbox__factory,
-  IXERC20VS__factory,
-  IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
   TokenBridgeCctpV2__factory,
@@ -28,7 +25,6 @@ import {
   TokenBridgeOft__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
-  TimelockController__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -73,25 +69,28 @@ import {
   getGovernanceTimelocks,
   getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import {
-  icaOwnerChain,
-  timelocks as legacyTimelocks,
-} from '../../config/environments/mainnet3/owners.js';
+import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
 import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
-import { tokens } from '../config/warp.js';
 import { Owner, determineGovernanceType } from '../governance.js';
 import { GovernanceType } from '../governanceTypes.js';
 import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
+import { buildGovernanceDecoders } from './governance/decoders/index.js';
+import {
+  DiagnosticCollector,
+  GovernTransaction,
+  GovernanceDecodeDiagnostic,
+  GovernanceDecoder,
+  GovernanceDecoderRuntime,
+  GovernanceDecoderState,
+  XERC20Metadata,
+} from './governance/types.js';
 
-export interface GovernTransaction extends Record<string, any> {
-  chain: ChainName;
-  nestedTx?: GovernTransaction;
-}
+export type { GovernTransaction } from './governance/types.js';
 
 interface MultiSendTransaction {
   index: number;
@@ -140,13 +139,6 @@ type FeeRouteDetail = {
   address: string;
   bps: number;
   percent: string;
-};
-
-type XERC20Metadata = {
-  type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
-  symbol: string;
-  name: string;
-  decimals: number;
 };
 
 const ownableFunctionSelectors = [
@@ -255,64 +247,6 @@ function matchesFunctionSignature(
   }
 }
 
-type DiagnosticSeverity = 'fatal' | 'warning';
-
-export interface GovernanceDecodeDiagnostic {
-  severity: DiagnosticSeverity;
-  info: string;
-  [key: string]: unknown;
-}
-
-export class DiagnosticCollector {
-  private readonly diagnostics: GovernanceDecodeDiagnostic[] = [];
-
-  addFatal(diagnostic: Record<string, unknown> & { info: string }) {
-    this.add('fatal', diagnostic);
-  }
-
-  addWarning(diagnostic: Record<string, unknown> & { info: string }) {
-    this.add('warning', diagnostic);
-  }
-
-  merge(other: DiagnosticCollector) {
-    this.diagnostics.push(...other.all);
-  }
-
-  get all(): GovernanceDecodeDiagnostic[] {
-    return [...this.diagnostics];
-  }
-
-  get fatal(): GovernanceDecodeDiagnostic[] {
-    return this.diagnostics.filter(({ severity }) => severity === 'fatal');
-  }
-
-  get warnings(): GovernanceDecodeDiagnostic[] {
-    return this.diagnostics.filter(({ severity }) => severity === 'warning');
-  }
-
-  private add(
-    severity: DiagnosticSeverity,
-    diagnostic: Record<string, unknown> & { info: string },
-  ): void {
-    this.diagnostics.push({
-      severity,
-      ...diagnostic,
-    });
-  }
-}
-
-export interface DecodeContext {
-  chain: ChainName;
-  tx: AnnotatedEV5Transaction;
-}
-
-export interface GovernanceDecoder {
-  id: string;
-  priority: number;
-  match(context: DecodeContext): boolean | Promise<boolean>;
-  decode(context: DecodeContext): Promise<GovernTransaction>;
-}
-
 export class GovernTransactionReader {
   readonly diagnostics = new DiagnosticCollector();
 
@@ -329,7 +263,9 @@ export class GovernTransactionReader {
   readonly xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>> = {};
 
   private rawWarpRouteConfigMap: Record<string, WarpCoreConfig>;
-  private readonly decoders: GovernanceDecoder[];
+  private readonly decoders: GovernanceDecoder<unknown>[];
+  private readonly decoderRuntime: GovernanceDecoderRuntime;
+  private readonly decoderState: GovernanceDecoderState;
 
   get errors(): GovernanceDecodeDiagnostic[] {
     return this.diagnostics.fatal;
@@ -393,9 +329,12 @@ export class GovernTransactionReader {
     readonly icas: ChainMap<string>,
     readonly legacyIcas: ChainMap<string>,
     readonly timelocks: ChainMap<string>,
+    decoders?: GovernanceDecoder<unknown>[],
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
-    this.decoders = this.buildGovernanceDecoders();
+    this.decoderRuntime = this.buildDecoderRuntime();
+    this.decoderState = this.buildDecoderState();
+    this.decoders = decoders ?? buildGovernanceDecoders();
   }
 
   async init() {
@@ -483,118 +422,69 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
-    const context = { chain, tx };
+    const context = {
+      chain,
+      tx,
+      runtime: this.decoderRuntime,
+      state: this.decoderState,
+    };
     for (const decoder of this.decoders) {
-      if (await decoder.match(context)) {
-        return decoder.decode(context);
+      const match = await decoder.match(context);
+      if (match !== undefined) {
+        return decoder.decode({ ...context, match });
       }
     }
 
     return this.readUnknownTransaction(chain, tx);
   }
 
-  private buildGovernanceDecoders(): GovernanceDecoder[] {
-    const decoders: GovernanceDecoder[] = [
-      {
-        id: 'ownable',
-        priority: 10,
-        match: ({ tx }) => this.isOwnableTransaction(tx),
-        decode: ({ chain, tx }) => this.readOwnableTransaction(chain, tx),
-      },
-      {
-        id: 'safe',
-        priority: 20,
-        match: ({ chain, tx }) => this.isSafeTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readSafeTransaction(chain, tx),
-      },
-      {
-        id: 'ica',
-        priority: 30,
-        match: ({ chain, tx }) => this.isIcaTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readIcaTransaction(chain, tx),
-      },
-      {
-        id: 'mailbox',
-        priority: 40,
-        match: ({ chain, tx }) => this.isMailboxTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readMailboxTransaction(chain, tx),
-      },
-      {
-        id: 'timelock',
-        priority: 50,
-        match: ({ chain, tx }) =>
-          this.isTimelockControllerTransaction(chain, tx),
-        decode: ({ chain, tx }) =>
-          this.readTimelockControllerTransaction(chain, tx),
-      },
-      {
-        id: 'multisend',
-        priority: 60,
-        match: ({ tx }) => this.isMultisendTransaction(tx),
-        decode: ({ chain, tx }) => this.readMultisendTransaction(chain, tx),
-      },
-      {
-        id: 'erc20',
-        priority: 70,
-        match: ({ chain, tx }) => this.isErc20Transaction(chain, tx),
-        decode: ({ chain, tx }) => this.readErc20Transaction(chain, tx),
-      },
-      {
-        id: 'warp-module',
-        priority: 80,
-        match: ({ chain, tx }) => this.isWarpModuleTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readWarpModuleTransaction(chain, tx),
-      },
-      {
-        id: 'managed-lockbox',
-        priority: 90,
-        match: ({ chain, tx }) => this.isManagedLockboxTransaction(chain, tx),
-        decode: async ({ chain, tx }) =>
-          this.readManagedLockboxTransaction(chain, tx),
-      },
-      {
-        id: 'xerc20',
-        priority: 100,
-        match: async ({ chain, tx }) =>
-          (await this.isXERC20Transaction(chain, tx)) !== undefined,
-        decode: async ({ chain, tx }) => {
-          const metadata = await this.isXERC20Transaction(chain, tx);
-          assert(metadata, 'Expected XERC20 metadata after decoder match');
-          return this.readXERC20Transaction(chain, tx, metadata);
-        },
-      },
-      {
-        id: 'fee-contract',
-        priority: 110,
-        match: ({ chain, tx }) => this.isFeeTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readFeeTransaction(chain, tx),
-      },
-      {
-        id: 'known-hyperlane-abi-fallback',
-        priority: 120,
-        match: ({ chain, tx }) =>
-          this.tryReadByKnownContractInterface(chain, tx) !== undefined,
-        decode: async ({ chain, tx }) => {
-          const decoded = this.tryReadByKnownContractInterface(chain, tx);
-          assert(decoded, 'Expected known ABI fallback after decoder match');
-          return decoded;
-        },
-      },
-      {
-        id: 'proxy-admin',
-        priority: 130,
-        match: ({ chain, tx }) => this.isProxyAdminTransaction(chain, tx),
-        decode: ({ chain, tx }) => this.readProxyAdminTransaction(chain, tx),
-      },
-      {
-        id: 'native-token-transfer',
-        priority: 140,
-        match: ({ tx }) => this.isNativeTokenTransfer(tx),
-        decode: ({ chain, tx }) => this.readNativeTokenTransfer(chain, tx),
-      },
-    ];
+  private buildDecoderRuntime(): GovernanceDecoderRuntime {
+    return {
+      read: (chain, tx) => this.read(chain, tx),
+      isOwnableTransaction: (tx) => this.isOwnableTransaction(tx),
+      readOwnableTransaction: (chain, tx) =>
+        this.readOwnableTransaction(chain, tx),
+      isSafeTransaction: (chain, tx) => this.isSafeTransaction(chain, tx),
+      readSafeTransaction: (chain, tx) => this.readSafeTransaction(chain, tx),
+      isIcaTransaction: (chain, tx) => this.isIcaTransaction(chain, tx),
+      readIcaTransaction: (chain, tx) => this.readIcaTransaction(chain, tx),
+      isMailboxTransaction: (chain, tx) => this.isMailboxTransaction(chain, tx),
+      readMailboxTransaction: (chain, tx) =>
+        this.readMailboxTransaction(chain, tx),
+      isMultisendTransaction: (tx) => this.isMultisendTransaction(tx),
+      readMultisendTransaction: (chain, tx) =>
+        this.readMultisendTransaction(chain, tx),
+      isWarpModuleTransaction: (chain, tx) =>
+        this.isWarpModuleTransaction(chain, tx),
+      readWarpModuleTransaction: (chain, tx) =>
+        this.readWarpModuleTransaction(chain, tx),
+      isFeeTransaction: (chain, tx) => this.isFeeTransaction(chain, tx),
+      readFeeTransaction: (chain, tx) => this.readFeeTransaction(chain, tx),
+      tryReadByKnownContractInterface: (chain, tx) =>
+        this.tryReadByKnownContractInterface(chain, tx),
+      isProxyAdminTransaction: (chain, tx) =>
+        this.isProxyAdminTransaction(chain, tx),
+      readProxyAdminTransaction: (chain, tx) =>
+        this.readProxyAdminTransaction(chain, tx),
+    };
+  }
 
-    return decoders.sort((a, b) => a.priority - b.priority);
+  private buildDecoderState(): GovernanceDecoderState {
+    return {
+      environment: this.environment,
+      multiProvider: this.multiProvider,
+      chainAddresses: this.chainAddresses,
+      coreConfig: this.coreConfig,
+      safes: this.safes,
+      icas: this.icas,
+      legacyIcas: this.legacyIcas,
+      timelocks: this.timelocks,
+      warpRouteIndex: this.warpRouteIndex,
+      multiSendCallOnlyDeployments: this.multiSendCallOnlyDeployments,
+      multiSendDeployments: this.multiSendDeployments,
+      xerc20Deployments: this.xerc20Deployments,
+      diagnostics: this.diagnostics,
+    };
   }
 
   private readUnknownTransaction(
@@ -626,15 +516,6 @@ export class GovernTransactionReader {
   ): void {
     this.diagnostics.addWarning(diagnostic);
   }
-
-  // ERC20 function selectors
-  private static readonly ERC20_SELECTORS = new Set([
-    '0xa9059cbb', // transfer(address,uint256)
-    '0x095ea7b3', // approve(address,uint256)
-    '0x23b872dd', // transferFrom(address,address,uint256)
-    '0x39509351', // increaseAllowance(address,uint256)
-    '0xa457c2d7', // decreaseAllowance(address,uint256)
-  ]);
 
   // Fee contract function selectors
   private static readonly FEE_SELECTORS = new Set([
@@ -770,434 +651,6 @@ export class GovernTransactionReader {
         insight: `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (Warning: could not read fee config)`,
       };
     }
-  }
-
-  private isErc20Transaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): boolean {
-    if (!tx.to || !tx.data) {
-      return false;
-    }
-
-    // First check if the function selector matches an ERC20 function
-    const selector = tx.data.slice(0, 10).toLowerCase();
-    if (!GovernTransactionReader.ERC20_SELECTORS.has(selector)) {
-      return false;
-    }
-
-    // Then check if the target is a known token OR a warp route (HypERC20 tokens are also ERC20)
-    const chainTokens = tokens[chain as keyof typeof tokens];
-    const isKnownToken =
-      chainTokens &&
-      Object.values(chainTokens).some((address) => eqAddress(tx.to!, address));
-
-    const isWarpRoute =
-      this.warpRouteIndex[chain] !== undefined &&
-      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined;
-
-    return isKnownToken || isWarpRoute;
-  }
-
-  private async readErc20Transaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in ERC20 transaction');
-    }
-
-    if (!tx.to) {
-      throw new Error('No to address in ERC20 transaction');
-    }
-
-    const erc20Interface = ERC20__factory.createInterface();
-    const decoded = erc20Interface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    const erc20 = ERC20__factory.connect(
-      tx.to,
-      this.multiProvider.getProvider(chain),
-    );
-
-    const decimals = await erc20.decimals();
-    const symbol = await erc20.symbol();
-
-    let insight;
-    switch (decoded.functionFragment.name) {
-      case erc20Interface.functions['transfer(address,uint256)'].name: {
-        const [to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
-        insight = `Transfer ${numTokens} ${symbol} to ${to}`;
-        break;
-      }
-      case erc20Interface.functions['approve(address,uint256)'].name: {
-        const [spender, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
-        insight = `Approve ${numTokens} ${symbol} for ${spender}`;
-        break;
-      }
-      case erc20Interface.functions['transferFrom(address,address,uint256)']
-        .name: {
-        const [from, to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
-        insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
-        break;
-      }
-      case erc20Interface.functions['increaseAllowance(address,uint256)']
-        .name: {
-        const [spender, addedValue] = decoded.args;
-        insight = `Increase allowance for ${spender} by ${addedValue.toString()}`;
-        break;
-      }
-      case erc20Interface.functions['decreaseAllowance(address,uint256)']
-        .name: {
-        const [spender, subtractedValue] = decoded.args;
-        insight = `Decrease allowance for ${spender} by ${subtractedValue.toString()}`;
-        break;
-      }
-    }
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    return {
-      chain,
-      to: `${symbol} (${chain} ${tx.to})`,
-      insight,
-      args,
-    };
-  }
-
-  private isNativeTokenTransfer(tx: AnnotatedEV5Transaction): boolean {
-    return !tx.data && !!tx.value && !!tx.to;
-  }
-
-  private async readNativeTokenTransfer(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const numTokens = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
-    return {
-      chain,
-      insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
-    };
-  }
-
-  private isTimelockControllerTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): boolean {
-    const isNewTimelock =
-      this.timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, this.timelocks[chain]!);
-    const isLegacyTimelock =
-      legacyTimelocks[chain] !== undefined &&
-      eqAddress(tx.to!, legacyTimelocks[chain]!);
-
-    return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
-  }
-
-  private async readTimelockControllerTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in TimelockController transaction');
-    }
-
-    const timelockControllerInterface =
-      TimelockController__factory.createInterface();
-    const decoded = timelockControllerInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    let insight;
-    let calls;
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
-      ].name
-    ) {
-      const [target, value, data, _predecessor, _salt, delay] = decoded.args;
-      const inner = await this.read(chain, {
-        to: target,
-        data,
-        value,
-      });
-
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
-
-      insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
-      ].name
-    ) {
-      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
-
-      calls = [];
-      const numOfTxs = targets.length;
-      for (let i = 0; i < numOfTxs; i++) {
-        calls.push(
-          await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
-          }),
-        );
-      }
-
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
-
-      insight = `Schedule for ${eta}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'execute(address,uint256,bytes,bytes32,bytes32)'
-      ].name
-    ) {
-      const [target, value, data, executor] = decoded.args;
-      insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
-      ].name
-    ) {
-      const [targets, values, data, _predecessor, _salt] = decoded.args;
-
-      calls = [];
-      const numOfTxs = targets.length;
-      for (let i = 0; i < numOfTxs; i++) {
-        calls.push(
-          await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
-          }),
-        );
-      }
-
-      insight = `Execute batch on ${targets}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions['cancel(bytes32)'].name
-    ) {
-      const [id] = decoded.args;
-      insight = `Cancel scheduled transaction ${id}`;
-    }
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    return {
-      chain,
-      to: `Timelock Controller (${chain} ${tx.to})`,
-      ...(insight ? { insight } : { args }),
-      ...(calls ? { innerTxs: calls } : {}),
-    };
-  }
-
-  private isManagedLockboxTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): boolean {
-    if (!tx.to) return false;
-    const lockboxes = {
-      optimism: '0x18C4CdC2d774c047Eac8375Bb09853c4D6D6dF36',
-      base: '0xE92e51D99AE33114C60D9621FB2E1ec0ACeA7E30',
-    };
-    return (
-      chain in lockboxes &&
-      eqAddress(tx.to, lockboxes[chain as keyof typeof lockboxes])
-    );
-  }
-
-  private readManagedLockboxTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): GovernTransaction {
-    if (!tx.data) {
-      throw new Error('No data in Managed Lockbox transaction');
-    }
-
-    const managedLockboxInterface = new ethers.utils.Interface([
-      'function deposit(uint256 _amount) nonpayable',
-      'function disableDeposits() nonpayable',
-      'function enableDeposits() nonpayable',
-      'function grantRole(bytes32 role, address account) nonpayable',
-      'function renounceRole(bytes32 role, address callerConfirmation) nonpayable',
-      'function revokeRole(bytes32 role, address account) nonpayable',
-      'function withdraw(uint256 _amount) nonpayable',
-      'function withdrawTo(address _to, uint256 _amount) nonpayable',
-    ]);
-    let decoded;
-    try {
-      decoded = managedLockboxInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    } catch (error) {
-      throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
-    }
-
-    const roleMap: Record<string, string> = {
-      '0x0000000000000000000000000000000000000000000000000000000000000000':
-        'DEFAULT_ADMIN_ROLE',
-      '0xaf290d8680820aad922855f39b306097b20e28774d6c1ad35a20325630c3a02c':
-        'MANAGER',
-    };
-
-    let insight;
-    if (
-      decoded.functionFragment.name ===
-      managedLockboxInterface.functions['grantRole(bytes32,address)'].name
-    ) {
-      const [role, account] = decoded.args;
-      const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
-      insight = `Grant role${roleName} to ${account}`;
-    } else {
-      insight = 'Unknown function in Managed Lockbox transaction';
-    }
-
-    return {
-      to: `${tx.to} (Managed Lockbox)`,
-      chain,
-      insight,
-    };
-  }
-
-  private async isXERC20Transaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<XERC20Metadata | undefined> {
-    if (!tx.to) return undefined;
-    const lowerTo = tx.to.toLowerCase();
-    return this.xerc20Deployments[chain]?.[lowerTo];
-  }
-
-  private async readXERC20Transaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-    metadata: XERC20Metadata,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in XERC20 transaction');
-    }
-
-    const vsTokenInterface = IXERC20VS__factory.createInterface();
-    const xerc20Interface = IXERC20__factory.createInterface();
-
-    let decoded: ethers.utils.TransactionDescription;
-    if (metadata.type === TokenStandard.EvmHypVSXERC20) {
-      decoded = vsTokenInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    } else {
-      decoded = xerc20Interface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    }
-
-    let insight;
-    if (metadata.type === TokenStandard.EvmHypVSXERC20) {
-      switch (decoded.functionFragment.name) {
-        case vsTokenInterface.functions['setBufferCap(address,uint256)'].name: {
-          const [bridge, newBufferCap] = decoded.args;
-          insight = `Set buffer cap for bridge ${bridge} to ${newBufferCap}`;
-          break;
-        }
-        case vsTokenInterface.functions[
-          'setRateLimitPerSecond(address,uint128)'
-        ].name: {
-          const [bridge, newRateLimit] = decoded.args;
-          insight = `Set rate limit per second for bridge ${bridge} to ${newRateLimit}`;
-          break;
-        }
-        case vsTokenInterface.functions['addBridge((uint112,uint128,address))']
-          .name: {
-          const [{ bufferCap, rateLimitPerSecond, bridge }] = decoded.args;
-          insight = `Add new bridge ${bridge} with buffer cap ${bufferCap} and rate limit ${rateLimitPerSecond}`;
-          break;
-        }
-        case vsTokenInterface.functions['removeBridge(address)'].name: {
-          const [bridgeToRemove] = decoded.args;
-          insight = `Remove bridge ${bridgeToRemove}`;
-          break;
-        }
-      }
-    } else {
-      if (
-        decoded.functionFragment.name ===
-        xerc20Interface.functions['setLimits(address,uint256,uint256)'].name
-      ) {
-        const [bridge, mintingLimit, burningLimit] = decoded.args;
-        insight = `Set limits for bridge ${bridge} - minting limit: ${mintingLimit}, burning limit: ${burningLimit}`;
-      }
-    }
-
-    // general xerc20 functions
-    if (!insight) {
-      switch (decoded.functionFragment.name) {
-        case xerc20Interface.functions['mint(address,uint256)'].name: {
-          const [to, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
-          insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
-          break;
-        }
-        case xerc20Interface.functions['approve(address,uint256)'].name: {
-          const [spender, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
-          insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
-          break;
-        }
-        case xerc20Interface.functions['burn(address,uint256)'].name: {
-          const [from, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
-          insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
-          break;
-        }
-      }
-    }
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    let ownableTx = {};
-    if (!insight) {
-      ownableTx = await this.readOwnableTransaction(chain, tx);
-    }
-
-    return {
-      ...ownableTx,
-      to: `${metadata.symbol} (${metadata.name}, ${metadata.type}, ${tx.to})`,
-      chain,
-      ...(insight ? { insight } : { args }),
-      signature: decoded.signature,
-    };
   }
 
   private isWarpModuleTransaction(

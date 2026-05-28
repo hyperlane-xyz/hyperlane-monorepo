@@ -4,11 +4,15 @@ import { BigNumber, ethers } from 'ethers';
 import {
   DomainRoutingHook__factory,
   MovableCollateralRouter__factory,
+  Ownable__factory,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import { TokenStandard } from '@hyperlane-xyz/sdk';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { GovernTransactionReader } from '../src/tx/govern-transaction-reader.js';
+import { createMultisendDecoder } from '../src/tx/governance/decoders/index.js';
+import type { GovernanceDecoder } from '../src/tx/governance/types.js';
 
 const ETHEREUM = 'ethereum';
 const POLYGON_DOMAIN = 137;
@@ -21,6 +25,8 @@ const ADDRESSES = {
   mailbox: '0x5555555555555555555555555555555555555555',
   proxyAdmin: '0x6666666666666666666666666666666666666666',
   icaRouter: '0x7777777777777777777777777777777777777777',
+  timelock: '0x8888888888888888888888888888888888888888',
+  abacusWorksSafe: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
 };
 
 const domainToChain: Record<number, string> = {
@@ -28,7 +34,7 @@ const domainToChain: Record<number, string> = {
   [POLYGON_DOMAIN]: 'polygon',
 };
 
-function createReader() {
+function createReader(decoders?: GovernanceDecoder<unknown>[]) {
   const multiProvider = {
     getNativeToken: async () => ({
       decimals: 18,
@@ -62,6 +68,7 @@ function createReader() {
     {},
     {},
     {},
+    decoders,
   );
 }
 
@@ -193,22 +200,97 @@ describe('GovernTransactionReader', () => {
     );
   });
 
-  it('does not swallow non-decode programmer errors in nested multisends', async () => {
-    const reader = createReader() as any;
+  it('records unknown transactions as fatal diagnostics', async () => {
+    const reader = createReader();
 
-    reader.decoders = [
-      {
-        id: 'buggy-test-decoder',
-        priority: 0,
-        match: () => true,
-        decode: async () => {
-          throw new TypeError('programmer bug');
-        },
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.hook,
+      data: '0xabcdef01',
+      value: BigNumber.from(0),
+    });
+
+    expect(result.insight).to.equal('⚠️ Unknown transaction type');
+    expect(reader.errors).to.have.lengthOf(1);
+    expect(reader.errors[0].info).to.equal('⚠️ Unknown transaction type');
+    expect(reader.warnings).to.deep.equal([]);
+  });
+
+  it('decodes nested Safe execTransaction calls', async () => {
+    const reader = createReader();
+    const safeInterface = new ethers.utils.Interface([
+      'function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures)',
+    ]);
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.abacusWorksSafe,
+      data: safeInterface.encodeFunctionData('execTransaction', [
+        ADDRESSES.hook,
+        0,
+        ownableInterface.encodeFunctionData('transferOwnership(address)', [
+          ADDRESSES.hookTarget,
+        ]),
+        0,
+        0,
+        0,
+        0,
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+        '0x',
+      ]),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.signature).to.equal(
+      'execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)',
+    );
+    expect(result.nestedTx?.signature).to.equal('transferOwnership(address)');
+  });
+
+  it('decodes nested timelock batch calls', async () => {
+    const reader = createReader();
+    reader.timelocks[ETHEREUM] = ADDRESSES.timelock;
+    const timelockInterface = TimelockController__factory.createInterface();
+    const ownableInterface = Ownable__factory.createInterface();
+
+    const result = await reader.read(ETHEREUM, {
+      to: ADDRESSES.timelock,
+      data: timelockInterface.encodeFunctionData(
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
+        [
+          [ADDRESSES.hook],
+          [0],
+          [
+            ownableInterface.encodeFunctionData('transferOwnership(address)', [
+              ADDRESSES.hookTarget,
+            ]),
+          ],
+          ethers.constants.HashZero,
+          ethers.constants.HashZero,
+          60,
+        ],
+      ),
+      value: BigNumber.from(0),
+    });
+
+    expect(result.innerTxs).to.have.lengthOf(1);
+    expect(result.innerTxs[0].signature).to.equal('transferOwnership(address)');
+  });
+
+  it('does not swallow non-decode programmer errors in nested multisends', async () => {
+    const buggyDecoder: GovernanceDecoder = {
+      id: 'buggy-test-decoder',
+      priority: 999,
+      match: () => true,
+      decode: async () => {
+        throw new TypeError('programmer bug');
       },
-    ];
+    };
+    const reader = createReader([createMultisendDecoder(), buggyDecoder]);
+    reader.multiSendDeployments.push(ADDRESSES.multisend);
 
     try {
-      await reader.readMultisendTransaction(ETHEREUM, {
+      await reader.read(ETHEREUM, {
         to: ADDRESSES.multisend,
         data: encodeMultiSend([
           {

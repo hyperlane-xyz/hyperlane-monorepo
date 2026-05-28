@@ -1,0 +1,167 @@
+import type {
+  AnnotatedEV5Transaction,
+  ChainMap,
+  ChainName,
+  CoreConfig,
+  MultiProvider,
+  TokenStandard,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+
+import type { Address } from '@hyperlane-xyz/utils';
+
+import type { DeployEnvironment } from '../../config/deploy-environment.js';
+
+export interface GovernTransaction extends Record<string, any> {
+  chain: ChainName;
+  nestedTx?: GovernTransaction;
+}
+
+export type XERC20Metadata = {
+  type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
+  symbol: string;
+  name: string;
+  decimals: number;
+};
+
+export interface GovernanceDecoderState {
+  environment: DeployEnvironment;
+  multiProvider: MultiProvider;
+  chainAddresses: ChainMap<Record<string, string>>;
+  coreConfig: ChainMap<CoreConfig>;
+  safes: ChainMap<string>;
+  icas: ChainMap<string>;
+  legacyIcas: ChainMap<string>;
+  timelocks: ChainMap<string>;
+  warpRouteIndex: ChainMap<Record<string, WarpCoreConfig['tokens'][number]>>;
+  multiSendCallOnlyDeployments: Address[];
+  multiSendDeployments: Address[];
+  xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>>;
+  diagnostics: DiagnosticCollector;
+}
+
+type DiagnosticSeverity = 'fatal' | 'warning';
+
+export interface GovernanceDecodeDiagnostic {
+  severity: DiagnosticSeverity;
+  info: string;
+  [key: string]: unknown;
+}
+
+export class DiagnosticCollector {
+  private readonly diagnostics: GovernanceDecodeDiagnostic[] = [];
+
+  addFatal(diagnostic: Record<string, unknown> & { info: string }) {
+    this.add('fatal', diagnostic);
+  }
+
+  addWarning(diagnostic: Record<string, unknown> & { info: string }) {
+    this.add('warning', diagnostic);
+  }
+
+  merge(other: DiagnosticCollector) {
+    this.diagnostics.push(...other.all);
+  }
+
+  get all(): GovernanceDecodeDiagnostic[] {
+    return [...this.diagnostics];
+  }
+
+  get fatal(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.filter(({ severity }) => severity === 'fatal');
+  }
+
+  get warnings(): GovernanceDecodeDiagnostic[] {
+    return this.diagnostics.filter(({ severity }) => severity === 'warning');
+  }
+
+  private add(
+    severity: DiagnosticSeverity,
+    diagnostic: Record<string, unknown> & { info: string },
+  ): void {
+    this.diagnostics.push({
+      severity,
+      ...diagnostic,
+    });
+  }
+}
+
+export interface GovernanceDecoderRuntime {
+  read(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean>;
+  readOwnableTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isSafeTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean;
+  readSafeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean;
+  readIcaTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean;
+  readMailboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean>;
+  readMultisendTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isWarpModuleTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean;
+  readWarpModuleTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  isFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean>;
+  readFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+  tryReadByKnownContractInterface(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction | undefined;
+  isProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean>;
+  readProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction>;
+}
+
+export interface DecodeContext {
+  chain: ChainName;
+  tx: AnnotatedEV5Transaction;
+  runtime: GovernanceDecoderRuntime;
+  state: GovernanceDecoderState;
+}
+
+export interface MatchedDecodeContext<TMatch> extends DecodeContext {
+  match: TMatch;
+}
+
+export interface GovernanceDecoder<TMatch = true> {
+  id: string;
+  priority: number;
+  match(
+    context: DecodeContext,
+  ): TMatch | undefined | Promise<TMatch | undefined>;
+  decode(context: MatchedDecodeContext<TMatch>): Promise<GovernTransaction>;
+}
