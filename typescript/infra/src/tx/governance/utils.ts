@@ -24,7 +24,7 @@ export function formatFunctionFragmentArgs(
 }
 
 export function formatDomain(
-  getChainName: (domain: number) => string | undefined,
+  getChainName: (domain: number) => string | null | undefined,
   domain: number | BigNumber,
 ): string {
   const domainNumber = BigNumber.isBigNumber(domain)

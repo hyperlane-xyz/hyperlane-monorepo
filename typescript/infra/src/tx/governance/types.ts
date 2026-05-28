@@ -112,14 +112,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
-  isWarpModuleTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): boolean;
-  readWarpModuleTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
 }
 
 export interface DecodeContext {
