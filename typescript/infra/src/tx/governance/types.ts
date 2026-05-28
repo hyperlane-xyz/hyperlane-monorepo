@@ -111,11 +111,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction>;
-  isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean>;
-  readMultisendTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
   isWarpModuleTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,

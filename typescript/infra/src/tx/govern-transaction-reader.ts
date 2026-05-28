@@ -1,9 +1,5 @@
 import { Result } from '@ethersproject/abi';
 import {
-  MetaTransactionData,
-  OperationType,
-} from '@safe-global/safe-core-sdk-types';
-import {
   getMultiSendCallOnlyDeployments,
   getMultiSendDeployments,
 } from '@safe-global/safe-deployments';
@@ -78,7 +74,7 @@ import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { Owner, determineGovernanceType } from '../governance.js';
 import { GovernanceType } from '../governanceTypes.js';
-import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
+import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 import { buildGovernanceDecoders } from './governance/decoders/index.js';
 import {
   DiagnosticCollector,
@@ -91,17 +87,6 @@ import {
 } from './governance/types.js';
 
 export type { GovernTransaction } from './governance/types.js';
-
-interface MultiSendTransaction {
-  index: number;
-  value: string;
-  operation: string;
-  decoded: GovernTransaction;
-}
-
-interface MultiSendGovernTransactions extends GovernTransaction {
-  multisends: MultiSendTransaction[];
-}
 
 interface SetDefaultIsmInsight {
   module: string;
@@ -451,9 +436,6 @@ export class GovernTransactionReader {
       isMailboxTransaction: (chain, tx) => this.isMailboxTransaction(chain, tx),
       readMailboxTransaction: (chain, tx) =>
         this.readMailboxTransaction(chain, tx),
-      isMultisendTransaction: (tx) => this.isMultisendTransaction(tx),
-      readMultisendTransaction: (chain, tx) =>
-        this.readMultisendTransaction(chain, tx),
       isWarpModuleTransaction: (chain, tx) =>
         this.isWarpModuleTransaction(chain, tx),
       readWarpModuleTransaction: (chain, tx) =>
@@ -2067,67 +2049,6 @@ export class GovernTransactionReader {
     };
   }
 
-  private async readMultisendTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<MultiSendGovernTransactions> {
-    if (!tx.data) {
-      throw new Error('No data in multisend transaction');
-    }
-    const multisendDatas = decodeMultiSendData(tx.data);
-
-    const { symbol } = await this.multiProvider.getNativeToken(chain);
-
-    const multisends = await Promise.all(
-      multisendDatas.map(async (multisend, index) => {
-        try {
-          const decoded = await this.read(
-            chain,
-            metaTransactionDataToEV5Transaction(multisend),
-          );
-          return {
-            chain,
-            index,
-            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
-            operation: formatOperationType(multisend.operation),
-            decoded,
-          };
-        } catch (error: unknown) {
-          if (!isRecoverableNestedDecodeError(error)) {
-            throw error;
-          }
-          this.logger.warn(
-            `Failed to decode multisend at index ${index}: ${summarizeError(error)}`,
-          );
-          this.addWarningDiagnostic({
-            chain,
-            index,
-            to: multisend.to,
-            info: 'Could not decode nested multisend call',
-            error: summarizeError(error),
-          });
-          return {
-            chain,
-            index,
-            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
-            operation: formatOperationType(multisend.operation),
-            decoded: {
-              chain,
-              insight: `⚠️ failed to decode (${summarizeError(error)})`,
-              to: multisend.to,
-              data: multisend.data,
-            },
-          };
-        }
-      }),
-    );
-
-    return {
-      chain,
-      multisends,
-    };
-  }
-
   private async readOwnableTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
@@ -2221,19 +2142,6 @@ export class GovernTransactionReader {
     return await isProxyAdminFromBytecode(
       this.multiProvider.getProvider(chain),
       tx.to,
-    );
-  }
-
-  async isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
-    if (tx.to === undefined) {
-      return false;
-    }
-
-    // Check if the transaction is to a MultiSend or MultiSendCallOnly deployment
-    return (
-      this.multiSendCallOnlyDeployments.some((addr) =>
-        eqAddress(addr, tx.to!),
-      ) || this.multiSendDeployments.some((addr) => eqAddress(addr, tx.to!))
     );
   }
 
@@ -2417,16 +2325,6 @@ export class GovernTransactionReader {
   }
 }
 
-function metaTransactionDataToEV5Transaction(
-  metaTransactionData: MetaTransactionData,
-): AnnotatedEV5Transaction {
-  return {
-    to: metaTransactionData.to,
-    value: BigNumber.from(metaTransactionData.value),
-    data: metaTransactionData.data,
-  };
-}
-
 function formatFunctionFragmentArgs(
   args: Result,
   fragment: ethers.utils.FunctionFragment,
@@ -2436,17 +2334,6 @@ function formatFunctionFragmentArgs(
     acc[input.name] = args[index];
     return acc;
   }, accumulator);
-}
-
-function formatOperationType(operation: OperationType | undefined): string {
-  switch (operation) {
-    case OperationType.Call:
-      return 'Call';
-    case OperationType.DelegateCall:
-      return 'Delegate Call';
-    default:
-      return '⚠️ Unknown ⚠️';
-  }
 }
 
 async function getOwnerInsight(

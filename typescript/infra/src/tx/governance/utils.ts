@@ -1,7 +1,11 @@
 import type { Result } from '@ethersproject/abi';
+import type {
+  MetaTransactionData,
+  OperationType,
+} from '@safe-global/safe-core-sdk-types';
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { AnnotatedEV5Transaction, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { awIcasLegacy } from '../../../config/environments/mainnet3/governance/ica/_awLegacy.js';
@@ -54,4 +58,74 @@ export async function getOwnerInsight(
   }
 
   return `${address} (Unknown)`;
+}
+
+export function metaTransactionDataToEV5Transaction(
+  metaTransactionData: MetaTransactionData,
+): AnnotatedEV5Transaction {
+  return {
+    to: metaTransactionData.to,
+    value: BigNumber.from(metaTransactionData.value),
+    data: metaTransactionData.data,
+  };
+}
+
+export function formatOperationType(
+  operation: OperationType | undefined,
+): string {
+  switch (operation) {
+    case 0:
+      return 'Call';
+    case 1:
+      return 'Delegate Call';
+    default:
+      return '⚠️ Unknown ⚠️';
+  }
+}
+
+const SENSITIVE_PATTERNS = [
+  /https?:\/\/\S+/gi,
+  /Bearer\s+\S+/gi,
+  /(?:api_key|secret|token|key|password)=\S+/gi,
+];
+
+function sanitizeErrorMessage(msg: string): string {
+  let sanitized = msg;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized.slice(0, 120);
+}
+
+export function summarizeError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as Error & { code?: unknown }).code;
+    const prefix = typeof code === 'string' ? `[${code}] ` : '';
+    return `${prefix}${sanitizeErrorMessage(error.message)}`;
+  }
+  return 'unknown error';
+}
+
+const RECOVERABLE_NESTED_DECODE_ERROR_CODES = new Set([
+  'CALL_EXCEPTION',
+  'INVALID_ARGUMENT',
+  'NETWORK_ERROR',
+  'SERVER_ERROR',
+  'TIMEOUT',
+]);
+
+export function isRecoverableNestedDecodeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (
+    typeof code === 'string' &&
+    RECOVERABLE_NESTED_DECODE_ERROR_CODES.has(code)
+  ) {
+    return true;
+  }
+
+  return /no matching function|invalid sighash|data signature|no data in|failed to decode|could not decode/i.test(
+    error.message,
+  );
 }
