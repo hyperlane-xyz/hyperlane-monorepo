@@ -28,12 +28,13 @@ import {Message} from "../../libs/Message.sol";
  * 2. Router: On destination chain, receives message IDs and stores readyAt time
  * 3. ISM: On destination chain, verifies messages after the timelock window
  *
- * Subclasses customize behavior by overriding the external `postDispatch`
- * (calling `_TimelockRouter_dispatchPreverify` with a custom payload) and
- * `_handle` (computing a per-message wait and calling
- * `_TimelockRouter_commitReadyAt`). `verify` can be extended via
- * `_TimelockRouter_verify`. See `DelayedFlowRouter` for an amount-sensitive
- * extension.
+ * @dev **Subclass contract**: subclasses customize behavior by overriding
+ * `postDispatch` (and **must** route their cross-chain dispatch through
+ * `_TimelockRouter_assertLatestAndDispatch`, which enforces the
+ * `_isLatestDispatched` invariant) and `_handle` (computing a per-message
+ * wait and calling `_TimelockRouter_commitReadyAt`). `verify` can be
+ * extended via `_TimelockRouter_verify`. See `DelayedFlowRouter` for an
+ * amount-sensitive extension.
  */
 contract TimelockRouter is
     Router,
@@ -85,28 +86,28 @@ contract TimelockRouter is
 
     /**
      * @inheritdoc IPostDispatchHook
-     * @dev Access is restricted by `_isLatestDispatched` which ensures only
-     * messages currently being dispatched through the Mailbox can be
-     * preverified. On the destination, `_handle` only accepts messages from
-     * enrolled routers via the Mailbox's sender verification. Subclasses
-     * override this and call `_TimelockRouter_dispatchPreverify` with a
-     * custom payload (e.g. encoding an amount alongside the message id).
+     * @dev Subclasses override this to add domain-specific checks (sender
+     * binding, replay guards, etc.) but **must** route the cross-chain
+     * dispatch through `_TimelockRouter_assertLatestAndDispatch` so the
+     * `_isLatestDispatched(id)` invariant is enforced. Bypassing the helper
+     * is a footgun.
      */
     function postDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable virtual {
         bytes32 id = message.id();
-        _TimelockRouter_dispatchPreverify(
+        _TimelockRouter_assertLatestAndDispatch(
             id,
             message.destination(),
             abi.encode(id)
         );
     }
 
-    /// @dev Leaf helper for subclass `postDispatch` overrides: enforces the
-    /// `_isLatestDispatched` guard and forwards `payload` cross-chain.
-    function _TimelockRouter_dispatchPreverify(
+    /// @dev Asserts `_isLatestDispatched(id)` and forwards `payload`
+    /// cross-chain. Subclasses **must** invoke this from their `postDispatch`
+    /// override — calling `_Router_dispatch` directly skips the invariant.
+    function _TimelockRouter_assertLatestAndDispatch(
         bytes32 id,
         uint32 destination,
         bytes memory payload

@@ -105,7 +105,7 @@ contract RateLimited is OwnableUpgradeable {
      */
     function setRefillRate(
         uint256 _capacity
-    ) public onlyOwner returns (uint256) {
+    ) public virtual onlyOwner returns (uint256) {
         uint256 _oldRefillRate = refillRate;
         uint256 _newRefillRate = _capacity / DURATION;
         refillRate = _newRefillRate;

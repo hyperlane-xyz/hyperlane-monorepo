@@ -41,12 +41,39 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  *   - `token() == warpRouter`   → synthetic totalSupply (HypERC20)
  *   - otherwise                  → underlying ERC20 balance (HypERC20Collateral)
  *
+ * The capacity base is read live at call time, so direct deposits / donations
+ * to `warpRouter` (or `selfdestruct` for HypNative) inflate it. This is by
+ * design — donating to grow the cap also funds the pool that the cap is
+ * gating, so the attacker pays for any drain-headroom they unlock.
+ *
  * Compose with `PausableIsm` via `StaticAggregationIsm` so watchers can kill
- * delivery during the delay window.
+ * delivery during the delay window. See `docs/delayed-flow-router.md` for
+ * the recommended composition order.
  */
 contract DelayedFlowRouter is TimelockRouter, RateLimited {
     using Message for bytes;
     using TokenMessage for bytes;
+
+    // ============ Errors ============
+    error InvalidThresholdBps();
+    error WrongSender(address sender);
+    error WrongRecipient(address recipient);
+    error AlreadyCredited(uint32 nonce);
+    /// @dev Inherited `RateLimited.setRefillRate` writes a dead storage slot
+    ///      under this contract (capacity is derived from `maxCapacity()`
+    ///      overrides, not `refillRate`). Reverting prevents an operator
+    ///      foot-gun where the tx succeeds but the rate is unchanged.
+    error UseThresholdBps();
+
+    // ============ Events ============
+    /// @notice Emitted on the origin when `postDispatch` advances the credit
+    /// nonce. Pairs with the destination-side `MessageQueued` for end-to-end
+    /// observability of the rate-limit credit/consume flow.
+    event NetFlowCredited(
+        bytes32 indexed messageId,
+        uint32 nonce,
+        uint256 amount
+    );
 
     // ============ Immutables ============
 
@@ -86,7 +113,7 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         TimelockRouter(address(_warpRouter.mailbox()), 0)
         RateLimited(0) // capacity derived dynamically; storage refillRate unused
     {
-        require(_thresholdBps <= BPS_DENOMINATOR, "thresholdBps > 100%");
+        if (_thresholdBps > BPS_DENOMINATOR) revert InvalidThresholdBps();
         warpRouter = address(_warpRouter);
         capacityToken = _warpRouter.token();
         thresholdBps = _thresholdBps;
@@ -119,6 +146,17 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         return (base * thresholdBps) / BPS_DENOMINATOR;
     }
 
+    /// @inheritdoc RateLimited
+    /// @dev `refillRate` is dead storage under this contract (capacity is
+    /// derived from `warpRouter`'s balance / supply, not the stored rate).
+    /// Reverting on `setRefillRate` prevents an owner from quietly writing
+    /// a slot that the rate-limit math never reads.
+    function setRefillRate(
+        uint256 /*_capacity*/
+    ) public override onlyOwner returns (uint256) {
+        revert UseThresholdBps();
+    }
+
     // ============ TimelockRouter overrides ============
 
     /// @dev One-shot replay guard, bucket credit, then a single call into
@@ -131,22 +169,27 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable override {
-        require(
-            message.senderAddress() == warpRouter,
-            "DelayedFlowRouter: wrong sender"
-        );
+        if (message.senderAddress() != warpRouter) {
+            revert WrongSender(message.senderAddress());
+        }
         uint32 messageNonce = message.nonce();
-        require(
-            messageNonce > lastCreditedNonce,
-            "DelayedFlowRouter: already credited"
-        );
+        if (messageNonce <= lastCreditedNonce) {
+            revert AlreadyCredited(messageNonce);
+        }
         lastCreditedNonce = messageNonce;
 
+        // `TokenMessage` slices `body[32:64]` for `amount`. Safe here because
+        // the parent's `_TimelockRouter_assertLatestAndDispatch` (below)
+        // enforces `_isLatestDispatched`, which only passes for messages
+        // currently being dispatched through the Mailbox by `warpRouter` —
+        // and `warpRouter` only formats valid token messages.
         uint256 amount = message.body().amount();
         _credit(amount);
 
         bytes32 id = message.id();
-        _TimelockRouter_dispatchPreverify(
+        emit NetFlowCredited(id, messageNonce, amount);
+
+        _TimelockRouter_assertLatestAndDispatch(
             id,
             message.destination(),
             abi.encode(id, amount)
@@ -177,10 +220,9 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external view override returns (bool) {
-        require(
-            message.recipientAddress() == warpRouter,
-            "DelayedFlowRouter: wrong recipient"
-        );
+        if (message.recipientAddress() != warpRouter) {
+            revert WrongRecipient(message.recipientAddress());
+        }
         return _TimelockRouter_verify(message);
     }
 

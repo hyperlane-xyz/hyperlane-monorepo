@@ -297,7 +297,12 @@ contract DelayedFlowRouterTest is Test {
             address(collateralRouter),
             1 ether
         );
-        vm.expectRevert("DelayedFlowRouter: wrong sender");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DelayedFlowRouter.WrongSender.selector,
+                makeAddr("imposter")
+            )
+        );
         originDelay.postDispatch(bytes(""), message);
     }
 
@@ -311,7 +316,12 @@ contract DelayedFlowRouterTest is Test {
             makeAddr("imposter"),
             1 ether
         );
-        vm.expectRevert("DelayedFlowRouter: wrong recipient");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DelayedFlowRouter.WrongRecipient.selector,
+                makeAddr("imposter")
+            )
+        );
         destinationDelay.verify(bytes(""), message);
     }
 
