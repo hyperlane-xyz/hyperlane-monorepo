@@ -94,6 +94,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         ) {
             revert InsufficientOutput();
         }
+        // Keep the wrapper stateless for exact-output and variable-output paths.
+        _refundTokenBalance(inputToken, msg.sender);
+        if (outputToken != inputToken) {
+            _refundTokenBalance(outputToken, msg.sender);
+        }
     }
 
     function _rebalanceSource(
@@ -169,5 +174,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
 
     function _decimalScale(address token) internal view returns (uint256) {
         return 10 ** uint256(IERC20Metadata(token).decimals());
+    }
+
+    function _refundTokenBalance(address token, address recipient) internal {
+        uint256 refund = IERC20(token).balanceOf(address(this));
+        if (refund > 0) IERC20(token).safeTransfer(recipient, refund);
     }
 }

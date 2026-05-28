@@ -9,4 +9,6 @@ The core Solidity package was extended with `AtomicLocalRebalancingBridge` for s
 
 The `approveTokenForBridge(address,address)` helper was deprecated and now clears legacy standing approval instead of setting max approval. The selector is retained for upgrade and governance-tooling compatibility.
 
+`AtomicLocalRebalancingBridge` now refunds any unspent input or output token balance to the rebalancer after a successful local rebalance, so variable-output and exact-output swap paths do not leave token dust in the wrapper.
+
 The SDK no longer emits bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field remains accepted for compatibility but is ignored.

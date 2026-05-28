@@ -210,6 +210,7 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
             requiredDelta
         );
         assertLe(destinationToken.balanceOf(rebalancer), rebalancerBefore);
+        assertEq(destinationToken.balanceOf(address(bridge)), 0);
     }
 }
 
