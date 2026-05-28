@@ -23,6 +23,7 @@ contract RateLimitedHookTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_CAPACITY = 1 ether;
+    uint256 constant DURATION = 1 days;
     uint256 constant ONE_PERCENT = 0.01 ether;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
@@ -62,6 +63,7 @@ contract RateLimitedHookTest is Test {
         rateLimitedHook = new RateLimitedHook(
             address(localMailbox),
             MAX_CAPACITY,
+            DURATION,
             address(warpRouteLocal)
         );
 
@@ -91,7 +93,12 @@ contract RateLimitedHookTest is Test {
 
     function testRateLimitedHook_revertsIfInvalidSender() external {
         vm.expectRevert("InvalidSender");
-        new RateLimitedHook(address(localMailbox), MAX_CAPACITY, address(0));
+        new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY,
+            DURATION,
+            address(0)
+        );
     }
 
     // fuzz for other functions/invocations by any non-mailbox address

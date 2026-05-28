@@ -260,17 +260,29 @@ export const RateLimitedHookSchema = OwnableSchema.extend({
   maxCapacity: z
     .string()
     .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+  /**
+   * Refill window in seconds — must match the on-chain immutable
+   * `DURATION`. Provide explicitly per deployment.
+   */
+  duration: z
+    .string()
+    .regex(/^\d+$/, 'duration must be a base-10 integer string'),
 })
-  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
-    message: 'maxCapacity must be at least 86400',
+  .refine((val) => BigInt(val.duration) > 0n, {
+    message: 'duration must be greater than 0',
+    path: ['duration'],
+  })
+  .refine((val) => BigInt(val.maxCapacity) >= BigInt(val.duration), {
+    message: 'maxCapacity must be at least duration',
     path: ['maxCapacity'],
   })
   .transform((val) => {
     const capacity = BigInt(val.maxCapacity);
-    if (capacity % 86400n !== 0n) {
-      const rounded = ((capacity / 86400n) * 86400n).toString();
+    const duration = BigInt(val.duration);
+    if (capacity % duration !== 0n) {
+      const rounded = ((capacity / duration) * duration).toString();
       rootLogger.warn(
-        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by duration ${val.duration}; rounding down to ${rounded}`,
       );
       return { ...val, maxCapacity: rounded };
     }

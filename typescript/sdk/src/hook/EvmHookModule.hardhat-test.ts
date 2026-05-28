@@ -827,6 +827,7 @@ describe('EvmHookModule', async () => {
         owner,
         type: HookType.RATE_LIMITED,
         maxCapacity: (86400n * 100n).toString(),
+        duration: '86400',
       };
 
       const { hook, initialHookAddress } = await createHook(config);

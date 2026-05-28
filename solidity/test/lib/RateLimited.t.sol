@@ -5,7 +5,10 @@ import {Test} from "forge-std/Test.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
 contract TestRateLimited is RateLimited {
-    constructor(uint256 _maxCapacity) RateLimited(_maxCapacity) {}
+    constructor(
+        uint256 _maxCapacity,
+        uint256 _duration
+    ) RateLimited(_maxCapacity, _duration) {}
 
     function validateAndConsumeFilledLevel(
         uint256 _amount
@@ -23,7 +26,7 @@ contract DynamicRateLimited is RateLimited {
     uint256 private _capacity;
     bool private _initialized;
 
-    constructor() RateLimited(0) {}
+    constructor() RateLimited(0, 1 days) {}
 
     function setCapacity(uint256 _c) external {
         _capacity = _c;
@@ -67,16 +70,29 @@ contract DynamicRateLimited is RateLimited {
 contract RateLimitLibTest is Test {
     TestRateLimited rateLimited;
     uint256 constant MAX_CAPACITY = 1 ether;
+    uint256 constant DURATION = 1 days;
     uint256 constant ONE_PERCENT = 0.01 ether; // Used for assertApproxEqRel
     address HOOK = makeAddr("HOOK");
 
     function setUp() public {
-        rateLimited = new TestRateLimited(MAX_CAPACITY);
+        rateLimited = new TestRateLimited(MAX_CAPACITY, DURATION);
     }
 
     function testConstructor_revertsWhen_lowCapacity() public {
         vm.expectRevert("Capacity must be greater than DURATION");
-        new RateLimited(1 days - 1);
+        new RateLimited(DURATION - 1, DURATION);
+    }
+
+    function testConstructor_revertsWhen_zeroDuration() public {
+        vm.expectRevert("DURATION must be greater than 0");
+        new RateLimited(MAX_CAPACITY, 0);
+    }
+
+    function testConstructor_setsCustomDuration() public {
+        TestRateLimited custom = new TestRateLimited(MAX_CAPACITY, 1 hours);
+        assertEq(custom.DURATION(), 1 hours);
+        // refillRate = capacity / duration; for 1 ether / 1 hour
+        assertEq(custom.refillRate(), MAX_CAPACITY / uint256(1 hours));
     }
 
     function testRateLimited_setsNewLimit() external {
@@ -208,6 +224,25 @@ contract RateLimitLibTest is Test {
         vm.expectRevert("RateLimitExceeded");
         rateLimited.validateAndConsumeFilledLevel(excessAmount);
         assertEq(rateLimited.calculateCurrentLevel(), initialLevel);
+    }
+
+    function testRateLimited_customDuration_replenishesOverWindow() external {
+        // 1-hour refill window: bucket should be full again 1 hour after a
+        // full drain. With the previous hardcoded 1-day window, this would
+        // sit at ~1/24 of the cap.
+        TestRateLimited hourly = new TestRateLimited(MAX_CAPACITY, 1 hours);
+
+        // Drain most of the bucket immediately after construction.
+        uint256 drain = (MAX_CAPACITY * 99) / 100;
+        hourly.validateAndConsumeFilledLevel(drain);
+
+        // Skip a full refill window; bucket should be back at maxCapacity.
+        vm.warp(block.timestamp + 1 hours);
+        assertApproxEqRel(
+            hourly.calculateCurrentLevel(),
+            MAX_CAPACITY,
+            ONE_PERCENT
+        );
     }
 }
 

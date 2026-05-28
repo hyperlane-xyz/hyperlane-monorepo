@@ -30,6 +30,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     uint32 constant DESTINATION = 12;
     uint256 constant INITIAL_COLLATERAL = 100 ether;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
@@ -71,7 +72,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(
@@ -210,7 +212,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm newNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         vm.expectRevert(
@@ -248,7 +251,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm newNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         vm.expectRevert(
@@ -295,7 +299,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(0),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
     }
 
@@ -304,7 +309,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            10_001
+            10_001,
+            DURATION
         );
     }
 
@@ -315,7 +321,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            10_000
+            10_000,
+            DURATION
         );
     }
 
@@ -369,7 +376,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm vaultNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(vaultRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         // token() is the vault asset, held at 0 by the router (it's in the
@@ -402,7 +410,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(scaledRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
         scaledRouter.initialize(
             address(scaledNetFlow),
@@ -464,7 +473,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(scaledRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
         scaledRouter.initialize(
             INITIAL_COLLATERAL,
@@ -523,7 +533,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm rebasingNetFlow = new NetFlowRateLimitedHookIsm(
                 address(localMailbox),
                 address(rebasing),
-                MAX_FLOW_BPS
+                MAX_FLOW_BPS,
+                DURATION
             );
 
         // Synthetic (nonzero capacity) → zero-capacity exclusion misses it.
@@ -567,6 +578,7 @@ contract NetFlowRateLimitedHookIsmSyntheticTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
@@ -604,7 +616,8 @@ contract NetFlowRateLimitedHookIsmSyntheticTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(
@@ -700,6 +713,7 @@ contract NetFlowRateLimitedHookIsmNativeTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
 
@@ -726,7 +740,8 @@ contract NetFlowRateLimitedHookIsmNativeTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(

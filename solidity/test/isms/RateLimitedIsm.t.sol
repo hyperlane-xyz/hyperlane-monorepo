@@ -15,6 +15,7 @@ contract RateLimitedIsmTest is Test {
     using TypeCasts for address;
 
     uint256 MAX_CAPACITY = 1 ether;
+    uint256 constant DURATION = 1 days;
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     address WARP_ROUTE_ADDR = makeAddr("warpRoute");
@@ -29,6 +30,7 @@ contract RateLimitedIsmTest is Test {
         rateLimitedIsm = new RateLimitedIsm(
             address(localMailbox),
             MAX_CAPACITY,
+            DURATION,
             address(testRecipient)
         );
 

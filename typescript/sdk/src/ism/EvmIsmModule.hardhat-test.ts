@@ -185,6 +185,7 @@ describe('EvmIsmModule', async () => {
       const config: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
+        duration: '86400',
         recipient,
         owner,
       };
@@ -584,6 +585,7 @@ describe('EvmIsmModule', async () => {
       const rateLimitedConfig: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
+        duration: '86400',
         recipient,
         owner: signerAddress,
       };

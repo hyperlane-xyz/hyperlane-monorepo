@@ -216,6 +216,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
     warpDeployConfig[chain2].interchainSecurityModule = {
       type: IsmType.RATE_LIMITED,
       maxCapacity,
+      duration: '86400',
     };
     await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
 

@@ -417,6 +417,12 @@ export class EvmHookModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
+    if (currentConfig.duration !== targetConfig.duration) {
+      this.logger.warn(
+        `RateLimitedHook duration is immutable; ignoring change ${currentConfig.duration} -> ${targetConfig.duration} on "${this.chain}" at "${this.args.addresses.deployedHook}". Redeploy to change duration.`,
+      );
+    }
+
     if (currentConfig.maxCapacity !== targetConfig.maxCapacity) {
       updateTxs.push({
         annotation: `Setting refill rate on RateLimitedHook on chain "${this.chain}" and address "${this.args.addresses.deployedHook}"`,
@@ -913,7 +919,12 @@ export class EvmHookModule extends HyperlaneModule<
     const hook = await deployer.deployContract(
       this.chain,
       HookType.RATE_LIMITED,
-      [this.args.addresses.mailbox, config.maxCapacity, sender],
+      [
+        this.args.addresses.mailbox,
+        config.maxCapacity,
+        config.duration,
+        sender,
+      ],
     );
 
     if (config.owner) {

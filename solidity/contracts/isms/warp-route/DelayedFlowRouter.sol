@@ -34,6 +34,9 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * `_TimelockRouter_commitReadyAt`. Capacity is sized live from the paired
  * warp router's balance / supply — see `TvlRateLimited`.
  *
+ * The refill window (`DURATION`) is set at construction so each deployment
+ * can pick the cadence that suits its risk model.
+ *
  * Compose with `PausableIsm` via `StaticAggregationIsm` so watchers can kill
  * delivery during the delay window.
  */
@@ -74,10 +77,12 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
     constructor(
         TokenRouter _warpRouter,
         uint256 _thresholdBps,
-        uint48 _maxDelay
+        uint48 _maxDelay,
+        uint256 _refillWindow
     )
         TimelockRouter(address(_warpRouter.mailbox()), 0)
-        TvlRateLimited(_warpRouter, _thresholdBps)
+        // capacity derived dynamically; storage refillRate unused
+        TvlRateLimited(_warpRouter, _thresholdBps, _refillWindow)
     {
         maxDelay = _maxDelay;
     }

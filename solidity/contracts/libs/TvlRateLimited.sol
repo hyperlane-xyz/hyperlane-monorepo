@@ -81,7 +81,11 @@ abstract contract TvlRateLimited is RateLimited {
 
     // ============ Constructor ============
 
-    constructor(TokenRouter _warpRouter, uint256 _thresholdBps) RateLimited(0) {
+    constructor(
+        TokenRouter _warpRouter,
+        uint256 _thresholdBps,
+        uint256 _duration
+    ) RateLimited(0, _duration) {
         if (address(_warpRouter) == address(0)) revert InvalidRouter();
         _validateThresholdBps(_thresholdBps);
 

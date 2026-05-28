@@ -438,6 +438,12 @@ export class EvmIsmModule extends HyperlaneModule<
   }): AnnotatedEV5Transaction[] {
     const txs: AnnotatedEV5Transaction[] = [];
 
+    if (current.duration !== target.duration) {
+      this.logger.warn(
+        `RateLimitedIsm duration is immutable; ignoring change ${current.duration} -> ${target.duration} on "${this.chain}" at "${this.args.addresses.deployedIsm}". Redeploy to change duration.`,
+      );
+    }
+
     if (current.maxCapacity !== target.maxCapacity) {
       txs.push({
         annotation: `Setting maxCapacity on RateLimitedIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
