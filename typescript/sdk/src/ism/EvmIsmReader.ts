@@ -660,7 +660,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       this.provider,
     );
     try {
-      await rateLimitedIsm.recipient();
+      await rateLimitedIsm.recipient(); // probe selector only; recipient is a constructor arg omitted from read()
       const maxCapacity = (await rateLimitedIsm.maxCapacity()).toString();
       const owner = await rateLimitedIsm.owner();
       return {
