@@ -80,10 +80,6 @@ contract MockForkRouter {
         allowedRecipient[domain] = bytes32(uint256(uint160(recipient)));
     }
 
-    function approveTokenForBridge(ITokenBridge bridge) external {
-        wrappedToken.approve(address(bridge), type(uint256).max);
-    }
-
     function addRebalancer(address rebalancer) external {
         if (!isAllowedRebalancer[rebalancer]) {
             _allowedRebalancers.push(rebalancer);
@@ -114,6 +110,8 @@ contract MockForkRouter {
             quotes.extract(address(wrappedToken)) <= collateralAmount,
             "unexpected fees"
         );
+        uint256 approval = quotes.extract(address(wrappedToken));
+        wrappedToken.approve(address(bridge), approval);
         bridge.transferRemote(domain, recipient, collateralAmount);
     }
 }
@@ -141,7 +139,6 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
             1
         );
         sourceRouter.setPrimaryRouter(localDomain, address(destinationRouter));
-        sourceRouter.approveTokenForBridge(bridge);
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
     }

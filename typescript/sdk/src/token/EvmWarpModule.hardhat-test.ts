@@ -4,7 +4,6 @@ import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
-import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
@@ -1342,8 +1341,7 @@ describe('EvmWarpModule', async () => {
           }),
         );
 
-        // 1 tx to allow the bridge and another to approve the token
-        expect(txs.length).to.equal(2);
+        expect(txs.length).to.equal(1);
         await sendTxs(txs);
 
         const warpTokenInstance = MovableCollateralRouter__factory.connect(
@@ -1358,7 +1356,7 @@ describe('EvmWarpModule', async () => {
           evmERC20WarpModule.serialize().deployedTokenRoute,
           allowedBridgeToAdd,
         );
-        expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
+        expect(allowance.toBigInt()).to.equal(0n);
       });
 
       it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
@@ -1374,7 +1372,6 @@ describe('EvmWarpModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [feeToken.address],
               },
             ],
           },
@@ -1425,7 +1422,6 @@ describe('EvmWarpModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [feeToken.address],
               },
             ],
           },
@@ -1445,7 +1441,6 @@ describe('EvmWarpModule', async () => {
               [domainId]: [
                 {
                   bridge: allowedBridgeToAdd.toLowerCase(),
-                  approvedTokens: [feeToken.address],
                 },
               ],
             },

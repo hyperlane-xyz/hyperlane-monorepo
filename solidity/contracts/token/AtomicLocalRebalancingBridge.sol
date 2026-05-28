@@ -89,10 +89,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             revert InvalidInputDelta();
         }
         if (
-            IERC20(outputToken).balanceOf(destinationRouter) -
-                destinationBalanceBefore <
-            requiredDelta
-        ) revert InsufficientOutput();
+            IERC20(outputToken).balanceOf(destinationRouter) <
+            destinationBalanceBefore + requiredDelta
+        ) {
+            revert InsufficientOutput();
+        }
     }
 
     function _rebalanceSource(

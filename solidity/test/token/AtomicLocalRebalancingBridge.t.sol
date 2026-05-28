@@ -86,10 +86,6 @@ contract MockRebalanceRouter {
         reenter = _reenter;
     }
 
-    function approveTokenForBridge(ITokenBridge bridge) external {
-        wrappedToken.approve(address(bridge), type(uint256).max);
-    }
-
     function addRebalancer(address rebalancer) external {
         if (!isAllowedRebalancer[rebalancer]) {
             _allowedRebalancers.push(rebalancer);
@@ -125,6 +121,8 @@ contract MockRebalanceRouter {
             quotes.extract(address(wrappedToken)) <= collateralAmount,
             "unexpected fees"
         );
+        uint256 approval = quotes.extract(address(wrappedToken));
+        wrappedToken.approve(address(bridge), approval);
         if (callbackSender == address(0)) {
             bridge.transferRemote(
                 callbackDomain,
@@ -164,6 +162,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     MockRebalanceRouter internal sourceRouter;
     MockRebalanceRouter internal destinationRouter;
     MockRebalanceRouter internal altDestinationRouter;
+    MockRebalanceRouter internal unrelatedRouter;
     TestSwapTarget internal swapTarget;
 
     address internal rebalancer = makeAddr("rebalancer");
@@ -202,7 +201,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         inputToken.mintTo(address(sourceRouter), 1_000_000e6);
         outputToken.mintTo(address(swapTarget), type(uint128).max);
-        sourceRouter.approveTokenForBridge(bridge);
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
     }
@@ -456,9 +454,35 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        vm.expectRevert(
-            AtomicLocalRebalancingBridge.InvalidInputDelta.selector
+        vm.expectRevert("ERC20: insufficient allowance");
+        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+    }
+
+    function test_transferRemote_revertsWhenCallsDrainUnrelatedRoute() public {
+        swapTarget.setOutputAmount(100e6);
+        unrelatedRouter = new MockRebalanceRouter(
+            inputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
         );
+        inputToken.mintTo(address(unrelatedRouter), 1_000e6);
+        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = rebalanceCalls[2];
+        calls[3] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(
+                IERC20.transferFrom,
+                (address(unrelatedRouter), other, 1e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert("ERC20: insufficient allowance");
         bridge.localRebalance(address(sourceRouter), 100e6, calls);
     }
 
@@ -505,16 +529,21 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        unrelatedRouter = new MockRebalanceRouter(
+            sharedToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
 
         sharedToken.mintTo(address(sourceRouter), 1_000_000e6);
         sharedToken.mintTo(address(destinationRouter), 1_000e6);
+        sharedToken.mintTo(address(unrelatedRouter), 1_000e6);
         sharedToken.mintTo(rebalancer, 1_000_000e6);
         sharedToken.mintTo(other, 1_000_000e6);
-        sourceRouter.approveTokenForBridge(bridge);
-        destinationRouter.approveTokenForBridge(bridge);
         vm.prank(rebalancer);
         sharedToken.approve(address(bridge), type(uint256).max);
         vm.prank(other);
@@ -538,13 +567,15 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         uint256 routerSumBefore = sharedToken.balanceOf(address(sourceRouter)) +
-            sharedToken.balanceOf(address(destinationRouter));
+            sharedToken.balanceOf(address(destinationRouter)) +
+            sharedToken.balanceOf(address(unrelatedRouter));
 
         vm.prank(rebalancer);
         try bridge.localRebalance(address(sourceRouter), amountIn, calls) {
             assertGe(
                 sharedToken.balanceOf(address(sourceRouter)) +
-                    sharedToken.balanceOf(address(destinationRouter)),
+                    sharedToken.balanceOf(address(destinationRouter)) +
+                    sharedToken.balanceOf(address(unrelatedRouter)),
                 routerSumBefore
             );
         } catch {}
@@ -650,7 +681,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         inputToken.mintTo(address(sourceRouter), 1_000_000e18);
-        sourceRouter.approveTokenForBridge(bridge);
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
         swapTarget = new TestSwapTarget(
@@ -682,7 +712,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         inputToken.mintTo(address(sourceRouter), 1_000_000e18);
-        sourceRouter.approveTokenForBridge(bridge);
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
         swapTarget = new TestSwapTarget(
@@ -841,7 +870,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         uint8 action,
         uint256 amount
     ) internal view returns (CallLib.Call memory) {
-        action = action % 10;
+        action = action % 11;
         if (action == 0) {
             return
                 CallLib.build(
@@ -926,6 +955,17 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 );
         }
         if (action == 8) {
+            return
+                CallLib.build(
+                    address(token),
+                    0,
+                    abi.encodeCall(
+                        IERC20.transferFrom,
+                        (address(unrelatedRouter), other, amount)
+                    )
+                );
+        }
+        if (action == 9) {
             return
                 CallLib.build(
                     address(token),
