@@ -139,7 +139,7 @@ where
             // so that chains which check the sender's balance (e.g. Citrea) don't fail when
             // estimating gas with the default address(0) which has no funds.
             // Context: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
-            let mut estimate_tx = tx;
+            let mut estimate_tx = tx.clone();
             if estimate_tx.tx.from().is_none() {
                 if let Some(sender) = provider.default_sender() {
                     estimate_tx = estimate_tx.from(sender);
