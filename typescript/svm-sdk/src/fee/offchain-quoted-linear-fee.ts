@@ -1,6 +1,7 @@
 import { address as parseAddress } from '@solana/kit';
 
 import {
+  computeBps,
   FeeParamsType,
   FeeType,
   type OffchainQuotedLinearFeeConfig,
@@ -79,6 +80,8 @@ export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
     const owner: string = account.owner ?? ZERO_ADDRESS_HEX_32;
     const beneficiary: string = account.beneficiary;
 
+    // See SvmLeafFeeReader.read: bps shape with raw values carried for
+    // cross-VM comparison stability against user input that came in as bps.
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
@@ -86,7 +89,8 @@ export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
         owner,
         beneficiary,
         params: {
-          type: FeeParamsType.raw,
+          type: FeeParamsType.bps,
+          bps: computeBps(maxFee, halfAmount),
           maxFee: maxFee.toString(),
           halfAmount: halfAmount.toString(),
         },
