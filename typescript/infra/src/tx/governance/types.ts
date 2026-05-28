@@ -131,14 +131,6 @@ export interface GovernanceDecoderRuntime {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): GovernTransaction | undefined;
-  isProxyAdminTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean>;
-  readProxyAdminTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction>;
 }
 
 export interface DecodeContext {

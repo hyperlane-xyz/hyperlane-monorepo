@@ -16,11 +16,10 @@ import {
   HypXERC20Lockbox__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  RoutingFee__factory,
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
   TokenBridgeOft__factory,
-  ProxyAdmin__factory,
-  RoutingFee__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -40,7 +39,6 @@ import {
   coreFactories,
   OnchainTokenFeeType,
   interchainAccountFactories,
-  isProxyAdminFromBytecode,
   normalizeConfig,
   onChainTypeToTokenFeeTypeMap,
 } from '@hyperlane-xyz/sdk';
@@ -444,10 +442,6 @@ export class GovernTransactionReader {
       readFeeTransaction: (chain, tx) => this.readFeeTransaction(chain, tx),
       tryReadByKnownContractInterface: (chain, tx) =>
         this.tryReadByKnownContractInterface(chain, tx),
-      isProxyAdminTransaction: (chain, tx) =>
-        this.isProxyAdminTransaction(chain, tx),
-      readProxyAdminTransaction: (chain, tx) =>
-        this.readProxyAdminTransaction(chain, tx),
     };
   }
 
@@ -1747,75 +1741,6 @@ export class GovernTransactionReader {
     };
   }
 
-  private async readProxyAdminTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('⚠️ No data in proxyAdmin transaction');
-    }
-
-    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
-    const decoded = proxyAdminInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    let insight: string | undefined;
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    switch (decoded.functionFragment.name) {
-      case proxyAdminInterface.functions['upgrade(address,address)'].name: {
-        const [proxy, implementation] = decoded.args;
-        insight = `Upgrade proxy ${proxy} to implementation ${implementation}`;
-        break;
-      }
-      case proxyAdminInterface.functions[
-        'upgradeAndCall(address,address,bytes)'
-      ].name: {
-        const [proxy, implementation, _data] = decoded.args;
-        insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
-        break;
-      }
-      case proxyAdminInterface.functions['changeProxyAdmin(address,address)']
-        .name: {
-        const [proxy, newAdmin] = decoded.args;
-        insight = `Change admin of proxy ${proxy} to ${newAdmin}`;
-        break;
-      }
-      case proxyAdminInterface.functions['getProxyImplementation(address)']
-        .name: {
-        const [proxy] = decoded.args;
-        insight = `Get implementation address for proxy ${proxy}`;
-        break;
-      }
-      case proxyAdminInterface.functions['getProxyAdmin(address)'].name: {
-        const [proxy] = decoded.args;
-        insight = `Get admin address for proxy ${proxy}`;
-        break;
-      }
-      default: {
-        // Fallback to ownable transaction handling for unknown functions
-        const ownableTx = await this.readOwnableTransaction(chain, tx);
-        return {
-          ...ownableTx,
-          to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
-          signature: decoded.signature,
-        };
-      }
-    }
-
-    return {
-      chain,
-      to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
-      signature: decoded.signature,
-      ...(insight ? { insight } : { args }),
-    };
-  }
-
   private ismDerivationsInProgress: ChainMap<boolean> = {};
 
   private async deriveIsmConfig(
@@ -2123,25 +2048,6 @@ export class GovernTransactionReader {
     return (
       tx.to !== undefined &&
       eqAddress(tx.to, this.chainAddresses[chain].mailbox)
-    );
-  }
-
-  async isProxyAdminTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (tx.to === undefined) {
-      return false;
-    }
-
-    // Check against known proxy admin addresses first
-    if (tx.to === this.chainAddresses[chain].proxyAdmin) {
-      return true;
-    }
-
-    return await isProxyAdminFromBytecode(
-      this.multiProvider.getProvider(chain),
-      tx.to,
     );
   }
 
