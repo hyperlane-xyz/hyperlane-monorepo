@@ -219,6 +219,18 @@ function summarizeError(error: unknown): string {
   return 'unknown error';
 }
 
+function matchesFunctionSignature(
+  decoded: ethers.utils.TransactionDescription,
+  iface: ethers.utils.Interface,
+  signature: string,
+): boolean {
+  try {
+    return decoded.sighash === iface.getSighash(signature);
+  } catch {
+    return false;
+  }
+}
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -1051,6 +1063,14 @@ export class GovernTransactionReader {
     );
   }
 
+  private formatDomain(domain: number | BigNumber): string {
+    const domainNumber = BigNumber.isBigNumber(domain)
+      ? domain.toNumber()
+      : domain;
+    const chainName = this.multiProvider.tryGetChainName(domainNumber);
+    return chainName ? `${domainNumber} (${chainName})` : `${domainNumber}`;
+  }
+
   private async readWarpModuleTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
@@ -1145,20 +1165,32 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
-        .name
+      matchesFunctionSignature(
+        decoded,
+        tokenRouterInterface,
+        'setDestinationGas((uint32,uint256)[])',
+      )
     ) {
       const [gasConfigs] = decoded.args;
       const insights = gasConfigs.map(
         (config: { domain: number; gas: BigNumber }) => {
-          const chainName = this.multiProvider.getChainName(config.domain);
-          return `domain ${
-            config.domain
-          } (${chainName}) to ${config.gas.toString()}`;
+          return `domain ${this.formatDomain(config.domain)} to ${config.gas.toString()}`;
         },
       );
       insight = `Set destination gas for ${insights.join(', ')}`;
+    }
+
+    if (
+      matchesFunctionSignature(
+        decoded,
+        tokenRouterInterface,
+        'setDestinationGas(uint32,uint256)',
+      )
+    ) {
+      const [domain, gas] = decoded.args;
+      insight = `Set destination gas for domain ${this.formatDomain(
+        domain,
+      )} to ${gas.toString()}`;
     }
 
     if (
@@ -1255,8 +1287,11 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      cctpV2Interface.functions['setMaxFeePpm(uint256)'].name
+      matchesFunctionSignature(
+        decoded,
+        cctpV2Interface,
+        'setMaxFeePpm(uint256)',
+      )
     ) {
       const [maxFeePpm] = decoded.args;
       const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
@@ -1264,9 +1299,11 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      ccrInterface.functions['enrollCrossCollateralRouters(uint32[],bytes32[])']
-        .name
+      matchesFunctionSignature(
+        decoded,
+        ccrInterface,
+        'enrollCrossCollateralRouters(uint32[],bytes32[])',
+      )
     ) {
       const [domains, routers] = decoded.args;
       const insights = domains.map((domain: number, index: number) => {
@@ -1277,10 +1314,11 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      ccrInterface.functions[
-        'unenrollCrossCollateralRouters(uint32[],bytes32[])'
-      ].name
+      matchesFunctionSignature(
+        decoded,
+        ccrInterface,
+        'unenrollCrossCollateralRouters(uint32[],bytes32[])',
+      )
     ) {
       const [domains, routers] = decoded.args;
       const insights = domains.map((domain: number, index: number) => {
@@ -1291,8 +1329,11 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      oftInterface.functions['addDomain(uint32,uint32)'].name
+      matchesFunctionSignature(
+        decoded,
+        oftInterface,
+        'addDomain(uint32,uint32)',
+      )
     ) {
       const [hypDomain, lzEid] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(hypDomain);
@@ -1300,8 +1341,7 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      oftInterface.functions['removeDomain(uint32)'].name
+      matchesFunctionSignature(decoded, oftInterface, 'removeDomain(uint32)')
     ) {
       const [hypDomain] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(hypDomain);
@@ -1309,18 +1349,18 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      oftInterface.functions['setExtraOptions(bytes)'].name
+      matchesFunctionSignature(decoded, oftInterface, 'setExtraOptions(bytes)')
     ) {
       const [options] = decoded.args;
       insight = `Set LayerZero extraOptions to ${options}`;
     }
 
     if (
-      decoded.functionFragment.name ===
-      depositAddrInterface.functions[
-        'addDestinationConfig(uint32,address,bytes32,uint256)'
-      ].name
+      matchesFunctionSignature(
+        decoded,
+        depositAddrInterface,
+        'addDestinationConfig(uint32,address,bytes32,uint256)',
+      )
     ) {
       const [destination, depositAddress, recipient, feeBps] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(destination);
@@ -1328,9 +1368,11 @@ export class GovernTransactionReader {
     }
 
     if (
-      decoded.functionFragment.name ===
-      depositAddrInterface.functions['removeDestinationConfig(uint32,bytes32)']
-        .name
+      matchesFunctionSignature(
+        decoded,
+        depositAddrInterface,
+        'removeDestinationConfig(uint32,bytes32)',
+      )
     ) {
       const [destination, recipient] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(destination);
@@ -1467,73 +1509,179 @@ export class GovernTransactionReader {
     movableIface: ethers.utils.Interface,
     decoded: ethers.utils.TransactionDescription,
   ): string {
-    const name = decoded.functionFragment.name;
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
 
-    switch (name) {
-      case 'addBridge':
-        return `Set bridge for origin domain ${fmtDomain(args[0])} to ${args[1]}`;
-      case 'removeBridge':
-        return `Remove bridge ${args[1]} from domain ${fmtDomain(args[0])}`;
-      case 'enrollRemoteRouter':
-        return `Enroll remote router for domain ${fmtDomain(args[0])} to ${args[1]}`;
-      case 'enrollRemoteRouters': {
-        const [domains, routers] = args;
-        const lines = domains.map(
-          (d: number, i: number) => `domain ${fmtDomain(d)} to ${routers[i]}`,
-        );
-        return `Enroll remote routers for ${lines.join(', ')}`;
-      }
-      case 'unenrollRemoteRouter':
-        return `Unenroll remote router for domain ${fmtDomain(args[0])}`;
-      case 'unenrollRemoteRouters': {
-        const lines = args[0].map((d: number) => `domain ${fmtDomain(d)}`);
-        return `Unenroll remote routers for ${lines.join(', ')}`;
-      }
-      case 'setDestinationGas': {
-        const lines = args[0].map(
-          (c: { domain: number; gas: BigNumber }) =>
-            `domain ${fmtDomain(c.domain)} to ${c.gas.toString()}`,
-        );
-        return `Set destination gas for ${lines.join(', ')}`;
-      }
-      case 'setHook':
-        return `Set hook to ${args[0]}`;
-      case 'setInterchainSecurityModule':
-        return `Set ISM to ${args[0]}`;
-      case 'setFeeRecipient':
-        return `Set fee recipient to ${args[0]}`;
-      case 'addRebalancer':
-        return `Add rebalancer ${args[0]}`;
-      case 'removeRebalancer':
-        return `Remove rebalancer ${args[0]}`;
-      case 'setRecipient':
-        return `Set rebalance recipient for domain ${fmtDomain(args[0])} to ${args[1]}`;
-      case 'removeRecipient':
-        return `Remove rebalance recipient for domain ${fmtDomain(args[0])}`;
-      case 'approveTokenForBridge':
-        return `Approve token ${args[0]} for bridge ${args[1]}`;
-      case 'enrollCrossCollateralRouters': {
-        const [domains, routers] = args;
-        const lines = domains.map(
-          (d: number, i: number) => `domain ${fmtDomain(d)} to ${routers[i]}`,
-        );
-        return `Enroll cross-collateral routers for ${lines.join(', ')}`;
-      }
-      case 'unenrollCrossCollateralRouters': {
-        const [domains, routers] = args;
-        const lines = domains.map(
-          (d: number, i: number) => `domain ${fmtDomain(d)} from ${routers[i]}`,
-        );
-        return `Unenroll cross-collateral routers for ${lines.join(', ')}`;
-      }
-      default:
-        return `Call ${decoded.signature}`;
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'addBridge(uint32,address)',
+      )
+    ) {
+      return `Set bridge for origin domain ${this.formatDomain(args[0])} to ${args[1]}`;
     }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'removeBridge(uint32,address)',
+      )
+    ) {
+      return `Remove bridge ${args[1]} from domain ${this.formatDomain(args[0])}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'enrollRemoteRouter(uint32,bytes32)',
+      )
+    ) {
+      return `Enroll remote router for domain ${this.formatDomain(args[0])} to ${args[1]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'enrollRemoteRouters(uint32[],bytes32[])',
+      )
+    ) {
+      const [domains, routers] = args;
+      const lines = domains.map(
+        (d: number, i: number) =>
+          `domain ${this.formatDomain(d)} to ${routers[i]}`,
+      );
+      return `Enroll remote routers for ${lines.join(', ')}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'unenrollRemoteRouter(uint32)',
+      )
+    ) {
+      return `Unenroll remote router for domain ${this.formatDomain(args[0])}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'unenrollRemoteRouters(uint32[])',
+      )
+    ) {
+      const lines = args[0].map(
+        (d: number) => `domain ${this.formatDomain(d)}`,
+      );
+      return `Unenroll remote routers for ${lines.join(', ')}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'setDestinationGas((uint32,uint256)[])',
+      )
+    ) {
+      const lines = args[0].map(
+        (c: { domain: number; gas: BigNumber }) =>
+          `domain ${this.formatDomain(c.domain)} to ${c.gas.toString()}`,
+      );
+      return `Set destination gas for ${lines.join(', ')}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'setDestinationGas(uint32,uint256)',
+      )
+    ) {
+      return `Set destination gas for domain ${this.formatDomain(args[0])} to ${args[1].toString()}`;
+    }
+    if (matchesFunctionSignature(decoded, movableIface, 'setHook(address)')) {
+      return `Set hook to ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'setInterchainSecurityModule(address)',
+      )
+    ) {
+      return `Set ISM to ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'setFeeRecipient(address)',
+      )
+    ) {
+      return `Set fee recipient to ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(decoded, movableIface, 'addRebalancer(address)')
+    ) {
+      return `Add rebalancer ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'removeRebalancer(address)',
+      )
+    ) {
+      return `Remove rebalancer ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'setRecipient(uint32,bytes32)',
+      )
+    ) {
+      return `Set rebalance recipient for domain ${this.formatDomain(args[0])} to ${args[1]}`;
+    }
+    if (
+      matchesFunctionSignature(decoded, movableIface, 'removeRecipient(uint32)')
+    ) {
+      return `Remove rebalance recipient for domain ${this.formatDomain(args[0])}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        movableIface,
+        'approveTokenForBridge(address,address)',
+      )
+    ) {
+      return `Approve token ${args[0]} for bridge ${args[1]}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        ccrIface,
+        'enrollCrossCollateralRouters(uint32[],bytes32[])',
+      )
+    ) {
+      const [domains, routers] = args;
+      const lines = domains.map(
+        (d: number, i: number) =>
+          `domain ${this.formatDomain(d)} to ${routers[i]}`,
+      );
+      return `Enroll cross-collateral routers for ${lines.join(', ')}`;
+    }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        ccrIface,
+        'unenrollCrossCollateralRouters(uint32[],bytes32[])',
+      )
+    ) {
+      const [domains, routers] = args;
+      const lines = domains.map(
+        (d: number, i: number) =>
+          `domain ${this.formatDomain(d)} from ${routers[i]}`,
+      );
+      return `Unenroll cross-collateral routers for ${lines.join(', ')}`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   private formatTokenBridgeOftInsight(
@@ -1541,20 +1689,16 @@ export class GovernTransactionReader {
     decoded: ethers.utils.TransactionDescription,
   ): string {
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
-    switch (decoded.functionFragment.name) {
-      case 'addDomain':
-        return `Map Hyperlane domain ${fmtDomain(args[0])} to LayerZero EID ${args[1]}`;
-      case 'removeDomain':
-        return `Remove Hyperlane domain ${fmtDomain(args[0])} mapping`;
-      case 'setExtraOptions':
-        return `Set extra LayerZero options`;
-      default:
-        return `Call ${decoded.signature}`;
+    if (matchesFunctionSignature(decoded, iface, 'addDomain(uint32,uint32)')) {
+      return `Map Hyperlane domain ${this.formatDomain(args[0])} to LayerZero EID ${args[1]}`;
     }
+    if (matchesFunctionSignature(decoded, iface, 'removeDomain(uint32)')) {
+      return `Remove Hyperlane domain ${this.formatDomain(args[0])} mapping`;
+    }
+    if (matchesFunctionSignature(decoded, iface, 'setExtraOptions(bytes)')) {
+      return `Set extra LayerZero options`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   private formatTokenBridgeDepositAddressInsight(
@@ -1562,18 +1706,25 @@ export class GovernTransactionReader {
     decoded: ethers.utils.TransactionDescription,
   ): string {
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
-    switch (decoded.functionFragment.name) {
-      case 'addDestinationConfig':
-        return `Add destination config: domain ${fmtDomain(args[0])}, depositAddress ${args[1]}, recipient ${args[2]}, feeBps ${args[3].toString()}`;
-      case 'removeDestinationConfig':
-        return `Remove destination config: domain ${fmtDomain(args[0])}, recipient ${args[1]}`;
-      default:
-        return `Call ${decoded.signature}`;
+    if (
+      matchesFunctionSignature(
+        decoded,
+        iface,
+        'addDestinationConfig(uint32,address,bytes32,uint256)',
+      )
+    ) {
+      return `Add destination config: domain ${this.formatDomain(args[0])}, depositAddress ${args[1]}, recipient ${args[2]}, feeBps ${args[3].toString()}`;
     }
+    if (
+      matchesFunctionSignature(
+        decoded,
+        iface,
+        'removeDestinationConfig(uint32,bytes32)',
+      )
+    ) {
+      return `Remove destination config: domain ${this.formatDomain(args[0])}, recipient ${args[1]}`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   private formatCrossCollateralRoutingFeeInsight(
@@ -1581,24 +1732,24 @@ export class GovernTransactionReader {
     decoded: ethers.utils.TransactionDescription,
   ): string {
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
-    switch (decoded.functionFragment.name) {
-      case 'setCrossCollateralRouterFeeContracts': {
-        const [destinations, targetRouters, feeContracts] = args;
-        const lines = destinations.map(
-          (d: number, i: number) =>
-            `domain ${fmtDomain(d)} router ${targetRouters[i]} → fee ${feeContracts[i]}`,
-        );
-        return `Set per-router fee contracts: ${lines.join(', ')}`;
-      }
-      case 'claim':
-        return `Claim ${args[1]} balance to ${args[0]}`;
-      default:
-        return `Call ${decoded.signature}`;
+    if (
+      matchesFunctionSignature(
+        decoded,
+        iface,
+        'setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])',
+      )
+    ) {
+      const [destinations, targetRouters, feeContracts] = args;
+      const lines = destinations.map(
+        (d: number, i: number) =>
+          `domain ${this.formatDomain(d)} router ${targetRouters[i]} → fee ${feeContracts[i]}`,
+      );
+      return `Set per-router fee contracts: ${lines.join(', ')}`;
     }
+    if (matchesFunctionSignature(decoded, iface, 'claim(address,address)')) {
+      return `Claim ${args[1]} balance to ${args[0]}`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   private formatDomainRoutingHookInsight(
@@ -1606,23 +1757,22 @@ export class GovernTransactionReader {
     decoded: ethers.utils.TransactionDescription,
   ): string {
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
-    switch (decoded.functionFragment.name) {
-      case 'setHook':
-        return `Set hook for destination ${fmtDomain(args[0])} to ${args[1]}`;
-      case 'setHooks': {
-        const lines = args[0].map(
-          (cfg: { destination: number; hook: string }) =>
-            `destination ${fmtDomain(cfg.destination)} → ${cfg.hook}`,
-        );
-        return `Set hooks: ${lines.join(', ')}`;
-      }
-      default:
-        return `Call ${decoded.signature}`;
+    if (matchesFunctionSignature(decoded, iface, 'setHook(uint32,address)')) {
+      return `Set hook for destination ${this.formatDomain(args[0])} to ${args[1]}`;
     }
+    if (matchesFunctionSignature(decoded, iface, 'setHook(address)')) {
+      return `Set mailbox client hook to ${args[0]}`;
+    }
+    if (
+      matchesFunctionSignature(decoded, iface, 'setHooks((uint32,address)[])')
+    ) {
+      const lines = args[0].map(
+        (cfg: { destination: number; hook: string }) =>
+          `destination ${this.formatDomain(cfg.destination)} → ${cfg.hook}`,
+      );
+      return `Set hooks: ${lines.join(', ')}`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   private formatDomainRoutingIsmInsight(
@@ -1630,18 +1780,13 @@ export class GovernTransactionReader {
     decoded: ethers.utils.TransactionDescription,
   ): string {
     const args = decoded.args;
-    const fmtDomain = (d: number) => {
-      const cn = this.multiProvider.tryGetChainName(d);
-      return cn ? `${d} (${cn})` : `${d}`;
-    };
-    switch (decoded.functionFragment.name) {
-      case 'set':
-        return `Set ISM for origin ${fmtDomain(args[0])} to ${args[1]}`;
-      case 'remove':
-        return `Remove ISM for origin ${fmtDomain(args[0])}`;
-      default:
-        return `Call ${decoded.signature}`;
+    if (matchesFunctionSignature(decoded, iface, 'set(uint32,address)')) {
+      return `Set ISM for origin ${this.formatDomain(args[0])} to ${args[1]}`;
     }
+    if (matchesFunctionSignature(decoded, iface, 'remove(uint32)')) {
+      return `Remove ISM for origin ${this.formatDomain(args[0])}`;
+    }
+    return `Call ${decoded.signature}`;
   }
 
   /**
