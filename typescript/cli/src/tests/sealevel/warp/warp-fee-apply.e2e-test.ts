@@ -388,7 +388,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
 
   it('should create new beneficiary ATA when rotating beneficiary on a synthetic warp via apply', async function () {
     const ownerAddress = signer.getSignerAddress();
-    const SYMBOL = 'SROT';
+    const SYMBOL = 'SYNROTATE';
     const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
 
     const baseConfig = {
@@ -396,7 +396,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       name: 'Synthetic Rotate Token',
       symbol: SYMBOL,
       decimals: 9,
-      metadataUri: 'https://test.example.com/srot-metadata.json',
+      metadataUri: 'https://test.example.com/synrotate-metadata.json',
       mailbox: mailboxAddress,
       owner: ownerAddress,
       tokenFee: {
@@ -469,7 +469,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
   it('should create new beneficiary ATA when rotating beneficiary on a collateral warp via apply', async function () {
     const mint = await createSplMint(rpc, signer, 9);
     const ownerAddress = signer.getSignerAddress();
-    const SYMBOL = 'CROT';
+    const SYMBOL = 'COLROTATE';
     const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
 
     const baseConfig = {
