@@ -1,5 +1,19 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/aleo-sdk@35.0.1
+  - @hyperlane-xyz/cosmos-sdk@35.0.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+  - @hyperlane-xyz/radix-sdk@35.0.1
+  - @hyperlane-xyz/starknet-sdk@28.0.9
+  - @hyperlane-xyz/sealevel-sdk@35.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.9
+
 ## 6.0.3
 
 ### Patch Changes

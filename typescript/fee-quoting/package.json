@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/fee-quoting",
-  "version": "27.2.15",
+  "version": "27.2.16",
   "private": true,
   "description": "Offchain fee quoting service and client for Hyperlane",
   "license": "Apache-2.0",
