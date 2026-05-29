@@ -76,6 +76,7 @@ export type { SignSvmQuoteArgs } from './quote-signing.js';
 
 export { SvmPrivateKeyQuoteSigner } from './quote/SvmPrivateKeyQuoteSigner.js';
 export { SvmQuoteArtifactManager } from './quote/SvmQuoteArtifactManager.js';
+export { SvmQuoteReader } from './quote/SvmQuoteReader.js';
 export {
   isSvmQuoteSignable,
   parseSvmQuoteSignable,
