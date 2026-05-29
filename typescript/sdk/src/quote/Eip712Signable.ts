@@ -20,11 +20,11 @@ export interface Eip712TypedDataField {
   type: string;
 }
 
-export interface Eip712Signable {
+export type Eip712Signable = {
   domain: Eip712TypedDataDomain;
   types: Record<string, Eip712TypedDataField[]>;
   message: Record<string, unknown>;
-}
+};
 
 function isEip712TypedDataDomain(x: unknown): x is Eip712TypedDataDomain {
   if (typeof x !== 'object' || x === null) return false;
