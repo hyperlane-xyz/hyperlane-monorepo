@@ -11,7 +11,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
+    HyperlaneWatermarkedLogStore, Indexer, InterchainGasPayment, MerkleTreeInsertion,
+    ValidatorAnnounce,
 };
 use tokio::sync::RwLock;
 
@@ -31,7 +32,15 @@ pub struct Origin {
     pub gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     pub message_sync: MessageSync,
+    /// The underlying mailbox indexer shared with `message_sync`. Exposed so the relay
+    /// API can reuse the existing RPC connection instead of opening a new one.
+    pub message_indexer: Arc<dyn Indexer<HyperlaneMessage>>,
     pub interchain_gas_payment_sync: Option<InterchainGasPaymentSync>,
+    /// The underlying IGP indexer shared with `interchain_gas_payment_sync`. Exposed so the
+    /// relay API can eagerly store gas payments from a tx receipt before enqueuing the message,
+    /// closing the race window where the relayer checks for gas payment before the background
+    /// `tx_id_indexer_task` has stored it.
+    pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
 }
 
@@ -128,7 +137,7 @@ impl Factory for OriginFactory {
         };
 
         let hyperlane_db = Arc::new(db.clone());
-        let message_sync = {
+        let (message_sync, message_indexer) = {
             let start_entity_init = Instant::now();
             let res = self
                 .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
@@ -137,8 +146,8 @@ impl Factory for OriginFactory {
             res
         };
 
-        let interchain_gas_payment_sync = if self.igp_indexing_enabled {
-            let igp_sync = {
+        let (interchain_gas_payment_sync, igp_indexer) = if self.igp_indexing_enabled {
+            let (igp_sync, igp_idx) = {
                 let start_entity_init = Instant::now();
                 let res = self
                     .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
@@ -150,9 +159,9 @@ impl Factory for OriginFactory {
                 );
                 res
             };
-            Some(igp_sync)
+            (Some(igp_sync), Some(igp_idx))
         } else {
-            None
+            (None, None)
         };
 
         let merkle_tree_hook_sync = {
@@ -176,7 +185,9 @@ impl Factory for OriginFactory {
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),
             message_sync,
+            message_indexer,
             interchain_gas_payment_sync,
+            igp_indexer,
             merkle_tree_hook_sync,
         };
         Ok(origin)
@@ -222,8 +233,9 @@ impl OriginFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
-    ) -> Result<MessageSync, FactoryError> {
-        match HyperlaneMessage::indexing_cursor(domain.domain_protocol()) {
+    ) -> Result<(MessageSync, Arc<dyn Indexer<HyperlaneMessage>>), FactoryError> {
+        let (sync, seq_indexer) = match HyperlaneMessage::indexing_cursor(domain.domain_protocol())
+        {
             CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
                 chain_conf,
@@ -234,7 +246,7 @@ impl OriginFactory {
                 self.tx_id_indexing_enabled,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
             CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
@@ -246,9 +258,13 @@ impl OriginFactory {
                 self.tx_id_indexing_enabled,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
-        }
+        }?;
+        // Arc<dyn SequenceAwareIndexer<T>> implements Indexer<T> via auto_impl(Arc);
+        // wrap in an outer Arc to satisfy Arc<dyn Indexer<T>>.
+        let indexer: Arc<dyn Indexer<HyperlaneMessage>> = Arc::new(seq_indexer);
+        Ok((sync, indexer))
     }
 
     async fn init_igp_sync(
@@ -256,7 +272,13 @@ impl OriginFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
-    ) -> Result<InterchainGasPaymentSync, FactoryError> {
+    ) -> Result<
+        (
+            InterchainGasPaymentSync,
+            Arc<dyn Indexer<InterchainGasPayment>>,
+        ),
+        FactoryError,
+    > {
         match InterchainGasPayment::indexing_cursor(domain.domain_protocol()) {
             CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
@@ -268,7 +290,12 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| {
+                (
+                    r as Arc<dyn ContractSyncer<_>>,
+                    Arc::new(i) as Arc<dyn Indexer<_>>,
+                )
+            })
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
@@ -282,7 +309,12 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| {
+                (
+                    r as Arc<dyn ContractSyncer<_>>,
+                    Arc::new(i) as Arc<dyn Indexer<_>>,
+                )
+            })
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
@@ -306,7 +338,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
             CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
@@ -318,7 +350,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
         }
     }
@@ -331,7 +363,7 @@ impl OriginFactory {
         store: Arc<S>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
+    ) -> eyre::Result<(Arc<SequencedDataContractSync<T>>, SequenceIndexer<T>)>
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -341,13 +373,15 @@ impl OriginFactory {
         let indexer =
             SequenceIndexer::<T>::try_from_with_metrics(chain_conf, metrics, advanced_log_meta)
                 .await?;
-        Ok(Arc::new(ContractSync::new(
+        let indexer_clone = indexer.clone();
+        let sync = Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
             broadcast_sender_enabled,
-        )))
+        ));
+        Ok((sync, indexer_clone))
     }
 
     async fn build_watermark_contract_sync<T, S>(
@@ -358,7 +392,7 @@ impl OriginFactory {
         store: Arc<S>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
+    ) -> eyre::Result<(Arc<WatermarkContractSync<T>>, SequenceIndexer<T>)>
     where
         T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -367,12 +401,14 @@ impl OriginFactory {
         let indexer =
             SequenceIndexer::<T>::try_from_with_metrics(chain_conf, metrics, advanced_log_meta)
                 .await?;
-        Ok(Arc::new(ContractSync::new(
+        let indexer_clone = indexer.clone();
+        let sync = Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as WatermarkLogStore<_>,
             indexer,
             sync_metrics.clone(),
             broadcast_sender_enabled,
-        )))
+        ));
+        Ok((sync, indexer_clone))
     }
 }

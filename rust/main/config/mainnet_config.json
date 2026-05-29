@@ -93,7 +93,7 @@
       "domainRoutingIsmFactory": "0xa2931C37957f3079d3B21b877d56E1db930e02a5",
       "fallbackRoutingHook": "0x9e8fFb1c26099e75Dd5D794030e2E9AA51471c25",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-arbitrum.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/arb1",
       "index": {
         "from": 143649797
       },
@@ -165,7 +165,7 @@
       "domainRoutingIsmFactory": "0x28F7907911C7E321c596686AE6D1F20516450037",
       "fallbackRoutingHook": "0x61D15D571D5f7A9eF0D1938f072f430bBF024747",
       "gasCurrencyCoinGeckoId": "avalanche-2",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-avalanche.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/avax",
       "index": {
         "from": 36874693
       },
@@ -256,7 +256,7 @@
       "domainRoutingIsmFactory": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
       "fallbackRoutingHook": "0x4Eb82Ee35b0a1c1d776E3a3B547f9A9bA6FCC9f2",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-base.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/base",
       "index": {
         "from": 5695475
       },
@@ -479,7 +479,7 @@
       "domainRoutingIsmFactory": "0xe6Af5720d34213C805C08e2470aea979e3F72F75",
       "fallbackRoutingHook": "0x237E81f87F57Badad9e09f13CC676D986cA852e7",
       "gasCurrencyCoinGeckoId": "binancecoin",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-bsc.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/bnb",
       "index": {
         "from": 32893043
       },
@@ -566,7 +566,7 @@
       "domainRoutingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3",
       "fallbackRoutingHook": "0xDC98a856fb9112894c2fE32267DA8bF35645FAF3",
       "gasCurrencyCoinGeckoId": "celo",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-celo.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/celo",
       "index": {
         "from": 22102340
       },
@@ -675,7 +675,8 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x71388C9E25BE7b229B5d17Df7D4DB3F7DA7C962d",
       "interchainAccountRouter": "0x1B947F6246ACe28abAf073FF11c098F31ce4f899",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "technicalStack": "opstack"
+      "technicalStack": "opstack",
+      "gnosisSafeTransactionServiceUrl": "https://transaction-cyber.safe.optimism.io"
     },
     "degenchain": {
       "aggregationHook": "0x4A78ffFD1b005b4b0D628F7a1cda45A4977Eaa82",
@@ -896,13 +897,13 @@
       "domainRoutingIsmFactory": "0x28fA9552F19039b450498B0d8e5DEAe0d0aAc559",
       "fallbackRoutingHook": "0x571f1435613381208477ac5d6974310d88AC7cB7",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-mainnet.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/eth",
       "index": {
         "from": 18422581
       },
       "interchainAccountRouter": "0xC00b94c115742f711a6F9EA90373c33e9B72A4A9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x49E4344885B46ADb0433729e9F613396680AA187",
+      "interchainSecurityModule": "0xDd46ED0818EC4823BAf4f8F190B400f73F51e6Cc",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -945,7 +946,8 @@
       "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xA2502bF73e5313c1bf48E47C887cdcbf2640FA41",
       "staticMessageIdWeightedMultisigIsmFactory": "0x4272124Fba59CbA076D85375895f94B6a3485c3E",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "quotedCalls": "0xe38E2E3B4d9Aef4556e62e4D2B1e6Fc155bCc985"
     },
     "fraxtal": {
       "aggregationHook": "0x96F30f1c79bC2905e5dFac6e8A3E5CD82A301a10",
@@ -1121,7 +1123,7 @@
       "domainRoutingIsmFactory": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F",
       "fallbackRoutingHook": "0x24f5E353dD03E103Ba2372F7D6FC0cf3A66f849c",
       "gasCurrencyCoinGeckoId": "xdai",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-gnosis-chain.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/gno",
       "index": {
         "from": 30620793
       },
@@ -1197,7 +1199,7 @@
       "domainRoutingIsmFactory": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
       "fallbackRoutingHook": "0x4E1c88DD261BEe2941e6c1814597e30F53330428",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-linea.safe.global",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/linea",
       "index": {
         "from": 5154574
       },
@@ -1482,7 +1484,7 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
       "gasCurrencyCoinGeckoId": "mantle",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-mantle.safe.global",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/mantle",
       "index": {
         "from": 65590958
       },
@@ -1854,7 +1856,7 @@
       "domainRoutingIsmFactory": "0xD2e905108c5e44dADA680274740f896Ea96Cf2Fb",
       "fallbackRoutingHook": "0xD4b132C6d4AA93A4247F1A91e1ED929c0572a43d",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-optimism.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/oeth",
       "index": {
         "from": 111290758
       },
@@ -1933,7 +1935,7 @@
       "domainRoutingIsmFactory": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA",
       "fallbackRoutingHook": "0xca4cCe24E7e06241846F5EA0cda9947F0507C40C",
       "gasCurrencyCoinGeckoId": "polygon-ecosystem-token",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-polygon.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/pol",
       "index": {
         "from": 49108065
       },
@@ -2009,7 +2011,7 @@
       "domainRoutingIsmFactory": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
       "fallbackRoutingHook": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zkevm.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/zkevm",
       "index": {
         "chunk": 999,
         "from": 6577743
@@ -2151,7 +2153,7 @@
       "domainRoutingIsmFactory": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
       "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-scroll.safe.global",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/scr",
       "index": {
         "chunk": 999,
         "from": 271840
@@ -2610,7 +2612,7 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xe8d5590F2e969F9d21f0132f2b596273f8a03Ef2",
       "staticMessageIdWeightedMultisigIsmFactory": "0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E",
       "technicalStack": "opstack",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-worldchain.safe.global"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/wc"
     },
     "xai": {
       "aggregationHook": "0x31A88B8d1AeeC75Ac8Ee647EeC1d81fC755F9432",
@@ -2943,7 +2945,13 @@
       "validatorAnnounce": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x33AA12b4e8E79cA551Ca9D1F2eC7d2cE02129dd4",
       "staticMessageIdWeightedMultisigIsmFactory": "0xB31553F20D7b06Eb8Eaefe29376146e1d276d091",
-      "technicalStack": "opstack"
+      "technicalStack": "opstack",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "astar": {
       "blockExplorers": [
@@ -3354,7 +3362,13 @@
       "testRecipient": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
       "validatorAnnounce": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
       "interchainAccountRouter": "0xCf42106b85fC72c43Ac4976f20fA2aD7D9592c31",
-      "timelockController": "0x0000000000000000000000000000000000000000"
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "shibarium": {
       "blockExplorers": [
@@ -3484,7 +3498,13 @@
       "storageGasOracle": "0xf8344D85a1429708e0BE6724218E938087e596DF",
       "testRecipient": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710"
+      "validatorAnnounce": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "oortmainnet": {
       "blockExplorers": [
@@ -4239,10 +4259,10 @@
     "zeronetwork": {
       "blockExplorers": [
         {
-          "apiUrl": "https://zero-network.calderaexplorer.xyz/verification/contract_verification",
-          "family": "etherscan",
+          "apiUrl": "https://explorer.zero.network",
+          "family": "other",
           "name": "Zero Network Explorer",
-          "url": "https://zerion-explorer.vercel.app"
+          "url": "https://explorer.zero.network"
         }
       ],
       "blocks": {
@@ -4267,7 +4287,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://zero-network.calderachain.xyz"
+          "http": "https://rpc.zerion.io/v1/zero"
+        },
+        {
+          "http": "https://zero.drpc.org"
         }
       ],
       "technicalStack": "zksync",
@@ -4356,7 +4379,7 @@
       "index": {
         "from": 47325797
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zksync.safe.global"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/zksync"
     },
     "chilizmainnet": {
       "blockExplorers": [
@@ -4690,6 +4713,12 @@
       "validatorAnnounce": "0xA166219dF110BDA97b91e65D4BB4Aae4159978b9",
       "index": {
         "from": 6451460
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "prom": {
@@ -5019,7 +5048,7 @@
       "index": {
         "from": 3010957
       },
-      "gnosisSafeTransactionServiceUrl": "https://trx-superseed.safe.protofire.io"
+      "gnosisSafeTransactionServiceUrl": "https://superseed.superchain.safe.protofire.io"
     },
     "unichain": {
       "blockExplorers": [
@@ -5090,7 +5119,7 @@
       "index": {
         "from": 1453239
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-unichain.safe.global"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/unichain"
     },
     "vana": {
       "blockExplorers": [
@@ -5360,7 +5389,7 @@
       "index": {
         "from": 57794
       },
-      "gnosisSafeTransactionServiceUrl": "https://trx-swell.safe.protofire.io"
+      "gnosisSafeTransactionServiceUrl": "https://swell.superchain.safe.protofire.io"
     },
     "appchain": {
       "batchContractAddress": "0xEB92D3f697F0d7DCbC025912e671d2A979FBFf78",
@@ -5635,7 +5664,7 @@
       "index": {
         "from": 860343
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ink.safe.global/",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/ink",
       "transactionOverrides": {
         "minGasPrice": 1,
         "minFeePerGas": 1,
@@ -5704,7 +5733,7 @@
       "index": {
         "from": 612005
       },
-      "gnosisSafeTransactionServiceUrl": "https://trx-soneium.safe.protofire.io"
+      "gnosisSafeTransactionServiceUrl": "https://soneium.superchain.safe.protofire.io"
     },
     "sonic": {
       "blockExplorers": [
@@ -5769,7 +5798,7 @@
       "index": {
         "from": 482156
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-sonic.safe.global/"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/sonic"
     },
     "starknet": {
       "blockExplorers": [
@@ -6012,6 +6041,12 @@
       "validatorAnnounce": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
       "index": {
         "from": 75891
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "guru": {
@@ -6430,7 +6465,7 @@
       "index": {
         "from": 707812
       },
-      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.berachain.com"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/berachain"
     },
     "arcadia": {
       "blockExplorers": [
@@ -6823,7 +6858,7 @@
         "chunk": 50,
         "from": 21196
       },
-      "gnosisSafeTransactionServiceUrl": "https://prod.hyperliquid.keypersafe.xyz"
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/hyper"
     },
     "plume": {
       "blockExplorers": [
@@ -7265,7 +7300,13 @@
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "fluence": {
       "blockExplorers": [
@@ -7328,6 +7369,12 @@
       "validatorAnnounce": "0x7B8AA8f23Ab6B0757eC6FC71894211376D9335b0",
       "index": {
         "from": 10997212
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "hashkey": {
@@ -9586,7 +9633,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 12,
-        "reorgPeriod": 5
+        "reorgPeriod": "finalized"
       },
       "chainId": 1983,
       "deployer": {

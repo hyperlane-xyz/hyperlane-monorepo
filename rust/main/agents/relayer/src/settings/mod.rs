@@ -73,6 +73,30 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Whether to enable the relay API endpoint (default: false)
+    ///
+    /// # Deployment requirement
+    ///
+    /// The relay API feeds an `UnboundedSender` that is shared with the normal
+    /// message-processing path. There is no back-pressure at the channel level:
+    /// the rate limiter (`relay_api_rate_limit_*`) and `MAX_MESSAGES_PER_TX=10`
+    /// provide a soft cap (~17 ops/sec at default limits) but will not prevent
+    /// unbounded queue growth under sustained load if the endpoint is exposed
+    /// publicly without per-tenant limiting at the ingress layer.
+    ///
+    /// **The relay API must be deployed behind an ingress that enforces
+    /// per-tenant rate limits.** Enabling it on a publicly reachable port
+    /// without ingress-level controls risks OOM under a flood of requests.
+    pub relay_api_enabled: bool,
+    /// Port for the relay API HTTP server. When set, the relay API is served on
+    /// this dedicated port instead of the shared metrics port. Defaults to 8900.
+    pub relay_api_port: Option<u16>,
+    /// Relay API rate limit: max requests per window (default: 100)
+    pub relay_api_rate_limit_max_requests: Option<usize>,
+    /// Relay API rate limit: time window in seconds (default: 60)
+    pub relay_api_rate_limit_window_secs: Option<u64>,
+    /// Relay API allowed CORS origins (comma-separated). Defaults to https://nexus.hyperlane.xyz.
+    pub relay_api_cors_origins: Vec<String>,
 }
 
 /// Config for gas payment enforcement
@@ -369,6 +393,64 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let relay_api_enabled = p
+            .chain(&mut err)
+            .get_opt_key("relayApiEnabled")
+            .parse_bool()
+            .unwrap_or(false);
+
+        let relay_api_port = p
+            .chain(&mut err)
+            .get_opt_key("relayApiPort")
+            .parse_u16()
+            .end();
+
+        let relay_api_rate_limit_max_requests = p
+            .chain(&mut err)
+            .get_opt_key("relayApiRateLimitMaxRequests")
+            .parse_u32()
+            .end()
+            .and_then(|v| {
+                if v > 0 {
+                    Some(v as usize)
+                } else {
+                    err.push(
+                        (&p.cwp).add("relayApiRateLimitMaxRequests"),
+                        eyre::eyre!("relayApiRateLimitMaxRequests must be greater than 0"),
+                    );
+                    None
+                }
+            });
+
+        let relay_api_rate_limit_window_secs = p
+            .chain(&mut err)
+            .get_opt_key("relayApiRateLimitWindowSecs")
+            .parse_u64()
+            .end()
+            .and_then(|v| {
+                if v > 0 {
+                    Some(v)
+                } else {
+                    err.push(
+                        (&p.cwp).add("relayApiRateLimitWindowSecs"),
+                        eyre::eyre!("relayApiRateLimitWindowSecs must be greater than 0"),
+                    );
+                    None
+                }
+            });
+
+        let relay_api_cors_origins: Vec<String> = p
+            .chain(&mut err)
+            .get_opt_key("relayApiCorsOrigins")
+            .parse_string()
+            .map(|v| {
+                v.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["https://nexus.hyperlane.xyz".to_string()]);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -387,6 +469,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            relay_api_enabled,
+            relay_api_port,
+            relay_api_rate_limit_max_requests,
+            relay_api_rate_limit_window_secs,
+            relay_api_cors_origins,
         })
     }
 }

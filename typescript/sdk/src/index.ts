@@ -50,7 +50,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -259,9 +259,11 @@ export {
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  RateLimitedHookConfig,
+  RateLimitedHookSchema,
   SafeParseHookConfigSchema,
 } from './hook/types.js';
-export { isHookCompatible } from './hook/utils.js';
+export { hookTreeContainsRateLimited, isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 // Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
@@ -322,6 +324,8 @@ export {
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
   SafeParseIsmConfigSchema,
+  RateLimitedIsmConfig,
+  RateLimitedIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -409,17 +413,7 @@ export {
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
 export {
-  commitmentFromIcaCalls,
-  commitmentFromRevealMessage,
-  encodeIcaCalls,
   InterchainAccount,
-  normalizeCalls,
-  PostCallsSchema,
-  PostCallsType,
-  PostCallsLegacyType,
-  PostCallsIcaType,
-  isPostCallsIca,
-  RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
@@ -520,6 +514,7 @@ export {
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
+export { parseCustomRpcHeaders } from './utils/provider.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
@@ -708,11 +703,13 @@ export {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
   Quote,
   QuoteTransferRemoteParams,
+  isPredicateCapableAdapter,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -848,6 +845,7 @@ export {
   HypTokenRouterConfigSchema,
   HypTokenRouterVirtualConfig,
   isCollateralRebaseTokenConfig,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
@@ -883,6 +881,9 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,
@@ -894,6 +895,17 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateAttestationSchema,
+} from './predicate/PredicateApiClient.js';
+export {
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/PredicateDeployer.js';
 export {
   ChainMap,
   ChainName,

@@ -11,7 +11,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts.js';
 import type { AgentContextConfig } from '../../config/agent/agent.js';
-import type { DeployEnvironment } from '../../config/environment.js';
+import type { DeployEnvironment } from '../../config/deploy-environment.js';
 import { Role } from '../../roles.js';
 import {
   fetchGCPSecret,
@@ -20,6 +20,7 @@ import {
 } from '../../utils/gcloud.js';
 import { userIdentifier } from '../agent.js';
 
+import { getAwsIamClient } from './client.js';
 import { AgentAwsKey } from './key.js';
 
 export class AgentAwsUser {
@@ -34,7 +35,7 @@ export class AgentAwsUser {
     public readonly region: string,
     public readonly chainName?: ChainName,
   ) {
-    this.adminIamClient = new IAMClient({ region });
+    this.adminIamClient = getAwsIamClient(region);
   }
 
   // Creates the AWS user if it doesn't exist.

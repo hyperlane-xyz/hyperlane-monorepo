@@ -26,9 +26,10 @@ import {
   getRegistryWithOverrides,
 } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { getSafeApiKey } from '../utils/safe.js';
+import { fetchExplorerApiKeys } from '../deployment/verify.js';
+import { getSafeApiKey } from '../utils/safeApiKey.js';
 
-import { DeployEnvironment } from './environment.js';
+import { DeployEnvironment } from './deploy-environment.js';
 
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
@@ -63,18 +64,16 @@ export function getDisabledChains(): ChainName[] {
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
-  // downtime
-  'molten',
-
   // not AW owned
   'forma',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
-  'zeronetwork',
   'abstract',
   'sophon',
+
+  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
 
   ...getDisabledChains(),
 ];
@@ -160,7 +159,36 @@ export async function getRegistryForEnvironment(
  * @param chains The chains to get metadata overrides for.
  * @returns A partial chain metadata map with the secret overrides.
  */
-export async function getSecretMetadataOverrides(
+// Process-level cache for secret metadata overrides. Explorer/Safe keys and
+// secret RPC URLs don't change within a single process run, so re-fetching
+// them on every MultiProvider construction is wasteful.
+const secretMetadataOverridesCache = new Map<
+  string,
+  Promise<ChainMap<Partial<ChainMetadata>>>
+>();
+const githubSecretMetadataOverridesCache = new Map<
+  string,
+  Promise<ChainMap<Partial<ChainMetadata>>>
+>();
+
+export function getSecretMetadataOverrides(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const cacheKey = `${deployEnv}:${[...chains].sort().join(',')}`;
+  const cached = secretMetadataOverridesCache.get(cacheKey);
+  if (cached) return cached;
+  const promise = fetchSecretMetadataOverrides(deployEnv, chains).catch(
+    (error) => {
+      secretMetadataOverridesCache.delete(cacheKey);
+      throw error;
+    },
+  );
+  secretMetadataOverridesCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function fetchSecretMetadataOverrides(
   deployEnv: DeployEnvironment,
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
@@ -208,6 +236,26 @@ export async function getSecretMetadataOverrides(
     }
   }
 
+  // Merge explorer API keys into chain metadata so that block explorer
+  // verification checks (e.g. warp check) use authenticated requests.
+  // These overrides live only in the PartialRegistry layer and are never
+  // persisted back to the on-disk registry.
+  const explorerApiKeys = await fetchExplorerApiKeys();
+  for (const chain of chains) {
+    const apiKey = explorerApiKeys[chain];
+    if (!apiKey) continue;
+
+    const chainMetadata = getChain(chain);
+    if (!chainMetadata.blockExplorers?.length) continue;
+
+    chainMetadataOverrides[chain] ??= {};
+    chainMetadataOverrides[chain].blockExplorers =
+      chainMetadata.blockExplorers.map((explorer) => ({
+        ...explorer,
+        apiKey,
+      }));
+  }
+
   return chainMetadataOverrides;
 }
 
@@ -220,6 +268,24 @@ export async function getSecretMetadataOverrides(
  * @returns A partial chain metadata map with the secret overrides.
  */
 export async function getSecretMetadataOverridesFromGitHubSecrets(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const cacheKey = `${deployEnv}:${[...chains].sort().join(',')}`;
+  const cached = githubSecretMetadataOverridesCache.get(cacheKey);
+  if (cached) return cached;
+  const promise = fetchSecretMetadataOverridesFromGitHubSecrets(
+    deployEnv,
+    chains,
+  ).catch((error) => {
+    githubSecretMetadataOverridesCache.delete(cacheKey);
+    throw error;
+  });
+  githubSecretMetadataOverridesCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function fetchSecretMetadataOverridesFromGitHubSecrets(
   deployEnv: DeployEnvironment,
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {

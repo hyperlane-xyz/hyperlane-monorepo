@@ -115,6 +115,20 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
+    /// When true, drop the message immediately once `num_retries > max_retries`
+    /// instead of parking it in the final long backoff arm. Set by the relay API
+    /// so that small `max_retries` budgets are respected without touching the
+    /// behavior of normal relayer messages.
+    ///
+    /// Intentionally non-persistent (`skip_serializing`, no `deserialize`): the relay
+    /// API injects messages directly into the processor channel without a DB write, so
+    /// rehydration via the DB-loader path never sees these messages while fail_fast is
+    /// relevant. If a message were recovered through the DB path before the indexer
+    /// catches up, it would rehydrate with `fail_fast=false` and follow the normal
+    /// long-backoff arm — acceptable degradation, not a correctness issue.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    fail_fast: bool,
 }
 
 impl Debug for PendingMessage {
@@ -594,6 +608,14 @@ impl PendingMessage {
         Some(pending_message)
     }
 
+    /// Set fail-fast mode: drop the message immediately when `num_retries` exceeds
+    /// `max_retries` rather than parking it in the final long-backoff arm.
+    /// Use this for relay API messages where a small retry budget must be enforced strictly.
+    pub fn with_fail_fast(mut self) -> Self {
+        self.fail_fast = true;
+        self
+    }
+
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
             .and_then(|dur| Instant::now().checked_add(dur))
@@ -845,6 +867,19 @@ impl PendingMessage {
         } else {
             warn!("Repreparing message: {}", reason.clone());
         }
+        // For fail-fast messages (relay API), drop immediately once the retry budget is
+        // exceeded. Without this check, a small max_retries value (e.g. 3) would still
+        // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
+        // Normal relayer messages do NOT set fail_fast and continue to the long-backoff arm.
+        if self.fail_fast && self.num_retries >= self.max_retries {
+            warn!(
+                message_id = ?self.message.id(),
+                num_retries = self.num_retries,
+                max_retries = self.max_retries,
+                "Relay API message exceeded max retries, dropping"
+            );
+            return PendingOperationResult::Drop;
+        }
         PendingOperationResult::Reprepare(reason)
     }
 
@@ -856,12 +891,6 @@ impl PendingMessage {
             warn!(id = ?self.id(), "Reconfirming message: {}", reason);
         }
         PendingOperationResult::NotReady
-    }
-
-    fn is_ready(&self) -> bool {
-        self.next_attempt_after
-            .map(|a| Instant::now() >= a)
-            .unwrap_or(true)
     }
 
     /// Record in HyperlaneDB and various metrics that this process has observed

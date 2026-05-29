@@ -69,6 +69,30 @@ The metric shows the latest highest signed index by a validator as it's observed
 - The validator isn't running at all
 - The relayer has issues reaching the validator's signatures for some reason
 
+## Known Issue Handling
+
+If you have the ability to access known issues, before proposing remediation, check whether this alert pattern matches an active known issue.
+
+Treat this as likely known when all of the following are true:
+
+1. The route/chain context matches an existing known issue fingerprint.
+2. The symptom pattern is the same (e.g. recurring validator inconsistency from an intentionally stale enrollment).
+3. There is no new evidence of wider blast radius or newly lost quorum.
+
+When it matches, explicitly say this appears to be a known issue and summarize:
+
+- why it is known,
+- quick checks performed to confirm nothing changed,
+- why no immediate remediation is expected.
+
+Typical shape of a known-issue match:
+
+- A specific origin/destination + app_context (e.g. a particular warp route) is named in the known issue.
+- The expected fingerprint is recurring inconsistency from a stale or intentionally-deferred enrollment, not an acute new failure.
+- The known issue explains why remediation is deferred (e.g. enrollment update is non-trivial on that chain, or the chain is winding down) and what would change the assessment.
+
+If you have the ability to track known issues and the issue is not yet tracked as known but appears recurring + currently unactionable, recommend saving it as a known issue candidate.
+
 ## Debugging Workflow
 
 ### Step 0: Pick the app context

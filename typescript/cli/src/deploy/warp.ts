@@ -50,9 +50,7 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
-  isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
-  isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
@@ -61,6 +59,7 @@ import {
   type Address,
   addressToBytes32,
   assert,
+  formatError,
   isEVMLike,
   mapAllSettled,
   mustGet,
@@ -71,7 +70,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { requestAndSaveApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/apiKeys.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
   errorRed,
@@ -370,10 +369,8 @@ function generateTokenConfigs(
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      isCollateralTokenConfig(config) ||
-      isXERC20TokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
-        ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
+      'token' in config && typeof config.token === 'string'
+        ? config.token
         : undefined;
 
     const protocol = multiProvider.getProtocol(chainName);
@@ -631,7 +628,7 @@ export async function extendWarpRoute(
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     }
     for (const [chain, error] of rejected) {
-      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(chain, error);
     }
   }
@@ -642,11 +639,10 @@ export async function extendWarpRoute(
       const contracts = await deployExtension(chain);
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      errorRed(`Failed to deploy extension to ${chain}: ${message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(
         chain,
-        error instanceof Error ? error : new Error(message),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }

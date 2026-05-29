@@ -11,8 +11,6 @@ export const awIcas: ChainMap<Address> = {
   // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
 
   // keep safe-owned for now
-  // arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
-  // base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
   // bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   // optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
 
@@ -21,6 +19,7 @@ export const awIcas: ChainMap<Address> = {
   ancient8: '0xE78B22275FfbF789aD5dAD25cC6d9C50c38286f7',
   apechain: '0x4745601a50CEE53b66221032318a2547D5741ae8',
   appchain: '0xA843bFe58EbffaDc274b6718b238d60141E1281b',
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
   arbitrumnova: '0x29eE2B1F2cA4C53DcbC237d81ea1e7d6a885FeDC',
   arcadia: '0x2616bb811BBE23A85D828d0732C170aC29ddf68A',
   artela: '0x17C13CD3211d1b0532faC4Ec967254e63A2D4625',
@@ -29,6 +28,7 @@ export const awIcas: ChainMap<Address> = {
   botanix: '0x514A0b6B06941561c3A33ce78e4d46F006450C01',
   avalanche: '0xe9232de913DfB7AC5E3e8dC3c3f48e2b7480889D',
   b3: '0x4E5265D24E7EDd96e695dF9EB2983811fb4Fd21e',
+  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
   berachain: '0x602C75F468df1AC861862D8fdBFdf5f08d8Bdb88',
   bitlayer: '0x2A59725D978616DebFc43f8136A0d6258bC23cc5',
   blast: '0xc242beF1ffd95C1b3B7e8d6bB87947d3ADb335Ad',
@@ -141,4 +141,8 @@ export const awIcas: ChainMap<Address> = {
   // mocachain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
   // fluent: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
   // kiichain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
+
+  // May 11, 2026 - Moonpay CROSS/USDC route
+  // ----------------------------------------------------------
+  citrea: '0x682bc0Aca87491ECB3683911996F1d573F989141',
 } as const;

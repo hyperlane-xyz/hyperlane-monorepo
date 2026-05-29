@@ -218,6 +218,36 @@ describe('RebalancerContextFactory', () => {
       expect(multiProvider.getProvider.firstCall.args[0]).to.equal('ethereum');
     });
 
+    it('should initialize providers for Tron chains (EVM-like)', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'tron', protocol: ProtocolType.Tron },
+      ]);
+
+      await callCreate(multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'tron',
+            '0xTronToken1234567890',
+            TokenStandard.TronHypCollateral,
+          ),
+        ],
+      });
+
+      // Tron is EVM-like, so getProvider should be called for both chains
+      expect(multiProvider.getProvider.callCount).to.equal(2);
+      const providerChains = multiProvider.getProvider
+        .getCalls()
+        .map((c) => c.args[0]);
+      expect(providerChains).to.include('ethereum');
+      expect(providerChains).to.include('tron');
+    });
+
     it('should call getProvider for all chains when all are EVM', async () => {
       const { multiProvider } = createMockMultiProvider([
         { name: 'ethereum', protocol: ProtocolType.Ethereum },
@@ -245,6 +275,78 @@ describe('RebalancerContextFactory', () => {
         .map((c) => c.args[0]);
       expect(providerChains).to.include('ethereum');
       expect(providerChains).to.include('arbitrum');
+    });
+
+    it('should fail fast when bridgeMinAcceptedAmount is configured for a chain without a token', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const config = createMockConfig();
+      config.strategyConfig[0].chains.arbitrum.bridgeMinAcceptedAmount = 1;
+
+      let error: Error | undefined;
+      try {
+        const factory = await createFactory(config, multiProvider, {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+          ],
+        } as WarpCoreConfig);
+        await factory.createStrategy();
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'No token found for configured strategy chain arbitrum in warp route USDC/paradex',
+      );
+    });
+
+    it('should fail fast when bridged supply is unavailable during initial collateral calculation', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const factory = await createFactory(createMockConfig(), multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+        ],
+      });
+
+      const collateralToken = factory
+        .getWarpCore()
+        .tokens.find((token) => token.chainName === 'ethereum');
+      assert(collateralToken, 'Expected ethereum collateral token in test');
+
+      sandbox.stub(collateralToken, 'getHypAdapter').returns({
+        getBridgedSupply: sandbox.stub().resolves(undefined),
+      } as any);
+
+      let error: Error | undefined;
+      try {
+        await factory.createStrategy();
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'Missing bridged supply for ethereum while computing initial total collateral for warp route USDC/paradex',
+      );
     });
 
     it('should fail early when inventory override origin protocol signer key is missing', async () => {
@@ -291,7 +393,7 @@ describe('RebalancerContextFactory', () => {
           createToken(
             evmChain,
             TEST_ADDRESSES.ethereum,
-            TokenStandard.EvmHypSynthetic,
+            TokenStandard.EvmHypCollateral,
           ),
           createToken(
             sealevelChain,
@@ -310,11 +412,153 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
       );
+    });
+
+    it('should fail early when an inventory-relevant chain has no token', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const config = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+        },
+      } as RebalancerConfig;
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake(() => ({
+        protocol: ProtocolType.Ethereum,
+      }));
+
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'No token found for inventory-relevant chain arbitrum in warp route USDC/paradex',
+      );
+    });
+
+    it('should accept Tron as a supported inventory protocol', async () => {
+      const tronChain = 'tron';
+      const evmChain = 'ethereum';
+      const { multiProvider } = createMockMultiProvider([
+        { name: evmChain, protocol: ProtocolType.Ethereum },
+        { name: tronChain, protocol: ProtocolType.Tron },
+      ]);
+
+      const config = {
+        warpRouteId: 'USDC/tron-route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              [tronChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+                override: {
+                  [evmChain]: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              [evmChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+          [ProtocolType.Tron]: {
+            address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+            key: '0xdef456',
+          },
+        },
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            evmChain,
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            tronChain,
+            '0xTronToken123',
+            TokenStandard.TronHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake((chainName: string) => ({
+        protocol:
+          chainName === tronChain ? ProtocolType.Tron : ProtocolType.Ethereum,
+      }));
+
+      const result = await (factory as any).createInventoryRebalancerAndConfig(
+        {} as any,
+        {},
+      );
+
+      assert(
+        result,
+        'Expected inventory config to be created for Tron support',
+      );
+      expect(result.inventoryConfig.inventoryAddresses).to.deep.equal({
+        [ProtocolType.Ethereum]: TEST_ADDRESSES.ethereum,
+        [ProtocolType.Tron]: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      });
+      expect(result.inventoryConfig.chains).to.include.members([
+        evmChain,
+        tronChain,
+      ]);
+      expect(result.inventoryRebalancer).to.exist;
     });
 
     it('should fail early when inventory chain uses unsupported protocol', async () => {
@@ -384,9 +628,17 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
       );
     });

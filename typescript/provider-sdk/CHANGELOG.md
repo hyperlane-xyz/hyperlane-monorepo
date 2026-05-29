@@ -1,5 +1,50 @@
 # @hyperlane-xyz/provider-sdk
 
+## 6.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@34.0.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.1
+
+## 6.0.0
+
+### Major Changes
+
+- bfe4d2e: Breaking: the `./protocol` subpath no longer re-exports `ProtocolType`, `ProtocolTypeValue`, or `ProtocolSmallestUnit`. These were moved to the new `./protocolType` module to break an import cycle. Import them from the main `@hyperlane-xyz/provider-sdk` entry instead.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.0
+
+## 5.1.0
+
+### Minor Changes
+
+- b864cca: Multi-VM fee type support was added to provider-sdk and deploy-sdk. Fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting) were defined with Config API and Artifact API variants. FeeReader and FeeWriter with required FeeReadContext were added to deploy-sdk. Fee was integrated into warp types and the warp writer update flow. All protocol providers received createFeeArtifactManager stubs.
+
+### Patch Changes
+
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/utils@33.0.2
+
+## 5.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.0.1
+
+## 5.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.0.0
+
 ## 5.0.1
 
 ### Patch Changes

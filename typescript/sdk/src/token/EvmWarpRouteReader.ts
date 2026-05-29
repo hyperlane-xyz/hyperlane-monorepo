@@ -5,6 +5,7 @@ import {
   CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
+  PredicateRouterWrapper__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -42,6 +43,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
@@ -54,6 +56,11 @@ import {
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import {
+  AggregationHookConfig,
+  DerivedHookConfig,
+  HookType,
+} from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
@@ -61,7 +68,12 @@ import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
-import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
+import {
+  isProxy,
+  isStorageEmpty,
+  proxyAdmin,
+  proxyImplementation,
+} from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
@@ -84,6 +96,7 @@ import {
   XERC20Type,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  PredicateWrapperConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -326,6 +339,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
+    const predicateWrapper = await this.derivePredicateWrapperConfig(
+      routerConfig.hook as DerivedHookConfig | string | undefined,
+    );
+
     const derivedConfig = {
       ...routerConfig,
       ...tokenConfig,
@@ -334,8 +351,47 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
+      ...(predicateWrapper && { predicateWrapper }),
     };
     return derivedConfig;
+  }
+
+  /**
+   * Searches the derived hook tree for a PredicateRouterWrapper and, if found,
+   * reads its on-chain config (registry, policyId, owner).
+   */
+  private async derivePredicateWrapperConfig(
+    hook: DerivedHookConfig | string | undefined,
+  ): Promise<PredicateWrapperConfig | undefined> {
+    const predicateAddress = this.findPredicateAddressInHook(hook);
+    if (!predicateAddress) return undefined;
+
+    const wrapper = PredicateRouterWrapper__factory.connect(
+      predicateAddress,
+      this.provider,
+    );
+    const [predicateRegistry, policyId, owner] = await Promise.all([
+      wrapper.getRegistry(),
+      wrapper.getPolicyID(),
+      wrapper.owner(),
+    ]);
+    return { predicateRegistry, policyId, owner };
+  }
+
+  private findPredicateAddressInHook(
+    hook: DerivedHookConfig | string | undefined,
+  ): string | undefined {
+    if (!hook || typeof hook === 'string') return undefined;
+    if (hook.type === HookType.PREDICATE) return hook.address;
+    if (hook.type === HookType.AGGREGATION) {
+      for (const sub of (hook as AggregationHookConfig).hooks) {
+        const found = this.findPredicateAddressInHook(
+          sub as DerivedHookConfig | string,
+        );
+        if (found) return found;
+      }
+    }
+    return undefined;
   }
 
   public async fetchTokenFee(
@@ -563,10 +619,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     this.setSmartProviderLogLevel('silent');
 
     try {
+      // Fetch implementation bytecode once; scanning selectors locally avoids
+      // reverted eth_calls for methods that don't exist on the contract.
+      // Read the EIP-1967 impl slot directly so UUPS proxies (which have
+      // an empty admin slot) are resolved correctly alongside TransparentProxy.
+      // Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
+      // will be '0x' and the selector guard falls through to probes as pre-PR.
+      let implAddress = warpRouteAddress;
+      try {
+        const impl = await proxyImplementation(this.provider, warpRouteAddress);
+        if (!isZeroishAddress(impl)) implAddress = impl;
+      } catch {
+        // not a proxy or address has no code — use warpRouteAddress directly
+      }
+      const bytecode = await this.provider.getCode(implAddress);
+
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
       )) {
+        // Skip if selector absent from bytecode — avoids reverted eth_calls.
+        // When bytecode is unavailable ('0x'), fall through to the probe anyway
+        // to preserve pre-optimization behavior on zero-impl / flaky-RPC paths.
+        const selector = factory.createInterface().getSighash(method);
+        if (!isStorageEmpty(bytecode) && !bytecode.includes(strip0x(selector)))
+          continue;
+
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
           const result = await warpRoute[method]();

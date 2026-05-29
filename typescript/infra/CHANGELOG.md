@@ -1,5 +1,132 @@
 # @hyperlane-xyz/infra
 
+## 34.0.0
+
+### Patch Changes
+
+- Updated dependencies [9a1ce26]
+- Updated dependencies [f758a70]
+- Updated dependencies [2151352]
+- Updated dependencies [b8a600c]
+  - @hyperlane-xyz/sdk@34.0.0
+  - @hyperlane-xyz/deploy-sdk@6.0.2
+  - @hyperlane-xyz/http-registry-server@34.0.0
+  - @hyperlane-xyz/keyfunder@0.1.30
+  - @hyperlane-xyz/metrics@0.2.23
+  - @hyperlane-xyz/rebalancer@27.3.2
+  - @hyperlane-xyz/relayer@1.1.30
+  - @hyperlane-xyz/sealevel-sdk@34.0.0
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.7
+
+## 33.1.1
+
+### Patch Changes
+
+- Updated dependencies [9ad1bd0]
+- Updated dependencies [530f02e]
+- Updated dependencies [9670e43]
+- Updated dependencies [cc90a8f]
+  - @hyperlane-xyz/sdk@33.1.1
+  - @hyperlane-xyz/http-registry-server@33.1.1
+  - @hyperlane-xyz/keyfunder@0.1.29
+  - @hyperlane-xyz/metrics@0.2.22
+  - @hyperlane-xyz/rebalancer@27.3.1
+  - @hyperlane-xyz/relayer@1.1.29
+  - @hyperlane-xyz/sealevel-sdk@33.1.1
+  - @hyperlane-xyz/utils@33.1.1
+  - @hyperlane-xyz/deploy-sdk@6.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.6
+
+## 33.1.0
+
+### Patch Changes
+
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- Updated dependencies [6f4b790]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [7756d0a]
+- Updated dependencies [6929388]
+- Updated dependencies [47649b7]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [0b1c1d1]
+- Updated dependencies [d9dec53]
+- Updated dependencies [054b178]
+  - @hyperlane-xyz/sdk@33.1.0
+  - @hyperlane-xyz/relayer@1.1.28
+  - @hyperlane-xyz/rebalancer@27.3.0
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/http-registry-server@33.1.0
+  - @hyperlane-xyz/keyfunder@0.1.28
+  - @hyperlane-xyz/metrics@0.2.21
+  - @hyperlane-xyz/deploy-sdk@6.0.0
+  - @hyperlane-xyz/sealevel-sdk@33.1.0
+  - @hyperlane-xyz/tron-sdk@23.0.5
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 33.0.2
+
+### Patch Changes
+
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+- Updated dependencies [78199f4]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/deploy-sdk@5.1.0
+  - @hyperlane-xyz/sealevel-sdk@33.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.4
+  - @hyperlane-xyz/sdk@33.0.2
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/rebalancer@27.2.14
+  - @hyperlane-xyz/http-registry-server@33.0.2
+  - @hyperlane-xyz/keyfunder@0.1.27
+  - @hyperlane-xyz/metrics@0.2.20
+  - @hyperlane-xyz/relayer@1.1.27
+  - @hyperlane-xyz/core@11.3.1
+
+## 33.0.1
+
+### Patch Changes
+
+- Updated dependencies [a2081df]
+- Updated dependencies [4c91737]
+- Updated dependencies [959c42a]
+  - @hyperlane-xyz/sdk@33.0.1
+  - @hyperlane-xyz/rebalancer@27.2.13
+  - @hyperlane-xyz/http-registry-server@33.0.1
+  - @hyperlane-xyz/keyfunder@0.1.26
+  - @hyperlane-xyz/metrics@0.2.19
+  - @hyperlane-xyz/relayer@1.1.26
+  - @hyperlane-xyz/sealevel-sdk@33.0.1
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.3
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.3
+
+## 33.0.0
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/http-registry-server@33.0.0
+  - @hyperlane-xyz/keyfunder@0.1.25
+  - @hyperlane-xyz/metrics@0.2.18
+  - @hyperlane-xyz/rebalancer@27.2.12
+  - @hyperlane-xyz/relayer@1.1.25
+  - @hyperlane-xyz/sealevel-sdk@33.0.0
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/deploy-sdk@5.0.2
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.2
+
 ## 32.0.1
 
 ### Patch Changes

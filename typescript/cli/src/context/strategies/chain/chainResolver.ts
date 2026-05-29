@@ -8,13 +8,13 @@ import {
   DeployedCoreAddressesSchema,
   EvmCoreModule,
   TxSubmitterType,
+  WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getTransactions } from '../../../config/submit.js';
-import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 import {
@@ -24,9 +24,11 @@ import {
 import { getOrderedWarpSendChains } from '../../../utils/warp-send.js';
 import {
   getWarpConfigs,
+  getWarpRouteDeployConfig,
   getWarpCoreConfigOrExit,
+  resolveWarpRouteId,
 } from '../../../utils/warp.js';
-import { requestAndSaveApiKeys } from '../../context.js';
+import { requestAndSaveApiKeys } from '../../apiKeys.js';
 
 /**
  * Resolves chains based on command type.
@@ -52,8 +54,9 @@ export async function resolveChains(
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-    case CommandType.WARP_CHECK:
       return resolveWarpConfigChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpCheckChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
 
@@ -140,6 +143,40 @@ async function resolveWarpConfigChains(
     'No chains found in warp route deployment config',
   );
   return argv.context.chains;
+}
+
+async function resolveWarpCheckChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const context = argv.context;
+  const resolvedId = await resolveWarpRouteId({
+    context,
+    warpRouteId: argv.warpRouteId,
+  });
+
+  const rawDeployConfig =
+    await context.registry.getWarpDeployConfig(resolvedId);
+  if (!rawDeployConfig) {
+    // CROSS route: no deploy config, get chains from core config
+    const warpCoreConfigRaw = await context.registry.getWarpRoute(resolvedId);
+    assert(warpCoreConfigRaw, `No warp route config found for "${resolvedId}"`);
+
+    const warpCoreConfig = WarpCoreConfigSchema.parse(warpCoreConfigRaw);
+    const uniqueChains = [
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
+    ];
+    assert(
+      uniqueChains.length > 0,
+      `No chains found for warp route "${resolvedId}"`,
+    );
+
+    context.warpCoreConfig = warpCoreConfig;
+    context.resolvedWarpRouteId = resolvedId;
+    context.chains = uniqueChains;
+    return uniqueChains;
+  }
+
+  return resolveWarpConfigChains(argv);
 }
 
 async function resolveWarpSendChains(

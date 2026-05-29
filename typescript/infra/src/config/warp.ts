@@ -36,6 +36,9 @@ export const tokens = {
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
   },
+  citrea: {
+    ctUSD: '0x8D82c4E3c936C7B5724A382a9c5a4E6Eb7aB6d5D',
+  },
   arbitrum: {
     USDT: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',

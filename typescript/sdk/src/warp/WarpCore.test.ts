@@ -1144,6 +1144,73 @@ describe('WarpCore', () => {
     }
   });
 
+  it('Treats Sealevel cross-collateral to EVM cross-collateral as transferRemoteTo route', async () => {
+    const sealevelCrossCollateral = new Token({
+      chainName: testSealevelChain.name,
+      standard: TokenStandard.SealevelHypCrossCollateral,
+      addressOrDenom: '4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg',
+      collateralAddressOrDenom: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USDC',
+    });
+    const evmCrossCollateral = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCrossCollateralRouter,
+      addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+      collateralAddressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USDC',
+    });
+    sealevelCrossCollateral.addConnection({ token: evmCrossCollateral });
+    evmCrossCollateral.addConnection({ token: sealevelCrossCollateral });
+
+    const crossCollateralWarpCore = new WarpCore(multiProvider, [
+      sealevelCrossCollateral,
+      evmCrossCollateral,
+    ]);
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: { amount: 1n },
+      tokenFeeQuote: { amount: 0n },
+    });
+    const populateTransferRemoteToTx = sinon.stub().resolves({});
+    const populateTransferRemoteTx = sinon.stub().resolves({});
+    const originAdapterStub = sinon
+      .stub(sealevelCrossCollateral, 'getHypAdapter')
+      .returns({
+        quoteTransferRemoteToGas,
+        populateTransferRemoteToTx,
+        populateTransferRemoteTx,
+        isApproveRequired: sinon.stub().resolves(false),
+        isRevokeApprovalRequired: sinon.stub().resolves(false),
+      } as any);
+
+    try {
+      expect(
+        crossCollateralWarpCore.isCrossCollateralTransfer(
+          sealevelCrossCollateral,
+          evmCrossCollateral,
+        ),
+      ).to.equal(true);
+
+      const result = await crossCollateralWarpCore.getTransferRemoteTxs({
+        originTokenAmount: sealevelCrossCollateral.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        destinationToken: evmCrossCollateral,
+      });
+
+      expect(result).to.have.length(1);
+      expect(result[0].category).to.equal(WarpTxCategory.Transfer);
+      sinon.assert.calledOnce(populateTransferRemoteToTx);
+      sinon.assert.notCalled(populateTransferRemoteTx);
+    } finally {
+      originAdapterStub.restore();
+    }
+  });
+
   it('Converts destination minimum transfer amount into origin decimals correctly', async () => {
     const destinationAdapterStub = sinon
       .stub(sealevelHypSynthetic, 'getAdapter')

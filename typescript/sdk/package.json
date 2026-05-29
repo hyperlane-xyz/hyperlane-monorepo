@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "32.0.1",
+  "version": "34.0.0",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -21,9 +21,29 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./core/*": {
+      "types": "./dist/core/*.d.ts",
+      "default": "./dist/core/*.js"
+    },
+    "./fee/*": {
+      "types": "./dist/fee/*.d.ts",
+      "default": "./dist/fee/*.js"
+    },
+    "./hook/*": {
+      "types": "./dist/hook/*.d.ts",
+      "default": "./dist/hook/*.js"
+    },
+    "./ism/*": {
+      "types": "./dist/ism/*.d.ts",
+      "default": "./dist/ism/*.js"
+    },
     "./metadata/*": {
       "types": "./dist/metadata/*.d.ts",
       "default": "./dist/metadata/*.js"
+    },
+    "./middleware/account/*": {
+      "types": "./dist/middleware/account/*.d.ts",
+      "default": "./dist/middleware/account/*.js"
     },
     "./providers/builders/*": {
       "types": "./dist/providers/builders/*.d.ts",
@@ -100,6 +120,10 @@
     "./types": {
       "types": "./dist/types.d.ts",
       "default": "./dist/types.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "default": "./dist/utils/*.js"
     },
     "./warp/*": {
       "types": "./dist/warp/*.d.ts",

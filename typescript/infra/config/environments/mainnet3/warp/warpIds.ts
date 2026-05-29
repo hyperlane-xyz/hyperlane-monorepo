@@ -148,21 +148,36 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
+  USDCCitreaMoonpay = 'USDC/moonpay',
+  USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
+  USDTCitreaMoonpay = 'USDT/moonpay',
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
-  // USDTOft = 'USDT/oft',
-  // USDTOftLegacy = 'USDT/oft-legacy',
+  USDTOft = 'USDT/oft',
+  USDTOftLegacy = 'USDT/oft-legacy',
+
+  // NEX routes
+  BscNEX = 'NEX/bsc',
 
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 
   // Igra routes
   IgraUSDC = 'USDC/igra',
+  IgraUSDe = 'USDe/igra',
   IgraIKAS = 'IKAS/igra',
+  IgraSOL = 'SOL/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
   EthereumIgraUSDS = 'USDS/ethereum-igra',
   EthereumIgraWETH = 'WETH/ethereum-igra',
   EthereumIgraUSDT = 'USDT/ethereum-igra',
+  IgraTIBBIR = 'TIBBIR/igra',
+
+  // Fluent routes
+  FluentBLEND = 'BLEND/fluent',
+
+  // Kiichain routes
+  KiichainKII = 'KII/kiichain',
 }

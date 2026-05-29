@@ -17,6 +17,7 @@ import {
   HookType,
   type IsmConfig,
   IsmType,
+  type RateLimitedHookConfig,
   TokenType,
   type WarpRouteDeployConfig,
   normalizeConfig,
@@ -679,6 +680,95 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(normalizeConfig(collateralRebaseConfig.hook)).to.deep.equal(
         normalizeConfig(hook),
       );
+    });
+
+    it('should deploy with a RateLimitedHook', async () => {
+      const maxCapacity = (86400n * 1000n).toString();
+      const hook: RateLimitedHookConfig = {
+        type: HookType.RATE_LIMITED,
+        maxCapacity,
+        owner: ownerAddress,
+      };
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          hook,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const nativeSymbol = chain2Metadata.nativeToken?.symbol ?? 'ETH';
+      const WARP_CORE_CONFIG_PATH = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+        WARP_DEPLOY_OUTPUT_PATH,
+        nativeSymbol,
+      );
+
+      const deployedConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      const deployedHook = deployedConfig.hook as RateLimitedHookConfig;
+      expect(deployedHook.type).to.equal(HookType.RATE_LIMITED);
+      expect(deployedHook.maxCapacity).to.equal(maxCapacity);
+    });
+
+    it('should deploy a RateLimitedHook nested inside an AggregationHook', async () => {
+      const maxCapacity = (86400n * 500n).toString();
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          hook: {
+            type: HookType.AGGREGATION,
+            hooks: [
+              { type: HookType.MERKLE_TREE },
+              {
+                type: HookType.RATE_LIMITED,
+                maxCapacity,
+                owner: ownerAddress,
+              } as RateLimitedHookConfig,
+            ],
+          },
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const nativeSymbol = chain2Metadata.nativeToken?.symbol ?? 'ETH';
+      const WARP_CORE_CONFIG_PATH = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+        WARP_DEPLOY_OUTPUT_PATH,
+        nativeSymbol,
+      );
+
+      const deployedConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      const aggregation = deployedConfig.hook as {
+        type: typeof HookType.AGGREGATION;
+        hooks: RateLimitedHookConfig[];
+      };
+      expect(aggregation.type).to.equal(HookType.AGGREGATION);
+
+      const rateLimitedHook = aggregation.hooks.find(
+        (h) => h.type === HookType.RATE_LIMITED,
+      );
+      expect(rateLimitedHook).to.exist;
+      expect(rateLimitedHook!.maxCapacity).to.equal(maxCapacity);
     });
 
     it('should send a message from origin to destination in the correct order', async function () {

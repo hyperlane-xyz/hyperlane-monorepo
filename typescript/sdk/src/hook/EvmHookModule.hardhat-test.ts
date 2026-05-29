@@ -42,6 +42,7 @@ import {
   MUTABLE_HOOK_TYPE,
   PausableHookConfig,
   ProtocolFeeHookConfig,
+  RateLimitedHookConfig,
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
@@ -162,7 +163,7 @@ describe('EvmHookModule', async () => {
       chain,
       config,
       proxyFactoryFactories: proxyFactoryAddresses,
-      coreAddresses,
+      coreAddresses: { ...coreAddresses, rateLimitedSender: randomAddress() },
       multiProvider,
     });
     testHook = hook;
@@ -818,6 +819,25 @@ describe('EvmHookModule', async () => {
 
       // expect 1 tx to update the paused state
       await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should update maxCapacity on RateLimitedHook in place via setRefillRate', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: RateLimitedHookConfig = {
+        owner,
+        type: HookType.RATE_LIMITED,
+        maxCapacity: (86400n * 100n).toString(),
+      };
+
+      const { hook, initialHookAddress } = await createHook(config);
+
+      config.maxCapacity = (86400n * 200n).toString();
+
+      // exactly 1 tx — setRefillRate, not a redeploy
+      await expectTxsAndUpdate(hook, config, 1);
+
+      // address unchanged: in-place update, not a new deployment
+      expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
     });
 
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {

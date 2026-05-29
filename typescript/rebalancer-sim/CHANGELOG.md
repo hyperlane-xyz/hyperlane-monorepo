@@ -1,5 +1,89 @@
 # @hyperlane-xyz/rebalancer-sim
 
+## 0.2.23
+
+### Patch Changes
+
+- Updated dependencies [9a1ce26]
+- Updated dependencies [f758a70]
+- Updated dependencies [2151352]
+- Updated dependencies [b8a600c]
+  - @hyperlane-xyz/sdk@34.0.0
+  - @hyperlane-xyz/rebalancer@27.3.2
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.2
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies [9ad1bd0]
+- Updated dependencies [530f02e]
+- Updated dependencies [9670e43]
+- Updated dependencies [cc90a8f]
+  - @hyperlane-xyz/sdk@33.1.1
+  - @hyperlane-xyz/rebalancer@27.3.1
+  - @hyperlane-xyz/utils@33.1.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.1
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [6f4b790]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [7756d0a]
+- Updated dependencies [6929388]
+- Updated dependencies [47649b7]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [0b1c1d1]
+- Updated dependencies [d9dec53]
+- Updated dependencies [054b178]
+  - @hyperlane-xyz/sdk@33.1.0
+  - @hyperlane-xyz/rebalancer@27.3.0
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+- Updated dependencies [78199f4]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/sdk@33.0.2
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/rebalancer@27.2.14
+  - @hyperlane-xyz/core@11.3.1
+
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies [a2081df]
+- Updated dependencies [4c91737]
+- Updated dependencies [959c42a]
+  - @hyperlane-xyz/sdk@33.0.1
+  - @hyperlane-xyz/rebalancer@27.2.13
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+
+## 0.2.18
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/rebalancer@27.2.12
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.2
+
 ## 0.2.17
 
 ### Patch Changes

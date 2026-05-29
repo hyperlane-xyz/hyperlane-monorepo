@@ -8,8 +8,10 @@ import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { usdtTokenAddresses } from '../tokens.js';
+import { WarpRouteIds } from '../warpIds.js';
 import {
   getFixedRoutingFeeConfig,
+  getRebalancingBridgesConfigFor,
   getRebalancingUSDTConfigForChain,
   scaleDownConfig,
 } from './utils.js';
@@ -159,11 +161,10 @@ export const buildEclipseUSDTWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ownersByChain, programIds, proxyAdmins } = options;
 
-  // TODO: uncomment when USDTOft warp routes are in the registry
-  // const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
-  //   rebalanceableCollateralChains,
-  //   [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
-  // );
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    rebalanceableCollateralChains,
+    [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
+  );
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
@@ -175,7 +176,7 @@ export const buildEclipseUSDTWarpConfig = async (
       chain,
       routerConfig,
       ownersByChain,
-      // rebalancingConfigByChain,
+      rebalancingConfigByChain,
     );
     configs.push([
       chain,

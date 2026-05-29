@@ -6,6 +6,8 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 library CallLib {
+    uint256 internal constant NATIVE_BALANCE_SENTINEL = type(uint256).max;
+
     struct StaticCall {
         // supporting non EVM targets
         bytes32 to;
@@ -27,11 +29,15 @@ library CallLib {
     function call(
         Call memory _call
     ) internal returns (bytes memory returnData) {
+        uint256 value = _call.value == NATIVE_BALANCE_SENTINEL
+            ? address(this).balance
+            : _call.value;
+
         return
             Address.functionCallWithValue(
                 TypeCasts.bytes32ToAddress(_call.to),
                 _call.data,
-                _call.value
+                value
             );
     }
 

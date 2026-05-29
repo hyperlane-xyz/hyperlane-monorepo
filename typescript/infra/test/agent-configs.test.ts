@@ -12,7 +12,7 @@ import {
   AgentChainConfig,
   ensureAgentChainConfigIncludesAllChainNames,
 } from '../src/config/agent/agent.js';
-import { AgentEnvironment } from '../src/config/environment.js';
+import { AgentEnvironment } from '../src/config/deploy-environment.js';
 
 const environmentChainConfigs = {
   mainnet3: {

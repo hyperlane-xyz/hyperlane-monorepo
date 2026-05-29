@@ -148,10 +148,13 @@ export async function getGcpSecretLatestVersionName(secretName: string) {
   return version?.name;
 }
 
+let secretManagerServiceClient: SecretManagerServiceClient | undefined;
+
 export async function getSecretManagerServiceClient() {
-  return new SecretManagerServiceClient({
+  secretManagerServiceClient ??= new SecretManagerServiceClient({
     projectId: GCP_PROJECT_ID,
   });
+  return secretManagerServiceClient;
 }
 
 /**

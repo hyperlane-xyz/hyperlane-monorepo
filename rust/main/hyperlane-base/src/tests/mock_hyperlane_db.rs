@@ -4,7 +4,7 @@ use crate::db::{DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainG
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-    PendingOperationStatus, H256,
+    PendingOperationStatus, H256, H512,
 };
 
 mockall::mock! {
@@ -123,5 +123,7 @@ mockall::mock! {
         fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
         fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
         fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+        fn store_dispatched_tx_hash_by_message_id(&self, message_id: &H256, tx_hash: &H512) -> DbResult<()>;
+        fn retrieve_dispatched_tx_hash_by_message_id(&self, message_id: &H256) -> DbResult<Option<H512>>;
     }
 }

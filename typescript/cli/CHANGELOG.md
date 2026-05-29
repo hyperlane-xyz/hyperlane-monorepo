@@ -1,5 +1,47 @@
 # @hyperlane-xyz/cli
 
+## 34.0.0
+
+### Minor Changes
+
+- f758a70: Added rate-limited ISM support.
+- b8a600c: Added rate-limited hook support.
+
+## 33.1.1
+
+### Patch Changes
+
+- c59b182: Added warp check support for cross-collateral routes
+- 530f02e: The IGP fee assertion is relaxed for Sealevel cross-collateral transfers; OffchainQuotedLinearFee is supported as a sub-fee of routing fees; warp deployment errors now surface their cause chain and Solana preflight logs.
+
+## 33.1.0
+
+### Minor Changes
+
+- 21dee68: feat: added cli helper for message decoding and encoding
+
+### Patch Changes
+
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- 6929388: Fixed cctp transfer validation
+
+## 33.0.2
+
+## 33.0.1
+
+## 33.0.0
+
+### Minor Changes
+
+- dc8e560: Added CLI support for Predicate attestations in warp send command.
+
+  CLI Changes:
+  - Added `--predicate-api-key` option to `warp send` for automatic attestation fetching from Predicate API
+  - Added `--attestation` option to `warp send` for using pre-obtained attestations (JSON string)
+  - Detected PredicateRouterWrapper address and sent to Predicate API for correct attestation target
+  - Added E2E tests for warp send with Predicate attestations
+  - Added example YAML configs for Predicate warp routes
+
 ## 32.0.1
 
 ## 32.0.0

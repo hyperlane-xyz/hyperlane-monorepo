@@ -96,16 +96,23 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
     };
   });
 
-  beforeEach(() => {
-    // Generate unique short suffix for each test to avoid program name collisions
+  beforeEach(async () => {
+    // Generate unique short suffix for each test to avoid program name collisions.
+    // Native tokens use a fixed program name (no suffix) and can only be initialized once,
+    // so read tests use synthetic tokens to get a fresh program per beforeEach call.
+    // (The global beforeEach in e2e-test.setup.ts wipes deployments/warp_routes before each
+    // test, so we must redeploy here rather than once in before.)
     const uniqueSuffix = Math.random().toString(36).substring(2, 8);
     process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
 
     warpDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
-        type: TokenType.native,
+        type: TokenType.synthetic,
         mailbox: chain1CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
       },
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2]: {
         type: TokenType.synthetic,
@@ -118,19 +125,15 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+    await hyperlaneWarp.deployRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      skipConfirmationPrompts: true,
+      privateKey: HYP_KEY_BY_PROTOCOL.aleo,
+    });
   });
 
   describe('hyperlane warp read (no args)', () => {
     it('should exit early if no symbol or no chain and address', async () => {
-      await hyperlaneWarp
-        .deployRaw({
-          warpRouteId: WARP_ROUTE_ID,
-          skipConfirmationPrompts: true,
-          privateKey: HYP_KEY_BY_PROTOCOL.aleo,
-        })
-        .stdio('pipe')
-        .nothrow();
-
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
       expect(output.exitCode).to.equal(1);
@@ -140,14 +143,6 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
 
   describe('hyperlane warp read --warpRouteId ...', () => {
     it('should successfully read the complete warp route config from all chains', async () => {
-      await hyperlaneWarp
-        .deployRaw({
-          warpRouteId: WARP_ROUTE_ID,
-          skipConfirmationPrompts: true,
-          privateKey: HYP_KEY_BY_PROTOCOL.aleo,
-        })
-        .stdio('pipe');
-
       const output = await hyperlaneWarp
         .readRaw({
           warpRouteId: WARP_ROUTE_ID,
@@ -174,14 +169,6 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
 
   describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
     it('should be able to read a warp route from a single chain', async function () {
-      await hyperlaneWarp
-        .deployRaw({
-          warpRouteId: WARP_ROUTE_ID,
-          skipConfirmationPrompts: true,
-          privateKey: HYP_KEY_BY_PROTOCOL.aleo,
-        })
-        .stdio('pipe');
-
       const warpReadResult = await hyperlaneWarp.readConfig(
         TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
         WARP_CORE_PATH,
