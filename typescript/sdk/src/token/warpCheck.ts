@@ -5,6 +5,8 @@ import {
   Ownable__factory,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
+import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
+import type { DerivedWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type Address,
   type ObjectDiff,
@@ -24,6 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
+import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
@@ -110,6 +113,208 @@ async function getWarpRouteConfigsByCore({
   );
 }
 
+// Normalized shape used for altVM diff comparison.
+// All router addresses are lowercased bytes32 hex. Keys are chain names.
+type AltVmCheckConfig = {
+  type: string;
+  owner: string;
+  mailbox: string;
+  interchainSecurityModule?: string;
+  hook?: string;
+  scale?: number;
+  remoteRouters: Record<string, string>;
+  destinationGas: Record<string, string>;
+  token?: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+};
+
+function extractAddress(
+  value:
+    | DerivedWarpConfig['interchainSecurityModule']
+    | DerivedWarpConfig['hook'],
+): string | undefined {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'address' in value) {
+    return (value as { address: string }).address;
+  }
+  return undefined;
+}
+
+function derivedWarpConfigToCheckConfig(
+  config: DerivedWarpConfig,
+): AltVmCheckConfig {
+  const remoteRouters: Record<string, string> = {};
+  for (const [chain, router] of Object.entries(config.remoteRouters)) {
+    remoteRouters[chain] = router.address.toLowerCase();
+  }
+
+  const destinationGas: Record<string, string> = {};
+  for (const [chain, gas] of Object.entries(config.destinationGas)) {
+    destinationGas[chain] = gas;
+  }
+
+  const result: AltVmCheckConfig = {
+    type: config.type,
+    owner: config.owner,
+    mailbox: config.mailbox,
+    interchainSecurityModule: extractAddress(config.interchainSecurityModule),
+    hook: extractAddress(config.hook),
+    scale: config.scale,
+    remoteRouters,
+    destinationGas,
+  };
+
+  // warpArtifactToDerivedConfig spreads name/symbol/decimals from baseDerivedConfig
+  // even onto DerivedNativeWarpConfig at runtime. Mirror the expected-side guards:
+  // only include fields that can be non-undefined, and skip name/symbol for native.
+  if (config.type !== TokenType.native) {
+    const name = (config as { name?: string }).name;
+    if (name !== undefined) result.name = name;
+    const symbol = (config as { symbol?: string }).symbol;
+    if (symbol !== undefined) result.symbol = symbol;
+  }
+  const decimals = (config as { decimals?: number }).decimals;
+  if (decimals !== undefined) result.decimals = decimals;
+  if ('token' in config && typeof config.token === 'string') {
+    result.token = config.token;
+  }
+
+  return result;
+}
+
+function expandedDeployConfigToAltVmCheckConfig(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  multiProvider: MultiProvider,
+): AltVmCheckConfig {
+  const remoteRouters: Record<string, string> = {};
+  for (const [domainIdStr, router] of Object.entries(
+    config.remoteRouters ?? {},
+  )) {
+    const chainName = multiProvider.tryGetChainName(parseInt(domainIdStr));
+    if (!chainName) continue;
+    remoteRouters[chainName] = router.address.toLowerCase();
+  }
+
+  const destinationGas: Record<string, string> = {};
+  for (const [domainIdStr, gas] of Object.entries(
+    config.destinationGas ?? {},
+  )) {
+    const chainName = multiProvider.tryGetChainName(parseInt(domainIdStr));
+    if (!chainName) continue;
+    destinationGas[chainName] = gas;
+  }
+
+  // Only compare ISM/hook as addresses when they are plain strings in the deploy config.
+  // Complex ISM/hook config objects require deployment to resolve their address,
+  // so we skip comparison for those to avoid false violations.
+  const ismAddress =
+    typeof config.interchainSecurityModule === 'string'
+      ? config.interchainSecurityModule
+      : undefined;
+  const hookAddress = typeof config.hook === 'string' ? config.hook : undefined;
+
+  let scale: number | undefined;
+  if (typeof config.scale === 'number') {
+    scale = config.scale;
+  } else if (config.scale != null && typeof config.scale === 'object') {
+    const den = Number((config.scale as { denominator: bigint }).denominator);
+    if (den !== 0) {
+      scale = Number((config.scale as { numerator: bigint }).numerator) / den;
+    }
+  }
+
+  const result: AltVmCheckConfig = {
+    type: config.type,
+    owner: config.owner,
+    mailbox: config.mailbox!,
+    interchainSecurityModule: ismAddress,
+    hook: hookAddress,
+    scale,
+    remoteRouters,
+    destinationGas,
+  };
+
+  // deriveTokenMetadata is EVM-only, so name/symbol/decimals are undefined in the
+  // expanded deploy config for non-EVM chains unless the user explicitly set them.
+  // Only include them in the comparison when they're actually specified, to avoid
+  // false positives from unresolved metadata on the expected side.
+  // name/symbol are also skipped for native tokens — they're not stored on-chain.
+  if (config.type !== TokenType.native) {
+    if (config.name !== undefined) result.name = config.name;
+    if (config.symbol !== undefined) result.symbol = config.symbol;
+  }
+  if (config.decimals !== undefined) result.decimals = config.decimals;
+
+  if ('token' in config && typeof config.token === 'string') {
+    result.token = config.token;
+  }
+
+  return result;
+}
+
+async function getAltVmOnChainConfigs({
+  multiProvider,
+  warpCoreConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpCoreConfig: WarpCoreConfig;
+}): Promise<Record<string, AltVmCheckConfig>> {
+  const altVmTokens = warpCoreConfig.tokens.filter((token) => {
+    const protocol = multiProvider.tryGetProtocol(token.chainName);
+    return protocol !== null && !isEVMLike(protocol);
+  });
+
+  if (altVmTokens.length === 0) return {};
+
+  const chainLookup = altVmChainLookup(multiProvider);
+
+  return promiseObjAll(
+    Object.fromEntries(
+      altVmTokens.map(({ chainName, addressOrDenom }) => {
+        assert(addressOrDenom, `Missing addressOrDenom for ${chainName}`);
+        const chainMetadata = chainLookup.getChainMetadata(chainName);
+        const reader = createWarpTokenReader(chainMetadata, chainLookup);
+        return [
+          chainName,
+          reader
+            .deriveWarpConfig(addressOrDenom)
+            .then(derivedWarpConfigToCheckConfig),
+        ];
+      }),
+    ),
+  );
+}
+
+function buildAltVmWarpRouteDiff(
+  onChainConfigs: Record<string, AltVmCheckConfig>,
+  expectedConfigs: Record<string, AltVmCheckConfig>,
+): Record<string, ObjectDiff> {
+  const diff: Record<string, ObjectDiff> = {};
+
+  for (const chain of Object.keys(expectedConfigs)) {
+    const expected = expectedConfigs[chain];
+    const actual = onChainConfigs[chain];
+
+    if (!actual) {
+      diff[chain] = { route: { actual: 'missing', expected: 'present' } };
+      continue;
+    }
+
+    const { mergedObject, isInvalid } = diffObjMerge(
+      actual as unknown as Record<string, unknown>,
+      expected as unknown as Record<string, unknown>,
+    );
+
+    if (isInvalid) {
+      diff[chain] = mergedObject;
+    }
+  }
+
+  return diff;
+}
+
 export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
@@ -128,11 +333,6 @@ export async function checkWarpRouteDeployConfig({
       isEVMLike(multiProvider.getProtocol(token.chainName)),
     ),
   };
-  assert(
-    evmWarpCoreConfig.tokens.length > 0,
-    'Warp route check requires at least one EVM chain in the selected route config',
-  );
-
   const deployedRoutersAddresses = objFilter(
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     (chain, _address): _address is Address =>
@@ -166,16 +366,42 @@ export async function checkWarpRouteDeployConfig({
       isEVMLike(multiProvider.getProtocol(chain)),
   );
 
-  const rawDiff = buildWarpRouteDiff({
+  const rawEvmDiff = buildWarpRouteDiff({
     onChainWarpConfig: expandedOnChainWarpConfig,
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
   await addOwnerOverrideDiffs({
     multiProvider,
-    diff: rawDiff,
+    diff: rawEvmDiff,
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
+
+  // AltVM check: read on-chain state and diff against the expanded deploy config
+  const altVmOnChainConfigs = await getAltVmOnChainConfigs({
+    multiProvider,
+    warpCoreConfig,
+  });
+
+  const altVmExpectedConfigs: Record<string, AltVmCheckConfig> = {};
+  for (const [chain, config] of Object.entries(expandedWarpDeployConfig)) {
+    if (!isEVMLike(multiProvider.getProtocol(chain))) {
+      altVmExpectedConfigs[chain] = expandedDeployConfigToAltVmCheckConfig(
+        config,
+        multiProvider,
+      );
+    }
+  }
+
+  const rawAltVmDiff = buildAltVmWarpRouteDiff(
+    altVmOnChainConfigs,
+    altVmExpectedConfigs,
+  );
+
+  const rawDiff = {
+    ...rawEvmDiff,
+    ...rawAltVmDiff,
+  };
 
   const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>; // CAST: keepOnlyDiffObjects returns `any`; rawDiff is constructed as a chain-keyed ObjectDiff map
   const diffViolations = flattenWarpRouteCheckDiff(diff);
