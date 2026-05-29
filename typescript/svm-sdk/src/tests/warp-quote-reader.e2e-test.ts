@@ -39,7 +39,6 @@ describe('SVM Warp Quote Reader E2E', function () {
   let txSigner: SvmSigner;
   let quoteSignerPk: Uint8Array;
   let feeProgramId: string;
-  let feeAccountPda: string;
 
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
@@ -77,7 +76,6 @@ describe('SVM Warp Quote Reader E2E', function () {
       },
     });
     feeProgramId = deployed.deployed.programId;
-    feeAccountPda = deployed.deployed.feeAccountPda;
   });
 
   function makeManager(knownRoutersPerDomain: Record<number, Set<string>>) {
@@ -85,7 +83,7 @@ describe('SVM Warp Quote Reader E2E', function () {
       txSigner,
       {
         feeProgramId,
-        feeAccountPda,
+        salt: DEFAULT_FEE_SALT,
         domainId: TEST_SVM_CHAIN_METADATA.domainId,
       },
       { knownRoutersPerDomain },

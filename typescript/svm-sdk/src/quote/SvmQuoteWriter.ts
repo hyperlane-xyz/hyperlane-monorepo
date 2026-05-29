@@ -24,6 +24,7 @@ import {
   getSubmitQuoteInstruction,
   simulateSubmitQuoteAccountMetas,
 } from '../instructions/fee.js';
+import { deriveFeeAccountPda } from '../pda.js';
 import { computeScopedSalt } from '../quote-signing.js';
 
 import { type SvmQuoteSignable } from './SvmQuoteSignable.js';
@@ -32,7 +33,7 @@ const CLIENT_SALT_LEN = 32;
 
 export interface SvmQuoteWriterConfig {
   feeProgramId: string;
-  feeAccountPda: string;
+  salt: Uint8Array;
   domainId: number;
 }
 
@@ -99,8 +100,14 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
       clientSalt,
     );
 
+    const programId = parseAddress(this.config.feeProgramId);
+    const { address: feeAccountPda } = await deriveFeeAccountPda(
+      programId,
+      this.config.salt,
+    );
+
     const signable: SvmQuoteSignable = {
-      feeAccount: this.config.feeAccountPda,
+      feeAccount: feeAccountPda,
       domainId: this.config.domainId,
       context,
       data,
@@ -120,8 +127,7 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
     };
 
     const isTransient = req.expiry === req.issuedAt;
-    const programId = parseAddress(this.config.feeProgramId);
-    const feeAccount = parseAddress(this.config.feeAccountPda);
+    const feeAccount = parseAddress(feeAccountPda);
     const payer = parseAddress(payerAddress);
 
     const accounts = await simulateSubmitQuoteAccountMetas({
