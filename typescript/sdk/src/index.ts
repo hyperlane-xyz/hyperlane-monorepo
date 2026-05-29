@@ -6,6 +6,15 @@ export {
 } from './fee/EvmTokenFeeReader.js';
 
 export {
+  type Eip712Signable,
+  type Eip712TypedDataDomain,
+  type Eip712TypedDataField,
+  isEip712Signable,
+  parseEip712Signable,
+} from './quote/Eip712Signable.js';
+export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
+
+export {
   buildExecuteCalldata,
   buildQuoteCalldata,
   type QuotedCallsTransaction,
