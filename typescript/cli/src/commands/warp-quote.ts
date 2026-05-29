@@ -1,10 +1,20 @@
+import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
-import { type CommandModuleWithWriteContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { runWarpQuoteCreate } from '../deploy/warp-quote.js';
-import { log, logCommandHeader } from '../logger.js';
+import { log, logCommandHeader, logGreen } from '../logger.js';
+import { runWarpQuoteRead } from '../read/warp-quote.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { chainCommandOption, warpRouteIdCommandOption } from './options.js';
+import {
+  chainCommandOption,
+  outputFileCommandOption,
+  warpRouteIdCommandOption,
+} from './options.js';
 
 const create: CommandModuleWithWriteContext<{
   warpRouteId: string;
@@ -93,9 +103,41 @@ const create: CommandModuleWithWriteContext<{
   },
 };
 
+const read: CommandModuleWithContext<{
+  warpRouteId: string;
+  chain?: string;
+  out?: string;
+}> = {
+  command: 'read',
+  describe:
+    'Read standing offchain-signed warp fee quotes from a deployed warp route',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: {
+      ...chainCommandOption,
+      demandOption: false,
+      describe:
+        'Limit the read to a single chain. Defaults to every chain in the warp route.',
+    },
+    out: outputFileCommandOption(),
+  },
+  handler: async ({ context, warpRouteId, chain, out }) => {
+    logCommandHeader('Hyperlane Warp Quote Read');
+    const result = await runWarpQuoteRead({ context, warpRouteId, chain });
+    if (out) {
+      writeYamlOrJson(out, result, 'yaml');
+      logGreen(`Quotes written to ${out}`);
+    } else {
+      log(indentYamlOrJson(yamlStringify(result, null, 2), 4));
+    }
+    process.exit(0);
+  },
+};
+
 export const quoteCommand: CommandModule = {
   command: 'quote',
   describe: 'Manage offchain-signed warp fee quotes on a deployed warp route',
-  builder: (yargs) => yargs.command(create).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(create).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
 };

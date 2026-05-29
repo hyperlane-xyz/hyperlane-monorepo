@@ -25,6 +25,7 @@ import {
   createDefaultQuoteSignerForChain,
   createQuoteArtifactManagerForChain,
 } from '../quote/factories.js';
+import { resolveOffchainQuotedLeafAddress } from '../quote/offchainQuotedLeaf.js';
 import { deriveWarpRouteConfigForChain } from '../read/warp.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
@@ -82,7 +83,6 @@ export async function runWarpQuoteCreate({
     localConfig.tokenFee,
     `No tokenFee deployed for warp route ${warpRouteId} on ${chain}`,
   );
-  const feeAddress = localConfig.tokenFee.address;
   const feeVariant = localConfig.tokenFee.type;
 
   const targetRouter = resolveTargetRouterForVariant({
@@ -90,6 +90,12 @@ export async function runWarpQuoteCreate({
     warpCoreConfig,
     destinationChainName,
     destinationProtocol,
+  });
+
+  const feeAddress = resolveOffchainQuotedLeafAddress({
+    tokenFee: localConfig.tokenFee,
+    destChainName: destinationChainName,
+    targetRouterBytes32: targetRouter,
   });
 
   const recipientBytes32 =
