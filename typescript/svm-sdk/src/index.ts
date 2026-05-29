@@ -75,11 +75,16 @@ export {
 export type { SignSvmQuoteArgs } from './quote-signing.js';
 
 export { SvmPrivateKeyQuoteSigner } from './quote/SvmPrivateKeyQuoteSigner.js';
+export { SvmQuoteArtifactManager } from './quote/SvmQuoteArtifactManager.js';
 export {
   isSvmQuoteSignable,
   parseSvmQuoteSignable,
   type SvmQuoteSignable,
 } from './quote/SvmQuoteSignable.js';
+export {
+  SvmQuoteWriter,
+  type SvmQuoteWriterConfig,
+} from './quote/SvmQuoteWriter.js';
 
 export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
 export {
