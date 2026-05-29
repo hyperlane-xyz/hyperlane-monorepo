@@ -148,15 +148,6 @@ contract MockRebalanceRouter {
         bridge.transferRemote(domain, recipient, amount);
     }
 
-    function transferRemote(
-        uint32,
-        bytes32,
-        uint256 amount
-    ) external returns (bytes32) {
-        wrappedToken.transferFrom(msg.sender, address(this), amount);
-        return bytes32(0);
-    }
-
     function _toBytes32(address account) internal pure returns (bytes32) {
         return bytes32(uint256(uint160(account)));
     }
@@ -510,6 +501,38 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     function test_transferRemote_revertsIfCallsBridgeOutThroughDestinationRouter()
         public
     {
+        MockMailbox localMailbox = new MockMailbox(LOCAL_DOMAIN);
+        localMailbox.addRemoteMailbox(
+            LOCAL_DOMAIN + 1,
+            new MockMailbox(LOCAL_DOMAIN + 1)
+        );
+
+        HypERC20Collateral source = new HypERC20Collateral(
+            address(inputToken),
+            1,
+            1,
+            address(localMailbox)
+        );
+        HypERC20Collateral destination = new HypERC20Collateral(
+            address(outputToken),
+            1,
+            1,
+            address(localMailbox)
+        );
+        source.initialize(address(0), address(0), address(this));
+        destination.initialize(address(0), address(0), address(this));
+        source.enrollRemoteRouter(
+            LOCAL_DOMAIN,
+            _toBytes32(address(destination))
+        );
+        destination.enrollRemoteRouter(
+            LOCAL_DOMAIN + 1,
+            _toBytes32(rebalancer)
+        );
+        source.addBridge(LOCAL_DOMAIN, bridge);
+        source.addRebalancer(rebalancer);
+        source.addRebalancer(address(bridge));
+        inputToken.mintTo(address(source), 100e6);
         swapTarget.setOutputAmount(100e6);
 
         CallLib.Call[] memory calls = new CallLib.Call[](4);
@@ -519,13 +542,13 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         calls[2] = CallLib.build(
             address(outputToken),
             0,
-            abi.encodeCall(IERC20.approve, (address(destinationRouter), 100e6))
+            abi.encodeCall(IERC20.approve, (address(destination), 100e6))
         );
         calls[3] = CallLib.build(
-            address(destinationRouter),
+            address(destination),
             0,
             abi.encodeCall(
-                MockRebalanceRouter.transferRemote,
+                ITokenBridge.transferRemote,
                 (LOCAL_DOMAIN + 1, _toBytes32(rebalancer), 100e6)
             )
         );
@@ -534,7 +557,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+        bridge.localRebalance(address(source), 100e6, calls);
     }
 
     function test_transferRemote_revertsWhenCallsDrainSourceCollateral()

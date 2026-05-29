@@ -10,6 +10,8 @@ import {Router} from "../../client/Router.sol";
 import {Quotes} from "./Quotes.sol";
 
 struct MovableCollateralRouterStorage {
+    // TODO: replace the single recipient override with a per-domain recipient
+    // set when routes need multiple allowed same-chain rebalance recipients.
     mapping(uint32 routerDomain => bytes32 recipient) recipient;
     mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges) bridges;
     EnumerableSet.AddressSet rebalancers;
