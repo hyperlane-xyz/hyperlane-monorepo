@@ -138,36 +138,46 @@ contract BlacklistIsmTest is Test {
         }
     }
 
-    // Verifies that the set of written storage slots matches exactly the config IDs.
-    // blacklistedIds is at slot 1, so each entry lives at keccak256(abi.encode(id, 1)).
-    function test_storageMatchesConfig() public {
-        uint256 BLACKLISTED_IDS_SLOT = 1;
-
+    // Verifies the on-chain set is enumerable and matches exactly the config IDs.
+    function test_values_matchesConfig() public {
         bytes32[] memory config = new bytes32[](3);
         config[0] = keccak256("msg1");
         config[1] = keccak256("msg2");
         config[2] = keccak256("msg3");
 
-        vm.record();
         vm.prank(owner);
         ism.blacklist(config);
-        (, bytes32[] memory writeSlots) = vm.accesses(address(ism));
 
-        assertEq(writeSlots.length, config.length);
+        bytes32[] memory stored = ism.values();
+        assertEq(stored.length, config.length);
 
         for (uint256 i = 0; i < config.length; i++) {
-            bytes32 expectedSlot = keccak256(
-                abi.encode(config[i], BLACKLISTED_IDS_SLOT)
-            );
+            assertTrue(ism.blacklistedIds(config[i]));
             bool found = false;
-            for (uint256 j = 0; j < writeSlots.length; j++) {
-                if (writeSlots[j] == expectedSlot) {
+            for (uint256 j = 0; j < stored.length; j++) {
+                if (stored[j] == config[i]) {
                     found = true;
                     break;
                 }
             }
-            assertTrue(found, "config ID missing from storage");
-            assertEq(vm.load(address(ism), expectedSlot), bytes32(uint256(1)));
+            assertTrue(found, "config ID missing from values()");
         }
+    }
+
+    // Re-blacklisting an existing ID is a no-op: no duplicate, no event.
+    function test_blacklist_idempotent() public {
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = testMessageId;
+
+        vm.prank(owner);
+        ism.blacklist(ids);
+        assertEq(ism.values().length, 1);
+
+        // No event expected on the second call.
+        vm.recordLogs();
+        vm.prank(owner);
+        ism.blacklist(ids);
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(ism.values().length, 1);
     }
 }
