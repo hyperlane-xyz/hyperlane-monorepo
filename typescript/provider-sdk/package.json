@@ -21,6 +21,7 @@
     "./validator-announce": "./dist/validator-announce.js",
     "./warp": "./dist/warp.js",
     "./fee": "./dist/fee.js",
+    "./quote": "./dist/quote.js",
     "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
     "./registry": "./dist/registry.js",
