@@ -21,6 +21,8 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
 
+    // Stores the expected source router during `localRebalance`; the source
+    // router callback replaces it with the resolved destination router.
     bytes32 private constant _CALLBACK_RECIPIENT_SLOT =
         keccak256("hyperlane.atomicLocalRebalancingBridge.callbackRecipient");
 
@@ -41,8 +43,8 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// @notice Executes a same-chain rebalance into an enrolled destination
     /// router.
     /// @dev `calls` run after source collateral has been pulled into this
-    /// wrapper. Use calls for token approvals, DEX swaps, and paying the
-    /// destination router.
+    /// wrapper. Use calls for token approvals and DEX swaps. Calls must leave
+    /// enough output token on this wrapper for it to pay the destination router.
     function localRebalance(
         address sourceRouter,
         uint256 amountIn,
@@ -88,6 +90,12 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         ) {
             revert InvalidInputDelta();
         }
+        // Pay the destination directly so calls cannot satisfy the local
+        // balance delta by routing output through the destination router.
+        if (IERC20(outputToken).balanceOf(address(this)) < requiredDelta) {
+            revert InsufficientOutput();
+        }
+        IERC20(outputToken).safeTransfer(destinationRouter, requiredDelta);
         if (
             IERC20(outputToken).balanceOf(destinationRouter) <
             destinationBalanceBefore + requiredDelta

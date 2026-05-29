@@ -148,6 +148,15 @@ contract MockRebalanceRouter {
         bridge.transferRemote(domain, recipient, amount);
     }
 
+    function transferRemote(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) external returns (bytes32) {
+        wrappedToken.transferFrom(msg.sender, address(this), amount);
+        return bytes32(0);
+    }
+
     function _toBytes32(address account) internal pure returns (bytes32) {
         return bytes32(uint256(uint160(account)));
     }
@@ -263,11 +272,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(source),
-            100e6,
-            _rebalancerCallsTo(100e6, address(destination), 100e6)
-        );
+        bridge.localRebalance(address(source), 100e6, _rebalancerCalls(100e6));
 
         assertEq(inputToken.balanceOf(address(source)), 0);
         assertEq(inputToken.balanceOf(address(bridge)), 0);
@@ -289,7 +294,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsTo(100e6, address(unlisted), 100e6)
+            _rebalancerCalls(100e6)
         );
 
         assertEq(outputToken.balanceOf(address(unlisted)), 100e6);
@@ -406,14 +411,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
-    function test_transferRemote_callsCanRefundSurplusToRebalancer() public {
+    function test_transferRemote_refundsSurplusToRebalancer() public {
         swapTarget.setOutputAmount(103e6);
 
         vm.prank(rebalancer);
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsWithRefund(100e6, 3e6)
+            _rebalancerCalls(100e6)
         );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
@@ -446,7 +451,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             0,
             abi.encodeCall(
                 IERC20.transferFrom,
-                (rebalancer, address(destinationRouter), 100e6)
+                (rebalancer, address(bridge), 100e6)
             )
         );
 
@@ -476,7 +481,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             0,
             abi.encodeCall(
                 IERC20.transferFrom,
-                (rebalancer, address(destinationRouter), 100e6)
+                (rebalancer, address(bridge), 100e6)
             )
         );
 
@@ -498,11 +503,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsTo(100e6, address(destinationRouter), 89e6)
+            _rebalancerCalls(100e6)
         );
     }
 
-    function test_transferRemote_revertsWhenCallsDrainSourceCollateral()
+    function test_transferRemote_revertsIfCallsBridgeOutThroughDestinationRouter()
         public
     {
         swapTarget.setOutputAmount(100e6);
@@ -511,8 +516,37 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
         calls[0] = rebalanceCalls[0];
         calls[1] = rebalanceCalls[1];
-        calls[2] = rebalanceCalls[2];
+        calls[2] = CallLib.build(
+            address(outputToken),
+            0,
+            abi.encodeCall(IERC20.approve, (address(destinationRouter), 100e6))
+        );
         calls[3] = CallLib.build(
+            address(destinationRouter),
+            0,
+            abi.encodeCall(
+                MockRebalanceRouter.transferRemote,
+                (LOCAL_DOMAIN + 1, _toBytes32(rebalancer), 100e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InsufficientOutput.selector
+        );
+        bridge.localRebalance(address(sourceRouter), 100e6, calls);
+    }
+
+    function test_transferRemote_revertsWhenCallsDrainSourceCollateral()
+        public
+    {
+        swapTarget.setOutputAmount(100e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = CallLib.build(
             address(inputToken),
             0,
             abi.encodeCall(
@@ -535,12 +569,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1
         );
         inputToken.mintTo(address(unrelatedRouter), 1_000e6);
-        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
         CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
         calls[0] = rebalanceCalls[0];
         calls[1] = rebalanceCalls[1];
-        calls[2] = rebalanceCalls[2];
-        calls[3] = CallLib.build(
+        calls[2] = CallLib.build(
             address(inputToken),
             0,
             abi.encodeCall(
@@ -560,12 +593,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.prank(rebalancer);
         inputToken.approve(address(bridge), 1e6);
 
-        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
         CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
         calls[0] = rebalanceCalls[0];
         calls[1] = rebalanceCalls[1];
-        calls[2] = rebalanceCalls[2];
-        calls[3] = CallLib.build(
+        calls[2] = CallLib.build(
             address(inputToken),
             0,
             abi.encodeCall(
@@ -617,7 +649,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.prank(other);
         sharedToken.approve(address(bridge), type(uint256).max);
 
-        CallLib.Call[] memory calls = new CallLib.Call[](9);
+        CallLib.Call[] memory calls = new CallLib.Call[](8);
         for (uint256 i = 0; i < 8; ++i) {
             calls[i] = _adversarialTokenCall(
                 sharedToken,
@@ -625,14 +657,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 (uint256(uint8(actions[i + 8])) * amountIn) / type(uint8).max
             );
         }
-        calls[8] = CallLib.build(
-            address(sharedToken),
-            0,
-            abi.encodeCall(
-                IERC20.transfer,
-                (address(destinationRouter), amountIn)
-            )
-        );
 
         uint256 routerSumBefore = sharedToken.balanceOf(address(sourceRouter)) +
             sharedToken.balanceOf(address(destinationRouter)) +
@@ -669,7 +693,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsTo(100e6, address(destinationRouter), 100e18)
+            _rebalancerCalls(100e6)
         );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e18);
@@ -700,7 +724,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsTo(100e6, address(destinationRouter), 100e6)
+            _rebalancerCalls(100e6)
         );
     }
 
@@ -763,7 +787,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             90e18,
-            _rebalancerCallsTo(90e18, address(destinationRouter), 90e6)
+            _rebalancerCalls(90e18)
         );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 90e6);
@@ -793,7 +817,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             1e12 + 1,
-            _rebalancerCallsTo(1e12 + 1, address(destinationRouter), 2)
+            _rebalancerCalls(1e12 + 1)
         );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 2);
@@ -858,7 +882,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(
             address(sourceRouter),
             100e6,
-            _rebalancerCallsTo(100e6, address(altDestinationRouter), 100e6)
+            _rebalancerCalls(100e6)
         );
 
         assertEq(outputToken.balanceOf(address(altDestinationRouter)), 100e6);
@@ -867,16 +891,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     function _rebalancerCalls(
         uint256 amountIn
     ) internal view returns (CallLib.Call[] memory calls) {
-        return
-            _rebalancerCallsTo(amountIn, address(destinationRouter), amountIn);
-    }
-
-    function _rebalancerCallsTo(
-        uint256 amountIn,
-        address destination,
-        uint256 delta
-    ) internal view returns (CallLib.Call[] memory calls) {
-        calls = new CallLib.Call[](3);
+        calls = new CallLib.Call[](2);
         calls[0] = CallLib.build(
             address(inputToken),
             0,
@@ -887,23 +902,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             0,
             abi.encodeCall(TestSwapTarget.swapExactInput, (amountIn))
         );
-        calls[2] = CallLib.build(
-            address(outputToken),
-            0,
-            abi.encodeCall(IERC20.transfer, (destination, delta))
-        );
     }
 
     function _rebalancerCallsWithTopUp(
         uint256 amountIn,
         uint256 topUp
     ) internal view returns (CallLib.Call[] memory calls) {
-        calls = new CallLib.Call[](4);
-        CallLib.Call[] memory swapCalls = _rebalancerCallsTo(
-            amountIn,
-            address(destinationRouter),
-            amountIn
-        );
+        calls = new CallLib.Call[](3);
+        CallLib.Call[] memory swapCalls = _rebalancerCalls(amountIn);
         calls[0] = swapCalls[0];
         calls[1] = swapCalls[1];
         calls[2] = CallLib.build(
@@ -913,23 +919,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 IERC20.transferFrom,
                 (rebalancer, address(bridge), topUp)
             )
-        );
-        calls[3] = swapCalls[2];
-    }
-
-    function _rebalancerCallsWithRefund(
-        uint256 amountIn,
-        uint256 refund
-    ) internal view returns (CallLib.Call[] memory calls) {
-        calls = new CallLib.Call[](4);
-        CallLib.Call[] memory swapCalls = _rebalancerCalls(amountIn);
-        calls[0] = swapCalls[0];
-        calls[1] = swapCalls[1];
-        calls[2] = swapCalls[2];
-        calls[3] = CallLib.build(
-            address(outputToken),
-            0,
-            abi.encodeCall(IERC20.transfer, (rebalancer, refund))
         );
     }
 

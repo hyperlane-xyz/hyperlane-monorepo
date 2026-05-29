@@ -1,14 +1,14 @@
 ---
-"@hyperlane-xyz/core": minor
+"@hyperlane-xyz/core": major
 "@hyperlane-xyz/sdk": minor
 ---
 
 The core Solidity package was extended with `AtomicLocalRebalancingBridge` for same-chain local rebalances.
 
-`MovableCollateralRouter` stopped creating standing bridge token approvals. `addBridge` now only allowlists a bridge, `HypERC20Collateral` no longer approves bridges during bridge enrollment, and `rebalance` grants an exact temporary collateral-token approval based on the bridge quote. Expected bridges consume that quoted allowance during `transferRemote`.
+`MovableCollateralRouter` stopped creating standing bridge token approvals. `addBridge` only allowlisted a bridge, `HypERC20Collateral` stopped approving bridges during bridge enrollment, and `rebalance` granted an exact temporary collateral-token approval based on the bridge quote. Expected bridges consumed that quoted allowance during `transferRemote`.
 
-The `approveTokenForBridge(address,address)` helper was deprecated and now clears legacy standing approval instead of setting max approval. The selector is retained for upgrade and governance-tooling compatibility.
+The `approveTokenForBridge(address,address)` helper was deprecated and cleared legacy standing approval instead of setting max approval. The selector was retained for upgrade and governance-tooling compatibility.
 
-`AtomicLocalRebalancingBridge` now refunds any unspent input or output token balance to the rebalancer after a successful local rebalance, so variable-output and exact-output swap paths do not leave token dust in the wrapper.
+`AtomicLocalRebalancingBridge` required rebalancer calls to leave the required output token balance on the wrapper, transferred the required amount directly to the destination router, and refunded any unspent input or output token balance to the rebalancer after a successful local rebalance. Variable-output and exact-output swap paths no longer needed to include a destination-router transfer call or leave token dust in the wrapper.
 
-The SDK no longer emits bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field remains accepted for compatibility but is ignored.
+The SDK stopped emitting bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field remained accepted for compatibility but was ignored.

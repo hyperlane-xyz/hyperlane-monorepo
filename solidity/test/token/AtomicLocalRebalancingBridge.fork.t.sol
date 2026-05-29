@@ -184,21 +184,6 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
             );
     }
 
-    function _transferOutputCall(
-        IERC20 token,
-        uint256 amount
-    ) internal view returns (CallLib.Call memory) {
-        return
-            CallLib.build(
-                address(token),
-                0,
-                abi.encodeCall(
-                    IERC20.transfer,
-                    (address(destinationRouter), amount)
-                )
-            );
-    }
-
     function _assertExactFunding(
         IERC20 destinationToken,
         uint256 requiredDelta,
@@ -300,7 +285,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         bridge.localRebalance(
             address(sourceRouter),
             amountIn,
-            _uniswapCallsWithRefund(amountIn, 20e6, 5e6)
+            _uniswapCalls(amountIn, 20e6)
         );
 
         assertEq(
@@ -323,7 +308,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         bridge.localRebalance(
             address(sourceRouter),
             amountIn,
-            _uniswapCallsToBridge(amountIn)
+            _uniswapCalls(amountIn, 0)
         );
     }
 
@@ -331,7 +316,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 amountIn,
         uint256 topUp
     ) internal view returns (CallLib.Call[] memory calls) {
-        calls = new CallLib.Call[](topUp == 0 ? 3 : 4);
+        calls = new CallLib.Call[](topUp == 0 ? 2 : 3);
         calls[0] = _approveInputCall(IERC20(USDC), UNISWAP_V3_ROUTER, amountIn);
         calls[1] = _targetCall(
             UNISWAP_V3_ROUTER,
@@ -351,50 +336,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         );
         if (topUp > 0) {
             calls[2] = _topUpCall(IERC20(USDT), topUp);
-            calls[3] = _transferOutputCall(IERC20(USDT), amountIn);
-        } else {
-            calls[2] = _transferOutputCall(IERC20(USDT), amountIn);
         }
-    }
-
-    function _uniswapCallsToBridge(
-        uint256 amountIn
-    ) internal view returns (CallLib.Call[] memory calls) {
-        calls = new CallLib.Call[](2);
-        calls[0] = _approveInputCall(IERC20(USDC), UNISWAP_V3_ROUTER, amountIn);
-        calls[1] = _targetCall(
-            UNISWAP_V3_ROUTER,
-            abi.encodeWithSelector(
-                IUniswapV3Router.exactInputSingle.selector,
-                IUniswapV3Router.ExactInputSingleParams({
-                    tokenIn: USDC,
-                    tokenOut: USDT,
-                    fee: 500,
-                    recipient: address(bridge),
-                    deadline: block.timestamp + 1 hours,
-                    amountIn: amountIn,
-                    amountOutMinimum: 1,
-                    sqrtPriceLimitX96: 0
-                })
-            )
-        );
-    }
-
-    function _uniswapCallsWithRefund(
-        uint256 amountIn,
-        uint256 topUp,
-        uint256 refund
-    ) internal view returns (CallLib.Call[] memory calls) {
-        CallLib.Call[] memory fundingCalls = _uniswapCalls(amountIn, topUp);
-        calls = new CallLib.Call[](fundingCalls.length + 1);
-        for (uint256 i = 0; i < fundingCalls.length; ++i) {
-            calls[i] = fundingCalls[i];
-        }
-        calls[fundingCalls.length] = CallLib.build(
-            USDT,
-            0,
-            abi.encodeCall(IERC20.transfer, (rebalancer, refund))
-        );
     }
 }
 
@@ -443,7 +385,7 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
             factory: AERODROME_FACTORY
         });
 
-        CallLib.Call[] memory calls = new CallLib.Call[](4);
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
         calls[0] = _approveInputCall(IERC20(USDC), AERODROME_ROUTER, amountIn);
         calls[1] = _targetCall(
             AERODROME_ROUTER,
@@ -457,7 +399,6 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
             )
         );
         calls[2] = _topUpCall(IERC20(USDT), 20e6);
-        calls[3] = _transferOutputCall(IERC20(USDT), amountIn);
 
         vm.prank(rebalancer);
         bridge.localRebalance(address(sourceRouter), amountIn, calls);
