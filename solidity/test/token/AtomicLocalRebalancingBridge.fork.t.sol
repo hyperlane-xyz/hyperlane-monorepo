@@ -6,8 +6,8 @@ import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
-import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
-import {Quotes} from "contracts/token/libs/Quotes.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 
 interface IUniswapV3Router {
     struct ExactInputSingleParams {
@@ -43,83 +43,10 @@ interface IAerodromeRouter {
     ) external returns (uint256[] memory amounts);
 }
 
-contract MockForkRouter {
-    using Quotes for Quote[];
-
-    IERC20 public immutable wrappedToken;
-    uint32 public immutable localDomain;
-    uint256 public immutable scaleNumerator;
-    uint256 public immutable scaleDenominator;
-
-    mapping(uint32 => bytes32) public routers;
-    mapping(uint32 => bytes32) public allowedRecipient;
-    address[] internal _allowedRebalancers;
-    mapping(address => bool) public isAllowedRebalancer;
-
-    constructor(
-        IERC20 _token,
-        uint32 _localDomain,
-        uint256 _scaleNumerator,
-        uint256 _scaleDenominator
-    ) {
-        wrappedToken = _token;
-        localDomain = _localDomain;
-        scaleNumerator = _scaleNumerator;
-        scaleDenominator = _scaleDenominator;
-    }
-
-    function token() external view returns (address) {
-        return address(wrappedToken);
-    }
-
-    function setPrimaryRouter(uint32 domain, address router) external {
-        routers[domain] = bytes32(uint256(uint160(router)));
-    }
-
-    function setRecipient(uint32 domain, address recipient) external {
-        allowedRecipient[domain] = bytes32(uint256(uint160(recipient)));
-    }
-
-    function addRebalancer(address rebalancer) external {
-        if (!isAllowedRebalancer[rebalancer]) {
-            _allowedRebalancers.push(rebalancer);
-            isAllowedRebalancer[rebalancer] = true;
-        }
-    }
-
-    function allowedRebalancers() external view returns (address[] memory) {
-        return _allowedRebalancers;
-    }
-
-    function rebalance(
-        uint32 domain,
-        uint256 collateralAmount,
-        ITokenBridge bridge
-    ) external payable {
-        require(isAllowedRebalancer[msg.sender], "MCR: Only Rebalancer");
-        bytes32 recipient = allowedRecipient[domain];
-        if (recipient == bytes32(0)) {
-            recipient = routers[domain];
-        }
-        Quote[] memory quotes = bridge.quoteTransferRemote(
-            domain,
-            recipient,
-            collateralAmount
-        );
-        require(
-            quotes.extract(address(wrappedToken)) <= collateralAmount,
-            "unexpected fees"
-        );
-        uint256 approval = quotes.extract(address(wrappedToken));
-        wrappedToken.approve(address(bridge), approval);
-        bridge.transferRemote(domain, recipient, collateralAmount);
-    }
-}
-
 abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     AtomicLocalRebalancingBridge internal bridge;
-    MockForkRouter internal sourceRouter;
-    MockForkRouter internal destinationRouter;
+    HypERC20Collateral internal sourceRouter;
+    HypERC20Collateral internal destinationRouter;
     address internal rebalancer = makeAddr("rebalancer");
 
     function _setUpFork(
@@ -131,15 +58,30 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     ) internal {
         vm.createSelectFork(vm.rpcUrl(rpcAlias), blockNumber);
 
+        // Use the canonical MovableCollateralRouter rebalance flow rather than a
+        // mock so the fork test exercises real quote/approval/transferRemote
+        // semantics against a live DEX.
         bridge = new AtomicLocalRebalancingBridge(localDomain);
-        sourceRouter = new MockForkRouter(sourceToken, localDomain, 1, 1);
-        destinationRouter = new MockForkRouter(
-            destinationToken,
-            localDomain,
+        sourceRouter = new HypERC20Collateral(
+            address(sourceToken),
             1,
-            1
+            1,
+            address(new MockMailbox(localDomain))
         );
-        sourceRouter.setPrimaryRouter(localDomain, address(destinationRouter));
+        destinationRouter = new HypERC20Collateral(
+            address(destinationToken),
+            1,
+            1,
+            address(new MockMailbox(localDomain))
+        );
+        sourceRouter.initialize(address(0), address(0), address(this));
+        destinationRouter.initialize(address(0), address(0), address(this));
+
+        sourceRouter.enrollRemoteRouter(
+            localDomain,
+            bytes32(uint256(uint160(address(destinationRouter))))
+        );
+        sourceRouter.addBridge(localDomain, bridge);
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(bridge));
     }
