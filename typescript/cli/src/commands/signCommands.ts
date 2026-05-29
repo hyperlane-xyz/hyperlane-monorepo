@@ -62,4 +62,5 @@ export enum CommandType {
   WARP_ALT_CHECK = 'warp:alt:check',
   WARP_ALT_READ = 'warp:alt:read',
   WARP_QUOTE_CREATE = 'warp:quote:create',
+  WARP_QUOTE_READ = 'warp:quote:read',
 }

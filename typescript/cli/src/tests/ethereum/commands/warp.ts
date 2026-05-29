@@ -454,6 +454,62 @@ export function hyperlaneWarpRebalancer(
         ${amount ? ['--amount', amount] : []}`;
 }
 
+export function hyperlaneWarpQuoteCreateRaw({
+  warpRouteId,
+  chain,
+  destination,
+  recipient,
+  amount,
+  maxFee,
+  halfAmount,
+  ttl,
+  quoteSignerKey,
+  privateKey,
+}: {
+  warpRouteId: string;
+  chain: string;
+  destination: string;
+  recipient: string;
+  amount: string;
+  maxFee: string;
+  halfAmount: string;
+  ttl: number;
+  quoteSignerKey: string;
+  privateKey: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp quote create \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${warpRouteId} \
+        --chain ${chain} \
+        --destination ${destination} \
+        --recipient ${recipient} \
+        --amount ${amount} \
+        --max-fee ${maxFee} \
+        --half-amount ${halfAmount} \
+        --ttl ${ttl} \
+        --quote-signer-key ${quoteSignerKey} \
+        ${getKeyFlags(privateKey)} \
+        --verbosity debug \
+        --yes`;
+}
+
+export function hyperlaneWarpQuoteReadRaw({
+  warpRouteId,
+  chain,
+  out,
+}: {
+  warpRouteId: string;
+  chain?: string;
+  out?: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp quote read \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${warpRouteId} \
+        ${chain ? ['--chain', chain] : []} \
+        ${out ? ['--out', out] : []} \
+        --verbosity debug`;
+}
+
 type ReadWarpConfigOptions = {
   // Preserve chains not returned by `warp read` (which may only output the queried chain).
   preserveExistingChains?: boolean;
