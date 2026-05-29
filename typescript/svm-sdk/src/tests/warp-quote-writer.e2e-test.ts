@@ -17,7 +17,7 @@ import { SvmSigner } from '../clients/signer.js';
 import { SvmOffchainQuotedLinearFeeWriter } from '../fee/offchain-quoted-linear-fee.js';
 import { DEFAULT_FEE_SALT, type SvmFeeWriterConfig } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
-import { deriveStandingQuotePda } from '../pda.js';
+import { deriveFeeAccountPda, deriveStandingQuotePda } from '../pda.js';
 import { ethAddressHexFromPrivateKey } from '../quote-signing.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -50,7 +50,6 @@ describe('SVM Warp Quote Writer E2E', function () {
   let quoteSignerPk: Uint8Array;
   let quoteSignerAddress: string;
   let feeProgramId: string;
-  let feeAccountPda: string;
 
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
@@ -88,7 +87,6 @@ describe('SVM Warp Quote Writer E2E', function () {
       },
     });
     feeProgramId = deployed.deployed.programId;
-    feeAccountPda = deployed.deployed.feeAccountPda;
   });
 
   function makeWriter(pk: Uint8Array = quoteSignerPk) {
@@ -96,7 +94,7 @@ describe('SVM Warp Quote Writer E2E', function () {
       txSigner,
       {
         feeProgramId,
-        feeAccountPda,
+        salt: DEFAULT_FEE_SALT,
         domainId: TEST_SVM_CHAIN_METADATA.domainId,
       },
       { knownRoutersPerDomain: {} },
@@ -126,6 +124,10 @@ describe('SVM Warp Quote Writer E2E', function () {
       expiry,
     });
 
+    const { address: feeAccountPda } = await deriveFeeAccountPda(
+      parseAddress(feeProgramId),
+      DEFAULT_FEE_SALT,
+    );
     const standingPda = await deriveStandingQuotePda(
       parseAddress(feeProgramId),
       parseAddress(feeAccountPda),

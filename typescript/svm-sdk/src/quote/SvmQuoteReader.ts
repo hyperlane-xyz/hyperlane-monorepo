@@ -14,7 +14,7 @@ import { chunk, fromHexString } from '@hyperlane-xyz/utils';
 import { decodeStandingQuotePda } from '../accounts/fee.js';
 import type { SvmSigner } from '../clients/signer.js';
 import { FeeStrategyKind } from '../fee/types.js';
-import { deriveStandingQuotePda } from '../pda.js';
+import { deriveFeeAccountPda, deriveStandingQuotePda } from '../pda.js';
 
 import { type SvmQuoteWriterConfig } from './SvmQuoteWriter.js';
 
@@ -54,7 +54,11 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
     const seeds = uniquePdaSeeds(candidates);
 
     const programId = parseAddress(this.config.feeProgramId);
-    const feeAccount = parseAddress(this.config.feeAccountPda);
+    const { address: feeAccountPda } = await deriveFeeAccountPda(
+      programId,
+      this.config.salt,
+    );
+    const feeAccount = parseAddress(feeAccountPda);
     const rpc = this.txSigner.getRpc();
 
     const pdaAddresses = await Promise.all(
