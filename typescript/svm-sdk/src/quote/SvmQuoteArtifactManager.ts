@@ -8,23 +8,22 @@ import {
 
 import type { SvmSigner } from '../clients/signer.js';
 
+import { SvmQuoteReader } from './SvmQuoteReader.js';
 import { SvmQuoteWriter, type SvmQuoteWriterConfig } from './SvmQuoteWriter.js';
 
 /**
  * SVM implementation of `IRawWarpQuoteArtifactManager`. Forwards signer +
  * fee deployment coords to the writer / reader; the bound `SvmSigner` exposes
- * its RPC so the writer doesn't need a separate `rpc` parameter.
- *
- * The reader is added in the follow-up commit alongside `SvmQuoteReader`;
- * `createReader()` throws here so callers fail loudly during the interim,
- * and the `FeeReadContext` parameter the reader will need is accepted now
- * to lock the constructor signature.
+ * its RPC so the manager doesn't need a separate `rpc` parameter, matching
+ * the alt-VM convention. `FeeReadContext` is bound at construction because
+ * the reader's enumerator needs the same per-domain router data the fee
+ * reader uses.
  */
 export class SvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
   constructor(
     private readonly txSigner: SvmSigner,
     private readonly config: SvmQuoteWriterConfig,
-    _context: FeeReadContext,
+    private readonly context: FeeReadContext,
   ) {}
 
   createWriter(quoteSigner: RawQuoteSigner): IRawWarpQuoteWriter {
@@ -32,6 +31,6 @@ export class SvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
   }
 
   createReader(): IRawWarpQuoteReader {
-    throw new Error('SvmQuoteReader is not yet implemented.');
+    return new SvmQuoteReader(this.txSigner, this.config, this.context);
   }
 }
