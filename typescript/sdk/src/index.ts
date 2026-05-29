@@ -13,6 +13,16 @@ export {
   parseEip712Signable,
 } from './quote/Eip712Signable.js';
 export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
+export { EvmQuoteArtifactManager } from './quote/EvmQuoteArtifactManager.js';
+export { EvmQuoteWriter } from './quote/EvmQuoteWriter.js';
+export {
+  buildEvmSignedQuoteSignable,
+  buildEvmSignedQuoteTuple,
+  OFFCHAIN_QUOTER_DOMAIN_NAME,
+  OFFCHAIN_QUOTER_DOMAIN_VERSION,
+  SIGNED_QUOTE_TYPES,
+  type EvmSignedQuoteTuple,
+} from './quote/WarpSignedQuoteEip712.js';
 
 export {
   buildExecuteCalldata,
