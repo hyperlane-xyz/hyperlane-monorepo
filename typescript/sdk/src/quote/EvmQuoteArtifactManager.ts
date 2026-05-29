@@ -1,3 +1,4 @@
+import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type IRawWarpQuoteArtifactManager,
   type IRawWarpQuoteReader,
@@ -7,21 +8,22 @@ import {
 
 import { type MultiProvider } from '../providers/MultiProvider.js';
 
+import { EvmQuoteReader } from './EvmQuoteReader.js';
 import { EvmQuoteWriter } from './EvmQuoteWriter.js';
 
 /**
  * EVM implementation of `IRawWarpQuoteArtifactManager`. Resolves the
- * tx-submitter from `multiProvider` and forwards the configured `feeAddress`
- * to the writer.
- *
- * The reader is added in the follow-up commit alongside `EvmQuoteReader`;
- * `createReader()` throws here so callers fail loudly during the interim.
+ * tx-submitter / read-only provider from `multiProvider` and forwards the
+ * configured `feeAddress` to the writer and reader. `FeeReadContext` is bound
+ * at construction because the reader's enumerator needs the same per-domain
+ * router data the fee reader uses.
  */
 export class EvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly chainName: string,
     private readonly feeAddress: string,
+    private readonly context: FeeReadContext,
   ) {}
 
   createWriter(quoteSigner: RawQuoteSigner): IRawWarpQuoteWriter {
@@ -30,6 +32,7 @@ export class EvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
   }
 
   createReader(): IRawWarpQuoteReader {
-    throw new Error('EvmQuoteReader is not yet implemented.');
+    const provider = this.multiProvider.getProvider(this.chainName);
+    return new EvmQuoteReader(provider, this.feeAddress, this.context);
   }
 }
