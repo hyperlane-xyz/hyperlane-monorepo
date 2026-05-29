@@ -14,6 +14,7 @@ export {
 } from './quote/Eip712Signable.js';
 export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
 export { EvmQuoteArtifactManager } from './quote/EvmQuoteArtifactManager.js';
+export { EvmQuoteReader } from './quote/EvmQuoteReader.js';
 export { EvmQuoteWriter } from './quote/EvmQuoteWriter.js';
 export {
   buildEvmSignedQuoteSignable,
