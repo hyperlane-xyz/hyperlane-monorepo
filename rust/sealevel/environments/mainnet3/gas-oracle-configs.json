@@ -107,7 +107,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "408415981198589894242",
-        "gasPrice": "92860682",
+        "gasPrice": "159189788",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -163,7 +163,7 @@
     "katana": {
       "oracleConfig": {
         "tokenExchangeRate": "408415981198589894242",
-        "gasPrice": "265316426",
+        "gasPrice": "13265731",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -381,7 +381,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "93042595",
+        "gasPrice": "159502911",
         "tokenDecimals": 18
       },
       "overhead": 166460
@@ -405,7 +405,7 @@
     "katana": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "265838185",
+        "gasPrice": "13289600",
         "tokenDecimals": 18
       },
       "overhead": 166460
