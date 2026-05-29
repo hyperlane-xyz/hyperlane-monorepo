@@ -14,6 +14,7 @@ import {
   TransactionSubmitterConfig,
 } from './submitter.js';
 import { type FeeReadContext, IRawFeeArtifactManager } from './fee.js';
+import { type IRawWarpQuoteArtifactManager } from './quote.js';
 import { IRawWarpArtifactManager } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
@@ -119,6 +120,24 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context: FeeReadContext,
   ): IRawFeeArtifactManager | null;
+
+  /**
+   * Creates a Warp Quote artifact manager for the protocol. Provides
+   * protocol-specific writers + readers for submitting and reading
+   * offchain-signed fee quotes against an already-deployed warp fee artifact.
+   * Not all protocols support offchain quote storage.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @param context FeeReadContext with known routers per domain — reused
+   *                because warp quote enumeration / reading needs the same
+   *                per-domain router data as fee reading.
+   * @returns A protocol-specific warp quote artifact manager, or null if not
+   *          supported.
+   */
+  createQuoteArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context: FeeReadContext,
+  ): IRawWarpQuoteArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

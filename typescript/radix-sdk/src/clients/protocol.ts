@@ -18,6 +18,7 @@ import {
   FeeReadContext,
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import { IRawWarpQuoteArtifactManager } from '@hyperlane-xyz/provider-sdk/quote';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -119,6 +120,13 @@ export class RadixProtocolProvider implements ProtocolProvider {
     _chainMetadata: ChainMetadataForAltVM,
     _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
+    return null;
+  }
+
+  createQuoteArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
+  ): IRawWarpQuoteArtifactManager | null {
     return null;
   }
 

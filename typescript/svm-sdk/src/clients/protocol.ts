@@ -23,6 +23,7 @@ import {
   type FeeReadContext,
   type IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import { type IRawWarpQuoteArtifactManager } from '@hyperlane-xyz/provider-sdk/quote';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
@@ -109,6 +110,13 @@ export class SvmProtocolProvider implements ProtocolProvider {
       { domainId: chainMetadata.domainId, chainName: chainMetadata.name },
       resolveFeeSalt(chainMetadata.name),
     );
+  }
+
+  createQuoteArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
+  ): IRawWarpQuoteArtifactManager | null {
+    return null;
   }
 
   getMinGas(): MinimumRequiredGasByAction {
