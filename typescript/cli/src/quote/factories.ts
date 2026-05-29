@@ -1,0 +1,126 @@
+import {
+  type AltVM,
+  type ChainMetadataForAltVM,
+  ProtocolType,
+} from '@hyperlane-xyz/provider-sdk';
+import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
+import type {
+  AnnotatedTx,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type IRawWarpQuoteArtifactManager,
+  type RawQuoteSigner,
+} from '@hyperlane-xyz/provider-sdk/quote';
+import {
+  type ChainMap,
+  EvmPrivateKeyQuoteSigner,
+  EvmQuoteArtifactManager,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import {
+  DEFAULT_FEE_SALT,
+  SealevelSigner,
+  SvmPrivateKeyQuoteSigner,
+  SvmQuoteArtifactManager,
+} from '@hyperlane-xyz/sealevel-sdk';
+import { assert, mustGet, strip0x } from '@hyperlane-xyz/utils';
+
+/**
+ * EVM↔AltVM bridge for warp-quote management.
+ *
+ * The cross-VM `ProtocolProvider.createQuoteArtifactManager(chainMetadata, context)`
+ * signature can't carry the per-warp fee address an `IRawWarpQuoteArtifactManager`
+ * needs, so the CLI bridges the two impls directly here — this is the only
+ * place that imports both `@hyperlane-xyz/sdk` and `@hyperlane-xyz/sealevel-sdk`,
+ * per the agreed EVM↔AltVM-duality-in-CLI architecture.
+ */
+
+export interface QuoteArtifactManagerArgs {
+  chainMetadata: ChainMetadataForAltVM;
+  feeAddress: string;
+  context: FeeReadContext;
+  multiProvider: MultiProvider;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+}
+
+export function createQuoteArtifactManagerForChain(
+  args: QuoteArtifactManagerArgs,
+): IRawWarpQuoteArtifactManager | null {
+  const { chainMetadata, feeAddress, context, multiProvider, altVmSigners } =
+    args;
+
+  switch (chainMetadata.protocol) {
+    case ProtocolType.Ethereum:
+    case ProtocolType.Tron:
+      return new EvmQuoteArtifactManager(
+        multiProvider,
+        chainMetadata.name,
+        feeAddress,
+        context,
+      );
+
+    case ProtocolType.Sealevel: {
+      const signer = mustGet(altVmSigners, chainMetadata.name);
+      assert(
+        signer instanceof SealevelSigner,
+        `Expected a Sealevel signer for chain "${chainMetadata.name}"`,
+      );
+      return new SvmQuoteArtifactManager(
+        signer,
+        {
+          feeProgramId: feeAddress,
+          salt: DEFAULT_FEE_SALT,
+          domainId: chainMetadata.domainId,
+        },
+        context,
+      );
+    }
+
+    case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
+    case ProtocolType.Starknet:
+    case ProtocolType.Radix:
+    case ProtocolType.Aleo:
+    case ProtocolType.Unknown:
+      return null;
+
+    default: {
+      const exhaustive: never = chainMetadata.protocol;
+      throw new Error(
+        `Unhandled protocol in createQuoteArtifactManagerForChain: ${String(exhaustive)}`,
+      );
+    }
+  }
+}
+
+export function createDefaultQuoteSignerForChain(
+  chainMetadata: ChainMetadataForAltVM,
+  quoteSignerKey: string,
+): RawQuoteSigner | null {
+  switch (chainMetadata.protocol) {
+    case ProtocolType.Ethereum:
+    case ProtocolType.Tron:
+      return new EvmPrivateKeyQuoteSigner(quoteSignerKey);
+
+    case ProtocolType.Sealevel:
+      return new SvmPrivateKeyQuoteSigner(
+        Uint8Array.from(Buffer.from(strip0x(quoteSignerKey), 'hex')),
+      );
+
+    case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
+    case ProtocolType.Starknet:
+    case ProtocolType.Radix:
+    case ProtocolType.Aleo:
+    case ProtocolType.Unknown:
+      return null;
+
+    default: {
+      const exhaustive: never = chainMetadata.protocol;
+      throw new Error(
+        `Unhandled protocol in createDefaultQuoteSignerForChain: ${String(exhaustive)}`,
+      );
+    }
+  }
+}
