@@ -110,7 +110,16 @@ export interface IRawWarpQuoteReader {
 }
 
 export interface IRawWarpQuoteArtifactManager {
-  createWriter(signer: RawQuoteSigner): IRawWarpQuoteWriter;
+  /**
+   * Constructs a writer bound to `quoteSigner` (offchain payload signer) and
+   * `txSigner` (on-chain submitter). The tx signer's type is per-VM —
+   * `SvmSigner` for SVM, `ethers.Signer` for EVM — narrowed inside each impl.
+   * Read-only callers can skip this entirely via `createReader`.
+   */
+  createWriter(
+    quoteSigner: RawQuoteSigner,
+    txSigner: unknown,
+  ): IRawWarpQuoteWriter;
   createReader(): IRawWarpQuoteReader;
 }
 

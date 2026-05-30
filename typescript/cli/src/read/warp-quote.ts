@@ -84,7 +84,7 @@ async function readChainQuotes(args: {
   chainLookup: ReturnType<typeof altVmChainLookup>;
 }): Promise<StandingWarpQuoteEntry[]> {
   const { context, warpCoreConfig, chain, chainLookup } = args;
-  const { multiProvider, altVmSigners } = context;
+  const { multiProvider } = context;
 
   const routerAddress = warpCoreConfig.tokens.find(
     (t) => t.chainName === chain,
@@ -125,7 +125,6 @@ async function readChainQuotes(args: {
       feeAddress: leaf.address,
       context: feeReadContext,
       multiProvider,
-      altVmSigners,
     });
     if (!manager) {
       logGray(

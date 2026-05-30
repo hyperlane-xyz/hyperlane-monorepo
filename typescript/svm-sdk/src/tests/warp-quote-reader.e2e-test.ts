@@ -80,7 +80,7 @@ describe('SVM Warp Quote Reader E2E', function () {
 
   function makeManager(knownRoutersPerDomain: Record<number, Set<string>>) {
     return new SvmQuoteArtifactManager(
-      txSigner,
+      rpc,
       {
         feeProgramId,
         salt: DEFAULT_FEE_SALT,
@@ -104,6 +104,7 @@ describe('SVM Warp Quote Reader E2E', function () {
     const manager = makeManager({ [destDomain]: new Set([ROUTER_A]) });
     const writer = manager.createWriter(
       new SvmPrivateKeyQuoteSigner(quoteSignerPk),
+      txSigner,
     );
     const issuedAt = nowSec();
     const expiry = issuedAt + 3600;
@@ -141,6 +142,7 @@ describe('SVM Warp Quote Reader E2E', function () {
     });
     const writer = manager.createWriter(
       new SvmPrivateKeyQuoteSigner(quoteSignerPk),
+      txSigner,
     );
     const issuedAt = nowSec() + 4;
     const expiry = issuedAt + 3600;

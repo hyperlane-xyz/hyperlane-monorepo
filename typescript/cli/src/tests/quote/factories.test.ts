@@ -32,7 +32,6 @@ describe('createQuoteArtifactManagerForChain', () => {
       feeAddress: FEE_ADDRESS,
       context: { knownRoutersPerDomain: {} },
       multiProvider: {} as never,
-      altVmSigners: {},
     });
     expect(mgr).to.be.instanceOf(EvmQuoteArtifactManager);
   });
@@ -43,7 +42,6 @@ describe('createQuoteArtifactManagerForChain', () => {
       feeAddress: FEE_ADDRESS,
       context: { knownRoutersPerDomain: {} },
       multiProvider: {} as never,
-      altVmSigners: {},
     });
     expect(mgr).to.equal(null);
   });

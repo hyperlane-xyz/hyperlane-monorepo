@@ -91,14 +91,14 @@ describe('SVM Warp Quote Writer E2E', function () {
 
   function makeWriter(pk: Uint8Array = quoteSignerPk) {
     return new SvmQuoteArtifactManager(
-      txSigner,
+      rpc,
       {
         feeProgramId,
         salt: DEFAULT_FEE_SALT,
         domainId: TEST_SVM_CHAIN_METADATA.domainId,
       },
       { knownRoutersPerDomain: {} },
-    ).createWriter(new SvmPrivateKeyQuoteSigner(pk));
+    ).createWriter(new SvmPrivateKeyQuoteSigner(pk), txSigner);
   }
 
   function nowSec() {

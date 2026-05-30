@@ -87,6 +87,7 @@ describe('EvmQuoteReader (hardhat)', () => {
     };
     const writer = makeManager(context).createWriter(
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
+      owner,
     );
     const issuedAt = nowSec();
     const expiry = issuedAt + 3600;
@@ -120,6 +121,7 @@ describe('EvmQuoteReader (hardhat)', () => {
     };
     const writer = makeManager(context).createWriter(
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
+      owner,
     );
     const issuedAt = nowSec() + 1;
     const expiry = issuedAt + 7200;
