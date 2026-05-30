@@ -12,9 +12,9 @@ import {
 import { chunk, fromHexString } from '@hyperlane-xyz/utils';
 
 import { decodeStandingQuotePda } from '../accounts/fee.js';
-import type { SvmSigner } from '../clients/signer.js';
 import { FeeStrategyKind } from '../fee/types.js';
 import { deriveFeeAccountPda, deriveStandingQuotePda } from '../pda.js';
+import { type SvmRpc } from '../types.js';
 
 import { type SvmQuoteWriterConfig } from './SvmQuoteWriter.js';
 
@@ -40,7 +40,7 @@ interface PdaSeed {
  */
 export class SvmQuoteReader implements IRawWarpQuoteReader {
   constructor(
-    private readonly txSigner: SvmSigner,
+    private readonly rpc: SvmRpc,
     private readonly config: SvmQuoteWriterConfig,
     private readonly context: FeeReadContext,
   ) {}
@@ -59,7 +59,6 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
       this.config.salt,
     );
     const feeAccount = parseAddress(feeAccountPda);
-    const rpc = this.txSigner.getRpc();
 
     const pdaAddresses = await Promise.all(
       seeds.map(async (s) => {
@@ -78,7 +77,7 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
 
     const entries: StandingWarpQuoteEntry[] = [];
     for (let i = 0; i < addressChunks.length; i++) {
-      const response = await rpc
+      const response = await this.rpc
         .getMultipleAccounts(addressChunks[i], { encoding: 'base64' })
         .send();
 

@@ -23,6 +23,7 @@ import {
   SealevelSigner,
   SvmPrivateKeyQuoteSigner,
   SvmQuoteArtifactManager,
+  createRpc,
 } from '@hyperlane-xyz/sealevel-sdk';
 import { assert, mustGet, strip0x } from '@hyperlane-xyz/utils';
 
@@ -41,14 +42,12 @@ export interface QuoteArtifactManagerArgs {
   feeAddress: string;
   context: FeeReadContext;
   multiProvider: MultiProvider;
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
 }
 
 export function createQuoteArtifactManagerForChain(
   args: QuoteArtifactManagerArgs,
 ): IRawWarpQuoteArtifactManager | null {
-  const { chainMetadata, feeAddress, context, multiProvider, altVmSigners } =
-    args;
+  const { chainMetadata, feeAddress, context, multiProvider } = args;
 
   switch (chainMetadata.protocol) {
     case ProtocolType.Ethereum:
@@ -61,13 +60,13 @@ export function createQuoteArtifactManagerForChain(
       );
 
     case ProtocolType.Sealevel: {
-      const signer = mustGet(altVmSigners, chainMetadata.name);
+      const rpcUrl = chainMetadata.rpcUrls?.[0]?.http;
       assert(
-        signer instanceof SealevelSigner,
-        `Expected a Sealevel signer for chain "${chainMetadata.name}"`,
+        rpcUrl,
+        `No RPC URL configured for SVM chain "${chainMetadata.name}"`,
       );
       return new SvmQuoteArtifactManager(
-        signer,
+        createRpc(rpcUrl),
         {
           feeProgramId: feeAddress,
           salt: DEFAULT_FEE_SALT,
@@ -89,6 +88,45 @@ export function createQuoteArtifactManagerForChain(
       const exhaustive: never = chainMetadata.protocol;
       throw new Error(
         `Unhandled protocol in createQuoteArtifactManagerForChain: ${String(exhaustive)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Resolves the per-protocol tx signer for `createWriter` calls. EVM pulls
+ * from `multiProvider`; alt-VMs pull from `altVmSigners`.
+ */
+export function resolveTxSignerForChain(args: {
+  chainMetadata: ChainMetadataForAltVM;
+  multiProvider: MultiProvider;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+}): unknown {
+  const { chainMetadata, multiProvider, altVmSigners } = args;
+  switch (chainMetadata.protocol) {
+    case ProtocolType.Ethereum:
+    case ProtocolType.Tron:
+      return multiProvider.getSigner(chainMetadata.name);
+    case ProtocolType.Sealevel: {
+      const signer = mustGet(altVmSigners, chainMetadata.name);
+      if (!(signer instanceof SealevelSigner)) {
+        throw new Error(
+          `Expected a Sealevel signer for chain "${chainMetadata.name}"`,
+        );
+      }
+      return signer;
+    }
+    case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
+    case ProtocolType.Starknet:
+    case ProtocolType.Radix:
+    case ProtocolType.Aleo:
+    case ProtocolType.Unknown:
+      return undefined;
+    default: {
+      const exhaustive: never = chainMetadata.protocol;
+      throw new Error(
+        `Unhandled protocol in resolveTxSignerForChain: ${String(exhaustive)}`,
       );
     }
   }

@@ -16,11 +16,12 @@ import {
  */
 export function createWarpQuoteWriter(
   chainMetadata: ChainMetadataForAltVM,
-  signer: RawQuoteSigner,
+  quoteSigner: RawQuoteSigner,
+  txSigner: unknown,
   context: FeeReadContext,
 ): IRawWarpQuoteWriter | null {
   const provider = getProtocolProvider(chainMetadata.protocol);
   const manager: IRawWarpQuoteArtifactManager | null =
     provider.createQuoteArtifactManager(chainMetadata, context);
-  return manager ? manager.createWriter(signer) : null;
+  return manager ? manager.createWriter(quoteSigner, txSigner) : null;
 }

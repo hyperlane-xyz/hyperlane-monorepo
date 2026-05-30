@@ -12,8 +12,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainName,
+  type MultiProvider,
   TokenFeeType,
-  type WarpCoreConfig,
   altVmChainLookup,
   validateWarpConfigForAltVM,
 } from '@hyperlane-xyz/sdk';
@@ -24,6 +24,7 @@ import { log, logBlue, logGreen } from '../logger.js';
 import {
   createDefaultQuoteSignerForChain,
   createQuoteArtifactManagerForChain,
+  resolveTxSignerForChain,
 } from '../quote/factories.js';
 import { resolveOffchainQuotedLeafAddress } from '../quote/offchainQuotedLeaf.js';
 import { deriveWarpRouteConfigForChain } from '../read/warp.js';
@@ -87,8 +88,10 @@ export async function runWarpQuoteCreate({
 
   const targetRouter = resolveTargetRouterForVariant({
     feeVariant,
-    warpCoreConfig,
+    localConfig,
+    multiProvider,
     destinationChainName,
+    destinationDomain,
     destinationProtocol,
   });
 
@@ -120,7 +123,6 @@ export async function runWarpQuoteCreate({
     feeAddress,
     context: buildFeeReadContextFromWarpArtifactConfig(warpArtifact),
     multiProvider,
-    altVmSigners,
   });
   assert(
     manager,
@@ -134,8 +136,13 @@ export async function runWarpQuoteCreate({
     quoteSigner,
     `Warp quote signing is not available for chain ${chain} (protocol ${chainMetadata.protocol})`,
   );
+  const txSigner = resolveTxSignerForChain({
+    chainMetadata,
+    multiProvider,
+    altVmSigners,
+  });
 
-  const writer = manager.createWriter(quoteSigner);
+  const writer = manager.createWriter(quoteSigner, txSigner);
 
   const issuedAt = Math.floor(Date.now() / 1000);
   assert(ttl >= 0, `--ttl must be >= 0, got ${ttl}`);
@@ -176,14 +183,18 @@ function resolveDestinationChainName(
 
 function resolveTargetRouterForVariant(args: {
   feeVariant: TokenFeeType;
-  warpCoreConfig: WarpCoreConfig;
+  localConfig: { remoteRouters?: Record<string, { address: string }> };
+  multiProvider: MultiProvider;
   destinationChainName: string;
+  destinationDomain: number;
   destinationProtocol: ProtocolType;
 }): string {
   const {
     feeVariant,
-    warpCoreConfig,
+    localConfig,
+    multiProvider,
     destinationChainName,
+    destinationDomain,
     destinationProtocol,
   } = args;
   switch (feeVariant) {
@@ -195,14 +206,18 @@ function resolveTargetRouterForVariant(args: {
       return WARP_TARGET_ROUTER_NONE;
 
     case TokenFeeType.CrossCollateralRoutingFee: {
-      const destToken = warpCoreConfig.tokens.find(
-        (t) => t.chainName === destinationChainName,
-      );
+      const routers = localConfig.remoteRouters ?? {};
+      const routerEntry = Object.entries(routers).find(([key]) => {
+        const domain = multiProvider.tryGetDomainId(key);
+        if (domain !== null && domain !== undefined)
+          return domain === destinationDomain;
+        return key === destinationChainName;
+      });
       assert(
-        destToken?.addressOrDenom,
-        `No router address found in warp config for destination ${destinationChainName}`,
+        routerEntry,
+        `No remote router enrolled for destination ${destinationChainName} (domain ${destinationDomain}) on the local warp config`,
       );
-      return addressToBytes32(destToken.addressOrDenom, destinationProtocol);
+      return addressToBytes32(routerEntry[1].address, destinationProtocol);
     }
   }
 }

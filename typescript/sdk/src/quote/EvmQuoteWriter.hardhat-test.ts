@@ -72,7 +72,10 @@ describe('EvmQuoteWriter (hardhat)', () => {
       fee.address,
       { knownRoutersPerDomain: {} },
     );
-    return manager.createWriter(new EvmPrivateKeyQuoteSigner(privateKey));
+    return manager.createWriter(
+      new EvmPrivateKeyQuoteSigner(privateKey),
+      owner,
+    );
   }
 
   function nowSec() {

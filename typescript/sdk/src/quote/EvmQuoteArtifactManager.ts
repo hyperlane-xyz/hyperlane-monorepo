@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type IRawWarpQuoteArtifactManager,
@@ -5,6 +7,7 @@ import {
   type IRawWarpQuoteWriter,
   type RawQuoteSigner,
 } from '@hyperlane-xyz/provider-sdk/quote';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type MultiProvider } from '../providers/MultiProvider.js';
 
@@ -12,11 +15,11 @@ import { EvmQuoteReader } from './EvmQuoteReader.js';
 import { EvmQuoteWriter } from './EvmQuoteWriter.js';
 
 /**
- * EVM implementation of `IRawWarpQuoteArtifactManager`. Resolves the
- * tx-submitter / read-only provider from `multiProvider` and forwards the
- * configured `feeAddress` to the writer and reader. `FeeReadContext` is bound
- * at construction because the reader's enumerator needs the same per-domain
- * router data the fee reader uses.
+ * EVM implementation of `IRawWarpQuoteArtifactManager`. The constructor only
+ * carries the read-side dependency (`multiProvider`) so read-only callers
+ * (`warp quote read`) don't need a tx signer. `createWriter` accepts the
+ * `ethers.Signer` as a method parameter, matching the alt-VM artifact
+ * manager convention.
  */
 export class EvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
   constructor(
@@ -26,8 +29,14 @@ export class EvmQuoteArtifactManager implements IRawWarpQuoteArtifactManager {
     private readonly context: FeeReadContext,
   ) {}
 
-  createWriter(quoteSigner: RawQuoteSigner): IRawWarpQuoteWriter {
-    const txSigner = this.multiProvider.getSigner(this.chainName);
+  createWriter(
+    quoteSigner: RawQuoteSigner,
+    txSigner: unknown,
+  ): IRawWarpQuoteWriter {
+    assert(
+      txSigner instanceof ethers.Signer,
+      'EvmQuoteArtifactManager.createWriter requires an ethers.Signer',
+    );
     return new EvmQuoteWriter(txSigner, quoteSigner, this.feeAddress);
   }
 
