@@ -56,9 +56,12 @@ export async function resolveChains(
     case CommandType.WARP_READ:
     case CommandType.WARP_ALT_CHECK:
     case CommandType.WARP_ALT_READ:
+    case CommandType.WARP_QUOTE_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_ALT_CREATE:
       return resolveWarpAltCreateChains(argv);
+    case CommandType.WARP_QUOTE_CREATE:
+      return resolveWarpQuoteCreateChains(argv);
     case CommandType.WARP_APPLY:
       return resolveWarpConfigChains(argv);
     case CommandType.WARP_CHECK:
@@ -130,6 +133,17 @@ async function resolveWarpReadChains(
 
 // `warp alt create` signs on SVM chains only; loading EVM signers for an
 // SVM/EVM warp route would prompt for keys the command never uses.
+async function resolveWarpQuoteCreateChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  assert(
+    argv.chain,
+    '`warp quote create` requires --chain (the chain submitting the quote tx)',
+  );
+  argv.context.chains = await resolveChain(argv);
+  return argv.context.chains;
+}
+
 async function resolveWarpAltCreateChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
