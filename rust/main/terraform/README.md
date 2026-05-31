@@ -20,12 +20,14 @@ terraform init
 terraform plan
 ```
 
+If the plan looks correct, run `terraform apply` to create the resources. Use `terraform apply -auto-approve` only in automation or when you have already reviewed the plan.
+
 For first-time setup, you can keep the validator task disabled while creating the supporting AWS resources, then fund the reported validator address before enabling the task:
 
 ```hcl
 validator_task_disabled = true
 ```
 
-Add that setting to the `module "validator"` block in `main.tf` for the initial apply, then remove it or set it to `false` once the validator signer has been funded.
+Uncomment the existing `validator_task_disabled = true` line in the `module "validator"` block in `main.tf`, or add `validator_task_disabled = true` to that block if it is not present. After funding the validator signer, remove the `validator_task_disabled` setting or set it to `false`.
 
 For more information, read the [Deploy with Terraform](https://hyp-v3-docs-git-feat-aws-agent-guide-abacus-works.vercel.app/docs/operate/deploy-with-terraform) documentation.
