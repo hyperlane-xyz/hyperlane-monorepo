@@ -111,7 +111,7 @@ export class AnvilFork {
 
     await this.getProvider().send(
       ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT,
-      [address.substring(2)],
+      [address],
     );
 
     rootLogger.info(
@@ -173,9 +173,7 @@ export const stopImpersonatingAccount = async (
     );
 
   const provider = getLocalProvider({ urlOverride: anvilEndPoint });
-  await provider.send(ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [
-    address.substring(2),
-  ]);
+  await provider.send(ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [address]);
 
   rootLogger.info(
     `✅ Successfully stopped account impersonation for address (${address})`,

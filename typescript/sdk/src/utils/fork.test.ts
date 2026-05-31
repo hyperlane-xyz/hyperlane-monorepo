@@ -41,6 +41,24 @@ describe(AnvilFork.name, () => {
 
     expect(sentRequests).to.deep.equal([[ANVIL_RPC_METHODS.RESET, []]]);
   });
+
+  it('stops impersonating with the validated full address', async () => {
+    const address = '0x0000000000000000000000000000000000000001';
+    const sentRequests: unknown[][] = [];
+    const manager = new AnvilFork();
+    manager.getProvider = () =>
+      ({
+        send: async (method: string, params: unknown[]) => {
+          sentRequests.push([method, params]);
+        },
+      }) as ReturnType<AnvilFork['getProvider']>;
+
+    await manager.stopImpersonatingAccount(address);
+
+    expect(sentRequests).to.deep.equal([
+      [ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [address]],
+    ]);
+  });
 });
 
 describe(getLocalProvider.name, () => {
