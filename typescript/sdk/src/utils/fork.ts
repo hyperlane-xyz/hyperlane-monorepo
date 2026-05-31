@@ -8,6 +8,12 @@ import { ChainName } from '../types.js';
 const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
 
+export interface AnvilForkConfig {
+  anvilIPAddr?: string;
+  anvilPort?: number;
+  urlOverride?: string;
+}
+
 export enum ANVIL_RPC_METHODS {
   RESET = 'anvil_reset',
   IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
@@ -21,23 +27,110 @@ export enum ANVIL_RPC_METHODS {
   INCREASE_TIME = 'evm_increaseTime',
 }
 
+export class AnvilFork {
+  private config: AnvilForkConfig;
+
+  constructor(config: AnvilForkConfig = {}) {
+    this.config = { ...config };
+  }
+
+  setAnvilIPAddr(anvilIPAddr?: string): this {
+    this.config.anvilIPAddr = anvilIPAddr;
+    return this;
+  }
+
+  setAnvilPort(anvilPort?: number): this {
+    this.config.anvilPort = anvilPort;
+    return this;
+  }
+
+  setUrlOverride(urlOverride?: string): this {
+    this.config.urlOverride = urlOverride;
+    return this;
+  }
+
+  setConfig(config: AnvilForkConfig): this {
+    this.config = { ...this.config, ...config };
+    return this;
+  }
+
+  getProvider(): providers.JsonRpcProvider {
+    return getLocalProvider(this.config);
+  }
+
+  async reset(): Promise<void> {
+    rootLogger.info(`Resetting forked network...`);
+
+    await this.getProvider().send(ANVIL_RPC_METHODS.RESET, [
+      {
+        forking: {
+          jsonRpcUrl: DEFAULT_ANVIL_ENDPOINT,
+        },
+      },
+    ]);
+
+    rootLogger.info(`✅ Successfully reset forked network`);
+  }
+
+  async fork(
+    multiProvider: MultiProvider,
+    chain: ChainName | number,
+  ): Promise<void> {
+    rootLogger.info(`Forking ${chain} for dry-run...`);
+
+    const provider = this.getProvider();
+    const currentChainMetadata = multiProvider.metadata[chain];
+
+    await provider.send(ANVIL_RPC_METHODS.RESET, [
+      {
+        forking: {
+          jsonRpcUrl: currentChainMetadata.rpcUrls[0].http,
+        },
+      },
+    ]);
+
+    multiProvider.setProvider(chain, provider);
+
+    rootLogger.info(`✅ Successfully forked ${chain} for dry-run`);
+  }
+
+  async impersonateAccount(address: Address): Promise<providers.JsonRpcSigner> {
+    rootLogger.info(`Impersonating account (${address})...`);
+
+    const provider = this.getProvider();
+    await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
+
+    rootLogger.info(`✅ Successfully impersonated account (${address})`);
+
+    return provider.getSigner(address);
+  }
+
+  async stopImpersonatingAccount(address: Address): Promise<void> {
+    rootLogger.info(
+      `Stopping account impersonation for address (${address})...`,
+    );
+
+    if (!isValidAddressEvm(address))
+      throw new Error(
+        `Cannot stop account impersonation: invalid address format: ${address}`,
+      );
+
+    await this.getProvider().send(
+      ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT,
+      [address.substring(2)],
+    );
+
+    rootLogger.info(
+      `✅ Successfully stopped account impersonation for address (${address})`,
+    );
+  }
+}
+
 /**
  * Resets the local node to it's original state (anvil [31337] at block zero).
  */
-export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
-  rootLogger.info(`Resetting forked network...`);
-
-  const provider = getLocalProvider({ anvilIPAddr, anvilPort });
-  await provider.send(ANVIL_RPC_METHODS.RESET, [
-    {
-      forking: {
-        jsonRpcUrl: DEFAULT_ANVIL_ENDPOINT,
-      },
-    },
-  ]);
-
-  rootLogger.info(`✅ Successfully reset forked network`);
-};
+export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) =>
+  new AnvilFork({ anvilIPAddr, anvilPort }).reset();
 
 /**
  * Forks a chain onto the local node at the latest block of the forked network.
@@ -49,24 +142,7 @@ export const setFork = async (
   chain: ChainName | number,
   anvilIPAddr?: string,
   anvilPort?: number,
-) => {
-  rootLogger.info(`Forking ${chain} for dry-run...`);
-
-  const provider = getLocalProvider({ anvilIPAddr, anvilPort });
-  const currentChainMetadata = multiProvider.metadata[chain];
-
-  await provider.send(ANVIL_RPC_METHODS.RESET, [
-    {
-      forking: {
-        jsonRpcUrl: currentChainMetadata.rpcUrls[0].http,
-      },
-    },
-  ]);
-
-  multiProvider.setProvider(chain, provider);
-
-  rootLogger.info(`✅ Successfully forked ${chain} for dry-run`);
-};
+) => new AnvilFork({ anvilIPAddr, anvilPort }).fork(multiProvider, chain);
 
 /**
  * Impersonates an EOA for a provided address.
