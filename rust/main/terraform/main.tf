@@ -1,10 +1,10 @@
 # Configure a Hyperlane Validator
 # Replaces https://docs.hyperlane.xyz/docs/operate/validators/run-validators
-module "your_validator_name" {
+module "validator" {
   source = "./modules/validator"
 
-  validator_name    = "your-validator-name"
-  origin_chain_name = "originChainName"
+  validator_name    = var.validator_name
+  origin_chain_name = var.origin_chain_name
 
   aws_region               = var.aws_region
   validator_cluster_id     = aws_ecs_cluster.validator_cluster.id
