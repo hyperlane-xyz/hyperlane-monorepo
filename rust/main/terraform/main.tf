@@ -11,6 +11,7 @@ module "validator" {
   validator_subnet_id      = aws_subnet.validator_subnet.id
   validator_sg_id          = aws_security_group.validator_sg.id
   validator_nat_gateway_id = aws_nat_gateway.validator_nat_gateway.id
+  validator_task_disabled  = var.validator_task_disabled
 
   # Disabling the validator task allows you to set up all the required infrastructure
   # without running the actual validator yet. This is useful when setting up a validator for

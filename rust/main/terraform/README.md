@@ -28,6 +28,6 @@ For first-time setup, you can keep the validator task disabled while creating th
 validator_task_disabled = true
 ```
 
-Uncomment the existing `validator_task_disabled = true` line in the `module "validator"` block in `main.tf`, or add `validator_task_disabled = true` to that block if it is not present. After funding the validator signer, remove the `validator_task_disabled` setting or set it to `false`.
+Set `validator_task_disabled = true` in `terraform.tfvars` during first-time setup. After funding the validator signer, set it back to `false`.
 
-For more information, read the [Deploy with Terraform](https://hyp-v3-docs-git-feat-aws-agent-guide-abacus-works.vercel.app/docs/operate/deploy-with-terraform) documentation.
+For more information, read the [Deploy with Terraform](https://docs.hyperlane.xyz/docs/operate/guides/deploy-with-terraform) documentation.
