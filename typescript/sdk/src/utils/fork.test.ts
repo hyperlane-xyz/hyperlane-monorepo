@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 
-import { AnvilFork, getLocalProvider } from './fork.js';
+import { ANVIL_RPC_METHODS, AnvilFork, getLocalProvider } from './fork.js';
 
 describe(AnvilFork.name, () => {
   it('builds providers from the configured anvil endpoint', () => {
     const provider = new AnvilFork({
-      anvilIPAddr: '://127.0.0.1',
+      anvilIPAddr: '127.0.0.1',
       anvilPort: 9555,
     }).getProvider();
 
@@ -14,7 +14,7 @@ describe(AnvilFork.name, () => {
 
   it('supports updating endpoint configuration with setters', () => {
     const manager = new AnvilFork()
-      .setAnvilIPAddr('://127.0.0.1')
+      .setAnvilIPAddr('http://127.0.0.1')
       .setAnvilPort(9666);
 
     expect(manager.getProvider().connection.url).to.equal(
@@ -27,16 +27,30 @@ describe(AnvilFork.name, () => {
       'http://127.0.0.1:9777',
     );
   });
+  it('resets the local node without re-fork params', async () => {
+    const sentRequests: unknown[][] = [];
+    const manager = new AnvilFork();
+    manager.getProvider = () =>
+      ({
+        send: async (method: string, params: unknown[]) => {
+          sentRequests.push([method, params]);
+        },
+      }) as ReturnType<AnvilFork['getProvider']>;
+
+    await manager.reset();
+
+    expect(sentRequests).to.deep.equal([[ANVIL_RPC_METHODS.RESET, []]]);
+  });
 });
 
 describe(getLocalProvider.name, () => {
-  it('falls back to the configured anvil endpoint for invalid URL overrides', () => {
-    const provider = getLocalProvider({
-      anvilIPAddr: '://127.0.0.1',
-      anvilPort: 9888,
-      urlOverride: '127.0.0.1:9999',
-    });
-
-    expect(provider.connection.url).to.equal('http://127.0.0.1:9888');
+  it('throws for invalid URL overrides', () => {
+    expect(() =>
+      getLocalProvider({
+        anvilIPAddr: '127.0.0.1',
+        anvilPort: 9888,
+        urlOverride: '127.0.0.1:9999',
+      }),
+    ).to.throw('URL override must be a valid HTTP(S) URL');
   });
 });

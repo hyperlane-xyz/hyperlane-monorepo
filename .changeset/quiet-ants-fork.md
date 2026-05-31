@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': patch
+'@hyperlane-xyz/sdk': minor
 ---
 
-The Anvil fork helpers were encapsulated in an exported AnvilFork class while preserving the existing function exports.
+The Anvil fork helpers were encapsulated in exported AnvilFork and AnvilForkConfig public APIs while preserving the existing function exports.

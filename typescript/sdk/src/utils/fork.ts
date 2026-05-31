@@ -5,8 +5,8 @@ import { Address, isValidAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
+const HTTP_PROTOCOL_REGEX = /^https?:\/\//i;
 
 export interface AnvilForkConfig {
   anvilIPAddr?: string;
@@ -61,13 +61,7 @@ export class AnvilFork {
   async reset(): Promise<void> {
     rootLogger.info(`Resetting forked network...`);
 
-    await this.getProvider().send(ANVIL_RPC_METHODS.RESET, [
-      {
-        forking: {
-          jsonRpcUrl: DEFAULT_ANVIL_ENDPOINT,
-        },
-      },
-    ]);
+    await this.getProvider().send(ANVIL_RPC_METHODS.RESET, []);
 
     rootLogger.info(`✅ Successfully reset forked network`);
   }
@@ -204,20 +198,36 @@ export const getLocalProvider = ({
 } = {}): providers.JsonRpcProvider => {
   let envUrl;
   if (anvilIPAddr && anvilPort)
-    envUrl = `${ENDPOINT_PREFIX}${anvilIPAddr}:${anvilPort}`;
+    envUrl = getAnvilEndpoint(anvilIPAddr, anvilPort);
 
-  if (urlOverride && !urlOverride.startsWith(ENDPOINT_PREFIX)) {
-    rootLogger.warn(
-      `⚠️ Provided URL override (${urlOverride}) does not begin with ${ENDPOINT_PREFIX}. Defaulting to ${
-        envUrl ?? DEFAULT_ANVIL_ENDPOINT
-      }`,
-    );
-    urlOverride = undefined;
-  }
+  if (urlOverride) validateHttpUrl(urlOverride, 'URL override');
 
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
   return new providers.JsonRpcProvider(url);
+};
+
+const getAnvilEndpoint = (anvilIPAddr: string, anvilPort: number): string => {
+  const host = HTTP_PROTOCOL_REGEX.test(anvilIPAddr)
+    ? anvilIPAddr
+    : `http://${anvilIPAddr}`;
+  const endpoint = `${host}:${anvilPort}`;
+
+  validateHttpUrl(endpoint, 'Anvil endpoint');
+
+  return endpoint;
+};
+
+const validateHttpUrl = (url: string, label: string): void => {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${label} must be a valid HTTP(S) URL: ${url}`);
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname)
+    throw new Error(`${label} must be a valid HTTP(S) URL: ${url}`);
 };
 
 export async function setBalance(
