@@ -28,6 +28,14 @@ import { resolveOffchainQuotedLeafAddress } from '../quote/offchainQuotedLeaf.js
 import { deriveWarpRouteConfigForChain } from '../read/warp.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
+function parseBigIntFlag(name: string, raw: string): bigint {
+  try {
+    return BigInt(raw);
+  } catch {
+    throw new Error(`Invalid bigint value for --${name}: "${raw}"`);
+  }
+}
+
 export async function runWarpQuoteCreate({
   context,
   warpRouteId,
@@ -105,7 +113,10 @@ export async function runWarpQuoteCreate({
   const quoteAmount: WarpQuoteAmount =
     amount === 'wildcard'
       ? WARP_QUOTE_AMOUNT_WILDCARD
-      : { kind: WarpQuoteAmountKind.value, value: BigInt(amount) };
+      : {
+          kind: WarpQuoteAmountKind.value,
+          value: parseBigIntFlag('amount', amount),
+        };
 
   const chainLookup = altVmChainLookup(multiProvider);
   const chainMetadata = chainLookup.getChainMetadata(chain);
@@ -151,7 +162,10 @@ export async function runWarpQuoteCreate({
       targetRouter,
       amount: quoteAmount,
     },
-    params: { maxFee: BigInt(maxFee), halfAmount: BigInt(halfAmount) },
+    params: {
+      maxFee: parseBigIntFlag('max-fee', maxFee),
+      halfAmount: parseBigIntFlag('half-amount', halfAmount),
+    },
     issuedAt,
     expiry,
   });
