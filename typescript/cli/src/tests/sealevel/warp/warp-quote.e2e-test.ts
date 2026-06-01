@@ -38,10 +38,10 @@ const SVM_WARP_QUOTE_TIMEOUT = 600_000;
 const MAX_FEE = '1000000000';
 const HALF_AMOUNT = '500000000';
 
-const WILDCARD_BYTES32 =
-  '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
-const TARGET_ROUTER_NONE =
-  '0x0000000000000000000000000000000000000000000000000000000000000000';
+// Result-shape sentinel labels emitted by `runWarpQuoteRead`.
+const WILDCARD_RECIPIENT = 'WILDCARD_RECIPIENT';
+const TARGET_ROUTER_NONE = 'TARGET_ROUTER_NONE';
+const DEFAULT_CROSS_COLLATERAL_ROUTER = 'DEFAULT_CROSS_COLLATERAL_ROUTER';
 
 // Bytes32 stub for an EVM-side warp router on anvil1 — left-padded EVM address.
 const REMOTE_ROUTER_BYTES32 =
@@ -170,7 +170,7 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
 
       const entry =
         result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_BYTES32
+          WILDCARD_RECIPIENT
         ];
       assert(
         entry,
@@ -251,7 +251,7 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
 
       const entry =
         result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_BYTES32
+          WILDCARD_RECIPIENT
         ];
       assert(
         entry,
@@ -295,8 +295,8 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
 
       const entry =
         result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[
-          DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY
-        ]?.[WILDCARD_BYTES32];
+          DEFAULT_CROSS_COLLATERAL_ROUTER
+        ]?.[WILDCARD_RECIPIENT];
       assert(
         entry,
         `expected an entry under ${REMOTE_CHAIN_NAME} / DEFAULT_ROUTER / wildcard`,

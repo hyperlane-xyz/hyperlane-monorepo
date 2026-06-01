@@ -6,7 +6,12 @@ import {
   buildFeeReadContextFromWarpDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
-import { type StandingWarpQuoteEntry } from '@hyperlane-xyz/provider-sdk/quote';
+import {
+  type StandingWarpQuoteEntry,
+  WARP_TARGET_ROUTER_NONE,
+  WILDCARD_BYTES32,
+} from '@hyperlane-xyz/provider-sdk/quote';
+import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from '@hyperlane-xyz/provider-sdk/warp';
 import { isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
@@ -22,19 +27,18 @@ import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 /**
  * Nested mapping of standing offchain warp quotes, structured to mirror the
  * `RoutingFee` / `CrossCollateralRoutingFee` config layout —
- * `source → destination → targetRouter → recipient → entry` — so a YAML
- * dump makes it obvious which routers/recipients are covered. Sentinel
- * bytes32 values surface as-is (target_router NONE = `0x00..00`, recipient
- * WILDCARD = `0xff..ff`, default-router key = its keccak constant) to match
- * how the deploy config writes them.
+ * `source → destination → targetRouter → recipient → entry`. Sentinel bytes32
+ * values are rendered as labels in the output (`TARGET_ROUTER_NONE`,
+ * `DEFAULT_CROSS_COLLATERAL_ROUTER`, `WILDCARD_RECIPIENT`) for readability;
+ * non-sentinel addresses surface as-is.
  */
 export type WarpQuoteReadResult = ChainMap<
   Record<
     string, // destination chain name (or domain id if unknown)
     Record<
-      string, // targetRouter bytes32 hex (NONE / specific / DEFAULT_ROUTER_KEY)
+      string, // targetRouter: TARGET_ROUTER_NONE | DEFAULT_CROSS_COLLATERAL_ROUTER | bytes32 hex
       Record<
-        string, // recipient bytes32 hex (WILDCARD or specific)
+        string, // recipient: WILDCARD_RECIPIENT | bytes32 hex
         QuoteEntry
       >
     >
@@ -168,6 +172,18 @@ async function readChainQuotes(args: {
   return entries;
 }
 
+function targetRouterLabel(hex: string): string {
+  if (hex === WARP_TARGET_ROUTER_NONE) return 'TARGET_ROUTER_NONE';
+  if (hex === DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY) {
+    return 'DEFAULT_CROSS_COLLATERAL_ROUTER';
+  }
+  return hex;
+}
+
+function recipientLabel(hex: string): string {
+  return hex === WILDCARD_BYTES32 ? 'WILDCARD_RECIPIENT' : hex;
+}
+
 function groupEntriesByScope(
   entries: StandingWarpQuoteEntry[],
   multiProvider: { tryGetChainName: (domain: number) => ChainName | null },
@@ -179,8 +195,10 @@ function groupEntriesByScope(
       multiProvider.tryGetChainName(entry.scope.destination) ??
       String(entry.scope.destination);
     const byRouter = (grouped[destKey] ??= {});
-    const byRecipient = (byRouter[entry.scope.targetRouter] ??= {});
-    byRecipient[entry.scope.recipient] = {
+    const byRecipient = (byRouter[
+      targetRouterLabel(entry.scope.targetRouter)
+    ] ??= {});
+    byRecipient[recipientLabel(entry.scope.recipient)] = {
       amount:
         entry.scope.amount.kind === 'wildcard'
           ? 'wildcard'
