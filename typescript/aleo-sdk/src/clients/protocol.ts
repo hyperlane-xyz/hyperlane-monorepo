@@ -23,7 +23,6 @@ import {
   type FeeReadContext,
   type IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import { type IRawWarpQuoteArtifactManager } from '@hyperlane-xyz/provider-sdk/quote';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -199,13 +198,6 @@ export class AleoProtocolProvider implements ProtocolProvider {
     _chainMetadata: ChainMetadataForAltVM,
     _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
-    return null;
-  }
-
-  createQuoteArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-    _context: FeeReadContext,
-  ): IRawWarpQuoteArtifactManager | null {
     return null;
   }
 
