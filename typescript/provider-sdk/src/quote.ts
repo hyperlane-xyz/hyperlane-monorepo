@@ -1,4 +1,5 @@
 import { type FeeReadContext } from './fee.js';
+import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from './warp.js';
 
 /**
  * Offchain quote management — cross-VM interfaces.
@@ -155,18 +156,25 @@ export function enumerateWarpQuoteCandidates(
   )) {
     const destination = Number(domainStr);
     for (const router of routers) {
-      candidates.push({
-        destination,
-        recipient: router,
-        targetRouter: WARP_TARGET_ROUTER_NONE,
-        amount: WARP_QUOTE_AMOUNT_WILDCARD,
-      });
-      candidates.push({
-        destination,
-        recipient: router,
-        targetRouter: router,
-        amount: WARP_QUOTE_AMOUNT_WILDCARD,
-      });
+      // DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY is a CC-default sentinel — valid
+      // as a `targetRouter` (SVM CC default-router slot) but never a real
+      // recipient address, so skip the recipient-side candidates for it.
+      const isDefaultRouter =
+        router === DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY;
+      if (!isDefaultRouter) {
+        candidates.push({
+          destination,
+          recipient: router,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        });
+        candidates.push({
+          destination,
+          recipient: router,
+          targetRouter: router,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        });
+      }
       candidates.push({
         destination,
         recipient: WILDCARD_BYTES32,
@@ -183,6 +191,7 @@ export function enumerateWarpQuoteCandidates(
   }
 
   for (const router of allRouters) {
+    if (router === DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY) continue;
     candidates.push({
       destination: WILDCARD_DESTINATION_DOMAIN,
       recipient: router,

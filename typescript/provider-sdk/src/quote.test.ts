@@ -8,6 +8,7 @@ import {
   WarpQuoteAmountKind,
   enumerateWarpQuoteCandidates,
 } from './quote.js';
+import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from './warp.js';
 
 const routerA = '0x' + 'aa'.repeat(32);
 const routerB = '0x' + 'bb'.repeat(32);
@@ -113,6 +114,22 @@ describe('enumerateWarpQuoteCandidates', () => {
         s.recipient === WILDCARD_BYTES32,
     );
     expect(fullyWild).to.deep.equal([]);
+  });
+
+  it('never emits DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY as a recipient, but keeps it as targetRouter', () => {
+    const got = enumerateWarpQuoteCandidates({
+      knownRoutersPerDomain: {
+        1: new Set([routerA, DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY]),
+      },
+    });
+    const asRecipient = got.filter(
+      (s) => s.recipient === DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+    );
+    expect(asRecipient).to.deep.equal([]);
+    const asTargetRouter = got.filter(
+      (s) => s.targetRouter === DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+    );
+    expect(asTargetRouter.length).to.be.greaterThan(0);
   });
 
   it('emits no duplicate (destination, recipient, targetRouter, amount) tuples', () => {
