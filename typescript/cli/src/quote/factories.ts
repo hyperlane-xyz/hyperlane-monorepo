@@ -34,6 +34,18 @@ import { assert, mustGet, strip0x } from '@hyperlane-xyz/utils';
  * `@hyperlane-xyz/sealevel-sdk`.
  */
 
+/**
+ * Protocols `createQuoteArtifactManagerForChain` can build a manager for.
+ * Callers can pre-filter chain lists against this set to skip work for
+ * unsupported chains; the factory still returns null for the same set, so
+ * this is the single source of truth.
+ */
+export const SUPPORTED_QUOTE_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
+  ProtocolType.Ethereum,
+  ProtocolType.Tron,
+  ProtocolType.Sealevel,
+]);
+
 export interface QuoteArtifactManagerArgs {
   chainMetadata: ChainMetadataForAltVM;
   feeAddress: string;
