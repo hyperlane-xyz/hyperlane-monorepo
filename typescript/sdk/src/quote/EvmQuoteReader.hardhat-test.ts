@@ -152,6 +152,50 @@ describe('EvmQuoteReader (hardhat)', () => {
     expect(match.expiry).to.equal(expiry);
   });
 
+  it('reads a quote keyed by a non-router recipient when passed via extraRecipients', async () => {
+    const context: FeeReadContext = {
+      knownRoutersPerDomain: { [DEST_DOMAIN]: new Set([ROUTER]) },
+    };
+    const extra = '0x' + 'cd'.repeat(32);
+    const writer = makeManager(context).createWriter(
+      new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
+      owner,
+    );
+    const issuedAt = nowSec() + 2;
+    const expiry = issuedAt + 7200;
+    await writer.submitQuote({
+      scope: {
+        destination: DEST_DOMAIN,
+        recipient: extra,
+        targetRouter: WARP_TARGET_ROUTER_NONE,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
+      params: { maxFee: 33n, halfAmount: 44n },
+      issuedAt,
+      expiry,
+    });
+
+    // Without extras: the reader doesn't probe arbitrary recipients, so the
+    // entry stays invisible to the cross-VM read.
+    const withoutExtras = await makeManager(context)
+      .createReader()
+      .readStandingQuotes();
+    expect(
+      withoutExtras.find((e) => e.scope.recipient === extra),
+      'reader should not discover arbitrary recipients without extras',
+    ).to.equal(undefined);
+
+    // With extras: the reader probes (DEST_DOMAIN, extra) and finds it.
+    const withExtras = await makeManager(context)
+      .createReader()
+      .readStandingQuotes({ extraRecipients: new Set([extra]) });
+    const match = withExtras.find((e) => e.scope.recipient === extra);
+    assert(match, 'extras-probe should discover the arbitrary recipient entry');
+    expect(match.scope.destination).to.equal(DEST_DOMAIN);
+    expect(match.params.maxFee).to.equal(33n);
+    expect(match.params.halfAmount).to.equal(44n);
+  });
+
   it('enumerateCandidates yields only `targetRouter === none` scopes (EVM has no CC dimension)', async () => {
     const reader = makeManager({
       knownRoutersPerDomain: {

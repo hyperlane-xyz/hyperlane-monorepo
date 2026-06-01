@@ -4,9 +4,11 @@ import { OffchainQuotedLinearFee__factory } from '@hyperlane-xyz/core';
 import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type IRawWarpQuoteReader,
+  type ReadStandingQuotesOpts,
   type StandingWarpQuoteEntry,
   WARP_QUOTE_AMOUNT_WILDCARD,
   WARP_TARGET_ROUTER_NONE,
+  WILDCARD_DESTINATION_DOMAIN,
   type WarpQuoteScope,
   enumerateWarpQuoteCandidates,
 } from '@hyperlane-xyz/provider-sdk/quote';
@@ -36,7 +38,9 @@ export class EvmQuoteReader implements IRawWarpQuoteReader {
     );
   }
 
-  async readStandingQuotes(): Promise<StandingWarpQuoteEntry[]> {
+  async readStandingQuotes(
+    opts?: ReadStandingQuotesOpts,
+  ): Promise<StandingWarpQuoteEntry[]> {
     const candidates = await this.enumerateCandidates();
     const contract = OffchainQuotedLinearFee__factory.connect(
       this.feeAddress,
@@ -53,6 +57,31 @@ export class EvmQuoteReader implements IRawWarpQuoteReader {
         destination: scope.destination,
         recipient: scope.recipient,
       });
+    }
+
+    // EVM `quotes(dest, recipient)` is non-enumerable, so probe any extra
+    // recipients the caller knows about. Cross with every known destination
+    // and with WILDCARD_DESTINATION_DOMAIN to mirror the standard enumeration.
+    if (opts?.extraRecipients?.size) {
+      const knownDestinations = Object.keys(this.context.knownRoutersPerDomain)
+        .map(Number)
+        .filter(Number.isInteger);
+      for (const recipient of opts.extraRecipients) {
+        for (const destination of knownDestinations) {
+          const key = `${destination}|${recipient}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          uniqueKeys.push({ destination, recipient });
+        }
+        const wildKey = `${WILDCARD_DESTINATION_DOMAIN}|${recipient}`;
+        if (!seen.has(wildKey)) {
+          seen.add(wildKey);
+          uniqueKeys.push({
+            destination: WILDCARD_DESTINATION_DOMAIN,
+            recipient,
+          });
+        }
+      }
     }
 
     const results: StandingWarpQuoteEntry[] = [];

@@ -58,10 +58,12 @@ export async function runWarpQuoteRead({
   context,
   warpRouteId,
   chain,
+  extraRecipients,
 }: {
   context: CommandContext;
   warpRouteId: string;
   chain?: ChainName;
+  extraRecipients: ReadonlySet<string>;
 }): Promise<WarpQuoteReadResult> {
   const { multiProvider } = context;
 
@@ -107,6 +109,7 @@ export async function runWarpQuoteRead({
           warpCoreConfig,
           chain: c,
           chainLookup,
+          extraRecipients,
         }),
       ]),
     ),
@@ -122,8 +125,9 @@ async function readChainQuotes(args: {
   warpCoreConfig: WarpCoreConfig;
   chain: ChainName;
   chainLookup: ReturnType<typeof altVmChainLookup>;
+  extraRecipients: ReadonlySet<string>;
 }): Promise<StandingWarpQuoteEntry[]> {
-  const { context, warpCoreConfig, chain, chainLookup } = args;
+  const { context, warpCoreConfig, chain, chainLookup, extraRecipients } = args;
   const { multiProvider } = context;
 
   const routerAddress = warpCoreConfig.tokens.find(
@@ -179,7 +183,9 @@ async function readChainQuotes(args: {
         multiProvider,
       });
       if (!manager) return [];
-      const leafEntries = await manager.createReader().readStandingQuotes();
+      const leafEntries = await manager
+        .createReader()
+        .readStandingQuotes({ extraRecipients });
       if (leaf.routerKey) {
         const routerKey = leaf.routerKey;
         for (const e of leafEntries) {

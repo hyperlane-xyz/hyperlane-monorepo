@@ -105,9 +105,22 @@ export interface IRawWarpQuoteWriter {
   submitQuote(req: CreateWarpQuoteRequest): Promise<SubmittedWarpQuote>;
 }
 
+/**
+ * Read-time hints for `readStandingQuotes`. `extraRecipients` adds
+ * `(knownDest, extra)` and `(WILDCARD_DEST, extra)` probe candidates —
+ * used by VMs with non-enumerable on-chain storage (EVM) where the reader
+ * can only probe addresses it's told about. VMs whose storage enumerates
+ * all recipients on-chain (SVM) ignore this.
+ */
+export interface ReadStandingQuotesOpts {
+  extraRecipients?: ReadonlySet<string>;
+}
+
 export interface IRawWarpQuoteReader {
   enumerateCandidates(): Promise<WarpQuoteScope[]>;
-  readStandingQuotes(): Promise<StandingWarpQuoteEntry[]>;
+  readStandingQuotes(
+    opts?: ReadStandingQuotesOpts,
+  ): Promise<StandingWarpQuoteEntry[]>;
 }
 
 export interface IRawWarpQuoteArtifactManager {
