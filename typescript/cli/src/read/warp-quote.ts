@@ -46,8 +46,9 @@ interface QuoteEntry {
   amount: string; // "wildcard" or decimal string
   maxFee: string;
   halfAmount: string;
-  issuedAt: number;
-  expiry: number;
+  issuedAt: string; // ISO 8601 UTC (derived from on-chain unix timestamp)
+  expiry: string; // ISO 8601 UTC
+  expired: boolean; // true when on-chain `expiry` is in the past
 }
 
 export async function runWarpQuoteRead({
@@ -160,6 +161,7 @@ function groupEntriesByScope(
   entries: StandingWarpQuoteEntry[],
   multiProvider: { tryGetChainName: (domain: number) => ChainName | null },
 ): WarpQuoteReadResult[ChainName] {
+  const nowSec = Math.floor(Date.now() / 1000);
   const grouped: WarpQuoteReadResult[ChainName] = {};
   for (const entry of entries) {
     const destKey =
@@ -174,9 +176,14 @@ function groupEntriesByScope(
           : entry.scope.amount.value.toString(),
       maxFee: entry.params.maxFee.toString(),
       halfAmount: entry.params.halfAmount.toString(),
-      issuedAt: entry.issuedAt,
-      expiry: entry.expiry,
+      issuedAt: unixSecToIsoString(entry.issuedAt),
+      expiry: unixSecToIsoString(entry.expiry),
+      expired: nowSec > entry.expiry,
     };
   }
   return grouped;
+}
+
+function unixSecToIsoString(unixSec: number): string {
+  return new Date(unixSec * 1000).toISOString();
 }
