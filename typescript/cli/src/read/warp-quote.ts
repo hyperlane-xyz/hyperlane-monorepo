@@ -10,12 +10,15 @@ import {
   validateWarpConfigForAltVM,
 } from '@hyperlane-xyz/sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
-import { isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { type StandingWarpQuoteEntry } from '@hyperlane-xyz/provider-sdk/quote';
+import { isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
-import { createQuoteArtifactManagerForChain } from '../quote/factories.js';
+import {
+  SUPPORTED_QUOTE_PROTOCOLS,
+  createQuoteArtifactManagerForChain,
+} from '../quote/factories.js';
 import { enumerateOffchainQuotedLeaves } from '../quote/offchainQuotedLeaf.js';
 import { deriveWarpRouteConfigForChain } from './warp.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
@@ -67,15 +70,32 @@ export async function runWarpQuoteRead({
     warpRouteId,
   });
 
-  const candidateChains = warpCoreConfig.tokens
-    .map((t) => t.chainName)
-    .filter(
-      (c) =>
-        isEVMLike(multiProvider.getProtocol(c)) ||
-        hasProtocol(multiProvider.getProtocol(c)),
-    );
+  const requestedChains = chain
+    ? [chain]
+    : warpCoreConfig.tokens.map((t) => t.chainName);
 
-  const targetChains = chain ? [chain] : candidateChains;
+  // Two-stage gate: (1) protocol must be registered (or EVM-like) so downstream
+  // calls don't crash; (2) protocol must be in the quote factory's supported
+  // set. Stage 1 is the broader safety net; stage 2 is what this command can
+  // actually serve.
+  const targetChains: ChainName[] = [];
+  for (const c of requestedChains) {
+    const protocol = multiProvider.getProtocol(c);
+    if (!isEVMLike(protocol) && !hasProtocol(protocol)) {
+      logGray(
+        `Skipping ${c} — no provider registered for protocol ${protocol}`,
+      );
+      continue;
+    }
+    if (!SUPPORTED_QUOTE_PROTOCOLS.has(protocol)) {
+      logGray(
+        `Skipping ${c} — warp quote not supported for protocol ${protocol}`,
+      );
+      continue;
+    }
+    targetChains.push(c);
+  }
+
   const chainLookup = altVmChainLookup(multiProvider);
 
   const perChain = await promiseObjAll(
@@ -146,12 +166,7 @@ async function readChainQuotes(args: {
       context: feeReadContext,
       multiProvider,
     });
-    if (!manager) {
-      logGray(
-        `Skipping ${chain} — warp quote support unavailable (protocol ${chainMetadata.protocol})`,
-      );
-      return [];
-    }
+    if (!manager) return [];
     entries.push(...(await manager.createReader().readStandingQuotes()));
   }
   return entries;
