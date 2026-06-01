@@ -79,14 +79,6 @@ class CCTPAttestationService {
     return `${this.url}/v2/messages/${sourceDomain}?transactionHash=${transactionHash}`;
   }
 
-  /**
-   * Get the CCTP v2 attestation
-   * @param CCTP message retrieved from the MessageSend log event
-   * @param transaction hash containing the MessageSent event
-   * @param messageId Hyperlane message ID for tracking
-   * @param logger logger for request context
-   * @returns the attestation byte array
-   */
   async getAttestation(
     cctpMessage: string,
     transactionHash: string,
@@ -201,42 +193,43 @@ class CCTPAttestationService {
       throw new Error(`CCTP service response parsing failed: ${error}`);
     }
 
-    json.messages.forEach((message) => {
-      if (message.attestation === 'PENDING') {
-        const errorString = 'CCTP attestation is pending';
-        switch (message.delayReason) {
-          case 'insufficient_fee':
-          case 'amount_above_max':
-          case 'insufficient_allowance_available':
-            PrometheusMetrics.logUnhandledError(
-              this.serviceName,
-              UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-            );
-            logger.error(
-              {
-                error_reason:
-                  UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-                ...message,
-                ...context,
-              },
-              errorString + ` due to ${message.delayReason}`,
-            );
-            break;
-          default:
-            logger.info(
-              {
-                ...context,
-                ...message,
-              },
-              errorString,
-            );
-        }
-        throw new Error(errorString);
-      }
-    });
+    // Find the Circle message entry that matches the specific cctpMessage bytes we
+    // extracted from the receipt. For single-transfer txs the response has one entry
+    // so this is a no-op; for multi-transfer txs it picks the right attestation.
+    // Falls back to messages[0] if no byte-exact match (shouldn't happen in practice).
+    const normalizedCctpMessage = cctpMessage.toLowerCase();
+    const matchingMessage =
+      json.messages.find(
+        (m) => m.message.toLowerCase() === normalizedCctpMessage,
+      ) ?? json.messages[0];
 
-    // TODO: handle multiple messages in one tx hash
-    return [json.messages[0].message, json.messages[0].attestation];
+    if (matchingMessage.attestation === 'PENDING') {
+      const errorString = 'CCTP attestation is pending';
+      switch (matchingMessage.delayReason) {
+        case 'insufficient_fee':
+        case 'amount_above_max':
+        case 'insufficient_allowance_available':
+          PrometheusMetrics.logUnhandledError(
+            this.serviceName,
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+          );
+          logger.error(
+            {
+              error_reason:
+                UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+              ...matchingMessage,
+              ...context,
+            },
+            errorString + ` due to ${matchingMessage.delayReason}`,
+          );
+          break;
+        default:
+          logger.info({ ...context, ...matchingMessage }, errorString);
+      }
+      throw new Error(errorString);
+    }
+
+    return [matchingMessage.message, matchingMessage.attestation];
   }
 }
 
