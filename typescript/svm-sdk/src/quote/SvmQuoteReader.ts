@@ -3,6 +3,7 @@ import { address as parseAddress } from '@solana/kit';
 import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type IRawWarpQuoteReader,
+  type ReadStandingQuotesOpts,
   type StandingWarpQuoteEntry,
   WARP_QUOTE_AMOUNT_WILDCARD,
   WARP_TARGET_ROUTER_NONE,
@@ -49,7 +50,13 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
     return enumerateWarpQuoteCandidates(this.context);
   }
 
-  async readStandingQuotes(): Promise<StandingWarpQuoteEntry[]> {
+  // `opts.extraRecipients` is intentionally unused: SVM stores recipients
+  // inside the per-(dest, target_router) PDA's BTreeMap, which this reader
+  // enumerates fully — there's no non-enumerable storage that callers would
+  // need to hint at.
+  async readStandingQuotes(
+    _opts?: ReadStandingQuotesOpts,
+  ): Promise<StandingWarpQuoteEntry[]> {
     const candidates = await this.enumerateCandidates();
     const seeds = uniquePdaSeeds(candidates);
 

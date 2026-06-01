@@ -1,6 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
+
 import {
   type CommandModuleWithContext,
   type CommandModuleWithWriteContext,
@@ -13,6 +15,7 @@ import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import {
   chainCommandOption,
   outputFileCommandOption,
+  stringArrayOptionConfig,
   warpRouteIdCommandOption,
 } from './options.js';
 
@@ -106,6 +109,7 @@ const create: CommandModuleWithWriteContext<{
 const read: CommandModuleWithContext<{
   warpRouteId: string;
   chain?: string;
+  recipients?: string[];
   out?: string;
 }> = {
   command: 'read',
@@ -119,11 +123,31 @@ const read: CommandModuleWithContext<{
       describe:
         'Limit the read to a single chain. Defaults to every chain in the warp route.',
     },
+    recipients: stringArrayOptionConfig({
+      description:
+        "Recipient addresses in each destination chain's native format (e.g. 0x… for EVM, base58 for Solana) to additionally probe on protocols whose standing-quote storage is non-enumerable (e.g. EVM). The CLI auto-detects protocol from the address format and converts to bytes32. Ignored on protocols that enumerate recipients on-chain (e.g. SVM).",
+    }),
     out: outputFileCommandOption(),
   },
-  handler: async ({ context, warpRouteId, chain, out }) => {
+  handler: async ({ context, warpRouteId, chain, recipients, out }) => {
     logCommandHeader('Hyperlane Warp Quote Read');
-    const result = await runWarpQuoteRead({ context, warpRouteId, chain });
+    // `addressToBytes32` auto-detects protocol from the address format
+    // (EVM 0x-hex, Sealevel base58, etc.), so the CLI can convert here
+    // without knowing the per-destination protocols of the warp route.
+    const extraRecipients = new Set<string>();
+    for (const native of recipients ?? []) {
+      try {
+        extraRecipients.add(addressToBytes32(native));
+      } catch {
+        // skip inputs that don't validate as any supported protocol address
+      }
+    }
+    const result = await runWarpQuoteRead({
+      context,
+      warpRouteId,
+      chain,
+      extraRecipients,
+    });
     if (out) {
       writeYamlOrJson(out, result, 'yaml');
       logGreen(`Quotes written to ${out}`);
