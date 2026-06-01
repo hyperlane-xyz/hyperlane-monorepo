@@ -6,6 +6,7 @@ import {
   WARP_TARGET_ROUTER_NONE,
   WILDCARD_BYTES32,
 } from '@hyperlane-xyz/provider-sdk/quote';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { groupEntriesByScope } from '../../read/warp-quote.js';
 
@@ -38,8 +39,8 @@ describe('groupEntriesByScope', () => {
     const result = groupEntriesByScope([past], multiProvider);
     const entry =
       result[DEST_CHAIN]?.['TARGET_ROUTER_NONE']?.['WILDCARD_RECIPIENT'];
-    expect(entry).to.exist;
-    expect(entry!.expired).to.equal(true);
+    assert(entry, 'expected entry under DEST_CHAIN/NONE/WILDCARD');
+    expect(entry.expired).to.equal(true);
   });
 
   it('marks an entry not expired when its expiry is in the future', () => {
@@ -48,8 +49,8 @@ describe('groupEntriesByScope', () => {
     const result = groupEntriesByScope([future], multiProvider);
     const entry =
       result[DEST_CHAIN]?.['TARGET_ROUTER_NONE']?.['WILDCARD_RECIPIENT'];
-    expect(entry).to.exist;
-    expect(entry!.expired).to.equal(false);
+    assert(entry, 'expected entry under DEST_CHAIN/NONE/WILDCARD');
+    expect(entry.expired).to.equal(false);
   });
 
   it('computes the expired flag independently per entry', () => {
