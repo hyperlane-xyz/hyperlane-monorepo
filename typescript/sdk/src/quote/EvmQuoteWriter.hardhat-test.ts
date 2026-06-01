@@ -183,6 +183,35 @@ describe('EvmQuoteWriter (hardhat)', () => {
     expect(String(error)).to.include(errorSelector('QuoteExpired'));
   });
 
+  it('submits a transient quote without writing standing storage', async () => {
+    const writer = makeWriter();
+    // Fresh destination slot — any standing entry here is unambiguously
+    // caused by this test, so reading the standing mapping back as zero
+    // is a real assertion about the transient code path.
+    const TRANSIENT_DEST = 999;
+    // Pick a future timestamp so the on-chain `block.timestamp > expiry`
+    // check passes when the tx is mined. issuedAt === expiry keeps the
+    // quote transient (per AbstractOffchainQuoter routing).
+    const ts = nowSec() + 60;
+    await writer.submitQuote({
+      scope: {
+        destination: TRANSIENT_DEST,
+        recipient: RECIPIENT,
+        targetRouter: WARP_TARGET_ROUTER_NONE,
+        amount: { kind: WarpQuoteAmountKind.value, value: 1_000n },
+      },
+      params: { maxFee: 42n, halfAmount: 84n },
+      issuedAt: ts,
+      expiry: ts,
+    });
+
+    // Transient writes go to EIP-1153 transient storage and clear at tx end,
+    // so the standing `quotes` mapping at this slot must remain empty.
+    const stored = await fee.quotes(TRANSIENT_DEST, RECIPIENT);
+    expect(stored.expiry).to.equal(0);
+    expect(stored.maxFee.toString()).to.equal('0');
+  });
+
   it('binds submitter: a different sender cannot broadcast a captured signed quote', async () => {
     const otherSigner = (await hre.ethers.getSigners())[1];
     assert(otherSigner.address !== owner.address, 'need a second signer');
