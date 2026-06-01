@@ -186,7 +186,7 @@ function resolveDestinationChainName(
   return destination;
 }
 
-function resolveTargetRouterForVariant(args: {
+export function resolveTargetRouterForVariant(args: {
   tokenFee: DerivedTokenFeeConfig;
   localConfig: { remoteRouters?: Record<string, { address: string }> };
   multiProvider: MultiProvider;
