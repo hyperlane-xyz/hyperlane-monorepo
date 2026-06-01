@@ -37,6 +37,8 @@ const ROUTER = '0x' + 'aa'.repeat(32);
 // `ProgramError::Custom(N)`. Asserting on the exact decimal lets failure tests
 // pin the error path that actually fired instead of accepting any rejection.
 const ERROR_UNAUTHORIZED_SIGNER = 3705418912; // QuoteVerifyError::UnauthorizedSigner
+const ERROR_QUOTE_EXPIRED = 2912712095; // QuoteValidationError::QuoteExpired
+const ERROR_STALE_QUOTE = 931416553; // QuoteValidationError::StaleQuote
 
 describe('SVM Warp Quote Writer E2E', function () {
   this.timeout(180_000);
@@ -209,5 +211,69 @@ describe('SVM Warp Quote Writer E2E', function () {
       typeof v === 'bigint' ? v.toString() : v,
     );
     expect(serialized).to.include(String(ERROR_UNAUTHORIZED_SIGNER));
+  });
+
+  it(`rejects an expired quote (Custom ${ERROR_QUOTE_EXPIRED})`, async () => {
+    const writer = makeWriter();
+    const past = nowSec() - 3600;
+    const error = await writer
+      .submitQuote({
+        scope: {
+          destination: 200,
+          recipient: ROUTER,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        },
+        params: { maxFee: 1n, halfAmount: 2n },
+        issuedAt: past,
+        expiry: past + 30,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error, 'submitQuote should have rejected');
+    const serialized = JSON.stringify(error, (_k, v) =>
+      typeof v === 'bigint' ? v.toString() : v,
+    );
+    expect(serialized).to.include(String(ERROR_QUOTE_EXPIRED));
+  });
+
+  it(`rejects a stale standing-quote update (Custom ${ERROR_STALE_QUOTE})`, async () => {
+    const writer = makeWriter();
+    const dest = 201;
+    const t = nowSec();
+    await writer.submitQuote({
+      scope: {
+        destination: dest,
+        recipient: ROUTER,
+        targetRouter: WARP_TARGET_ROUTER_NONE,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
+      params: { maxFee: 1n, halfAmount: 2n },
+      issuedAt: t,
+      expiry: t + 3600,
+    });
+    const error = await writer
+      .submitQuote({
+        scope: {
+          destination: dest,
+          recipient: ROUTER,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        },
+        params: { maxFee: 1n, halfAmount: 2n },
+        issuedAt: t - 60,
+        expiry: t + 3600,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error, 'submitQuote should have rejected');
+    const serialized = JSON.stringify(error, (_k, v) =>
+      typeof v === 'bigint' ? v.toString() : v,
+    );
+    expect(serialized).to.include(String(ERROR_STALE_QUOTE));
   });
 });
