@@ -252,8 +252,9 @@ export class HyperlaneE2EWarpTestCommands {
   }
 
   /**
-   * Submits an offchain-signed warp fee quote (transient when ttl=0,
-   * standing otherwise). Wraps `hyperlane warp quote create`.
+   * Submits an offchain-signed standing warp fee quote. Wraps
+   * `hyperlane warp quote create` — ttl must be > 0 (the CLI rejects
+   * standalone transient quotes, which would be unusable).
    */
   public quoteCreate({
     privateKey,

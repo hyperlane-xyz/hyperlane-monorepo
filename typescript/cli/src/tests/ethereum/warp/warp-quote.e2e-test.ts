@@ -146,8 +146,8 @@ describe('hyperlane warp quote e2e tests', async function () {
       expect(entry.expired).to.equal(false);
     });
 
-    it('transient quote (ttl=0) does not appear in standing quote read', async () => {
-      await hyperlaneWarpQuoteCreateRaw({
+    it('rejects ttl=0 (transient quotes are unusable from standalone create)', async () => {
+      const result = await hyperlaneWarpQuoteCreateRaw({
         warpRouteId: WARP_DEPLOY_2_ID,
         chain: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
@@ -158,10 +158,9 @@ describe('hyperlane warp quote e2e tests', async function () {
         ttl: 0,
         quoteSignerKey: quoteSignerWallet.privateKey,
         privateKey: ANVIL_KEY,
-      });
-
-      const result = await readStandingQuotes();
-      expect(result[CHAIN_NAME_2] ?? {}).to.deep.equal({});
+      }).nothrow();
+      expect(result.exitCode).to.not.equal(0);
+      expect(result.stderr + result.stdout).to.match(/ttl must be > 0/);
     });
 
     it('quote read --chain filters output to a single chain', async () => {
