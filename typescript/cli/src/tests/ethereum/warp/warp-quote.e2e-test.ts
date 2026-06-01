@@ -3,12 +3,10 @@ import { Wallet } from 'ethers';
 import { type z } from 'zod';
 
 import {
-  type ChainMetadata,
   DEFAULT_ROUTER_KEY,
   type TokenFeeConfigInputSchema,
   TokenFeeType,
   TokenType,
-  type WarpCoreConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -24,27 +22,27 @@ import {
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
-  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   TEMP_PATH,
-  WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
-interface ReadResultEntry {
-  destination: number;
-  recipient: string;
-  targetRouter: string;
+interface QuoteEntry {
   amount: string;
   maxFee: string;
   halfAmount: string;
   issuedAt: number;
   expiry: number;
 }
+
+type ReadResult = Record<
+  string,
+  Record<string, Record<string, Record<string, QuoteEntry>>>
+>;
 
 const MAX_FEE = '1000000000';
 const HALF_AMOUNT = '500000000';
@@ -58,7 +56,6 @@ const TARGET_ROUTER_NONE =
 describe('hyperlane warp quote e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let chain3DomainId: number;
   let quoteSignerWallet: Wallet;
   let ownerAddress: string;
 
@@ -67,9 +64,6 @@ describe('hyperlane warp quote e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
-
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    chain3DomainId = chain3Metadata.domainId;
 
     ownerAddress = new Wallet(ANVIL_KEY).address;
     quoteSignerWallet = Wallet.createRandom();
@@ -108,9 +102,7 @@ describe('hyperlane warp quote e2e tests', async function () {
     });
   }
 
-  async function readStandingQuotes(
-    chain?: string,
-  ): Promise<Record<string, ReadResultEntry[]>> {
+  async function readStandingQuotes(chain?: string): Promise<ReadResult> {
     await hyperlaneWarpQuoteReadRaw({
       warpRouteId: WARP_DEPLOY_2_ID,
       chain,
@@ -138,13 +130,12 @@ describe('hyperlane warp quote e2e tests', async function () {
       await createStandingQuote();
       const result = await readStandingQuotes();
 
-      expect(result[CHAIN_NAME_2]).to.have.lengthOf(1);
-      expect(result[CHAIN_NAME_3] ?? []).to.have.lengthOf(0);
-
-      const [entry] = result[CHAIN_NAME_2];
-      expect(entry.destination).to.equal(chain3DomainId);
-      expect(entry.recipient).to.equal(WILDCARD_BYTES32);
-      expect(entry.targetRouter).to.equal(TARGET_ROUTER_NONE);
+      expect(result[CHAIN_NAME_3] ?? {}).to.deep.equal({});
+      const entry =
+        result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_BYTES32
+        ];
+      assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.amount).to.equal('wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
@@ -166,7 +157,7 @@ describe('hyperlane warp quote e2e tests', async function () {
       });
 
       const result = await readStandingQuotes();
-      expect(result[CHAIN_NAME_2] ?? []).to.have.lengthOf(0);
+      expect(result[CHAIN_NAME_2] ?? {}).to.deep.equal({});
     });
 
     it('quote read --chain filters output to a single chain', async () => {
@@ -174,7 +165,7 @@ describe('hyperlane warp quote e2e tests', async function () {
 
       const result = await readStandingQuotes(CHAIN_NAME_3);
       expect(Object.keys(result)).to.deep.equal([CHAIN_NAME_3]);
-      expect(result[CHAIN_NAME_3] ?? []).to.have.lengthOf(0);
+      expect(result[CHAIN_NAME_3] ?? {}).to.deep.equal({});
     });
   });
 
@@ -193,10 +184,11 @@ describe('hyperlane warp quote e2e tests', async function () {
       await createStandingQuote();
       const result = await readStandingQuotes();
 
-      expect(result[CHAIN_NAME_2]).to.have.lengthOf(1);
-      const [entry] = result[CHAIN_NAME_2];
-      expect(entry.destination).to.equal(chain3DomainId);
-      expect(entry.targetRouter).to.equal(TARGET_ROUTER_NONE);
+      const entry =
+        result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_BYTES32
+        ];
+      assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
     });
   });
@@ -218,21 +210,11 @@ describe('hyperlane warp quote e2e tests', async function () {
       await createStandingQuote();
       const result = await readStandingQuotes();
 
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
-        WARP_CORE_CONFIG_PATH_2,
-      );
-      const destinationRouter = coreConfig.tokens.find(
-        (t) => t.chainName === CHAIN_NAME_3,
-      )?.addressOrDenom;
-      assert(
-        destinationRouter,
-        `Missing destination router for ${CHAIN_NAME_3} in warp core config`,
-      );
-
-      expect(result[CHAIN_NAME_2]).to.have.lengthOf(1);
-      const [entry] = result[CHAIN_NAME_2];
-      expect(entry.destination).to.equal(chain3DomainId);
-      expect(entry.targetRouter).to.equal(TARGET_ROUTER_NONE);
+      const entry =
+        result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_BYTES32
+        ];
+      assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
     });

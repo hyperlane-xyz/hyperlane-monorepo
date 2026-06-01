@@ -20,13 +20,30 @@ import { enumerateOffchainQuotedLeaves } from '../quote/offchainQuotedLeaf.js';
 import { deriveWarpRouteConfigForChain } from './warp.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
-export type WarpQuoteReadResult = ChainMap<SerializedStandingQuoteEntry[]>;
+/**
+ * Nested mapping of standing offchain warp quotes, structured to mirror the
+ * `RoutingFee` / `CrossCollateralRoutingFee` config layout —
+ * `source → destination → targetRouter → recipient → entry` — so a YAML
+ * dump makes it obvious which routers/recipients are covered. Sentinel
+ * bytes32 values surface as-is (target_router NONE = `0x00..00`, recipient
+ * WILDCARD = `0xff..ff`, default-router key = its keccak constant) to match
+ * how the deploy config writes them.
+ */
+export type WarpQuoteReadResult = ChainMap<
+  Record<
+    string, // destination chain name (or domain id if unknown)
+    Record<
+      string, // targetRouter bytes32 hex (NONE / specific / DEFAULT_ROUTER_KEY)
+      Record<
+        string, // recipient bytes32 hex (WILDCARD or specific)
+        QuoteEntry
+      >
+    >
+  >
+>;
 
-interface SerializedStandingQuoteEntry {
-  destination: number;
-  recipient: string;
-  targetRouter: string;
-  amount: string;
+interface QuoteEntry {
+  amount: string; // "wildcard" or decimal string
   maxFee: string;
   halfAmount: string;
   issuedAt: number;
@@ -74,7 +91,9 @@ export async function runWarpQuoteRead({
     ),
   );
 
-  return objMap(perChain, (_chainName, entries) => entries.map(serializeEntry));
+  return objMap(perChain, (_chainName, entries) =>
+    groupEntriesByScope(entries, multiProvider),
+  );
 }
 
 async function readChainQuotes(args: {
@@ -137,20 +156,27 @@ async function readChainQuotes(args: {
   return entries;
 }
 
-function serializeEntry(
-  entry: StandingWarpQuoteEntry,
-): SerializedStandingQuoteEntry {
-  return {
-    destination: entry.scope.destination,
-    recipient: entry.scope.recipient,
-    targetRouter: entry.scope.targetRouter,
-    amount:
-      entry.scope.amount.kind === 'wildcard'
-        ? 'wildcard'
-        : entry.scope.amount.value.toString(),
-    maxFee: entry.params.maxFee.toString(),
-    halfAmount: entry.params.halfAmount.toString(),
-    issuedAt: entry.issuedAt,
-    expiry: entry.expiry,
-  };
+function groupEntriesByScope(
+  entries: StandingWarpQuoteEntry[],
+  multiProvider: { tryGetChainName: (domain: number) => ChainName | null },
+): WarpQuoteReadResult[ChainName] {
+  const grouped: WarpQuoteReadResult[ChainName] = {};
+  for (const entry of entries) {
+    const destKey =
+      multiProvider.tryGetChainName(entry.scope.destination) ??
+      String(entry.scope.destination);
+    const byRouter = (grouped[destKey] ??= {});
+    const byRecipient = (byRouter[entry.scope.targetRouter] ??= {});
+    byRecipient[entry.scope.recipient] = {
+      amount:
+        entry.scope.amount.kind === 'wildcard'
+          ? 'wildcard'
+          : entry.scope.amount.value.toString(),
+      maxFee: entry.params.maxFee.toString(),
+      halfAmount: entry.params.halfAmount.toString(),
+      issuedAt: entry.issuedAt,
+      expiry: entry.expiry,
+    };
+  }
+  return grouped;
 }
