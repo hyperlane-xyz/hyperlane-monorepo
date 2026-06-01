@@ -150,12 +150,17 @@ describe('SVM Warp Quote Writer E2E', function () {
     expect(entry.expiry).to.equal(BigInt(expiry));
   });
 
-  it('submits a transient quote and returns the tx hash + signature', async () => {
+  it('submits a transient quote without creating a standing PDA', async () => {
     const writer = makeWriter();
+    // Fresh destination domain — any standing PDA at this slot is
+    // unambiguously caused by this test, so the absence-of-PDA check is
+    // a real assertion about the transient code path (not stale state from
+    // earlier tests).
+    const TRANSIENT_DEST = 999;
     const ts = nowSec() + 1;
     const result = await writer.submitQuote({
       scope: {
-        destination: 137,
+        destination: TRANSIENT_DEST,
         recipient: ROUTER,
         targetRouter: WARP_TARGET_ROUTER_NONE,
         amount: { kind: WarpQuoteAmountKind.value, value: 1_000n },
@@ -166,6 +171,24 @@ describe('SVM Warp Quote Writer E2E', function () {
     });
     expect(result.txHash).to.be.a('string').and.not.equal('');
     expect(result.signature).to.match(/^0x[0-9a-f]{130}$/);
+
+    const { address: feeAccountPda } = await deriveFeeAccountPda(
+      parseAddress(feeProgramId),
+      DEFAULT_FEE_SALT,
+    );
+    const standingPda = await deriveStandingQuotePda(
+      parseAddress(feeProgramId),
+      parseAddress(feeAccountPda),
+      TRANSIENT_DEST,
+      new Uint8Array(32),
+    );
+    const acct = await rpc
+      .getAccountInfo(parseAddress(standingPda.address), { encoding: 'base64' })
+      .send();
+    expect(
+      acct.value,
+      'transient submission must not create a standing PDA',
+    ).to.equal(null);
   });
 
   it('rejects standing quotes with a non-wildcard amount (client-side check)', async () => {
