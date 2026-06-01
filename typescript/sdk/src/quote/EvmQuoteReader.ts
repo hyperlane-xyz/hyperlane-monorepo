@@ -18,8 +18,10 @@ import {
  * enumerates the `(dest, recipient)` candidates the cross-VM helper produces and
  * queries each — dropping `expiry == 0` (unset slots).
  *
- * EVM has no `targetRouter` dimension; the reader filters to the
- * `WARP_TARGET_ROUTER_NONE` rows and dedups across `targetRouter` variants.
+ * EVM has no on-chain `targetRouter` dimension; returned entries set
+ * `targetRouter = WARP_TARGET_ROUTER_NONE`. When this leaf sits under a
+ * CrossCollateralRoutingFee, callers that need to distinguish sibling-leaf
+ * entries label them at a higher layer using the deploy-config router key.
  */
 export class EvmQuoteReader implements IRawWarpQuoteReader {
   constructor(
