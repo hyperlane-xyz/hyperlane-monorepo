@@ -12,7 +12,7 @@ import {
   WILDCARD_BYTES32,
 } from '@hyperlane-xyz/provider-sdk/quote';
 import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from '@hyperlane-xyz/provider-sdk/warp';
-import { isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
@@ -72,9 +72,14 @@ export async function runWarpQuoteRead({
     warpRouteId,
   });
 
-  const requestedChains = chain
-    ? [chain]
-    : warpCoreConfig.tokens.map((t) => t.chainName);
+  const warpChains = warpCoreConfig.tokens.map((t) => t.chainName);
+  if (chain) {
+    assert(
+      warpChains.includes(chain),
+      `--chain "${chain}" is not part of warp route ${warpRouteId}. Available chains: ${warpChains.join(', ')}`,
+    );
+  }
+  const requestedChains = chain ? [chain] : warpChains;
 
   // Two-stage gate: (1) protocol must be registered (or EVM-like) so downstream
   // calls don't crash; (2) protocol must be in the quote factory's supported
