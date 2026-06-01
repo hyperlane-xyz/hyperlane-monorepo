@@ -184,7 +184,7 @@ function recipientLabel(hex: string): string {
   return hex === WILDCARD_BYTES32 ? 'WILDCARD_RECIPIENT' : hex;
 }
 
-function groupEntriesByScope(
+export function groupEntriesByScope(
   entries: StandingWarpQuoteEntry[],
   multiProvider: { tryGetChainName: (domain: number) => ChainName | null },
 ): WarpQuoteReadResult[ChainName] {
