@@ -49,10 +49,9 @@ const MAX_FEE = '1000000000';
 const HALF_AMOUNT = '500000000';
 const QUOTE_READ_OUTPUT_PATH = `${TEMP_PATH}/quote-read.yaml`;
 
-const WILDCARD_BYTES32 =
-  '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
-const TARGET_ROUTER_NONE =
-  '0x0000000000000000000000000000000000000000000000000000000000000000';
+// Result-shape sentinel labels emitted by `runWarpQuoteRead`.
+const WILDCARD_RECIPIENT = 'WILDCARD_RECIPIENT';
+const TARGET_ROUTER_NONE = 'TARGET_ROUTER_NONE';
 
 describe('hyperlane warp quote e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -134,7 +133,7 @@ describe('hyperlane warp quote e2e tests', async function () {
       expect(result[CHAIN_NAME_3] ?? {}).to.deep.equal({});
       const entry =
         result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_BYTES32
+          WILDCARD_RECIPIENT
         ];
       assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.amount).to.equal('wildcard');
@@ -190,7 +189,7 @@ describe('hyperlane warp quote e2e tests', async function () {
 
       const entry =
         result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_BYTES32
+          WILDCARD_RECIPIENT
         ];
       assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
@@ -216,7 +215,7 @@ describe('hyperlane warp quote e2e tests', async function () {
 
       const entry =
         result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_BYTES32
+          WILDCARD_RECIPIENT
         ];
       assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
