@@ -1,9 +1,11 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   EvmPrivateKeyQuoteSigner,
   EvmQuoteArtifactManager,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { SvmPrivateKeyQuoteSigner } from '@hyperlane-xyz/sealevel-sdk';
 
@@ -25,13 +27,18 @@ const cosmosChainMetadata =
 
 const FEE_ADDRESS = '0x0000000000000000000000000000000000001234';
 
+// The EVM factory branch stores multiProvider on the constructed
+// EvmQuoteArtifactManager but does not call into it; the cosmos branch
+// returns null before reaching it. A bare stub satisfies both.
+const multiProvider = sinon.createStubInstance(MultiProvider);
+
 describe('createQuoteArtifactManagerForChain', () => {
   it('returns an EvmQuoteArtifactManager for an EVM chain', () => {
     const mgr = createQuoteArtifactManagerForChain({
       chainMetadata: evmChainMetadata,
       feeAddress: FEE_ADDRESS,
       context: { knownRoutersPerDomain: {} },
-      multiProvider: {} as never,
+      multiProvider,
     });
     expect(mgr).to.be.instanceOf(EvmQuoteArtifactManager);
   });
@@ -41,7 +48,7 @@ describe('createQuoteArtifactManagerForChain', () => {
       chainMetadata: cosmosChainMetadata,
       feeAddress: FEE_ADDRESS,
       context: { knownRoutersPerDomain: {} },
-      multiProvider: {} as never,
+      multiProvider,
     });
     expect(mgr).to.equal(null);
   });
