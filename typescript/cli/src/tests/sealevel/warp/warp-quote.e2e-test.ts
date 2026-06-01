@@ -15,8 +15,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import type { ChainMetadata } from '@hyperlane-xyz/sdk';
-
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
@@ -49,10 +47,7 @@ const TARGET_ROUTER_NONE =
 const REMOTE_ROUTER_BYTES32 =
   '0x0000000000000000000000001111111111111111111111111111111111111111';
 
-interface ReadResultEntry {
-  destination: number;
-  recipient: string;
-  targetRouter: string;
+interface QuoteEntry {
   amount: string;
   maxFee: string;
   halfAmount: string;
@@ -60,13 +55,17 @@ interface ReadResultEntry {
   expiry: number;
 }
 
+type ReadResult = Record<
+  string,
+  Record<string, Record<string, Record<string, QuoteEntry>>>
+>;
+
 describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
   this.timeout(SVM_WARP_QUOTE_TIMEOUT);
 
   let rpc: ReturnType<typeof createRpc>;
   let signer: Awaited<ReturnType<typeof SealevelSigner.connectWithSigner>>;
   let mailboxAddress: string;
-  let remoteDomainId: number;
   let quoteSignerWallet: Wallet;
 
   const warpCommands = new HyperlaneE2EWarpTestCommands(
@@ -104,11 +103,6 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
     );
     mailboxAddress = coreAddresses.mailbox;
 
-    const remoteMetadata: ChainMetadata = readYamlOrJson(
-      `${REGISTRY_PATH}/chains/${REMOTE_CHAIN_NAME}/metadata.yaml`,
-    );
-    remoteDomainId = remoteMetadata.domainId;
-
     quoteSignerWallet = Wallet.createRandom();
   });
 
@@ -137,9 +131,7 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
     });
   }
 
-  async function readStandingQuotes(
-    warpRouteId: string,
-  ): Promise<Record<string, ReadResultEntry[]>> {
+  async function readStandingQuotes(warpRouteId: string): Promise<ReadResult> {
     await warpCommands.quoteRead({ warpRouteId, out: QUOTE_READ_OUTPUT_PATH });
     return readYamlOrJson(QUOTE_READ_OUTPUT_PATH);
   }
@@ -175,11 +167,14 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       await createStandingQuote(warpRouteId);
       const result = await readStandingQuotes(warpRouteId);
 
-      expect(result[CHAIN_NAME]).to.have.lengthOf(1);
-      const [entry] = result[CHAIN_NAME];
-      expect(entry.destination).to.equal(remoteDomainId);
-      expect(entry.recipient).to.equal(WILDCARD_BYTES32);
-      expect(entry.targetRouter).to.equal(TARGET_ROUTER_NONE);
+      const entry =
+        result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_BYTES32
+        ];
+      assert(
+        entry,
+        `expected an entry under ${REMOTE_CHAIN_NAME} / NONE / wildcard`,
+      );
       expect(entry.amount).to.equal('wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
@@ -218,7 +213,7 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       });
 
       const result = await readStandingQuotes(warpRouteId);
-      expect(result[CHAIN_NAME] ?? []).to.have.lengthOf(0);
+      expect(result[CHAIN_NAME] ?? {}).to.deep.equal({});
     });
   });
 
@@ -250,10 +245,14 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       await createStandingQuote(warpRouteId);
       const result = await readStandingQuotes(warpRouteId);
 
-      expect(result[CHAIN_NAME]).to.have.lengthOf(1);
-      const [entry] = result[CHAIN_NAME];
-      expect(entry.destination).to.equal(remoteDomainId);
-      expect(entry.targetRouter).to.equal(TARGET_ROUTER_NONE);
+      const entry =
+        result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_BYTES32
+        ];
+      assert(
+        entry,
+        `expected an entry under ${REMOTE_CHAIN_NAME} / NONE / wildcard`,
+      );
       expect(entry.maxFee).to.equal(MAX_FEE);
     });
   });
@@ -290,10 +289,14 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       await createStandingQuote(warpRouteId);
       const result = await readStandingQuotes(warpRouteId);
 
-      expect(result[CHAIN_NAME]).to.have.lengthOf(1);
-      const [entry] = result[CHAIN_NAME];
-      expect(entry.destination).to.equal(remoteDomainId);
-      assert(entry.targetRouter, 'Expected targetRouter to be set');
+      const entry =
+        result[CHAIN_NAME]?.[REMOTE_CHAIN_NAME]?.[
+          DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY
+        ]?.[WILDCARD_BYTES32];
+      assert(
+        entry,
+        `expected an entry under ${REMOTE_CHAIN_NAME} / DEFAULT_ROUTER / wildcard`,
+      );
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
     });
