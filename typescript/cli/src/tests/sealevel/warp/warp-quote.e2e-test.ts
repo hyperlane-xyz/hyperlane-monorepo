@@ -51,8 +51,9 @@ interface QuoteEntry {
   amount: string;
   maxFee: string;
   halfAmount: string;
-  issuedAt: number;
-  expiry: number;
+  issuedAt: string;
+  expiry: string;
+  expired: boolean;
 }
 
 type ReadResult = Record<
@@ -178,7 +179,10 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       expect(entry.amount).to.equal('wildcard');
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
-      expect(entry.expiry).to.be.greaterThan(entry.issuedAt);
+      expect(Date.parse(entry.expiry)).to.be.greaterThan(
+        Date.parse(entry.issuedAt),
+      );
+      expect(entry.expired).to.equal(false);
     });
 
     it('transient quote (ttl=0) does not appear in standing quote read', async () => {
