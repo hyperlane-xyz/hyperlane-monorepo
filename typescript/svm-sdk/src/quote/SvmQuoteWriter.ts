@@ -1,4 +1,4 @@
-import { secp256k1 } from '@noble/curves/secp256k1';
+import { randomBytes } from '@noble/hashes/utils';
 import { address as parseAddress } from '@solana/kit';
 
 import {
@@ -9,7 +9,7 @@ import {
   WARP_TARGET_ROUTER_NONE,
   WarpQuoteAmountKind,
 } from '@hyperlane-xyz/provider-sdk/quote';
-import { assert, fromHexString } from '@hyperlane-xyz/utils';
+import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { u48be } from '../codecs/binary.js';
@@ -91,9 +91,7 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
       }),
     );
 
-    const clientSalt = secp256k1.utils
-      .randomSecretKey()
-      .slice(0, CLIENT_SALT_LEN);
+    const clientSalt = randomBytes(CLIENT_SALT_LEN);
     const payerAddress = this.txSigner.getSignerAddress();
     const scopedSalt = computeScopedSalt(
       parseAddress(payerAddress),
@@ -101,13 +99,13 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
     );
 
     const programId = parseAddress(this.config.feeProgramId);
-    const { address: feeAccountPda } = await deriveFeeAccountPda(
+    const feeAccountPda = await deriveFeeAccountPda(
       programId,
       this.config.salt,
     );
 
     const signable: SvmQuoteSignable = {
-      feeAccount: feeAccountPda,
+      feeAccount: feeAccountPda.address,
       domainId: this.config.domainId,
       context,
       data,
@@ -127,19 +125,16 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
     };
 
     const isTransient = req.expiry === req.issuedAt;
-    const feeAccount = parseAddress(feeAccountPda);
     const payer = parseAddress(payerAddress);
 
     const accounts = await simulateSubmitQuoteAccountMetas({
       rpc: this.txSigner.getRpc(),
       programId,
-      feeAccount,
+      feeAccount: feeAccountPda.address,
       payer,
       input: {
         destinationDomain: req.scope.destination,
-        targetRouter: targetRouterIsNone
-          ? new Uint8Array(32)
-          : Uint8Array.from(fromHexString(req.scope.targetRouter)),
+        targetRouter: targetRouterBytes ?? new Uint8Array(32),
         scopedSalt: isTransient ? scopedSalt : undefined,
       },
       payerSubstitution: payer,
@@ -153,13 +148,7 @@ export class SvmQuoteWriter implements IRawWarpQuoteWriter {
 
     return {
       txHash: receipt.signature,
-      signature: bytesToHex(signature),
+      signature: toHexString(Buffer.from(signature)),
     };
   }
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  let hex = '0x';
-  for (const b of bytes) hex += b.toString(16).padStart(2, '0');
-  return hex;
 }
