@@ -10,6 +10,8 @@ import {
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
@@ -22,6 +24,7 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   CollateralWarpConfig,
   CrossCollateralWarpConfig,
+  DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
   NativeWarpConfig,
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
@@ -84,6 +87,58 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.native,
   TokenType.crossCollateral,
 ]);
+
+/**
+ * Builds a `FeeReadContext` directly from a warp deploy config, bypassing
+ * `validateWarpConfigForAltVM` + `warpConfigToArtifact` +
+ * `buildFeeReadContextFromWarpArtifactConfig`. The read flow only needs the
+ * per-domain router set, not the full `ProviderWarpConfig` conversion, so
+ * this works for any token type (including EVM-only `xerc20`,
+ * `fastCollateral`, etc.) that the AltVM validator would reject.
+ *
+ * Mirrors `buildFeeReadContextFromWarpArtifactConfig` (provider-sdk) — same
+ * `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` injection so CC default-router
+ * quotes remain visible to the reader.
+ */
+export function buildFeeReadContextFromWarpDeployConfig(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  chainLookup: ChainLookup,
+): FeeReadContext {
+  const knownRoutersPerDomain: Record<number, Set<string>> = {};
+
+  for (const [chainNameOrId, router] of Object.entries(
+    config.remoteRouters ?? {},
+  )) {
+    const domain = chainLookup.getDomainId(chainNameOrId);
+    if (isNullish(domain)) continue;
+    const existing = knownRoutersPerDomain[domain] ?? new Set();
+    knownRoutersPerDomain[domain] = new Set([
+      ...existing,
+      router.address,
+      DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+    ]);
+  }
+
+  if (
+    config.type === TokenType.crossCollateral &&
+    config.crossCollateralRouters
+  ) {
+    for (const [chainNameOrId, routers] of Object.entries(
+      config.crossCollateralRouters,
+    )) {
+      const domain = chainLookup.getDomainId(chainNameOrId);
+      if (isNullish(domain)) continue;
+      const existing = knownRoutersPerDomain[domain] ?? new Set();
+      knownRoutersPerDomain[domain] = new Set([
+        ...existing,
+        ...routers,
+        DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+      ]);
+    }
+  }
+
+  return { knownRoutersPerDomain };
+}
 
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
