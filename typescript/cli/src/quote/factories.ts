@@ -19,11 +19,11 @@ import {
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
-  DEFAULT_FEE_SALT,
   SealevelSigner,
   SvmPrivateKeyQuoteSigner,
   SvmQuoteArtifactManager,
   createRpc,
+  resolveFeeSalt,
 } from '@hyperlane-xyz/sealevel-sdk';
 import { assert, mustGet, strip0x } from '@hyperlane-xyz/utils';
 
@@ -78,7 +78,7 @@ export function createQuoteArtifactManagerForChain(
         createRpc(rpcUrl),
         {
           feeProgramId: feeAddress,
-          salt: DEFAULT_FEE_SALT,
+          salt: resolveFeeSalt(chainMetadata.name),
           domainId: chainMetadata.domainId,
         },
         context,
