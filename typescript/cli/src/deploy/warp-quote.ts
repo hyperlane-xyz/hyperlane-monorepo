@@ -6,18 +6,14 @@ import {
   type WarpQuoteAmount,
   WarpQuoteAmountKind,
 } from '@hyperlane-xyz/provider-sdk/quote';
-import {
-  DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
-  buildFeeReadContextFromWarpArtifactConfig,
-  warpConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainName,
   type DerivedTokenFeeConfig,
   type MultiProvider,
   TokenFeeType,
   altVmChainLookup,
-  validateWarpConfigForAltVM,
+  buildFeeReadContextFromWarpDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
@@ -113,15 +109,10 @@ export async function runWarpQuoteCreate({
 
   const chainLookup = altVmChainLookup(multiProvider);
   const chainMetadata = chainLookup.getChainMetadata(chain);
-  const validatedConfig = validateWarpConfigForAltVM(localConfig, chain);
-  const { config: warpArtifact } = warpConfigToArtifact(
-    validatedConfig,
-    chainLookup,
-  );
   const manager = createQuoteArtifactManagerForChain({
     chainMetadata,
     feeAddress,
-    context: buildFeeReadContextFromWarpArtifactConfig(warpArtifact),
+    context: buildFeeReadContextFromWarpDeployConfig(localConfig, chainLookup),
     multiProvider,
   });
   assert(

@@ -1,13 +1,9 @@
 import {
-  buildFeeReadContextFromWarpArtifactConfig,
-  warpConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/warp';
-import {
   type ChainMap,
   type ChainName,
   type WarpCoreConfig,
   altVmChainLookup,
-  validateWarpConfigForAltVM,
+  buildFeeReadContextFromWarpDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import { type StandingWarpQuoteEntry } from '@hyperlane-xyz/provider-sdk/quote';
@@ -152,10 +148,10 @@ async function readChainQuotes(args: {
     return [];
   }
 
-  const validated = validateWarpConfigForAltVM(localConfig, chain);
-  const { config: warpArtifact } = warpConfigToArtifact(validated, chainLookup);
-  const feeReadContext =
-    buildFeeReadContextFromWarpArtifactConfig(warpArtifact);
+  const feeReadContext = buildFeeReadContextFromWarpDeployConfig(
+    localConfig,
+    chainLookup,
+  );
   const chainMetadata = chainLookup.getChainMetadata(chain);
 
   const entries: StandingWarpQuoteEntry[] = [];
