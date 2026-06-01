@@ -23,6 +23,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmPrivateKeyQuoteSigner } from './EvmPrivateKeyQuoteSigner.js';
 import { EvmQuoteArtifactManager } from './EvmQuoteArtifactManager.js';
+import {
+  buildEvmSignedQuoteSignable,
+  buildEvmSignedQuoteTuple,
+} from './WarpSignedQuoteEip712.js';
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
@@ -177,6 +181,45 @@ describe('EvmQuoteWriter (hardhat)', () => {
       );
     assert(error, 'submitQuote should have rejected');
     expect(String(error)).to.include(errorSelector('QuoteExpired'));
+  });
+
+  it('binds submitter: a different sender cannot broadcast a captured signed quote', async () => {
+    const otherSigner = (await hre.ethers.getSigners())[1];
+    assert(otherSigner.address !== owner.address, 'need a second signer');
+
+    // Build a signed quote bound to `owner.address` (the configured submitter).
+    const issuedAt = nowSec();
+    const sq = buildEvmSignedQuoteTuple(
+      {
+        scope: {
+          destination: 300,
+          recipient: RECIPIENT,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        },
+        params: { maxFee: 1n, halfAmount: 2n },
+        issuedAt,
+        expiry: issuedAt + 3600,
+      },
+      '0x' + '11'.repeat(32),
+      owner.address,
+    );
+    const chainId = await owner.getChainId();
+    const signable = buildEvmSignedQuoteSignable(sq, chainId, fee.address);
+    const { signature } = await new EvmPrivateKeyQuoteSigner(
+      quoteSignerWallet.privateKey,
+    ).sign(signable);
+    const sigHex = `0x${Buffer.from(signature).toString('hex')}`;
+
+    const error = await fee
+      .connect(otherSigner)
+      .submitQuote(sq, sigHex)
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error, 'submission from a different sender should have rejected');
+    expect(String(error)).to.include(errorSelector('InvalidSubmitter'));
   });
 
   it('rejects a stale standing-quote update (on-chain StaleQuote)', async () => {
