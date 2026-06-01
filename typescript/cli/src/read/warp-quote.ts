@@ -158,16 +158,52 @@ async function readChainQuotes(args: {
   );
   const chainMetadata = chainLookup.getChainMetadata(chain);
 
+  // EVM and SVM have structurally different fee-program layouts and the
+  // iteration must match:
+  //   - EVM CC deploys a SEPARATE leaf contract per router key. Each leaf
+  //     stores `quotes(dest, recipient)` with no on-chain target_router
+  //     dimension, so the reader returns entries tagged TARGET_ROUTER_NONE.
+  //     We iterate per leaf and stamp `leaf.routerKey` on the entries so
+  //     sibling CC leaves don't collide at the same (dest, recipient).
+  //   - SVM CC is one fee program with internal PDA routing. The reader
+  //     derives target_router from PDA seeds and returns the full set
+  //     in one call. We dedup leaves by address so we don't fire the same
+  //     reader N times for the same program.
   const entries: StandingWarpQuoteEntry[] = [];
-  for (const leaf of leaves) {
-    const manager = createQuoteArtifactManagerForChain({
-      chainMetadata,
-      feeAddress: leaf.address,
-      context: feeReadContext,
-      multiProvider,
-    });
-    if (!manager) return [];
-    entries.push(...(await manager.createReader().readStandingQuotes()));
+  if (isEVMLike(chainMetadata.protocol)) {
+    for (const leaf of leaves) {
+      const manager = createQuoteArtifactManagerForChain({
+        chainMetadata,
+        feeAddress: leaf.address,
+        context: feeReadContext,
+        multiProvider,
+      });
+      if (!manager) return [];
+      const leafEntries = await manager.createReader().readStandingQuotes();
+      if (leaf.routerKey) {
+        const routerKey = leaf.routerKey;
+        for (const e of leafEntries) {
+          entries.push({
+            ...e,
+            scope: { ...e.scope, targetRouter: routerKey },
+          });
+        }
+      } else {
+        entries.push(...leafEntries);
+      }
+    }
+  } else {
+    const uniqueAddresses = new Set(leaves.map((l) => l.address));
+    for (const address of uniqueAddresses) {
+      const manager = createQuoteArtifactManagerForChain({
+        chainMetadata,
+        feeAddress: address,
+        context: feeReadContext,
+        multiProvider,
+      });
+      if (!manager) return [];
+      entries.push(...(await manager.createReader().readStandingQuotes()));
+    }
   }
   return entries;
 }

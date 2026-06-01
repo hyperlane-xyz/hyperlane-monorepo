@@ -52,6 +52,7 @@ const QUOTE_READ_OUTPUT_PATH = `${TEMP_PATH}/quote-read.yaml`;
 // Result-shape sentinel labels emitted by `runWarpQuoteRead`.
 const WILDCARD_RECIPIENT = 'WILDCARD_RECIPIENT';
 const TARGET_ROUTER_NONE = 'TARGET_ROUTER_NONE';
+const DEFAULT_CROSS_COLLATERAL_ROUTER = 'DEFAULT_CROSS_COLLATERAL_ROUTER';
 
 describe('hyperlane warp quote e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -209,15 +210,18 @@ describe('hyperlane warp quote e2e tests', async function () {
       });
     });
 
-    it('standing quote create routes to default OQLF leaf and read returns the entry', async () => {
+    it('standing quote create routes to default OQLF leaf and read returns the entry under the DEFAULT_CROSS_COLLATERAL_ROUTER slot', async () => {
       await createStandingQuote();
       const result = await readStandingQuotes();
 
       const entry =
-        result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
-          WILDCARD_RECIPIENT
-        ];
-      assert(entry, 'expected an entry under anvil3 / NONE / wildcard');
+        result[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[
+          DEFAULT_CROSS_COLLATERAL_ROUTER
+        ]?.[WILDCARD_RECIPIENT];
+      assert(
+        entry,
+        'expected an entry under anvil3 / DEFAULT_CROSS_COLLATERAL_ROUTER / wildcard',
+      );
       expect(entry.maxFee).to.equal(MAX_FEE);
       expect(entry.halfAmount).to.equal(HALF_AMOUNT);
     });
