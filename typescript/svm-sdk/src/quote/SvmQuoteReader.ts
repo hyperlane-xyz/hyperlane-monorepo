@@ -54,21 +54,20 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
     const seeds = uniquePdaSeeds(candidates);
 
     const programId = parseAddress(this.config.feeProgramId);
-    const { address: feeAccountPda } = await deriveFeeAccountPda(
+    const feeAccountPda = await deriveFeeAccountPda(
       programId,
       this.config.salt,
     );
-    const feeAccount = parseAddress(feeAccountPda);
 
     const pdaAddresses = await Promise.all(
       seeds.map(async (s) => {
         const pda = await deriveStandingQuotePda(
           programId,
-          feeAccount,
+          feeAccountPda.address,
           s.destination,
           s.targetRouterBytes,
         );
-        return parseAddress(pda.address);
+        return pda.address;
       }),
     );
 
