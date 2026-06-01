@@ -67,7 +67,7 @@ const create: CommandModuleWithWriteContext<{
     ttl: {
       type: 'number',
       description:
-        'Time-to-live in seconds. `ttl=0` ⇒ transient quote; `ttl>0` ⇒ standing quote (expiry = now + ttl).',
+        'Time-to-live in seconds for the standing quote (expiry = now + ttl). Must be > 0 — transient quotes (ttl=0) are not usable from this standalone command because their on-chain storage is scoped to the create tx (EIP-1153 on EVM, payer-scoped PDA on SVM).',
       demandOption: true,
     },
     'quote-signer-key': {

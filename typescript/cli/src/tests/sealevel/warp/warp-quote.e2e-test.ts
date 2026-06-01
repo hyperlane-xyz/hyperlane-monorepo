@@ -185,7 +185,7 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
       expect(entry.expired).to.equal(false);
     });
 
-    it('transient quote (ttl=0) does not appear in standing quote read', async () => {
+    it('rejects ttl=0 (transient quotes are unusable from standalone create)', async () => {
       const ownerAddress = signer.getSignerAddress();
       const SYMBOL = 'SVMTRT';
       const warpRouteId = await deployWarp(SYMBOL, {
@@ -203,21 +203,22 @@ describe('hyperlane warp quote CLI e2e tests (Sealevel)', function () {
         },
       });
 
-      await warpCommands.quoteCreate({
-        privateKey: SVM_KEY,
-        warpRouteId,
-        chain: CHAIN_NAME,
-        destination: REMOTE_CHAIN_NAME,
-        recipient: 'wildcard',
-        amount: 'wildcard',
-        maxFee: MAX_FEE,
-        halfAmount: HALF_AMOUNT,
-        ttl: 0,
-        quoteSignerKey: quoteSignerWallet.privateKey,
-      });
-
-      const result = await readStandingQuotes(warpRouteId);
-      expect(result[CHAIN_NAME] ?? {}).to.deep.equal({});
+      const result = await warpCommands
+        .quoteCreate({
+          privateKey: SVM_KEY,
+          warpRouteId,
+          chain: CHAIN_NAME,
+          destination: REMOTE_CHAIN_NAME,
+          recipient: 'wildcard',
+          amount: 'wildcard',
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          ttl: 0,
+          quoteSignerKey: quoteSignerWallet.privateKey,
+        })
+        .nothrow();
+      expect(result.exitCode).to.not.equal(0);
+      expect(result.stderr + result.stdout).to.match(/ttl must be > 0/);
     });
   });
 

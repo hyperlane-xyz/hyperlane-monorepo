@@ -147,7 +147,14 @@ export async function runWarpQuoteCreate({
   const writer = manager.createWriter(quoteSigner, txSigner);
 
   const issuedAt = Math.floor(Date.now() / 1000);
-  assert(ttl >= 0, `--ttl must be >= 0, got ${ttl}`);
+  // Reject ttl=0 (transient quotes): standalone `warp quote create` writes a
+  // transient quote that no later tx can consume — EVM clears it via EIP-1153
+  // at end of the create tx; SVM's transient PDA is scoped by a client salt
+  // generated internally and never returned to the caller.
+  assert(
+    ttl > 0,
+    `--ttl must be > 0 (transient quotes are unusable from standalone create), got ${ttl}`,
+  );
   const expiry = issuedAt + ttl;
 
   logBlue(
