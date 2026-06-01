@@ -251,6 +251,70 @@ export class HyperlaneE2EWarpTestCommands {
           --verbosity debug`;
   }
 
+  /**
+   * Submits an offchain-signed warp fee quote (transient when ttl=0,
+   * standing otherwise). Wraps `hyperlane warp quote create`.
+   */
+  public quoteCreate({
+    privateKey,
+    warpRouteId,
+    chain,
+    destination,
+    recipient,
+    amount,
+    maxFee,
+    halfAmount,
+    ttl,
+    quoteSignerKey,
+  }: {
+    privateKey: string;
+    warpRouteId: string;
+    chain: string;
+    destination: string;
+    recipient: string;
+    amount: string;
+    maxFee: string;
+    halfAmount: string;
+    ttl: number;
+    quoteSignerKey: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp quote create \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          --chain ${chain} \
+          --destination ${destination} \
+          --recipient ${recipient} \
+          --amount ${amount} \
+          --max-fee ${maxFee} \
+          --half-amount ${halfAmount} \
+          --ttl ${ttl} \
+          --quote-signer-key ${quoteSignerKey} \
+          ${this.privateKeyFlag} ${privateKey} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  /**
+   * Reads standing offchain-signed warp fee quotes for a deployed warp
+   * route. Wraps `hyperlane warp quote read`.
+   */
+  public quoteRead({
+    warpRouteId,
+    chain,
+    out,
+  }: {
+    warpRouteId: string;
+    chain?: string;
+    out?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp quote read \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          ${out ? ['--out', out] : []} \
+          --verbosity debug`;
+  }
+
   public sendRaw({
     origin,
     destination,

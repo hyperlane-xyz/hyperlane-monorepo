@@ -7,11 +7,13 @@ import {
   WarpQuoteAmountKind,
 } from '@hyperlane-xyz/provider-sdk/quote';
 import {
+  DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
   buildFeeReadContextFromWarpArtifactConfig,
   warpConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainName,
+  type DerivedTokenFeeConfig,
   type MultiProvider,
   TokenFeeType,
   altVmChainLookup,
@@ -84,10 +86,8 @@ export async function runWarpQuoteCreate({
     localConfig.tokenFee,
     `No tokenFee deployed for warp route ${warpRouteId} on ${chain}`,
   );
-  const feeVariant = localConfig.tokenFee.type;
-
   const targetRouter = resolveTargetRouterForVariant({
-    feeVariant,
+    tokenFee: localConfig.tokenFee,
     localConfig,
     multiProvider,
     destinationChainName,
@@ -182,7 +182,7 @@ function resolveDestinationChainName(
 }
 
 function resolveTargetRouterForVariant(args: {
-  feeVariant: TokenFeeType;
+  tokenFee: DerivedTokenFeeConfig;
   localConfig: { remoteRouters?: Record<string, { address: string }> };
   multiProvider: MultiProvider;
   destinationChainName: string;
@@ -190,14 +190,14 @@ function resolveTargetRouterForVariant(args: {
   destinationProtocol: ProtocolType;
 }): string {
   const {
-    feeVariant,
+    tokenFee,
     localConfig,
     multiProvider,
     destinationChainName,
     destinationDomain,
     destinationProtocol,
   } = args;
-  switch (feeVariant) {
+  switch (tokenFee.type) {
     case TokenFeeType.LinearFee:
     case TokenFeeType.RegressiveFee:
     case TokenFeeType.ProgressiveFee:
@@ -206,6 +206,12 @@ function resolveTargetRouterForVariant(args: {
       return WARP_TARGET_ROUTER_NONE;
 
     case TokenFeeType.CrossCollateralRoutingFee: {
+      // SVM submit_quote does NO cascade — the signed targetRouter must
+      // match an actually-configured route key on the fee account.
+      // EVM cascades at quote-read time, so it's tolerant of either
+      // specific or DEFAULT here. Prefer a specific match, fall back to
+      // DEFAULT_ROUTER_KEY.
+      const destRoutes = tokenFee.feeContracts[destinationChainName] ?? {};
       const routers = localConfig.remoteRouters ?? {};
       const routerEntry = Object.entries(routers).find(([key]) => {
         const domain = multiProvider.tryGetDomainId(key);
@@ -213,11 +219,19 @@ function resolveTargetRouterForVariant(args: {
           return domain === destinationDomain;
         return key === destinationChainName;
       });
-      assert(
-        routerEntry,
-        `No remote router enrolled for destination ${destinationChainName} (domain ${destinationDomain}) on the local warp config`,
+      if (routerEntry) {
+        const destRouterBytes32 = addressToBytes32(
+          routerEntry[1].address,
+          destinationProtocol,
+        );
+        if (destRoutes[destRouterBytes32]) return destRouterBytes32;
+      }
+      if (destRoutes[DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY]) {
+        return DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY;
+      }
+      throw new Error(
+        `CrossCollateralRoutingFee has no leaf for destination ${destinationChainName} (domain ${destinationDomain}) — neither a specific router-keyed leaf nor a DEFAULT_ROUTER fallback is configured`,
       );
-      return addressToBytes32(routerEntry[1].address, destinationProtocol);
     }
   }
 }
