@@ -16,6 +16,7 @@ import {
   WILDCARD_BYTES32,
   WarpQuoteAmountKind,
 } from '@hyperlane-xyz/provider-sdk/quote';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -144,5 +145,72 @@ describe('EvmQuoteWriter (hardhat)', () => {
         expiry: issuedAt + 3600,
       }),
     ).to.be.rejectedWith(/wildcard/);
+  });
+
+  // Hardhat's EDR runtime reports custom-error reverts only as a 4-byte
+  // selector in the error message (e.g. `0x8727a7f9` for `QuoteExpired()`),
+  // not by name. Compute the selector from the ABI at test time so the
+  // assertion stays in sync with the contract source.
+  const iface = OffchainQuotedLinearFee__factory.createInterface();
+  function errorSelector(name: string): string {
+    return iface.getSighash(iface.getError(name));
+  }
+
+  it('rejects an expired quote (on-chain QuoteExpired)', async () => {
+    const writer = makeWriter();
+    const past = nowSec() - 3600;
+    const error = await writer
+      .submitQuote({
+        scope: {
+          destination: 200,
+          recipient: RECIPIENT,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        },
+        params: { maxFee: 1n, halfAmount: 2n },
+        issuedAt: past,
+        expiry: past + 30,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error, 'submitQuote should have rejected');
+    expect(String(error)).to.include(errorSelector('QuoteExpired'));
+  });
+
+  it('rejects a stale standing-quote update (on-chain StaleQuote)', async () => {
+    const writer = makeWriter();
+    const dest = 201;
+    const t = nowSec();
+    await writer.submitQuote({
+      scope: {
+        destination: dest,
+        recipient: RECIPIENT,
+        targetRouter: WARP_TARGET_ROUTER_NONE,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
+      params: { maxFee: 1n, halfAmount: 2n },
+      issuedAt: t,
+      expiry: t + 3600,
+    });
+    const error = await writer
+      .submitQuote({
+        scope: {
+          destination: dest,
+          recipient: RECIPIENT,
+          targetRouter: WARP_TARGET_ROUTER_NONE,
+          amount: WARP_QUOTE_AMOUNT_WILDCARD,
+        },
+        params: { maxFee: 1n, halfAmount: 2n },
+        issuedAt: t - 60,
+        expiry: t + 3600,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error, 'submitQuote should have rejected');
+    expect(String(error)).to.include(errorSelector('StaleQuote'));
   });
 });
