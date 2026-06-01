@@ -5,8 +5,6 @@
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { createFeeReader, FeeReader } from './fee/fee-reader.js';
 export { createFeeWriter, FeeWriter } from './fee/fee-writer.js';
-export { createWarpQuoteReader } from './quote/quote-reader.js';
-export { createWarpQuoteWriter } from './quote/quote-writer.js';
 export {
   CoreArtifactReader,
   createCoreReader,

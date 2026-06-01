@@ -1216,7 +1216,6 @@ describe('WarpTokenWriter', () => {
           createMailboxArtifactManager: Sinon.stub(),
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: () => currentFeeCreateManager,
-          createQuoteArtifactManager: Sinon.stub().returns(null),
           getMinGas: Sinon.stub(),
           createWarpArtifactManager: Sinon.stub(),
         }));
@@ -1399,7 +1398,6 @@ describe('WarpTokenWriter', () => {
           createMailboxArtifactManager: Sinon.stub(),
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: () => currentMockFeeArtifactManager,
-          createQuoteArtifactManager: Sinon.stub().returns(null),
           getMinGas: Sinon.stub(),
           createWarpArtifactManager: Sinon.stub(),
         }));
@@ -1592,7 +1590,6 @@ describe('WarpTokenWriter', () => {
           createMailboxArtifactManager: Sinon.stub(),
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: Sinon.stub().returns(null),
-          createQuoteArtifactManager: Sinon.stub().returns(null),
           getMinGas: Sinon.stub(),
           createWarpArtifactManager: Sinon.stub(),
         }));

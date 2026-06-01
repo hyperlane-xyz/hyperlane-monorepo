@@ -28,13 +28,10 @@ import {
 import { assert, mustGet, strip0x } from '@hyperlane-xyz/utils';
 
 /**
- * EVM↔AltVM bridge for warp-quote management.
- *
- * The cross-VM `ProtocolProvider.createQuoteArtifactManager(chainMetadata, context)`
- * signature can't carry the per-warp fee address an `IRawWarpQuoteArtifactManager`
- * needs, so the CLI bridges the two impls directly here — this is the only
- * place that imports both `@hyperlane-xyz/sdk` and `@hyperlane-xyz/sealevel-sdk`,
- * per the agreed EVM↔AltVM-duality-in-CLI architecture.
+ * EVM↔AltVM bridge for warp-quote management. Owns the duality because
+ * `@hyperlane-xyz/sdk` (EVM) does not implement `ProtocolProvider`; this is
+ * the only place that imports both `@hyperlane-xyz/sdk` and
+ * `@hyperlane-xyz/sealevel-sdk`.
  */
 
 export interface QuoteArtifactManagerArgs {
