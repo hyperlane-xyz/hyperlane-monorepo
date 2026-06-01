@@ -496,16 +496,19 @@ export function hyperlaneWarpQuoteCreateRaw({
 export function hyperlaneWarpQuoteReadRaw({
   warpRouteId,
   chain,
+  recipients,
   out,
 }: {
   warpRouteId: string;
   chain?: string;
+  recipients?: string[];
   out?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp quote read \
         --registry ${REGISTRY_PATH} \
         --warp-route-id ${warpRouteId} \
         ${chain ? ['--chain', chain] : []} \
+        ${recipients && recipients.length > 0 ? ['--recipients', ...recipients] : []} \
         ${out ? ['--out', out] : []} \
         --verbosity debug`;
 }

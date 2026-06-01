@@ -9,7 +9,7 @@ import {
   TokenType,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 type TokenFeeInputShape = z.input<typeof TokenFeeConfigInputSchema>;
 
@@ -103,10 +103,14 @@ describe('hyperlane warp quote e2e tests', async function () {
     });
   }
 
-  async function readStandingQuotes(chain?: string): Promise<ReadResult> {
+  async function readStandingQuotes(
+    chain?: string,
+    recipients?: string[],
+  ): Promise<ReadResult> {
     await hyperlaneWarpQuoteReadRaw({
       warpRouteId: WARP_DEPLOY_2_ID,
       chain,
+      recipients,
       out: QUOTE_READ_OUTPUT_PATH,
     });
     return readYamlOrJson(QUOTE_READ_OUTPUT_PATH);
@@ -166,9 +170,60 @@ describe('hyperlane warp quote e2e tests', async function () {
     it('quote read --chain filters output to a single chain', async () => {
       await createStandingQuote();
 
-      const result = await readStandingQuotes(CHAIN_NAME_3);
-      expect(Object.keys(result)).to.deep.equal([CHAIN_NAME_3]);
-      expect(result[CHAIN_NAME_3] ?? {}).to.deep.equal({});
+      // Source chain (has the stored quote): output must include the entry.
+      const sourceResult = await readStandingQuotes(CHAIN_NAME_2);
+      expect(Object.keys(sourceResult)).to.deep.equal([CHAIN_NAME_2]);
+      const entry =
+        sourceResult[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          WILDCARD_RECIPIENT
+        ];
+      assert(entry, 'expected entry under source chain anvil2');
+      expect(entry.maxFee).to.equal(MAX_FEE);
+
+      // Destination chain (no offchain-quoted leaf): output keys to the
+      // requested chain only and contains no entries.
+      const destResult = await readStandingQuotes(CHAIN_NAME_3);
+      expect(Object.keys(destResult)).to.deep.equal([CHAIN_NAME_3]);
+      expect(destResult[CHAIN_NAME_3] ?? {}).to.deep.equal({});
+    });
+
+    it('quote read --recipients discovers quotes for non-router recipients', async () => {
+      const arbitraryRecipient = '0x' + 'cd'.repeat(20);
+      const recipientBytes32 = addressToBytes32(arbitraryRecipient);
+
+      await hyperlaneWarpQuoteCreateRaw({
+        warpRouteId: WARP_DEPLOY_2_ID,
+        chain: CHAIN_NAME_2,
+        destination: CHAIN_NAME_3,
+        recipient: arbitraryRecipient,
+        amount: 'wildcard',
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        ttl: 3600,
+        quoteSignerKey: quoteSignerWallet.privateKey,
+        privateKey: ANVIL_KEY,
+      });
+
+      // Without --recipients the reader doesn't probe this non-router slot.
+      const without = await readStandingQuotes();
+      expect(
+        without[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          recipientBytes32
+        ],
+        'should not be discovered without --recipients',
+      ).to.equal(undefined);
+
+      // With --recipients the (dest, recipient) probe finds the entry.
+      const withExtras = await readStandingQuotes(undefined, [
+        arbitraryRecipient,
+      ]);
+      const entry =
+        withExtras[CHAIN_NAME_2]?.[CHAIN_NAME_3]?.[TARGET_ROUTER_NONE]?.[
+          recipientBytes32
+        ];
+      assert(entry, 'should be discovered with --recipients');
+      expect(entry.maxFee).to.equal(MAX_FEE);
+      expect(entry.halfAmount).to.equal(HALF_AMOUNT);
     });
   });
 

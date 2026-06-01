@@ -32,7 +32,7 @@ const create: CommandModuleWithWriteContext<{
 }> = {
   command: 'create',
   describe:
-    'Submit an offchain-signed warp fee quote (transient with --ttl=0, standing otherwise) to a deployed warp route',
+    'Submit an offchain-signed standing warp fee quote to a deployed warp route (--ttl in seconds, must be > 0)',
   builder: {
     'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
     chain: { ...chainCommandOption, demandOption: true },
