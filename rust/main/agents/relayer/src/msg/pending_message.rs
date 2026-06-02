@@ -398,13 +398,44 @@ impl PendingOperation for PendingMessage {
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.as_ref() {
-            if self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, metadata)
-                .await
-                .is_err()
-            {
+            // For relay-API fast-track messages, if the simulation fails with
+            // "ICA: Invalid Reveal" the commit hasn't landed yet. Poll every 1s
+            // for up to 30s before giving up and falling back to classical indexing.
+            const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
+            const REVEAL_POLL_INTERVAL: Duration = Duration::from_secs(1);
+            const REVEAL_POLL_MAX: u32 = 30;
+
+            let mut estimate_err = None;
+            let poll_rounds = if self.fail_fast { REVEAL_POLL_MAX } else { 1 };
+            for _ in 0..poll_rounds {
+                match self
+                    .ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, metadata)
+                    .await
+                {
+                    Ok(_) => {
+                        estimate_err = None;
+                        break;
+                    }
+                    Err(e) => {
+                        let err_str = format!("{:?}", e);
+                        if self.fail_fast && err_str.contains(ICA_INVALID_REVEAL) {
+                            warn!(
+                                message_id = ?self.message.id(),
+                                "Reveal simulation failed with ICA: Invalid Reveal, commit not yet confirmed — retrying in 1s"
+                            );
+                            tokio::time::sleep(REVEAL_POLL_INTERVAL).await;
+                            estimate_err = Some(err_str);
+                        } else {
+                            estimate_err = Some(err_str);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if estimate_err.is_some() {
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
