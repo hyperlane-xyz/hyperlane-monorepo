@@ -1,3 +1,5 @@
+import { address as parseAddress } from '@solana/kit';
+
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -48,26 +50,51 @@ export class SvmWarpAltManager {
     private readonly altWriter: SvmAddressLookupTableWriter,
   ) {}
 
+  /**
+   * `existingCoreAlt`, when provided, is forwarded to the per-token
+   * writer's ctor so the warp-specific ALTs are (re)created against
+   * a reused core ALT. Powers the CLI's `--force` (warp-specific only)
+   * mode; the `--full-force` mode omits the option to get a fresh core.
+   *
+   * Accepted as a plain `string` (parsed internally) so external
+   * package consumers don't need to depend on `@solana/kit` just to
+   * pass an address through.
+   */
   createWriter<T extends WarpType>(
     type: T,
+    options?: { existingCoreAlt?: string },
   ): SvmTokenAltWriter<WarpArtifactConfigs[T]> {
+    const existingCoreAlt = options?.existingCoreAlt
+      ? parseAddress(options.existingCoreAlt)
+      : undefined;
     const writers: {
       [K in WarpType]: () => SvmTokenAltWriter<WarpArtifactConfigs[K]>;
     } = {
-      native: () => new SvmNativeTokenAltWriter(this.chainName, this.altWriter),
+      native: () =>
+        new SvmNativeTokenAltWriter(
+          this.chainName,
+          this.altWriter,
+          existingCoreAlt,
+        ),
       collateral: () =>
         new SvmCollateralTokenAltWriter(
           this.chainName,
           this.rpc,
           this.altWriter,
+          existingCoreAlt,
         ),
       synthetic: () =>
-        new SvmSyntheticTokenAltWriter(this.chainName, this.altWriter),
+        new SvmSyntheticTokenAltWriter(
+          this.chainName,
+          this.altWriter,
+          existingCoreAlt,
+        ),
       crossCollateral: () =>
         new SvmCrossCollateralTokenAltWriter(
           this.chainName,
           this.rpc,
           this.altWriter,
+          existingCoreAlt,
         ),
     };
 

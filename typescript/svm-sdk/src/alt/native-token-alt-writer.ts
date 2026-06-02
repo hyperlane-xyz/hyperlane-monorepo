@@ -136,17 +136,19 @@ export class SvmNativeTokenAltWriter
   constructor(
     chainName: string,
     protected readonly altWriter: SvmAddressLookupTableWriter,
+    private readonly existingCoreAlt?: Address,
   ) {
     super(chainName, altWriter);
   }
 
   /**
-   * Creates the two frozen ALTs that compose a native warp route's
+   * Creates the frozen ALTs that compose a native warp route's
    * lookup-table coverage on chain: the chain-shared core ALT (SDK
-   * constants + mailbox + IGP) and the warp-route-specific ALT (warp
-   * PDAs + plugin static + fee + per-destination cascades). Both are
-   * frozen on creation, matching the registered-once /
-   * regenerate-on-change trust model.
+   * constants + mailbox + IGP) and one-or-more warp-route-specific
+   * ALTs (warp PDAs + plugin static + fee + per-destination cascades).
+   * All are frozen on creation, matching the registered-once /
+   * regenerate-on-change trust model. When the ctor was given an
+   * `existingCoreAlt`, that address is reused as the core slot.
    */
   async create(
     deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
@@ -156,6 +158,6 @@ export class SvmNativeTokenAltWriter
     receipts: SvmReceipt[];
   }> {
     const addresses = await this.computeExpectedAltAddresses(deployed);
-    return createWarpAltsImpl(this.altWriter, addresses);
+    return createWarpAltsImpl(this.altWriter, addresses, this.existingCoreAlt);
   }
 }

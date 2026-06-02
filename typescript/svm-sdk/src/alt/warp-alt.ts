@@ -14,7 +14,13 @@ import type {
   DeployedWarpAddress,
   WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish, strip0x, toHexString } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  chunk,
+  isNullish,
+  strip0x,
+  toHexString,
+} from '@hyperlane-xyz/utils';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
 import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
@@ -39,6 +45,7 @@ import {
 import type { SvmReceipt } from '../types.js';
 
 import {
+  ALT_MAX_ADDRESSES,
   type SvmAddressLookupTableReader,
   type SvmAddressLookupTableWriter,
   type SvmAltConfig,
@@ -558,10 +565,19 @@ export abstract class SvmTokenAltReaderBase<
 }
 
 /**
- * Shared `create` body for per-token-type writers — emits the two
- * frozen ALTs (core + warp-specific) and returns the typed bundle.
+ * Shared `create` body for per-token-type writers — emits the frozen
+ * ALTs (core + one-or-more warp-specific) and returns the typed bundle.
  * Each writer's `create` reduces to: compute expected addresses, then
- * delegate here.
+ * delegate here with its ctor-stored `existingCoreAlt` (if any).
+ *
+ * The warp-specific bucket is split into chunks of `ALT_MAX_ADDRESSES`
+ * in canonical base58 order — cross-collateral routing can overflow a
+ * single 256-cap ALT once enrolled-domain × router fan-out grows.
+ *
+ * When `existingCoreAlt` is set, the core ALT is reused as-is and only
+ * the warp-specific ALTs are (re)created. The CLI's `--force`
+ * (warp-specific only) path passes the registry's recorded core
+ * address; `--full-force` leaves it `undefined` to get a fresh core.
  */
 export async function createWarpAltsImpl(
   altWriter: SvmAddressLookupTableWriter,
@@ -569,27 +585,43 @@ export async function createWarpAltsImpl(
     core,
     warpSpecific,
   }: { core: AnnotatedAltAddress[]; warpSpecific: AnnotatedAltAddress[] },
+  existingCoreAlt: Address | undefined,
 ): Promise<{
   core: Address;
   warpSpecific: Address[];
   receipts: SvmReceipt[];
 }> {
-  const [coreAlt, coreReceipts] = await altWriter.create({
-    config: {
-      frozen: true,
-      addresses: nonEmptyArray(core.map((e) => e.address)),
-    },
-  });
-  const [warpAlt, warpReceipts] = await altWriter.create({
-    config: {
-      frozen: true,
-      addresses: nonEmptyArray(warpSpecific.map((e) => e.address)),
-    },
-  });
+  const receipts: SvmReceipt[] = [];
+
+  let coreAddress: Address;
+  if (existingCoreAlt) {
+    coreAddress = existingCoreAlt;
+  } else {
+    const [coreAlt, coreReceipts] = await altWriter.create({
+      config: {
+        frozen: true,
+        addresses: nonEmptyArray(core.map((e) => e.address)),
+      },
+    });
+    coreAddress = coreAlt.deployed.address;
+    receipts.push(...coreReceipts);
+  }
+
+  const warpAddresses: Address[] = [];
+  for (const batch of chunk(warpSpecific, ALT_MAX_ADDRESSES)) {
+    const [warpAlt, warpReceipts] = await altWriter.create({
+      config: {
+        frozen: true,
+        addresses: nonEmptyArray(batch.map((e) => e.address)),
+      },
+    });
+    warpAddresses.push(warpAlt.deployed.address);
+    receipts.push(...warpReceipts);
+  }
 
   return {
-    core: coreAlt.deployed.address,
-    warpSpecific: [warpAlt.deployed.address],
-    receipts: [...coreReceipts, ...warpReceipts],
+    core: coreAddress,
+    warpSpecific: warpAddresses,
+    receipts,
   };
 }
