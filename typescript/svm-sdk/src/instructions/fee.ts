@@ -559,8 +559,16 @@ export async function simulateSubmitQuoteAccountMetas(args: {
   });
 
   assert(
+    metas[0]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateSubmitQuoteAccountMetas: expected system program at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
     metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
     `simulateSubmitQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[2]?.address === args.feeAccount,
+    `simulateSubmitQuoteAccountMetas: expected fee account (${args.feeAccount}) at slot 2, got ${metas[2]?.address} — on-chain contract may have changed`,
   );
   return metas.map((m, i) =>
     i === 1 ? writableSignerAddress(args.payerSubstitution) : m,
