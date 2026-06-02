@@ -40,7 +40,10 @@ async function main() {
       type: 'boolean',
       description:
         'List affected K8s releases as JSON without making any changes',
-      default: false,
+      // No default: yargs `.conflicts()` treats any defined value (including
+      // default `false`) as "set", so a default here makes --rpc-urls and
+      // --refresh-releases unusable because they always appear to conflict
+      // with list-releases. The check below already treats undefined as false.
     })
     .option('refresh-releases', {
       type: 'string',
