@@ -11,6 +11,7 @@ import {
   ExplorerLicenseType,
   type HookConfig,
   HookConfigSchema,
+  HookType,
   altVmChainLookup,
   extractIsmAndHookFactoryAddresses,
   isHookCompatible,
@@ -59,6 +60,16 @@ export async function runHookDeploy({
     'Hook config must be an object, not an address string',
   );
 
+  const unsupportedByDeployCommand: string[] = [
+    HookType.RATE_LIMITED,
+    HookType.OP_STACK,
+    HookType.ARB_L2_TO_L1,
+  ];
+  assert(
+    !unsupportedByDeployCommand.includes(hookConfig.type),
+    `Hook type ${hookConfig.type} is not supported by 'hook deploy': it requires additional chain or contract context not wired up by this command`,
+  );
+
   const { technicalStack } = multiProvider.getChainMetadata(chain);
   assert(
     isHookCompatible({
@@ -103,6 +114,7 @@ export async function runHookDeploy({
       context,
       chain,
       hookConfig,
+      chainAddresses,
     });
   }
 
@@ -170,28 +182,61 @@ async function deployEvmHook({
   return deployedHook;
 }
 
+function toProviderHookConfig(
+  config: Exclude<HookConfig, string>,
+): ProviderHookConfig {
+  switch (config.type) {
+    case HookType.MERKLE_TREE:
+      return { type: 'merkleTreeHook' };
+    case HookType.INTERCHAIN_GAS_PAYMASTER:
+      return {
+        type: 'interchainGasPaymaster',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        oracleKey: config.oracleKey,
+        overhead: config.overhead,
+        oracleConfig: config.oracleConfig,
+      };
+    case HookType.PROTOCOL_FEE:
+      return {
+        type: 'protocolFee',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxProtocolFee: config.maxProtocolFee,
+        protocolFee: config.protocolFee,
+      };
+    case HookType.UNKNOWN:
+      return { type: 'unknownHook' };
+    default:
+      throw new Error(
+        `Hook type '${config.type}' is not supported for non-EVM deployment`,
+      );
+  }
+}
+
 async function deployNonEvmHook({
   context,
   chain,
   hookConfig,
+  chainAddresses,
 }: {
   context: WriteCommandContext;
   chain: string;
   hookConfig: Exclude<HookConfig, string>;
+  chainAddresses: Record<string, string>;
 }): Promise<Address> {
-  const { multiProvider, altVmSigners, registry } = context;
+  const { multiProvider, altVmSigners } = context;
 
   const signer = mustGet(altVmSigners, chain);
   const chainLookup = altVmChainLookup(multiProvider);
   const chainMetadata = chainLookup.getChainMetadata(chain);
 
-  const addresses = await registry.getChainAddresses(chain);
   const writer = createHookWriter(chainMetadata, chainLookup, signer, {
-    mailbox: addresses?.mailbox,
+    mailbox: chainAddresses.mailbox,
   });
 
   const artifact = hookConfigToArtifact(
-    hookConfig as ProviderHookConfig,
+    toProviderHookConfig(hookConfig),
     chainLookup,
   );
   const result = await writer.create(artifact);
