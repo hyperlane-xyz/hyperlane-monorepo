@@ -334,22 +334,78 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match tx_cost_estimate {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
-            None => match self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
-                .await
-            {
-                Ok(cost) => cost,
-                Err(err) => {
-                    let reason = self
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+            None => {
+                // For relay-API fast-track messages, poll every 1s for up to 30s if
+                // the failure is "ICA: Invalid Reveal" (commit not yet confirmed).
+                const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
+                const REVEAL_POLL_INTERVAL: Duration = Duration::from_secs(1);
+                const REVEAL_POLL_MAX: u32 = 30;
+
+                let poll_rounds = if self.fail_fast { REVEAL_POLL_MAX } else { 1 };
+                let mut cost_result = None;
+                let mut last_err = None;
+
+                for attempt in 0..poll_rounds {
+                    info!(
+                        message_id = ?self.message.id(),
+                        attempt,
+                        max_attempts = poll_rounds,
+                        "Dry-run simulating process call before submission"
+                    );
+                    match self
+                        .ctx
+                        .destination_mailbox
+                        .process_estimate_costs(&self.message, &metadata)
                         .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    self.clear_metadata();
-                    return self.on_reprepare(Some(err), reason);
+                    {
+                        Ok(cost) => {
+                            info!(
+                                message_id = ?self.message.id(),
+                                attempt,
+                                gas_limit = ?cost.gas_limit,
+                                "Dry-run simulation succeeded"
+                            );
+                            cost_result = Some(cost);
+                            break;
+                        }
+                        Err(e) => {
+                            let err_str = format!("{:?}", e);
+                            if self.fail_fast && err_str.contains(ICA_INVALID_REVEAL) {
+                                warn!(
+                                    message_id = ?self.message.id(),
+                                    attempt,
+                                    remaining = poll_rounds - attempt - 1,
+                                    "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, retrying in 1s"
+                                );
+                                tokio::time::sleep(REVEAL_POLL_INTERVAL).await;
+                                last_err = Some(e);
+                            } else {
+                                warn!(
+                                    message_id = ?self.message.id(),
+                                    attempt,
+                                    error = %err_str,
+                                    "Dry-run simulation failed"
+                                );
+                                last_err = Some(e);
+                                break;
+                            }
+                        }
+                    }
                 }
-            },
+
+                match cost_result {
+                    Some(cost) => cost,
+                    None => {
+                        let err = last_err.expect("at least one attempt was made");
+                        let reason = self
+                            .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                            .await
+                            .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                        self.clear_metadata();
+                        return self.on_reprepare(Some(err), reason);
+                    }
+                }
+            }
         };
 
         // Get the gas_limit if the gas payment requirement has been met,
@@ -407,14 +463,26 @@ impl PendingOperation for PendingMessage {
 
             let mut estimate_err = None;
             let poll_rounds = if self.fail_fast { REVEAL_POLL_MAX } else { 1 };
-            for _ in 0..poll_rounds {
+            for attempt in 0..poll_rounds {
+                info!(
+                    message_id = ?self.message.id(),
+                    attempt,
+                    max_attempts = poll_rounds,
+                    "Dry-run simulating process call before submission"
+                );
                 match self
                     .ctx
                     .destination_mailbox
                     .process_estimate_costs(&self.message, metadata)
                     .await
                 {
-                    Ok(_) => {
+                    Ok(cost_estimate) => {
+                        info!(
+                            message_id = ?self.message.id(),
+                            attempt,
+                            gas_limit = ?cost_estimate.gas_limit,
+                            "Dry-run simulation succeeded"
+                        );
                         estimate_err = None;
                         break;
                     }
@@ -423,11 +491,19 @@ impl PendingOperation for PendingMessage {
                         if self.fail_fast && err_str.contains(ICA_INVALID_REVEAL) {
                             warn!(
                                 message_id = ?self.message.id(),
-                                "Reveal simulation failed with ICA: Invalid Reveal, commit not yet confirmed — retrying in 1s"
+                                attempt,
+                                remaining = poll_rounds - attempt - 1,
+                                "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, retrying in 1s"
                             );
                             tokio::time::sleep(REVEAL_POLL_INTERVAL).await;
                             estimate_err = Some(err_str);
                         } else {
+                            warn!(
+                                message_id = ?self.message.id(),
+                                attempt,
+                                error = %err_str,
+                                "Dry-run simulation failed"
+                            );
                             estimate_err = Some(err_str);
                             break;
                         }
