@@ -232,10 +232,13 @@ class CCTPAttestationService {
             : m.message.toLowerCase();
         return normalizedApiMessage === normalizedCctpMessage;
       });
-      assert(
-        found != null,
-        `Could not match any of ${json.messages.length} Circle API messages to cctpMessage for messageId ${messageId}`,
-      );
+      if (found == null) {
+        logger.info(
+          { messageId, messageCount: json.messages.length },
+          'Could not match Circle API messages to cctpMessage — treating as pending',
+        );
+        throw new Error('CCTP attestation is pending');
+      }
       matchingMessage = found;
     }
 
