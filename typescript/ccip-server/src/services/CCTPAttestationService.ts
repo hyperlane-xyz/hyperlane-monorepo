@@ -242,7 +242,10 @@ class CCTPAttestationService {
       matchingMessage = found;
     }
 
-    if (matchingMessage.attestation === 'PENDING') {
+    if (
+      matchingMessage.attestation == null ||
+      matchingMessage.attestation === 'PENDING'
+    ) {
       const errorString = 'CCTP attestation is pending';
       switch (matchingMessage.delayReason) {
         case 'insufficient_fee':
