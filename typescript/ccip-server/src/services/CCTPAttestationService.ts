@@ -201,41 +201,39 @@ class CCTPAttestationService {
     );
 
     // Fast path: single message in the tx — no disambiguation needed (99.99% of traffic).
-    if (json.messages.length === 1) {
-      return [json.messages[0].message, json.messages[0].attestation];
-    }
-
-    // Multi-message path: find the Circle message that corresponds to the specific
-    // cctpMessage bytes we extracted from the receipt.
-    // For v2: Circle fills in four fields off-chain that are zeroed in the emitted
-    // MessageSent bytes, so byte-exact comparison always fails. Normalize by zeroing
-    // those mutable fields before matching.
+    // Multi-message path: normalize to account for Circle-populated mutable fields and find
+    // the entry that corresponds to the cctpMessage bytes extracted from the receipt.
+    // For v2: four fields are zeroed at emit and populated by Circle off-chain:
     //   Header: nonce (12-43), finalityThresholdExecuted (144-147)
     //   BurnMessageV2 body: feeExecuted (312-343), expirationBlock (344-375)
     //   GMP messages are 180 bytes so 312-375 are out of range — safe no-op.
-    // For v1: v1 nonce is uint64 at bytes 12-19; bytes 20+ are stable sender/recipient
-    // fields. Applying v2 normalization would corrupt those stable fields, so use
-    // byte-exact comparison for v1.
-    const normalizeCctpMessageV2 = (hex: string): string => {
-      const bytes = ethers.utils.arrayify(hex);
-      bytes.fill(0, 12, 44); // nonce
-      bytes.fill(0, 144, 148); // finalityThresholdExecuted
-      if (bytes.length >= 344) bytes.fill(0, 312, 344); // feeExecuted
-      if (bytes.length >= 376) bytes.fill(0, 344, 376); // expirationBlock
-      return ethers.utils.hexlify(bytes);
-    };
-    const normalizedCctpMessage =
-      version === this.CCTP_VERSION_2
-        ? normalizeCctpMessageV2(cctpMessage)
-        : cctpMessage.toLowerCase();
-    const matchingMessage =
-      json.messages.find((m) => {
-        const normalizedApiMessage =
-          version === this.CCTP_VERSION_2
-            ? normalizeCctpMessageV2(m.message)
-            : m.message.toLowerCase();
-        return normalizedApiMessage === normalizedCctpMessage;
-      }) ?? json.messages[0];
+    // For v1: byte-exact comparison — applying v2 normalization would corrupt stable
+    //   sender/recipient fields (v1 nonce is uint64 at 12-19; bytes 20+ are stable).
+    let matchingMessage: CCTPMessageEntry;
+    if (json.messages.length === 1) {
+      matchingMessage = json.messages[0];
+    } else {
+      const normalizeCctpMessageV2 = (hex: string): string => {
+        const bytes = ethers.utils.arrayify(hex);
+        bytes.fill(0, 12, 44); // nonce
+        bytes.fill(0, 144, 148); // finalityThresholdExecuted
+        if (bytes.length >= 344) bytes.fill(0, 312, 344); // feeExecuted
+        if (bytes.length >= 376) bytes.fill(0, 344, 376); // expirationBlock
+        return ethers.utils.hexlify(bytes);
+      };
+      const normalizedCctpMessage =
+        version === this.CCTP_VERSION_2
+          ? normalizeCctpMessageV2(cctpMessage)
+          : cctpMessage.toLowerCase();
+      matchingMessage =
+        json.messages.find((m) => {
+          const normalizedApiMessage =
+            version === this.CCTP_VERSION_2
+              ? normalizeCctpMessageV2(m.message)
+              : m.message.toLowerCase();
+          return normalizedApiMessage === normalizedCctpMessage;
+        }) ?? json.messages[0];
+    }
 
     if (matchingMessage.attestation === 'PENDING') {
       const errorString = 'CCTP attestation is pending';
