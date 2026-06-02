@@ -206,16 +206,21 @@ export class HyperlaneE2EWarpTestCommands {
   /**
    * Creates the SVM Address Lookup Tables for a warp route and persists
    * them to the registry. Wraps `hyperlane warp alt create`.
+   *
+   * `force` recreates warp-specific ALTs while reusing the registered
+   * core ALT; `fullForce` recreates everything.
    */
   public altCreate(
     privateKey: string,
     warpRouteId: string,
-    chain?: string,
+    options?: { chain?: string; force?: boolean; fullForce?: boolean },
   ): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp alt create \
           --registry ${this.registryPath} \
           --warp-route-id ${warpRouteId} \
-          ${chain ? ['--chain', chain] : []} \
+          ${options?.chain ? ['--chain', options.chain] : []} \
+          ${options?.force ? ['--force'] : []} \
+          ${options?.fullForce ? ['--full-force'] : []} \
           ${this.privateKeyFlag} ${privateKey} \
           --verbosity debug \
           --yes`;
