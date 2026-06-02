@@ -12,7 +12,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -123,6 +123,66 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     await warpCommands.altRead(warpRouteId);
 
     // `warp alt check` exits 0 immediately after create — no diffs.
+    await warpCommands.altCheck(warpRouteId);
+  });
+
+  it('--force reuses core ALT; --full-force regenerates everything', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'ALTFRC';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+
+    const config: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'Force ALT Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    function readAltEntry() {
+      const entry =
+        readYamlOrJson<WarpCoreConfig>(warpCorePath).options?.sealevel
+          ?.altAddresses?.[CHAIN_NAME];
+      assert(entry, `expected altAddresses entry for ${CHAIN_NAME}`);
+      return entry;
+    }
+
+    // Baseline: create core + warp-specific from scratch.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId);
+    const baseline = readAltEntry();
+
+    // --force regenerates warp-specific ALTs but reuses the core ALT.
+    // The on-chain ALT program assigns a fresh address on every create,
+    // so a regenerated warp-specific entry is detectable as a strictly
+    // different address even though the contents are identical.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId, { force: true });
+    const afterForce = readAltEntry();
+    expect(afterForce.core, '--force preserves core ALT address').to.equal(
+      baseline.core,
+    );
+    expect(
+      afterForce.warpSpecific.every((a) => !baseline.warpSpecific.includes(a)),
+      `--force should regenerate every warp-specific address (baseline=${baseline.warpSpecific}, after=${afterForce.warpSpecific})`,
+    ).to.equal(true);
+
+    // --full-force regenerates the core ALT too.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId, { fullForce: true });
+    const afterFull = readAltEntry();
+    expect(afterFull.core, '--full-force regenerates core ALT').to.not.equal(
+      baseline.core,
+    );
+    expect(
+      afterFull.warpSpecific.every((a) => !afterForce.warpSpecific.includes(a)),
+      `--full-force should regenerate every warp-specific address (after-force=${afterForce.warpSpecific}, after-full=${afterFull.warpSpecific})`,
+    ).to.equal(true);
+
+    // Post-`--full-force` state is still consistent with on-chain ALTs.
     await warpCommands.altCheck(warpRouteId);
   });
 

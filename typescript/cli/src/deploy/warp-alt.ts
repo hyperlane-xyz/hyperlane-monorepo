@@ -25,11 +25,13 @@ export async function runWarpAltCreate({
   warpRouteId,
   chain,
   force,
+  fullForce,
 }: {
   context: WriteCommandContext;
   warpRouteId: string;
   chain?: ChainName;
   force: boolean;
+  fullForce: boolean;
 }): Promise<void> {
   const warpCoreConfig = await getWarpCoreConfigOrExit({
     context,
@@ -37,6 +39,9 @@ export async function runWarpAltCreate({
   });
 
   const chainLookup = altVmChainLookup(context.multiProvider);
+
+  // --full-force implies --force (it's a strict superset).
+  const effectiveForce = force || fullForce;
 
   const existingAlts = warpCoreConfig.options?.sealevel?.altAddresses ?? {};
   const svmTokens = objFilter(
@@ -51,9 +56,9 @@ export async function runWarpAltCreate({
         logGray(`Skipping ${chainName} — not an SVM chain`);
         return false;
       }
-      if (existingAlts[chainName] && !force) {
+      if (existingAlts[chainName] && !effectiveForce) {
         logGray(
-          `Skipping ${chainName} — ALTs already registered. Re-run with --force to recreate (existing frozen ALTs cannot be reclaimed).`,
+          `Skipping ${chainName} — ALTs already registered. Re-run with --force to recreate only the warp-specific ALTs (reusing the core ALT) or --full-force to recreate everything (existing frozen ALTs cannot be reclaimed).`,
         );
         return false;
       }
@@ -83,8 +88,15 @@ export async function runWarpAltCreate({
       const warpReader = createWarpTokenReader(chainMetadata, chainLookup);
       const deployed = await warpReader.read(token.addressOrDenom);
 
+      // --force without --full-force reuses the recorded core ALT;
+      // --full-force regenerates everything by leaving it undefined.
+      const existingCoreAlt =
+        force && !fullForce ? existingAlts[chainName]?.core : undefined;
+
       const manager = createWarpAltManager(chainMetadata, signer);
-      const writer = manager.createWriter(deployed.config.type);
+      const writer = manager.createWriter(deployed.config.type, {
+        existingCoreAlt,
+      });
       const { core, warpSpecific } = await writer.create(deployed);
 
       logGreen(
