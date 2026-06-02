@@ -120,7 +120,7 @@ describe('findMatchingCircleMessage', () => {
   });
 
   describe('fallback', () => {
-    it('returns messages[0] when no strategy matches', () => {
+    it('returns null when no strategy matches', () => {
       const msgA = makeBurnCircleMessage(RECIPIENT_A, AMOUNT_A);
       const msgB = makeBurnCircleMessage(RECIPIENT_B, AMOUNT_B);
       // Body has wrong recipient/amount and messageId does not match either
@@ -130,7 +130,7 @@ describe('findMatchingCircleMessage', () => {
       );
       expect(
         findMatchingCircleMessage([msgA, msgB], wrongBody, MESSAGE_ID_A),
-      ).to.equal(msgA);
+      ).to.equal(null);
     });
   });
 });

@@ -200,16 +200,23 @@ class CCTPAttestationService {
       'CCTP attestation API returned no messages',
     );
 
-    // Circle fills in four fields off-chain that are zeroed in the emitted MessageSent bytes.
-    // CctpMessageV2 header mutable fields:
-    //   - nonce (bytes 12-43): EMPTY_NONCE = bytes32(0) on emit, assigned by Circle
-    //   - finalityThresholdExecuted (bytes 144-147): 0 on emit, set by Circle on finality
-    // BurnMessageV2 body mutable fields (body starts at byte 148):
-    //   - feeExecuted (full bytes 312-343): EMPTY_FEE_EXECUTED = 0 on emit, set by Circle
-    //   - expirationBlock (full bytes 344-375): EMPTY_EXPIRATION_BLOCK = 0 on emit, set by Circle
-    // Byte-exact comparison always fails for v2. Normalize both sides by zeroing all four fields.
-    // GMP messages are 180 bytes so bytes 312-375 are out of range — safe no-op.
-    const normalizeCctpMessage = (hex: string): string => {
+    // Fast path: single message in the tx — no disambiguation needed (99.99% of traffic).
+    if (json.messages.length === 1) {
+      return [json.messages[0].message, json.messages[0].attestation];
+    }
+
+    // Multi-message path: find the Circle message that corresponds to the specific
+    // cctpMessage bytes we extracted from the receipt.
+    // For v2: Circle fills in four fields off-chain that are zeroed in the emitted
+    // MessageSent bytes, so byte-exact comparison always fails. Normalize by zeroing
+    // those mutable fields before matching.
+    //   Header: nonce (12-43), finalityThresholdExecuted (144-147)
+    //   BurnMessageV2 body: feeExecuted (312-343), expirationBlock (344-375)
+    //   GMP messages are 180 bytes so 312-375 are out of range — safe no-op.
+    // For v1: v1 nonce is uint64 at bytes 12-19; bytes 20+ are stable sender/recipient
+    // fields. Applying v2 normalization would corrupt those stable fields, so use
+    // byte-exact comparison for v1.
+    const normalizeCctpMessageV2 = (hex: string): string => {
       const bytes = ethers.utils.arrayify(hex);
       bytes.fill(0, 12, 44); // nonce
       bytes.fill(0, 144, 148); // finalityThresholdExecuted
@@ -217,11 +224,18 @@ class CCTPAttestationService {
       if (bytes.length >= 376) bytes.fill(0, 344, 376); // expirationBlock
       return ethers.utils.hexlify(bytes);
     };
-    const normalizedCctpMessage = normalizeCctpMessage(cctpMessage);
+    const normalizedCctpMessage =
+      version === this.CCTP_VERSION_2
+        ? normalizeCctpMessageV2(cctpMessage)
+        : cctpMessage.toLowerCase();
     const matchingMessage =
-      json.messages.find(
-        (m) => normalizeCctpMessage(m.message) === normalizedCctpMessage,
-      ) ?? json.messages[0];
+      json.messages.find((m) => {
+        const normalizedApiMessage =
+          version === this.CCTP_VERSION_2
+            ? normalizeCctpMessageV2(m.message)
+            : m.message.toLowerCase();
+        return normalizedApiMessage === normalizedCctpMessage;
+      }) ?? json.messages[0];
 
     if (matchingMessage.attestation === 'PENDING') {
       const errorString = 'CCTP attestation is pending';
