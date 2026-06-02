@@ -225,14 +225,18 @@ class CCTPAttestationService {
         version === this.CCTP_VERSION_2
           ? normalizeCctpMessageV2(cctpMessage)
           : cctpMessage.toLowerCase();
-      matchingMessage =
-        json.messages.find((m) => {
-          const normalizedApiMessage =
-            version === this.CCTP_VERSION_2
-              ? normalizeCctpMessageV2(m.message)
-              : m.message.toLowerCase();
-          return normalizedApiMessage === normalizedCctpMessage;
-        }) ?? json.messages[0];
+      const found = json.messages.find((m) => {
+        const normalizedApiMessage =
+          version === this.CCTP_VERSION_2
+            ? normalizeCctpMessageV2(m.message)
+            : m.message.toLowerCase();
+        return normalizedApiMessage === normalizedCctpMessage;
+      });
+      assert(
+        found != null,
+        `Could not match any of ${json.messages.length} Circle API messages to cctpMessage for messageId ${messageId}`,
+      );
+      matchingMessage = found;
     }
 
     if (matchingMessage.attestation === 'PENDING') {

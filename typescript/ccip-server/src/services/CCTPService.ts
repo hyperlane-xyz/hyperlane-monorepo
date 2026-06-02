@@ -152,6 +152,7 @@ class CCTPService extends BaseService {
       allMessages,
       bodyBytes,
       messageId,
+      parsedMsg.sender,
     );
 
     if (matched !== null) {
@@ -162,11 +163,17 @@ class CCTPService extends BaseService {
       return matched;
     }
 
-    logger.warn(
+    logger.error(
       { messageId, messageCount: allMessages.length },
-      'Could not match MessageSent by body fields, falling back to first',
+      'Could not match MessageSent to Hyperlane message',
     );
-    return allMessages[0];
+    PrometheusMetrics.logUnhandledError(
+      this.config.serviceName,
+      UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
+    );
+    throw new Error(
+      `Could not match any of ${allMessages.length} MessageSent events to messageId ${messageId}`,
+    );
   }
 
   async getCCTPAttestation(

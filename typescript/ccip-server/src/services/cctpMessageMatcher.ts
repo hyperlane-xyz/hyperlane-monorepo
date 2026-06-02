@@ -4,15 +4,18 @@ import { ethers } from 'ethers';
 // so multi-message V1 transactions will not match either strategy and return null.
 // CctpMessageV2 + BurnMessageV2 field offsets within the full Circle message.
 // CctpMessageV2 header is 148 bytes; BurnMessageV2 body follows immediately.
-// BurnMessageV2: version(4) burnToken(32) mintRecipient(32) amount(32) ...
+// BurnMessageV2: version(4) burnToken(32) mintRecipient(32) amount(32) messageSender(32) ...
 const CIRCLE_HEADER_LENGTH = 148;
 const BURN_MSG_MINT_RECIPIENT_OFFSET = 36; // within BurnMessageV2 body
 const BURN_MSG_AMOUNT_OFFSET = 68; // within BurnMessageV2 body
+const BURN_MSG_SENDER_OFFSET = 100; // within BurnMessageV2 body
 export const CIRCLE_MINT_RECIPIENT_OFFSET =
   CIRCLE_HEADER_LENGTH + BURN_MSG_MINT_RECIPIENT_OFFSET; // 184
 export const CIRCLE_AMOUNT_OFFSET =
   CIRCLE_HEADER_LENGTH + BURN_MSG_AMOUNT_OFFSET; // 216
-const CIRCLE_BURN_MSG_MIN_LENGTH = CIRCLE_AMOUNT_OFFSET + 32; // 248
+export const CIRCLE_SENDER_OFFSET =
+  CIRCLE_HEADER_LENGTH + BURN_MSG_SENDER_OFFSET; // 248
+const CIRCLE_BURN_MSG_MIN_LENGTH = CIRCLE_SENDER_OFFSET + 32; // 280
 
 // Circle GMP message body = abi.encode(messageId) = 32 bytes starting at header end.
 const CIRCLE_GMP_BODY_OFFSET = CIRCLE_HEADER_LENGTH; // 148
@@ -29,8 +32,9 @@ const TOKEN_MSG_MIN_LENGTH = 64;
  * return the one that corresponds to the given Hyperlane message.
  *
  * Strategy 1 — token transfer (depositForBurn path):
- *   Matches by (mintRecipient, amount) from the Hyperlane TokenMessage body
- *   against BurnMessageV2 fields. Circle burn messages are ≥ 248 bytes.
+ *   Matches by (messageSender, amount, mintRecipient) from the Hyperlane message
+ *   against BurnMessageV2 fields, mirroring TokenBridgeCctpV2._validateTokenMessage.
+ *   Circle burn messages are ≥ 280 bytes.
  *
  * Strategy 2 — GMP hook path (sendMessageIdToIsm):
  *   The Circle message body is abi.encode(messageId) = the 32-byte Hyperlane
@@ -42,10 +46,12 @@ export function findMatchingCircleMessage(
   circleMessages: string[],
   hyperlaneBody: Uint8Array,
   messageId: string,
+  hyperlaneSender: string,
 ): string | null {
   if (circleMessages.length === 1) return circleMessages[0];
 
-  // Strategy 1: token transfer — match by (mintRecipient, amount)
+  // Strategy 1: token transfer — match by (messageSender, amount, mintRecipient),
+  // mirroring the three-field check in TokenBridgeCctpV2._validateTokenMessage.
   if (hyperlaneBody.length >= TOKEN_MSG_MIN_LENGTH) {
     const hlRecipient = hyperlaneBody.slice(
       TOKEN_MSG_RECIPIENT_OFFSET,
@@ -55,6 +61,7 @@ export function findMatchingCircleMessage(
       TOKEN_MSG_AMOUNT_OFFSET,
       TOKEN_MSG_AMOUNT_OFFSET + 32,
     );
+    const hlSenderBytes = ethers.utils.arrayify(hyperlaneSender);
 
     for (const msg of circleMessages) {
       const bytes = ethers.utils.arrayify(msg);
@@ -68,8 +75,13 @@ export function findMatchingCircleMessage(
         CIRCLE_AMOUNT_OFFSET,
         CIRCLE_AMOUNT_OFFSET + 32,
       );
+      const circleSender = bytes.slice(
+        CIRCLE_SENDER_OFFSET,
+        CIRCLE_SENDER_OFFSET + 32,
+      );
 
       if (
+        Buffer.from(circleSender).equals(Buffer.from(hlSenderBytes)) &&
         Buffer.from(mintRecipient).equals(Buffer.from(hlRecipient)) &&
         Buffer.from(amount).equals(Buffer.from(hlAmount))
       ) {
@@ -82,7 +94,7 @@ export function findMatchingCircleMessage(
   const messageIdBytes = ethers.utils.arrayify(messageId);
   for (const msg of circleMessages) {
     const bytes = ethers.utils.arrayify(msg);
-    if (bytes.length < CIRCLE_GMP_MSG_LENGTH) continue;
+    if (bytes.length !== CIRCLE_GMP_MSG_LENGTH) continue;
 
     const circleBodyId = bytes.slice(
       CIRCLE_GMP_BODY_OFFSET,
