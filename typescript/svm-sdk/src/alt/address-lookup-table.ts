@@ -42,6 +42,14 @@ const EXTEND_CHUNK_SIZE = 20;
 const ALT_ACTIVATION_TIMEOUT_MS = 5_000;
 const ALT_ACTIVATION_POLL_MS = 1_000;
 
+/**
+ * Solana's ALT runtime caps each table at 256 addresses (entries are
+ * append-only, no truncate instruction). Preflighting against this here
+ * avoids landing the first few extends and then failing mid-loop with a
+ * partially-populated, unrecoverable ALT.
+ */
+const ALT_MAX_ADDRESSES = 256;
+
 /** Non-empty tuple type — at least one element required at compile time. */
 export type NonEmptyArray<T> = readonly [T, ...T[]];
 
@@ -134,6 +142,11 @@ export class SvmAddressLookupTableWriter
     const uniqueAddresses = Array.from(
       new Set(addresses.map(normalizeAddressSealevel)),
     ).map(parseAddress);
+
+    assert(
+      uniqueAddresses.length <= ALT_MAX_ADDRESSES,
+      `ALT exceeds the ${ALT_MAX_ADDRESSES}-address cap (${uniqueAddresses.length}); split into multiple tables.`,
+    );
 
     // The ALT program rejects slots that aren't in the SlotHashes sysvar.
     // A finalized slot is guaranteed to have already been recorded there,
@@ -251,6 +264,11 @@ export class SvmAddressLookupTableWriter
     )
       .filter((a) => !currentSet.has(a))
       .map(parseAddress);
+
+    assert(
+      current.addresses.length + toAdd.length <= ALT_MAX_ADDRESSES,
+      `ALT ${address} would exceed the ${ALT_MAX_ADDRESSES}-address cap (current=${current.addresses.length}, adding=${toAdd.length}).`,
+    );
 
     // A frozen table accepts no further mutations. Unfreeze and extend
     // are both unsatisfiable against a frozen ALT; the only legitimate
