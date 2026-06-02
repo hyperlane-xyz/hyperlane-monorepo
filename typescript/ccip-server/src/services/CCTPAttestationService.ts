@@ -226,6 +226,7 @@ class CCTPAttestationService {
           ? normalizeCctpMessageV2(cctpMessage)
           : cctpMessage.toLowerCase();
       const found = json.messages.find((m) => {
+        if (m.message == null) return false; // Circle returns null for messages still being processed
         const normalizedApiMessage =
           version === this.CCTP_VERSION_2
             ? normalizeCctpMessageV2(m.message)
@@ -243,6 +244,7 @@ class CCTPAttestationService {
     }
 
     if (
+      matchingMessage.message == null ||
       matchingMessage.attestation == null ||
       matchingMessage.attestation === 'PENDING'
     ) {
