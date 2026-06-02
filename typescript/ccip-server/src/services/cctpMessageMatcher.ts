@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 
+// NOTE: Offsets below are for CctpMessageV2 only. V1 header is 116 bytes (not 148),
+// so multi-message V1 transactions will not match either strategy and return null.
 // CctpMessageV2 + BurnMessageV2 field offsets within the full Circle message.
 // CctpMessageV2 header is 148 bytes; BurnMessageV2 body follows immediately.
 // BurnMessageV2: version(4) burnToken(32) mintRecipient(32) amount(32) ...
@@ -34,13 +36,13 @@ const TOKEN_MSG_MIN_LENGTH = 64;
  *   The Circle message body is abi.encode(messageId) = the 32-byte Hyperlane
  *   message ID at offset 148. Circle GMP messages are exactly 180 bytes.
  *
- * Falls back to circleMessages[0] if neither strategy finds a match.
+ * Returns null if neither strategy finds a match.
  */
 export function findMatchingCircleMessage(
   circleMessages: string[],
   hyperlaneBody: Uint8Array,
   messageId: string,
-): string {
+): string | null {
   if (circleMessages.length === 1) return circleMessages[0];
 
   // Strategy 1: token transfer — match by (mintRecipient, amount)
@@ -91,5 +93,5 @@ export function findMatchingCircleMessage(
     }
   }
 
-  return circleMessages[0];
+  return null;
 }

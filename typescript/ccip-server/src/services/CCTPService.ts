@@ -109,8 +109,11 @@ class CCTPService extends BaseService {
     for (const receiptLog of receipt.logs) {
       try {
         const parsedLog = iface.parseLog(receiptLog);
-        if (parsedLog.name === event.name) {
-          allMessages.push(parsedLog.args.message as string);
+        if (
+          parsedLog.name === event.name &&
+          typeof parsedLog.args.message === 'string'
+        ) {
+          allMessages.push(parsedLog.args.message);
         }
       } catch (_err) {
         continue;
@@ -151,19 +154,19 @@ class CCTPService extends BaseService {
       messageId,
     );
 
-    if (matched !== allMessages[0]) {
+    if (matched !== null) {
       logger.info(
         { cctpMessage: matched, messageId },
         'Matched CCTP MessageSent event',
       );
-    } else {
-      logger.warn(
-        { messageId, messageCount: allMessages.length },
-        'Could not match MessageSent by body fields, falling back to first',
-      );
+      return matched;
     }
 
-    return matched;
+    logger.warn(
+      { messageId, messageCount: allMessages.length },
+      'Could not match MessageSent by body fields, falling back to first',
+    );
+    return allMessages[0];
   }
 
   async getCCTPAttestation(

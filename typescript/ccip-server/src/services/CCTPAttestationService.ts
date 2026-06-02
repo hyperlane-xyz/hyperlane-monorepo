@@ -1,6 +1,8 @@
 import { BytesLike, ethers } from 'ethers';
 import { Logger } from 'pino';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -193,14 +195,32 @@ class CCTPAttestationService {
       throw new Error(`CCTP service response parsing failed: ${error}`);
     }
 
-    // Find the Circle message entry that matches the specific cctpMessage bytes we
-    // extracted from the receipt. For single-transfer txs the response has one entry
-    // so this is a no-op; for multi-transfer txs it picks the right attestation.
-    // Falls back to messages[0] if no byte-exact match (shouldn't happen in practice).
-    const normalizedCctpMessage = cctpMessage.toLowerCase();
+    assert(
+      json.messages.length > 0,
+      'CCTP attestation API returned no messages',
+    );
+
+    // Circle fills in four fields off-chain that are zeroed in the emitted MessageSent bytes.
+    // CctpMessageV2 header mutable fields:
+    //   - nonce (bytes 12-43): EMPTY_NONCE = bytes32(0) on emit, assigned by Circle
+    //   - finalityThresholdExecuted (bytes 144-147): 0 on emit, set by Circle on finality
+    // BurnMessageV2 body mutable fields (body starts at byte 148):
+    //   - feeExecuted (full bytes 312-343): EMPTY_FEE_EXECUTED = 0 on emit, set by Circle
+    //   - expirationBlock (full bytes 344-375): EMPTY_EXPIRATION_BLOCK = 0 on emit, set by Circle
+    // Byte-exact comparison always fails for v2. Normalize both sides by zeroing all four fields.
+    // GMP messages are 180 bytes so bytes 312-375 are out of range — safe no-op.
+    const normalizeCctpMessage = (hex: string): string => {
+      const bytes = ethers.utils.arrayify(hex);
+      bytes.fill(0, 12, 44); // nonce
+      bytes.fill(0, 144, 148); // finalityThresholdExecuted
+      if (bytes.length >= 344) bytes.fill(0, 312, 344); // feeExecuted
+      if (bytes.length >= 376) bytes.fill(0, 344, 376); // expirationBlock
+      return ethers.utils.hexlify(bytes);
+    };
+    const normalizedCctpMessage = normalizeCctpMessage(cctpMessage);
     const matchingMessage =
       json.messages.find(
-        (m) => m.message.toLowerCase() === normalizedCctpMessage,
+        (m) => normalizeCctpMessage(m.message) === normalizedCctpMessage,
       ) ?? json.messages[0];
 
     if (matchingMessage.attestation === 'PENDING') {
