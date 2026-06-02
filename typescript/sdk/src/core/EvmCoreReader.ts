@@ -80,11 +80,7 @@ export class EvmCoreReader implements CoreReader {
             ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
             : undefined,
           proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
-          // PACKAGE_VERSION introduced in @hyperlane-xyz/core@5.4.0 —
-          // pre-5.4.0 mailboxes throw CALL_EXCEPTION; treat as unknown.
-          contractVersion: mailboxInstance
-            .PACKAGE_VERSION()
-            .catch(() => undefined),
+          contractVersion: this.fetchPackageVersion(mailboxInstance),
         },
         async (_, readerCall) => {
           try {
@@ -101,6 +97,21 @@ export class EvmCoreReader implements CoreReader {
     );
 
     return results as DerivedCoreConfig;
+  }
+
+  // TODO: replace inline guard with `isMissingSelectorCallException` from
+  // `../utils/contract.js` once this branch is rebased onto main (#8792).
+  private async fetchPackageVersion(
+    mailboxInstance: ReturnType<typeof Mailbox__factory.connect>,
+  ): Promise<string | undefined> {
+    try {
+      return await mailboxInstance.PACKAGE_VERSION();
+    } catch (err: any) {
+      if (err?.cause?.code === 'CALL_EXCEPTION') {
+        return undefined;
+      }
+      throw err;
+    }
   }
 
   private async getProxyAdminConfig(

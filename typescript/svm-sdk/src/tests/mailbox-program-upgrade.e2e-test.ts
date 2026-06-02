@@ -11,6 +11,7 @@ import { sleep } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
+import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
@@ -259,6 +260,9 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
     expect(afterUpdate.config.owner).to.equal(newOwner.getSignerAddress());
     expect(afterUpdate.config.defaultIsm.deployed.address).to.equal(
       secondIsmAddress,
+    );
+    expect(await getProgramUpgradeAuthority(rpc, address(programId))).to.equal(
+      newOwner.getSignerAddress(),
     );
   });
 });
