@@ -1,6 +1,8 @@
 import { type Address, address } from '@solana/kit';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type FeeArtifactConfig,
   type FeeReadContext,
@@ -30,8 +32,10 @@ import {
   deriveStandingQuotePda,
 } from '../pda.js';
 
+import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
 import {
   type AnnotatedAltAddress,
+  createWarpAltsImpl,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -665,5 +669,144 @@ describe('diffBucket', () => {
   it('flags unfrozen when frozen=false', () => {
     const diff = diffBucket([A], [A_ANN], false);
     expect(diff.unfrozen).to.equal(true);
+  });
+});
+
+// Generates `count` deterministic distinct base58 addresses by stuffing a
+// little-endian counter into the first 4 bytes of an otherwise-zero pubkey.
+// Any 32-byte buffer is a valid Solana address — we never sign with these.
+function makeAddresses(count: number, offset = 0): AnnotatedAltAddress[] {
+  const out: AnnotatedAltAddress[] = [];
+  const bytes = new Uint8Array(32);
+  const view = new DataView(bytes.buffer);
+  for (let i = 1; i <= count; i += 1) {
+    view.setUint32(0, i + offset, true);
+    out.push({
+      address: address(base58Encode(bytes)),
+      description: `addr-${i + offset}`,
+    });
+  }
+  return out;
+}
+
+function base58Encode(bytes: Uint8Array): string {
+  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  let num = 0n;
+  for (const b of bytes) num = (num << 8n) + BigInt(b);
+  let s = '';
+  while (num > 0n) {
+    s = ALPHABET[Number(num % 58n)] + s;
+    num /= 58n;
+  }
+  for (const b of bytes) {
+    if (b !== 0) break;
+    s = '1' + s;
+  }
+  return s;
+}
+
+const CORE_ADDR: Address = address('11111111111111111111111111111112');
+const NEW_CORE_ADDR: Address = address('11111111111111111111111111111113');
+const NEW_WARP_ADDR_A: Address = address('11111111111111111111111111111114');
+const NEW_WARP_ADDR_B: Address = address('11111111111111111111111111111115');
+
+/** Returns a stub `altWriter.create` that yields the next address from
+ * the queue on each call. Tests assert against call counts and the
+ * payloads passed in. */
+function stubAltWriter(yieldAddresses: Address[]) {
+  const writer = sinon.createStubInstance(SvmAddressLookupTableWriter);
+  let i = 0;
+  writer.create.callsFake(async () => {
+    const addr = yieldAddresses[i++];
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: { frozen: true, addresses: [addr] as const },
+        deployed: { address: addr, lastExtendedSlot: 0n, authority: null },
+      },
+      [],
+    ];
+  });
+  return writer;
+}
+
+describe('createWarpAltsImpl — warpSpecific chunking', () => {
+  it('emits one warp-specific ALT when entries fit in a single chunk', async () => {
+    const writer = stubAltWriter([NEW_CORE_ADDR, NEW_WARP_ADDR_A]);
+    const core = makeAddresses(5);
+    const warpSpecific = makeAddresses(100, 1000);
+
+    const result = await createWarpAltsImpl(
+      writer,
+      { core, warpSpecific },
+      undefined,
+    );
+
+    expect(writer.create.callCount).to.equal(2);
+    expect(result.core).to.equal(NEW_CORE_ADDR);
+    expect(result.warpSpecific).to.deep.equal([NEW_WARP_ADDR_A]);
+  });
+
+  it('splits warpSpecific across multiple ALTs when over the 256 cap', async () => {
+    const writer = stubAltWriter([
+      NEW_CORE_ADDR,
+      NEW_WARP_ADDR_A,
+      NEW_WARP_ADDR_B,
+    ]);
+    const core = makeAddresses(5);
+    const warpSpecific = makeAddresses(300, 1000);
+
+    const result = await createWarpAltsImpl(
+      writer,
+      { core, warpSpecific },
+      undefined,
+    );
+
+    // 1 core + ceil(300 / 256) = 2 warp-specific
+    expect(writer.create.callCount).to.equal(3);
+    expect(result.warpSpecific).to.deep.equal([
+      NEW_WARP_ADDR_A,
+      NEW_WARP_ADDR_B,
+    ]);
+
+    // First warp-specific batch is exactly 256; second is the remaining 44.
+    const warpBatchSizes = writer.create
+      .getCalls()
+      .slice(1)
+      .map((c) => c.args[0].config.addresses.length);
+    expect(warpBatchSizes).to.deep.equal([256, 44]);
+  });
+});
+
+describe('createWarpAltsImpl — existingCoreAlt reuse', () => {
+  it('reuses existingCoreAlt and skips creating a new core ALT', async () => {
+    const writer = stubAltWriter([NEW_WARP_ADDR_A]);
+    const core = makeAddresses(5);
+    const warpSpecific = makeAddresses(50, 1000);
+
+    const result = await createWarpAltsImpl(
+      writer,
+      { core, warpSpecific },
+      CORE_ADDR,
+    );
+
+    expect(writer.create.callCount).to.equal(1);
+    expect(result.core).to.equal(CORE_ADDR);
+    expect(result.warpSpecific).to.deep.equal([NEW_WARP_ADDR_A]);
+  });
+
+  it('creates a fresh core ALT when existingCoreAlt is undefined', async () => {
+    const writer = stubAltWriter([NEW_CORE_ADDR, NEW_WARP_ADDR_A]);
+    const core = makeAddresses(5);
+    const warpSpecific = makeAddresses(50, 1000);
+
+    const result = await createWarpAltsImpl(
+      writer,
+      { core, warpSpecific },
+      undefined,
+    );
+
+    expect(writer.create.callCount).to.equal(2);
+    expect(result.core).to.equal(NEW_CORE_ADDR);
   });
 });

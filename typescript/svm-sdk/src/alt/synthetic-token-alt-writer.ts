@@ -138,6 +138,7 @@ export class SvmSyntheticTokenAltWriter
   constructor(
     chainName: string,
     protected readonly altWriter: SvmAddressLookupTableWriter,
+    private readonly existingCoreAlt?: Address,
   ) {
     super(chainName, altWriter);
   }
@@ -153,6 +154,6 @@ export class SvmSyntheticTokenAltWriter
     receipts: SvmReceipt[];
   }> {
     const addresses = await this.computeExpectedAltAddresses(deployed);
-    return createWarpAltsImpl(this.altWriter, addresses);
+    return createWarpAltsImpl(this.altWriter, addresses, this.existingCoreAlt);
   }
 }

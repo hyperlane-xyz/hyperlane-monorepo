@@ -48,7 +48,7 @@ const ALT_ACTIVATION_POLL_MS = 1_000;
  * avoids landing the first few extends and then failing mid-loop with a
  * partially-populated, unrecoverable ALT.
  */
-const ALT_MAX_ADDRESSES = 256;
+export const ALT_MAX_ADDRESSES = 256;
 
 /** Non-empty tuple type — at least one element required at compile time. */
 export type NonEmptyArray<T> = readonly [T, ...T[]];

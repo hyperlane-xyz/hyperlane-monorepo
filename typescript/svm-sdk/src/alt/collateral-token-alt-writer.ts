@@ -151,6 +151,7 @@ export class SvmCollateralTokenAltWriter
     chainName: string,
     rpc: SvmRpc,
     protected readonly altWriter: SvmAddressLookupTableWriter,
+    private readonly existingCoreAlt?: Address,
   ) {
     super(chainName, rpc, altWriter);
   }
@@ -166,6 +167,6 @@ export class SvmCollateralTokenAltWriter
     receipts: SvmReceipt[];
   }> {
     const addresses = await this.computeExpectedAltAddresses(deployed);
-    return createWarpAltsImpl(this.altWriter, addresses);
+    return createWarpAltsImpl(this.altWriter, addresses, this.existingCoreAlt);
   }
 }
