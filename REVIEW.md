@@ -26,10 +26,12 @@
 - Edge cases that should be tested
 - **New utility functions need unit tests**
 - **CLI changes need e2e tests** - `test:ethereum:e2e`, `test:cosmosnative:e2e`
+- **New CLI subcommands need e2e coverage** - A new command (e.g. `hook deploy`) should add at least one EVM e2e test AND one altVM e2e test to prove both deploy paths work. If a PR adds a command with no e2e test, flag the gap explicitly — green unit/codecov coverage does not satisfy this.
 
 ## Performance
 
 - Unnecessary allocations or computations
+- **Hoist invariant constants out of function bodies** - Arrays, objects, and regexes that don't depend on arguments should be module-level `const`s, not recreated on every call (e.g. a fixed `unsupportedTypes` list).
 
 ## Changesets
 
@@ -90,3 +92,15 @@ The only acceptable cast is one with a `// CAST:` comment explaining why it's un
 - **Interface changes** - Deprecate before removing; add new methods alongside old
 - **Storage layout** - Document migration path for upgradeable contracts
 - **Config schema changes** - Ensure backward compatibility or migration scripts
+
+## Validation Gaps to Watch For
+
+- **Recursive/nested configs bypass top-level guards** - If a command rejects unsupported types by checking only the top-level discriminant (e.g. `hookConfig.type`), verify nested configs can't smuggle an unsupported type through. Aggregation/routing hooks and ISMs recurse into `hooks`/`domains`/`fallback`/sub-ISMs; a guard that only inspects the root lets a nested unsupported type fail deep in the deploy instead of up front.
+- **Partial provisioning** - A command that provisions only the origin `--chain` (signer/preflight/balances) but accepts config referencing other chains (destination, remote domains) will fail partway. Confirm the accepted config schema can't require resources the command never sets up.
+
+## Reviewing Process
+
+- **Seed review agents with this file** - When delegating review to subagents, pass `REVIEW.md` so every checklist item (e2e tests, casts, allocations, enums) is actually applied. Findings the rules already cover should never be missed.
+- **Account for prior reviews** - Read existing reviews, inline threads, and author responses first; acknowledge what's already addressed rather than re-raising it.
+- **Pending reviews are invisible until submitted** - The GitHub API does not expose another reviewer's draft/pending comments until they submit. You may post a review seconds before a concurrent reviewer submits theirs and never see their notes. State the HEAD commit your review is based on, and re-fetch reviews/comments immediately before posting to catch anything newly submitted.
+- **Test coverage is a first-class review dimension** - Don't let green codecov/unit numbers substitute for checking that the right _kind_ of test exists (e.g. e2e for a new CLI command).
