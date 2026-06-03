@@ -880,6 +880,13 @@ impl PendingMessage {
             );
             return PendingOperationResult::Drop;
         }
+        // Signatures are simply not yet available (validator hasn't signed past the reorg
+        // period yet). Use a 1s fast-path for the first few retries so the relayer picks
+        // them up within ~1s of the validator writing them, rather than waiting through the
+        // normal 5s→10s→30s→60s exponential backoff.
+        if matches!(reason, ReprepareReason::CouldNotFetchMetadata) && self.num_retries <= 5 {
+            self.next_attempt_after = Instant::now().checked_add(Duration::from_secs(1));
+        }
         PendingOperationResult::Reprepare(reason)
     }
 
