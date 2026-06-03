@@ -165,6 +165,9 @@ export enum WarpRouteIds {
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 
+  // Nesa routes
+  BscNES = 'NES/bsc',
+
   // Igra routes
   IgraUSDC = 'USDC/igra',
   IgraUSDe = 'USDe/igra',
