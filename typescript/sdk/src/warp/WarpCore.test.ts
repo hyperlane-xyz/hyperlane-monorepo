@@ -20,6 +20,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import { TokenType } from '../token/config.js';
 import { ChainName } from '../types.js';
 
 import { encodeAbiParameters, zeroAddress } from 'viem';
@@ -41,6 +42,7 @@ const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 d
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
+const MOCK_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
 
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
@@ -100,6 +102,41 @@ describe('WarpCore', () => {
     expect(fromArgs).to.be.instanceOf(WarpCore);
     expect(fromConfig).to.be.instanceOf(WarpCore);
     expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
+  });
+
+  it('Preserves warp route deploy token type in token metadata', () => {
+    const fromConfig = WarpCore.FromConfig(multiProvider, {
+      tokens: [
+        {
+          chainName: test1.name,
+          standard: TokenStandard.EvmHypCollateral,
+          tokenType: TokenType.collateralOft,
+          decimals: 6,
+          symbol: 'USDT',
+          name: 'Tether USD',
+          addressOrDenom: MOCK_ADDRESS,
+          collateralAddressOrDenom: MOCK_ADDRESS,
+          connections: [
+            {
+              token: `ethereum|${test2.name}|${MOCK_ADDRESS_2}`,
+            },
+          ],
+        },
+        {
+          chainName: test2.name,
+          standard: TokenStandard.EvmHypCollateral,
+          tokenType: TokenType.collateralOft,
+          decimals: 6,
+          symbol: 'USDT',
+          name: 'Tether USD',
+          addressOrDenom: MOCK_ADDRESS_2,
+          collateralAddressOrDenom: MOCK_ADDRESS_2,
+        },
+      ],
+    });
+
+    expect(fromConfig.tokens[0].tokenType).to.equal(TokenType.collateralOft);
+    expect(fromConfig.tokens[1].tokenType).to.equal(TokenType.collateralOft);
   });
 
   it('Finds tokens', () => {
@@ -239,6 +276,57 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
 
     stubs.forEach((s) => s.restore());
+  });
+
+  it('Skips destination collateral checks for protocol-backed collateral token types', async () => {
+    for (const tokenType of [
+      TokenType.collateralCctp,
+      TokenType.collateralOft,
+    ]) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: TokenStandard.EvmHypCollateral,
+        tokenType,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard: TokenStandard.EvmHypCollateral,
+        tokenType,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+      const protocolBackedWarpCore = new WarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const destinationAdapterStub = sinon
+        .stub(destinationToken, 'getAdapter')
+        .throws(new Error('destination collateral should not be read'));
+      const destinationHypAdapterStub = sinon
+        .stub(destinationToken, 'getHypAdapter')
+        .throws(new Error('destination collateral should not be read'));
+
+      const result =
+        await protocolBackedWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(BIG_TRANSFER_AMOUNT),
+          destination: test2.name,
+        });
+
+      expect(result).to.be.true;
+      sinon.assert.notCalled(destinationAdapterStub);
+      sinon.assert.notCalled(destinationHypAdapterStub);
+    }
   });
 
   it('Checks for destination collateral with scaling factors', async () => {
