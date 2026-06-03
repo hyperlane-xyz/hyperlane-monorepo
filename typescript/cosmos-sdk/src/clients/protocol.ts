@@ -132,6 +132,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: BigInt(3e5),
       AVS_GAS: BigInt(3e6),
       ISM_DEPLOY_GAS: BigInt(5e5),
+      HOOK_DEPLOY_GAS: BigInt(5e5),
     };
   }
 }
