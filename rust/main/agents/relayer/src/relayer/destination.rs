@@ -133,7 +133,10 @@ impl DestinationFactory {
     ) -> Option<Signers> {
         let start_entity_init = Instant::now();
 
-        if !matches!(domain.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+        if !matches!(
+            domain.domain_protocol(),
+            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Tron
+        ) {
             return None;
         }
 
