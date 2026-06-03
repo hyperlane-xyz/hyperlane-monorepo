@@ -4,12 +4,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tracing::instrument;
-
+use ethers::providers::Middleware;
 use hyperlane_core::{
-    CcipReadIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, H256,
+    CcipReadIsm, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, H256,
 };
+use tracing::instrument;
 
 use crate::interfaces::i_ccip_read_ism::ICcipReadIsm as TronCcipReadIsmInternal;
 use crate::TronProvider;
@@ -54,10 +54,27 @@ impl HyperlaneContract for TronCcipReadIsm {
 impl CcipReadIsm for TronCcipReadIsm {
     #[instrument(err)]
     async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<()> {
-        self.contract
-            .get_offchain_verify_info(message.into())
-            .call()
-            .await?;
+        // On Tron, reverted constant calls return the revert data as a successful
+        // response in constant_result rather than as an RPC error. Call the provider
+        // directly to get raw bytes, then surface any non-empty result as an error
+        // so the CCIP read metadata builder can extract and decode the OffchainLookup
+        // revert payload.
+        let call = self.contract.get_offchain_verify_info(message.into());
+        let raw = self
+            .contract
+            .client()
+            .as_ref()
+            .call(&call.tx, call.block)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        if !raw.is_empty() {
+            return Err(ChainCommunicationError::from_other_str(&format!(
+                "0x{}",
+                hex::encode(raw)
+            )));
+        }
+
         Ok(())
     }
 }
