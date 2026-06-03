@@ -61,11 +61,6 @@ pub enum Error {
     /// but the account is uninitialized or has the wrong discriminator.
     #[error("Transient quote slot expected but PDA is missing or invalid")]
     InvalidTransientSlot = 18,
-    /// CC transient quote signed with `target_router == DEFAULT_ROUTER` is
-    /// unconsumable: real QuoteFee callers always pass a specific target_router
-    /// and the consume-time validate is strict.
-    #[error("DEFAULT_ROUTER target not allowed for CC transient quotes")]
-    DefaultRouterNotAllowedForTransientQuote = 19,
 }
 
 impl From<Error> for ProgramError {

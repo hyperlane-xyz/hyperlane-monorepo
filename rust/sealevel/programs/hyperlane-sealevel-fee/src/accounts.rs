@@ -383,12 +383,45 @@ impl ValidatableQuote for TransientQuote {
 // --- Quote context and data parsing ---
 
 /// Trait for quote context types. Implementations parse from raw bytes
-/// and validate against the QuoteFee instruction data.
+/// and validate against the context-specific QuoteFee validation input.
 pub trait QuoteContext: Sized {
+    /// Validation input accepted by this context type.
+    type Validation<'a>;
+
     /// Parses a QuoteContext from raw context bytes stored in a quote PDA.
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError>;
-    /// Validates that the stored context matches the fields of a QuoteFee instruction.
-    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError>;
+    /// Validates that the stored context matches the fields of a QuoteFee
+    /// instruction, returning the validated QuoteFee for fee computation.
+    fn validate<'a>(
+        &self,
+        validation: Self::Validation<'a>,
+    ) -> Result<&'a crate::instruction::QuoteFee, ProgramError>;
+}
+
+/// QuoteFee wrapper that carries the active CC routing scope.
+pub enum CcQuoteFeeValidation<'a> {
+    /// CC with specific route active at `(dest, quote_fee.target_router)` —
+    /// the transient's stored `target_router` must equal `quote_fee.target_router`.
+    Specific(&'a crate::instruction::QuoteFee),
+    /// CC with default route active — specific route is unconfigured, routing
+    /// fell back to `(dest, DEFAULT_ROUTER)`, so the transient's stored
+    /// `target_router` must equal `DEFAULT_ROUTER`.
+    Default(&'a crate::instruction::QuoteFee),
+}
+
+impl<'a> CcQuoteFeeValidation<'a> {
+    /// Returns the wrapped QuoteFee only when `target_router` matches the
+    /// active routing scope.
+    pub fn unwrap_for_router(
+        self,
+        target_router: H256,
+    ) -> Result<&'a crate::instruction::QuoteFee, ProgramError> {
+        match self {
+            Self::Specific(qf) if target_router == qf.target_router => Ok(qf),
+            Self::Default(qf) if target_router == DEFAULT_ROUTER => Ok(qf),
+            _ => Err(QuoteValidationError::TransientContextMismatch.into()),
+        }
+    }
 }
 
 /// Quote context for Leaf and Routing fee accounts.
@@ -404,6 +437,8 @@ pub struct FeeQuoteContext {
 }
 
 impl QuoteContext for FeeQuoteContext {
+    type Validation<'a> = &'a crate::instruction::QuoteFee;
+
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
         if bytes.len() != std::mem::size_of::<u32>() + 32 + std::mem::size_of::<u64>() {
             return Err(ProgramError::InvalidInstructionData);
@@ -423,7 +458,10 @@ impl QuoteContext for FeeQuoteContext {
         })
     }
 
-    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
+    fn validate<'a>(
+        &self,
+        quote_fee: Self::Validation<'a>,
+    ) -> Result<&'a crate::instruction::QuoteFee, ProgramError> {
         // Wildcard sentinels (`WILDCARD_DOMAIN`, `WILDCARD_RECIPIENT`,
         // `WILDCARD_AMOUNT`) on any field skip the equality check, mirroring
         // EVM's `_matchesTransient`. Off-chain quoters issue wildcard transients
@@ -442,7 +480,7 @@ impl QuoteContext for FeeQuoteContext {
             return Err(QuoteValidationError::TransientContextMismatch.into());
         }
 
-        Ok(())
+        Ok(quote_fee)
     }
 }
 
@@ -461,6 +499,8 @@ pub struct CcFeeQuoteContext {
 }
 
 impl QuoteContext for CcFeeQuoteContext {
+    type Validation<'a> = CcQuoteFeeValidation<'a>;
+
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
         if bytes.len() != std::mem::size_of::<u32>() + 32 + std::mem::size_of::<u64>() + 32 {
             return Err(ProgramError::InvalidInstructionData);
@@ -481,10 +521,13 @@ impl QuoteContext for CcFeeQuoteContext {
         })
     }
 
-    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
+    fn validate<'a>(
+        &self,
+        validation: Self::Validation<'a>,
+    ) -> Result<&'a crate::instruction::QuoteFee, ProgramError> {
+        let quote_fee = validation.unwrap_for_router(self.target_router)?;
+
         // dest/recipient/amount mirror EVM's `_matchesTransient` wildcard logic.
-        // `target_router` is strict — it's the routing binding that scopes the
-        // quote to a specific fee config, not a filter the signer leaves open.
         if self.destination_domain != WILDCARD_DOMAIN
             && self.destination_domain != quote_fee.destination_domain
         {
@@ -496,10 +539,7 @@ impl QuoteContext for CcFeeQuoteContext {
         if self.amount != WILDCARD_AMOUNT && self.amount != quote_fee.amount {
             return Err(QuoteValidationError::TransientContextMismatch.into());
         }
-        if self.target_router != quote_fee.target_router {
-            return Err(QuoteValidationError::TransientContextMismatch.into());
-        }
-        Ok(())
+        Ok(quote_fee)
     }
 }
 

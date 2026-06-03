@@ -24,7 +24,7 @@ use crate::{
     accounts::{
         CcFeeQuoteContext, CrossCollateralRouteAccount, FeeAccountData, FeeData, FeeQuoteContext,
         FeeStandingQuotePda, FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext,
-        RouteDomainAccount, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER, WILDCARD_AMOUNT,
+        RouteDomainAccount, TransientQuote, TransientQuoteAccount, WILDCARD_AMOUNT,
         WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
@@ -88,10 +88,7 @@ pub(super) fn process_submit_quote(
     // - CC exact (transient or standing): NO cascade. The signer's
     //   `ctx.target_router` directly selects the route whose signers must
     //   verify. `ctx.target_router == DEFAULT_ROUTER` is the explicit way to
-    //   sign for the default scope; for standing quotes the result lands at
-    //   the (dest, DEFAULT_ROUTER) PDA, while for transient it's rejected as
-    //   unconsumable (see sanity guard below).
-    let is_transient = quote.is_transient();
+    //   sign for the default scope.
     let resolved_signers: BTreeSet<H160> = match &fee_account.fee_data {
         FeeData::Leaf(cfg) => cfg.signers.clone(),
         FeeData::Routing(_) => {
@@ -121,21 +118,17 @@ pub(super) fn process_submit_quote(
         }
         FeeData::CrossCollateralRouting(_) => {
             let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
+            // `ctx.target_router == H256::zero()` produces a transient that is
+            // unconsumable at every scope (Specific requires a real router; Default
+            // requires DEFAULT_ROUTER). Reject up front in both wildcard and
+            // exact-domain branches to keep the submit surface symmetric and
+            // prevent operators from stranding rent on dead transients.
+            if ctx.target_router == hyperlane_core::H256::zero() {
+                return Err(Error::ZeroTargetRouterNotAllowed.into());
+            }
             if ctx.destination_domain == WILDCARD_DOMAIN {
                 Some(fee_account.fee_data.cc_wildcard_signers()?.clone())
             } else {
-                if ctx.target_router == hyperlane_core::H256::zero() {
-                    return Err(Error::ZeroTargetRouterNotAllowed.into());
-                }
-                // Sanity guard: a transient signed with ctx.target_router ==
-                // DEFAULT_ROUTER would be unconsumable because real QuoteFee
-                // callers always pass a specific target_router and the
-                // consume-time validate is strict. Reject early to prevent
-                // operator footguns. Standing quotes use DEFAULT_ROUTER as the
-                // explicit default-scope storage signal, so it's allowed there.
-                if is_transient && ctx.target_router == DEFAULT_ROUTER {
-                    return Err(Error::DefaultRouterNotAllowedForTransientQuote.into());
-                }
                 // Direct route lookup (no cascade): ctx.target_router selects the
                 // route whose signers must verify. This mirrors EVM's per-fee-
                 // contract isolation — each route's signers sign for that route's
