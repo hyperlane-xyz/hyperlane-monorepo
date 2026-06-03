@@ -28,6 +28,34 @@ import {
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { readYamlOrJson, writeFileAtPath } from '../utils/files.js';
 
+const UNSUPPORTED_BY_DEPLOY_COMMAND = new Set<string>([
+  HookType.RATE_LIMITED,
+  HookType.OP_STACK,
+  HookType.ARB_L2_TO_L1,
+  HookType.CCIP,
+]);
+
+function collectHookTypes(config: HookConfig): string[] {
+  if (typeof config === 'string') return [];
+  const types: string[] = [config.type];
+  if (config.type === HookType.AGGREGATION) {
+    for (const h of config.hooks) types.push(...collectHookTypes(h));
+  } else if (
+    config.type === HookType.ROUTING ||
+    config.type === HookType.FALLBACK_ROUTING
+  ) {
+    for (const h of Object.values(config.domains))
+      types.push(...collectHookTypes(h));
+    if (config.type === HookType.FALLBACK_ROUTING) {
+      types.push(...collectHookTypes(config.fallback));
+    }
+  } else if (config.type === HookType.AMOUNT_ROUTING) {
+    types.push(...collectHookTypes(config.lowerHook));
+    types.push(...collectHookTypes(config.upperHook));
+  }
+  return types;
+}
+
 interface HookDeployParams {
   context: WriteCommandContext;
   chain: string;
@@ -60,15 +88,12 @@ export async function runHookDeploy({
     'Hook config must be an object, not an address string',
   );
 
-  const unsupportedByDeployCommand: string[] = [
-    HookType.RATE_LIMITED,
-    HookType.OP_STACK,
-    HookType.ARB_L2_TO_L1,
-  ];
-  assert(
-    !unsupportedByDeployCommand.includes(hookConfig.type),
-    `Hook type ${hookConfig.type} is not supported by 'hook deploy': it requires additional chain or contract context not wired up by this command`,
-  );
+  for (const type of collectHookTypes(hookConfig)) {
+    assert(
+      !UNSUPPORTED_BY_DEPLOY_COMMAND.has(type),
+      `Hook type ${type} is not supported by 'hook deploy': it requires additional chain or contract context not wired up by this command`,
+    );
+  }
 
   const { technicalStack } = multiProvider.getChainMetadata(chain);
   assert(
