@@ -243,6 +243,9 @@ describe('SvmQuoteService', () => {
         expectedTrailingTargetRouter: DEFAULT_ROUTER_KEY,
       },
       {
+        // EVM-parity: post-relax, on-chain accepts CC transient quotes signed
+        // against DEFAULT_ROUTER when the specific (dest, target_router) route
+        // is unconfigured. The service mirrors that cascade.
         name: 'CC routing with only DEFAULT fallback + transient binding → signs with DEFAULT_ROUTER',
         feeConfig: ccRoutingFee([TEST_SIGNER_H160], DEFAULT_ROUTER_KEY),
         binding: TRANSIENT_BINDING,
