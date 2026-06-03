@@ -355,7 +355,7 @@ impl PendingOperation for PendingMessage {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
             None => {
-                info!(
+                debug!(
                     message_id = ?self.message.id(),
                     "Dry-run simulating process call before submission"
                 );
@@ -388,7 +388,7 @@ impl PendingOperation for PendingMessage {
                             );
                             return self.delay_reprepare(
                                 REVEAL_POLL_INTERVAL,
-                                ReprepareReason::ErrorEstimatingGas,
+                                ReprepareReason::AwaitingIcaReveal,
                             );
                         }
                         self.ica_reveal_attempts = 0;
@@ -456,7 +456,7 @@ impl PendingOperation for PendingMessage {
         // Note: fail_fast (relay-API) messages never reach this method — they go through
         // submit_via_lander → payload(), not submit(). This dry-run only guards the classic path.
         if let Some(metadata) = self.metadata.as_ref() {
-            info!(
+            debug!(
                 message_id = ?self.message.id(),
                 "Dry-run simulating process call before submission"
             );
