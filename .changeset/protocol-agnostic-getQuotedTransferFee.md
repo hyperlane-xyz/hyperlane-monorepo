@@ -1,0 +1,6 @@
+---
+"@hyperlane-xyz/sdk": minor
+"@hyperlane-xyz/cli": minor
+---
+
+`QuotedTransferProvider` gained a `getQuotedTransferFee` method so display and submit call sites use the same protocol-agnostic entry point for offchain-quoted transfers. `SealevelQuotedTransferProvider.getQuotedTransferFee` decodes the warp signed-quote `data` as a Borsh `FeeDataStrategy` (17 bytes, Linear-only) and applies the on-chain Linear formula at the transfer amount; the IGP signed-quote `data` decodes as a 33-byte `IgpQuoteData` (`token_exchange_rate ‖ gas_price ‖ token_decimals`) and the result is computed via `compute_gas_fee` against `tokenData.destination_gas` (matching the on-chain IGP). `WarpCore.getQuotedTransferFee` now takes `quotedTransfer: QuotedTransferProvider` — callers construct the provider themselves, mirroring `getTransferRemoteTxs({ quotedTransfer })`. The EVM provider is refactored around a shared private `runQuoteExecute` helper and the dead `QuotedCallsParams.feeQuotes` reuse field is removed; both display and submit now invoke the `quoteExecute` eth_call independently (deterministic for fixed quotes, so display ↔ submit results match). The `hyperlane warp send` CLI is updated to construct the EVM provider first and call `getQuotedTransferFee` for the pre-submit estimate. Tests added for warp Linear strategy decode + IGP gas-fee math (8 new cases).

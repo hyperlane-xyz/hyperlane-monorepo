@@ -14,7 +14,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
-import { isAddress } from 'viem';
 
 import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
 import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
@@ -48,7 +47,6 @@ import {
 } from '../token/adapters/ITokenAdapter.js';
 import { EvmQuotedTransferProvider } from '../quoted-calls/EvmQuotedTransferProvider.js';
 import type { QuotedTransferProvider } from '../quoted-calls/QuotedTransferProvider.js';
-import type { Quote } from '../quoted-calls/codec.js';
 import type { QuotedCallsParams } from '../quoted-calls/types.js';
 import { resolveDestinationToken } from './resolveDestinationToken.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -856,28 +854,27 @@ export class WarpCore {
   }
 
   /**
-   * Quote fees for a QuotedCalls transfer via quoteExecute eth_call.
-   * Thin delegate to `EvmQuotedTransferProvider.getQuotedTransferFee` —
-   * kept on WarpCore so existing callers (CLI, UI) stay working.
+   * Display-time fee quote for an offchain-quoted transfer. Caller constructs
+   * a `QuotedTransferProvider` (EVM or Sealevel) and passes it in; WarpCore
+   * dispatches to the provider's `getQuotedTransferFee` without per-VM
+   * branching.
+   *
+   * Mirrors `getTransferRemoteTxs({ quotedTransfer })` — same provider
+   * instance can drive both display and submit so the UI doesn't need
+   * separate state for each.
    */
   async getQuotedTransferFee(args: {
+    quotedTransfer: QuotedTransferProvider;
     originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
-    sender: Address;
-    recipient: Address;
-    quotedCalls: QuotedCallsParams;
+    sender: string;
+    recipient: string;
     destinationToken?: IToken;
   }): Promise<{
     igpQuote: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
-    feeQuotes: Quote[][];
   }> {
-    assert(
-      isAddress(args.sender),
-      `QuotedCalls sender must be a valid EVM address: ${args.sender}`,
-    );
-    const provider = new EvmQuotedTransferProvider(args.quotedCalls);
-    return provider.getQuotedTransferFee({
+    return args.quotedTransfer.getQuotedTransferFee({
       warpCore: this,
       originTokenAmount: args.originTokenAmount,
       destination: args.destination,
