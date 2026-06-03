@@ -7,6 +7,7 @@ import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProviderType } from '../providers/ProviderType.js';
 import { IToken } from '../token/IToken.js';
+import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { isHypCrossCollateralAdapter } from '../token/adapters/ITokenAdapter.js';
 import { SealevelHypCrossCollateralAdapter } from '../token/adapters/SealevelCrossCollateralAdapter.js';
@@ -95,6 +96,129 @@ export interface SealevelQuotedTransferProviderOpts {
   randomSalt?: () => Uint8Array;
 }
 
+// ============================================================
+// FeeDataStrategy decode + Linear fee math
+// ============================================================
+//
+// `SealevelSignedQuote.data` is the Borsh encoding of the on-chain
+// `FeeDataStrategy` enum: 1-byte kind + u64 LE maxFee + u64 LE halfAmount.
+// Total 17 bytes. Decoded here (rather than imported from svm-sdk) per
+// `[no-svm-sdk-dep-in-main-sdk]`.
+
+const FEE_STRATEGY_BORSH_LEN = 17;
+const FEE_STRATEGY_KIND_LINEAR = 0;
+
+interface DecodedFeeStrategy {
+  kind: number;
+  maxFee: bigint;
+  halfAmount: bigint;
+}
+
+function decodeFeeStrategy(data: Uint8Array): DecodedFeeStrategy {
+  assert(
+    data.length === FEE_STRATEGY_BORSH_LEN,
+    `FeeDataStrategy must be ${FEE_STRATEGY_BORSH_LEN} bytes, got ${data.length}`,
+  );
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    kind: dv.getUint8(0),
+    maxFee: dv.getBigUint64(1, true),
+    halfAmount: dv.getBigUint64(9, true),
+  };
+}
+
+/**
+ * Resolved fee at the given transfer amount for a Linear strategy. Formula
+ * `fee = min(amount * maxFee / (2 * halfAmount), maxFee)` mirrors the
+ * on-chain Linear fee program and is the inverse of `computeBps`.
+ *
+ * Transient quotes use this curve to encode arbitrary per-transfer fee
+ * values: the server picks (maxFee, halfAmount) so the formula yields the
+ * intended fee at the actual transfer amount.
+ *
+ * Only Linear is supported — `OffchainQuotedLinearFee` (the only strategy
+ * the offchain quoter signs) is Linear by definition.
+ */
+function computeLinearFee(
+  strategy: DecodedFeeStrategy,
+  amount: bigint,
+): bigint {
+  assert(
+    strategy.kind === FEE_STRATEGY_KIND_LINEAR,
+    `Unsupported fee strategy kind ${strategy.kind}; only Linear (0) is supported`,
+  );
+  if (strategy.halfAmount === 0n) return 0n;
+  const raw = (amount * strategy.maxFee) / (2n * strategy.halfAmount);
+  return raw > strategy.maxFee ? strategy.maxFee : raw;
+}
+
+// ============================================================
+// IgpQuoteData decode + gas-fee math
+// ============================================================
+//
+// The IGP signed quote's `data` field is a different shape from the warp
+// fee's `FeeDataStrategy` — it carries oracle-style price inputs that the
+// on-chain `compute_gas_fee` applies to the destination's `gas_amount`
+// (NOT the transfer amount). Mirrors `hyperlane-sealevel-igp/accounts.rs`'s
+// `IgpQuoteData` (33 bytes) + `compute_gas_fee`.
+
+const IGP_QUOTE_DATA_LEN = 33;
+/** Matches `TOKEN_EXCHANGE_RATE_SCALE` in the on-chain IGP program (10^19). */
+const TOKEN_EXCHANGE_RATE_SCALE = 10n ** 19n;
+/** Native SOL decimals — the denomination of `compute_gas_fee`'s result. */
+const SOL_DECIMALS = 9;
+
+interface DecodedIgpQuoteData {
+  tokenExchangeRate: bigint;
+  gasPrice: bigint;
+  tokenDecimals: number;
+}
+
+function decodeIgpQuoteData(data: Uint8Array): DecodedIgpQuoteData {
+  assert(
+    data.length === IGP_QUOTE_DATA_LEN,
+    `IgpQuoteData must be ${IGP_QUOTE_DATA_LEN} bytes, got ${data.length}`,
+  );
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  // u128 LE = two u64 LE halves, low half first; reassemble as BigInt.
+  const teLo = dv.getBigUint64(0, true);
+  const teHi = dv.getBigUint64(8, true);
+  const gpLo = dv.getBigUint64(16, true);
+  const gpHi = dv.getBigUint64(24, true);
+  return {
+    tokenExchangeRate: (teHi << 64n) | teLo,
+    gasPrice: (gpHi << 64n) | gpLo,
+    tokenDecimals: dv.getUint8(32),
+  };
+}
+
+/**
+ * Mirrors on-chain `compute_gas_fee` in `hyperlane-sealevel-igp/accounts.rs`.
+ * Returns the IGP payment denominated in origin native (SOL, 9 decimals).
+ *
+ *   dest_cost   = gas_amount * gas_price
+ *   origin_cost = dest_cost * token_exchange_rate / 10^19
+ *   result      = convert_decimals(origin_cost, remote_decimals → SOL_DECIMALS)
+ *
+ * `gasAmount` is the destination-side gas budget the warp's transferRemote
+ * configures (`tokenData.destination_gas?.get(dest)`), not the transfer
+ * amount.
+ */
+function computeIgpGasFee(
+  data: DecodedIgpQuoteData,
+  gasAmount: bigint,
+): bigint {
+  const destCost = gasAmount * data.gasPrice;
+  let originCost =
+    (destCost * data.tokenExchangeRate) / TOKEN_EXCHANGE_RATE_SCALE;
+  if (data.tokenDecimals > SOL_DECIMALS) {
+    originCost = originCost / 10n ** BigInt(data.tokenDecimals - SOL_DECIMALS);
+  } else if (data.tokenDecimals < SOL_DECIMALS) {
+    originCost = originCost * 10n ** BigInt(SOL_DECIMALS - data.tokenDecimals);
+  }
+  return originCost;
+}
+
 /**
  * Inspect a decoded entry's envelope timestamps — the server signals a
  * transient quote with `expiry === issuedAt` (same u48 BE timestamp).
@@ -123,6 +247,157 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
   readonly protocol = ProtocolType.Sealevel;
 
   constructor(private readonly opts: SealevelQuotedTransferProviderOpts) {}
+
+  /**
+   * Display-time fee fetch. Hits the offchain quoter for warp (+ optional
+   * IGP) signed quotes, decodes each `data` as a `FeeDataStrategy`, and
+   * applies the Linear formula at `originTokenAmount.amount` to produce the
+   * priced tuple. Standalone from `buildQuotedTransferTxs` — the submit path
+   * re-fetches independently rather than reusing display state.
+   *
+   * `tokenFeeQuote.token` is the bridged token (matches what the on-chain
+   * fee program charges); `igpQuote.token` is the origin chain's native
+   * (SOL on Solana mainnet).
+   */
+  async getQuotedTransferFee({
+    warpCore,
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    warpCore: WarpCore;
+    originTokenAmount: TokenAmount<IToken>;
+    destination: ChainNameOrId;
+    sender: string;
+    recipient: string;
+    destinationToken?: IToken;
+  }): Promise<{
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
+  }> {
+    const { token } = originTokenAmount;
+    const destinationDomainId = warpCore.multiProvider.getDomainId(destination);
+    const destinationName = warpCore.multiProvider.getChainName(destination);
+    const isCC =
+      destinationToken !== undefined &&
+      warpCore.isCrossCollateralTransfer(token, destinationToken);
+
+    const adapter = token.getHypAdapter(
+      warpCore.multiProvider,
+      destinationName,
+    );
+    assert(
+      adapter instanceof SealevelHypTokenAdapter,
+      `SVM warp route requires SealevelHypTokenAdapter; got ${adapter.constructor.name}`,
+    );
+    const tokenData = await adapter.getTokenAccountData();
+    assert(
+      tokenData.fee_config,
+      `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
+    );
+
+    // Match `buildQuotedTransferTxs` salt/targetRouter resolution exactly —
+    // the submit path will derive the same shape from its own fresh fetch,
+    // so the display value is representative even though the signed quotes
+    // themselves differ (one fresh per call).
+    const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
+    assert(
+      rawClientSalt.length === SALT_LEN,
+      `rawClientSalt must be ${SALT_LEN} bytes`,
+    );
+    const targetRouterBytes = isCC
+      ? hexToBytes(
+          addressToBytes32(
+            resolveDestinationToken({
+              multiProvider: warpCore.multiProvider,
+              originToken: token,
+              destination,
+              destinationToken,
+            }).addressOrDenom,
+          ) as Hex,
+        )
+      : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
+
+    const recipientHex = addressToBytes32(recipient) as Hex;
+    const targetRouterHex = bytesToHex(targetRouterBytes);
+    const saltHex = bytesToHex(rawClientSalt);
+
+    const warpReq: FeeQuotingV2WarpParams = {
+      origin: token.chainName,
+      router: token.addressOrDenom,
+      destination: destinationDomainId,
+      salt: saltHex,
+      recipient: recipientHex,
+      targetRouter: targetRouterHex,
+      txSubmitter: sender,
+    };
+
+    const igpState = await adapter.innerIgpFeeState.get();
+    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
+    const igpAccount = igpState?.innerIgpAccount;
+    const igpEnabled =
+      !isNullish(igpProgramId) &&
+      !isNullish(igpAccount) &&
+      !isNullish(igpState?.feeConfig);
+    const igpReq: FeeQuotingV2IgpParams | null = igpEnabled
+      ? {
+          origin: token.chainName,
+          router: token.addressOrDenom,
+          destination: destinationDomainId,
+          salt: saltHex,
+          txSubmitter: sender,
+        }
+      : null;
+
+    const [warpEntry, igpEntry] = await Promise.all([
+      this.opts.feeQuotingClient.getWarpQuote(warpReq),
+      igpReq
+        ? this.opts.feeQuotingClient.getIgpQuote(igpReq)
+        : Promise.resolve(null),
+    ]);
+
+    assert(
+      warpEntry.protocol === ProtocolType.Sealevel,
+      `Expected Sealevel warp quote, got ${warpEntry.protocol}`,
+    );
+    const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
+    const warpStrategy = decodeFeeStrategy(decodedWarp.signedQuote.data);
+    const tokenFeeAmount = computeLinearFee(
+      warpStrategy,
+      originTokenAmount.amount,
+    );
+    const tokenFeeQuote =
+      tokenFeeAmount > 0n ? new TokenAmount(tokenFeeAmount, token) : undefined;
+
+    const nativeToken = Token.FromChainMetadataNativeToken(
+      warpCore.multiProvider.getChainMetadata(token.chainName),
+    );
+    let igpFeeAmount = 0n;
+    if (igpEntry) {
+      assert(
+        igpEntry.protocol === ProtocolType.Sealevel,
+        `Expected Sealevel IGP quote, got ${igpEntry.protocol}`,
+      );
+      const decodedIgp = decodeSealevelQuoteEntry(igpEntry);
+      const igpData = decodeIgpQuoteData(decodedIgp.signedQuote.data);
+      // `destination_gas` is the per-destination gas budget the warp route
+      // configures; this is what `transferRemote` will pay for at submit
+      // time. Unset → on-chain falls through to the legacy oracle path (no
+      // signed-quote consumption), so 0 is the correct display.
+      // Overhead-IGP `apply_overhead_gas` is not modelled here; a configured
+      // overhead would under-report the IGP fee by the overhead portion.
+      // Revisit when overhead-IGP lands on the SVM warp.
+      const gasAmount = tokenData.destination_gas?.get(destinationDomainId);
+      if (gasAmount !== undefined) {
+        igpFeeAmount = computeIgpGasFee(igpData, gasAmount);
+      }
+    }
+    const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
+
+    return { igpQuote, tokenFeeQuote };
+  }
 
   async buildQuotedTransferTxs({
     warpCore,

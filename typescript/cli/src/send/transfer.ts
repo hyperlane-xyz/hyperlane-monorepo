@@ -616,19 +616,21 @@ async function executeDelivery({
           clientSalt,
           tokenPullMode: TokenPullMode.TransferFrom,
         };
+        quotedTransfer = new EvmQuotedTransferProvider(quotedCalls);
 
+        // Pre-flight the quoteExecute eth_call so the user sees the priced fee
+        // before submit. The provider re-runs the same call inside
+        // `buildQuotedTransferTxs`; eth_call is deterministic for fixed quotes
+        // so the displayed and submitted amounts match.
         logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
-        const { feeQuotes } = await warpCore.getQuotedTransferFee({
+        await warpCore.getQuotedTransferFee({
+          quotedTransfer,
           originTokenAmount: new TokenAmount(amount, token),
           destination,
           sender: signerAddress,
           recipient: recipientAddress,
-          quotedCalls,
           destinationToken: destToken,
         });
-        quotedCalls.feeQuotes = feeQuotes;
-
-        quotedTransfer = new EvmQuotedTransferProvider(quotedCalls);
         break;
       }
       case ProtocolType.Sealevel: {
