@@ -588,12 +588,8 @@ async fn test_cc_transient_submit_metas_round_trip() {
         .unwrap();
 }
 
-/// Simulation must mirror the runtime guard at `process_submit_quote`: a CC
-/// transient signed with `ctx.target_router == DEFAULT_ROUTER` is rejected,
-/// so emitting a meta layout for that shape would hand SDKs a tx that can
-/// never succeed.
 #[tokio::test]
-async fn test_cc_transient_default_router_simulation_rejected() {
+async fn test_cc_transient_default_router_submit_metas_emitted() {
     let (mut banks_client, payer) = setup_client().await;
     let fee_key = init_fee_account(
         &mut banks_client,
@@ -606,37 +602,33 @@ async fn test_cc_transient_default_router_simulation_rejected() {
     )
     .await;
 
-    let instruction = Instruction::new_with_borsh(
-        fee_program_id(),
-        &FeeInstruction::GetSubmitQuoteAccountMetas(
-            hyperlane_sealevel_fee::instruction::GetSubmitQuoteAccountMetas {
-                destination_domain: 42,
-                target_router: DEFAULT_ROUTER,
-                scoped_salt: Some(H256::random()),
-            },
-        ),
-        vec![AccountMeta::new_readonly(fee_key, false)],
-    );
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let simulation = banks_client
-        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
-            Some(&payer.pubkey()),
-            &recent_blockhash,
-        )))
-        .await
-        .unwrap();
-    let err = simulation
-        .result
-        .expect("simulation must produce a result")
-        .expect_err("simulation must fail for CC transient with DEFAULT_ROUTER");
+    let dest = 42;
+    let scoped_salt = H256::random();
+    let metas = simulate_get_submit_metas(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        Some(scoped_salt),
+    )
+    .await;
+
+    // system + payer + fee_account + DEFAULT route PDA + transient PDA
+    assert_eq!(metas.len(), 5);
     assert_eq!(
-        err,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(FeeError::DefaultRouterNotAllowedForTransientQuote as u32),
-        ),
+        metas[3].pubkey,
+        cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
+    assert_eq!(
+        metas[4].pubkey,
+        Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id()
+        )
+        .0
+    );
+    assert!(metas[4].is_writable);
 }
 
 mod get_program_version {
