@@ -563,12 +563,6 @@ function pickLeaf(
         };
       }
       if (destRoutes[DEFAULT_ROUTER_KEY]) {
-        if (binding.kind === QuoteMode.TRANSIENT) {
-          throw new NoQuoteAvailableError(
-            NoQuoteAvailableReason.NotConfigured,
-            `Only DEFAULT_ROUTER fallback exists for ${destinationDomain}/${targetRouterKey} on ${feeAccountPda}, but on-chain rejects transient quotes signed against DEFAULT_ROUTER`,
-          );
-        }
         return {
           leaf: destRoutes[DEFAULT_ROUTER_KEY],
           effectiveTargetRouter: hexToBytes(DEFAULT_ROUTER_KEY),

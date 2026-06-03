@@ -239,6 +239,16 @@ describe('SvmQuoteService', () => {
         expectedContextLen: HEX_CC_CONTEXT_LEN,
         expectedTrailingTargetRouter: DEFAULT_ROUTER_KEY,
       },
+      {
+        // EVM-parity: post-relax, on-chain accepts CC transient quotes signed
+        // against DEFAULT_ROUTER when the specific (dest, target_router) route
+        // is unconfigured. The service mirrors that cascade.
+        name: 'CC routing with only DEFAULT fallback + transient binding → signs with DEFAULT_ROUTER',
+        feeConfig: ccRoutingFee([TEST_SIGNER_H160], DEFAULT_ROUTER_KEY),
+        binding: TRANSIENT_BINDING,
+        expectedContextLen: HEX_CC_CONTEXT_LEN,
+        expectedTrailingTargetRouter: DEFAULT_ROUTER_KEY,
+      },
     ];
 
     for (const c of cases) {
@@ -371,13 +381,6 @@ describe('SvmQuoteService', () => {
             beneficiary: TEST_SIGNER_H160,
             routes: { [DEST_DOMAIN]: {} },
           },
-        },
-        reason: NoQuoteAvailableReason.NotConfigured,
-      },
-      {
-        name: 'not_configured when CC only has DEFAULT fallback but binding is transient',
-        opts: {
-          feeConfig: ccRoutingFee([TEST_SIGNER_H160], DEFAULT_ROUTER_KEY),
         },
         reason: NoQuoteAvailableReason.NotConfigured,
       },
