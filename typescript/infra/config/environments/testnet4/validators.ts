@@ -290,5 +290,16 @@ export const validatorChainConfig = (
         'tronshasta',
       ),
     },
+
+    seismictestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('seismictestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcfa3ec84fe69dde351760e9fdb667af912cb8368'],
+        },
+        'seismictestnet',
+      ),
+    },
   };
 };

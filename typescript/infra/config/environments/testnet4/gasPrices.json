@@ -67,6 +67,10 @@
     "amount": "50.0",
     "decimals": 6
   },
+  "seismictestnet": {
+    "amount": "46.566129041",
+    "decimals": 9
+  },
   "sepolia": {
     "amount": "0.05",
     "decimals": 9

@@ -17,6 +17,7 @@ export const testnet4SupportedChainNames = [
   'paradexsepolia',
   'polygonamoy',
   'radixtestnet',
+  'seismictestnet',
   'sepolia',
   'solanatestnet',
   'somniatestnet',

@@ -47,6 +47,7 @@ export const keyFunderConfig: KeyFunderConfig<
     paradexsepolia: '0',
     polygonamoy: '0.2',
     radixtestnet: '0',
+    seismictestnet: '0.1',
     sepolia: '5',
     starknetsepolia: '0',
     somniatestnet: '10',

@@ -1922,6 +1922,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  seismictestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xcfa3ec84fe69dde351760e9fdb667af912cb8368',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   sepolia: {
     threshold: 2,
     validators: [

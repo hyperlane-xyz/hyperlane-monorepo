@@ -61,5 +61,8 @@
   },
   "somniatestnet": {
     "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
+  },
+  "seismictestnet": {
+    "validators": ["0xcfa3ec84fe69dde351760e9fdb667af912cb8368"]
   }
 }
