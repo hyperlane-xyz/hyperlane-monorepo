@@ -384,6 +384,14 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
       (chain) => chain.name === cfg.originChainName,
     );
+    const originChain = helmValues.hyperlane.chains[0];
+    if (!originChain) {
+      throw new Error(`Missing chain config for ${cfg.originChainName}`);
+    }
+    originChain.blocks = {
+      ...originChain.blocks,
+      reorgPeriod: cfg.reorgPeriod,
+    };
 
     helmValues.hyperlane.validator = {
       enabled: true,
