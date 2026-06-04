@@ -14,22 +14,30 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IWormhole} from "../../interfaces/IWormhole.sol";
 import {Message} from "../../libs/Message.sol";
+import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
+
+/**
+ * @notice ABI surface the offchain-lookup-server implements for Wormhole.
+ * @dev The relayer encodes a call to `getVaa` and posts it to the CCIP-read
+ * url; the server returns the signed VAA which is handed back to `verify`.
+ */
+interface WormholeVaaService {
+    function getVaa(
+        bytes calldata _message
+    ) external view returns (bytes memory _vaa);
+}
 
 /**
  * @title WormholeIsm
- * @notice Verifies a Hyperlane message by checking a Wormhole VAA (passed as
- * metadata) that attests to the message id. The VAA must originate from the
- * authorized WormholeHook emitter on the expected origin chain.
- * @dev moduleType is NULL because the relayer must supply the VAA as opaque
- * metadata fetched off-chain from the guardian network.
+ * @notice CCIP-read ISM that verifies a Hyperlane message against a Wormhole
+ * VAA attesting to the message id. The VAA is fetched offchain (from the
+ * guardian network, via the offchain-lookup-server) and verified on-chain by
+ * the Wormhole Core Bridge.
  */
-contract WormholeIsm is IInterchainSecurityModule {
+contract WormholeIsm is AbstractCcipReadIsm {
     using Message for bytes;
-
-    uint8 public constant moduleType = uint8(Types.NULL);
 
     IWormhole public immutable wormhole;
     /// @notice Wormhole chain id of the origin chain (not the EVM chain id).
@@ -47,14 +55,31 @@ contract WormholeIsm is IInterchainSecurityModule {
         wormhole = IWormhole(_wormhole);
         emitterChainId = _emitterChainId;
         emitterAddress = _emitterAddress;
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _owner,
+        string[] memory _urls
+    ) external initializer {
+        _transferOwnership(_owner);
+        setUrls(_urls);
+    }
+
+    function _offchainLookupCalldata(
+        bytes calldata _message
+    ) internal pure override returns (bytes memory) {
+        return abi.encodeCall(WormholeVaaService.getVaa, (_message));
     }
 
     function verify(
         bytes calldata _metadata,
         bytes calldata _message
     ) external view returns (bool) {
+        bytes memory vaa = abi.decode(_metadata, (bytes));
+
         (IWormhole.VM memory vm, bool valid, string memory reason) = wormhole
-            .parseAndVerifyVM(_metadata);
+            .parseAndVerifyVM(vaa);
         require(valid, reason);
         require(
             vm.emitterChainId == emitterChainId,
