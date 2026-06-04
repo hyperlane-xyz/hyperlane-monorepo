@@ -1154,7 +1154,11 @@ export class WarpCore {
       interchainFee: igpQuote,
       tokenFeeQuote,
       attestation,
-      amount: originTokenAmount.amount,
+      // Only pass amount for predicate flows — it feeds the attested msg_value into
+      // eth_estimateGas. For non-predicate flows, let getLocalTransferFee use its
+      // minimal-amount fallback so simulation doesn't fail on large balances or
+      // placeholder senders (e.g. 0x...dead) that have no ETH.
+      amount: attestation ? originTokenAmount.amount : undefined,
     });
 
     return {
@@ -1208,7 +1212,7 @@ export class WarpCore {
       interchainFee: interchainQuote,
       tokenFeeQuote,
       attestation,
-      amount: originTokenAmount.amount,
+      amount: attestation ? originTokenAmount.amount : undefined,
       destinationToken: resolvedDestinationToken,
     });
 
@@ -1243,14 +1247,29 @@ export class WarpCore {
     const originToken = balance.token;
 
     if (!feeEstimate) {
-      feeEstimate = await this.estimateTransferRemoteFees({
-        originTokenAmount: balance,
+      // Get IGP and token fee quotes using the full balance so amount-dependent fees
+      // (e.g. percentage-based token fees) are correctly computed and subtracted.
+      const { igpQuote: interchainQuote, tokenFeeQuote } =
+        await this.getInterchainTransferFee({
+          originTokenAmount: balance,
+          destination,
+          recipient,
+          sender,
+          destinationToken,
+        });
+      // Estimate local gas with no amount so getLocalTransferFee uses its minimal-amount
+      // fallback — avoids eth_estimateGas failures on native token routes where simulating
+      // the full balance leaves nothing to cover gas.
+      const localQuote = await this.getLocalTransferFeeAmount({
+        originToken,
         destination,
-        recipient,
         sender,
         senderPubKey,
+        interchainFee: interchainQuote,
+        tokenFeeQuote,
         destinationToken,
       });
+      feeEstimate = { interchainQuote, localQuote, tokenFeeQuote };
     }
     const { localQuote, interchainQuote, tokenFeeQuote } = feeEstimate;
 

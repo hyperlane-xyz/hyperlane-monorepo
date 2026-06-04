@@ -51,4 +51,6 @@ export enum CommandType {
   ICA_DEPLOY = 'ica:deploy',
   ISM_DEPLOY = 'ism:deploy',
   ISM_READ = 'ism:read',
+  HOOK_DEPLOY = 'hook:deploy',
+  HOOK_READ = 'hook:read',
 }

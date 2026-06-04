@@ -273,6 +273,12 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
+  // Reduced min for messages to/from katana
+  const katanaRoute = local === 'katana' || remote === 'katana';
+  if (katanaRoute) {
+    minUsdCost = 0.01;
+  }
+
   // For all SVM chains, min cost is 0.50 USD to cover rent needs
   if (getChain(remote).protocol === ProtocolType.Sealevel) {
     minUsdCost = Math.max(minUsdCost, 0.5);
@@ -308,6 +314,12 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     unichain: 0.05,
     eclipsemainnet: 0.22,
   };
+
+  // Skip per-remote overrides on katana routes so the reduced floor isn't
+  // clobbered when sending from katana to a chain with a higher override.
+  if (katanaRoute) {
+    return minUsdCost;
+  }
 
   return remoteMinCostOverrides[remote] ?? minUsdCost;
 }

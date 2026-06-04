@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cli
 
+## 35.0.1
+
 ## 35.0.0
 
 ### Minor Changes

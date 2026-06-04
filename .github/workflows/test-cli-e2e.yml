@@ -80,6 +80,8 @@ jobs:
           - core-deploy
           - core-init
           - core-read
+          # Hook Commands
+          - hook-deploy
           # ISM Commands
           - ism
           # Other commands
@@ -181,6 +183,8 @@ jobs:
           - core-check
           - core-deploy
           - core-read
+          # Hook Commands
+          - hook-deploy
           # ISM Commands
           - ism
           # Warp Commands
