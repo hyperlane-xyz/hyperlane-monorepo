@@ -401,6 +401,7 @@ pub enum HyperlaneDomainTechnicalStack {
     OpStack,
     PolygonCDK,
     PolkadotSubstrate,
+    Seismic,
     ZkSync,
     #[default]
     Other,
@@ -686,6 +687,13 @@ impl HyperlaneDomain {
         matches!(
             self.domain_technical_stack(),
             HyperlaneDomainTechnicalStack::ZkSync
+        )
+    }
+
+    pub const fn is_seismic_stack(&self) -> bool {
+        matches!(
+            self.domain_technical_stack(),
+            HyperlaneDomainTechnicalStack::Seismic
         )
     }
 
