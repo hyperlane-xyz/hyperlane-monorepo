@@ -179,6 +179,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
         (config) => config.chainName === CHAIN_NAME_2,
       );
       expect(chain2TokenConfig).to.exist;
+      expect(chain2TokenConfig.tokenType).to.equal(TokenType.collateral);
+
+      const [chain3TokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_3,
+      );
+      expect(chain3TokenConfig).to.exist;
+      expect(chain3TokenConfig.tokenType).to.equal(TokenType.synthetic);
 
       const movableToken = MovableCollateralRouter__factory.connect(
         chain2TokenConfig.addressOrDenom!,

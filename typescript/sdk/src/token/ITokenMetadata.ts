@@ -14,6 +14,8 @@ import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import { TokenMetadataSchema } from './types.js';
 
+// standard selects runtime adapters/checks; tokenType preserves deploy-time
+// semantics when multiple deploy types share a standard.
 export const TokenConfigSchema = z.object({
   chainName: ZChainName.describe(
     'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',

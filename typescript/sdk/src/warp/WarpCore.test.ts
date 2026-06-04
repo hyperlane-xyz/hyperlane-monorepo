@@ -278,11 +278,8 @@ describe('WarpCore', () => {
     stubs.forEach((s) => s.restore());
   });
 
-  it('Skips destination collateral checks for protocol-backed collateral token types', async () => {
-    for (const tokenType of [
-      TokenType.collateralCctp,
-      TokenType.collateralOft,
-    ]) {
+  [TokenType.collateralCctp, TokenType.collateralOft].forEach((tokenType) => {
+    it(`Skips destination collateral checks for ${tokenType}`, async () => {
       const originToken = new Token({
         chainName: test1.name,
         standard: TokenStandard.EvmHypCollateral,
@@ -326,7 +323,56 @@ describe('WarpCore', () => {
       expect(result).to.be.true;
       sinon.assert.notCalled(destinationAdapterStub);
       sinon.assert.notCalled(destinationHypAdapterStub);
-    }
+    });
+  });
+
+  it('Checks destination collateral for non-exempt collateral token types', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      tokenType: TokenType.collateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MOCK_ADDRESS,
+      collateralAddressOrDenom: MOCK_ADDRESS,
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      tokenType: TokenType.collateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MOCK_ADDRESS_2,
+      collateralAddressOrDenom: MOCK_ADDRESS_2,
+      connections: [],
+    });
+    originToken.addConnection({ token: destinationToken });
+    const collateralWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const getBalanceStub = sinon.stub().resolves(MOCK_BALANCE);
+    const destinationAdapterStub = sinon
+      .stub(destinationToken, 'getAdapter')
+      .returns({
+        getBalance: getBalanceStub,
+      } as any);
+    const destinationHypAdapterStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .throws(new Error('destination hyp adapter should not be read'));
+
+    const result = await collateralWarpCore.isDestinationCollateralSufficient({
+      originTokenAmount: originToken.amount(BIG_TRANSFER_AMOUNT),
+      destination: test2.name,
+    });
+
+    expect(result).to.be.false;
+    sinon.assert.calledOnce(destinationAdapterStub);
+    sinon.assert.calledOnceWithExactly(getBalanceStub, MOCK_ADDRESS_2);
+    sinon.assert.notCalled(destinationHypAdapterStub);
   });
 
   it('Checks for destination collateral with scaling factors', async () => {

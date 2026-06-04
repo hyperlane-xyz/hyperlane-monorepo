@@ -82,6 +82,8 @@ const DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES = new Set<TokenType>([
   TokenType.collateralOft,
 ]);
 
+// CCTP/OFT both map to EvmHypCollateral, so standard alone cannot distinguish
+// protocol-backed collateral from escrowed collateral.
 function isDestinationCollateralExemptToken(token: IToken): boolean {
   return (
     token.tokenType !== undefined &&
