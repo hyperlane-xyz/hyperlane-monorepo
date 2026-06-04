@@ -504,6 +504,10 @@ export {
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
+  SeismicSigner,
+  type SeismicSignerContext,
+} from './providers/SeismicSigner.js';
+export {
   AllProviderMethods,
   excludeProviderMethods,
   IProviderMethods,
