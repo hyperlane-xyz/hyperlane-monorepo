@@ -31,6 +31,7 @@ import { CloudAgentKey } from '../keys.js';
 
 import { getAwsKmsClient } from './client.js';
 
+const AWS_ROOT_PRINCIPAL = 'arn:aws:iam::625457692493:root';
 const DEFAULT_KMS_KEY_POLICY_NAME = 'default';
 const KMS_SIGNER_ACTIONS = ['kms:GetPublicKey', 'kms:Sign', 'kms:DescribeKey'];
 
@@ -182,18 +183,15 @@ export class AgentAwsKey extends CloudAgentKey {
     userArn: string,
   ): Promise<KeyPolicy> {
     const policy = await this.getKeyPolicy(client, keyId);
-    const rootPrincipal = this.rootPrincipalForUserArn(userArn);
 
     if (
-      !policy.Statement.some((statement) =>
-        this.isRootStatement(statement, rootPrincipal),
-      )
+      !policy.Statement.some((statement) => this.isRootStatement(statement))
     ) {
-      policy.Statement.unshift(this.rootStatement(rootPrincipal));
+      policy.Statement.unshift(this.rootStatement());
     }
 
     const signerStatement = policy.Statement.find((statement) =>
-      this.isSignerStatement(statement, rootPrincipal),
+      this.isSignerStatement(statement),
     );
     if (signerStatement) {
       const signerPrincipals = new Set([
@@ -230,38 +228,24 @@ export class AgentAwsKey extends CloudAgentKey {
     return JSON.parse(response.Policy) as KeyPolicy;
   }
 
-  private rootPrincipalForUserArn(userArn: string): string {
-    const matches = /^arn:aws:iam::([0-9]+):user\//.exec(userArn);
-    if (!matches) {
-      throw new Error(`Expected AWS IAM user ARN, got ${userArn}`);
-    }
-    return `arn:aws:iam::${matches[1]}:root`;
+  private isRootStatement(statement: KeyPolicyStatement): boolean {
+    return asArray(statement.Principal?.AWS).includes(AWS_ROOT_PRINCIPAL);
   }
 
-  private isRootStatement(
-    statement: KeyPolicyStatement,
-    rootPrincipal: string,
-  ): boolean {
-    return asArray(statement.Principal?.AWS).includes(rootPrincipal);
-  }
-
-  private isSignerStatement(
-    statement: KeyPolicyStatement,
-    rootPrincipal: string,
-  ): boolean {
+  private isSignerStatement(statement: KeyPolicyStatement): boolean {
     return (
       statement.Effect === 'Allow' &&
       asArray(statement.Action).includes('kms:Sign') &&
-      !this.isRootStatement(statement, rootPrincipal)
+      !this.isRootStatement(statement)
     );
   }
 
-  private rootStatement(rootPrincipal: string): KeyPolicyStatement {
+  private rootStatement(): KeyPolicyStatement {
     return {
       Sid: 'Enable IAM User Permissions',
       Effect: 'Allow',
       Principal: {
-        AWS: rootPrincipal,
+        AWS: AWS_ROOT_PRINCIPAL,
       },
       Action: 'kms:*',
       Resource: '*',
