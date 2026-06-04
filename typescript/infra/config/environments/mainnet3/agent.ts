@@ -945,7 +945,8 @@ const hyperlane: RootAgentConfig = {
       port: 8900,
       rateLimitMaxRequests: 100,
       rateLimitWindowSecs: 60,
-      corsOrigins: 'https://nexus.hyperlane.xyz',
+      corsOrigins:
+        'https://nexus.hyperlane.xyz,https://hyperlane-warp-template-git-xaroz-swap-form-abacus-works.vercel.app',
     },
     resources: relayerResources,
   },
