@@ -305,6 +305,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to create payload success criteria")]
     /// Failed to create payload success criteria
     ErrorCreatingPayloadSuccessCriteria,
+    #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
+    /// ICA reveal commit not yet confirmed on-chain; polling until visible
+    AwaitingIcaReveal,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
