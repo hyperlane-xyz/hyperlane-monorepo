@@ -247,17 +247,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    incentivtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('incentivtestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x3133eeb96fd96f9f99291088613edf7401149e6f'],
-        },
-        'incentivtestnet',
-      ),
-    },
-
     radixtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('radixtestnet'),

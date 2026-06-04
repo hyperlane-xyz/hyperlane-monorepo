@@ -40,7 +40,6 @@ export const keyFunderConfig: KeyFunderConfig<
     eclipsetestnet: '0',
     fuji: '5',
     hyperliquidevmtestnet: '0.1',
-    incentivtestnet: '1',
     kyvetestnet: '0',
     modetestnet: '0.05',
     optimismsepolia: '0.1',

@@ -39,10 +39,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "incentivtestnet": {
-    "amount": "1.500000007",
-    "decimals": 9
-  },
   "kyvetestnet": {
     "amount": "0.001",
     "decimals": 1

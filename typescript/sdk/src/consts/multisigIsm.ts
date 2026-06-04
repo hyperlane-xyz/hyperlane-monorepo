@@ -1048,16 +1048,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  incentivtestnet: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x3133eeb96fd96f9f99291088613edf7401149e6f',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   ink: {
     threshold: 4,
     validators: [
