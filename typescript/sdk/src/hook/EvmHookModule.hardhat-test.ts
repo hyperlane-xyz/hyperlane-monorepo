@@ -1,8 +1,11 @@
 import { expect } from 'chai';
-import { Signer } from 'ethers';
+import { Signer, ethers } from 'ethers';
 import hre from 'hardhat';
 
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
+import {
+  CONTRACTS_PACKAGE_VERSION,
+  InterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
@@ -790,6 +793,79 @@ describe('EvmHookModule', async () => {
         assert(error instanceof Error, 'Expected Error');
         expect(error.message).to.include(
           'IGP quoteSigners require contract version >= 11.3.0',
+        );
+      }
+    });
+
+    const randomTokenOracleConfig = () =>
+      Object.fromEntries(
+        testChains.map((c) => [
+          c,
+          {
+            tokenExchangeRate: randomInt(1234567891234).toString(),
+            gasPrice: randomInt(1234567891234).toString(),
+            tokenDecimals: DEFAULT_TOKEN_DECIMALS,
+          },
+        ]),
+      );
+
+    it('should deploy IGP with token gas oracles and wire them on-chain', async () => {
+      const feeToken = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.tokenOracleConfig = { [feeToken]: randomTokenOracleConfig() };
+
+      const { hook } = await createHook(config);
+
+      // The token oracle mapping is read back from chain (not derivable via the
+      // reader), so assert it directly: a dedicated oracle is wired per remote.
+      const igp = InterchainGasPaymaster__factory.connect(
+        hook.serialize().deployedHook,
+        multiProvider.getProvider(chain),
+      );
+      const oracles = await Promise.all(
+        testChains.map((c) =>
+          igp.tokenGasOracles(feeToken, multiProvider.getDomainId(c)),
+        ),
+      );
+      for (const oracle of oracles) {
+        expect(eqAddress(oracle, ethers.constants.AddressZero)).to.be.false;
+      }
+      // All destinations of a fee token share a single oracle instance.
+      expect(oracles.every((o) => eqAddress(o, oracles[0]))).to.be.true;
+    });
+
+    it('should set token gas oracles on update', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+      const { hook } = await createHook(config);
+
+      // add a token oracle config; oracle is deployed eagerly, leaving a single
+      // setTokenGasOracles tx to wire the mapping.
+      config.tokenOracleConfig = {
+        [randomAddress()]: randomTokenOracleConfig(),
+      };
+      await expectTxsAndUpdate(hook, config, 1);
+
+      // re-applying the same config is a no-op (mapping already wired on-chain)
+      await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should reject token gas oracles for legacy IGP configs', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      const { hook } = await createHook(config);
+      const legacyTarget = {
+        ...config,
+        igpVersion: IgpVersion.Legacy,
+        tokenOracleConfig: { [randomAddress()]: randomTokenOracleConfig() },
+      };
+
+      try {
+        await hook.update(legacyTarget);
+        throw new Error('Expected legacy IGP token oracle update to fail');
+      } catch (error: unknown) {
+        assert(error instanceof Error, 'Expected Error');
+        expect(error.message).to.include(
+          'IGP tokenOracleConfig requires contract version >= 11.3.0',
         );
       }
     });
