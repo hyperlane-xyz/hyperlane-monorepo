@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import { type Hex, bytesToHex, hexToBytes, keccak256 } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
@@ -298,7 +299,7 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     transferAmount: bigint,
     igpOpts?: {
       entry: SealevelQuoteV2Entry;
-      destinationGas: bigint;
+      destinationGas?: bigint;
     },
   ) {
     const { warpCore, originTokenAmount } = makeWarpCore(
@@ -307,9 +308,10 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
         igp: igpOpts
           ? { innerIgpAccount: FEE_ACCOUNT, feeConfig: {} }
           : undefined,
-        destinationGas: igpOpts
-          ? new Map([[DEST_DOMAIN, igpOpts.destinationGas]])
-          : undefined,
+        destinationGas:
+          igpOpts && !isNullish(igpOpts.destinationGas)
+            ? new Map([[DEST_DOMAIN, igpOpts.destinationGas]])
+            : undefined,
       }),
     );
     Object.defineProperty(originTokenAmount, 'amount', {
@@ -439,5 +441,17 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     await expect(
       callWithAmount(warp, 1000n, { entry: igp, destinationGas: 1000n }),
     ).to.be.rejectedWith(/IgpQuoteData must be 33 bytes/);
+  });
+
+  it('throws when IGP is configured but destination_gas is unset for the domain', async () => {
+    // On-chain `dispatch_with_gas` unwraps destination_gas via
+    // `ok_or(InvalidArgument)`, so the submit path would fail at
+    // `transfer_remote`. Display must surface that instead of silently
+    // reporting 0.
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 9));
+    await expect(
+      callWithAmount(warp, 1000n, { entry: igp /* no destinationGas */ }),
+    ).to.be.rejectedWith(/no destination_gas configured/);
   });
 });
