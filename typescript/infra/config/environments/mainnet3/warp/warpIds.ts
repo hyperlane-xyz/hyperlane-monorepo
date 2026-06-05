@@ -45,6 +45,11 @@ export enum WarpRouteIds {
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
+  // Removed here: ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  // and USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork. These multi-leg
+  // routes include the deprecated scroll/zoramainnet legs, so their config generators were
+  // dropped; their warp-route monitors are retained for the remaining live legs until
+  // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BsquaredUBTC = 'UBTC/bsquared',
