@@ -389,6 +389,48 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     expect(result.igpQuote.amount).to.equal(1000n);
   });
 
+  it('scales by TER when ≠ 10^19 (1.0)', async () => {
+    // TER=2×10^19 (=2.0), gas_price=3, token_decimals=9, gasAmount=100
+    // Expected: 100 * 3 * 2×10^19 / 10^19 = 600 lamports.
+    // A regression that drops the TER factor would compute 100*3 = 300 instead.
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(2n * 10n ** 19n, 3n, 9));
+    const result = await callWithAmount(warp, 1000n, {
+      entry: igp,
+      destinationGas: 100n,
+    });
+    expect(result.igpQuote.amount).to.equal(600n);
+  });
+
+  it('applies convert_decimals when remote token_decimals < SOL_DECIMALS', async () => {
+    // TER=10^19, gas_price=1000, token_decimals=6 (< 9), gasAmount=1
+    //   destCost   = 1 * 1000          = 1000
+    //   originCost = 1000 * 10^19/10^19 = 1000
+    //   convert    = 1000 * 10^(9-6)   = 1_000_000 lamports
+    // A regression that drops the decimal-conversion arm would return 1000.
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1000n, 6));
+    const result = await callWithAmount(warp, 1000n, {
+      entry: igp,
+      destinationGas: 1n,
+    });
+    expect(result.igpQuote.amount).to.equal(1_000_000n);
+  });
+
+  it('applies convert_decimals when remote token_decimals > SOL_DECIMALS', async () => {
+    // TER=10^19, gas_price=1, token_decimals=18 (> 9, like ETH), gasAmount=10^12
+    //   destCost   = 10^12 * 1            = 10^12
+    //   originCost = 10^12 * 10^19/10^19  = 10^12
+    //   convert    = 10^12 / 10^(18-9)    = 1000 lamports
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 18));
+    const result = await callWithAmount(warp, 1000n, {
+      entry: igp,
+      destinationGas: 10n ** 12n,
+    });
+    expect(result.igpQuote.amount).to.equal(1000n);
+  });
+
   it('rejects IGP quotes with wrong data length (17 bytes where 33 expected)', async () => {
     // Common regression pattern: someone passes a warp FeeDataStrategy
     // (17 bytes) where IgpQuoteData (33 bytes) is expected.

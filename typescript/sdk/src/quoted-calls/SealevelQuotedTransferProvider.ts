@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
-import { type Hex, bytesToHex, hexToBytes, keccak256 } from 'viem';
+import { type Hex, bytesToHex, hexToBytes, isHex, keccak256 } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
@@ -67,6 +67,20 @@ function defaultRandomSalt(): Uint8Array {
   const salt = new Uint8Array(SALT_LEN);
   globalThis.crypto.getRandomValues(salt);
   return salt;
+}
+
+/**
+ * Cast-free wrapper around `addressToBytes32` that narrows the result to
+ * viem's `Hex`. `addressToBytes32` is typed as returning `string` but
+ * always produces a 0x-prefixed bytes32 hex; viem's `isHex` is a runtime
+ * type guard so we get a real narrowing rather than an `as Hex`.
+ */
+function addressToHex32(address: string, protocol?: ProtocolType): Hex {
+  const result = addressToBytes32(address, protocol);
+  if (!isHex(result)) {
+    throw new Error(`addressToBytes32 returned non-hex value: ${result}`);
+  }
+  return result;
 }
 
 function toSealevelSvmSignedQuote(
@@ -305,18 +319,18 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     );
     const targetRouterBytes = isCC
       ? hexToBytes(
-          addressToBytes32(
+          addressToHex32(
             resolveDestinationToken({
               multiProvider: warpCore.multiProvider,
               originToken: token,
               destination,
               destinationToken,
             }).addressOrDenom,
-          ) as Hex,
+          ),
         )
       : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
-    const recipientHex = addressToBytes32(recipient) as Hex;
+    const recipientHex = addressToHex32(recipient);
     const targetRouterHex = bytesToHex(targetRouterBytes);
     const saltHex = bytesToHex(rawClientSalt);
 
@@ -382,12 +396,14 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       // configures; this is what `transferRemote` will pay for at submit
       // time. Unset → on-chain falls through to the legacy oracle path (no
       // signed-quote consumption), so 0 is the correct display.
-      // Overhead-IGP `apply_overhead_gas` is not modelled here; a configured
-      // overhead would under-report the IGP fee by the overhead portion.
-      // Revisit when overhead-IGP lands on the SVM warp.
+      // For OverheadIgp configs, the chain adds the per-destination overhead
+      // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
+      // here to match the submitted fee.
       const gasAmount = tokenData.destination_gas?.get(destinationDomainId);
       if (gasAmount !== undefined) {
-        igpFeeAmount = computeIgpGasFee(igpData, gasAmount);
+        const overheadGas =
+          igpState?.gasOverheads?.get(destinationDomainId) ?? 0n;
+        igpFeeAmount = computeIgpGasFee(igpData, gasAmount + overheadGas);
       }
     }
     const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
@@ -460,19 +476,19 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     //    CC fee leaves on deployments that configure them.
     const targetRouterBytes = isCC
       ? hexToBytes(
-          addressToBytes32(
+          addressToHex32(
             resolveDestinationToken({
               multiProvider: warpCore.multiProvider,
               originToken: token,
               destination,
               destinationToken,
             }).addressOrDenom,
-          ) as Hex,
+          ),
         )
       : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
     // 3. Build API request shape — same salt/txSubmitter for both endpoints.
-    const recipientHex = addressToBytes32(recipient) as Hex;
+    const recipientHex = addressToHex32(recipient);
     const targetRouterHex = bytesToHex(targetRouterBytes);
     const saltHex = bytesToHex(rawClientSalt);
 
