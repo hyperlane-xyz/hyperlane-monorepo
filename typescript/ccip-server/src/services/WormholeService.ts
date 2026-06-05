@@ -48,31 +48,49 @@ export class WormholeService extends BaseService {
       createAbiHandler(
         WormholeVaaService__factory,
         'getVaa',
-        this.getVaa.bind(this),
+        (message: string, logger: Logger) =>
+          this.getVaa(message, undefined, logger),
       ),
     );
 
     // CCIP-read spec: POST /getVaa
-    this.router.post(
-      '/getVaa',
-      createAbiHandler(
+    this.router.post('/getVaa', async (req, res) => {
+      const rawTxHash = req.body?.origin_tx_hash;
+      const originTxHash =
+        typeof rawTxHash === 'string' && ethers.utils.isHexString(rawTxHash, 32)
+          ? rawTxHash
+          : undefined;
+      return createAbiHandler(
         WormholeVaaService__factory,
         'getVaa',
-        this.getVaa.bind(this),
-      ),
-    );
+        (message: string, logger: Logger) =>
+          this.getVaa(message, originTxHash, logger),
+      )(req, res);
+    });
   }
 
-  async getVaa([message]: ethers.utils.Result, logger: Logger) {
+  async getVaa(
+    message: string,
+    originTxHash: string | undefined,
+    logger: Logger,
+  ) {
     const log = this.addLoggerServiceContext(logger);
     const messageId = ethers.utils.keccak256(message);
     log.info({ messageId }, 'Fetching Wormhole VAA for message');
 
-    const txHash =
-      await this.hyperlaneService.getOriginTransactionHashByMessageId(
-        messageId,
-        logger,
+    let txHash: string | undefined = originTxHash;
+    if (txHash) {
+      log.info({ txHash, messageId }, 'Using tx hash provided by relayer');
+    } else {
+      log.info(
+        { messageId },
+        'No tx hash from relayer, falling back to scraper lookup',
       );
+      txHash = await this.hyperlaneService.getOriginTransactionHashByMessageId(
+        messageId,
+        log,
+      );
+    }
     if (!txHash) {
       throw new Error(`Origin transaction hash not found for ${messageId}`);
     }
