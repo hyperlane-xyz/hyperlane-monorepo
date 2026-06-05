@@ -1,4 +1,5 @@
 import {
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
@@ -8,7 +9,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -24,12 +25,20 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment, ethereumChainNames } from './chains.js';
+import {
+  environment,
+  ethereumChainNames,
+  supportedChainNamesInRegistry,
+} from './chains.js';
 import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
+
+const supportedChainNamesInRegistrySet = new Set<ChainName>(
+  supportedChainNamesInRegistry,
+);
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -118,14 +127,20 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
-  hyperlaneContextAgentChainConfig,
-  testnet4SupportedChainNames,
+  objMap(hyperlaneContextAgentChainConfig, (_, roleConfig) =>
+    Object.fromEntries(
+      Object.entries(roleConfig).filter(([chain]) =>
+        supportedChainNamesInRegistrySet.has(chain as ChainName),
+      ),
+    ),
+  ) as AgentChainConfig<typeof supportedChainNamesInRegistry>,
+  supportedChainNamesInRegistry,
 );
 
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  environmentChainNames: supportedChainNames,
+  environmentChainNames: supportedChainNamesInRegistry,
   aws: {
     region: 'us-east-1',
   },

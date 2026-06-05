@@ -28,7 +28,7 @@ import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
 import { igp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import { supportedChainNamesInRegistry } from './chains.js';
 
 // There are no static ISMs or hooks for zkSync, this means
 // that the default ISM is a routing ISM and the default hook
@@ -48,13 +48,14 @@ export const core: ChainMap<CoreConfig> = objMap(
     }
 
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
-      supportedChainNames
+      supportedChainNamesInRegistry
         // no reflexivity
         .filter((chain) => chain !== local)
         // exclude forma as it's not a core chain
         .filter((chain) => chain !== 'forma')
         // exclude eden as it's only connected to celestia
         .filter((chain) => chain !== 'eden')
+        .filter((chain) => !!defaultMultisigConfigs[chain])
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 

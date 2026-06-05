@@ -42,7 +42,11 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
-import { environment, ethereumChainNames } from './chains.js';
+import {
+  environment,
+  ethereumChainNames,
+  supportedChainNamesInRegistry,
+} from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
@@ -54,6 +58,10 @@ import {
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
+
+const supportedChainNamesInRegistrySet = new Set<ChainName>(
+  supportedChainNamesInRegistry,
+);
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -523,8 +531,14 @@ export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
-  hyperlaneContextAgentChainConfig,
-  mainnet3SupportedChainNames,
+  objMap(hyperlaneContextAgentChainConfig, (_, roleConfig) =>
+    Object.fromEntries(
+      Object.entries(roleConfig).filter(([chain]) =>
+        supportedChainNamesInRegistrySet.has(chain as ChainName),
+      ),
+    ),
+  ) as AgentChainConfig<typeof supportedChainNamesInRegistry>,
+  supportedChainNamesInRegistry,
 );
 
 const sealevelPriorityFeeOracleConfigGetter = (
@@ -580,7 +594,7 @@ const sealevelTransactionSubmitterConfigGetter = (
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  environmentChainNames: supportedChainNames,
+  environmentChainNames: supportedChainNamesInRegistry,
   aws: {
     region: 'us-east-1',
   },

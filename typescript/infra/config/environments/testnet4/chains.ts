@@ -1,14 +1,23 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
-
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
+import {
+  getRegistry as getBaseRegistry,
+  isChainPresentInRegistry,
+} from '../../../config/registry.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 
 import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment = 'testnet4';
 
-export const ethereumChainNames = supportedChainNames.filter(
+const baseRegistry = getBaseRegistry();
+
+export const supportedChainNamesInRegistry = supportedChainNames.filter(
+  (chainName) => isChainPresentInRegistry(baseRegistry, environment, chainName),
+);
+
+export const ethereumChainNames = supportedChainNamesInRegistry.filter(
   isEthereumProtocolChain,
 );
 
@@ -36,7 +45,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
 
 export const getRegistry = async (
   useSecrets = true,
-  chains: ChainName[] = supportedChainNames,
+  chains: ChainName[] = supportedChainNamesInRegistry,
 ): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environment,

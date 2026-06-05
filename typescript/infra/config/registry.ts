@@ -74,6 +74,21 @@ export function getRegistry(): FileSystemRegistry {
   return registry;
 }
 
+export function isChainPresentInRegistry(
+  registry: Pick<FileSystemRegistry, 'getChainMetadata'>,
+  environment: string,
+  chainName: ChainName,
+): boolean {
+  const chainMetadata = registry.getChainMetadata(chainName);
+  if (!chainMetadata) {
+    rootLogger.warn(
+      { chainName, environment },
+      'Skipping chain missing from base registry while deriving chain lists',
+    );
+  }
+  return !!chainMetadata;
+}
+
 function getRegistryFromUris(registryUris?: string[]): IRegistry {
   if (registryUris && registryUris.length > 0) {
     return getMergedRegistry({ registryUris, enableProxy: true });

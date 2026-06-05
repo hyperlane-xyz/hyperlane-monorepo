@@ -1,5 +1,5 @@
 import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
-import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -7,9 +7,9 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
+import { supportedChainNamesInRegistry } from './chains.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { owners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -31,15 +31,21 @@ function getOracleConfigWithOverrides(origin: ChainName) {
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
+    supportedChainNamesInRegistry,
     tokenPrices,
     gasPrices,
     (local, remote) => getOverheadWithOverrides(local, remote),
     false,
   );
 
-export const igp: ChainMap<IgpConfig> = objMap(
+const supportedIgpOwners = objFilter(
   owners,
+  (chain, ownerConfig): ownerConfig is (typeof owners)[string] =>
+    chain in storageGasOracleConfig,
+);
+
+export const igp: ChainMap<IgpConfig> = objMap(
+  supportedIgpOwners,
   (chain, ownerConfig): IgpConfig => {
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -49,7 +55,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       oracleConfig: getOracleConfigWithOverrides(chain),
       overhead: Object.fromEntries(
         // no need to set overhead for chain to itself
-        exclude(chain, supportedChainNames).map((remote) => [
+        exclude(chain, supportedChainNamesInRegistry).map((remote) => [
           remote,
           getOverheadWithOverrides(chain, remote),
         ]),

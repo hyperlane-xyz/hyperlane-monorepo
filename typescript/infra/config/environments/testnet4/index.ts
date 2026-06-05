@@ -15,17 +15,16 @@ import { agents } from './agent.js';
 import {
   chainMetadataOverrides,
   environment as environmentName,
+  supportedChainNamesInRegistry,
 } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { owners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
-
 const getRegistry = async (
   useSecrets = true,
-  chains: ChainName[] = supportedChainNames,
+  chains: ChainName[] = supportedChainNamesInRegistry,
 ): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environmentName,
@@ -36,7 +35,7 @@ const getRegistry = async (
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
-  supportedChainNames,
+  supportedChainNames: supportedChainNamesInRegistry,
   getRegistry,
   getMultiProtocolProvider: async () =>
     getMultiProtocolProvider(await getRegistry()),
@@ -47,7 +46,7 @@ export const environment: EnvironmentConfig = {
     chains?: ChainName[],
   ) => {
     const providerChains =
-      chains && chains.length > 0 ? chains : supportedChainNames;
+      chains && chains.length > 0 ? chains : supportedChainNamesInRegistry;
     return getMultiProviderForRole(
       environmentName,
       providerChains,
@@ -60,7 +59,13 @@ export const environment: EnvironmentConfig = {
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-  ) => getKeysForRole(environmentName, supportedChainNames, context, role),
+  ) =>
+    getKeysForRole(
+      environmentName,
+      supportedChainNamesInRegistry,
+      context,
+      role,
+    ),
   agents,
   core,
   igp,

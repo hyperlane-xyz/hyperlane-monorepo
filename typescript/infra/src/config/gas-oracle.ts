@@ -361,16 +361,31 @@ const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 // Overhead for interchain messaging
 export function getOverhead(local: ChainName, remote: ChainName): number {
   const remoteProtocol = getChain(remote).protocol;
+  const localMultisigConfig = defaultMultisigConfigs[local];
 
   if (isEVMLike(remoteProtocol)) {
+    if (!localMultisigConfig) {
+      rootLogger.warn(
+        { local, remote, remoteProtocol },
+        'Missing local multisig config while deriving overhead; using default',
+      );
+      return FOREIGN_DEFAULT_OVERHEAD;
+    }
     return multisigIsmVerificationCost(
-      defaultMultisigConfigs[local].threshold,
-      defaultMultisigConfigs[local].validators.length,
+      localMultisigConfig.threshold,
+      localMultisigConfig.validators.length,
     );
   }
 
   if (remoteProtocol === ProtocolType.Starknet) {
-    return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+    if (!localMultisigConfig) {
+      rootLogger.warn(
+        { local, remote, remoteProtocol },
+        'Missing local multisig config while deriving overhead; using default',
+      );
+      return FOREIGN_DEFAULT_OVERHEAD;
+    }
+    return 10_000_000 + 40_000_000 * localMultisigConfig.threshold;
   }
 
   if (remoteProtocol === ProtocolType.Aleo) {

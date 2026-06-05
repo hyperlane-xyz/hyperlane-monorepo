@@ -46,10 +46,17 @@ export const TRON_CONNECTED_CHAINS = [
   'blast',
 ];
 
+const tronConnectedChainsWithMultisigs = TRON_CONNECTED_CHAINS.filter(
+  (chain) => !!defaultMultisigConfigs[chain],
+);
+
 export function getTronIgpConfig(
   owner: OwnableConfig,
   storageGasOracleConfig: Record<string, any>,
 ): IgpConfig {
+  const tronConnectedChains = tronConnectedChainsWithMultisigs.filter(
+    (remote) => !!storageGasOracleConfig['tron']?.[remote],
+  );
   return {
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     ...owner,
@@ -61,13 +68,13 @@ export function getTronIgpConfig(
     oracleKey: DEPLOYER,
     beneficiary: DEPLOYER,
     overhead: Object.fromEntries(
-      TRON_CONNECTED_CHAINS.map((remote) => [
+      tronConnectedChains.map((remote) => [
         remote,
         getOverheadWithOverrides('tron', remote),
       ]),
     ),
     oracleConfig: Object.fromEntries(
-      TRON_CONNECTED_CHAINS.map((remote) => {
+      tronConnectedChains.map((remote) => {
         const config = storageGasOracleConfig['tron'][remote];
         assert(config, `Missing gas oracle config for tron -> ${remote}`);
         return [remote, config];
@@ -83,7 +90,7 @@ export function getTronCoreConfig(
   const routingIsm: RoutingIsmConfig = {
     type: IsmType.ROUTING,
     domains: Object.fromEntries(
-      TRON_CONNECTED_CHAINS.map((chain) => {
+      tronConnectedChainsWithMultisigs.map((chain) => {
         const multisig = defaultMultisigConfigs[chain];
         const merkleRoot = multisigConfigToIsmConfig(
           IsmType.MERKLE_ROOT_MULTISIG,
@@ -132,7 +139,7 @@ export function getTronCoreConfig(
     type: HookType.FALLBACK_ROUTING,
     ...owner,
     domains: Object.fromEntries(
-      TRON_CONNECTED_CHAINS.map((chain) => [
+      tronConnectedChainsWithMultisigs.map((chain) => [
         chain,
         {
           type: HookType.AGGREGATION,
