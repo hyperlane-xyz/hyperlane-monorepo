@@ -62,8 +62,11 @@ contract WormholeIsm is AbstractCcipReadIsm {
         address _owner,
         string[] memory _urls
     ) external initializer {
-        _transferOwnership(_owner);
+        // Take ownership first so the onlyOwner setUrls call succeeds, then
+        // hand ownership to the configured owner.
+        __Ownable_init();
         setUrls(_urls);
+        _transferOwnership(_owner);
     }
 
     function _offchainLookupCalldata(
