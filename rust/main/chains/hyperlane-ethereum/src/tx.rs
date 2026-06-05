@@ -19,6 +19,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use serde::Deserialize;
 use futures_util::future::join_all;
 use tokio::sync::Mutex;
 use tokio::try_join;
@@ -134,7 +135,19 @@ where
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
-        None => tx.estimate_gas().await?.into(),
+        None => {
+            // Set the from address to the signer's address if available and not already set,
+            // so that chains which check the sender's balance (e.g. Citrea) don't fail when
+            // estimating gas with the default address(0) which has no funds.
+            // Context: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+            let mut estimate_tx = tx.clone();
+            if estimate_tx.tx.from().is_none() {
+                if let Some(sender) = provider.default_sender() {
+                    estimate_tx = estimate_tx.from(sender);
+                }
+            }
+            estimate_tx.estimate_gas().await?.into()
+        }
     };
 
     if with_gas_limit_overrides {
@@ -422,6 +435,37 @@ where
         es(base_fee_per_gas, fee_history.reward)
     } else {
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
+    };
+
+    // Also try eth_maxPriorityFeePerGas as a more accurate source for the
+    // priority fee recommendation. Some chains (e.g., custom POA geth chains
+    // with miner.gasprice set) may have a minimum priority fee that is higher
+    // than what the fee history estimation suggests. Using the higher of the
+    // two values ensures transactions are not stuck pending with too low a
+    // priority fee.
+    // Context: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3169
+    let max_priority_fee_per_gas = {
+        match provider
+            .inner()
+            .request::<_, ethers_core::types::U256>("eth_maxPriorityFeePerGas", ())
+            .await
+        {
+            Ok(rpc_priority_fee) => {
+                debug!(
+                    ?rpc_priority_fee,
+                    ?max_priority_fee_per_gas,
+                    "eth_maxPriorityFeePerGas RPC result"
+                );
+                max_priority_fee_per_gas.max(rpc_priority_fee)
+            }
+            Err(err) => {
+                debug!(
+                    ?err,
+                    "eth_maxPriorityFeePerGas not available, using fee history estimate"
+                );
+                max_priority_fee_per_gas
+            }
+        }
     };
 
     Ok((

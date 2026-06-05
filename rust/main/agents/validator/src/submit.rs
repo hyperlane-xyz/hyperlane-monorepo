@@ -2,6 +2,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use ethers::{
+    abi::{Token, Tokenizable},
+    prelude::Middleware,
+    providers::{Http, Provider, SignerMiddleware},
+    signers::Signer,
+    types::{Bytes, Eip1559TransactionRequest, H160, U256},
+};
 use futures::future::join_all;
 use prometheus::IntGauge;
 use tokio::time::sleep;
@@ -16,11 +23,21 @@ use hyperlane_core::{
     HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
 use hyperlane_core::{
-    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
+    ChainCommunicationError, ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent,
+    ReorgPeriod, SignedType,
 };
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::reorg_reporter::ReorgReporter;
+
+/// Configuration for on-chain checkpoint submission via CheckpointStorage contract.
+#[derive(Clone, Debug)]
+pub(crate) struct OnChainSubmitConfig {
+    /// RPC URL for the chain
+    pub rpc_url: String,
+    /// CheckpointStorage contract address
+    pub contract_address: H160,
+}
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
@@ -35,6 +52,9 @@ pub(crate) struct ValidatorSubmitter {
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    /// Optional on-chain checkpoint submission config.
+    /// When set, checkpoints are submitted as transactions to the CheckpointStorage contract.
+    on_chain_config: Option<OnChainSubmitConfig>,
 }
 
 impl ValidatorSubmitter {
@@ -50,6 +70,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
         max_sign_concurrency: usize,
         reorg_reporter: Arc<dyn ReorgReporter>,
+        on_chain_config: Option<OnChainSubmitConfig>,
     ) -> Self {
         Self {
             reorg_period,
@@ -62,6 +83,7 @@ impl ValidatorSubmitter {
             metrics,
             max_sign_concurrency,
             reorg_reporter,
+            on_chain_config,
         }
     }
 
@@ -367,9 +389,14 @@ impl ValidatorSubmitter {
         );
 
         let start = Instant::now();
-        self.checkpoint_syncer
-            .write_checkpoint(&signed_checkpoint)
-            .await?;
+        if let Some(ref on_chain) = self.on_chain_config {
+            self.submit_checkpoint_on_chain(on_chain, &signed_checkpoint)
+                .await?;
+        } else {
+            self.checkpoint_syncer
+                .write_checkpoint(&signed_checkpoint)
+                .await?;
+        }
         tracing::trace!(
             elapsed=?start.elapsed(),
             "Stored checkpoint",
@@ -378,6 +405,70 @@ impl ValidatorSubmitter {
         // TODO: move these into S3 implementations
         // small sleep before signing next checkpoint to avoid rate limiting
         sleep(Duration::from_millis(100)).await;
+        Ok(())
+    }
+
+    /// Submits a signed checkpoint as a transaction to the CheckpointStorage contract.
+    async fn submit_checkpoint_on_chain(
+        &self,
+        config: &OnChainSubmitConfig,
+        signed_checkpoint: &SignedType<CheckpointWithMessageId>,
+    ) -> ChainResult<()> {
+        let provider = Provider::<Http>::try_from(&config.rpc_url)
+            .map_err(|e| ChainCommunicationError::from_other(e))?;
+        let chain_id = provider
+            .get_chainid()
+            .await
+            .map_err(|e| ChainCommunicationError::from_other(e))?
+            .as_u64();
+        let signer = self.signer.clone().with_chain_id(chain_id);
+        let client = SignerMiddleware::new(provider, signer);
+        let from = client.address();
+
+        // Build the writeCheckpoint((tuple,bytes)) call data
+        // CheckpointWithMessageId encodes as:
+        // (checkpoint: (merkleTreeHookAddress: bytes32, mailboxDomain: uint32, root: bytes32, index: uint32), messageId: bytes32)
+        let checkpoint_tokens = vec![
+            Token::FixedBytes(signed_checkpoint.value.merkle_tree_hook_address.as_bytes().to_vec()),
+            Token::Uint(U256::from(signed_checkpoint.value.mailbox_domain)),
+            Token::FixedBytes(signed_checkpoint.value.root.as_bytes().to_vec()),
+            Token::Uint(U256::from(signed_checkpoint.value.index)),
+        ];
+        let checkpoint_with_msg_id = Token::Tuple(vec![
+            Token::Tuple(checkpoint_tokens),
+            Token::FixedBytes(signed_checkpoint.value.message_id.as_bytes().to_vec()),
+        ]);
+        let signature_bytes = signed_checkpoint.signature.to_vec();
+        let signed_checkpoint_token = Token::Tuple(vec![
+            checkpoint_with_msg_id,
+            Token::Bytes(signature_bytes),
+        ]);
+
+        // Function selector: keccak256("writeCheckpoint(((bytes32,uint32,bytes32,uint32,bytes32),bytes))") first 4 bytes
+        let func_sig = b"writeCheckpoint(((bytes32,uint32,bytes32,uint32,bytes32),bytes))";
+        let selector = keccak256(func_sig);
+        let mut calldata = selector[..4].to_vec();
+        calldata.extend_from_slice(&signed_checkpoint_token.into_token().abi_encode_params());
+
+        let tx = Eip1559TransactionRequest::new()
+            .to(config.contract_address)
+            .from(from)
+            .data(Bytes::from(calldata));
+
+        let pending_tx = client
+            .send_transaction(tx, None)
+            .await
+            .map_err(|e| ChainCommunicationError::from_other(e))?;
+        let receipt = pending_tx
+            .await
+            .map_err(|e| ChainCommunicationError::from_other(e))?;
+
+        info!(
+            tx_hash = ?receipt.transaction_hash,
+            index = signed_checkpoint.value.index,
+            "On-chain checkpoint submitted"
+        );
+
         Ok(())
     }
 

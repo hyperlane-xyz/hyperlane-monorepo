@@ -8,6 +8,7 @@ use std::{collections::HashSet, ops::Add, path::PathBuf, time::Duration};
 
 use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
+use ethers::types::H160;
 use eyre::{eyre, Context};
 use hyperlane_base::{
     impl_loadable_from_settings,
@@ -311,6 +312,33 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 bucket,
                 region: Region::new(region),
                 folder,
+            })
+        }
+        Some("onchain") => {
+            let chain_name = syncer
+                .chain(&mut err)
+                .get_key("chainName")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let contract_address = syncer
+                .chain(&mut err)
+                .get_key("contractAddress")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            cfg_unwrap_all!(&syncer.cwp, err: [chain_name, contract_address]);
+            let contract_address = contract_address
+                .strip_prefix("0x")
+                .unwrap_or(&contract_address);
+            let contract_address = H160::from_str(contract_address)
+                .map_err(|e| eyre!("Invalid contract address: {e}"))
+                .into_config_result(|| (&syncer.cwp).add("contractAddress"))?;
+            err.into_result(CheckpointSyncerConf::OnChain {
+                chain_name,
+                contract_address,
+                validator_address: None,
+                rpc_url: None,
             })
         }
         Some("gcs") => {
