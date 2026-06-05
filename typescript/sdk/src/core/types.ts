@@ -6,7 +6,12 @@ import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 import type { UpgradeConfig } from '../deploy/proxy.js';
 import type { CheckerViolation } from '../deploy/types.js';
 import { ProxyFactoryFactoriesSchema } from '../deploy/types.js';
-import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import {
+  DerivedHookConfig,
+  HookConfigSchema,
+  HookType,
+  IgpVersion,
+} from '../hook/types.js';
 import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
@@ -44,15 +49,75 @@ const rejectRateLimitedDefaultIsm = (
   }
 };
 
-export const CoreConfigSchema = CoreConfigBaseSchema.superRefine(
-  rejectRateLimitedDefaultIsm,
-);
+// Recursively checks a hook config tree for a legacy IGP (igpVersion: legacy).
+function hookTreeContainsLegacyIgp(hook: unknown): boolean {
+  if (typeof hook !== 'object' || hook === null) return false;
+  const node = hook as Record<string, unknown>;
+  if (
+    node.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+    node.igpVersion === IgpVersion.Legacy
+  ) {
+    return true;
+  }
+  if (Array.isArray(node.hooks) && node.hooks.some(hookTreeContainsLegacyIgp)) {
+    return true;
+  }
+  if (
+    node.domains !== null &&
+    typeof node.domains === 'object' &&
+    Object.values(node.domains as Record<string, unknown>).some(
+      hookTreeContainsLegacyIgp,
+    )
+  ) {
+    return true;
+  }
+  return (
+    hookTreeContainsLegacyIgp(node.fallback) ||
+    hookTreeContainsLegacyIgp(node.lowerHook) ||
+    hookTreeContainsLegacyIgp(node.upperHook) ||
+    hookTreeContainsLegacyIgp(node.childHook)
+  );
+}
+
+// QuotedCalls and the offchain-quoting IGP both require EIP-1153 transient
+// storage, so they ship together on the same (non-legacy) chains. Reject the
+// mismatch where a legacy IGP is configured but QuotedCalls is still set to
+// deploy (deployQuotedCalls !== false).
+const rejectQuotedCallsWithLegacyIgp = (
+  val: {
+    defaultHook: unknown;
+    requiredHook: unknown;
+    deployQuotedCalls?: boolean;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (val.deployQuotedCalls === false) return;
+  if (
+    hookTreeContainsLegacyIgp(val.defaultHook) ||
+    hookTreeContainsLegacyIgp(val.requiredHook)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'deployQuotedCalls must be false when a legacy IGP (igpVersion: legacy) is configured: QuotedCalls requires EIP-1153 transient storage and pairs with the new offchain-quoting IGP.',
+      path: ['deployQuotedCalls'],
+    });
+  }
+};
+
+export const CoreConfigSchema = CoreConfigBaseSchema.superRefine((val, ctx) => {
+  rejectRateLimitedDefaultIsm(val, ctx);
+  rejectQuotedCallsWithLegacyIgp(val, ctx);
+});
 
 export const DerivedCoreConfigSchema = CoreConfigBaseSchema.merge(
   z.object({
     interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
   }),
-).superRefine(rejectRateLimitedDefaultIsm);
+).superRefine((val, ctx) => {
+  rejectRateLimitedDefaultIsm(val, ctx);
+  rejectQuotedCallsWithLegacyIgp(val, ctx);
+});
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   mailbox: z.string(),
