@@ -106,7 +106,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     polygonamoy: true,
     radixtestnet: false,
-    seismictestnet: true,
+    // disabled temporarily until timestamps change from ms to secs (soon)
+    seismictestnet: false,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
