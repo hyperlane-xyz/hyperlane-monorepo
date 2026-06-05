@@ -275,9 +275,6 @@
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
   },
-  "scroll": {
-    "validators": ["0xad557170a9f2f21c35e03de07cb30dcbcc3dff63"]
-  },
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
@@ -325,9 +322,6 @@
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
-  },
-  "torus": {
-    "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
   },
   "tron": {
     "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]

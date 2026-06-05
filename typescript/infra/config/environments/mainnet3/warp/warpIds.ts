@@ -1,5 +1,4 @@
 export enum WarpRouteIds {
-  BscMilkywayMILK = 'MILK/bsc-milkyway',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',

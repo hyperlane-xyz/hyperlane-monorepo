@@ -19,8 +19,5 @@
   },
   "ethereum": {
     "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
-  },
-  "moonbeam": {
-    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
   }
 }

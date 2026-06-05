@@ -35,7 +35,6 @@ import { getTRUMPWarpConfig } from './environments/mainnet3/warp/configGetters/g
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
-import { getBscMilkywayMILKWarpConfig } from './environments/mainnet3/warp/configGetters/getBscMilkywayMILKWarpConfig.js';
 import {
   getBsquaredUBTCWarpConfig,
   getUbtcGnosisSafeBuilderStrategyConfigGenerator,
@@ -151,7 +150,6 @@ type WarpConfigGetter = (
 ) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
-  [WarpRouteIds.BscMilkywayMILK]: getBscMilkywayMILKWarpConfig,
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.ArbitrumTIA]: getArbitrumTiaWarpConfig,
   [WarpRouteIds.RenzoEZETH]: getRenzoEZETHWarpConfig,
