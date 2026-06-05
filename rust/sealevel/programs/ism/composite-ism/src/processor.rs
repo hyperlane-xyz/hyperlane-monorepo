@@ -37,11 +37,20 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct CompositeIsmProgram;
+impl package_versioned::PackageVersioned for CompositeIsmProgram {}
+
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<CompositeIsmProgram>();
+    }
+
     if let Ok(ism_instruction) = InterchainSecurityModuleInstruction::decode(instruction_data) {
         return match ism_instruction {
             InterchainSecurityModuleInstruction::Type => ism_type(program_id, accounts),
