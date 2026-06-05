@@ -382,6 +382,7 @@ function generateTokenConfigs(
     warpCoreConfig.tokens.push({
       chainName,
       standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      tokenType: config.type,
       decimals: tokenMetadataMap.getDecimals(chainName)!,
       symbol: config.symbol || tokenMetadataMap.getSymbol(chainName)!,
       name: tokenMetadataMap.getName(chainName)!,
