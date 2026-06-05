@@ -155,7 +155,7 @@ contract MovableCollateralRouterTest is Test {
         router.addRebalancer(address(this));
 
         // Add the destination domain
-        router.setRecipient(
+        router.addRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
@@ -208,13 +208,13 @@ contract MovableCollateralRouterTest is Test {
 
     function test_unenrollRemoteRouter() public {
         router.addBridge(destinationDomain, vtb);
-        router.setRecipient(
+        router.addRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
         router.unenrollRemoteRouter(destinationDomain);
         assertEq(router.allowedBridges(destinationDomain).length, 0);
-        assertEq(router.allowedRecipient(destinationDomain), bytes32(0));
+        assertEq(router.allowedRecipients(destinationDomain).length, 0);
     }
 
     function test_addBridge_NotEnrolled() public {
@@ -267,31 +267,99 @@ contract MovableCollateralRouterTest is Test {
         assertFalse(router.isAllowedRebalancer(address(1)));
     }
 
-    function testSetRecipient() public {
-        router.setRecipient(
-            destinationDomain,
-            bytes32(uint256(uint160(alice)))
+    function testAddRecipient() public {
+        bytes32 recipient = bytes32(uint256(uint160(alice)));
+        router.addRecipient(destinationDomain, recipient);
+        bytes32[] memory recipients = router.allowedRecipients(
+            destinationDomain
         );
-        bytes32 recipient = router.allowedRecipient(destinationDomain);
-        assertEq(recipient, bytes32(uint256(uint160(alice))));
+        assertEq(recipients.length, 1);
+        assertEq(recipients[0], recipient);
+        assertTrue(router.isAllowedRecipient(destinationDomain, recipient));
     }
 
-    function testSetRecipient_NotEnrolled() public {
+    function testAddRecipient_multiple() public {
+        bytes32 first = bytes32(uint256(uint160(alice)));
+        bytes32 second = bytes32(uint256(uint160(address(2))));
+        router.addRecipient(destinationDomain, first);
+        router.addRecipient(destinationDomain, second);
+        assertEq(router.allowedRecipients(destinationDomain).length, 2);
+        assertTrue(router.isAllowedRecipient(destinationDomain, first));
+        assertTrue(router.isAllowedRecipient(destinationDomain, second));
+    }
+
+    function testEnrolledRouterAlwaysAllowed() public view {
+        assertTrue(
+            router.isAllowedRecipient(
+                destinationDomain,
+                router.routers(destinationDomain)
+            )
+        );
+    }
+
+    function testAddRecipient_NotEnrolled() public {
         router.unenrollRemoteRouter(destinationDomain);
         vm.expectRevert(); // router not enrolled
-        router.setRecipient(
+        router.addRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
     }
 
     function testRemoveRecipient() public {
-        router.setRecipient(
+        bytes32 recipient = bytes32(uint256(uint160(alice)));
+        router.addRecipient(destinationDomain, recipient);
+        router.removeRecipient(destinationDomain, recipient);
+        assertEq(router.allowedRecipients(destinationDomain).length, 0);
+        assertFalse(router.isAllowedRecipient(destinationDomain, recipient));
+    }
+
+    function test_rebalance_toAllowedRecipient() public {
+        router.addRebalancer(address(this));
+        router.addBridge(destinationDomain, vtb);
+        token.mintTo(address(router), 1e18);
+
+        bytes32 recipient = bytes32(uint256(uint160(alice)));
+        router.addRecipient(destinationDomain, recipient);
+
+        vm.expectEmit(true, true, true, true);
+        emit MovableCollateralRouter.CollateralMoved(
             destinationDomain,
-            bytes32(uint256(uint160(alice)))
+            recipient,
+            1e18,
+            address(this)
         );
-        router.removeRecipient(destinationDomain);
-        assertEq(router.allowedRecipient(destinationDomain), bytes32(0));
+        router.rebalance(destinationDomain, recipient, 1e18, vtb);
+    }
+
+    function test_rebalance_toDisallowedRecipient_reverts() public {
+        router.addRebalancer(address(this));
+        router.addBridge(destinationDomain, vtb);
+        token.mintTo(address(router), 1e18);
+
+        vm.expectRevert("MCR: Recipient not allowed");
+        router.rebalance(
+            destinationDomain,
+            bytes32(uint256(uint160(alice))),
+            1e18,
+            vtb
+        );
+    }
+
+    function test_rebalance_zeroRecipientDefaultsToEnrolled() public {
+        router.addRebalancer(address(this));
+        router.addBridge(destinationDomain, vtb);
+        token.mintTo(address(router), 1e18);
+
+        bytes32 defaultRecipient = router.routers(destinationDomain);
+        vm.expectEmit(true, true, true, true);
+        emit MovableCollateralRouter.CollateralMoved(
+            destinationDomain,
+            defaultRecipient,
+            1e18,
+            address(this)
+        );
+        router.rebalance(destinationDomain, bytes32(0), 1e18, vtb);
     }
 
     function testAllRebalancers() public {

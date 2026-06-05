@@ -44,7 +44,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         );
 
         // Add the destination domain
-        router.setRecipient(destinationDomain, _recipient);
+        router.addRecipient(destinationDomain, _recipient);
 
         // Add the given bridge
         router.addBridge(destinationDomain, vtb);

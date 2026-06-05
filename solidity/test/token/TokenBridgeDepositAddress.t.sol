@@ -365,7 +365,7 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         token.mintTo(address(this), feeAmount);
         token.approve(address(router), feeAmount);
 
-        assertEq(router.allowedRecipient(DESTINATION_DOMAIN), bytes32(0));
+        assertEq(router.allowedRecipients(DESTINATION_DOMAIN).length, 0);
         assertEq(
             token.allowance(address(router), address(bridge)),
             type(uint256).max

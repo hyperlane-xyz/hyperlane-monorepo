@@ -40,13 +40,17 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         localDomain = _localDomain;
     }
 
-    /// @notice Executes a same-chain rebalance into an enrolled destination
+    /// @notice Executes a same-chain rebalance into an allowed destination
     /// router.
     /// @dev `calls` run after source collateral has been pulled into this
     /// wrapper. Use calls for token approvals and DEX swaps. Calls must leave
     /// enough output token on this wrapper for it to pay the destination router.
+    /// @param destinationRecipient The destination collateral router to fund.
+    /// Pass `bytes32(0)` to default to the source router's enrolled local
+    /// remote router; otherwise it must be an allowed recipient on the source.
     function localRebalance(
         address sourceRouter,
+        bytes32 destinationRecipient,
         uint256 amountIn,
         CallLib.Call[] calldata calls
     ) external payable {
@@ -68,6 +72,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         address destinationRouter = _rebalanceSource(
             source,
             sourceRouter,
+            destinationRecipient,
             amountIn
         );
         address outputToken = MovableCollateralRouter(destinationRouter)
@@ -110,6 +115,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     function _rebalanceSource(
         MovableCollateralRouter source,
         address sourceRouter,
+        bytes32 destinationRecipient,
         uint256 amountIn
     ) internal returns (address destinationRouter) {
         _CALLBACK_RECIPIENT_SLOT.store(
@@ -117,8 +123,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         );
 
         // Enters this contract via transferRemote, which escrows source funds
-        // and writes the destination recipient into transient storage.
-        source.rebalance(localDomain, amountIn, this);
+        // and writes the destination recipient into transient storage. The
+        // source validates `destinationRecipient` against its allowed set.
+        source.rebalance(localDomain, destinationRecipient, amountIn, this);
         destinationRouter = TypeCasts.bytes32ToAddress(
             _CALLBACK_RECIPIENT_SLOT.loadBytes32()
         );

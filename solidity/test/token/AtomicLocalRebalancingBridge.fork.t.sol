@@ -178,6 +178,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         vm.prank(rebalancer);
         bridge.localRebalance(
             address(sourceRouter),
+            bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 5e6)
         );
@@ -202,6 +203,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         vm.prank(rebalancer);
         bridge.localRebalance(
             address(sourceRouter),
+            bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 20e6)
         );
@@ -226,6 +228,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         vm.prank(rebalancer);
         bridge.localRebalance(
             address(sourceRouter),
+            bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 20e6)
         );
@@ -249,6 +252,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         );
         bridge.localRebalance(
             address(sourceRouter),
+            bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 0)
         );
@@ -343,7 +347,12 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
         calls[2] = _topUpCall(IERC20(USDT), 20e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(address(sourceRouter), amountIn, calls);
+        bridge.localRebalance(
+            address(sourceRouter),
+            bytes32(0),
+            amountIn,
+            calls
+        );
 
         _assertExactFunding(
             IERC20(USDT),
