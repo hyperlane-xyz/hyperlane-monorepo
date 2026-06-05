@@ -1,5 +1,6 @@
 import {
   AccountInterface,
+  BlockTag,
   CairoOption,
   CairoOptionVariant,
   Contract,
@@ -99,6 +100,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     const provider = new RpcProvider({
       nodeUrl: rpcUrls[0],
       transactionRetryIntervalFallback,
+      // Default reads to the latest accepted block instead of starknet.js's
+      // `pending` default. Some RPC providers reject `block_id: "pending"`
+      // (-32602 Invalid block id), and reading already-finalized state at
+      // `latest` is both universally supported and semantically correct.
+      blockIdentifier: BlockTag.LATEST,
     });
     return new StarknetProvider(provider, metadata, rpcUrls);
   }
