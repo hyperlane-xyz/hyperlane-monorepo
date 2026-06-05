@@ -67070,41 +67070,6 @@
       ]
     },
     {
-      "name": "everclear_gateway",
-      "matchingList": [
-        {
-          "originDomain": 1,
-          "senderAddress": "0x0000000000000000000000009ada72ccbafe94248afade6b604d1beaacc899a7",
-          "destinationDomain": "*",
-          "recipientAddress": "*"
-        },
-        {
-          "originDomain": 10,
-          "senderAddress": "0x0000000000000000000000009ada72ccbafe94248afade6b604d1beaacc899a7",
-          "destinationDomain": "*",
-          "recipientAddress": "*"
-        },
-        {
-          "originDomain": 56,
-          "senderAddress": "0x0000000000000000000000009ada72ccbafe94248afade6b604d1beaacc899a7",
-          "destinationDomain": "*",
-          "recipientAddress": "*"
-        },
-        {
-          "originDomain": 8453,
-          "senderAddress": "0x0000000000000000000000009ada72ccbafe94248afade6b604d1beaacc899a7",
-          "destinationDomain": "*",
-          "recipientAddress": "*"
-        },
-        {
-          "originDomain": 42161,
-          "senderAddress": "0x0000000000000000000000009ada72ccbafe94248afade6b604d1beaacc899a7",
-          "destinationDomain": "*",
-          "recipientAddress": "*"
-        }
-      ]
-    },
-    {
       "name": "HYPER/arbitrum-base-bsc-ethereum-optimism",
       "matchingList": [
         {

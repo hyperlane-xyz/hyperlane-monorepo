@@ -45,7 +45,6 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
@@ -704,12 +703,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // more poorly documented.
       name: 'aave',
       matchingList: senderMatchingList(aaveSenderAddresses),
-    },
-    {
-      // https://docs.everclear.org/resources/contracts/mainnet
-      // Messages between HubGateway (Everclear hub) <> EverclearSpoke (all other spoke chains)
-      name: 'everclear_gateway',
-      matchingList: senderMatchingList(everclearSenderAddresses),
     },
     // Manually specified for now until things are public
     {
