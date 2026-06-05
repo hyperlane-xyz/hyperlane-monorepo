@@ -10,6 +10,7 @@ import {
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { tokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -54,6 +55,11 @@ export const igp: ChainMap<IgpConfig> = objMap(
           getOverheadWithOverrides(chain, remote),
         ]),
       ),
+      // Per-fee-token gas oracles for token-denominated IGP fees; configured in
+      // tokenGasOracles.ts (empty by default).
+      ...(tokenGasOracleConfigs[chain]
+        ? { tokenOracleConfig: tokenGasOracleConfigs[chain] }
+        : {}),
     };
   },
 );
