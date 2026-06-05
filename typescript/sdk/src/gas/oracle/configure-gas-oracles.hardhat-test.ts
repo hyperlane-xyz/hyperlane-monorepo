@@ -1,12 +1,16 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { constants, utils } from 'ethers';
 import hre from 'hardhat';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  StorageGasOracle__factory,
+} from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { testIgpConfig } from '../../test/testUtils.js';
+import { randomAddress, testIgpConfig } from '../../test/testUtils.js';
 import { ChainMap } from '../../types.js';
 import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer.js';
 import { IgpConfig } from '../types.js';
@@ -79,5 +83,45 @@ describe('HyperlaneIgpDeployer', () => {
       modifiedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
       `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${modifiedConfig.tokenExchangeRate.toString()}`,
     ).to.be.true;
+  });
+
+  it('should wire a per-fee-token gas oracle via setTokenGasOracles', async () => {
+    const feeToken = randomAddress();
+    const tokenOracle = {
+      tokenExchangeRate: utils.parseUnits('5', 'gwei').toString(),
+      gasPrice: utils.parseUnits('7', 'gwei').toString(),
+      tokenDecimals: 18,
+    };
+    testConfig[local].tokenOracleConfig = {
+      [feeToken]: { [remote]: tokenOracle },
+    };
+
+    const localContracts = await deployer.deployContracts(
+      local,
+      testConfig[local],
+    );
+    igp = localContracts.interchainGasPaymaster;
+
+    // A dedicated oracle is wired for the fee token, distinct from the native one.
+    const oracleAddress = await igp.tokenGasOracles(feeToken, remoteId);
+    expect(eqAddress(oracleAddress, constants.AddressZero)).to.be.false;
+    const nativeOracle = (await igp.destinationGasConfigs(remoteId)).gasOracle;
+    expect(eqAddress(oracleAddress, nativeOracle)).to.be.false;
+
+    // The oracle returns the configured token rates.
+    const oracle = StorageGasOracle__factory.connect(
+      oracleAddress,
+      multiProvider.getProvider(local),
+    );
+    const data = await oracle.getExchangeRateAndGasPrice(remoteId);
+    const expected = oracleConfigToOracleData(tokenOracle);
+    expect(data.gasPrice.eq(expected.gasPrice)).to.be.true;
+    expect(data.tokenExchangeRate.eq(expected.tokenExchangeRate)).to.be.true;
+
+    // Re-deploying with the same config is idempotent (oracle resolved on-chain).
+    const oracleBefore = oracleAddress;
+    await deployer.deployContracts(local, testConfig[local]);
+    const oracleAfter = await igp.tokenGasOracles(feeToken, remoteId);
+    expect(eqAddress(oracleAfter, oracleBefore)).to.be.true;
   });
 });
