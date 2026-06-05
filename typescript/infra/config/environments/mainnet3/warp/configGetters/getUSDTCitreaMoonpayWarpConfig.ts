@@ -13,6 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
+import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -24,17 +25,26 @@ import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
+const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
+// Threshold in message units (6-decimal normalized via scale); BSC's 18-dec token is
+// scaled to 6-dec message amounts so the same value applies: 1000 USDT = 1_000_000_000.
+const AMOUNT_ROUTING_THRESHOLD = 1_000_000_000;
+
 const ownersByChain = {
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
+  bsc: awSafes.bsc,
   ethereum: awSafes.ethereum,
+  katana: awIcas.katana,
   polygon: awIcas.polygon,
 } as const;
 
 const feeOwnersByChain = {
   arbitrum: warpFeesIcas.arbitrum,
   base: warpFeesIcas.base,
+  bsc: warpFeesIcas.bsc,
   ethereum: warpFeesIcas.ethereum,
+  katana: warpFeesIcas.katana,
   polygon: warpFeesIcas.polygon,
 } as const;
 const QUOTE_SIGNERS = [
@@ -46,8 +56,10 @@ const ROUTE_CHAINS = [
   'solanamainnet',
   'arbitrum',
   'base',
+  'bsc',
   'citrea',
   'ethereum',
+  'katana',
   'polygon',
 ] as const satisfies readonly ChainName[];
 
@@ -116,13 +128,57 @@ function buildDefaultIsm(owner: string): IsmConfig {
   };
 }
 
-function buildInnerRoutingIsm(local: EvmChain, owner: string): IsmConfig {
-  const domains = Object.fromEntries(
+const TRUSTED_RELAYER_CHAINS = ['bsc', 'katana'] as const;
+type TrustedRelayerChain = (typeof TRUSTED_RELAYER_CHAINS)[number];
+
+function isTrustedRelayerChain(chain: string): chain is TrustedRelayerChain {
+  return TRUSTED_RELAYER_CHAINS.includes(chain as TrustedRelayerChain);
+}
+
+function buildInnerRoutingIsm(
+  local: EvmChain | TrustedRelayerChain,
+  owner: string,
+): IsmConfig {
+  if (isTrustedRelayerChain(local)) {
+    const domains: Record<string, IsmConfig> = Object.fromEntries(
+      ROUTE_CHAINS.filter(
+        (chain) => chain !== local && chain !== 'solanamainnet',
+      ).map((chain) => [
+        chain,
+        {
+          type: IsmType.TRUSTED_RELAYER,
+          relayer: FAST_PATH_RELAYER,
+        } as IsmConfig,
+      ]),
+    );
+    return { type: IsmType.ROUTING, owner, domains } as const;
+  }
+
+  const domains: Record<string, IsmConfig> = Object.fromEntries(
     CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
       remote,
       CCTP_FAST_ROUTE_ADDRESSES[local] as IsmConfig,
     ]),
   );
+
+  for (const chain of TRUSTED_RELAYER_CHAINS) {
+    domains[chain] = {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: AMOUNT_ROUTING_THRESHOLD,
+          lowerIsm: {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: FAST_PATH_RELAYER,
+          },
+          upperIsm: buildDefaultIsm(owner),
+        },
+        buildDefaultIsm(owner),
+      ],
+    };
+  }
 
   return {
     type: IsmType.ROUTING,
@@ -132,9 +188,24 @@ function buildInnerRoutingIsm(local: EvmChain, owner: string): IsmConfig {
 }
 
 function buildInterchainSecurityModule(
-  local: EvmChain,
+  local: EvmChain | TrustedRelayerChain,
   owner: string,
 ): IsmConfig {
+  if (isTrustedRelayerChain(local)) {
+    return {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        buildDefaultIsm(owner),
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: AMOUNT_ROUTING_THRESHOLD,
+          lowerIsm: buildInnerRoutingIsm(local, owner),
+          upperIsm: buildDefaultIsm(owner),
+        },
+      ],
+    } as const;
+  }
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
@@ -176,13 +247,17 @@ export async function getUSDTCitreaMoonpayWarpConfig(
   const {
     arbitrum: arbitrumOwner,
     base: baseOwner,
+    bsc: bscOwner,
     ethereum: ethereumOwner,
+    katana: katanaOwner,
     polygon: polygonOwner,
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
+    bsc: bscFeeOwner,
     ethereum: ethereumFeeOwner,
+    katana: katanaFeeOwner,
     polygon: polygonFeeOwner,
   } = feeOwnersByChain;
 
@@ -214,6 +289,30 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         baseOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(baseFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    bsc: {
+      type: TokenType.crossCollateral,
+      token: tokens.bsc.USDT,
+      mailbox: routerConfig.bsc.mailbox,
+      owner: bscOwner,
+      scale: { numerator: 1, denominator: 1_000_000_000_000 },
+      hook: buildHook('bsc', bscOwner),
+      interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
+      tokenFee: buildCrossCollateralRoutingFee(bscFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    katana: {
+      type: TokenType.crossCollateral,
+      token: tokens.katana.USDT,
+      mailbox: routerConfig.katana.mailbox,
+      owner: katanaOwner,
+      hook: buildHook('katana', katanaOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'katana',
+        katanaOwner,
+      ),
+      tokenFee: buildCrossCollateralRoutingFee(katanaFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
     ethereum: {

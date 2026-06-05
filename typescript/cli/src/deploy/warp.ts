@@ -387,6 +387,7 @@ function generateTokenConfigs(
       name: tokenMetadataMap.getName(chainName)!,
       addressOrDenom: contracts[chainName],
       collateralAddressOrDenom,
+      scale: tokenMetadataMap.getScale(chainName),
     });
   }
 }

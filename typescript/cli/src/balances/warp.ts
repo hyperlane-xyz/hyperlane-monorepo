@@ -11,6 +11,8 @@ import { logBlue, logGreen, logTable, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
+const DEFAULT_NATIVE_DECIMALS = 18;
+
 function formatBigIntBalance(raw: bigint, decimals: number): string {
   const str = raw.toString().padStart(decimals + 1, '0');
   const intPart = str.slice(0, str.length - decimals);
@@ -42,6 +44,7 @@ export async function runWarpRouteBalances({
   out,
   address,
   raw,
+  gas,
 }: {
   context: CommandContext;
   warpRouteId?: string;
@@ -49,6 +52,7 @@ export async function runWarpRouteBalances({
   out?: string;
   address?: string;
   raw?: boolean;
+  gas?: boolean;
 }): Promise<void> {
   const warpCoreConfig: WarpCoreConfig = await getWarpCoreConfigOrExit({
     context,
@@ -198,6 +202,40 @@ export async function runWarpRouteBalances({
         }
       }
     }
+  }
+
+  if (gas && address) {
+    const uniqueChains = [...new Set(filteredTokens.map((t) => t.chainName))];
+
+    const gasRows: Record<string, { Symbol: string; Balance: string }> = {};
+    await Promise.all(
+      uniqueChains.map(async (chain) => {
+        try {
+          const metadata = context.multiProvider.getChainMetadata(chain);
+          const symbol = metadata.nativeToken?.symbol ?? 'ETH';
+          const decimals =
+            metadata.nativeToken?.decimals ?? DEFAULT_NATIVE_DECIMALS;
+          const provider = context.multiProvider.getProvider(chain);
+          const balanceRaw = await provider.getBalance(address);
+          const balance = raw
+            ? balanceRaw.toString()
+            : formatBigIntBalance(BigInt(balanceRaw.toString()), decimals);
+          gasRows[chain] = { Symbol: symbol, Balance: balance };
+        } catch (e: unknown) {
+          warnYellow(
+            `Could not fetch gas balance on ${chain}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          const metadata = context.multiProvider.getChainMetadata(chain);
+          gasRows[chain] = {
+            Symbol: metadata.nativeToken?.symbol ?? 'ETH',
+            Balance: 'Error',
+          };
+        }
+      }),
+    );
+
+    logBlue(`\nGas balances for ${address}:`);
+    logTable(gasRows);
   }
 
   if (out) {
