@@ -15,9 +15,10 @@ use solana_program::{
 
 use crate::{
     accounts::{
-        CcFeeQuoteContext, CrossCollateralRouteAccount, FeeAccountData, FeeData, FeeQuoteContext,
-        FeeStandingQuotePdaAccount, QuoteContext, RouteDomainAccount, TransientQuoteAccount,
-        DEFAULT_ROUTER, TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        CcFeeQuoteContext, CcQuoteFeeValidation, CrossCollateralRouteAccount, FeeAccountData,
+        FeeData, FeeQuoteContext, FeeStandingQuotePdaAccount, QuoteContext, RouteDomainAccount,
+        TransientQuoteAccount, DEFAULT_ROUTER, TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN,
+        WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -172,19 +173,26 @@ pub(super) fn process_quote_fee(
     // --- Quote cascade: transient → standing → on-chain fallback ---
 
     // Step 1: Transient quote — override params, compute fee, autoclose.
-    // Dispatch the correct context type based on fee data variant.
+    // Dispatch the correct context type and validation scope based on fee data variant.
     if let Some(transient_acct) = transient_info {
         let fee = match &fee_account.fee_data {
-            FeeData::CrossCollateralRouting(_) => try_consume_transient_quote::<CcFeeQuoteContext>(
-                program_id,
-                transient_acct,
-                payer_info,
-                fee_account_info.key,
-                &strategy,
-                &data,
-                fee_account.min_issued_at,
-                &clock,
-            )?,
+            FeeData::CrossCollateralRouting(_) => {
+                let validation = if cc_specific_route_active {
+                    CcQuoteFeeValidation::Specific(&data)
+                } else {
+                    CcQuoteFeeValidation::Default(&data)
+                };
+                try_consume_transient_quote::<CcFeeQuoteContext>(
+                    program_id,
+                    transient_acct,
+                    payer_info,
+                    fee_account_info.key,
+                    &strategy,
+                    validation,
+                    fee_account.min_issued_at,
+                    &clock,
+                )?
+            }
             _ => try_consume_transient_quote::<FeeQuoteContext>(
                 program_id,
                 transient_acct,
@@ -299,7 +307,7 @@ fn try_consume_transient_quote<C: QuoteContext>(
     payer_info: &AccountInfo,
     fee_account_key: &Pubkey,
     strategy: &FeeDataStrategy,
-    quote_fee_data: &QuoteFee,
+    validation: C::Validation<'_>,
     min_issued_at: i64,
     clock: &Clock,
 ) -> Result<u64, ProgramError> {
@@ -329,7 +337,7 @@ fn try_consume_transient_quote<C: QuoteContext>(
     // Parse and validate context using the generic context type.
     let ctx = C::try_from_bytes(&transient.context)
         .map_err(|_| QuoteValidationError::TransientContextMismatch)?;
-    ctx.validate(quote_fee_data)?;
+    let quote_fee_data = ctx.validate(validation)?;
 
     // Parse quoted strategy and verify curve variant matches on-chain.
     let quoted_strategy = FeeDataStrategy::try_from(transient.data.as_slice())

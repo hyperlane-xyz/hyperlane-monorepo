@@ -4339,6 +4339,678 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
     assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
 }
 
+/// CC TransferRemoteTo with an offchain transient quote signed against
+/// `DEFAULT_ROUTER`. Only the `(REMOTE_DOMAIN, DEFAULT_ROUTER)` route is
+/// configured on-chain; the caller passes a different specific `target_router`.
+/// The fee program's QuoteFee falls back to the DEFAULT scope, validates the
+/// transient (ctx.target_router == DEFAULT_ROUTER under `CcConsumeScope::Default`),
+/// consumes it, and the fee amount comes from the transient quote — not the
+/// on-chain DEFAULT route rate.
+#[tokio::test]
+async fn test_cc_remote_transfer_with_default_router_transient_quote() {
+    use hyperlane_sealevel_fee::accounts::CrossCollateralRoutingFeeConfig;
+
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    // Caller's specific target_router is unconfigured on-chain → CC cascade
+    // falls back to DEFAULT.
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fp = fee_program_id();
+    let (fee_account_key, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+
+    // On-chain DEFAULT route — small, low values so we can prove the transient
+    // quote took precedence (transient max_fee is 12345, on-chain caps at 75).
+    let route_max_fee: u64 = 75;
+    let route_half_amount: u64 = 500_000;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                fee_instruction::init_fee_instruction(
+                    fp,
+                    ctx.payer.pubkey(),
+                    fee_salt,
+                    fee_beneficiary_owner,
+                    FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                        wildcard_signers: std::collections::BTreeSet::new(),
+                    }),
+                    LOCAL_DOMAIN,
+                )
+                .unwrap(),
+                // Only the DEFAULT_ROUTER route is configured (no specific route for `target_router`).
+                fee_instruction::set_remote_fee_route_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    REMOTE_DOMAIN,
+                    Some(DEFAULT_ROUTER),
+                    FeeDataStrategy::Linear(FeeParams {
+                        max_fee: route_max_fee,
+                        half_amount: route_half_amount,
+                    }),
+                    None,
+                )
+                .unwrap(),
+                // Add the offchain signer to the (REMOTE_DOMAIN, DEFAULT_ROUTER) CC route.
+                fee_instruction::set_quote_signer_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    fee_instruction::SetQuoteSignerOperation::Add(signer_address),
+                    Some(fee_instruction::RouteKey::CrossCollateral {
+                        destination: REMOTE_DOMAIN,
+                        target_router: DEFAULT_ROUTER,
+                    }),
+                )
+                .unwrap(),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Set fee config on the token.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fp,
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Beneficiary ATA.
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let recipient = H256::random();
+
+    // Sign a CC transient quote with ctx.target_router == DEFAULT_ROUTER.
+    // Transient params are deliberately large vs on-chain so the assertion
+    // distinguishes "transient consumed" (fee = 12345) from "fell through to
+    // on-chain DEFAULT" (fee = 75).
+    let transient_max_fee: u64 = 12345;
+    let transient_half_amount: u64 = 1_000_000_000;
+    let mut context = Vec::with_capacity(76);
+    context.extend_from_slice(&REMOTE_DOMAIN.to_le_bytes());
+    context.extend_from_slice(recipient.as_bytes());
+    context.extend_from_slice(&transfer_amount.to_le_bytes());
+    context.extend_from_slice(DEFAULT_ROUTER.as_bytes());
+    let data = borsh::to_vec(&FeeDataStrategy::Linear(FeeParams {
+        max_fee: transient_max_fee,
+        half_amount: transient_half_amount,
+    }))
+    .unwrap();
+    let clock: solana_program::clock::Clock = ctx.banks_client.get_sysvar().await.unwrap();
+    let issued_at = encode_u48(clock.unix_timestamp);
+
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at,
+        expiry: issued_at, // transient
+        client_salt: H256::random(),
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(&token_sender_pubkey);
+    let message_hash = quote.build_message_hash(&fee_account_key, LOCAL_DOMAIN, &scoped_salt);
+    quote.signature = sign_hash(&signing_key, message_hash.as_fixed_bytes());
+
+    // Submit transient: signer set is fetched from (REMOTE_DOMAIN, DEFAULT_ROUTER) CC route PDA.
+    let cc_default_route_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, &DEFAULT_ROUTER),
+            &fp,
+        )
+        .0
+    };
+    let submit_ix = fee_instruction::submit_transient_quote_instruction(
+        fp,
+        token_sender_pubkey,
+        fee_account_key,
+        scoped_salt,
+        quote.clone(),
+        &[cc_default_route_pda],
+    )
+    .unwrap();
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[submit_ix],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (transient_pda, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_fee::transient_quote_pda_seeds!(fee_account_key, scoped_salt),
+        &fp,
+    );
+
+    // Build the full TransferRemoteTo with the transient PDA inserted in the
+    // fee section right after the fee_account.
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let specific_domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let default_domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &DEFAULT_ROUTER),
+            &fp,
+        )
+        .0
+    };
+    let wildcard_standing_quote_pda = {
+        let d = WILDCARD_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let cc_route_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    })
+    .encode()
+    .unwrap();
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    // CC prefix
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    // Core
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Fee section: transient PDA before the standing/route PDAs.
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new(transient_pda, false), // writable for autoclose
+                    AccountMeta::new_readonly(specific_domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(default_domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new_readonly(cc_route_pda, false),
+                    AccountMeta::new_readonly(cc_default_route_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false),
+                    // IGP
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    // Plugin
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Fee must come from the transient quote (12345), not the on-chain DEFAULT
+    // route (75). Distinguishing values prove the DEFAULT-router transient was
+    // resolved and consumed via the `Default` scope branch.
+    let expected_fee = transient_max_fee;
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &token_sender_ata,
+        (100 * 10u64.pow(LOCAL_DECIMALS_U32)) - transfer_amount - expected_fee,
+    )
+    .await;
+    assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+
+    // Transient PDA autoclosed after successful consume.
+    let transient_account = ctx.banks_client.get_account(transient_pda).await.unwrap();
+    assert!(
+        transient_account.is_none() || transient_account.unwrap().data.is_empty(),
+        "transient PDA should be closed after consumption"
+    );
+}
+
+/// Negative variant of the DEFAULT-router transient flow: when both the
+/// DEFAULT and the specific `target_router` routes are configured on-chain,
+/// a DEFAULT-signed transient cannot consume against the specific scope.
+/// `TransferRemoteTo` with the specific `target_router` resolves
+/// `cc_specific_route_active = true` → scope = `CcConsumeScope::Specific` →
+/// `ctx.target_router (DEFAULT_ROUTER) != quote_fee.target_router (target_router)`
+/// → `QuoteValidationError::TransientContextMismatch` aborts the whole tx.
+/// The transient PDA must remain on-chain for the payer to close manually.
+#[tokio::test]
+async fn test_cc_remote_transfer_with_default_router_transient_rejected_when_specific_configured() {
+    use hyperlane_sealevel_fee::accounts::CrossCollateralRoutingFeeConfig;
+    use quote_verifier::QuoteValidationError;
+
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fp = fee_program_id();
+    let (fee_account_key, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    // Configure BOTH routes — DEFAULT (signer set) + specific target_router
+    // (no signer needed here, just initialized so cc_specific_route_active=true
+    // at consume time).
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                fee_instruction::init_fee_instruction(
+                    fp,
+                    ctx.payer.pubkey(),
+                    fee_salt,
+                    fee_beneficiary_owner,
+                    FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                        wildcard_signers: std::collections::BTreeSet::new(),
+                    }),
+                    LOCAL_DOMAIN,
+                )
+                .unwrap(),
+                fee_instruction::set_remote_fee_route_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    REMOTE_DOMAIN,
+                    Some(DEFAULT_ROUTER),
+                    FeeDataStrategy::Linear(FeeParams {
+                        max_fee: 75,
+                        half_amount: 500_000,
+                    }),
+                    None,
+                )
+                .unwrap(),
+                fee_instruction::set_remote_fee_route_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    REMOTE_DOMAIN,
+                    Some(target_router),
+                    FeeDataStrategy::Linear(FeeParams {
+                        max_fee: 200,
+                        half_amount: 1_000_000,
+                    }),
+                    None,
+                )
+                .unwrap(),
+                fee_instruction::set_quote_signer_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    fee_instruction::SetQuoteSignerOperation::Add(signer_address),
+                    Some(fee_instruction::RouteKey::CrossCollateral {
+                        destination: REMOTE_DOMAIN,
+                        target_router: DEFAULT_ROUTER,
+                    }),
+                )
+                .unwrap(),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Set fee config on the token.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fp,
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let recipient = H256::random();
+
+    // Sign a transient against DEFAULT_ROUTER even though a specific route
+    // exists — the off-chain quoter's mistake we want the on-chain to catch.
+    let mut context = Vec::with_capacity(76);
+    context.extend_from_slice(&REMOTE_DOMAIN.to_le_bytes());
+    context.extend_from_slice(recipient.as_bytes());
+    context.extend_from_slice(&transfer_amount.to_le_bytes());
+    context.extend_from_slice(DEFAULT_ROUTER.as_bytes());
+    let data = borsh::to_vec(&FeeDataStrategy::Linear(FeeParams {
+        max_fee: 12345,
+        half_amount: 1_000_000_000,
+    }))
+    .unwrap();
+    let clock: solana_program::clock::Clock = ctx.banks_client.get_sysvar().await.unwrap();
+    let issued_at = encode_u48(clock.unix_timestamp);
+
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at,
+        expiry: issued_at,
+        client_salt: H256::random(),
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(&token_sender_pubkey);
+    let message_hash = quote.build_message_hash(&fee_account_key, LOCAL_DOMAIN, &scoped_salt);
+    quote.signature = sign_hash(&signing_key, message_hash.as_fixed_bytes());
+
+    let cc_default_route_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, &DEFAULT_ROUTER),
+            &fp,
+        )
+        .0
+    };
+    // Submit succeeds — the transient is authorized by DEFAULT route signers,
+    // regardless of what other routes exist on-chain.
+    let submit_ix = fee_instruction::submit_transient_quote_instruction(
+        fp,
+        token_sender_pubkey,
+        fee_account_key,
+        scoped_salt,
+        quote.clone(),
+        &[cc_default_route_pda],
+    )
+    .unwrap();
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[submit_ix],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (transient_pda, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_fee::transient_quote_pda_seeds!(fee_account_key, scoped_salt),
+        &fp,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+    let specific_domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let default_domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &DEFAULT_ROUTER),
+            &fp,
+        )
+        .0
+    };
+    let wildcard_standing_quote_pda = {
+        let d = WILDCARD_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let cc_route_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    })
+    .encode()
+    .unwrap();
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new(transient_pda, false),
+                    AccountMeta::new_readonly(specific_domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(default_domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new_readonly(cc_route_pda, false),
+                    AccountMeta::new_readonly(cc_default_route_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false),
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
+        ),
+    );
+
+    // Transient PDA must still exist — the failed consume must not autoclose.
+    let transient_account = ctx.banks_client.get_account(transient_pda).await.unwrap();
+    assert!(
+        transient_account.is_some_and(|a| !a.data.is_empty()),
+        "transient PDA must persist after rejected consume so the payer can close it"
+    );
+}
+
 // === Additional fee tests for parity with native ===
 
 #[tokio::test]

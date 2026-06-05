@@ -464,6 +464,47 @@ fn build_quote_fee_cc_ix(
     )
 }
 
+/// Builds a QuoteFee instruction for CrossCollateralRouting mode with a
+/// transient quote PDA in slot 2.
+fn build_quote_fee_cc_transient_ix(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    transient_pda: Pubkey,
+    destination_domain: u32,
+    recipient: H256,
+    amount: u64,
+    target_router: H256,
+) -> Instruction {
+    let specific_domain_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, destination_domain, &target_router);
+    let default_domain_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
+    let wildcard_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, WILDCARD_DOMAIN, &target_router);
+    let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
+    let cc_default_pda = cc_route_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
+
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain,
+            recipient,
+            amount,
+            target_router,
+        }),
+        vec![
+            AccountMeta::new_readonly(*fee_account, false),
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(transient_pda, false),
+            AccountMeta::new_readonly(specific_domain_quotes_pda, false),
+            AccountMeta::new_readonly(default_domain_quotes_pda, false),
+            AccountMeta::new_readonly(wildcard_quotes_pda, false),
+            AccountMeta::new_readonly(cc_specific_pda, false),
+            AccountMeta::new_readonly(cc_default_pda, false),
+        ],
+    )
+}
+
 fn build_add_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
     build_add_quote_signer_ix_with_route(fee_account, owner, signer, None)
 }

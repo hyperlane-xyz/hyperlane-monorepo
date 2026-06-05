@@ -1,5 +1,76 @@
 use crate::*;
 
+async fn init_cc_fee_account(banks_client: &mut BanksClient, payer: &Keypair) -> Pubkey {
+    init_fee_account(
+        banks_client,
+        payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await
+}
+
+async fn set_cc_route(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    fee_key: &Pubkey,
+    dest: u32,
+    target_router: H256,
+    strategy: FeeDataStrategy,
+) {
+    process_tx(
+        banks_client,
+        payer,
+        build_set_cc_route_ix(fee_key, &payer.pubkey(), dest, target_router, strategy),
+        &[],
+    )
+    .await
+    .unwrap();
+}
+
+async fn add_cc_route_signer(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    fee_key: &Pubkey,
+    dest: u32,
+    target_router: H256,
+    signer_address: H160,
+) {
+    process_tx(
+        banks_client,
+        payer,
+        build_add_quote_signer_ix_with_route(
+            fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+}
+
+fn transient_pda_for_quote(fee_key: &Pubkey, payer: &Pubkey, quote: &SvmSignedQuote) -> Pubkey {
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    )
+    .0
+}
+
+async fn assert_transient_exists(banks_client: &mut BanksClient, transient_pda: Pubkey) {
+    let account = banks_client.get_account(transient_pda).await.unwrap();
+    assert!(account.is_some_and(|account| !account.data.is_empty()));
+}
+
 #[tokio::test]
 async fn test_submit_transient_quote() {
     let (mut banks_client, payer) = setup_client().await;
@@ -1235,88 +1306,527 @@ async fn test_cc_context_wrong_target_router_fails() {
     );
 }
 
-/// A CC transient quote signed with `ctx.target_router == DEFAULT_ROUTER` would
-/// be unconsumable: real QuoteFee callers always pass a concrete target_router
-/// and the consume-time validation is strict on that field. The submit handler
-/// rejects this shape early to prevent operator footguns / rent stranding.
 #[tokio::test]
-async fn test_cc_transient_default_router_target_rejected() {
+async fn test_cc_default_router_transient_consumed_when_specific_unconfigured() {
     let (mut banks_client, payer) = setup_client().await;
     let signing_key = SigningKey::random(&mut rand::thread_rng());
     let signer_address = eth_address(&signing_key);
 
-    let fee_key = init_fee_account(
+    let fee_key = init_cc_fee_account(&mut banks_client, &payer).await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+    let amount = 500u64;
+
+    set_cc_route(
         &mut banks_client,
         &payer,
-        default_salt(),
-        payer.pubkey(),
-        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: BTreeSet::new(),
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
         }),
     )
     .await;
-
-    let dest = 42u32;
-
-    // Set up the DEFAULT_ROUTER CC route + signer so the route PDA exists and
-    // signer resolution would otherwise succeed — proving the rejection comes
-    // from the explicit transient-DEFAULT_ROUTER guard, not from missing state.
-    process_tx(
+    add_cc_route_signer(
         &mut banks_client,
         &payer,
-        build_set_cc_route_ix(
-            &fee_key,
-            &payer.pubkey(),
-            dest,
-            DEFAULT_ROUTER,
-            FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            }),
-        ),
-        &[],
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        signer_address,
     )
-    .await
-    .unwrap();
-    process_tx(
-        &mut banks_client,
-        &payer,
-        build_add_quote_signer_ix_with_route(
-            &fee_key,
-            &payer.pubkey(),
-            signer_address,
-            Some(instruction::RouteKey::CrossCollateral {
-                destination: dest,
-                target_router: DEFAULT_ROUTER,
-            }),
-        ),
-        &[],
-    )
-    .await
-    .unwrap();
+    .await;
 
-    let context = encode_cc_context(dest, H256::zero(), 100, DEFAULT_ROUTER);
+    let context = encode_cc_context(dest, recipient, amount, DEFAULT_ROUTER);
     let quote = make_signed_transient_quote(
         &signing_key,
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
         context,
-        encode_linear_data(1000, 500),
+        encode_linear_data(3000, 1500),
         encode_u48(100),
     );
 
     let route_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let submit_ix =
         build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[route_pda]);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        amount,
+        target_router,
+    );
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix.clone()).await;
+    assert_eq!(fee, 500);
+
+    process_tx(&mut banks_client, &payer, quote_ix, &[])
+        .await
+        .unwrap();
+    let account = banks_client.get_account(transient_pda).await.unwrap();
+    assert!(account.is_none() || account.unwrap().data.is_empty());
+}
+
+#[tokio::test]
+async fn test_cc_default_router_transient_rejected_when_specific_configured() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_cc_fee_account(&mut banks_client, &payer).await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+
+    set_cc_route(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        }),
+    )
+    .await;
+    add_cc_route_signer(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        signer_address,
+    )
+    .await;
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(dest, recipient, 100, DEFAULT_ROUTER),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let default_route_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+    let submit_ix = build_submit_transient_ix_with_routes(
+        &fee_key,
+        &payer.pubkey(),
+        &quote,
+        &[default_route_pda],
+    );
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    set_cc_route(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        target_router,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 200,
+            half_amount: 100,
+        }),
+    )
+    .await;
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        100,
+        target_router,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
+        ),
+    );
+    assert_transient_exists(&mut banks_client, transient_pda).await;
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_close_transient_ix(&fee_key, &transient_pda, &payer.pubkey()),
+        &[],
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_cc_specific_router_transient_submit_rejected_when_only_default_configured() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_cc_fee_account(&mut banks_client, &payer).await;
+    let dest = 42u32;
+    let target_router = H256::random();
+
+    set_cc_route(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        }),
+    )
+    .await;
+    add_cc_route_signer(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        signer_address,
+    )
+    .await;
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(dest, H256::zero(), 100, target_router),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let missing_specific_route = cc_route_pda_for(&fee_key, dest, &target_router);
+    let submit_ix = build_submit_transient_ix_with_routes(
+        &fee_key,
+        &payer.pubkey(),
+        &quote,
+        &[missing_specific_route],
+    );
     let result = process_tx(&mut banks_client, &payer, submit_ix, &[]).await;
     assert_tx_error(
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::DefaultRouterNotAllowedForTransientQuote as u32),
+            InstructionError::Custom(FeeError::RouteNotFound as u32),
         ),
     );
+}
+
+#[tokio::test]
+async fn test_cc_specific_router_transient_rejected_after_specific_route_removed() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_cc_fee_account(&mut banks_client, &payer).await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+
+    for router in [DEFAULT_ROUTER, target_router] {
+        set_cc_route(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        )
+        .await;
+    }
+    add_cc_route_signer(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        target_router,
+        signer_address,
+    )
+    .await;
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(dest, recipient, 100, target_router),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let specific_route_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+    let submit_ix = build_submit_transient_ix_with_routes(
+        &fee_key,
+        &payer.pubkey(),
+        &quote,
+        &[specific_route_pda],
+    );
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_remove_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        100,
+        target_router,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
+        ),
+    );
+    assert_transient_exists(&mut banks_client, transient_pda).await;
+}
+
+#[tokio::test]
+async fn test_cc_wildcard_domain_default_router_transient_consumed_for_default_scope() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let mut wildcard_signers = BTreeSet::new();
+    wildcard_signers.insert(signer_address);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig { wildcard_signers }),
+    )
+    .await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+
+    set_cc_route(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        }),
+    )
+    .await;
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(WILDCARD_DOMAIN, recipient, 100, DEFAULT_ROUTER),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let submit_ix = build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[]);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        100,
+        target_router,
+    );
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix.clone()).await;
+    assert_eq!(fee, 100);
+    process_tx(&mut banks_client, &payer, quote_ix, &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_cc_wildcard_domain_default_router_transient_rejected_for_specific_scope() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let mut wildcard_signers = BTreeSet::new();
+    wildcard_signers.insert(signer_address);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig { wildcard_signers }),
+    )
+    .await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+
+    for router in [DEFAULT_ROUTER, target_router] {
+        set_cc_route(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        )
+        .await;
+    }
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(WILDCARD_DOMAIN, recipient, 100, DEFAULT_ROUTER),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let submit_ix = build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[]);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        100,
+        target_router,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
+        ),
+    );
+    assert_transient_exists(&mut banks_client, transient_pda).await;
+}
+
+/// Wildcard-reverse: a wildcard-domain transient signed with a *specific*
+/// `ctx.target_router = X` must be rejected at any destination where the
+/// on-chain cascade falls back to DEFAULT (i.e., `(dest, X)` is unconfigured).
+/// Locks down the symmetric invariant to
+/// `test_cc_wildcard_domain_default_router_transient_rejected_for_specific_scope`:
+/// a wildcard signer cannot have a specific-router-tagged transient consumed
+/// against the Default scope (which would let them set a price for a route
+/// the specific-route signers are meant to authorize).
+#[tokio::test]
+async fn test_cc_wildcard_domain_specific_router_transient_rejected_for_default_scope() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let mut wildcard_signers = BTreeSet::new();
+    wildcard_signers.insert(signer_address);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig { wildcard_signers }),
+    )
+    .await;
+    let dest = 42u32;
+    let target_router = H256::random();
+    let recipient = H256::zero();
+
+    // Only the DEFAULT route is configured on-chain — `(dest, target_router)` is
+    // uninitialized, so the consume cascade resolves to `CcConsumeScope::Default`.
+    set_cc_route(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        DEFAULT_ROUTER,
+        FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        }),
+    )
+    .await;
+
+    // Wildcard-domain transient bound to a *specific* router (not DEFAULT_ROUTER).
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(WILDCARD_DOMAIN, recipient, 100, target_router),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let submit_ix = build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[]);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    let transient_pda = transient_pda_for_quote(&fee_key, &payer.pubkey(), &quote);
+    let quote_ix = build_quote_fee_cc_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        transient_pda,
+        dest,
+        recipient,
+        100,
+        target_router,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
+        ),
+    );
+    assert_transient_exists(&mut banks_client, transient_pda).await;
 }
 
 #[tokio::test]
