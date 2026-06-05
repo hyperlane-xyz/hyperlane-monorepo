@@ -7,6 +7,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -21,10 +22,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
 
-    // Stores the expected source router during `localRebalance`; the source
-    // router callback replaces it with the resolved destination router.
-    bytes32 private constant _CALLBACK_RECIPIENT_SLOT =
-        keccak256("hyperlane.atomicLocalRebalancingBridge.callbackRecipient");
+    // Stores the active source router during `rebalance` so the source router
+    // callback (`transferRemote`) can authenticate itself.
+    bytes32 private constant _ACTIVE_SOURCE_SLOT =
+        keccak256("hyperlane.atomicLocalRebalancingBridge.activeSource");
 
     uint32 public immutable localDomain;
 
@@ -34,6 +35,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error InsufficientOutput();
     error InvalidInputDelta();
     error UnauthorizedRebalancer();
+    error InvalidRecipient();
     error InvalidToken();
 
     constructor(uint32 _localDomain) {
@@ -42,23 +44,35 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
 
     /// @notice Executes a same-chain rebalance into an allowed destination
     /// router.
-    /// @dev `calls` run after source collateral has been pulled into this
-    /// wrapper. Use calls for token approvals and DEX swaps. Calls must leave
-    /// enough output token on this wrapper for it to pay the destination router.
+    /// @dev Mirrors the canonical `MovableCollateralRouter.rebalance` first three
+    /// parameters, appending the destination recipient and a catch-all `data`
+    /// argument for forward-compatible extensions. For this bridge, `data` is the
+    /// abi-encoded `CallLib.Call[]` to run after source collateral is escrowed.
+    /// @param domain Must equal `localDomain`; this bridge only rebalances locally.
+    /// @param collateralAmount The source collateral amount to rebalance.
+    /// @param sourceRouter The source collateral router to pull from. Must allow
+    /// this wrapper as a rebalancer/bridge and `msg.sender` as a rebalancer.
     /// @param destinationRecipient The destination collateral router to fund.
-    /// Pass `bytes32(0)` to default to the source router's enrolled local
-    /// remote router; otherwise it must be an allowed recipient on the source.
-    function localRebalance(
-        address sourceRouter,
+    /// Pass `bytes32(0)` to default to the source router's enrolled local remote
+    /// router; otherwise it must be an allowed rebalance target on the source.
+    /// @param data Abi-encoded `CallLib.Call[]`. Use calls for token approvals and
+    /// DEX swaps. Calls must leave enough output token on this wrapper for it to
+    /// pay the destination router.
+    function rebalance(
+        uint32 domain,
+        uint256 collateralAmount,
+        ITokenBridge sourceRouter,
         bytes32 destinationRecipient,
-        uint256 amountIn,
-        CallLib.Call[] calldata calls
+        bytes calldata data
     ) external payable {
-        if (_CALLBACK_RECIPIENT_SLOT.loadBytes32() != bytes32(0)) {
+        if (domain != localDomain) revert InvalidCallback();
+        if (_ACTIVE_SOURCE_SLOT.loadBytes32() != bytes32(0)) {
             revert RebalanceAlreadyActive();
         }
 
-        MovableCollateralRouter source = MovableCollateralRouter(sourceRouter);
+        MovableCollateralRouter source = MovableCollateralRouter(
+            address(sourceRouter)
+        );
         if (!source.isAllowedRebalancer(msg.sender)) {
             revert UnauthorizedRebalancer();
         }
@@ -66,14 +80,12 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         address inputToken = source.token();
         if (inputToken == address(0)) revert InvalidToken();
         uint256 sourceBalanceBefore = IERC20(inputToken).balanceOf(
-            sourceRouter
+            address(source)
         );
 
-        address destinationRouter = _rebalanceSource(
+        address destinationRouter = _resolveDestination(
             source,
-            sourceRouter,
-            destinationRecipient,
-            amountIn
+            destinationRecipient
         );
         address outputToken = MovableCollateralRouter(destinationRouter)
             .token();
@@ -81,17 +93,24 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         uint256 requiredDelta = _requiredDelta(
             inputToken,
             outputToken,
-            amountIn
+            collateralAmount
         );
         uint256 destinationBalanceBefore = IERC20(outputToken).balanceOf(
             destinationRouter
         );
-        CallLib.multicallCalldata(calls);
+
+        // Escrow source collateral into this wrapper via the source router's
+        // canonical rebalance flow, which calls back into `transferRemote`.
+        _ACTIVE_SOURCE_SLOT.store(TypeCasts.addressToBytes32(address(source)));
+        source.rebalance(localDomain, collateralAmount, this);
+        _ACTIVE_SOURCE_SLOT.clear();
+
+        CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
         // Source may be topped up, but calls must not drain more than amountIn.
         if (
-            IERC20(inputToken).balanceOf(sourceRouter) <
-            sourceBalanceBefore - amountIn
+            IERC20(inputToken).balanceOf(address(source)) <
+            sourceBalanceBefore - collateralAmount
         ) {
             revert InvalidInputDelta();
         }
@@ -112,24 +131,27 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         _refundTokenBalance(outputToken, msg.sender);
     }
 
-    function _rebalanceSource(
+    /// @dev Resolves and authorizes the destination router. `bytes32(0)` defaults
+    /// to the source router's enrolled local remote router; an explicit recipient
+    /// must be an allowed rebalance target on the source.
+    function _resolveDestination(
         MovableCollateralRouter source,
-        address sourceRouter,
-        bytes32 destinationRecipient,
-        uint256 amountIn
-    ) internal returns (address destinationRouter) {
-        _CALLBACK_RECIPIENT_SLOT.store(
-            TypeCasts.addressToBytes32(sourceRouter)
-        );
-
-        // Enters this contract via transferRemote, which escrows source funds
-        // and writes the destination recipient into transient storage. The
-        // source validates `destinationRecipient` against its allowed set.
-        source.rebalance(localDomain, destinationRecipient, amountIn, this);
-        destinationRouter = TypeCasts.bytes32ToAddress(
-            _CALLBACK_RECIPIENT_SLOT.loadBytes32()
-        );
-        _CALLBACK_RECIPIENT_SLOT.clear();
+        bytes32 destinationRecipient
+    ) internal view returns (address destinationRouter) {
+        if (destinationRecipient == bytes32(0)) {
+            bytes32 enrolled = source.routers(localDomain);
+            if (enrolled == bytes32(0)) revert InvalidRecipient();
+            return TypeCasts.bytes32ToAddress(enrolled);
+        }
+        if (
+            !IRebalanceTargets(address(source)).isRebalanceTarget(
+                localDomain,
+                destinationRecipient
+            )
+        ) {
+            revert InvalidRecipient();
+        }
+        return TypeCasts.bytes32ToAddress(destinationRecipient);
     }
 
     /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
@@ -153,10 +175,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// rebalance.
     function transferRemote(
         uint32 destination,
-        bytes32 recipient,
+        bytes32,
         uint256 amount
     ) external payable override returns (bytes32) {
-        bytes32 activeSourceRouter = _CALLBACK_RECIPIENT_SLOT.loadBytes32();
+        bytes32 activeSourceRouter = _ACTIVE_SOURCE_SLOT.loadBytes32();
         if (activeSourceRouter == bytes32(0)) revert NoActiveRebalance();
         if (destination != localDomain) revert InvalidCallback();
         if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
@@ -167,9 +189,6 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             address(this),
             amount
         );
-        // Captured for localRebalance to resolve the destination router after
-        // the source router finishes its rebalance flow.
-        _CALLBACK_RECIPIENT_SLOT.store(recipient);
         return bytes32(0);
     }
 

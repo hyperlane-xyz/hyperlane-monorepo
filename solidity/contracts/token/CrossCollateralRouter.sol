@@ -25,6 +25,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 // ============ Local Imports ============
 import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
+import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 
 /**
  * @title CrossCollateralRouter
@@ -42,7 +43,11 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  *    from enrolled routers on the same chain.
  */
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
-contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
+contract CrossCollateralRouter is
+    HypERC20Collateral,
+    ICrossCollateralFee,
+    IRebalanceTargets
+{
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
@@ -59,6 +64,8 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32 indexed domain,
         bytes32 indexed router
     );
+    event RebalanceTargetAdded(uint32 indexed domain, bytes32 indexed target);
+    event RebalanceTargetRemoved(uint32 indexed domain, bytes32 indexed target);
 
     // ============ Storage ============
 
@@ -70,6 +77,12 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     /// @notice Tracks which domains have at least one CrossCollateral-enrolled router,
     /// enabling on-chain enumeration for the SDK reader.
     EnumerableSet.UintSet private _crossCollateralDomains;
+
+    /// @notice Additional allowed same-chain rebalance targets by domain, beyond
+    /// the enrolled remote router. Consulted by `isRebalanceTarget`.
+    // solhint-disable-next-line hyperlane/enumerable-domain-mapping
+    mapping(uint32 domain => EnumerableSet.Bytes32Set targets)
+        private _rebalanceTargets;
 
     // ============ Constructor ============
 
@@ -136,6 +149,48 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         for (uint256 i = 0; i < len; i++) {
             domains[i] = uint32(_crossCollateralDomains.at(i));
         }
+    }
+
+    // ============ Rebalance Targets (onlyOwner) ============
+
+    /// @notice Adds an allowed same-chain rebalance target for `_domain`.
+    function addRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external onlyOwner {
+        if (_rebalanceTargets[_domain].add(_target)) {
+            emit RebalanceTargetAdded(_domain, _target);
+        }
+    }
+
+    /// @notice Removes a previously allowed rebalance target for `_domain`.
+    function removeRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external onlyOwner {
+        if (_rebalanceTargets[_domain].remove(_target)) {
+            emit RebalanceTargetRemoved(_domain, _target);
+        }
+    }
+
+    /// @notice Returns the explicitly added rebalance targets for `_domain`.
+    /// @dev Excludes the enrolled remote router, which is always a valid target.
+    function rebalanceTargets(
+        uint32 _domain
+    ) external view returns (bytes32[] memory) {
+        return _rebalanceTargets[_domain].values();
+    }
+
+    /// @inheritdoc IRebalanceTargets
+    /// @dev The enrolled remote router is always a valid target; additional
+    /// targets are opt-in via `addRebalanceTarget`.
+    function isRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external view override returns (bool) {
+        return
+            _target == routers(_domain) ||
+            _rebalanceTargets[_domain].contains(_target);
     }
 
     // ============ Destination Gas Override ============

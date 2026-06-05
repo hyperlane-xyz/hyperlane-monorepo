@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/core': major
+'@hyperlane-xyz/core': minor
 ---
 
-MovableCollateralRouter now supports multiple allowed rebalance recipients per domain. The single-recipient override was replaced with a per-domain set: `allowedRecipient(uint32)` became `allowedRecipients(uint32)` (returns `bytes32[]`), `isAllowedRecipient(uint32,bytes32)` was added, `setRecipient(uint32,bytes32)` became `addRecipient(uint32,bytes32)`, and `removeRecipient(uint32)` became `removeRecipient(uint32,bytes32)`. A new `rebalance(uint32,bytes32,uint256,ITokenBridge)` overload targets a specific allowed recipient (the original 3-arg overload defaults to the enrolled remote router). `AtomicLocalRebalancingBridge.localRebalance` gained a `destinationRecipient` argument.
+CrossCollateralRouter now supports multiple allowed same-chain rebalance targets per domain via `addRebalanceTarget(uint32,bytes32)`, `removeRebalanceTarget(uint32,bytes32)`, `rebalanceTargets(uint32)`, and `isRebalanceTarget(uint32,bytes32)` (the new `IRebalanceTargets` interface). The enrolled remote router is always a valid target. `AtomicLocalRebalancingBridge` now exposes `rebalance(uint32 domain, uint256 collateralAmount, ITokenBridge sourceRouter, bytes32 destinationRecipient, bytes data)` mirroring the canonical rebalance signature with a catch-all `data` argument (the abi-encoded `CallLib.Call[]` for this bridge); `bytes32(0)` defaults to the source router's enrolled local router, otherwise the recipient must be an allowed rebalance target. `MovableCollateralRouter` is unchanged.

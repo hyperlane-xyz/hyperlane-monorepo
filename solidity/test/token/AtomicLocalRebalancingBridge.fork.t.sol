@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
+import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
@@ -89,6 +90,21 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     function _approveOutputForBridge(IERC20 destinationToken) internal {
         vm.prank(rebalancer);
         destinationToken.approve(address(bridge), type(uint256).max);
+    }
+
+    function _rebalance(
+        uint32 localDomain,
+        bytes32 recipient,
+        uint256 amount,
+        CallLib.Call[] memory calls
+    ) internal {
+        bridge.rebalance(
+            localDomain,
+            amount,
+            ITokenBridge(address(sourceRouter)),
+            recipient,
+            abi.encode(calls)
+        );
     }
 
     function _approveInputCall(
@@ -176,8 +192,8 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(sourceRouter),
+        _rebalance(
+            LOCAL_DOMAIN,
             bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 5e6)
@@ -201,8 +217,8 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(sourceRouter),
+        _rebalance(
+            LOCAL_DOMAIN,
             bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 20e6)
@@ -226,8 +242,8 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(sourceRouter),
+        _rebalance(
+            LOCAL_DOMAIN,
             bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 20e6)
@@ -250,8 +266,8 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(
-            address(sourceRouter),
+        _rebalance(
+            LOCAL_DOMAIN,
             bytes32(0),
             amountIn,
             _uniswapCalls(amountIn, 0)
@@ -347,12 +363,7 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
         calls[2] = _topUpCall(IERC20(USDT), 20e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(
-            address(sourceRouter),
-            bytes32(0),
-            amountIn,
-            calls
-        );
+        _rebalance(LOCAL_DOMAIN, bytes32(0), amountIn, calls);
 
         _assertExactFunding(
             IERC20(USDT),

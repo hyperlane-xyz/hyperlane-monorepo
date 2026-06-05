@@ -85,7 +85,7 @@ contract HypNativeMovableTest is Test {
         router.addRebalancer(address(this));
 
         // Add the destination domain
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
@@ -105,7 +105,7 @@ contract HypNativeMovableTest is Test {
 
     function test_rebalance_NotEnoughBalance() public {
         router.addRebalancer(address(this));
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );

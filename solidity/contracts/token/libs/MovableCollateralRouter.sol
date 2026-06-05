@@ -10,9 +10,9 @@ import {Router} from "../../client/Router.sol";
 import {Quotes} from "./Quotes.sol";
 
 struct MovableCollateralRouterStorage {
-    // Per-domain set of additional allowed rebalance recipients. The enrolled
-    // remote router is always allowed and need not be added here.
-    mapping(uint32 routerDomain => EnumerableSet.Bytes32Set recipients) recipients;
+    // TODO: replace the single recipient override with a per-domain recipient
+    // set when routes need multiple allowed same-chain rebalance recipients.
+    mapping(uint32 routerDomain => bytes32 recipient) recipient;
     mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges) bridges;
     EnumerableSet.AddressSet rebalancers;
 }
@@ -20,7 +20,6 @@ struct MovableCollateralRouterStorage {
 abstract contract MovableCollateralRouter is TokenRouter {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableSet for EnumerableSet.Bytes32Set;
     using Quotes for Quote[];
 
     MovableCollateralRouterStorage internal allowed;
@@ -55,24 +54,10 @@ abstract contract MovableCollateralRouter is TokenRouter {
         return allowed.rebalancers.contains(rebalancer);
     }
 
-    /// @notice Additional allowed rebalance recipients for a domain.
-    /// @dev Keys constrained to a subset of Router.domains(). The enrolled
-    /// remote router is always allowed and is not included here.
-    function allowedRecipients(
-        uint32 domain
-    ) external view returns (bytes32[] memory) {
-        return allowed.recipients[domain].values();
-    }
-
-    /// @notice Returns whether `recipient` is a valid rebalance recipient for
-    /// `domain`. The enrolled remote router is always valid.
-    function isAllowedRecipient(
-        uint32 domain,
-        bytes32 recipient
-    ) public view returns (bool) {
-        return
-            recipient == _mustHaveRemoteRouter(domain) ||
-            allowed.recipients[domain].contains(recipient);
+    /// @notice Mapping of domain to allowed rebalance recipient.
+    /// @dev Keys constrained to a subset of Router.domains()
+    function allowedRecipient(uint32 domain) external view returns (bytes32) {
+        return allowed.recipient[domain];
     }
 
     /// @notice Mapping of domain to allowed rebalance bridges.
@@ -83,17 +68,14 @@ abstract contract MovableCollateralRouter is TokenRouter {
         return allowed.bridges[domain].values();
     }
 
-    function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+    function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
-        allowed.recipients[domain].add(recipient);
+        allowed.recipient[domain] = recipient;
     }
 
-    function removeRecipient(
-        uint32 domain,
-        bytes32 recipient
-    ) external onlyOwner {
-        allowed.recipients[domain].remove(recipient);
+    function removeRecipient(uint32 domain) external onlyOwner {
+        delete allowed.recipient[domain];
     }
 
     function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
@@ -142,40 +124,19 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     /**
-     * @notice Rebalances collateral to the enrolled router on `domain`.
+     * @notice Rebalances the collateral between router domains.
      * @param domain The domain to rebalance to.
      * @param collateralAmount The amount of collateral to rebalance.
      * @param bridge The bridge to use for the rebalance.
-     * @dev The caller must be an allowed rebalancer and the bridge must be an
-     *      allowed bridge for the domain. Defaults the recipient to the
-     *      enrolled remote router.
+     * @dev The caller must be an allowed rebalancer and the bridge must be an allowed bridge for the domain.
+     * @dev The recipient is the enrolled router if no recipient is set for the domain.
      */
     function rebalance(
         uint32 domain,
         uint256 collateralAmount,
         ITokenBridge bridge
-    ) external payable {
-        rebalance(domain, bytes32(0), collateralAmount, bridge);
-    }
-
-    /**
-     * @notice Rebalances collateral to a specific allowed recipient on `domain`.
-     * @param domain The domain to rebalance to.
-     * @param recipient The rebalance recipient. Pass `bytes32(0)` to default to
-     *        the enrolled remote router; otherwise it must be an allowed
-     *        recipient for the domain.
-     * @param collateralAmount The amount of collateral to rebalance.
-     * @param bridge The bridge to use for the rebalance.
-     * @dev The caller must be an allowed rebalancer and the bridge must be an
-     *      allowed bridge for the domain.
-     */
-    function rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 collateralAmount,
-        ITokenBridge bridge
-    ) public payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
-        recipient = _recipient(domain, recipient);
+    ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
+        bytes32 recipient = _recipient(domain);
 
         Quote[] memory quotes = bridge.quoteTransferRemote(
             domain,
@@ -218,18 +179,12 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     function _recipient(
-        uint32 domain,
-        bytes32 recipient
-    ) internal view returns (bytes32) {
-        bytes32 enrolled = _mustHaveRemoteRouter(domain);
-        if (recipient == bytes32(0) || recipient == enrolled) {
-            return enrolled;
+        uint32 domain
+    ) internal view returns (bytes32 recipient) {
+        recipient = allowed.recipient[domain];
+        if (recipient == bytes32(0)) {
+            recipient = _mustHaveRemoteRouter(domain);
         }
-        require(
-            allowed.recipients[domain].contains(recipient),
-            "MCR: Recipient not allowed"
-        );
-        return recipient;
     }
 
     /// @dev This function in `EnumerableSet` was introduced in OpenZeppelin v5. We are using 4.9
@@ -251,7 +206,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
-        _clear(allowed.recipients[domain]._inner);
+        delete allowed.recipient[domain];
         _clear(allowed.bridges[domain]._inner);
         Router._unenrollRemoteRouter(domain);
     }
