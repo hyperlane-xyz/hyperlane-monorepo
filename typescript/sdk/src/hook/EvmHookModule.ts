@@ -589,6 +589,149 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
+    // update token gas oracles only if explicitly specified in target config.
+    // Gated behind the same support check as quoteSigners: the tokenGasOracles
+    // mapping and setTokenGasOracles only exist on the new (non-legacy) IGP.
+    if (targetConfig.tokenOracleConfig !== undefined) {
+      assert(
+        supportsQuoteSigners,
+        `IGP tokenOracleConfig requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+      );
+      updateTxs.push(
+        ...(await this.updateIgpTokenGasOracles({
+          interchainGasPaymaster: this.args.addresses.deployedHook,
+          targetTokenOracleConfig: targetConfig.tokenOracleConfig,
+          config: targetConfig,
+        })),
+      );
+    }
+
+    return updateTxs;
+  }
+
+  /**
+   * Diffs and applies per-fee-token gas oracles on the IGP. Target-driven: the
+   * configured fee tokens are the only enumeration source (the on-chain
+   * tokenGasOracles mapping is not enumerable), and each token's current oracle
+   * is read back from chain, so no off-chain address bookkeeping is needed.
+   *
+   * For each fee token: resolve the oracle already wired on chain (reused across
+   * that token's destinations), or deploy a fresh StorageGasOracle if none is
+   * set yet; reconcile the oracle's remote gas data; then point any unmapped
+   * destinations at it via setTokenGasOracles.
+   */
+  protected async updateIgpTokenGasOracles({
+    interchainGasPaymaster,
+    targetTokenOracleConfig,
+    config,
+  }: {
+    interchainGasPaymaster: Address;
+    targetTokenOracleConfig: NonNullable<IgpConfig['tokenOracleConfig']>;
+    config: IgpConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+    const igpInterface = InterchainGasPaymaster__factory.createInterface();
+    const igp = InterchainGasPaymaster__factory.connect(
+      interchainGasPaymaster,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    for (const [feeToken, oracleConfig] of Object.entries(
+      targetTokenOracleConfig,
+    )) {
+      // Resolve the in-MultiProvider remote domains for this fee token.
+      const remotes = Object.keys(oracleConfig)
+        .map((remote) => ({
+          remote,
+          domainId: this.multiProvider.tryGetDomainId(remote),
+        }))
+        .filter(
+          (r): r is { remote: string; domainId: number } => r.domainId !== null,
+        );
+
+      if (remotes.length === 0) {
+        this.logger.warn(
+          `Skipping token gas oracle for ${feeToken} on ${this.chain}: no configured remotes in MultiProvider`,
+        );
+        continue;
+      }
+
+      // Find an oracle already wired for this fee token on any configured
+      // destination; reuse it across destinations.
+      let gasOracle: Address | undefined;
+      for (const { domainId } of remotes) {
+        const existing = await igp.tokenGasOracles(feeToken, domainId);
+        if (!eqAddress(existing, ethers.constants.AddressZero)) {
+          gasOracle = existing;
+          break;
+        }
+      }
+
+      // No oracle wired yet -> deploy a dedicated one for this fee token,
+      // seeded with its oracle config.
+      if (!gasOracle) {
+        const newOracle = await this.deployStorageGasOracle({
+          config,
+          oracleConfig,
+        });
+        gasOracle = newOracle.address;
+      } else {
+        // Reconcile remote gas data on the existing oracle. updateStorageGasOracle
+        // diffs against a supplied current config, so read it back from chain
+        // first (tokenDecimals isn't stored on-chain, so carry it from target to
+        // avoid a spurious diff).
+        const oracleContract = StorageGasOracle__factory.connect(
+          gasOracle,
+          this.multiProvider.getProvider(this.domainId),
+        );
+        const currentOracleConfig: IgpConfig['oracleConfig'] = {};
+        for (const { remote, domainId } of remotes) {
+          const data = await oracleContract.remoteGasData(domainId);
+          currentOracleConfig[remote] = {
+            tokenExchangeRate: data.tokenExchangeRate.toString(),
+            gasPrice: data.gasPrice.toString(),
+            tokenDecimals: oracleConfig[remote]?.tokenDecimals,
+          };
+        }
+
+        updateTxs.push(
+          ...(await this.updateStorageGasOracle({
+            gasOracle,
+            currentOracleConfig,
+            targetOracleConfig: oracleConfig,
+            targetOverhead: config.overhead,
+          })),
+        );
+      }
+
+      // Point any destinations not yet mapped to this oracle at it.
+      const tokenOracleParams: InterchainGasPaymaster.TokenGasOracleConfigStruct[] =
+        [];
+      for (const { domainId } of remotes) {
+        const current = await igp.tokenGasOracles(feeToken, domainId);
+        if (!eqAddress(current, gasOracle)) {
+          tokenOracleParams.push({
+            feeToken,
+            remoteDomain: domainId,
+            gasOracle,
+          });
+        }
+      }
+
+      if (tokenOracleParams.length > 0) {
+        updateTxs.push({
+          annotation: `Setting token gas oracles for ${feeToken} on ${this.chain} (domains ${tokenOracleParams
+            .map((p) => p.remoteDomain)
+            .join(', ')})`,
+          chainId: this.chainId,
+          to: interchainGasPaymaster,
+          data: igpInterface.encodeFunctionData('setTokenGasOracles', [
+            tokenOracleParams,
+          ]),
+        });
+      }
+    }
+
     return updateTxs;
   }
 
@@ -1327,6 +1470,21 @@ export class EvmHookModule extends HyperlaneModule<
       }
     }
 
+    // Wire per-fee-token gas oracles if configured. Must run while the deployer
+    // still owns the IGP (setTokenGasOracles is onlyOwner) and after the native
+    // gas params above, since the IGP requires a destination's native oracle to
+    // exist before a non-native token oracle can be set for it.
+    if (config.tokenOracleConfig !== undefined) {
+      const tokenOracleTxs = await this.updateIgpTokenGasOracles({
+        interchainGasPaymaster: igp.address,
+        targetTokenOracleConfig: config.tokenOracleConfig,
+        config,
+      });
+      for (const tx of tokenOracleTxs) {
+        await this.multiProvider.sendTransaction(this.chain, tx);
+      }
+    }
+
     // Transfer igp to the configured owner
     await this.multiProvider.handleTx(
       this.chain,
@@ -1361,8 +1519,12 @@ export class EvmHookModule extends HyperlaneModule<
 
   protected async deployStorageGasOracle({
     config,
+    oracleConfig = config.oracleConfig,
   }: {
     config: IgpConfig;
+    // Oracle data to seed the deployed oracle with. Defaults to the native
+    // oracleConfig; token gas oracles pass their per-fee-token config instead.
+    oracleConfig?: IgpConfig['oracleConfig'];
   }): Promise<StorageGasOracle> {
     // Deploy the StorageGasOracle, by default msg.sender is the owner
     const gasOracle = await this.deployer.deployContractFromFactory(
@@ -1375,7 +1537,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Obtain the transactions to set the gas params for each remote
     const configureTxs = await this.updateStorageGasOracle({
       gasOracle: gasOracle.address,
-      targetOracleConfig: config.oracleConfig,
+      targetOracleConfig: oracleConfig,
       targetOverhead: config.overhead,
     });
 

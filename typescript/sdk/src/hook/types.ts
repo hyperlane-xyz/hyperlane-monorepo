@@ -217,6 +217,15 @@ export const IgpSchema = OwnableSchema.extend({
   igpVersion: z.nativeEnum(IgpVersion).optional(),
   quoteSigners: z.array(z.string()).optional(),
   contractVersion: z.string().optional(),
+  // Per-fee-token gas oracles for ERC20-denominated interchain gas payments.
+  // Keyed by fee token address -> remote chain -> oracle config. Each fee token
+  // gets its own StorageGasOracle (the IGasOracle interface is keyed only by
+  // destination, so distinct exchange rates require distinct oracle instances).
+  // Optional and off by default; only wired when present and the IGP supports
+  // tokenGasOracles (>= OFFCHAIN_QUOTED_IGP_VERSION, non-legacy).
+  tokenOracleConfig: z
+    .record(z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema))
+    .optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
