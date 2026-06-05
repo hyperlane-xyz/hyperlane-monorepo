@@ -212,11 +212,11 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xCa152b249791Adf7A09C6c1bdbAb05e4A594966e",
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
       "gasCurrencyCoinGeckoId": "binancecoin",
+      "incrementalDomainRoutingIsmFactory": "0x78247aB53f239d86F9eB951Adb211c826BE0A059",
+      "quotedCalls": "0x5da1D6747e872338b860Bb84a8f1F9B94C02A663",
       "transactionOverrides": {
         "gasPrice": 1000000000
-      },
-      "incrementalDomainRoutingIsmFactory": "0x78247aB53f239d86F9eB951Adb211c826BE0A059",
-      "quotedCalls": "0x5da1D6747e872338b860Bb84a8f1F9B94C02A663"
+      }
     },
     "eclipsetestnet": {
       "blocks": {
