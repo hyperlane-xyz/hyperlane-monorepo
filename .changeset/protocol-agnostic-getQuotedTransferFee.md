@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/sdk": minor
+"@hyperlane-xyz/sdk": major
 "@hyperlane-xyz/cli": minor
 "@hyperlane-xyz/fee-quoting": minor
 ---
