@@ -468,6 +468,10 @@ export abstract class SealevelHypTokenAdapter
         // after the cascade on the new-flow QuoteGasPayment / PayForGas
         // account list.
         overheadIgpAccount?: PublicKey;
+        // Set only when overheadIgpAccount is set. Mirrors on-chain
+        // OverheadIgp.gas_overhead(dest), added to the warp's base gas
+        // before feeding the inner IGP's quote_gas_payment.
+        gasOverheads?: Map<Domain, bigint>;
         feeConfig: SealevelIgpFeeConfig | undefined;
       }
     | undefined
@@ -480,6 +484,7 @@ export abstract class SealevelHypTokenAdapter
 
     let innerIgpAccount: PublicKey;
     let overheadIgpAccount: PublicKey | undefined;
+    let gasOverheads: Map<Domain, bigint> | undefined;
     if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
       innerIgpAccount = igpConfig.igp_account_pub_key;
     } else if (
@@ -496,6 +501,7 @@ export abstract class SealevelHypTokenAdapter
       );
       const overheadData = await overheadIgp.getAccountInfo();
       innerIgpAccount = overheadData.inner_pub_key;
+      gasOverheads = overheadData.gas_overheads;
     } else {
       return undefined;
     }
@@ -512,6 +518,7 @@ export abstract class SealevelHypTokenAdapter
     return {
       innerIgpAccount,
       overheadIgpAccount,
+      gasOverheads,
       feeConfig: innerInfo.fee_config,
     };
   }

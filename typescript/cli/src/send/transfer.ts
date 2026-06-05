@@ -32,7 +32,6 @@ import {
   type QuotedTransferProvider,
   SealevelQuotedTransferProvider,
   type Token,
-  TokenAmount,
   TokenPullMode,
   type TypedTransactionReceipt,
   WarpCore,
@@ -617,20 +616,7 @@ async function executeDelivery({
           tokenPullMode: TokenPullMode.TransferFrom,
         };
         quotedTransfer = new EvmQuotedTransferProvider(quotedCalls);
-
-        // Pre-flight the quoteExecute eth_call so the user sees the priced fee
-        // before submit. The provider re-runs the same call inside
-        // `buildQuotedTransferTxs`; eth_call is deterministic for fixed quotes
-        // so the displayed and submitted amounts match.
-        logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
-        await warpCore.getQuotedTransferFee({
-          quotedTransfer,
-          originTokenAmount: new TokenAmount(amount, token),
-          destination,
-          sender: signerAddress,
-          recipient: recipientAddress,
-          destinationToken: destToken,
-        });
+        logBlue(`Got ${quotes.length} quote(s)`);
         break;
       }
       case ProtocolType.Sealevel: {
@@ -668,6 +654,26 @@ async function executeDelivery({
       'Predicate attestation (--attestation / --predicate-api-key) and fee quoting (--fee-quoting-url) cannot be used together. ' +
         'The quoted-transfer path does not support attestation-gated transfers.',
     );
+  }
+
+  if (quotedTransfer) {
+    logBlue('Estimating quoted transfer fees...');
+    const { igpQuote, tokenFeeQuote } = await warpCore.getQuotedTransferFee({
+      quotedTransfer,
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+      destinationToken: destToken,
+    });
+    logBlue(
+      `Quoted interchain gas fee: ${igpQuote.getDecimalFormattedAmount()} ${igpQuote.token.symbol}`,
+    );
+    if (tokenFeeQuote) {
+      logBlue(
+        `Quoted token fee: ${tokenFeeQuote.getDecimalFormattedAmount()} ${tokenFeeQuote.token.symbol}`,
+      );
+    }
   }
 
   // TODO: override hook address for self-relay

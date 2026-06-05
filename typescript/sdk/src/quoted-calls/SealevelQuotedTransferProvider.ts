@@ -309,18 +309,24 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     );
     const targetRouterBytes = isCC
       ? hexToBytes(
-          addressToBytes32(
-            resolveDestinationToken({
-              multiProvider: warpCore.multiProvider,
-              originToken: token,
-              destination,
-              destinationToken,
-            }).addressOrDenom,
-          ) as Hex,
+          toHex(
+            addressToBytes32(
+              resolveDestinationToken({
+                multiProvider: warpCore.multiProvider,
+                originToken: token,
+                destination,
+                destinationToken,
+              }).addressOrDenom,
+            ),
+            'targetRouter bytes32 narrowing failed',
+          ),
         )
       : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
-    const recipientHex = addressToBytes32(recipient) as Hex;
+    const recipientHex = toHex(
+      addressToBytes32(recipient),
+      'recipient bytes32 narrowing failed',
+    );
     const targetRouterHex = bytesToHex(targetRouterBytes);
     const saltHex = bytesToHex(rawClientSalt);
 
@@ -386,12 +392,14 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       // configures; this is what `transferRemote` will pay for at submit
       // time. Unset → on-chain falls through to the legacy oracle path (no
       // signed-quote consumption), so 0 is the correct display.
-      // Overhead-IGP `apply_overhead_gas` is not modelled here; a configured
-      // overhead would under-report the IGP fee by the overhead portion.
-      // Revisit when overhead-IGP lands on the SVM warp.
+      // For OverheadIgp configs, the chain adds the per-destination overhead
+      // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
+      // here to match the submitted fee.
       const gasAmount = tokenData.destination_gas?.get(destinationDomainId);
       if (gasAmount !== undefined) {
-        igpFeeAmount = computeIgpGasFee(igpData, gasAmount);
+        const overheadGas =
+          igpState?.gasOverheads?.get(destinationDomainId) ?? 0n;
+        igpFeeAmount = computeIgpGasFee(igpData, gasAmount + overheadGas);
       }
     }
     const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);

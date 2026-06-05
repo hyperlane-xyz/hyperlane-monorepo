@@ -406,6 +406,18 @@ describe('SvmQuoteService', () => {
         reason: NoQuoteAvailableReason.NotConfigured,
       },
       {
+        // Regression guard: cascade must only consider (targetRouter, DEFAULT),
+        // never an unrelated specific leaf on the same destination.
+        name: 'not_configured when CC has only a different target_router leaf (no DEFAULT)',
+        opts: {
+          feeConfig: ccRoutingFee(
+            [TEST_SIGNER_H160],
+            '0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd',
+          ),
+        },
+        reason: NoQuoteAvailableReason.NotConfigured,
+      },
+      {
         name: 'not_upgraded when leaf is Linear (not OffchainQuoted)',
         opts: { feeConfig: linearLeaf() },
         reason: NoQuoteAvailableReason.NotUpgraded,
