@@ -205,7 +205,6 @@ pub enum KnownHyperlaneDomain {
     Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
-    Redstone = 690,
     Sei = 1329,
     Shibarium = 109,
     SolanaMainnet = 1399811149,
@@ -472,8 +471,8 @@ impl KnownHyperlaneDomain {
             }
             Ancient8 | Base | Blast | Bob | Boba | Celo | Cyber | Fraxtal | Guru | Ink | Lisk
             | MantaPacific | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet | OpBnb
-            | Optimism | Orderly | Redstone | Soneium | Superseed | Swell | Unichain
-            | Worldchain | Zircuit => HyperlaneDomainTechnicalStack::OpStack,
+            | Optimism | Orderly | Soneium | Superseed | Swell | Unichain | Worldchain
+            | Zircuit => HyperlaneDomainTechnicalStack::OpStack,
             LumiaPrism | Katana | Prom | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,
             Astar | Peaq => HyperlaneDomainTechnicalStack::PolkadotSubstrate,
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 => {

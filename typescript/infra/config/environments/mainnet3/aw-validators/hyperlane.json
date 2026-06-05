@@ -269,9 +269,6 @@
   "reactive": {
     "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
   },
-  "redstone": {
-    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
-  },
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
   },

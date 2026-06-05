@@ -96,7 +96,6 @@ export const keyFunderConfig: KeyFunderConfig<
     mode: '0.1',
     optimism: '0.1',
     polygon: '20',
-    redstone: '0.1',
     sei: '5',
     taiko: '0.1',
     viction: '2',

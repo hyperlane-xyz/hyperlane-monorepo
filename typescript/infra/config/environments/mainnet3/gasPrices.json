@@ -375,10 +375,6 @@
     "amount": "600.0",
     "decimals": 9
   },
-  "redstone": {
-    "amount": "0.00020005",
-    "decimals": 9
-  },
   "ronin": {
     "amount": "21.492605086",
     "decimals": 9

@@ -1683,18 +1683,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  redstone: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   ronin: {
     threshold: 4,
     validators: [

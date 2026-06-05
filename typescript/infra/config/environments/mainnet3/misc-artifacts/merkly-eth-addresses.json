@@ -41,9 +41,6 @@
   "zetachain": {
     "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
   },
-  "redstone": {
-    "router": "0x49bF21531991742b0c1797230758992769771CcD"
-  },
   "sei": {
     "router": "0x97aa7b7501FA0fe66649DE7394b9794fa40aEF02"
   },

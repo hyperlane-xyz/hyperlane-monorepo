@@ -368,20 +368,6 @@ export const validatorChainConfig = (
         'mode',
       ),
     },
-    redstone: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('redstone'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x1400b9737007f7978d8b4bbafb4a69c83f0641a7'],
-          [Contexts.ReleaseCandidate]: [
-            '0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'redstone',
-      ),
-    },
     zetachain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zetachain'),
