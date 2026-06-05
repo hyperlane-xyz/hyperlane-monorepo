@@ -19,6 +19,7 @@ import { getTronIgpConfig } from './tron.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { tokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -86,6 +87,11 @@ export const igp: ChainMap<IgpConfig> = objMap(
         ]),
       ),
       oracleConfig: getOracleConfigWithOverrides(local),
+      // Per-fee-token gas oracles for token-denominated IGP fees; configured in
+      // tokenGasOracles.ts (empty by default).
+      ...(tokenGasOracleConfigs[local]
+        ? { tokenOracleConfig: tokenGasOracleConfigs[local] }
+        : {}),
     };
   },
 );
