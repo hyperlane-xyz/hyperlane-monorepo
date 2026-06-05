@@ -46,8 +46,8 @@
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
-  "radixtestnet": {
-    "validators": ["0xeddaf7958627cfd35400c95db19a656a4a8a92c6"]
+  "seismictestnet": {
+    "validators": ["0xcfa3ec84fe69dde351760e9fdb667af912cb8368"]
   },
   "sepolia": {
     "validators": [
@@ -61,8 +61,5 @@
   },
   "somniatestnet": {
     "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
-  },
-  "seismictestnet": {
-    "validators": ["0xcfa3ec84fe69dde351760e9fdb667af912cb8368"]
   }
 }
