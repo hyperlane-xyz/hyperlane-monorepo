@@ -12,10 +12,7 @@ import { HyperlaneService } from './HyperlaneService.js';
 
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.string().url(),
-  WORMHOLESCAN_API_URL: z
-    .string()
-    .url()
-    .default('https://api.wormholescan.io'),
+  WORMHOLESCAN_API_URL: z.string().url().default('https://api.wormholescan.io'),
 });
 
 /**
