@@ -859,7 +859,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
   // the only thing that varies is which scope branch the on-chain consumer
   // takes — Specific (exact match) vs Default (cascade fallback). Different
   // `quoteMaxFee` / `quoteHalfAmount` per case → different beneficiary
-  // balance → assertion catches a mis-routed consume.
+  // balance → assertion catches a misrouted consume.
   const ccTransferCases: CcTransferCase[] = [
     {
       // Specific-scope: fee leaf at (dest, REMOTE_ROUTER); transient signed
