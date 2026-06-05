@@ -390,17 +390,21 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       const igpData = decodeIgpQuoteData(decodedIgp.signedQuote.data);
       // `destination_gas` is the per-destination gas budget the warp route
       // configures; this is what `transferRemote` will pay for at submit
-      // time. Unset → on-chain falls through to the legacy oracle path (no
-      // signed-quote consumption), so 0 is the correct display.
+      // time. The chain's `HyperlaneGasRouterDispatch::dispatch_with_gas`
+      // unwraps it with `ok_or(InvalidArgument)`, so an unset entry means
+      // the transfer would fail at submit — display must surface that
+      // rather than silently reporting 0.
       // For OverheadIgp configs, the chain adds the per-destination overhead
       // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
       // here to match the submitted fee.
       const gasAmount = tokenData.destination_gas?.get(destinationDomainId);
-      if (gasAmount !== undefined) {
-        const overheadGas =
-          igpState?.gasOverheads?.get(destinationDomainId) ?? 0n;
-        igpFeeAmount = computeIgpGasFee(igpData, gasAmount + overheadGas);
-      }
+      assert(
+        !isNullish(gasAmount),
+        `Warp route has no destination_gas configured for domain ${destinationDomainId}; transfer would fail at submit`,
+      );
+      const overheadGas =
+        igpState?.gasOverheads?.get(destinationDomainId) ?? 0n;
+      igpFeeAmount = computeIgpGasFee(igpData, gasAmount + overheadGas);
     }
     const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
 
