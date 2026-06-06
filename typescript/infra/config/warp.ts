@@ -22,20 +22,17 @@ import {
   getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   getLUMIAGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig.js';
-import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
 import {
   getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
   getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig.js';
 import { getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
-import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig.js';
 import { getArbitrumTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumTiaWarpConfig.js';
 import { getBaseEthereumSuperseedCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumSuperseedCBBTCWarpConfig.js';
 import { getTRUMPWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseSolanaTRUMPWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
-import { getBscMilkywayMILKWarpConfig } from './environments/mainnet3/warp/configGetters/getBscMilkywayMILKWarpConfig.js';
 import {
   getBsquaredUBTCWarpConfig,
   getUbtcGnosisSafeBuilderStrategyConfigGenerator,
@@ -151,7 +148,6 @@ type WarpConfigGetter = (
 ) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
-  [WarpRouteIds.BscMilkywayMILK]: getBscMilkywayMILKWarpConfig,
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.ArbitrumTIA]: getArbitrumTiaWarpConfig,
   [WarpRouteIds.RenzoEZETH]: getRenzoEZETHWarpConfig,
@@ -175,12 +171,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.BaseEthereumREZ]: getREZBaseEthereumWarpConfig,
   [WarpRouteIds.BaseEthereumREZSTAGING]: getRezStagingWarpConfig,
-  [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
-    getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC]:
     getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
-    getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
   [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,

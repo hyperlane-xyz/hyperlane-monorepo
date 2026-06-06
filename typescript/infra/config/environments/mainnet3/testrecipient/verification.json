@@ -7,14 +7,6 @@
       "name": "TestRecipient"
     }
   ],
-  "degenchain": [
-    {
-      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "TestRecipient"
-    }
-  ],
   "lisk": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
@@ -23,23 +15,7 @@
       "name": "TestRecipient"
     }
   ],
-  "merlin": [
-    {
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "TestRecipient"
-    }
-  ],
   "metis": [
-    {
-      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "TestRecipient"
-    }
-  ],
-  "tangle": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
       "constructorArguments": "",
