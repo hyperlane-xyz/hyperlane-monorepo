@@ -358,5 +358,14 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "nexus": {
+    "validators": ["0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4"]
+  },
+  "robinhood": {
+    "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
+  },
+  "tea": {
+    "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
   }
 }

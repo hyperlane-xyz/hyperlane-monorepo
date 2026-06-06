@@ -1400,6 +1400,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  nexus: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   nibiru: {
     threshold: 2,
     validators: [
@@ -1670,6 +1680,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  robinhood: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4b22d7b451e5ad05e91356ef847cc7c253533584',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -2075,6 +2095,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x2F007c82672F2Bb97227D4e3F80Ac481bfB40A2a',
         alias: 'Luganodes',
+      },
+    ],
+  },
+
+  tea: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb442f3df246b8c7f067da15a6e390c253f6eaeb6',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
