@@ -1419,16 +1419,16 @@ export const validatorChainConfig = (
         'nexus',
       ),
     },
-    robinhood: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('robinhood'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x4b22d7b451e5ad05e91356ef847cc7c253533584'],
-        },
-        'robinhood',
-      ),
-    },
+    // robinhood: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('robinhood'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0x4b22d7b451e5ad05e91356ef847cc7c253533584'],
+    //     },
+    //     'robinhood',
+    //   ),
+    // },
     tea: {
       interval: 5,
       reorgPeriod: getReorgPeriod('tea'),
