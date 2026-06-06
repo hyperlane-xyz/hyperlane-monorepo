@@ -41,6 +41,7 @@ import { ProviderBuilderFn } from './builders/types.js';
 import { defaultProviderBuilder } from './builders/ethersV5.js';
 import { defaultTronEthersProviderBuilder } from './builders/tron.js';
 import { defaultZKProviderBuilder } from './builders/zksync.js';
+import { SeismicSigner } from './SeismicSigner.js';
 
 type Provider = providers.Provider | ZKSyncProvider;
 
@@ -208,7 +209,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!chainName) return null;
     const signer = this.signers[chainName];
     if (!signer) return null;
-    if (signer.provider) return signer;
+    if (signer.provider) return this.maybeWrapSeismicSigner(chainName, signer);
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
@@ -220,7 +221,34 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!this.useSharedSigner) {
       this.signers[chainName] = connected;
     }
-    return connected;
+    return this.maybeWrapSeismicSigner(chainName, connected);
+  }
+
+  /**
+   * Wraps a connected signer in a SeismicSigner for Seismic chains, so that
+   * gas estimation (and static calls) for owner-gated functions are sent as
+   * signed reads. No-op for non-Seismic chains or already-wrapped signers.
+   */
+  maybeWrapSeismicSigner(chainName: ChainName, signer: Signer): Signer {
+    const metadata = this.tryGetChainMetadata(chainName);
+    if (
+      metadata?.technicalStack !== ChainTechnicalStack.Seismic ||
+      SeismicSigner.is(signer) ||
+      !signer.provider
+    ) {
+      return signer;
+    }
+    const rpcUrl = metadata.rpcUrls?.[0]?.http;
+    if (!rpcUrl) return signer;
+    const wrapped = new SeismicSigner(signer, {
+      chainId: Number(metadata.chainId),
+      rpcUrl,
+      name: metadata.name,
+    });
+    if (!this.useSharedSigner) {
+      this.signers[chainName] = wrapped;
+    }
+    return wrapped;
   }
 
   /**

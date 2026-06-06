@@ -247,7 +247,6 @@ pub enum KnownHyperlaneDomain {
     CotiTestnet = 7082400,
     EclipseTestnet = 239092742,
     HyperLiquidEvmTestnet = 998,
-    IncentivTestnet = 28802,
     KyveTestnet = 1262571342,
     ModeTestnet = 919,
     OptimismSepolia = 11155420,
@@ -380,6 +379,7 @@ pub enum HyperlaneDomainTechnicalStack {
     OpStack,
     PolygonCDK,
     PolkadotSubstrate,
+    Seismic,
     ZkSync,
     #[default]
     Other,
@@ -404,7 +404,6 @@ impl KnownHyperlaneDomain {
             | CotiTestnet
             | EclipseTestnet
             | HyperLiquidEvmTestnet
-            | IncentivTestnet
             | KyveTestnet
             | ModeTestnet
             | OptimismSepolia

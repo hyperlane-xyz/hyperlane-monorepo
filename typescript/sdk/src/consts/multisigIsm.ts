@@ -937,16 +937,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  incentivtestnet: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x3133eeb96fd96f9f99291088613edf7401149e6f',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   ink: {
     threshold: 4,
     validators: [
@@ -1713,6 +1703,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  seismictestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xcfa3ec84fe69dde351760e9fdb667af912cb8368',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
