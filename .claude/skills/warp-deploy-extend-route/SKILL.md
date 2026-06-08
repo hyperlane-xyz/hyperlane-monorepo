@@ -1,0 +1,466 @@
+---
+name: warp-deploy-extend-route
+description: Add a new chain to an existing warp route owned by a customer. Reads a Linear ticket, adds the new chain to the deploy.yaml, builds a customer-specific strategy file for existing chains, runs warp apply, and outputs transaction files for the customer to sign via their multisig.
+---
+
+# Warp Route Extension
+
+You are adding a new chain to an existing Hyperlane warp route. The route is owned by the customer (their Gnosis Safe on ethereum, ICAs on other chains). You will deploy the new chain contracts with a deployer key, and generate transaction files for existing chains that the customer must sign.
+
+## Input
+
+The user provides:
+
+- **Linear ticket URL or ID** (required, e.g. `ENG-3516`)
+- **Deployer address** (required — the temporary owner for the new chain)
+
+If either is missing, ask now.
+
+**Multi-protocol note**: if the new chain is Sealevel, Cosmos, or Tron, ask for a separate deployer address for that protocol.
+
+---
+
+## Step 1: Fetch the Linear Ticket
+
+Extract the issue ID (e.g. `ENG-3516`) and query:
+
+```bash
+curl -s -X POST https://api.linear.app/graphql \
+  -H "Authorization: $LINEAR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
+```
+
+**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user to export it and restart.
+
+Show the ticket title and description.
+
+---
+
+## Step 2: Extract Extension Details
+
+Parse the ticket to extract:
+
+| Field                        | Description                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| **Existing warp route ID**   | e.g. `USDC/igra` — look for "warp route ID" or derive from token + chain names |
+| **New chain(s) to add**      | The chain(s) being added to the route                                          |
+| **Token details**            | Symbol, decimals, name — usually carried from existing route                   |
+| **Customer's ethereum Safe** | The multisig that owns the route on ethereum                                   |
+| **Customer's ICA addresses** | Per-chain ICA addresses if the ticket lists them                               |
+| **Owner type**               | Whether existing chains are owned by a Safe directly or via ICAs               |
+
+Ask the user to clarify anything ambiguous.
+
+---
+
+## Step 3: Find Existing Route Files
+
+Locate the existing deploy.yaml and config.yaml in the registry:
+
+```bash
+REGISTRY_PATH="$(pwd)/../hyperlane-registry"
+ls "$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/"
+```
+
+Read both files and show the user:
+
+- Existing chains and their types
+- Contract addresses (from config.yaml)
+- Current owner addresses per chain
+
+Identify all existing chains — these are the ones the customer controls and for which we need to generate transaction proposals.
+
+---
+
+## Step 4: Look Up Mailbox for New Chain
+
+```bash
+REGISTRY_PATH="$(pwd)/../hyperlane-registry"
+cat "$REGISTRY_PATH/chains/<new-chain>/addresses.yaml" | grep "^mailbox:"
+```
+
+For Sealevel chains, also look up the IGP from `rust/sealevel/environments/mainnet3/<chain>/core/program-ids.json`.
+
+**Tron address note**: Tron uses base58 `T...` addresses externally (e.g., TronScan, user-provided), but the Hyperlane contracts and deploy.yaml use EVM hex `0x...` format internally. Tron is EVM-like (`isEVMLike() = true`). Always convert any Tron base58 address to hex before putting it in deploy.yaml:
+
+```bash
+python3 -c "
+import base58, sys
+addr = base58.b58decode_check(sys.argv[1])
+print('0x' + addr[1:].hex())
+" TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+# → 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
+```
+
+This applies to: token address, mailbox address, owner address — anything going into deploy.yaml for Tron.
+
+---
+
+## Step 5: Determine Owner for the New Chain
+
+The new chain's contract must be owned by the customer (to match their existing ownership structure). There are two cases:
+
+**Case A — Customer uses ICAs on non-ethereum chains:**
+
+The new chain will also need an ICA owned by the customer's ethereum Safe. Deploy the ICA using the script (ICAs are permissionless — anyone can deploy one):
+
+```bash
+cd typescript/infra
+
+pnpm tsx scripts/keys/get-owner-ica.ts \
+  --environment mainnet3 \
+  --ownerChain ethereum \
+  --owner <CUSTOMER_ETHEREUM_SAFE> \
+  --chains <new-chain> \
+  --deploy
+```
+
+This prints the new ICA address. Use that as the `owner` for the new chain in deploy.yaml.
+
+**First run without `--deploy`** to compute the ICA address deterministically before spending gas. Confirm the address looks right, then re-run with `--deploy`.
+
+**Tron ICA deployment caveat**: On Tron, the `get-owner-ica.ts` script may fail with `invalid BytesLike value` because `TronWallet.buildContractCall` passes the full ABI-encoded calldata as a single `bytes` param, which TronWeb6 rejects. If this happens, deploy the ICA manually using a custom script that calls `triggerSmartContract` with individually typed params (see prior Tron deployment notes). The ICA factory address is in `$REGISTRY_PATH/chains/tron/addresses.yaml` under `interchainAccountRouter`.
+
+**Tron TRX funding**: The deployer key needs ≥ **1000 TRX** before deploying on Tron. `TronWallet.ts` caps `feeLimit` at `Math.min(feeLimit, 1_000_000_000)` = 1000 TRX, and Tron requires `balance >= feeLimit`. Check balance with TronGrid or TronScan before starting.
+
+**Case B — Customer owns directly with a Safe on each chain (no ICAs):**
+
+Use the customer's Safe address on the new chain as owner, OR use the deployer address as temporary owner and plan to transfer after the customer's transactions are executed.
+
+Ask the user which case applies if not clear from the ticket.
+
+---
+
+## Step 6: Add New Chain to deploy.yaml
+
+Update the existing deploy.yaml to add the new chain. The new chain is almost always `synthetic`.
+
+**Standard synthetic addition:**
+
+```yaml
+<new-chain>:
+  decimals: <decimals> # from existing route
+  mailbox: '<mailbox-address>'
+  name: <token-name>
+  owner: '<customer-ica-or-safe-address>'
+  symbol: <token-symbol>
+  type: synthetic
+```
+
+**If the new chain is Tron (collateral):**
+
+```yaml
+tron:
+  decimals: <decimals> # typically 6 for USDT
+  mailbox: '<mailbox-address-in-0x-hex>' # convert from base58 if needed
+  name: <token-name>
+  owner: '<customer-ica-address-in-0x-hex>' # EVM hex, not base58
+  scale: <scale-factor-if-needed> # e.g. 1000000000000 if bridging to 18-decimal chain
+  symbol: <token-symbol>
+  token: '<token-contract-in-0x-hex>' # MUST be EVM hex, not Tron base58
+  type: collateral
+```
+
+**If the new chain is Sealevel (solanamainnet, eclipsemainnet):**
+
+```yaml
+<new-chain>:
+  decimals: <9-if-18-decimals-collateral-else-match>
+  gas: 300000
+  hook: '<igp-address-from-program-ids.json>'
+  mailbox: '<mailbox-address>'
+  metadataUri: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/<TOKEN>/metadata.json'
+  name: <token-name>
+  owner: '<customer-owner-address>'
+  symbol: <token-symbol>
+  scale: <10^(collateral_decimals - 9) if collateral decimals > 9, else omit>
+  type: synthetic
+```
+
+**Rules:**
+
+- Chains in alphabetical order
+- Copy `decimals`, `name`, `symbol` from existing entries
+- `owner` is the customer's ICA (or deployer if temp owner — see Step 5)
+
+Write the updated deploy.yaml back to the registry. Show the user the diff.
+
+Ask: **"Does this deploy.yaml look correct? Type `yes` to proceed, or describe changes needed."**
+
+Do not proceed until confirmed.
+
+---
+
+## Step 7: Build the Customer Strategy File
+
+Determine the customer's ownership structure from Step 2 and the existing deploy.yaml owners.
+
+**Output strategy file:** `~/.hyperlane/strategies/<customer-name>-strategy.yaml`
+(Derive `<customer-name>` from the ticket/token/customer — e.g. `moonpay`, `nexus`, `eni`)
+
+**Strategy structure depends on owner type:**
+
+### If customer uses ICAs on non-ethereum chains (most common pattern):
+
+The ethereum chain has a Gnosis Safe. All other chains have ICA submitters routing through that Safe.
+
+```yaml
+ethereum:
+  submitter:
+    type: gnosisSafeTxBuilder
+    chain: ethereum
+    version: '1.0'
+    safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
+
+<chain1>: # existing non-ethereum chain
+  submitter:
+    type: interchainAccount
+    chain: ethereum
+    destinationChain: <chain1>
+    owner: '<CUSTOMER_ETHEREUM_SAFE>'
+    internalSubmitter:
+      type: gnosisSafeTxBuilder
+      chain: ethereum
+      safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
+
+<chain2>: # another existing non-ethereum chain
+  submitter:
+    type: interchainAccount
+    chain: ethereum
+    destinationChain: <chain2>
+    owner: '<CUSTOMER_ETHEREUM_SAFE>'
+    internalSubmitter:
+      type: gnosisSafeTxBuilder
+      chain: ethereum
+      safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
+
+# ... repeat for all existing chains except the NEW chain
+# Do NOT add the new chain to the strategy — it's deployed directly with our key
+```
+
+**Do NOT include the new chain** in the strategy. The strategy covers only existing chains (owned by customer). The new chain is deployed with our deployer key.
+
+### If customer has a Solana/Sealevel chain:
+
+Add a `file` submitter for that chain — the transactions will need to be executed by the customer using their Solana tooling:
+
+```yaml
+solanamainnet:
+  submitter:
+    type: file
+    chain: solanamainnet
+    filepath: /tmp/<customer>-solanamainnet-txs.json
+```
+
+### If the new chain is also ICA-owned:
+
+If in Step 5 we deployed a new ICA for the customer on the new chain, we should still NOT include the new chain in the strategy (the new chain's contracts don't exist yet — `warp apply` will deploy them with our key). After deployment, we'll separately need to transfer ownership if we used the deployer as temp owner.
+
+Write the strategy file.
+
+---
+
+## Step 8: Ask for Key Environment Variables
+
+Ask the user:
+
+> **What environment variable holds your deployer private key for new chain deployment?**
+> (e.g. `PK_EVM`, `HYP_KEY`)
+
+If the new chain is Sealevel or Tron, also ask for its key var (may be the same EVM key).
+
+---
+
+## Step 9: Run Warp Apply
+
+### 9a: Start the HTTP Registry
+
+```bash
+cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
+```
+
+Run with `run_in_background: true`. Wait for `Listening on http://localhost:<port>`. Note the port and task ID.
+
+### 9b: Build and Show the Command
+
+The command runs from `typescript/cli`:
+
+```bash
+cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp apply \
+  --registry http://localhost:<port> \
+  --key.ethereum $<DEPLOYER_KEY_VAR> \
+  [--key.sealevel $<SEALEVEL_KEY_VAR>]  # only if new chain is Sealevel
+  [--key.tron $<TRON_KEY_VAR>]          # only if new chain is Tron
+  --strategy ~/.hyperlane/strategies/<customer>-strategy.yaml \
+  --receipts-dir /tmp/<customer>-<warp-route-id>-txs \
+  -w <WARP_ROUTE_ID> \
+  --yes
+```
+
+**Key flag rule**: NEVER combine `--key` (legacy) with `--key.<protocol>`. Always use `--key.ethereum` (and `--key.<protocol>` for other protocols) together. Using both `--key` and `--key.tron` will error: _"make sure to use --key.{protocol} or the legacy flag --key but not both"_.
+
+Tell the user:
+
+> **Starting warp apply to extend `<WARP_ROUTE_ID>`.**
+> This deploys contracts on `<new-chain>` and generates transaction proposals for existing chains.
+> Existing chains requiring customer signature: `<list>`
+> New chain being deployed: `<new-chain>`
+
+Ask: **"Ready to run? Type `yes` to execute or `no` to run manually."**
+
+### 9c: Run the Command
+
+Run it from `typescript/cli`. Show full output on completion.
+
+**On success:** the CLI deploys new contracts and writes tx proposal files to the receipts-dir.
+
+**On failure:** stop the HTTP registry and show the error. Common issues:
+
+- Deployer key not funded → run `/warp-deploy-fund-deployer` first
+- Strategy chain not in config → verify all existing chains appear in the strategy
+- ICA not deployed → go back to Step 5 and deploy the ICA
+
+### 9d: Stop the HTTP Registry
+
+```bash
+# Kill background task noted in 9a
+```
+
+Always stop it even on failure.
+
+---
+
+## Step 10: Collect TX Files and Send to Customer
+
+### 10a: Find the Output Files
+
+The strategy submitters write transaction proposals to the receipts-dir:
+
+```bash
+ls -la /tmp/<customer>-<warp-route-id>-txs/
+```
+
+For `gnosisSafeTxBuilder`: the output JSON is a Safe Transaction Builder batch importable to the Gnosis Safe UI (`https://app.safe.global` → Apps → Transaction Builder → Import).
+
+For `interchainAccount` submitter: generates **one separate Safe TX Builder JSON per destination chain**, all with `chainId: "1"` (all destined for the ethereum Safe). The customer must import and execute each file separately — they are NOT combined into one file.
+
+For `file` submitter: raw transaction JSON for that chain.
+
+**New chain receipt file is NOT for the customer**: The `<new-chain>-jsonRpc-*.json` file contains transactions that were already executed directly by the deployer key during `warp apply` (e.g. setting destination gas on the new contract). Do NOT send this to the customer.
+
+Show the user the full path of each output file and clarify which ones go to the customer.
+
+### 10b: Summarize Deployment Results
+
+Show the user:
+
+1. **New contracts deployed** (from the `warp apply` output):
+   | Chain | Contract Type | Address |
+   | ----- | ------------- | ------- |
+   | `<new-chain>` | `HypSynthetic` | `0x...` |
+
+2. **Transaction files for customer** (in receipts-dir):
+   | File | Chain(s) | Action Required |
+   | ---- | -------- | --------------- |
+   | `ethereum-txs.json` | ethereum + ICA chains | Import to Safe UI and sign |
+   | `solanamainnet-txs.json` | solanamainnet | Execute using Solana tooling |
+
+3. **What the customer transactions do:**
+   - `enrollRemoteRouter` on existing chain contracts to recognize the new chain
+   - (If ICA was just deployed) Initialize the new ICA on each destination
+
+### 10c: Ownership Transfer (if deployer is temp owner)
+
+If the new chain was deployed with the deployer as temporary owner (not the customer's ICA):
+
+Remind the user:
+
+> ⚠️ The new `<new-chain>` contract is currently owned by `<deployer-address>`. After the customer executes their transactions (Step 10b), you must transfer ownership to their ICA/Safe:
+>
+> Run `warp apply` again with `--key $<DEPLOYER_KEY_VAR>` and a deploy.yaml that has the customer's ICA as the new chain's owner. This will call `transferOwnership`.
+
+---
+
+## Step 11: Registry PR (Extension)
+
+After the customer executes their transactions and the route is live, update the registry:
+
+### 11a: Update config.yaml
+
+The `warp apply` run should have updated the config.yaml with the new chain's deployed address. Verify:
+
+```bash
+cat $REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<file>-config.yaml
+```
+
+If it wasn't updated (e.g., due to registry write failures), manually add the new chain's contract address to config.yaml following the existing format.
+
+### 11b: Commit and Open PR
+
+```bash
+cd $REGISTRY_PATH
+git checkout -b feat/extend-<TOKEN>-<new-chain>
+git add deployments/warp_routes/<TOKEN>/
+git commit -m "feat: extend <WARP_ROUTE_ID> to <new-chain>"
+git push -u origin HEAD
+
+gh pr create \
+  --base main \
+  --title "feat: extend <WARP_ROUTE_ID> to <new-chain>" \
+  --body "$(cat <<'EOF'
+## Summary
+
+Extends the `<WARP_ROUTE_ID>` warp route to `<new-chain>`.
+
+| Field | Value |
+| ----- | ----- |
+| **Linear** | <linear-issue-url> |
+| **Warp route ID** | `<WARP_ROUTE_ID>` |
+| **New chain** | `<new-chain>` |
+| **Customer Safe** | `<safe-address>` |
+
+### New contracts deployed
+
+| Chain | Contract | Address |
+| ----- | -------- | ------- |
+| `<new-chain>` | `HypERC20` / `HypSynthetic` | `0x...` |
+
+### ICAs deployed
+
+| Chain | ICA Address | Owner Safe |
+| ----- | ----------- | ---------- |
+| `<new-chain>` | `0x...` | `<safe-address>` |
+
+### Customer action required
+
+The customer must sign and execute the transaction proposals in:
+- `<path-to-txs-file>`
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+Show the user the PR URL.
+
+---
+
+## Notes
+
+- The registry path is `$(pwd)/../hyperlane-registry` from the monorepo root.
+- The strategy file covers only **existing** chains (customer-owned). The new chain uses the deployer key directly.
+- `gnosisSafeTxBuilder` output is importable to Gnosis Safe UI: Apps → Transaction Builder → "Import".
+- `interchainAccount` submitter generates **one file per destination chain** (all `chainId: "1"`, all for the ethereum Safe) — NOT a single bundled file.
+- If the customer has an `apiKey` for the Safe (from the strategy yaml pattern in nexus-strategy.yaml), ask if they need it included.
+- The `file` submitter for Sealevel chains writes raw transactions — the customer executes these with their Solana CLI or tooling.
+- After this skill, run `/warp-deploy-register-route` once the registry PR is merged to update warpIds.ts and agent config.
+- **`warp apply` overwrites owners in deploy.yaml** to the deployer address. This is expected — the registry server writes back updated config. The customer's ICA stays as owner on-chain; the deploy.yaml just needs to be manually corrected afterward if you re-read it.
+
+### Tron-specific notes
+
+- Tron is EVM-like: same deployer key (EVM private key) works, standard ICA scripts work.
+- **Always use EVM hex `0x...` in deploy.yaml** — never Tron base58 `T...`. Passing a base58 address to ethers.js causes `invalid address` error.
+- Convert base58 → hex: `python3 -c "import base58, sys; a = base58.b58decode_check(sys.argv[1]); print('0x'+a[1:].hex())" <TRON_ADDR>`
+- Deployer needs ≥ 1000 TRX before any Tron transaction (feeLimit cap in TronWallet.ts).
+- If `get-owner-ica.ts --deploy` fails on Tron with `invalid BytesLike value`, it's a `TronWallet.buildContractCall` bug — write a custom script calling `triggerSmartContract` with individually typed params and `feeLimit: 15_000_000`.
