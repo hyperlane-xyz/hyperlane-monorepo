@@ -130,6 +130,7 @@ const getAllowedRebalancingBridgesByDomain = (
 export type WarpUpdateResult = {
   txs: AnnotatedEV5Transaction[];
   feeTxs: AnnotatedEV5Transaction[];
+  ownershipTxs: AnnotatedEV5Transaction[];
 };
 
 export class EvmWarpModule extends HyperlaneModule<
@@ -208,7 +209,7 @@ export class EvmWarpModule extends HyperlaneModule<
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
+   * @returns `{txs, feeTxs, ownershipTxs}` — main txs, fee-contract txs (may require a separate fee-owner Safe), and ownership/proxyAdmin txs that must execute last.
    */
   async updateSplit(
     expectedConfig: HypTokenRouterConfig,
@@ -285,7 +286,11 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
+    );
 
+    // Ownership/proxyAdmin must always execute last; returned separately so callers
+    // can place feeTxs between main txs and ownership (see update() below).
+    const ownershipTxs = [
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -293,20 +298,28 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-    );
+    ];
 
-    return { txs: transactions, feeTxs };
+    return { txs: transactions, feeTxs, ownershipTxs };
   }
 
+  /**
+   * Backwards-compatible wrapper around `updateSplit`. Returns a flat, ordered
+   * transaction array suitable for a single submitter.
+   * Note: `feeTxs` may include `setFeeRecipient` (token-router owner) in addition
+   * to fee-contract calls — the submitter must own both the token router and fee contract.
+   */
   async update(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const { txs, feeTxs } = await this.updateSplit(
+    const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
       expectedConfig,
       tokenReaderParams,
     );
-    return [...txs, ...feeTxs];
+    // feeTxs must come before ownershipTxs: setFeeRecipient is onlyOwner and would
+    // revert if submitted after ownership has already been transferred.
+    return [...txs, ...feeTxs, ...ownershipTxs];
   }
 
   /**
@@ -1622,6 +1635,12 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transactions that need to be executed to update the token fee.
+   *
+   * @remarks
+   * The returned transactions may include both `setFeeRecipient` (gated by the
+   * token-router owner) and fee-contract config calls (gated by the fee-contract
+   * owner). When routing these to a dedicated `feeSubmitter`, that submitter
+   * must own both the token router and the fee contract.
    */
   async createTokenFeeUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
