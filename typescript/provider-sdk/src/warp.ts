@@ -16,6 +16,7 @@ import {
   IArtifactManager,
   addressToUnderivedArtifact,
   isArtifactDeployed,
+  isArtifactEmbedded,
   isArtifactNew,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
@@ -514,7 +515,8 @@ export function warpArtifactToDerivedConfig(
   // Convert ISM artifact to config if present
   assert(
     isNullish(config.interchainSecurityModule) ||
-      !isArtifactNew(config.interchainSecurityModule),
+      (!isArtifactNew(config.interchainSecurityModule) &&
+        !isArtifactEmbedded(config.interchainSecurityModule)),
     'Expected ISM to be a deployed or underived artifact',
   );
   let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
@@ -531,7 +533,8 @@ export function warpArtifactToDerivedConfig(
 
   // Convert hook artifact to config if present
   assert(
-    isNullish(config.hook) || !isArtifactNew(config.hook),
+    isNullish(config.hook) ||
+      (!isArtifactNew(config.hook) && !isArtifactEmbedded(config.hook)),
     'Expected hook to be a deployed or underived artifact',
   );
   let hookConfig: DerivedWarpConfig['hook'];
@@ -545,7 +548,8 @@ export function warpArtifactToDerivedConfig(
 
   // Convert fee artifact to config if present
   assert(
-    isNullish(config.fee) || !isArtifactNew(config.fee),
+    isNullish(config.fee) ||
+      (!isArtifactNew(config.fee) && !isArtifactEmbedded(config.fee)),
     'Expected fee to be a deployed or underived artifact',
   );
   let feeConfig: DerivedWarpConfig['tokenFee'];

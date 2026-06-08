@@ -10,9 +10,18 @@ export const ArtifactState = {
   NEW: 'new',
   DEPLOYED: 'deployed',
   UNDERIVED: 'underived',
+  EMBEDDED: 'embedded',
 } as const;
 
 export type ArtifactState = (typeof ArtifactState)[keyof typeof ArtifactState];
+
+export const ArtifactComposition = {
+  EMBEDDED: 'embedded',
+  ORCHESTRATED: 'orchestrated',
+} as const;
+
+export type ArtifactComposition =
+  (typeof ArtifactComposition)[keyof typeof ArtifactComposition];
 
 /**
  * Represents an artifact that has not yet been deployed.
@@ -43,6 +52,19 @@ export type ArtifactUnderived<D> = {
 };
 
 /**
+ * Represents a pre-deploy artifact whose lifecycle is owned by a parent
+ * composite artifact rather than its own writer. Used when a single program
+ * holds multiple "children" inside its address space (e.g. SVM multisig PDAs).
+ *
+ * No `deployed` field — embedded artifacts only exist pre-create; after the
+ * parent's create() they appear as ArtifactDeployed in the post-read transform.
+ */
+export type ArtifactEmbedded<C> = {
+  artifactState: typeof ArtifactState.EMBEDDED;
+  config: C;
+};
+
+/**
  * Union type representing a deployed artifact. Can be either the full artifact config
  * or its address on chain.
  */
@@ -57,7 +79,8 @@ export type ArtifactOnChain<C, D> =
 export type Artifact<C, D = unknown> =
   | ArtifactNew<C>
   | ArtifactDeployed<C, D>
-  | ArtifactUnderived<D>;
+  | ArtifactUnderived<D>
+  | ArtifactEmbedded<C>;
 
 /**
  * Type guard to check if an artifact is in the NEW state.
@@ -91,109 +114,143 @@ export function isArtifactUnderived<C, D>(
 }
 
 /**
- * Interface for reading artifact state from the blockchain.
+ * Type guard to check if an artifact is in the EMBEDDED state.
  */
-export interface ArtifactReader<C, D> {
-  /**
-   * Read the current state of an artifact at the given address.
-   * @param address The on-chain address of the artifact
-   * @returns The artifact configuration and deployment data
-   */
-  read(address: string): Promise<ArtifactDeployed<C, D>>;
+export function isArtifactEmbedded<C, D>(
+  artifact: Artifact<C, D>,
+): artifact is ArtifactEmbedded<C> {
+  return artifact.artifactState === ArtifactState.EMBEDDED;
 }
 
 /**
- * Interface for creating and updating artifacts on the blockchain.
+ * Reader for artifact state on-chain.
+ *
+ * Distributive over C: when C is a union of composition variants
+ * (see WithComposition), the resulting reader is itself a discriminated
+ * union narrowable on `composition`.
  */
-export interface ArtifactWriter<C, D> extends ArtifactReader<C, D> {
-  /**
-   * Deploy a new artifact on-chain.
-   * @param artifact The artifact configuration to deploy
-   * @returns A tuple of [deployed artifact, transaction receipts]
-   */
-  create(
-    artifact: ArtifactNew<C>,
-  ): Promise<[ArtifactDeployed<C, D>, TxReceipt[]]>;
+export type ArtifactReader<C, D> = C extends unknown
+  ? {
+      /** Composition mode; defaults to 'orchestrated' for non-composite C. */
+      readonly composition: C extends { composition: infer M }
+        ? M
+        : typeof ArtifactComposition.ORCHESTRATED;
 
-  /**
-   * Update an existing artifact to match the desired configuration.
-   * @param artifact The desired artifact state (must be deployed)
-   * @returns Array of transactions needed to perform the update
-   */
-  update(artifact: ArtifactDeployed<C, D>): Promise<AnnotatedTx[]>;
-}
+      /**
+       * Read the current state of an artifact at the given address.
+       */
+      read(address: string): Promise<ArtifactDeployed<ConfigOnChain<C, D>, D>>;
+    }
+  : never;
 
 /**
- * Utility type that converts Artifact<> references to ArtifactOnChain<> in a config type.
- * Used to create "raw" config types that protocol implementations work with.
+ * Writer for creating and updating artifacts on-chain.
  *
- * Transformations (non-recursive, single level only):
- * - Artifact<C, D> → ArtifactOnChain<C, D>
- * - Record<K, Artifact<C, D>> → Record<K, ArtifactOnChain<C, D>>
- * - Array<Artifact<C, D>> → Array<ArtifactOnChain<C, D>>
- * - Other properties remain unchanged
- *
- * This enables defining compound configs once and deriving raw configs automatically.
- *
- * Example:
- * ```typescript
- * interface RoutingIsmConfig {
- *   type: 'routing';
- *   owner: string;
- *   domains: Record<number, Artifact<IsmConfig, IsmDeployed>>;
- * }
- *
- * type RawRoutingIsmConfig = RawArtifact<RoutingIsmConfig, IsmDeployed>;
- * // Results in:
- * // {
- * //   type: 'routing';
- * //   owner: string;
- * //   domains: Record<number, ArtifactOnChain<IsmConfig, IsmDeployed>>;
- * // }
- * ```
- *
- * @deprecated FIXME: remove usage of this type in a follow up PR for the hook and ISM artifacts
+ * Distributive over C in the same way as ArtifactReader.
  */
-export type RawArtifact<C, D> = {
-  [K in keyof C]: C[K] extends Artifact<infer CC>
-    ? ArtifactOnChain<CC, D>
-    : C[K] extends Artifact<infer CC>[]
-      ? ArtifactOnChain<CC, D>[]
-      : C[K] extends { [L: string]: Artifact<infer CC> }
-        ? { [L in keyof C[K]]: ArtifactOnChain<CC, D> }
-        : C[K];
-};
+export type ArtifactWriter<C, D> = C extends unknown
+  ? ArtifactReader<C, D> & {
+      create(
+        artifact: ArtifactNew<C>,
+      ): Promise<[ArtifactDeployed<ConfigOnChain<C, D>, D>, TxReceipt[]]>;
+      update(
+        artifact: ArtifactDeployed<ConfigOnChain<C, D>, D>,
+      ): Promise<AnnotatedTx[]>;
+    }
+  : never;
 
 /**
  * Helper type to transform nested objects containing Artifacts.
- * Handles objects where all properties are Artifacts (required or optional).
+ * Handles objects where all properties are Artifacts (required or optional)
+ * and ArtifactEmbedded children (which collapse to ArtifactDeployed in the
+ * post-create read shape).
  */
-type NestedOnChain<T> =
+type NestedOnChain<T, D = unknown> =
   T extends Record<string, unknown>
     ? {
-        [L in keyof T]: T[L] extends Artifact<infer CC, infer DD>
-          ? ArtifactOnChain<CC, DD>
-          : T[L] extends Artifact<infer CC, infer DD> | undefined
-            ? ArtifactOnChain<CC, DD> | undefined
-            : T[L];
+        [L in keyof T]: T[L] extends ArtifactEmbedded<infer CC>
+          ? ArtifactDeployed<CC, D>
+          : T[L] extends ArtifactEmbedded<infer CC> | undefined
+            ? ArtifactDeployed<CC, D> | undefined
+            : T[L] extends Artifact<infer CC, infer DD>
+              ? ArtifactOnChain<CC, DD>
+              : T[L] extends Artifact<infer CC, infer DD> | undefined
+                ? ArtifactOnChain<CC, DD> | undefined
+                : T[L];
       }
     : T;
 
 /**
  * Utility type to convert a config type to its on-chain representation.
  * Replaces Artifact<> types one level deep with ArtifactOnChain<> types.
- * Unlike RawArtifact, preserves the nested deployment types.
+ * ArtifactEmbedded<> children collapse to ArtifactDeployed<C, D> — after the
+ * parent's create() they always exist on-chain alongside the parent.
  * Handles optional/undefined fields properly using conditional modifiers.
  */
-export type ConfigOnChain<C> = {
-  [K in keyof C]: C[K] extends Artifact<infer CC, infer DD>
-    ? ArtifactOnChain<CC, DD>
-    : C[K] extends Artifact<infer CC, infer DD> | undefined
-      ? ArtifactOnChain<CC, DD> | undefined
-      : C[K] extends Artifact<infer CC, infer DD>[]
-        ? ArtifactOnChain<CC, DD>[]
-        : NestedOnChain<C[K]>;
+export type ConfigOnChain<C, D = unknown> = {
+  [K in keyof C]: C[K] extends ArtifactEmbedded<infer CC>
+    ? ArtifactDeployed<CC, D>
+    : C[K] extends ArtifactEmbedded<infer CC> | undefined
+      ? ArtifactDeployed<CC, D> | undefined
+      : C[K] extends ArtifactEmbedded<infer CC>[]
+        ? ArtifactDeployed<CC, D>[]
+        : C[K] extends Artifact<infer CC, infer DD>
+          ? ArtifactOnChain<CC, DD>
+          : C[K] extends Artifact<infer CC, infer DD> | undefined
+            ? ArtifactOnChain<CC, DD> | undefined
+            : C[K] extends Artifact<infer CC, infer DD>[]
+              ? ArtifactOnChain<CC, DD>[]
+              : NestedOnChain<C[K], D>;
 };
+
+/**
+ * Helper type to transform nested objects whose properties are Artifacts
+ * into the embedded-children shape.
+ */
+type NestedEmbedded<T> =
+  T extends Record<string, unknown>
+    ? {
+        [L in keyof T]: T[L] extends Artifact<infer CC, infer _DD>
+          ? ArtifactEmbedded<CC>
+          : T[L] extends Artifact<infer CC, infer _DD> | undefined
+            ? ArtifactEmbedded<CC> | undefined
+            : T[L];
+      }
+    : T;
+
+/**
+ * Replaces every Artifact<CC, DD> position in C with ArtifactEmbedded<CC>.
+ * Used to express the "embedded" variant of a composite type whose children
+ * live inside the parent's address space rather than being separately deployed.
+ *
+ * Mirrors the clause structure of ConfigOnChain: single, optional, array,
+ * with Records and nested object literals handled by NestedEmbedded fall-through.
+ */
+export type WithEmbeddedChildren<C> = {
+  [K in keyof C]: C[K] extends Artifact<infer CC, infer _DD>
+    ? ArtifactEmbedded<CC>
+    : C[K] extends Artifact<infer CC, infer _DD> | undefined
+      ? ArtifactEmbedded<CC> | undefined
+      : C[K] extends Artifact<infer CC, infer _DD>[]
+        ? ArtifactEmbedded<CC>[]
+        : NestedEmbedded<C[K]>;
+};
+
+/**
+ * Lifts a composite-artifact config Base into a 2-variant discriminated union
+ * keyed by `composition`:
+ * - `'embedded'`     — children live inside the parent's address space; uses
+ *                      ArtifactEmbedded<> at each child position.
+ * - `'orchestrated'` — children are independently deployed; uses Artifact<>
+ *                      at each child position (the existing shape).
+ *
+ * Protocol writers / readers narrow on `composition` to dispatch.
+ */
+export type WithComposition<Base> =
+  | (WithEmbeddedChildren<Base> & {
+      composition: typeof ArtifactComposition.EMBEDDED;
+    })
+  | (Base & { composition: typeof ArtifactComposition.ORCHESTRATED });
 
 /**
  * Artifact Manager Interface

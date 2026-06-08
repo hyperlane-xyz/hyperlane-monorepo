@@ -2,7 +2,20 @@
  * Pure compile-time type tests for ConfigOnChain and TransformNestedArtifacts
  * These tests don't require a test runner - they pass/fail at compile time
  */
-import { Artifact, ArtifactOnChain, ConfigOnChain } from './artifact.js';
+import {
+  Artifact,
+  ArtifactComposition,
+  ArtifactDeployed,
+  ArtifactEmbedded,
+  ArtifactNew,
+  ArtifactOnChain,
+  ArtifactReader,
+  ArtifactState,
+  ArtifactWriter,
+  ConfigOnChain,
+  WithComposition,
+  WithEmbeddedChildren,
+} from './artifact.js';
 
 // Type equality test utility
 type Equals<X, Y> =
@@ -297,4 +310,279 @@ type _CorrectRequired = {
 // This should now pass with the fixed implementation
 export type _Test12 = AssertTrue<
   Equals<_StrictRequiredResult, _CorrectRequired>
+>;
+
+// ============================================================================
+// EMBEDDED state — Artifact<> union widening
+// ============================================================================
+
+type _EmbeddedFromArtifact = Extract<
+  Artifact<TestConfig, TestDeployed>,
+  { artifactState: typeof ArtifactState.EMBEDDED }
+>;
+export type _Test13 = AssertTrue<
+  Equals<_EmbeddedFromArtifact, ArtifactEmbedded<TestConfig>>
+>;
+
+// ArtifactOnChain<> must NOT include the EMBEDDED variant — it represents
+// post-deploy state only.
+type _EmbeddedFromOnChain = Extract<
+  ArtifactOnChain<TestConfig, TestDeployed>,
+  { artifactState: typeof ArtifactState.EMBEDDED }
+>;
+export type _Test14 = AssertTrue<Equals<_EmbeddedFromOnChain, never>>;
+
+// ============================================================================
+// WithEmbeddedChildren — required Artifact position
+// ============================================================================
+
+interface SingleEmbeddedConfig {
+  art: Artifact<TestConfig, TestDeployed>;
+  bar: string;
+}
+
+type SingleEmbeddedResult = WithEmbeddedChildren<SingleEmbeddedConfig>;
+
+type ExpectedSingleEmbedded = {
+  art: ArtifactEmbedded<TestConfig>;
+  bar: string;
+};
+
+export type _Test15 = AssertTrue<
+  Equals<SingleEmbeddedResult, ExpectedSingleEmbedded>
+>;
+
+// ============================================================================
+// WithEmbeddedChildren — optional Artifact position
+// ============================================================================
+
+interface OptionalEmbeddedConfig {
+  art?: Artifact<TestConfig, TestDeployed>;
+  bar: string;
+}
+
+type OptionalEmbeddedResult = WithEmbeddedChildren<OptionalEmbeddedConfig>;
+
+type ExpectedOptionalEmbedded = {
+  art?: ArtifactEmbedded<TestConfig>;
+  bar: string;
+};
+
+export type _Test16 = AssertTrue<
+  Equals<OptionalEmbeddedResult, ExpectedOptionalEmbedded>
+>;
+
+// ============================================================================
+// WithEmbeddedChildren — array Artifact position
+// ============================================================================
+
+interface ArrayEmbeddedConfig {
+  artifacts: Artifact<TestConfig, TestDeployed>[];
+  name: string;
+}
+
+type ArrayEmbeddedResult = WithEmbeddedChildren<ArrayEmbeddedConfig>;
+
+type ExpectedArrayEmbedded = {
+  artifacts: ArtifactEmbedded<TestConfig>[];
+  name: string;
+};
+
+export type _Test17 = AssertTrue<
+  Equals<ArrayEmbeddedResult, ExpectedArrayEmbedded>
+>;
+
+// ============================================================================
+// WithEmbeddedChildren — Record<number, Artifact<...>> handled by fall-through
+// ============================================================================
+
+interface RecordEmbeddedConfig {
+  type: 'routing';
+  domains: Record<number, Artifact<TestConfig, TestDeployed>>;
+  owner: string;
+}
+
+type RecordEmbeddedResult = WithEmbeddedChildren<RecordEmbeddedConfig>;
+
+type ExpectedRecordEmbedded = {
+  type: 'routing';
+  domains: Record<number, ArtifactEmbedded<TestConfig>>;
+  owner: string;
+};
+
+export type _Test18 = AssertTrue<
+  Equals<RecordEmbeddedResult, ExpectedRecordEmbedded>
+>;
+
+// ============================================================================
+// WithEmbeddedChildren — nested object literal with Artifact properties
+// ============================================================================
+
+interface NestedEmbeddedConfig {
+  domains: {
+    domain1: Artifact<TestConfig, TestDeployed>;
+    domain2: Artifact<TestConfig, TestDeployed>;
+  };
+  owner: string;
+}
+
+type NestedEmbeddedResult = WithEmbeddedChildren<NestedEmbeddedConfig>;
+
+type ExpectedNestedEmbedded = {
+  domains: {
+    domain1: ArtifactEmbedded<TestConfig>;
+    domain2: ArtifactEmbedded<TestConfig>;
+  };
+  owner: string;
+};
+
+export type _Test19 = AssertTrue<
+  Equals<NestedEmbeddedResult, ExpectedNestedEmbedded>
+>;
+
+// ============================================================================
+// WithEmbeddedChildren — primitives and non-Artifact fields preserved
+// ============================================================================
+
+interface PrimitivesEmbeddedConfig {
+  str: string;
+  num: number;
+  bool: boolean;
+  nullable: string | null;
+  optional?: number;
+}
+
+type PrimitivesEmbeddedResult = WithEmbeddedChildren<PrimitivesEmbeddedConfig>;
+
+type ExpectedPrimitivesEmbedded = {
+  str: string;
+  num: number;
+  bool: boolean;
+  nullable: string | null;
+  optional?: number;
+};
+
+export type _Test20 = AssertTrue<
+  Equals<PrimitivesEmbeddedResult, ExpectedPrimitivesEmbedded>
+>;
+
+// ============================================================================
+// WithComposition — both variants extractable
+// ============================================================================
+
+interface BaseCompositeConfig {
+  art: Artifact<TestConfig, TestDeployed>;
+  name: string;
+}
+
+type ComposedConfig = WithComposition<BaseCompositeConfig>;
+
+type EmbeddedVariant = Extract<
+  ComposedConfig,
+  { composition: typeof ArtifactComposition.EMBEDDED }
+>;
+type OrchestratedVariant = Extract<
+  ComposedConfig,
+  { composition: typeof ArtifactComposition.ORCHESTRATED }
+>;
+
+type ExpectedEmbeddedVariant = WithEmbeddedChildren<BaseCompositeConfig> & {
+  composition: typeof ArtifactComposition.EMBEDDED;
+};
+type ExpectedOrchestratedVariant = BaseCompositeConfig & {
+  composition: typeof ArtifactComposition.ORCHESTRATED;
+};
+
+export type _Test21a = AssertTrue<
+  Equals<EmbeddedVariant, ExpectedEmbeddedVariant>
+>;
+export type _Test21b = AssertTrue<
+  Equals<OrchestratedVariant, ExpectedOrchestratedVariant>
+>;
+
+// ============================================================================
+// ConfigOnChain — EMBEDDED children collapse to ArtifactDeployed<C, D>
+// ============================================================================
+
+interface EmbeddedChildConfig {
+  child: ArtifactEmbedded<TestConfig>;
+  optChild?: ArtifactEmbedded<TestConfig>;
+  many: ArtifactEmbedded<TestConfig>[];
+  name: string;
+}
+
+type EmbeddedChildResult = ConfigOnChain<EmbeddedChildConfig, TestDeployed>;
+
+type ExpectedEmbeddedChild = {
+  child: ArtifactDeployed<TestConfig, TestDeployed>;
+  optChild?: ArtifactDeployed<TestConfig, TestDeployed>;
+  many: ArtifactDeployed<TestConfig, TestDeployed>[];
+  name: string;
+};
+
+export type _Test22 = AssertTrue<
+  Equals<EmbeddedChildResult, ExpectedEmbeddedChild>
+>;
+
+// ============================================================================
+// ArtifactWriter distributes over WithComposition unions
+// ============================================================================
+
+type ComposedWriter = ArtifactWriter<
+  WithComposition<BaseCompositeConfig>,
+  TestDeployed
+>;
+
+type EmbeddedWriter = Extract<
+  ComposedWriter,
+  { composition: typeof ArtifactComposition.EMBEDDED }
+>;
+type OrchestratedWriter = Extract<
+  ComposedWriter,
+  { composition: typeof ArtifactComposition.ORCHESTRATED }
+>;
+
+// Both extracted variants must be non-never (i.e. the union actually
+// distributed) and carry their own `composition` literal AND have their
+// create()'s input narrowed onto the corresponding variant — i.e. the
+// embedded writer accepts a WithEmbeddedChildren<Base> input while the
+// orchestrated writer accepts the plain Base input.
+export type _Test23a = AssertTrue<
+  Equals<EmbeddedWriter['composition'], typeof ArtifactComposition.EMBEDDED>
+>;
+export type _Test23b = AssertTrue<
+  Equals<
+    OrchestratedWriter['composition'],
+    typeof ArtifactComposition.ORCHESTRATED
+  >
+>;
+export type _Test23c = AssertTrue<
+  Equals<
+    Parameters<EmbeddedWriter['create']>[0],
+    ArtifactNew<
+      WithEmbeddedChildren<BaseCompositeConfig> & {
+        composition: typeof ArtifactComposition.EMBEDDED;
+      }
+    >
+  >
+>;
+export type _Test23d = AssertTrue<
+  Equals<
+    Parameters<OrchestratedWriter['create']>[0],
+    ArtifactNew<
+      BaseCompositeConfig & {
+        composition: typeof ArtifactComposition.ORCHESTRATED;
+      }
+    >
+  >
+>;
+
+// ============================================================================
+// Non-composite C: reader's `composition` defaults to 'orchestrated'
+// ============================================================================
+
+type PlainReader = ArtifactReader<RequiredArtifactConfig, TestDeployed>;
+
+export type _Test24 = AssertTrue<
+  Equals<PlainReader['composition'], typeof ArtifactComposition.ORCHESTRATED>
 >;
