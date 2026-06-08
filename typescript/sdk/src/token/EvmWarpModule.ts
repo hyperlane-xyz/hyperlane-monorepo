@@ -209,7 +209,7 @@ export class EvmWarpModule extends HyperlaneModule<
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns `{txs, feeTxs, ownershipTxs}` — main txs, fee-contract txs (may require a separate fee-owner Safe), and ownership/proxyAdmin txs that must execute last.
+   * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
    */
   async updateSplit(
     expectedConfig: HypTokenRouterConfig,
@@ -230,10 +230,24 @@ export class EvmWarpModule extends HyperlaneModule<
       xerc20Txs = await module.update(config);
     }
 
-    const feeTxs = await this.createTokenFeeUpdateTxs(
+    const allFeeTxs = await this.createTokenFeeUpdateTxs(
       actualConfig,
       expectedConfig,
       tokenReaderParams,
+    );
+
+    // Split feeTxs by authority: setFeeRecipient targets the token router (router
+    // owner gated) while all other fee txs target the fee contract (fee-contract
+    // owner gated).  Keeping them in the same bucket means a dedicated feeSubmitter
+    // (which owns the fee contract) would try to call setFeeRecipient — which reverts
+    // because it doesn't own the router.  Router-owner txs go into the main batch;
+    // only fee-contract-owner txs are returned as feeTxs for the feeSubmitter.
+    const routerAddress = this.args.addresses.deployedTokenRoute.toLowerCase();
+    const routerOwnerFeeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() === routerAddress,
+    );
+    const feeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() !== routerAddress,
     );
 
     /**
@@ -286,6 +300,10 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
+      // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
+      // always execute under the router owner's authority — even when a dedicated
+      // feeSubmitter is configured for fee-contract-owner txs.
+      ...routerOwnerFeeTxs,
     );
 
     // Ownership/proxyAdmin must always execute last; returned separately so callers
@@ -306,8 +324,6 @@ export class EvmWarpModule extends HyperlaneModule<
   /**
    * Backwards-compatible wrapper around `updateSplit`. Returns a flat, ordered
    * transaction array suitable for a single submitter.
-   * Note: `feeTxs` may include `setFeeRecipient` (token-router owner) in addition
-   * to fee-contract calls — the submitter must own both the token router and fee contract.
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
@@ -317,8 +333,8 @@ export class EvmWarpModule extends HyperlaneModule<
       expectedConfig,
       tokenReaderParams,
     );
-    // feeTxs must come before ownershipTxs: setFeeRecipient is onlyOwner and would
-    // revert if submitted after ownership has already been transferred.
+    // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
+    // execute before the router owner changes.
     return [...txs, ...feeTxs, ...ownershipTxs];
   }
 

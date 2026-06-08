@@ -1387,13 +1387,15 @@ async function submitWarpApplyTransactions(
     }
   }
 
+  // Write whatever Safe payloads succeeded before surfacing any chain failures,
+  // so a partial success (e.g. chain A ok, chain B failed) doesn't lose chain A's bundle.
+  writeCombinedBundles(params.receiptsDir, allPayloads);
+
   if (failures.length > 0) {
     throw new Error(
       `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
     );
   }
-
-  writeCombinedBundles(params.receiptsDir, allPayloads);
 
   if (feeFailures.length > 0) {
     warnYellow(
