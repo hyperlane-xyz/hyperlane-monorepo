@@ -951,11 +951,21 @@ impl PendingMessage {
         reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
         // Signatures are simply not yet available (validator hasn't signed past the reorg
-        // period yet). Use a 1s fast-path for the first few retries so the relayer picks
+        // period yet). Use a 1s fast-path for the first ~10 retries so the relayer picks
         // them up within ~1s of the validator writing them, rather than waiting through the
-        // normal 5s→10s→30s→60s exponential backoff.
-        if matches!(reason, Some(ReprepareReason::CouldNotFetchMetadata)) && num_retries <= 10 {
-            return Some(Duration::from_secs(1));
+        // normal 5s→10s→30s→60s exponential backoff. Note: num_retries is the total persisted
+        // retry counter across all reasons, not a per-reason count — messages that burned through
+        // >10 retries before reaching metadata-wait won't get this fast-path.
+        //
+        // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
+        // from the beginning rather than landing mid-table at the 3-min arm.
+        if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
+            if num_retries <= 10 {
+                return Some(Duration::from_secs(1));
+            }
+            // Offset retries so 11→1, 12→2, … resuming the normal ramp.
+            // Pass reason=None to avoid recursing into this branch again.
+            return Self::calculate_msg_backoff(num_retries - 10, max_retries, message_id, None);
         }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
@@ -1053,6 +1063,9 @@ impl PendingMessage {
             }
             MetadataBuildError::CouldNotFetch => {
                 self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+            }
+            MetadataBuildError::AwaitingValidatorSignatures => {
+                self.on_reprepare::<String>(None, ReprepareReason::AwaitingValidatorSignatures)
             }
             // If the metadata building is refused, we still allow it to be retried later.
             MetadataBuildError::Refused(reason) => {
@@ -1228,6 +1241,55 @@ mod test {
         );
 
         assert_eq!(num_retries, expected_retries);
+    }
+
+    #[test]
+    fn test_could_not_fetch_metadata_backoff() {
+        let reason = ReprepareReason::AwaitingValidatorSignatures;
+
+        // Fast-path: retries 1–10 always return 1s
+        for i in 1..=10 {
+            assert_eq!(
+                PendingMessage::calculate_msg_backoff(
+                    i,
+                    DEFAULT_MAX_MESSAGE_RETRIES,
+                    None,
+                    Some(&reason)
+                ),
+                Some(Duration::from_secs(1)),
+                "retry {i} should be 1s"
+            );
+        }
+
+        // After fast-path: resumes gentle ramp (retry 11 → effective 1 → 5s)
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                11,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(5)),
+            "retry 11 should resume normal ramp at 5s, not jump to 180s"
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                12,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(10)),
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                13,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(30)),
+        );
     }
 
     /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
