@@ -17,6 +17,7 @@ import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -67,7 +68,7 @@ const feeOwnersByChain = {
   base: warpFeesIcas.base,
   bsc: warpFeesIcas.bsc,
   citrea: warpFeesIcas.citrea,
-  ethereum: warpFeesIcas.ethereum,
+  ethereum: warpFeesSafes.ethereum,
   katana: warpFeesIcas.katana,
   polygon: warpFeesIcas.polygon,
 } as const;
