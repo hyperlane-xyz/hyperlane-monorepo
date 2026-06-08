@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 
+import { ArtifactComposition } from './artifact.js';
 import { TokenType, resolveFeeTokenFromWarpArtifactConfig } from './warp.js';
 import type {
   CollateralWarpArtifactConfig,
@@ -9,6 +10,7 @@ import type {
 } from './warp.js';
 
 interface BaseSharedFixture {
+  composition: typeof ArtifactComposition.ORCHESTRATED;
   owner: string;
   mailbox: string;
   remoteRouters: Record<number, { address: string }>;
@@ -17,6 +19,7 @@ interface BaseSharedFixture {
 
 describe('resolveFeeTokenFromWarpArtifactConfig', () => {
   const baseShared: BaseSharedFixture = {
+    composition: ArtifactComposition.ORCHESTRATED,
     owner: '0x1',
     mailbox: '0xMailbox',
     remoteRouters: {},

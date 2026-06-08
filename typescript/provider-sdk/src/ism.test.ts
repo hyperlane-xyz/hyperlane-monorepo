@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
+  ArtifactComposition,
   ArtifactNew,
   ArtifactState,
   isArtifactDeployed,
@@ -345,6 +346,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const currentConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
@@ -363,6 +365,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
@@ -394,6 +397,7 @@ describe('mergeIsmArtifacts', () => {
       const currentArtifact: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: 'domainRoutingIsm',
           owner: address1,
           domains: {
@@ -412,6 +416,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
@@ -448,6 +453,7 @@ describe('mergeIsmArtifacts', () => {
       const currentArtifact: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: 'domainRoutingIsm',
           owner: address1,
           domains: {
@@ -472,6 +478,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
@@ -517,6 +524,7 @@ describe('mergeIsmArtifacts', () => {
       const currentArtifact: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: 'domainRoutingIsm',
           owner: address1,
           domains: {
@@ -535,6 +543,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
@@ -588,6 +597,7 @@ describe('mergeIsmArtifacts', () => {
       const currentArtifact: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: 'domainRoutingIsm',
           owner: address1, // Old owner
           domains: {
@@ -602,6 +612,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address2, // New owner (different!)
         domains: {
@@ -640,6 +651,7 @@ describe('mergeIsmArtifacts', () => {
       const currentArtifact: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: 'domainRoutingIsm',
           owner: address1,
           domains: {
@@ -668,6 +680,7 @@ describe('mergeIsmArtifacts', () => {
       };
 
       const expectedConfig: RoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: address1,
         domains: {
