@@ -12,7 +12,7 @@ You are adding a new chain to an existing Hyperlane warp route. The route is own
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516`)
-- **Deployer address** (required — the temporary owner for the new chain)
+- **Deployer address** (required — used to fund and sign new chain deployment transactions)
 
 If either is missing, ask now.
 
@@ -99,15 +99,23 @@ This applies to: token address, mailbox address, owner address — anything goin
 
 ## Step 5: Determine Owner for the New Chain
 
-The new chain's contract must be owned by the customer (to match their existing ownership structure). There are two cases:
+The new chain's contract must be owned by the customer from the start — **never use the deployer address as owner**. Match the customer's existing ownership structure.
 
-**Case A — Customer uses ICAs on non-ethereum chains:**
+**Case A — Customer uses ICAs on non-ethereum chains (most common):**
 
-The new chain will also need an ICA owned by the customer's ethereum Safe. Deploy the ICA using the script (ICAs are permissionless — anyone can deploy one):
+The new chain needs an ICA owned by the customer's ethereum Safe. Run without `--deploy` first to compute the address deterministically, confirm it looks right, then re-run with `--deploy` to create it on-chain (ICAs are permissionless — anyone can deploy one):
 
 ```bash
 cd typescript/infra
 
+# Dry-run first (no gas spent):
+pnpm tsx scripts/keys/get-owner-ica.ts \
+  --environment mainnet3 \
+  --ownerChain ethereum \
+  --owner <CUSTOMER_ETHEREUM_SAFE> \
+  --chains <new-chain>
+
+# Then deploy:
 pnpm tsx scripts/keys/get-owner-ica.ts \
   --environment mainnet3 \
   --ownerChain ethereum \
@@ -116,17 +124,15 @@ pnpm tsx scripts/keys/get-owner-ica.ts \
   --deploy
 ```
 
-This prints the new ICA address. Use that as the `owner` for the new chain in deploy.yaml.
+This prints the ICA address. Use it as the `owner` for the new chain in deploy.yaml.
 
-**First run without `--deploy`** to compute the ICA address deterministically before spending gas. Confirm the address looks right, then re-run with `--deploy`.
+**Tron ICA deployment caveat**: On Tron, `get-owner-ica.ts` may fail with `invalid BytesLike value` — see Tron-specific notes at the bottom.
 
-**Tron ICA deployment caveat**: On Tron, the `get-owner-ica.ts` script may fail with `invalid BytesLike value` because `TronWallet.buildContractCall` passes the full ABI-encoded calldata as a single `bytes` param, which TronWeb6 rejects. If this happens, deploy the ICA manually using a custom script that calls `triggerSmartContract` with individually typed params (see prior Tron deployment notes). The ICA factory address is in `$REGISTRY_PATH/chains/tron/addresses.yaml` under `interchainAccountRouter`.
+**Tron TRX funding**: The deployer key needs ≥ **1000 TRX** before any Tron transaction — see Tron-specific notes.
 
-**Tron TRX funding**: The deployer key needs ≥ **1000 TRX** before deploying on Tron. `TronWallet.ts` caps `feeLimit` at `Math.min(feeLimit, 1_000_000_000)` = 1000 TRX, and Tron requires `balance >= feeLimit`. Check balance with TronGrid or TronScan before starting.
+**Case B — Customer owns directly with a Safe per chain (no ICAs):**
 
-**Case B — Customer owns directly with a Safe on each chain (no ICAs):**
-
-Use the customer's Safe address on the new chain as owner, OR use the deployer address as temporary owner and plan to transfer after the customer's transactions are executed.
+Use the customer's Safe address on the new chain directly as owner. Ask the user for that address if the ticket doesn't list it.
 
 Ask the user which case applies if not clear from the ticket.
 
@@ -180,11 +186,12 @@ tron:
 
 **Rules:**
 
+- **Only append the new chain — do NOT modify any existing chain entries**
 - Chains in alphabetical order
 - Copy `decimals`, `name`, `symbol` from existing entries
-- `owner` is the customer's ICA (or deployer if temp owner — see Step 5)
+- `owner` is always the customer's ICA or Safe address from Step 5 — never the deployer
 
-Write the updated deploy.yaml back to the registry. Show the user the diff.
+Write the updated deploy.yaml back to the registry. Show the user the diff (new chain entry only).
 
 Ask: **"Does this deploy.yaml look correct? Type `yes` to proceed, or describe changes needed."**
 
@@ -224,22 +231,53 @@ ethereum:
       chain: ethereum
       safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
 
-<chain2>: # another existing non-ethereum chain
-  submitter:
-    type: interchainAccount
-    chain: ethereum
-    destinationChain: <chain2>
-    owner: '<CUSTOMER_ETHEREUM_SAFE>'
-    internalSubmitter:
-      type: gnosisSafeTxBuilder
-      chain: ethereum
-      safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
-
 # ... repeat for all existing chains except the NEW chain
 # Do NOT add the new chain to the strategy — it's deployed directly with our key
 ```
 
 **Do NOT include the new chain** in the strategy. The strategy covers only existing chains (owned by customer). The new chain is deployed with our deployer key.
+
+### If the route has a fee contract with a separate fee Safe (common for AW-managed routes):
+
+Some routes have a `tokenFee.feeContracts` section in deploy.yaml with a separate owner (the AW fee Safe). Add a `feeSubmitter` to each chain entry — it mirrors the main submitter structure but uses the fee Safe address instead.
+
+The fee Safe ethereum address is in `typescript/infra/config/environments/mainnet3/governance/safe/warpFees.ts` (`ethereum` entry = `0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0`). Per-chain ICA addresses (what goes in `feeContracts[chain].owner` in deploy.yaml) are in `typescript/infra/config/environments/mainnet3/governance/ica/warpFees.ts`. These are different: deploy.yaml uses the ICA address per chain, the strategy `feeSubmitter` uses the ethereum Safe as the controlling account.
+
+```yaml
+ethereum:
+  submitter:
+    type: gnosisSafeTxBuilder
+    chain: ethereum
+    version: '1.0'
+    safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
+  feeSubmitter:
+    type: gnosisSafeTxBuilder
+    chain: ethereum
+    version: '1.0'
+    safeAddress: '<FEE_SAFE>'
+
+<chain1>:
+  submitter:
+    type: interchainAccount
+    chain: ethereum
+    destinationChain: <chain1>
+    owner: '<CUSTOMER_ETHEREUM_SAFE>'
+    internalSubmitter:
+      type: gnosisSafeTxBuilder
+      chain: ethereum
+      safeAddress: '<CUSTOMER_ETHEREUM_SAFE>'
+  feeSubmitter:
+    type: interchainAccount
+    chain: ethereum
+    destinationChain: <chain1>
+    owner: '<FEE_SAFE>'
+    internalSubmitter:
+      type: gnosisSafeTxBuilder
+      chain: ethereum
+      safeAddress: '<FEE_SAFE>'
+```
+
+The fee submitter generates a separate combined Safe TX Builder bundle for the fee Safe (distinct from the customer's main bundle).
 
 ### If customer has a Solana/Sealevel chain:
 
@@ -315,6 +353,19 @@ Run it from `typescript/cli`. Show full output on completion.
 
 **On success:** the CLI deploys new contracts and writes tx proposal files to the receipts-dir.
 
+**After success — verify no `transferOwnership` to deployer:**
+
+```bash
+grep -r "transferOwnership" /tmp/<customer>-<warp-route-id>-txs/
+```
+
+If you see `transferOwnership` calls targeting the deployer address in files for **existing** chains, the deploy.yaml `owner` fields were corrupted (likely by a previous run). **Stop immediately — do not send these files to the customer.** To fix:
+
+1. Restore correct ICA owners in `deploy.yaml` for existing chains (check git history for original values)
+2. Restart the HTTP registry and re-run `warp apply`
+
+`transferOwnership` to the **new chain's deployer address** in the new chain's jsonRpc receipt is expected (the deployer owns the new contract and can manage it).
+
 **On failure:** stop the HTTP registry and show the error. Common issues:
 
 - Deployer key not funded → run `/warp-deploy-fund-deployer` first
@@ -369,16 +420,6 @@ Show the user:
 3. **What the customer transactions do:**
    - `enrollRemoteRouter` on existing chain contracts to recognize the new chain
    - (If ICA was just deployed) Initialize the new ICA on each destination
-
-### 10c: Ownership Transfer (if deployer is temp owner)
-
-If the new chain was deployed with the deployer as temporary owner (not the customer's ICA):
-
-Remind the user:
-
-> ⚠️ The new `<new-chain>` contract is currently owned by `<deployer-address>`. After the customer executes their transactions (Step 10b), you must transfer ownership to their ICA/Safe:
->
-> Run `warp apply` again with `--key $<DEPLOYER_KEY_VAR>` and a deploy.yaml that has the customer's ICA as the new chain's owner. This will call `transferOwnership`.
 
 ---
 
@@ -455,7 +496,7 @@ Show the user the PR URL.
 - If the customer has an `apiKey` for the Safe (from the strategy yaml pattern in nexus-strategy.yaml), ask if they need it included.
 - The `file` submitter for Sealevel chains writes raw transactions — the customer executes these with their Solana CLI or tooling.
 - After this skill, run `/warp-deploy-register-route` once the registry PR is merged to update warpIds.ts and agent config.
-- **`warp apply` overwrites owners in deploy.yaml** to the deployer address. This is expected — the registry server writes back updated config. The customer's ICA stays as owner on-chain; the deploy.yaml just needs to be manually corrected afterward if you re-read it.
+- **`warp apply` re-runs corrupt deploy.yaml owners (bug, fixed in monorepo):** `runWarpRouteApply` previously set ALL chain owners to the deployer in `intermediateOwnerConfig` and wrote that back to the registry — meaning a second run would generate `transferOwnership(deployer)` for every existing chain. The fix scopes this override to new chains only. If working with an older CLI, always check for unexpected `transferOwnership` calls after running (see Step 9c).
 
 ### Tron-specific notes
 
