@@ -123,41 +123,123 @@ export function isArtifactEmbedded<C, D>(
 }
 
 /**
- * Reader for artifact state on-chain.
- *
- * Distributive over C: when C is a union of composition variants
- * (see WithComposition), the resulting reader is itself a discriminated
- * union narrowable on `composition`.
+ * Narrows C to its `{ composition: M }` variant when C is a WithComposition
+ * union; passes C through unchanged when C has no `composition` discriminant
+ * (non-composite types).
  */
-export type ArtifactReader<C, D> = C extends unknown
-  ? {
-      /** Composition mode; defaults to 'orchestrated' for non-composite C. */
-      readonly composition: C extends { composition: infer M }
-        ? M
-        : typeof ArtifactComposition.ORCHESTRATED;
-
-      /**
-       * Read the current state of an artifact at the given address.
-       */
-      read(address: string): Promise<ArtifactDeployed<ConfigOnChain<C, D>, D>>;
-    }
-  : never;
+export type WithCompositionVariant<
+  C,
+  M extends ArtifactComposition,
+> = C extends { composition: ArtifactComposition }
+  ? Extract<C, { composition: M }>
+  : C;
 
 /**
- * Writer for creating and updating artifacts on-chain.
- *
- * Distributive over C in the same way as ArtifactReader.
+ * Reader for the orchestrated composition variant. Children are independently
+ * deployed; the artifact's address resolves to the parent contract/program only.
  */
-export type ArtifactWriter<C, D> = C extends unknown
-  ? ArtifactReader<C, D> & {
-      create(
-        artifact: ArtifactNew<C>,
-      ): Promise<[ArtifactDeployed<ConfigOnChain<C, D>, D>, TxReceipt[]]>;
-      update(
-        artifact: ArtifactDeployed<ConfigOnChain<C, D>, D>,
-      ): Promise<AnnotatedTx[]>;
-    }
-  : never;
+export interface OrchestratedArtifactReader<C, D> {
+  readonly composition: typeof ArtifactComposition.ORCHESTRATED;
+  read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      D
+    >
+  >;
+}
+
+/**
+ * Writer for the orchestrated composition variant.
+ */
+export interface OrchestratedArtifactWriter<
+  C,
+  D,
+> extends OrchestratedArtifactReader<C, D> {
+  create(
+    artifact: ArtifactNew<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>
+    >,
+  ): Promise<
+    [
+      ArtifactDeployed<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        D
+      >,
+      TxReceipt[],
+    ]
+  >;
+  update(
+    artifact: ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      D
+    >,
+  ): Promise<AnnotatedTx[]>;
+}
+
+/**
+ * Reader for the embedded composition variant. Children live inside the
+ * parent's address space (e.g. SVM PDAs); the parent's read returns the full
+ * subtree.
+ */
+export interface EmbeddedArtifactReader<C, D> {
+  readonly composition: typeof ArtifactComposition.EMBEDDED;
+  read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+      D
+    >
+  >;
+}
+
+/**
+ * Writer for the embedded composition variant.
+ */
+export interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<
+  C,
+  D
+> {
+  create(
+    artifact: ArtifactNew<
+      WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>
+    >,
+  ): Promise<
+    [
+      ArtifactDeployed<
+        WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+        D
+      >,
+      TxReceipt[],
+    ]
+  >;
+  update(
+    artifact: ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+      D
+    >,
+  ): Promise<AnnotatedTx[]>;
+}
+
+/**
+ * Public reader union. Narrowing on `reader.composition` resolves to one
+ * variant (orchestrated or embedded). Implementations pick one of the two
+ * specific interfaces above.
+ */
+export type ArtifactReader<C, D> =
+  | OrchestratedArtifactReader<C, D>
+  | EmbeddedArtifactReader<C, D>;
+
+/**
+ * Public writer union. Narrowing on `writer.composition` resolves to one
+ * variant (orchestrated or embedded). Implementations pick one of the two
+ * specific interfaces above.
+ */
+export type ArtifactWriter<C, D> =
+  | OrchestratedArtifactWriter<C, D>
+  | EmbeddedArtifactWriter<C, D>;
 
 /**
  * Helper type to transform nested objects containing Artifacts.

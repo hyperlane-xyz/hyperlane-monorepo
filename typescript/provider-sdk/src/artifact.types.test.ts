@@ -13,7 +13,10 @@ import {
   ArtifactState,
   ArtifactWriter,
   ConfigOnChain,
+  EmbeddedArtifactWriter,
+  OrchestratedArtifactWriter,
   WithComposition,
+  WithCompositionVariant,
   WithEmbeddedChildren,
 } from './artifact.js';
 
@@ -525,7 +528,7 @@ export type _Test22 = AssertTrue<
 >;
 
 // ============================================================================
-// ArtifactWriter distributes over WithComposition unions
+// ArtifactWriter is the union of orchestrated + embedded variants
 // ============================================================================
 
 type ComposedWriter = ArtifactWriter<
@@ -542,11 +545,10 @@ type OrchestratedWriter = Extract<
   { composition: typeof ArtifactComposition.ORCHESTRATED }
 >;
 
-// Both extracted variants must be non-never (i.e. the union actually
-// distributed) and carry their own `composition` literal AND have their
-// create()'s input narrowed onto the corresponding variant — i.e. the
-// embedded writer accepts a WithEmbeddedChildren<Base> input while the
-// orchestrated writer accepts the plain Base input.
+// Each extracted variant must structurally match the matching interface and
+// must narrow create()'s input via WithCompositionVariant — i.e. the embedded
+// writer accepts ArtifactNew of the embedded-children variant, while the
+// orchestrated writer accepts ArtifactNew of the plain-base variant.
 export type _Test23a = AssertTrue<
   Equals<EmbeddedWriter['composition'], typeof ArtifactComposition.EMBEDDED>
 >;
@@ -577,12 +579,54 @@ export type _Test23d = AssertTrue<
   >
 >;
 
+// The split union must structurally match the per-variant interfaces.
+export type _Test23e = AssertTrue<
+  Equals<
+    EmbeddedWriter,
+    EmbeddedArtifactWriter<WithComposition<BaseCompositeConfig>, TestDeployed>
+  >
+>;
+export type _Test23f = AssertTrue<
+  Equals<
+    OrchestratedWriter,
+    OrchestratedArtifactWriter<
+      WithComposition<BaseCompositeConfig>,
+      TestDeployed
+    >
+  >
+>;
+
 // ============================================================================
-// Non-composite C: reader's `composition` defaults to 'orchestrated'
+// WithCompositionVariant — identity on non-composite C
+// ============================================================================
+
+export type _TestNonCompositeUnchangedOrchestrated = AssertTrue<
+  Equals<
+    WithCompositionVariant<TestConfig, typeof ArtifactComposition.ORCHESTRATED>,
+    TestConfig
+  >
+>;
+export type _TestNonCompositeUnchangedEmbedded = AssertTrue<
+  Equals<
+    WithCompositionVariant<TestConfig, typeof ArtifactComposition.EMBEDDED>,
+    TestConfig
+  >
+>;
+
+// ============================================================================
+// Non-composite C: reader union still narrowable on `composition`
 // ============================================================================
 
 type PlainReader = ArtifactReader<RequiredArtifactConfig, TestDeployed>;
 
+type PlainOrchestratedReader = Extract<
+  PlainReader,
+  { composition: typeof ArtifactComposition.ORCHESTRATED }
+>;
+
 export type _Test24 = AssertTrue<
-  Equals<PlainReader['composition'], typeof ArtifactComposition.ORCHESTRATED>
+  Equals<
+    PlainOrchestratedReader['composition'],
+    typeof ArtifactComposition.ORCHESTRATED
+  >
 >;
