@@ -470,18 +470,22 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const { txs: updateTransactions, feeTxs: feeUpdateTransactions } =
-    await updateExistingWarpRoute(
-      params,
-      apiKeys,
-      warpDeployConfig,
-      updatedWarpCoreConfig,
-    );
+  const {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  } = await updateExistingWarpRoute(
+    params,
+    apiKeys,
+    warpDeployConfig,
+    updatedWarpCoreConfig,
+  );
 
   // Check if update transactions are empty
   const hasAnyTx = [
     ...Object.values(updateTransactions),
     ...Object.values(feeUpdateTransactions),
+    ...Object.values(ownershipTransactions),
   ].some((txs) => txs.length > 0);
 
   if (!hasAnyTx)
@@ -491,6 +495,7 @@ export async function runWarpRouteApply(
     params,
     updateTransactions,
     feeUpdateTransactions,
+    ownershipTransactions,
   );
 }
 
@@ -716,6 +721,7 @@ export async function extendWarpRoute(
 type WarpApplyTransactions = {
   txs: ChainMap<TypedAnnotatedTransaction[]>;
   feeTxs: ChainMap<TypedAnnotatedTransaction[]>;
+  ownershipTxs: ChainMap<TypedAnnotatedTransaction[]>;
 };
 
 type SafeTxBuilderPayload = {
@@ -757,6 +763,7 @@ async function updateExistingWarpRoute(
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -804,8 +811,9 @@ async function updateExistingWarpRoute(
             );
             const { txs, feeTxs, ownershipTxs } =
               await evmERC20WarpModule.updateSplit(configWithMailbox);
-            updateTransactions[chain] = [...txs, ...ownershipTxs];
+            updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
+            ownershipTransactions[chain] = ownershipTxs;
             break;
           }
           default: {
@@ -837,7 +845,11 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return { txs: updateTransactions, feeTxs: feeUpdateTransactions };
+  return {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  };
 }
 
 /**
@@ -1116,6 +1128,7 @@ async function submitChainTransactions(
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
   feeTxs: TypedAnnotatedTransaction[],
+  ownershipTxs: TypedAnnotatedTransaction[],
   isExtendedChain: boolean,
 ): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
@@ -1244,6 +1257,29 @@ async function submitChainTransactions(
           );
         }
       }
+
+      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
+      // setFeeRecipient) execute before ownership is transferred to a new address.
+      if (ownershipTxs.length > 0) {
+        const ownershipReceipts = await submitter.submit(
+          ...(ownershipTxs as any[]),
+        );
+        if (isSafeTxBuilderPayload(ownershipReceipts)) {
+          safePayloads.push({
+            ...ownershipReceipts,
+            meta: {
+              ...ownershipReceipts.meta,
+              _safeAddress: mainSafeAddress,
+            },
+          });
+        } else if (ownershipReceipts && isEVMLike(protocol)) {
+          const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
+          writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
+          logGreen(
+            `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
+          );
+        }
+      }
     },
     5, // attempts
     100, // baseRetryMs
@@ -1259,6 +1295,7 @@ async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
   feeUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
+  ownershipUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
@@ -1274,6 +1311,7 @@ async function submitWarpApplyTransactions(
   const allChains = new Set([
     ...Object.keys(updateTransactions),
     ...Object.keys(feeUpdateTransactions),
+    ...Object.keys(ownershipUpdateTransactions),
   ]);
   const chains = [...allChains];
   const evmChains = chains.filter((chain) =>
@@ -1306,6 +1344,7 @@ async function submitWarpApplyTransactions(
           chain,
           updateTransactions[chain] ?? [],
           feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
       (chain) => chain,
@@ -1333,6 +1372,7 @@ async function submitWarpApplyTransactions(
           chain,
           updateTransactions[chain] ?? [],
           feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
         chain,
