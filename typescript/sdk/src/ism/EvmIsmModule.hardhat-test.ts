@@ -129,6 +129,11 @@ describe('EvmIsmModule', async () => {
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
     const normalizedConfig = normalizeConfig(testConfig);
 
+    // recipient is a deploy-time constructor arg not returned by read()
+    if (normalizedConfig.type === IsmType.RATE_LIMITED) {
+      delete normalizedConfig.recipient;
+    }
+
     assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 

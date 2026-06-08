@@ -731,9 +731,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(ism).to.exist;
       expect(ism.type).to.equal(IsmType.RATE_LIMITED);
       expect(ism.maxCapacity).to.equal(maxCapacity);
-      expect(normalizeAddressEvm(ism.recipient!)).to.equal(
-        normalizeAddressEvm(syntheticTokenConfig!.addressOrDenom!),
-      );
     });
 
     it('should round down RateLimitedIsm maxCapacity to nearest multiple of 86400', () => {
