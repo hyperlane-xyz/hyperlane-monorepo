@@ -206,11 +206,13 @@ impl ValidatorSubmitter {
         let blocks_to_wait = next_leaf_block.saturating_sub(finalized_block);
 
         // Wake up ~1 block early to avoid missing the window due to timing variance,
-        // then tight-poll at 1s until the checkpoint appears.
+        // then tight-poll at 1s until the checkpoint appears. Clamp to self.interval
+        // so a stale block_height can't produce a sleep longer than normal polling.
         self.estimated_block_time
             .saturating_mul(blocks_to_wait as u32)
             .saturating_sub(self.estimated_block_time)
             .max(Duration::from_secs(1))
+            .min(self.interval)
     }
 
     /// Submits signed checkpoints relating to the given tree until the correctness checkpoint (inclusive).
