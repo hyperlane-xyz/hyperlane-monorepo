@@ -617,7 +617,7 @@ impl PendingMessage {
     }
 
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, None)
             .and_then(|dur| Instant::now().checked_add(dur))
     }
 
@@ -860,7 +860,7 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(Some(&reason));
         self.submitted = false;
         if let Some(e) = err {
             warn!(error = ?e, "Repreparing message: {}", reason.clone());
@@ -880,18 +880,11 @@ impl PendingMessage {
             );
             return PendingOperationResult::Drop;
         }
-        // Signatures are simply not yet available (validator hasn't signed past the reorg
-        // period yet). Use a 1s fast-path for the first few retries so the relayer picks
-        // them up within ~1s of the validator writing them, rather than waiting through the
-        // normal 5s→10s→30s→60s exponential backoff.
-        if matches!(reason, ReprepareReason::CouldNotFetchMetadata) && self.num_retries <= 5 {
-            self.next_attempt_after = Instant::now().checked_add(Duration::from_secs(1));
-        }
         PendingOperationResult::Reprepare(reason)
     }
 
     fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(None);
         if let Some(e) = err {
             warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason);
         } else {
@@ -921,13 +914,14 @@ impl PendingMessage {
         self.last_attempted_at = Instant::now();
     }
 
-    fn inc_attempts(&mut self) {
+    fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
         self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
+            reason,
         )
         .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
@@ -954,7 +948,15 @@ impl PendingMessage {
         num_retries: u32,
         max_retries: u32,
         message_id: Option<H256>,
+        reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
+        // Signatures are simply not yet available (validator hasn't signed past the reorg
+        // period yet). Use a 1s fast-path for the first few retries so the relayer picks
+        // them up within ~1s of the validator writing them, rather than waiting through the
+        // normal 5s→10s→30s→60s exponential backoff.
+        if matches!(reason, Some(ReprepareReason::CouldNotFetchMetadata)) && num_retries <= 10 {
+            return Some(Duration::from_secs(1));
+        }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             1 => 5,
@@ -1184,7 +1186,7 @@ mod test {
 
         // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
         for i in 0..=50 {
-            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None, None)
                 .unwrap_or(Duration::from_secs(0));
             // Uncomment to show the impact of changes to the backoff duration:
 
@@ -1234,7 +1236,7 @@ mod test {
     fn check_default_max_message_retries() {
         let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .sum();
 
@@ -1265,7 +1267,7 @@ mod test {
     fn check_ccip_retry() {
         let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .collect();
 
