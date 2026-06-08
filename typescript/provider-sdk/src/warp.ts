@@ -9,11 +9,13 @@ import {
 
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
+  WithComposition,
   addressToUnderivedArtifact,
   isArtifactDeployed,
   isArtifactEmbedded,
@@ -170,7 +172,7 @@ export interface DeployedWarpAddress {
  * Uses domain IDs (numbers) instead of chain names (strings) for remoteRouters and destinationGas keys.
  * ISM can be a nested artifact or just an address.
  */
-interface BaseWarpArtifactConfig {
+type BaseWarpArtifactConfigShape = {
   owner: string;
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
@@ -183,14 +185,16 @@ interface BaseWarpArtifactConfig {
   decimals?: number;
   scale?: number;
   contractVersion?: string;
-}
+};
 
-export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
+type BaseWarpArtifactConfig = WithComposition<BaseWarpArtifactConfigShape>;
+
+export type CollateralWarpArtifactConfig = BaseWarpArtifactConfig & {
   type: typeof TokenType.collateral;
   token: string;
-}
+};
 
-export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
+export type SyntheticWarpArtifactConfig = BaseWarpArtifactConfig & {
   type: typeof TokenType.synthetic;
   name: string;
   symbol: string;
@@ -202,17 +206,17 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
    * Undefined before the warp is deployed.
    */
   token?: string;
-}
+};
 
-export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
+export type NativeWarpArtifactConfig = BaseWarpArtifactConfig & {
   type: typeof TokenType.native;
-}
+};
 
-export interface CrossCollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
+export type CrossCollateralWarpArtifactConfig = BaseWarpArtifactConfig & {
   type: typeof TokenType.crossCollateral;
   token: string;
   crossCollateralRouters: Record<number, Set<string>>;
-}
+};
 
 export interface WarpArtifactConfigs {
   collateral: CollateralWarpArtifactConfig;
@@ -247,17 +251,25 @@ export type IWarpArtifactManager = IArtifactManager<
   DeployedWarpAddress
 >;
 
-export type RawCollateralWarpArtifactConfig =
-  ConfigOnChain<CollateralWarpArtifactConfig>;
+export type RawCollateralWarpArtifactConfig = ConfigOnChain<
+  CollateralWarpArtifactConfig,
+  DeployedWarpAddress
+>;
 
-export type RawSyntheticWarpArtifactConfig =
-  ConfigOnChain<SyntheticWarpArtifactConfig>;
+export type RawSyntheticWarpArtifactConfig = ConfigOnChain<
+  SyntheticWarpArtifactConfig,
+  DeployedWarpAddress
+>;
 
-export type RawNativeWarpArtifactConfig =
-  ConfigOnChain<NativeWarpArtifactConfig>;
+export type RawNativeWarpArtifactConfig = ConfigOnChain<
+  NativeWarpArtifactConfig,
+  DeployedWarpAddress
+>;
 
-export type RawCrossCollateralWarpArtifactConfig =
-  ConfigOnChain<CrossCollateralWarpArtifactConfig>;
+export type RawCrossCollateralWarpArtifactConfig = ConfigOnChain<
+  CrossCollateralWarpArtifactConfig,
+  DeployedWarpAddress
+>;
 
 export interface RawWarpArtifactConfigs {
   collateral: RawCollateralWarpArtifactConfig;
@@ -392,7 +404,10 @@ export function warpConfigToArtifact(
     }
   }
 
-  const baseArtifactConfig = {
+  const baseArtifactConfig: BaseWarpArtifactConfigShape & {
+    composition: typeof ArtifactComposition.ORCHESTRATED;
+  } = {
+    composition: ArtifactComposition.ORCHESTRATED,
     owner: config.owner,
     mailbox: config.mailbox,
     interchainSecurityModule: ismArtifact,
@@ -487,6 +502,12 @@ export function warpArtifactToDerivedConfig(
   chainLookup: ChainLookup,
 ): DerivedWarpConfig {
   const config = artifact.config;
+
+  if (config.composition === ArtifactComposition.EMBEDDED) {
+    throw new Error(
+      'EMBEDDED warp derive handling will be implemented in slice 5',
+    );
+  }
 
   // Convert remoteRouters from domain IDs back to chain names
   const remoteRouters: RemoteRouters = {};

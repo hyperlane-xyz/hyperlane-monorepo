@@ -1,10 +1,12 @@
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactOnChain,
   ConfigOnChain,
   IArtifactManager,
   UnsetArtifactAddress,
+  WithComposition,
   toDeployedOrUndefined,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
@@ -29,13 +31,15 @@ import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
  * Mailbox configuration for the Artifact API.
  * Defines the parameters needed to deploy or configure a mailbox.
  */
-export interface MailboxArtifactConfig {
+type MailboxArtifactConfigBase = {
   owner: string;
-  defaultIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>; // ISM artifact reference
-  defaultHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
-  requiredHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
+  defaultIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
+  defaultHook: Artifact<HookArtifactConfig, DeployedHookAddress>;
+  requiredHook: Artifact<HookArtifactConfig, DeployedHookAddress>;
   contractVersion?: string;
-}
+};
+
+export type MailboxArtifactConfig = WithComposition<MailboxArtifactConfigBase>;
 
 /**
  * Deployment data returned after deploying a mailbox.
@@ -50,7 +54,7 @@ export interface DeployedMailboxAddress {
  * Describes the configuration of a deployed mailbox
  */
 export type DeployedMailboxArtifact = ArtifactDeployed<
-  ConfigOnChain<MailboxArtifactConfig>,
+  ConfigOnChain<MailboxArtifactConfig, DeployedMailboxAddress>,
   DeployedMailboxAddress
 >;
 
@@ -77,7 +81,10 @@ export type IMailboxArtifactManager = IArtifactManager<
  * Raw mailbox config - uses ArtifactOnChain for nested artifacts instead of Artifact.
  * This is the format used by protocol implementations that work directly with on-chain state.
  */
-export type MailboxOnChain = ConfigOnChain<MailboxArtifactConfig>;
+export type MailboxOnChain = ConfigOnChain<
+  MailboxArtifactConfig,
+  DeployedMailboxAddress
+>;
 
 /**
  * Raw mailbox artifact configs map
@@ -145,6 +152,10 @@ export function mailboxArtifactToDerivedCoreConfig(
     ) => DerivedHookConfig;
   },
 ): DerivedCoreConfig {
+  if (artifact.config.composition === ArtifactComposition.EMBEDDED) {
+    throw new Error('EMBEDDED mailbox handling will be implemented in slice 5');
+  }
+
   const { defaultIsm, defaultHook, requiredHook, owner, contractVersion } =
     artifact.config;
 

@@ -9,12 +9,15 @@ import {
 import { IsmType as AltVMIsmType } from './altvm.js';
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
+  WithComposition,
   isArtifactDeployed,
+  isArtifactEmbedded,
   isArtifactNew,
   isArtifactUnderived,
 } from './artifact.js';
@@ -105,14 +108,19 @@ export type IIsmArtifactManager = IArtifactManager<
   DeployedIsmAddress
 >;
 
-export interface RoutingIsmArtifactConfig {
+type RoutingIsmArtifactConfigBase = {
   type: 'domainRoutingIsm';
   owner: string;
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
-}
+};
 
-export type RawRoutingIsmArtifactConfig =
-  ConfigOnChain<RoutingIsmArtifactConfig>;
+export type RoutingIsmArtifactConfig =
+  WithComposition<RoutingIsmArtifactConfigBase>;
+
+export type RawRoutingIsmArtifactConfig = ConfigOnChain<
+  RoutingIsmArtifactConfig,
+  DeployedIsmAddress
+>;
 
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
@@ -243,6 +251,15 @@ export function mergeIsmArtifacts(
     'Expected both configs to be of type domainRoutingIsm',
   );
 
+  if (
+    expectedConfig.composition === ArtifactComposition.EMBEDDED ||
+    currentConfig.composition === ArtifactComposition.EMBEDDED
+  ) {
+    throw new Error(
+      'EMBEDDED routing-ISM merge handling will be implemented in slice 5',
+    );
+  }
+
   // Merge domain ISMs recursively
   const mergedDomains: Record<
     number,
@@ -273,6 +290,10 @@ export function mergeIsmArtifacts(
         currentDeployedIsm,
         expectedDomainIsm,
       );
+    } else if (isArtifactEmbedded(expectedDomainIsm)) {
+      throw new Error(
+        'EMBEDDED routing-ISM merge handling will be implemented in slice 5',
+      );
     } else {
       mergedDomains[domainId] = expectedDomainIsm;
     }
@@ -285,6 +306,7 @@ export function mergeIsmArtifacts(
   return {
     artifactState: ArtifactState.DEPLOYED,
     config: {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: 'domainRoutingIsm',
       owner: expectedConfig.owner,
       domains: mergedDomains,
@@ -321,6 +343,12 @@ export function ismArtifactToDerivedConfig(
 
   switch (config.type) {
     case 'domainRoutingIsm': {
+      if (config.composition === ArtifactComposition.EMBEDDED) {
+        throw new Error(
+          'EMBEDDED routing-ISM derive handling will be implemented in slice 5',
+        );
+      }
+
       // For routing ISMs, convert domain IDs back to chain names
       // and convert nested artifacts to IsmConfig or address strings
       const domains: Record<string, IsmConfig | string> = {};
@@ -347,6 +375,10 @@ export function ismArtifactToDerivedConfig(
         } else if (isArtifactNew(domainArtifact)) {
           throw new Error(
             `Cannot convert routing ISM to derived config: nested ISM for domain ${chainName} (${domainId}) is NEW and has no address`,
+          );
+        } else if (isArtifactEmbedded(domainArtifact)) {
+          throw new Error(
+            'EMBEDDED routing-ISM derive handling will be implemented in slice 5',
           );
         }
       }
@@ -447,6 +479,7 @@ export function ismConfigToArtifact(
     return {
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: config.owner,
         domains,

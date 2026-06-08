@@ -1,5 +1,6 @@
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactNew,
   ArtifactState,
   isArtifactDeployed,
@@ -111,6 +112,7 @@ export function coreConfigToArtifact(
   return {
     artifactState: ArtifactState.NEW,
     config: {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: config.owner,
       defaultIsm: defaultIsmArtifact,
       defaultHook: defaultHookArtifact,
