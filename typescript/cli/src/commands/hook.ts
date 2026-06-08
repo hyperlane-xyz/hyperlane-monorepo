@@ -1,12 +1,17 @@
 import { type CommandModule } from 'yargs';
 
-import { type CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runHookDeploy } from '../hook/deploy.js';
 import { readHookConfig } from '../hook/read.js';
 import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
 
@@ -16,8 +21,47 @@ import {
 export const hookCommand: CommandModule = {
   command: 'hook',
   describe: 'Operations relating to Hooks',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(deploy).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
+};
+
+// Examples for testing:
+// Deploy a merkle tree hook:
+//     hyperlane hook deploy --chain sepolia --config ./hook-config.yaml
+// Deploy with output file:
+//     hyperlane hook deploy --chain sepolia --config ./hook-config.yaml --out ./deployed-hook.json
+export const deploy: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  out?: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploys a Hook to a chain',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    config: inputFileCommandOption({
+      description: 'Path to Hook configuration file (YAML or JSON)',
+      demandOption: true,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path for deployed Hook address',
+    ),
+  },
+  handler: async ({ context, chain, config, out }) => {
+    await runHookDeploy({
+      context,
+      chain,
+      configPath: config,
+      outPath: out,
+    });
+    process.exit(0);
+  },
 };
 
 // Examples for testing:

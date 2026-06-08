@@ -100,6 +100,7 @@ export class TronProtocolProvider implements ProtocolProvider {
       CORE_DEPLOY_GAS: BigInt(1e9),
       WARP_DEPLOY_GAS: BigInt(1e9),
       ISM_DEPLOY_GAS: BigInt(1e9),
+      HOOK_DEPLOY_GAS: BigInt(1e9),
       TEST_SEND_GAS: BigInt(1e9),
       AVS_GAS: BigInt(1e9),
     };

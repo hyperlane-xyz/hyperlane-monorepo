@@ -54,6 +54,19 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
+/// Revert string emitted by the ICA router when the originating commit has not
+/// yet been confirmed on-chain. There is no typed error variant for this today —
+/// it is an opaque on-chain revert string — so Display-format substring matching
+/// is the only available signal. Use Display (not Debug) to avoid a dependency
+/// on the internal structure of the error type's Debug representation.
+const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
+const REVEAL_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const REVEAL_POLL_MAX: u32 = 30;
+
+fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
+    err.to_string().contains(ICA_INVALID_REVEAL)
+}
+
 /// The outcome of a gas payment requirement check.
 enum GasPaymentRequirementOutcome {
     MeetsRequirement(U256),
@@ -129,6 +142,13 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     fail_fast: bool,
+    /// Number of consecutive times this message has been returned to the queue
+    /// due to an "ICA: Invalid Reveal" simulation failure. Tracked separately
+    /// from `num_retries` so these transient waits don't consume the fail-fast
+    /// retry budget.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    ica_reveal_attempts: u32,
 }
 
 impl Debug for PendingMessage {
@@ -334,22 +354,58 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match tx_cost_estimate {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
-            None => match self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
-                .await
-            {
-                Ok(cost) => cost,
-                Err(err) => {
-                    let reason = self
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                        .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    self.clear_metadata();
-                    return self.on_reprepare(Some(err), reason);
+            None => {
+                debug!(
+                    message_id = ?self.message.id(),
+                    "Dry-run simulating process call before submission"
+                );
+                match self
+                    .ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, &metadata)
+                    .await
+                {
+                    Ok(cost) => {
+                        self.ica_reveal_attempts = 0;
+                        info!(
+                            message_id = ?self.message.id(),
+                            gas_limit = ?cost.gas_limit,
+                            "Dry-run simulation succeeded"
+                        );
+                        cost
+                    }
+                    Err(e) => {
+                        if self.fail_fast
+                            && is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts < REVEAL_POLL_MAX
+                        {
+                            self.ica_reveal_attempts += 1;
+                            warn!(
+                                message_id = ?self.message.id(),
+                                attempt = self.ica_reveal_attempts,
+                                max_attempts = REVEAL_POLL_MAX,
+                                "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing after 1s"
+                            );
+                            return self.delay_reprepare(
+                                REVEAL_POLL_INTERVAL,
+                                ReprepareReason::AwaitingIcaReveal,
+                            );
+                        }
+                        self.ica_reveal_attempts = 0;
+                        warn!(
+                            message_id = ?self.message.id(),
+                            error = %e,
+                            "Dry-run simulation failed"
+                        );
+                        let reason = self
+                            .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                            .await
+                            .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                        self.clear_metadata();
+                        return self.on_reprepare(Some(e), reason);
+                    }
                 }
-            },
+            }
         };
 
         // Get the gas_limit if the gas payment requirement has been met,
@@ -397,14 +453,24 @@ impl PendingOperation for PendingMessage {
             .expect("Pending message must be prepared before it can be submitted");
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
+        // Note: fail_fast (relay-API) messages never reach this method — they go through
+        // submit_via_lander → payload(), not submit(). This dry-run only guards the classic path.
         if let Some(metadata) = self.metadata.as_ref() {
-            if self
+            debug!(
+                message_id = ?self.message.id(),
+                "Dry-run simulating process call before submission"
+            );
+            if let Err(e) = self
                 .ctx
                 .destination_mailbox
                 .process_estimate_costs(&self.message, metadata)
                 .await
-                .is_err()
             {
+                warn!(
+                    message_id = ?self.message.id(),
+                    error = %e,
+                    "Dry-run simulation failed"
+                );
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
@@ -853,6 +919,19 @@ impl PendingMessage {
         };
 
         GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
+    }
+
+    /// Return `Reprepare` after `delay` without consuming the fail-fast retry budget.
+    /// Used for transient waits (e.g. ICA reveal polling) so that small `max_retries`
+    /// budgets are not exhausted by infrastructure delays.
+    fn delay_reprepare(
+        &mut self,
+        delay: Duration,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
+        self.submitted = false;
+        self.next_attempt_after = Instant::now().checked_add(delay);
+        PendingOperationResult::Reprepare(reason)
     }
 
     fn on_reprepare<E: Debug>(

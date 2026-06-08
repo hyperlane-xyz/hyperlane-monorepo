@@ -33,7 +33,6 @@ import {
 } from './check-utils.js';
 
 const ROUTES_TO_SKIP: string[] = [
-  WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
   'EDGEN/bsc-edgenchain-ethereum',
   'INJ/inevm-injective',
   'USDC/ethereum-inevm',

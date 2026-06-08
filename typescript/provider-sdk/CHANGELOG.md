@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 6.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.1.0
+
 ## 6.0.4
 
 ### Patch Changes

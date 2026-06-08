@@ -382,6 +382,7 @@ function generateTokenConfigs(
     warpCoreConfig.tokens.push({
       chainName,
       standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      tokenType: config.type,
       decimals: tokenMetadataMap.getDecimals(chainName)!,
       symbol: config.symbol || tokenMetadataMap.getSymbol(chainName)!,
       name: tokenMetadataMap.getName(chainName)!,
@@ -469,7 +470,11 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const updateTransactions = await updateExistingWarpRoute(
+  const {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  } = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
@@ -477,14 +482,21 @@ export async function runWarpRouteApply(
   );
 
   // Check if update transactions are empty
-  const hasAnyTx = Object.values(updateTransactions).some(
-    (txs) => txs.length > 0,
-  );
+  const hasAnyTx = [
+    ...Object.values(updateTransactions),
+    ...Object.values(feeUpdateTransactions),
+    ...Object.values(ownershipTransactions),
+  ].some((txs) => txs.length > 0);
 
   if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, updateTransactions);
+  await submitWarpApplyTransactions(
+    params,
+    updateTransactions,
+    feeUpdateTransactions,
+    ownershipTransactions,
+  );
 }
 
 /**
@@ -706,13 +718,36 @@ export async function extendWarpRoute(
   return updatedWarpCoreConfig;
 }
 
+type WarpApplyTransactions = {
+  txs: ChainMap<TypedAnnotatedTransaction[]>;
+  feeTxs: ChainMap<TypedAnnotatedTransaction[]>;
+  ownershipTxs: ChainMap<TypedAnnotatedTransaction[]>;
+};
+
+type SafeTxBuilderPayload = {
+  version: string;
+  chainId: string;
+  meta: Record<string, unknown>;
+  transactions: object[];
+};
+
+function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'chainId' in value &&
+    'transactions' in value &&
+    Array.isArray((value as SafeTxBuilderPayload).transactions)
+  );
+}
+
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
+): Promise<WarpApplyTransactions> {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, altVmSigners, registry } = params.context;
 
@@ -727,6 +762,8 @@ async function updateExistingWarpRoute(
   );
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -772,9 +809,11 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const transactions =
-              await evmERC20WarpModule.update(configWithMailbox);
-            updateTransactions[chain] = transactions;
+            const { txs, feeTxs, ownershipTxs } =
+              await evmERC20WarpModule.updateSplit(configWithMailbox);
+            updateTransactions[chain] = txs;
+            feeUpdateTransactions[chain] = feeTxs;
+            ownershipTransactions[chain] = ownershipTxs;
             break;
           }
           default: {
@@ -806,7 +845,11 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return updateTransactions;
+  return {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  };
 }
 
 /**
@@ -1004,16 +1047,105 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
   }
 }
 
+async function getFeeSubmitterByStrategy<T extends ProtocolType>({
+  chain,
+  context,
+  strategyUrl,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+}): Promise<TxSubmitterBuilder<T> | undefined> {
+  const { multiProvider, altVmSigners, registry } = context;
+
+  if (!strategyUrl) return undefined;
+
+  const submissionStrategy = readChainSubmissionStrategy(strategyUrl)[chain];
+  if (!submissionStrategy?.feeSubmitter) return undefined;
+
+  const feeStrategy: ExtendedSubmissionStrategy = {
+    submitter: submissionStrategy.feeSubmitter,
+  };
+
+  const protocol = multiProvider.getProtocol(chain);
+  const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+    [ProtocolType.Ethereum]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+  };
+
+  if (!isEVMLike(protocol)) {
+    const signer = mustGet(altVmSigners, chain);
+    additionalSubmitterFactories[protocol] = {
+      jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.FILE]: (
+        _multiProvider: MultiProvider,
+        metadata: any,
+      ) => new AltVMFileSubmitter(signer, metadata),
+    };
+  }
+
+  return getSubmitterBuilder<T>({
+    submissionStrategy: feeStrategy as SubmissionStrategy,
+    multiProvider,
+    coreAddressesByChain: await registry.getAddresses(),
+    additionalSubmitterFactories,
+  });
+}
+
+type ChainTxPayloads = {
+  safePayloads: SafeTxBuilderPayload[];
+  feeError?: string;
+};
+
+// Extracts the Gnosis Safe address from a submitter metadata object via duck-typing.
+// Handles both direct Safe submitters (safeAddress) and ICA submitters with a
+// nested internalSubmitter that holds the Safe address.
+function extractSafeAddressFromSubmitter(meta: unknown): string {
+  if (meta == null || typeof meta !== 'object') return '';
+  const obj = meta as Record<string, unknown>;
+  if (typeof obj.safeAddress === 'string') return obj.safeAddress;
+  const inner = obj.internalSubmitter;
+  if (inner != null && typeof inner === 'object') {
+    const innerObj = inner as Record<string, unknown>;
+    if (typeof innerObj.safeAddress === 'string') return innerObj.safeAddress;
+  }
+  return '';
+}
+
 /**
- * Submits transactions for a single chain and handles receipts/self-relay
+ * Submits transactions for a single chain and handles receipts/self-relay.
+ * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
+ * so callers can merge payloads across chains into combined files per chain ID.
  */
 async function submitChainTransactions(
   params: WarpApplyParams,
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
+  feeTxs: TypedAnnotatedTransaction[],
+  ownershipTxs: TypedAnnotatedTransaction[],
   isExtendedChain: boolean,
-): Promise<void> {
+): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
+  const safePayloads: SafeTxBuilderPayload[] = [];
+  let returnedFeeError: string | undefined;
+
+  // Read safe addresses once; used to key combined bundles by (chainId, safeAddress)
+  // so payloads for two different Safes on the same origin chain stay separate.
+  const chainStrategyEntry = params.strategyUrl
+    ? readChainSubmissionStrategy(params.strategyUrl)[chain]
+    : undefined;
+  const mainSafeAddress = extractSafeAddressFromSubmitter(
+    chainStrategyEntry?.submitter,
+  );
+  const feeSafeAddress = extractSafeAddressFromSubmitter(
+    chainStrategyEntry?.feeSubmitter ?? chainStrategyEntry?.submitter,
+  );
 
   await retryAsync(
     async () => {
@@ -1023,53 +1155,137 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
+      const transactionReceipts =
+        transactions.length > 0
+          ? await submitter.submit(...(transactions as any[]))
+          : undefined;
 
-      if (!isEVMLike(protocol)) {
-        return;
+      if (isSafeTxBuilderPayload(transactionReceipts)) {
+        safePayloads.push({
+          ...transactionReceipts,
+          meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
+        });
       }
 
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+      if (!isSafeTxBuilderPayload(transactionReceipts)) {
+        if (!isEVMLike(protocol)) {
+          return;
+        }
+
+        if (transactionReceipts) {
+          const receiptPath = `${params.receiptsDir}/${chain}-${
+            submitter.txSubmitterType
+          }-${Date.now()}-receipts.json`;
+          writeYamlOrJson(receiptPath, transactionReceipts);
+          logGreen(
+            `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+          );
+        }
+
+        const canRelay = canSelfRelay(
+          params.selfRelay ?? false,
+          config,
+          transactionReceipts,
         );
+
+        if (canRelay.relay) {
+          try {
+            await retryAsync(() =>
+              runSelfRelay({
+                txReceipt: canRelay.txReceipt,
+                multiProvider: params.context.multiProvider,
+                registry: params.context.registry,
+                successMessage: WarpSendLogs.SUCCESS,
+              }),
+            );
+          } catch (error) {
+            warnYellow(`Error when self-relaying Warp transaction`, error);
+          }
+        }
       }
 
-      const canRelay = canSelfRelay(
-        params.selfRelay ?? false,
-        config,
-        transactionReceipts,
-      );
-
-      if (!canRelay.relay) {
-        return;
+      // Fee submission is intentionally wrapped in try/catch so a failure does NOT
+      // bubble up to retryAsync and re-run the main submit block (which would
+      // rebroadcast already-submitted main txs).
+      if (feeTxs.length > 0) {
+        try {
+          const feeSubmitter = await getFeeSubmitterByStrategy({
+            chain,
+            context: params.context,
+            strategyUrl: params.strategyUrl,
+          });
+          let feeReceipts:
+            | Awaited<ReturnType<typeof submitter.submit>>
+            | undefined;
+          if (!feeSubmitter) {
+            warnYellow(
+              `Chain ${chain} has ${feeTxs.length} fee transaction(s) but no feeSubmitter configured in strategy. Bundling with main submitter.`,
+            );
+            feeReceipts = await submitter.submit(...(feeTxs as any[]));
+            if (isSafeTxBuilderPayload(feeReceipts)) {
+              safePayloads.push({
+                ...feeReceipts,
+                meta: { ...feeReceipts.meta, _safeAddress: mainSafeAddress },
+              });
+            }
+          } else {
+            feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
+            if (isSafeTxBuilderPayload(feeReceipts)) {
+              safePayloads.push({
+                ...feeReceipts,
+                meta: { ...feeReceipts.meta, _safeAddress: feeSafeAddress },
+              });
+            }
+          }
+          if (
+            feeReceipts &&
+            !isSafeTxBuilderPayload(feeReceipts) &&
+            isEVMLike(protocol)
+          ) {
+            const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
+            writeYamlOrJson(feeReceiptPath, feeReceipts);
+            logGreen(
+              `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
+            );
+          }
+        } catch (error) {
+          returnedFeeError =
+            error instanceof Error ? error.message : String(error);
+          warnYellow(
+            `Error when submitting fee transactions for ${chain}`,
+            error,
+          );
+        }
       }
 
-      // if self relaying does not work (possibly because metadata cannot be built yet)
-      // we don't want to rerun the complete code block as this will result in
-      // the update transactions being sent multiple times
-      try {
-        await retryAsync(() =>
-          runSelfRelay({
-            txReceipt: canRelay.txReceipt,
-            multiProvider: params.context.multiProvider,
-            registry: params.context.registry,
-            successMessage: WarpSendLogs.SUCCESS,
-          }),
+      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
+      // setFeeRecipient) execute before ownership is transferred to a new address.
+      if (ownershipTxs.length > 0) {
+        const ownershipReceipts = await submitter.submit(
+          ...(ownershipTxs as any[]),
         );
-      } catch (error) {
-        warnYellow(`Error when self-relaying Warp transaction`, error);
+        if (isSafeTxBuilderPayload(ownershipReceipts)) {
+          safePayloads.push({
+            ...ownershipReceipts,
+            meta: {
+              ...ownershipReceipts.meta,
+              _safeAddress: mainSafeAddress,
+            },
+          });
+        } else if (ownershipReceipts && isEVMLike(protocol)) {
+          const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
+          writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
+          logGreen(
+            `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
+          );
+        }
       }
     },
     5, // attempts
     100, // baseRetryMs
   );
+
+  return { safePayloads, feeError: returnedFeeError };
 }
 
 /**
@@ -1078,6 +1294,8 @@ async function submitChainTransactions(
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
+  feeUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
+  ownershipUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
@@ -1090,7 +1308,12 @@ async function submitWarpApplyTransactions(
   // private key is used across multiple chains, parallel tx submission causes
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
-  const chains = Object.keys(updateTransactions);
+  const allChains = new Set([
+    ...Object.keys(updateTransactions),
+    ...Object.keys(feeUpdateTransactions),
+    ...Object.keys(ownershipUpdateTransactions),
+  ]);
+  const chains = [...allChains];
   const evmChains = chains.filter((chain) =>
     isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
@@ -1099,17 +1322,29 @@ async function submitWarpApplyTransactions(
   );
 
   const failures: string[] = [];
+  const feeFailures: string[] = [];
   const isExtended = (chain: string) => extendedChains.includes(chain);
+  const allPayloads: SafeTxBuilderPayload[] = [];
+
+  const collectPayloads = (
+    { safePayloads, feeError }: ChainTxPayloads,
+    chain: string,
+  ) => {
+    allPayloads.push(...safePayloads);
+    if (feeError) feeFailures.push(`${chain}: ${feeError}`);
+  };
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const { rejected } = await mapAllSettled(
+    const { fulfilled, rejected } = await mapAllSettled(
       evmChains,
       (chain) =>
         submitChainTransactions(
           params,
           chain,
-          updateTransactions[chain],
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
       (chain) => chain,
@@ -1125,16 +1360,22 @@ async function submitWarpApplyTransactions(
       );
       failures.push(chain);
     }
+    for (const [chain, payloads] of fulfilled) collectPayloads(payloads, chain);
   }
 
   // Submit non-EVM chains sequentially (they may share signers)
   for (const chain of nonEvmChains) {
     try {
-      await submitChainTransactions(
-        params,
+      collectPayloads(
+        await submitChainTransactions(
+          params,
+          chain,
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
+          isExtended(chain),
+        ),
         chain,
-        updateTransactions[chain],
-        isExtended(chain),
       );
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -1146,9 +1387,52 @@ async function submitWarpApplyTransactions(
     }
   }
 
+  // Write whatever Safe payloads succeeded before surfacing any chain failures,
+  // so a partial success (e.g. chain A ok, chain B failed) doesn't lose chain A's bundle.
+  writeCombinedBundles(params.receiptsDir, allPayloads);
+
   if (failures.length > 0) {
     throw new Error(
       `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
+    );
+  }
+
+  if (feeFailures.length > 0) {
+    warnYellow(
+      `Fee transaction submission failed for the following chain(s) — main transactions were NOT affected:\n${feeFailures.join('\n')}`,
+    );
+  }
+}
+
+function writeCombinedBundles(
+  receiptsDir: string,
+  payloads: SafeTxBuilderPayload[],
+): void {
+  // Group by (chainId, safeAddress) — payloads for different Safes on the same origin
+  // chain stay separate; main and fee payloads for the same Safe are merged together.
+  const byGroup = new Map<string, SafeTxBuilderPayload[]>();
+  for (const payload of payloads) {
+    const safeAddress = (payload.meta._safeAddress as string) ?? '';
+    const groupKey = `${payload.chainId}:${safeAddress}`;
+    const list = byGroup.get(groupKey) ?? [];
+    list.push(payload);
+    byGroup.set(groupKey, list);
+  }
+  for (const [groupKey, group] of byGroup.entries()) {
+    const [chainId, safeAddress] = groupKey.split(':');
+    const combinedMeta: Record<string, unknown> = { ...group[0].meta };
+    delete combinedMeta._safeAddress;
+    const combined: SafeTxBuilderPayload = {
+      version: group[0].version,
+      chainId,
+      meta: combinedMeta,
+      transactions: group.flatMap((p) => p.transactions),
+    };
+    const safeSegment = safeAddress ? `-safe${safeAddress.slice(0, 8)}` : '';
+    const path = `${receiptsDir}/combined-chainId${chainId}${safeSegment}-${Date.now()}-receipts.json`;
+    writeYamlOrJson(path, combined);
+    logGreen(
+      `Combined ${group.length} bundle(s) (${combined.transactions.length} txs) for chain ID ${chainId} written to ${path}`,
     );
   }
 }

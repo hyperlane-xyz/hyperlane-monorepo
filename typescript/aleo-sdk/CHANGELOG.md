@@ -1,5 +1,17 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 35.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/utils@35.1.0
+
 ## 35.0.1
 
 ### Patch Changes
