@@ -146,7 +146,7 @@ impl DestinationFactory {
             .build::<Signers>()
             .await
             .map_err(|e| {
-                warn!(error = ?e, "Failed to build Ethereum signer for CCIP-read ISM.");
+                warn!(error = ?e, domain = %domain.name(), "Failed to build signer for CCIP-read ISM.");
                 e
             })
             .ok();
