@@ -470,22 +470,28 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const updateTransactions = await updateExistingWarpRoute(
-    params,
-    apiKeys,
-    warpDeployConfig,
-    updatedWarpCoreConfig,
-  );
+  const { txs: updateTransactions, feeTxs: feeUpdateTransactions } =
+    await updateExistingWarpRoute(
+      params,
+      apiKeys,
+      warpDeployConfig,
+      updatedWarpCoreConfig,
+    );
 
   // Check if update transactions are empty
-  const hasAnyTx = Object.values(updateTransactions).some(
-    (txs) => txs.length > 0,
-  );
+  const hasAnyTx = [
+    ...Object.values(updateTransactions),
+    ...Object.values(feeUpdateTransactions),
+  ].some((txs) => txs.length > 0);
 
   if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, updateTransactions);
+  await submitWarpApplyTransactions(
+    params,
+    updateTransactions,
+    feeUpdateTransactions,
+  );
 }
 
 /**
@@ -707,13 +713,35 @@ export async function extendWarpRoute(
   return updatedWarpCoreConfig;
 }
 
+type WarpApplyTransactions = {
+  txs: ChainMap<TypedAnnotatedTransaction[]>;
+  feeTxs: ChainMap<TypedAnnotatedTransaction[]>;
+};
+
+type SafeTxBuilderPayload = {
+  version: string;
+  chainId: string;
+  meta: Record<string, unknown>;
+  transactions: object[];
+};
+
+function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'chainId' in value &&
+    'transactions' in value &&
+    Array.isArray((value as SafeTxBuilderPayload).transactions)
+  );
+}
+
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
+): Promise<WarpApplyTransactions> {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, altVmSigners, registry } = params.context;
 
@@ -728,6 +756,7 @@ async function updateExistingWarpRoute(
   );
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -773,9 +802,10 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const transactions =
-              await evmERC20WarpModule.update(configWithMailbox);
-            updateTransactions[chain] = transactions;
+            const { txs, feeTxs } =
+              await evmERC20WarpModule.updateSplit(configWithMailbox);
+            updateTransactions[chain] = txs;
+            feeUpdateTransactions[chain] = feeTxs;
             break;
           }
           default: {
@@ -807,7 +837,7 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return updateTransactions;
+  return { txs: updateTransactions, feeTxs: feeUpdateTransactions };
 }
 
 /**
@@ -1005,16 +1035,77 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
   }
 }
 
+async function getFeeSubmitterByStrategy<T extends ProtocolType>({
+  chain,
+  context,
+  strategyUrl,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+}): Promise<TxSubmitterBuilder<T> | undefined> {
+  const { multiProvider, altVmSigners, registry } = context;
+
+  if (!strategyUrl) return undefined;
+
+  const submissionStrategy = readChainSubmissionStrategy(strategyUrl)[chain];
+  if (!submissionStrategy?.feeSubmitter) return undefined;
+
+  const feeStrategy: ExtendedSubmissionStrategy = {
+    submitter: submissionStrategy.feeSubmitter,
+  };
+
+  const protocol = multiProvider.getProtocol(chain);
+  const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+    [ProtocolType.Ethereum]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+  };
+
+  if (!isEVMLike(protocol)) {
+    const signer = mustGet(altVmSigners, chain);
+    additionalSubmitterFactories[protocol] = {
+      jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.FILE]: (
+        _multiProvider: MultiProvider,
+        metadata: any,
+      ) => new AltVMFileSubmitter(signer, metadata),
+    };
+  }
+
+  return getSubmitterBuilder<T>({
+    submissionStrategy: feeStrategy as SubmissionStrategy,
+    multiProvider,
+    coreAddressesByChain: await registry.getAddresses(),
+    additionalSubmitterFactories,
+  });
+}
+
+type ChainTxPayloads = {
+  mainPayload?: SafeTxBuilderPayload;
+  feePayload?: SafeTxBuilderPayload;
+};
+
 /**
- * Submits transactions for a single chain and handles receipts/self-relay
+ * Submits transactions for a single chain and handles receipts/self-relay.
+ * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
+ * so callers can merge payloads across chains into combined files per chain ID.
  */
 async function submitChainTransactions(
   params: WarpApplyParams,
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
+  feeTxs: TypedAnnotatedTransaction[],
   isExtendedChain: boolean,
-): Promise<void> {
+): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
+  let returnedMainPayload: SafeTxBuilderPayload | undefined;
+  let returnedFeePayload: SafeTxBuilderPayload | undefined;
 
   await retryAsync(
     async () => {
@@ -1024,53 +1115,90 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
+      const transactionReceipts =
+        transactions.length > 0
+          ? await submitter.submit(...(transactions as any[]))
+          : undefined;
 
-      if (!isEVMLike(protocol)) {
-        return;
+      if (isSafeTxBuilderPayload(transactionReceipts)) {
+        returnedMainPayload = transactionReceipts;
       }
 
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+      if (!isSafeTxBuilderPayload(transactionReceipts)) {
+        if (!isEVMLike(protocol)) {
+          return;
+        }
+
+        if (transactionReceipts) {
+          const receiptPath = `${params.receiptsDir}/${chain}-${
+            submitter.txSubmitterType
+          }-${Date.now()}-receipts.json`;
+          writeYamlOrJson(receiptPath, transactionReceipts);
+          logGreen(
+            `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+          );
+        }
+
+        const canRelay = canSelfRelay(
+          params.selfRelay ?? false,
+          config,
+          transactionReceipts,
         );
+
+        if (canRelay.relay) {
+          try {
+            await retryAsync(() =>
+              runSelfRelay({
+                txReceipt: canRelay.txReceipt,
+                multiProvider: params.context.multiProvider,
+                registry: params.context.registry,
+                successMessage: WarpSendLogs.SUCCESS,
+              }),
+            );
+          } catch (error) {
+            warnYellow(`Error when self-relaying Warp transaction`, error);
+          }
+        }
       }
 
-      const canRelay = canSelfRelay(
-        params.selfRelay ?? false,
-        config,
-        transactionReceipts,
-      );
-
-      if (!canRelay.relay) {
-        return;
-      }
-
-      // if self relaying does not work (possibly because metadata cannot be built yet)
-      // we don't want to rerun the complete code block as this will result in
-      // the update transactions being sent multiple times
-      try {
-        await retryAsync(() =>
-          runSelfRelay({
-            txReceipt: canRelay.txReceipt,
-            multiProvider: params.context.multiProvider,
-            registry: params.context.registry,
-            successMessage: WarpSendLogs.SUCCESS,
-          }),
-        );
-      } catch (error) {
-        warnYellow(`Error when self-relaying Warp transaction`, error);
+      if (feeTxs.length > 0) {
+        const feeSubmitter = await getFeeSubmitterByStrategy({
+          chain,
+          context: params.context,
+          strategyUrl: params.strategyUrl,
+        });
+        let feeReceipts:
+          | Awaited<ReturnType<typeof submitter.submit>>
+          | undefined;
+        if (!feeSubmitter) {
+          warnYellow(
+            `Chain ${chain} has ${feeTxs.length} fee transaction(s) but no feeSubmitter configured in strategy. Bundling with main submitter.`,
+          );
+          feeReceipts = await submitter.submit(...(feeTxs as any[]));
+        } else {
+          feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
+          if (isSafeTxBuilderPayload(feeReceipts)) {
+            returnedFeePayload = feeReceipts;
+          }
+        }
+        if (
+          feeReceipts &&
+          !isSafeTxBuilderPayload(feeReceipts) &&
+          isEVMLike(protocol)
+        ) {
+          const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
+          writeYamlOrJson(feeReceiptPath, feeReceipts);
+          logGreen(
+            `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
+          );
+        }
       }
     },
     5, // attempts
     100, // baseRetryMs
   );
+
+  return { mainPayload: returnedMainPayload, feePayload: returnedFeePayload };
 }
 
 /**
@@ -1079,6 +1207,7 @@ async function submitChainTransactions(
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
+  feeUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
@@ -1091,7 +1220,11 @@ async function submitWarpApplyTransactions(
   // private key is used across multiple chains, parallel tx submission causes
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
-  const chains = Object.keys(updateTransactions);
+  const allChains = new Set([
+    ...Object.keys(updateTransactions),
+    ...Object.keys(feeUpdateTransactions),
+  ]);
+  const chains = [...allChains];
   const evmChains = chains.filter((chain) =>
     isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
@@ -1101,16 +1234,24 @@ async function submitWarpApplyTransactions(
 
   const failures: string[] = [];
   const isExtended = (chain: string) => extendedChains.includes(chain);
+  const allMainPayloads: SafeTxBuilderPayload[] = [];
+  const allFeePayloads: SafeTxBuilderPayload[] = [];
+
+  const collectPayloads = ({ mainPayload, feePayload }: ChainTxPayloads) => {
+    if (mainPayload) allMainPayloads.push(mainPayload);
+    if (feePayload) allFeePayloads.push(feePayload);
+  };
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const { rejected } = await mapAllSettled(
+    const { fulfilled, rejected } = await mapAllSettled(
       evmChains,
       (chain) =>
         submitChainTransactions(
           params,
           chain,
-          updateTransactions[chain],
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
       (chain) => chain,
@@ -1126,16 +1267,20 @@ async function submitWarpApplyTransactions(
       );
       failures.push(chain);
     }
+    for (const [, payloads] of fulfilled) collectPayloads(payloads);
   }
 
   // Submit non-EVM chains sequentially (they may share signers)
   for (const chain of nonEvmChains) {
     try {
-      await submitChainTransactions(
-        params,
-        chain,
-        updateTransactions[chain],
-        isExtended(chain),
+      collectPayloads(
+        await submitChainTransactions(
+          params,
+          chain,
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
+          isExtended(chain),
+        ),
       );
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -1150,6 +1295,35 @@ async function submitWarpApplyTransactions(
   if (failures.length > 0) {
     throw new Error(
       `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
+    );
+  }
+
+  writeCombinedBundles(params.receiptsDir, 'main', allMainPayloads);
+  writeCombinedBundles(params.receiptsDir, 'fee', allFeePayloads);
+}
+
+function writeCombinedBundles(
+  receiptsDir: string,
+  label: string,
+  payloads: SafeTxBuilderPayload[],
+): void {
+  const byChainId = new Map<string, SafeTxBuilderPayload[]>();
+  for (const payload of payloads) {
+    const list = byChainId.get(payload.chainId) ?? [];
+    list.push(payload);
+    byChainId.set(payload.chainId, list);
+  }
+  for (const [chainId, group] of byChainId.entries()) {
+    const combined: SafeTxBuilderPayload = {
+      version: group[0].version,
+      chainId,
+      meta: {},
+      transactions: group.flatMap((p) => p.transactions),
+    };
+    const path = `${receiptsDir}/combined-${label}-chainId${chainId}-${Date.now()}-receipts.json`;
+    writeYamlOrJson(path, combined);
+    logGreen(
+      `Combined ${group.length} ${label} bundle(s) (${combined.transactions.length} txs) for chain ID ${chainId} written to ${path}`,
     );
   }
 }

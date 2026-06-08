@@ -127,6 +127,11 @@ const getAllowedRebalancingBridgesByDomain = (
     },
   );
 };
+export type WarpUpdateResult = {
+  txs: AnnotatedEV5Transaction[];
+  feeTxs: AnnotatedEV5Transaction[];
+};
+
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -205,10 +210,10 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
-  async update(
+  async updateSplit(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
     const transactions = [];
@@ -223,6 +228,12 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       xerc20Txs = await module.update(config);
     }
+
+    const feeTxs = await this.createTokenFeeUpdateTxs(
+      actualConfig,
+      expectedConfig,
+      tokenReaderParams,
+    );
 
     /**
      * @remark
@@ -242,11 +253,6 @@ export class EvmWarpModule extends HyperlaneModule<
       ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
         expectedConfig,
-      )),
-      ...(await this.createTokenFeeUpdateTxs(
-        actualConfig,
-        expectedConfig,
-        tokenReaderParams,
       )),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
@@ -289,7 +295,18 @@ export class EvmWarpModule extends HyperlaneModule<
       ),
     );
 
-    return transactions;
+    return { txs: transactions, feeTxs };
+  }
+
+  async update(
+    expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const { txs, feeTxs } = await this.updateSplit(
+      expectedConfig,
+      tokenReaderParams,
+    );
+    return [...txs, ...feeTxs];
   }
 
   /**
