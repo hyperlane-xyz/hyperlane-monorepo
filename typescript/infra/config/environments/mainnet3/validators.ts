@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
@@ -8,16 +10,19 @@ import { environment } from './chains.js';
 const DEFAULT_VALIDATOR_INTERVAL = 5;
 const FASTPATH_VALIDATOR_INTERVAL = 1;
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
+// bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
+// use a small non-zero reorg period instead of 1 even on the fast path.
+const FASTPATH_REORG_PRONE_REORG_PERIOD = 3;
 const FASTPATH_VALIDATOR_ADDRESS = '0xa9c4c16a4e2cf4628e1bb045cfee9de2f1c3c24a';
 
 export const fastPathReorgPeriodOverrides: Record<string, number> = {
   arbitrum: FASTPATH_VALIDATOR_REORG_PERIOD,
   base: FASTPATH_VALIDATOR_REORG_PERIOD,
-  bsc: FASTPATH_VALIDATOR_REORG_PERIOD,
+  bsc: FASTPATH_REORG_PRONE_REORG_PERIOD,
   citrea: FASTPATH_VALIDATOR_REORG_PERIOD,
   ethereum: FASTPATH_VALIDATOR_REORG_PERIOD,
   katana: FASTPATH_VALIDATOR_REORG_PERIOD,
-  polygon: FASTPATH_VALIDATOR_REORG_PERIOD,
+  polygon: FASTPATH_REORG_PRONE_REORG_PERIOD,
 };
 
 const validatorInterval = (context: Contexts) =>
@@ -35,7 +40,15 @@ const validatorReorgPeriod = (
     return defaultReorgPeriod;
   }
 
-  return fastPathReorgPeriodOverrides[chain] ?? defaultReorgPeriod;
+  // Fail loud rather than silently falling back to the conservative default:
+  // a fastpath validator chain without an override would otherwise lose its
+  // intended low-finality setting.
+  const fastPathReorgPeriod = fastPathReorgPeriodOverrides[chain];
+  assert(
+    fastPathReorgPeriod !== undefined,
+    `Missing fastpath reorgPeriod override for chain ${chain}`,
+  );
+  return fastPathReorgPeriod;
 };
 
 export const validatorChainConfig = (

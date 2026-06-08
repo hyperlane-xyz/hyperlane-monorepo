@@ -3,7 +3,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { Contexts } from '../../config/contexts.js';
 import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { Role } from '../roles.js';
-import { assertContext, assertRole } from '../utils/utils.js';
+import { assertRole } from '../utils/utils.js';
 
 export function isValidatorKey(role: Role) {
   return role === Role.Validator;
@@ -75,10 +75,9 @@ export function parseKeyIdentifier(identifier: string): {
   }
   const context = matches[2];
   const environment = matches[3];
-  const parsedContext = assertContext(context);
 
   if (
-    usesSharedValidatorKey(parsedContext, Role.Validator) &&
+    context === Contexts.FastPath &&
     matches[4] === Role.Validator &&
     matches[5] !== undefined &&
     matches[6] === undefined

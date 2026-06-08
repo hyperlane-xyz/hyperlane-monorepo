@@ -121,6 +121,8 @@ export function keyPolicyWithSigner(
     mergedPolicy.Statement.unshift(rootStatement());
   }
 
+  // All signer statements are produced by signerStatement() below, so a policy
+  // contains at most one; finding the first match is therefore sufficient.
   const existingSignerStatement =
     mergedPolicy.Statement.find(isSignerStatement);
   if (existingSignerStatement) {
