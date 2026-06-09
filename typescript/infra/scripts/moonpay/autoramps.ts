@@ -522,7 +522,7 @@ async function main(): Promise<void> {
       await cmdStatus(apiKey);
       break;
     case 'sync':
-      await cmdSync(apiKey, (argv as { dryRun: boolean }).dryRun);
+      await cmdSync(apiKey, Boolean(argv['dryRun']));
       break;
     default:
       throw new Error(`Unknown command: ${cmd}`);
