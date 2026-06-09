@@ -89,15 +89,19 @@ For chains where the owner is a Squads multisig:
 - Phase A: surface this as a **`Squads validation TODO — Phase 2`** warning row for now. EVM routes that touch SVM via Squads owners still proceed (the EVM-side validation passes); the SVM-side Squads validation requires per-protocol skill work that lands in Phase 2.
 - For Phase 2 (future): use the SVM SDK to read the multisig PDA on Solana and confirm the Squads V4 layout. If invalid, reject.
 
-### 3d. Reject if EOA
+### 3d. Reject if EOA (including EIP-7702 delegations)
 
-If a chain's owner is an EVM address AND `cast code <address> --rpc-url <rpc>` returns `0x` (no code), the owner is a plain EOA.
+If a chain's owner is an EVM address, run `cast code <address> --rpc-url <rpc>` and reject when the result indicates an EOA. There are **two** EOA shapes to catch:
 
-**Stop the flow** with a clear error:
+1. **Plain EOA** — `cast code` returns `0x` (no code). Classic externally-owned account.
+2. **EIP-7702-delegated EOA** — `cast code` returns `0xef0100<20-byte-delegate-address>` (46 chars total, starts with `0xef0100`). Post-EIP-7702 EOAs that have delegated to a smart account contract still have a private key behind them and remain EOAs for ownership purposes. Detect by checking that the code matches the regex `^0xef0100[0-9a-fA-F]{40}$`.
+
+If either shape matches, the owner is an EOA. **Stop the flow** with a clear error:
 
 - Which chain
 - Which address
-- Why this is rejected (EOAs are never valid as long-term production owners)
+- Whether it's a plain EOA or an EIP-7702-delegated EOA
+- Why this is rejected (EOAs are never valid as long-term production owners — even delegated ones can be drained by the EOA private key holder)
 - What the operator should do (replace with a Safe / ICA / Squads address; update the Linear ticket; rerun)
 
 This catches accidental owner misconfigurations before deploy.
