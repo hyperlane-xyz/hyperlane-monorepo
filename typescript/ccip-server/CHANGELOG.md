@@ -1,5 +1,20 @@
 # @hyperlane-xyz/ccip-server
 
+## 35.1.0
+
+### Minor Changes
+
+- 02082cd: Allowed multiple messages per origin tx for cctp v2 messages
+
+### Patch Changes
+
+- Updated dependencies [830ce1d]
+- Updated dependencies [9cdf9eb]
+  - @hyperlane-xyz/sdk@35.1.0
+  - @hyperlane-xyz/metrics@0.2.26
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 35.0.1
 
 ### Patch Changes

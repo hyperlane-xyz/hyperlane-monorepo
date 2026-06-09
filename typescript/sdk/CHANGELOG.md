@@ -1,5 +1,28 @@
 # @hyperlane-xyz/sdk
 
+## 35.1.0
+
+### Minor Changes
+
+- 830ce1d: Added a new `Seismic` value to the `ChainTechnicalStack` enum.
+
+### Patch Changes
+
+- 9cdf9eb: Warp core configs preserved warp route deploy token types, and destination collateral checks were skipped for CCTP and OFT collateral routes that settle through their protocol bridge rather than on-chain escrow.
+
+  Existing CCTP and OFT registry routes require token type backfills in hyperlane-registry#1550 to use the exemption.
+
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/cosmos-sdk@35.1.0
+  - @hyperlane-xyz/radix-sdk@35.1.0
+  - @hyperlane-xyz/aleo-sdk@35.1.0
+  - @hyperlane-xyz/tron-sdk@23.1.0
+  - @hyperlane-xyz/deploy-sdk@6.1.0
+  - @hyperlane-xyz/starknet-core@35.1.0
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 35.0.1
 
 ### Patch Changes

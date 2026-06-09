@@ -67,6 +67,7 @@ function matchesUnderlyingAsset(
 export class TokenMetadata implements ITokenMetadata {
   declare chainName: TokenArgs['chainName'];
   declare standard: TokenArgs['standard'];
+  declare tokenType: TokenArgs['tokenType'];
   declare decimals: TokenArgs['decimals'];
   declare symbol: TokenArgs['symbol'];
   declare name: TokenArgs['name'];

@@ -15,8 +15,6 @@ import {
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
   TokenBridgeCctpV2__factory,
-  TokenBridgeDepositAddress__factory,
-  TokenBridgeOft__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -102,7 +100,6 @@ import {
   derivedHookAddress,
   derivedIsmAddress,
   isCctpTokenConfig,
-  isDepositAddressTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
@@ -133,6 +130,7 @@ const getAllowedRebalancingBridgesByDomain = (
 export type WarpUpdateResult = {
   txs: AnnotatedEV5Transaction[];
   feeTxs: AnnotatedEV5Transaction[];
+  ownershipTxs: AnnotatedEV5Transaction[];
 };
 
 export class EvmWarpModule extends HyperlaneModule<
@@ -211,7 +209,7 @@ export class EvmWarpModule extends HyperlaneModule<
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
+   * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
    */
   async updateSplit(
     expectedConfig: HypTokenRouterConfig,
@@ -232,6 +230,26 @@ export class EvmWarpModule extends HyperlaneModule<
       xerc20Txs = await module.update(config);
     }
 
+    const allFeeTxs = await this.createTokenFeeUpdateTxs(
+      actualConfig,
+      expectedConfig,
+      tokenReaderParams,
+    );
+
+    // Split feeTxs by authority: setFeeRecipient targets the token router (router
+    // owner gated) while all other fee txs target the fee contract (fee-contract
+    // owner gated).  Keeping them in the same bucket means a dedicated feeSubmitter
+    // (which owns the fee contract) would try to call setFeeRecipient — which reverts
+    // because it doesn't own the router.  Router-owner txs go into the main batch;
+    // only fee-contract-owner txs are returned as feeTxs for the feeSubmitter.
+    const routerAddress = this.args.addresses.deployedTokenRoute.toLowerCase();
+    const routerOwnerFeeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() === routerAddress,
+    );
+    const feeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() !== routerAddress,
+    );
+
     /**
      * @remark
      * The order of operations matter
@@ -241,12 +259,6 @@ export class EvmWarpModule extends HyperlaneModule<
      * 3. createHookAndPredicateUpdateTxs() handles hook + predicate wrapper together so the
      *    pending new hook address is threaded through without leaking into other method signatures
      */
-    const feeTxs = await this.createTokenFeeUpdateTxs(
-      actualConfig,
-      expectedConfig,
-      tokenReaderParams,
-    );
-
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
         actualConfig,
@@ -272,10 +284,6 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-      ...this.createSetDestinationConfigsUpdateTxs(
-        actualConfig,
-        expectedConfig,
-      ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -291,9 +299,16 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
-      ...this.createDomainMappingsUpdateTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
+      // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
+      // always execute under the router owner's authority — even when a dedicated
+      // feeSubmitter is configured for fee-contract-owner txs.
+      ...routerOwnerFeeTxs,
+    );
 
+    // Ownership/proxyAdmin must always execute last; returned separately so callers
+    // can place feeTxs between main txs and ownership (see update() below).
+    const ownershipTxs = [
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -301,20 +316,26 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-    );
+    ];
 
-    return { txs: transactions, feeTxs };
+    return { txs: transactions, feeTxs, ownershipTxs };
   }
 
+  /**
+   * Backwards-compatible wrapper around `updateSplit`. Returns a flat, ordered
+   * transaction array suitable for a single submitter.
+   */
   async update(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const { txs, feeTxs } = await this.updateSplit(
+    const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
       expectedConfig,
       tokenReaderParams,
     );
-    return [...txs, ...feeTxs];
+    // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
+    // execute before the router owner changes.
+    return [...txs, ...feeTxs, ...ownershipTxs];
   }
 
   /**
@@ -426,57 +447,6 @@ export class EvmWarpModule extends HyperlaneModule<
         [routesToUnenroll.map((k) => Number(k))],
       ),
     });
-
-    return updateTransactions;
-  }
-
-  createDomainMappingsUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
-    if (!isOftTokenConfig(expectedConfig) || !isOftTokenConfig(actualConfig)) {
-      return [];
-    }
-
-    const iface = TokenBridgeOft__factory.createInterface();
-    const chainId = this.multiProvider.getEvmChainId(this.args.chain);
-    const to = this.args.addresses.deployedTokenRoute;
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    const actualMappings: Record<number, number> = Object.fromEntries(
-      Object.entries(actualConfig.domainMappings ?? {}).map(([k, v]) => [
-        Number(k),
-        v,
-      ]),
-    );
-    const expectedMappings = resolveRouterMapConfig(
-      this.multiProvider,
-      expectedConfig.domainMappings ?? {},
-    );
-
-    for (const [domain, lzEid] of Object.entries(expectedMappings)) {
-      const domainNum = Number(domain);
-      if (actualMappings[domainNum] !== lzEid) {
-        updateTransactions.push({
-          chainId,
-          to,
-          annotation: `Adding OFT domain mapping ${domainNum} -> lzEid ${lzEid} on ${this.args.chain}`,
-          data: iface.encodeFunctionData('addDomain', [domainNum, lzEid]),
-        });
-      }
-    }
-
-    for (const domain of Object.keys(actualMappings)) {
-      const domainNum = Number(domain);
-      if (!(domainNum in expectedMappings)) {
-        updateTransactions.push({
-          chainId,
-          to,
-          annotation: `Removing OFT domain mapping ${domainNum} on ${this.args.chain}`,
-          data: iface.encodeFunctionData('removeDomain', [domainNum]),
-        });
-      }
-    }
 
     return updateTransactions;
   }
@@ -1098,91 +1068,12 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  createSetDestinationConfigsUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
-    if (!isDepositAddressTokenConfig(expectedConfig)) {
-      return [];
-    }
-
-    assert(
-      isDepositAddressTokenConfig(actualConfig),
-      'actualConfig must be collateralDepositAddress type',
-    );
-
-    const actual = actualConfig.destinationConfigs ?? {};
-    const expected = expectedConfig.destinationConfigs ?? {};
-    const iface = TokenBridgeDepositAddress__factory.createInterface();
-    const to = this.args.addresses.deployedTokenRoute;
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    const allDomains = new Set([
-      ...Object.keys(actual),
-      ...Object.keys(expected),
-    ]);
-
-    for (const domain of allDomains) {
-      const actualByRecipient = actual[domain] ?? {};
-      const expectedByRecipient = expected[domain] ?? {};
-
-      const allRecipients = new Set([
-        ...Object.keys(actualByRecipient).map((r) => r.toLowerCase()),
-        ...Object.keys(expectedByRecipient).map((r) => r.toLowerCase()),
-      ]);
-
-      for (const recipient of allRecipients) {
-        const actualEntry = actualByRecipient[recipient];
-        const expectedEntry = expectedByRecipient[recipient];
-
-        const changed =
-          actualEntry != null &&
-          expectedEntry != null &&
-          (actualEntry.depositAddress.toLowerCase() !==
-            expectedEntry.depositAddress.toLowerCase() ||
-            String(actualEntry.feeBps ?? '0') !==
-              String(expectedEntry.feeBps ?? '0'));
-
-        if (actualEntry != null && (expectedEntry == null || changed)) {
-          updateTransactions.push({
-            annotation: `Removing destination config for domain ${domain} recipient ${recipient} on ${this.chainName}`,
-            chainId: this.chainId,
-            to,
-            data: iface.encodeFunctionData('removeDestinationConfig', [
-              Number(domain),
-              recipient,
-            ]),
-          });
-        }
-
-        if (expectedEntry != null && (actualEntry == null || changed)) {
-          updateTransactions.push({
-            annotation: `Adding destination config for domain ${domain} recipient ${recipient} on ${this.chainName}`,
-            chainId: this.chainId,
-            to,
-            data: iface.encodeFunctionData('addDestinationConfig', [
-              Number(domain),
-              expectedEntry.depositAddress,
-              recipient,
-              expectedEntry.feeBps ?? '0',
-            ]),
-          });
-        }
-      }
-    }
-
-    return updateTransactions;
-  }
-
   createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    // OFT and collateralDepositAddress contracts don't have GasRouter interface — no destination gas config
-    if (
-      isOftTokenConfig(expectedConfig) ||
-      isDepositAddressTokenConfig(expectedConfig)
-    ) {
+    // OFT contracts don't have GasRouter interface — no destination gas config
+    if (isOftTokenConfig(expectedConfig)) {
       return [];
     }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -1760,6 +1651,12 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transactions that need to be executed to update the token fee.
+   *
+   * @remarks
+   * The returned transactions may include both `setFeeRecipient` (gated by the
+   * token-router owner) and fee-contract config calls (gated by the fee-contract
+   * owner). When routing these to a dedicated `feeSubmitter`, that submitter
+   * must own both the token router and the fee contract.
    */
   async createTokenFeeUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,

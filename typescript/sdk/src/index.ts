@@ -504,6 +504,10 @@ export {
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
+  SeismicSigner,
+  type SeismicSignerContext,
+} from './providers/SeismicSigner.js';
+export {
   AllProviderMethods,
   excludeProviderMethods,
   IProviderMethods,
@@ -765,7 +769,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpModule, type WarpUpdateResult } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   WARP_ROUTE_CHECK_SCALE_TYPE,

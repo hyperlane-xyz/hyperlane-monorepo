@@ -86,31 +86,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
-  polygonzkevm: {
-    transactionOverrides: {
-      gasPrice: 1 * 10 ** 9, // 1 gwei
-    },
-  },
-  scroll: {
-    transactionOverrides: {
-      // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
-      // too low for the transaction to be included in a reasonable amount of time -
-      // this often leads to transaction underpriced issues.
-      gasPrice: 2 * 10 ** 8, // 0.2 gwei
-    },
-  },
   sei: {
     // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
     // so we force legacy transactions by setting a gas price.
     // A minimum fee of 100 gwei is imposed https://seitrace.com/proposal/83?chain=pacific-1
     transactionOverrides: {
       gasPrice: 101 * 10 ** 9, // 101 gwei
-    },
-  },
-  moonbeam: {
-    transactionOverrides: {
-      maxFeePerGas: 350 * 10 ** 9, // 350 gwei
-      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
   morph: {

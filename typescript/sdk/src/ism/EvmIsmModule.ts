@@ -6,7 +6,6 @@ import {
   DomainRoutingIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
-  StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -15,7 +14,6 @@ import {
   ProtocolType,
   arrayEqual,
   assert,
-  concurrentMap,
   deepEquals,
   intersection,
   isZeroishAddress,
@@ -39,7 +37,6 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -150,28 +147,23 @@ export class EvmIsmModule extends HyperlaneModule<
     // Check if we need to deploy a new ISM
     //
     // Special case: RATE_LIMITED recipient is immutable — must redeploy if it changes.
-    const rateLimitedRecipientChanged =
+    // read() omits recipient (immutable constructor arg), so fetch on-chain to compare.
+    let rateLimitedRecipientChanged = false;
+    if (
       typeof normalizedCurrentConfig !== 'string' &&
       normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
       normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
-      normalizedCurrentConfig.recipient !== normalizedTargetConfig.recipient;
-
-    // Special case: same-type aggregation ISM — try to update mutable children
-    // in-place rather than redeploying everything. This avoids unnecessary deploys
-    // when only a mutable child (e.g. RateLimitedIsm) changed.
-    if (
-      typeof normalizedCurrentConfig !== 'string' &&
-      !rateLimitedRecipientChanged &&
-      (normalizedTargetConfig.type === IsmType.AGGREGATION ||
-        normalizedTargetConfig.type === IsmType.STORAGE_AGGREGATION) &&
-      normalizedCurrentConfig.type === normalizedTargetConfig.type
+      normalizedTargetConfig.recipient !== undefined
     ) {
-      return this.updateAggregationIsm(
-        normalizedCurrentConfig as AggregationIsmConfig,
-        normalizedTargetConfig as AggregationIsmConfig,
-      );
+      const onChainRecipient = (
+        await RateLimitedIsm__factory.connect(
+          this.args.addresses.deployedIsm,
+          this.multiProvider.getProvider(this.chain),
+        ).recipient()
+      ).toLowerCase();
+      rateLimitedRecipientChanged =
+        onChainRecipient !== normalizedTargetConfig.recipient;
     }
-
     if (
       rateLimitedRecipientChanged ||
       typeof normalizedCurrentConfig === 'string' ||
@@ -486,89 +478,6 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return txs;
-  }
-
-  protected async updateAggregationIsm(
-    current: AggregationIsmConfig,
-    target: AggregationIsmConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    // Threshold or module count changed: must fully redeploy
-    if (
-      current.threshold !== target.threshold ||
-      current.modules.length !== target.modules.length
-    ) {
-      const contract = await this.deploy({ config: target });
-      this.args.addresses.deployedIsm = contract.address;
-      return [];
-    }
-
-    // Read current child addresses from chain (sorted by address by the static factory)
-    const aggregationIsm = StaticAggregationIsm__factory.connect(
-      this.args.addresses.deployedIsm,
-      this.multiProvider.getSignerOrProvider(this.chain),
-    );
-    const [currentChildAddresses] = await aggregationIsm.modulesAndThreshold(
-      ethers.constants.AddressZero,
-    );
-
-    // Derive current child configs (in on-chain address-sorted order)
-    const currentChildConfigs = await concurrentMap(
-      5,
-      currentChildAddresses,
-      (addr) => this.reader.deriveIsmConfig(addr),
-    );
-
-    const allUpdateTxs: AnnotatedEV5Transaction[] = [];
-    const newChildAddresses = [...currentChildAddresses];
-
-    for (let i = 0; i < currentChildAddresses.length; i++) {
-      const normalizedChild = normalizeConfig(currentChildConfigs[i]);
-
-      // Find the target module that matches this child's type
-      // (assumes each type appears at most once; falls back to full redeploy if ambiguous)
-      const matchingTargets = target.modules.filter(
-        (m) => typeof m !== 'string' && m.type === normalizedChild.type,
-      );
-      if (matchingTargets.length !== 1) {
-        // Ambiguous match or type removed — fall back to full redeploy
-        const contract = await this.deploy({ config: target });
-        this.args.addresses.deployedIsm = contract.address;
-        return allUpdateTxs;
-      }
-      const targetChild = matchingTargets[0];
-
-      if (deepEquals(normalizedChild, normalizeConfig(targetChild))) {
-        continue; // No change for this child
-      }
-
-      const childModule = new EvmIsmModule(
-        this.multiProvider,
-        {
-          chain: this.chain,
-          config: normalizedChild,
-          addresses: {
-            ...this.args.addresses,
-            deployedIsm: currentChildAddresses[i],
-          },
-        },
-        this.ismFactory.ccipContractCache,
-        this.contractVerifier,
-      );
-
-      const childTxs = await childModule.update(targetChild as IsmConfig);
-      allUpdateTxs.push(...childTxs);
-      newChildAddresses[i] = childModule.args.addresses.deployedIsm;
-    }
-
-    // If all child addresses are unchanged, aggregation ISM doesn't need redeployment
-    if (arrayEqual(currentChildAddresses, newChildAddresses)) {
-      return allUpdateTxs;
-    }
-
-    // Some child addresses changed: redeploy the aggregation ISM with the target config
-    const contract = await this.deploy({ config: target });
-    this.args.addresses.deployedIsm = contract.address;
-    return allUpdateTxs;
   }
 
   protected async deploy({

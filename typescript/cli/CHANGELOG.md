@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cli
 
+## 35.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- 9cdf9eb: Warp core configs preserved warp route deploy token types, and destination collateral checks were skipped for CCTP and OFT collateral routes that settle through their protocol bridge rather than on-chain escrow.
+
+  Existing CCTP and OFT registry routes require token type backfills in hyperlane-registry#1550 to use the exemption.
+
 ## 35.0.1
 
 ## 35.0.0

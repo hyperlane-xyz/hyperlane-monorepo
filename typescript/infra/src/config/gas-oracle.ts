@@ -294,10 +294,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     ancient8: 0.5,
     blast: 0.5,
     mantapacific: 0.5,
-    polygonzkevm: 0.5,
-
-    // Scroll is more expensive than the rest due to higher L1 fees
-    scroll: 1.5,
     taiko: 0.5,
 
     // Tron uses an energy model, not gas. Delivery costs 80-110K energy
@@ -390,11 +386,6 @@ export function getOverheadWithOverrides(
 
   if (remote === 'megaeth') {
     overhead *= 10;
-  }
-
-  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
-  if (remote === 'moonbeam' || remote === 'torus') {
-    overhead *= 4;
   }
 
   // Somnia gas usage is higher than the EVM and tends to give high
