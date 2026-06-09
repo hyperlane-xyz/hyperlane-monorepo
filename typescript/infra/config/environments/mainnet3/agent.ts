@@ -1051,7 +1051,12 @@ const fastPath: RootAgentConfig = {
     ],
     blacklist,
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { ethereum: 1 },
+    reorgPeriodOverrides: {
+      ethereum: 1,
+      arbitrum: 1,
+      base: 1,
+      citrea: 1,
+    },
     ismCacheConfigs,
     cache: {
       enabled: true,
