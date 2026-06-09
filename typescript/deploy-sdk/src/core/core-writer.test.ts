@@ -9,10 +9,12 @@ import {
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -27,8 +29,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedMailboxAddress,
-  DeployedMailboxArtifact,
-  DeployedRawMailboxArtifact,
   IRawMailboxArtifactManager,
   MailboxArtifactConfig,
   MailboxOnChain,
@@ -43,6 +43,15 @@ import {
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { CoreWriter } from './core-writer.js';
+
+type OrchestratedMailboxArtifactConfig = WithCompositionVariant<
+  MailboxArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 // Test protocol
 const TestProtocol = 'test-core-writer' as ProtocolType;
@@ -173,13 +182,22 @@ describe('CoreWriter', () => {
 
     const mailboxCreateStub = sinon
       .stub<
-        [ArtifactNew<MailboxOnChain>],
-        Promise<[DeployedRawMailboxArtifact, TxReceipt[]]>
+        [ArtifactNew<OrchestratedMailboxOnChain>],
+        Promise<
+          [
+            ArtifactDeployed<
+              OrchestratedMailboxOnChain,
+              DeployedMailboxAddress
+            >,
+            TxReceipt[],
+          ]
+        >
       >()
       .resolves([
         {
           artifactState: ArtifactState.DEPLOYED,
           config: {
+            composition: ArtifactComposition.ORCHESTRATED,
             owner: mockSignerAddress,
             defaultIsm: {
               artifactState: ArtifactState.DEPLOYED,
@@ -201,14 +219,21 @@ describe('CoreWriter', () => {
       ]);
 
     const mailboxUpdateStub = sinon
-      .stub<[DeployedMailboxArtifact], Promise<AnnotatedTx[]>>()
+      .stub<
+        [ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>],
+        Promise<AnnotatedTx[]>
+      >()
       .resolves([]);
 
     const mockMailboxWriter = {
+      composition: ArtifactComposition.ORCHESTRATED,
       create: mailboxCreateStub,
       update: mailboxUpdateStub,
       read: sinon.stub(),
-    } satisfies ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
+    } satisfies OrchestratedArtifactWriter<
+      MailboxOnChain,
+      DeployedMailboxAddress
+    >;
 
     createMailboxWriterStub = sinon.stub().returns(mockMailboxWriter);
 
@@ -280,9 +305,10 @@ describe('CoreWriter', () => {
   describe('create', () => {
     it('should deploy mailbox with NEW ISM and NEW hooks', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -358,9 +384,10 @@ describe('CoreWriter', () => {
     it('should forward contractVersion onto the deployed mailbox artifact', async () => {
       // ARRANGE
       const expectedContractVersion = '1.0.0';
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -380,9 +407,10 @@ describe('CoreWriter', () => {
 
     it('should use existing ISM when DEPLOYED', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -419,9 +447,10 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -449,9 +478,10 @@ describe('CoreWriter', () => {
 
     it('should create mailbox with signer as initial owner', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -484,9 +514,10 @@ describe('CoreWriter', () => {
 
     it('should create mailbox with zero-address hooks initially', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: {
@@ -546,9 +577,10 @@ describe('CoreWriter', () => {
     });
 
     it('should keep zero-address hook placeholders for non-Starknet even when hooks are already on-chain', async () => {
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -593,9 +625,10 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: {
@@ -662,9 +695,10 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -698,9 +732,10 @@ describe('CoreWriter', () => {
 
     it('should update mailbox with hooks and owner after deployment', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -751,6 +786,7 @@ describe('CoreWriter', () => {
         {
           artifactState: ArtifactState.DEPLOYED,
           config: {
+            composition: ArtifactComposition.ORCHESTRATED,
             owner: mockSignerAddress,
             defaultIsm: {
               artifactState: ArtifactState.DEPLOYED,
@@ -774,6 +810,7 @@ describe('CoreWriter', () => {
       const mailboxUpdateStub = sinon.stub().resolves([mockUpdateTx]);
 
       const mockMailboxWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         create: mailboxCreateStub,
         update: mailboxUpdateStub,
         read: sinon.stub(),
@@ -783,9 +820,10 @@ describe('CoreWriter', () => {
         .stub()
         .returns(mockMailboxWriter);
 
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -813,9 +851,10 @@ describe('CoreWriter', () => {
 
     it('should collect receipts from all steps', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -850,9 +889,10 @@ describe('CoreWriter', () => {
     it('should propagate ISM deployment errors', async () => {
       // ARRANGE
       const error = new Error('ISM deployment failed');
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -884,6 +924,7 @@ describe('CoreWriter', () => {
       // ARRANGE
       const error = new Error('Mailbox creation failed');
       const mockMailboxWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         create: sinon.stub().rejects(error),
         update: sinon.stub(),
         read: sinon.stub(),
@@ -893,9 +934,10 @@ describe('CoreWriter', () => {
         .stub()
         .returns(mockMailboxWriter);
 
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+      const artifact: ArtifactNew<OrchestratedMailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -924,9 +966,13 @@ describe('CoreWriter', () => {
   describe('update', () => {
     it('should handle ISM type change by deploying new ISM', async () => {
       // ARRANGE
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -948,11 +994,12 @@ describe('CoreWriter', () => {
       };
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -1001,9 +1048,13 @@ describe('CoreWriter', () => {
 
     it('should handle UNDERIVED ISM by using address as-is', async () => {
       // ARRANGE
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1015,11 +1066,12 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.UNDERIVED,
@@ -1065,9 +1117,13 @@ describe('CoreWriter', () => {
 
     it('should return empty array when no updates needed', async () => {
       // ARRANGE
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1079,7 +1135,7 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
@@ -1120,6 +1176,7 @@ describe('CoreWriter', () => {
       const currentMailbox = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.UNDERIVED,
@@ -1144,11 +1201,12 @@ describe('CoreWriter', () => {
       };
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -1201,6 +1259,7 @@ describe('CoreWriter', () => {
       const currentMailbox = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.UNDERIVED,
@@ -1215,11 +1274,12 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1236,9 +1296,13 @@ describe('CoreWriter', () => {
 
     it('should deploy NEW hook during update', async () => {
       // ARRANGE
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: {
@@ -1259,11 +1323,12 @@ describe('CoreWriter', () => {
       };
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: {
@@ -1310,9 +1375,13 @@ describe('CoreWriter', () => {
     it('should handle owner change', async () => {
       // ARRANGE
       const newOwner = '0xNEWOWNER';
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1324,11 +1393,12 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: newOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1379,9 +1449,13 @@ describe('CoreWriter', () => {
         deployed: { address: mockNewIsmAddress },
       };
 
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1393,11 +1467,12 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.NEW,
@@ -1452,9 +1527,13 @@ describe('CoreWriter', () => {
       // ARRANGE
       const expectedContractVersion = '2.0.0';
 
-      const currentMailbox: DeployedMailboxArtifact = {
+      const currentMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
@@ -1467,11 +1546,12 @@ describe('CoreWriter', () => {
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
-        MailboxArtifactConfig,
+        OrchestratedMailboxArtifactConfig,
         DeployedMailboxAddress
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,

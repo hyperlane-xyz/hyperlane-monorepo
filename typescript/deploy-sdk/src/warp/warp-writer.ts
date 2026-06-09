@@ -4,11 +4,15 @@ import {
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
+  ArtifactDeployed,
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
   isArtifactDeployed,
+  isArtifactEmbedded,
   isArtifactNew,
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -35,7 +39,6 @@ import {
   DeployedWarpAddress,
   DeployedWarpArtifact,
   IRawWarpArtifactManager,
-  RawWarpArtifactConfig,
   WarpArtifactConfig,
   buildFeeReadContextFromWarpArtifactConfig,
   resolveFeeTokenFromWarpArtifactConfig,
@@ -47,6 +50,16 @@ import { HookWriter, createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
 import { WarpTokenReader } from './warp-reader.js';
+
+type OrchestratedWarpArtifactConfig = WithCompositionVariant<
+  WarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
+  OrchestratedWarpArtifactConfig,
+  DeployedWarpAddress
+>;
 
 /**
  * Factory function to create a WarpTokenWriter instance.
@@ -92,7 +105,7 @@ export function createWarpTokenWriter(
  */
 export class WarpTokenWriter
   extends WarpTokenReader
-  implements ArtifactWriter<WarpArtifactConfig, DeployedWarpAddress>
+  implements OrchestratedArtifactWriter<WarpArtifactConfig, DeployedWarpAddress>
 {
   protected readonly ismWriter: IsmWriter;
   protected readonly hookWriterFactory: (mailbox: string) => HookWriter;
@@ -118,8 +131,13 @@ export class WarpTokenWriter
    */
   async create(
     artifact: ArtifactNew<WarpArtifactConfig>,
-  ): Promise<[DeployedWarpArtifact, TxReceipt[]]> {
+  ): Promise<[OrchestratedDeployedWarpArtifact, TxReceipt[]]> {
     const { config } = artifact;
+    if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED warp artifact handling will be implemented in slice 5',
+      );
+    }
     const allReceipts: TxReceipt[] = [];
     if (config.hook) {
       assert(
@@ -133,6 +151,9 @@ export class WarpTokenWriter
       | ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
       | undefined;
     if (config.interchainSecurityModule) {
+      if (isArtifactEmbedded(config.interchainSecurityModule)) {
+        throw new Error('EMBEDDED ISM handling will be implemented in slice 5');
+      }
       if (isArtifactNew(config.interchainSecurityModule)) {
         const [deployedIsm, ismReceipts] = await this.ismWriter.create(
           config.interchainSecurityModule,
@@ -150,6 +171,11 @@ export class WarpTokenWriter
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
     if (config.hook) {
+      if (isArtifactEmbedded(config.hook)) {
+        throw new Error(
+          'EMBEDDED hook handling will be implemented in slice 5',
+        );
+      }
       if (!this.artifactManager.supportsHookUpdates()) {
         rootLogger.warn(
           'Hook configuration is not supported for this protocol. Hook configuration will be ignored.',
@@ -175,10 +201,11 @@ export class WarpTokenWriter
     // exist post-deploy), and (b) the fee can be deployed with its real
     // owner from the start rather than via a signer-as-initial-owner /
     // TransferOwnership dance.
-    const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
+    const rawArtifact = {
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
+        composition: ArtifactComposition.ORCHESTRATED,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
         fee: undefined,
@@ -186,6 +213,11 @@ export class WarpTokenWriter
     };
 
     const writer = this.artifactManager.createWriter(config.type, this.signer);
+    if (writer.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED warp writer handling will be implemented in slice 5',
+      );
+    }
     const [deployed, tokenReceipts] = await writer.create(rawArtifact);
     allReceipts.push(...tokenReceipts);
 
@@ -195,6 +227,9 @@ export class WarpTokenWriter
       | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
       | undefined;
     if (config.fee) {
+      if (isArtifactEmbedded(config.fee)) {
+        throw new Error('EMBEDDED fee handling will be implemented in slice 5');
+      }
       const feeWriter = createFeeWriter(this.chainMetadata, this.signer, {
         knownRoutersPerDomain: buildFeeReadContextFromWarpArtifactConfig(
           deployed.config,
@@ -269,6 +304,11 @@ export class WarpTokenWriter
    */
   async update(artifact: DeployedWarpArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
+    if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED warp artifact handling will be implemented in slice 5',
+      );
+    }
     const expectedHook = config.hook;
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
       assert(
@@ -314,6 +354,9 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedIsm && !isArtifactUnderived(expectedIsm)) {
+      if (isArtifactEmbedded(expectedIsm)) {
+        throw new Error('EMBEDDED ISM handling will be implemented in slice 5');
+      }
       // NEW or DEPLOYED: Merge with current and decide deploy vs update
       const mergedIsmConfig = mergeIsmArtifacts(currentIsm, expectedIsm);
 
@@ -347,6 +390,11 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
+      if (isArtifactEmbedded(expectedHook)) {
+        throw new Error(
+          'EMBEDDED hook handling will be implemented in slice 5',
+        );
+      }
       if (!this.artifactManager.supportsHookUpdates()) {
         rootLogger.warn(
           'Hook updates are not supported for this protocol. Hook configuration will be ignored.',
@@ -390,6 +438,9 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedFee && !isArtifactUnderived(expectedFee)) {
+      if (isArtifactEmbedded(expectedFee)) {
+        throw new Error('EMBEDDED fee handling will be implemented in slice 5');
+      }
       const feeContext = buildFeeReadContextFromWarpArtifactConfig(
         config,
         currentArtifact.config,
@@ -453,6 +504,7 @@ export class WarpTokenWriter
       artifactState: ArtifactState.DEPLOYED,
       config: {
         ...config,
+        composition: ArtifactComposition.ORCHESTRATED,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
         fee: onChainFeeArtifact,
@@ -462,6 +514,11 @@ export class WarpTokenWriter
 
     // Delegate to protocol-specific writer which will read current state and compare
     const writer = this.artifactManager.createWriter(config.type, this.signer);
+    if (writer.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED warp writer handling will be implemented in slice 5',
+      );
+    }
 
     const warpUpdateTxs = await writer.update(rawArtifact);
     updateTxs.push(...warpUpdateTxs);

@@ -6,10 +6,13 @@ import {
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
+  WithCompositionVariant,
+  isArtifactEmbedded,
   isArtifactNew,
   isArtifactUnderived,
   toDeployedOrUndefined,
@@ -46,6 +49,15 @@ import { createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';
+
+type OrchestratedMailboxArtifactConfig = WithCompositionVariant<
+  MailboxArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 export function createCoreWriter(
   chainMetadata: ChainMetadataForAltVM,
@@ -104,6 +116,9 @@ export class CoreWriter extends CoreArtifactReader {
   private getInitialHookArtifact(
     hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
   ): ArtifactOnChain<HookArtifactConfig, DeployedHookAddress> {
+    if (isArtifactEmbedded(hookArtifact)) {
+      throw new Error('EMBEDDED hook handling will be implemented in slice 5');
+    }
     if (
       this.chainMetadata.protocol === ProtocolType.Starknet &&
       !isArtifactNew(hookArtifact)
@@ -117,7 +132,9 @@ export class CoreWriter extends CoreArtifactReader {
     };
   }
 
-  async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<
+  async create(
+    artifact: ArtifactNew<OrchestratedMailboxArtifactConfig>,
+  ): Promise<
     [
       {
         mailbox: DeployedMailboxArtifact;
@@ -146,6 +163,10 @@ export class CoreWriter extends CoreArtifactReader {
       this.logger.info(
         `Default ISM deployed at ${deployed.deployed.address} on ${chainName}`,
       );
+    } else if (isArtifactEmbedded(config.defaultIsm)) {
+      throw new Error(
+        'EMBEDDED defaultIsm handling will be implemented in slice 5',
+      );
     } else {
       onChainIsmArtifact = config.defaultIsm;
     }
@@ -155,14 +176,20 @@ export class CoreWriter extends CoreArtifactReader {
       'mailbox',
       this.signer,
     );
+    if (mailboxWriter.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED mailbox writer handling will be implemented in slice 5',
+      );
+    }
 
     // Hooks require the mailbox address for deployment (circular dependency),
     // so we create mailbox first, deploy hooks in Step 3, then update mailbox in Step 4.
     // Most protocols accept zero hooks for this bootstrap step; the Starknet
     // mailbox writer materializes a temporary noop hook when it sees zero hooks.
-    const initialMailboxArtifact: ArtifactNew<MailboxOnChain> = {
+    const initialMailboxArtifact: ArtifactNew<OrchestratedMailboxOnChain> = {
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: this.signer.getSignerAddress(), // Signer owns initially; transferred in Step 4
         defaultIsm: onChainIsmArtifact,
         defaultHook: this.getInitialHookArtifact(config.defaultHook),
@@ -189,6 +216,11 @@ export class CoreWriter extends CoreArtifactReader {
       HookArtifactConfig,
       DeployedHookAddress
     >;
+    if (isArtifactEmbedded(config.defaultHook)) {
+      throw new Error(
+        'EMBEDDED defaultHook handling will be implemented in slice 5',
+      );
+    }
     if (isArtifactNew(config.defaultHook)) {
       const [deployed, hookReceipts] = await hookWriter.create(
         config.defaultHook,
@@ -206,6 +238,11 @@ export class CoreWriter extends CoreArtifactReader {
       HookArtifactConfig,
       DeployedHookAddress
     >;
+    if (isArtifactEmbedded(config.requiredHook)) {
+      throw new Error(
+        'EMBEDDED requiredHook handling will be implemented in slice 5',
+      );
+    }
     if (isArtifactNew(config.requiredHook)) {
       const [deployed, hookReceipts] = await hookWriter.create(
         config.requiredHook,
@@ -220,9 +257,13 @@ export class CoreWriter extends CoreArtifactReader {
     }
 
     // Step 4: Update mailbox with hooks + transfer owner
-    const updatedMailboxArtifact: DeployedMailboxArtifact = {
+    const updatedMailboxArtifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    > = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: config.owner,
         defaultIsm: onChainIsmArtifact,
         defaultHook: onChainDefaultHookArtifact,
@@ -284,6 +325,11 @@ export class CoreWriter extends CoreArtifactReader {
     >,
   ): Promise<AnnotatedTx[]> {
     const { config: expectedConfig, deployed } = expectedArtifact;
+    if (expectedConfig.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED mailbox artifact handling will be implemented in slice 5',
+      );
+    }
     const { address: mailboxAddress } = deployed;
     const updateTxs: AnnotatedTx[] = [];
 
@@ -333,10 +379,19 @@ export class CoreWriter extends CoreArtifactReader {
       'mailbox',
       this.signer,
     );
+    if (mailboxWriter.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED mailbox writer handling will be implemented in slice 5',
+      );
+    }
 
-    const updatedMailboxArtifact: DeployedMailboxArtifact = {
+    const updatedMailboxArtifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    > = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: expectedConfig.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -372,6 +427,10 @@ export class CoreWriter extends CoreArtifactReader {
       return { address: expectedIsm.deployed.address, transactions: [] };
     }
 
+    if (isArtifactEmbedded(expectedIsm)) {
+      throw new Error('EMBEDDED ISM handling will be implemented in slice 5');
+    }
+
     // Merge current with expected (preserves DEPLOYED state for unchanged nested ISMs)
     const mergedArtifact = mergeIsmArtifacts(currentIsmArtifact, expectedIsm);
 
@@ -400,6 +459,10 @@ export class CoreWriter extends CoreArtifactReader {
     // If expected is UNDERIVED (just an address reference), use as-is
     if (isArtifactUnderived(expectedHook)) {
       return { address: expectedHook.deployed.address, transactions: [] };
+    }
+
+    if (isArtifactEmbedded(expectedHook)) {
+      throw new Error('EMBEDDED hook handling will be implemented in slice 5');
     }
 
     const hookWriter = createHookWriter(

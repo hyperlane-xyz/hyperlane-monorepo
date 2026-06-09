@@ -4,10 +4,13 @@ import Sinon from 'sinon';
 
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
+  ArtifactDeployed,
   ArtifactNew,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  ArtifactComposition,
   ArtifactState,
   isArtifactDeployed,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -50,6 +53,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { WarpTokenWriter } from './warp-writer.js';
 
+type OrchestratedWarpArtifactConfig = WithCompositionVariant<
+  WarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 chai.use(chaiAsPromised);
 
 const TEST_CHAIN = 'test1';
@@ -67,7 +75,7 @@ const HOOK_ADDRESS = '0x5678';
 const FEE_ADDRESS = '0x9abc';
 
 // Type-safe mock implementations
-type MockRawWarpWriter = ArtifactWriter<
+type MockRawWarpWriter = OrchestratedArtifactWriter<
   RawWarpArtifactConfig,
   DeployedWarpAddress
 >;
@@ -112,9 +120,15 @@ describe('WarpTokenWriter', () => {
   let mockIsmWriter: MockIsmWriter;
   let mockHookWriter: MockHookWriter;
   let mockChainLookup: MockChainLookup;
-  let readStub: Sinon.SinonStub<[string], Promise<DeployedWarpArtifact>>;
+  let readStub: Sinon.SinonStub<
+    [string],
+    Promise<
+      ArtifactDeployed<OrchestratedWarpArtifactConfig, DeployedWarpAddress>
+    >
+  >;
 
   const actualConfig: CollateralWarpArtifactConfig = {
+    composition: ArtifactComposition.ORCHESTRATED,
     type: TokenType.collateral,
     owner: OWNER_ADDRESS,
     mailbox: MAILBOX_ADDRESS,
@@ -129,7 +143,10 @@ describe('WarpTokenWriter', () => {
     },
   };
 
-  const baseDeployedArtifact: DeployedWarpArtifact = {
+  const baseDeployedArtifact: ArtifactDeployed<
+    OrchestratedWarpArtifactConfig,
+    DeployedWarpAddress
+  > = {
     artifactState: ArtifactState.DEPLOYED,
     config: actualConfig,
     deployed: { address: TOKEN_ADDRESS },
@@ -312,6 +329,7 @@ describe('WarpTokenWriter', () => {
         it(name, async () => {
           // Setup mock writer
           const mockWriter: MockRawWarpWriter = {
+            composition: ArtifactComposition.ORCHESTRATED,
             read: Sinon.stub(),
             create: Sinon.stub(),
             update: Sinon.stub().resolves(
@@ -324,9 +342,16 @@ describe('WarpTokenWriter', () => {
           mockArtifactManager.createWriter.returns(mockWriter);
 
           // Execute update
-          const artifact: DeployedWarpArtifact = {
+          const artifact: ArtifactDeployed<
+            OrchestratedWarpArtifactConfig,
+            DeployedWarpAddress
+          > = {
             ...baseDeployedArtifact,
-            config: { ...actualConfig, ...configOverrides },
+            config: {
+              ...actualConfig,
+              ...configOverrides,
+              composition: ArtifactComposition.ORCHESTRATED,
+            },
           };
 
           const updateTxs = await writer.update(artifact);
@@ -351,6 +376,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -409,6 +435,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.create.resolves([deployedIsm, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -438,7 +465,10 @@ describe('WarpTokenWriter', () => {
         '0xVALIDATOR1',
       ]);
 
-      const currentArtifactWithIsm: DeployedWarpArtifact = {
+      const currentArtifactWithIsm: ArtifactDeployed<
+        OrchestratedWarpArtifactConfig,
+        DeployedWarpAddress
+      > = {
         ...baseDeployedArtifact,
         config: {
           ...actualConfig,
@@ -456,6 +486,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.update.resolves([]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([]),
@@ -487,7 +518,10 @@ describe('WarpTokenWriter', () => {
         '0xVALIDATOR1',
       ]);
 
-      const currentArtifactWithIsm: DeployedWarpArtifact = {
+      const currentArtifactWithIsm: ArtifactDeployed<
+        OrchestratedWarpArtifactConfig,
+        DeployedWarpAddress
+      > = {
         ...baseDeployedArtifact,
         config: {
           ...actualConfig,
@@ -528,6 +562,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.create.resolves([deployedNewIsm, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -556,6 +591,7 @@ describe('WarpTokenWriter', () => {
       const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([]),
@@ -612,6 +648,7 @@ describe('WarpTokenWriter', () => {
       mockHookWriter.create.resolves([deployedHook, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -642,6 +679,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([]),
@@ -672,6 +710,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([]),
@@ -716,6 +755,7 @@ describe('WarpTokenWriter', () => {
       mockHookWriter.create.resolves([deployedHook, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -741,7 +781,10 @@ describe('WarpTokenWriter', () => {
   describe('update() - Validation', () => {
     it('should reject changing token type', async () => {
       // Current artifact is collateral
-      const currentArtifact: DeployedWarpArtifact = {
+      const currentArtifact: ArtifactDeployed<
+        OrchestratedWarpArtifactConfig,
+        DeployedWarpAddress
+      > = {
         ...baseDeployedArtifact,
         config: {
           ...actualConfig,
@@ -754,6 +797,7 @@ describe('WarpTokenWriter', () => {
 
       // Try to change to synthetic
       const syntheticConfig: WarpArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.synthetic,
         owner: OWNER_ADDRESS,
         mailbox: MAILBOX_ADDRESS,
@@ -809,6 +853,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.create.resolves([deployedIsm, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -867,6 +912,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.create.resolves([deployedIsm, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([
@@ -905,6 +951,7 @@ describe('WarpTokenWriter', () => {
   describe('create()', () => {
     it('should create warp token without ISM', async () => {
       const mockWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -957,6 +1004,7 @@ describe('WarpTokenWriter', () => {
       mockIsmWriter.create.resolves([deployedIsm, []]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -1001,6 +1049,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -1054,6 +1103,7 @@ describe('WarpTokenWriter', () => {
       mockHookWriter.create.resolves([deployedHook, [hookReceipt]]);
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -1092,6 +1142,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -1129,6 +1180,7 @@ describe('WarpTokenWriter', () => {
       };
 
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub().resolves([
           {
@@ -1158,6 +1210,7 @@ describe('WarpTokenWriter', () => {
   describe('update() - Idempotency', () => {
     it('should return empty array when no changes needed', async () => {
       const mockWriter: MockRawWarpWriter = {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: Sinon.stub().resolves([]),
@@ -1272,6 +1325,7 @@ describe('WarpTokenWriter', () => {
       ]);
 
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: createStub,
         update: Sinon.stub().resolves([]),
@@ -1326,6 +1380,7 @@ describe('WarpTokenWriter', () => {
       ]);
 
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: createStub,
         update: Sinon.stub().resolves([]),
@@ -1445,6 +1500,7 @@ describe('WarpTokenWriter', () => {
 
       const updateStub = Sinon.stub().resolves([]);
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: updateStub,
@@ -1517,6 +1573,7 @@ describe('WarpTokenWriter', () => {
 
       const warpUpdateStub = Sinon.stub().resolves([]);
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: warpUpdateStub,
@@ -1548,6 +1605,7 @@ describe('WarpTokenWriter', () => {
 
       const warpUpdateStub = Sinon.stub().resolves([]);
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: warpUpdateStub,
@@ -1636,6 +1694,7 @@ describe('WarpTokenWriter', () => {
       ]);
 
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: createStub,
         update: Sinon.stub(),
@@ -1657,6 +1716,7 @@ describe('WarpTokenWriter', () => {
     it('should ignore fee config on update when protocol does not support fees', async () => {
       const updateStub = Sinon.stub().resolves([]);
       mockArtifactManager.createWriter.returns({
+        composition: ArtifactComposition.ORCHESTRATED,
         read: Sinon.stub(),
         create: Sinon.stub(),
         update: updateStub,

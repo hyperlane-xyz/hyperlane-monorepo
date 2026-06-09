@@ -6,7 +6,7 @@ import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -85,7 +85,7 @@ export function createHookWriter(
  */
 export class HookWriter
   extends HookReader
-  implements ArtifactWriter<HookArtifactConfig, DeployedHookAddress>
+  implements OrchestratedArtifactWriter<HookArtifactConfig, DeployedHookAddress>
 {
   constructor(
     protected readonly artifactManager: IRawHookArtifactManager,

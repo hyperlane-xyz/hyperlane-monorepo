@@ -3,15 +3,18 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactReader,
+  ArtifactComposition,
+  ArtifactDeployed,
   ArtifactState,
+  OrchestratedArtifactReader,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
 import { hookArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedMailboxAddress,
-  DeployedMailboxArtifact,
   IRawMailboxArtifactManager,
   MailboxOnChain,
   mailboxArtifactToDerivedCoreConfig,
@@ -20,7 +23,11 @@ import { Logger, isEmptyAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
-import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 /**
  * Factory function to create a CoreArtifactReader instance.
@@ -65,10 +72,11 @@ export function createCoreReader(
  * The raw mailbox reader returns UNDERIVED ISM/hook references (just addresses).
  * This composite reader expands them into full DEPLOYED artifacts with complete configs.
  */
-export class CoreArtifactReader implements ArtifactReader<
+export class CoreArtifactReader implements OrchestratedArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
   });
@@ -94,7 +102,11 @@ export class CoreArtifactReader implements ArtifactReader<
    * @param mailboxAddress The deployed mailbox address
    * @returns Fully expanded mailbox artifact with all nested configs in DEPLOYED state
    */
-  async read(mailboxAddress: string): Promise<DeployedMailboxArtifact> {
+  async read(
+    mailboxAddress: string,
+  ): Promise<
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+  > {
     // 1. Read raw mailbox config - returns UNDERIVED ISM/hook references (just addresses)
     const rawMailbox =
       await this.mailboxArtifactManager.readMailbox(mailboxAddress);
@@ -125,6 +137,7 @@ export class CoreArtifactReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: rawMailbox.config.owner,
         defaultIsm: defaultIsmArtifact,
         defaultHook: defaultHookArtifact,

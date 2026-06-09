@@ -5,7 +5,10 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 import {
   Artifact,
-  ArtifactReader,
+  ArtifactComposition,
+  ArtifactDeployed,
+  OrchestratedArtifactReader,
+  WithCompositionVariant,
   isArtifactDeployed,
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -27,7 +30,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedWarpAddress,
-  DeployedWarpArtifact,
   DerivedWarpConfig,
   IRawWarpArtifactManager,
   WarpArtifactConfig,
@@ -39,14 +41,25 @@ import { createFeeReader } from '../fee/fee-reader.js';
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
 
+type OrchestratedWarpArtifactConfig = WithCompositionVariant<
+  WarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
+  OrchestratedWarpArtifactConfig,
+  DeployedWarpAddress
+>;
+
 /**
  * Generic Warp Token Reader that can read any warp token type by detecting its type
  * and expanding nested ISM artifacts if present.
  */
-export class WarpTokenReader implements ArtifactReader<
+export class WarpTokenReader implements OrchestratedArtifactReader<
   WarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
   protected readonly ismReader: IsmReader;
 
   constructor(
@@ -57,9 +70,15 @@ export class WarpTokenReader implements ArtifactReader<
     this.ismReader = createIsmReader(chainMetadata, chainLookup);
   }
 
-  async read(address: string): Promise<DeployedWarpArtifact> {
+  async read(address: string): Promise<OrchestratedDeployedWarpArtifact> {
     // Read warp token via artifactManager - detects type and returns raw config
     const rawArtifact = await this.artifactManager.readWarpToken(address);
+
+    if (rawArtifact.config.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED warp artifact handling will be implemented in slice 5',
+      );
+    }
 
     // Create hook reader with mailbox context from the warp config
     const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {

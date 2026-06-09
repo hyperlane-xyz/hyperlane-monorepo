@@ -5,7 +5,7 @@ import {
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedFeeAddress,
@@ -53,7 +53,7 @@ export function createFeeWriter(
  */
 export class FeeWriter
   extends FeeReader
-  implements ArtifactWriter<FeeArtifactConfig, DeployedFeeAddress>
+  implements OrchestratedArtifactWriter<FeeArtifactConfig, DeployedFeeAddress>
 {
   constructor(
     artifactManager: IRawFeeArtifactManager,

@@ -7,7 +7,10 @@ import {
   hasProtocol,
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DeployedHookArtifact } from '@hyperlane-xyz/provider-sdk/hook';
 import { DeployedIsmArtifact } from '@hyperlane-xyz/provider-sdk/ism';
@@ -63,6 +66,7 @@ describe('CoreArtifactReader', () => {
   const mockRawMailbox: DeployedRawMailboxArtifact = {
     artifactState: ArtifactState.DEPLOYED,
     config: {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: mockOwner,
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,
@@ -250,6 +254,7 @@ describe('CoreArtifactReader', () => {
       const zeroAddressMailbox: DeployedRawMailboxArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.UNDERIVED,
@@ -362,6 +367,7 @@ describe('CoreArtifactReader', () => {
       const zeroAddressMailbox: DeployedRawMailboxArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           owner: mockOwner,
           defaultIsm: {
             artifactState: ArtifactState.UNDERIVED,

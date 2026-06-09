@@ -4,8 +4,10 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
-  ArtifactReader,
+  OrchestratedArtifactReader,
+  WithCompositionVariant,
   isArtifactDeployed,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -20,6 +22,16 @@ import {
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+
+type OrchestratedIsmArtifactConfig = WithCompositionVariant<
+  IsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
+  OrchestratedIsmArtifactConfig,
+  DeployedIsmAddress
+>;
 
 /**
  * Factory function to create an IsmReader instance.
@@ -51,10 +63,11 @@ export function createIsmReader(
  * Generic ISM Reader that can read any ISM type by detecting its type
  * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
-export class IsmReader implements ArtifactReader<
+export class IsmReader implements OrchestratedArtifactReader<
   IsmArtifactConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
   protected readonly logger: Logger = rootLogger.child({
     module: IsmReader.name,
   });
@@ -64,7 +77,7 @@ export class IsmReader implements ArtifactReader<
     protected readonly chainLookup: ChainLookup,
   ) {}
 
-  async read(address: string): Promise<DeployedIsmArtifact> {
+  async read(address: string): Promise<OrchestratedDeployedIsmArtifact> {
     // Read once via readIsm() - detects type
     const { artifactState, config, deployed } =
       await this.artifactManager.readIsm(address);
@@ -91,7 +104,15 @@ export class IsmReader implements ArtifactReader<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >,
-  ): Promise<ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddress>> {
+  ): Promise<
+    ArtifactDeployed<
+      WithCompositionVariant<
+        RoutingIsmArtifactConfig,
+        typeof ArtifactComposition.ORCHESTRATED
+      >,
+      DeployedIsmAddress
+    >
+  > {
     const { artifactState, config, deployed } = rawArtifact;
     const domains: Record<number, DeployedIsmArtifact> = {};
 
@@ -118,6 +139,7 @@ export class IsmReader implements ArtifactReader<
     return {
       artifactState,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: config.owner,
         domains,

@@ -5,8 +5,11 @@ import {
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
+  ArtifactDeployed,
   ArtifactNew,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -19,6 +22,16 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
+
+type OrchestratedIsmArtifactConfig = WithCompositionVariant<
+  IsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
+  OrchestratedIsmArtifactConfig,
+  DeployedIsmAddress
+>;
 
 /**
  * Factory function to create an IsmWriter instance.
@@ -61,7 +74,7 @@ export function createIsmWriter(
  */
 export class IsmWriter
   extends IsmReader
-  implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<IsmArtifactConfig, DeployedIsmAddress>
 {
   private readonly routingWriter: RoutingIsmWriter;
 
@@ -88,11 +101,16 @@ export class IsmWriter
    */
   async create(
     artifact: ArtifactNew<IsmArtifactConfig>,
-  ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
+  ): Promise<[OrchestratedDeployedIsmArtifact, TxReceipt[]]> {
     const { artifactState, config } = artifact;
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
+      if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+        throw new Error(
+          'EMBEDDED routing-ISM handling will be implemented in slice 5',
+        );
+      }
       return this.routingWriter.create({ artifactState, config });
     }
 
@@ -114,6 +132,11 @@ export class IsmWriter
 
     // Only routing ISMs are mutable - support domain updates and owner changes
     if (config.type === AltVM.IsmType.ROUTING) {
+      if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+        throw new Error(
+          'EMBEDDED routing-ISM handling will be implemented in slice 5',
+        );
+      }
       return this.routingWriter.update({ artifactState, config, deployed });
     }
 

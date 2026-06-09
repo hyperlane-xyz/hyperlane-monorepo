@@ -2,11 +2,13 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
   isArtifactDeployed,
   isArtifactNew,
   isArtifactUnderived,
@@ -25,15 +27,25 @@ import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 
-type DeployedRoutingIsmArtifact = ArtifactDeployed<
+type OrchestratedRoutingIsmArtifactConfig = WithCompositionVariant<
   RoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type DeployedRoutingIsmArtifact = ArtifactDeployed<
+  OrchestratedRoutingIsmArtifactConfig,
   DeployedIsmAddress
 >;
 
-export class RoutingIsmWriter implements ArtifactWriter<
+export class RoutingIsmWriter implements OrchestratedArtifactWriter<
   RoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
   protected readonly logger: Logger = rootLogger.child({
     module: RoutingIsmWriter.name,
   });
@@ -59,7 +71,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
   }
 
   async create(
-    artifact: ArtifactNew<RoutingIsmArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRoutingIsmArtifactConfig>,
   ): Promise<[DeployedRoutingIsmArtifact, TxReceipt[]]> {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
@@ -82,10 +94,8 @@ export class RoutingIsmWriter implements ArtifactWriter<
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
       } else {
-        // This should never happen - all artifact states are handled above
-        const _exhaustiveCheck: never = nestedArtifact;
-        this.logger.error(
-          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
+        throw new Error(
+          `EMBEDDED routing-ISM child handling will be implemented in slice 5 (domain ${domainId})`,
         );
       }
     }
@@ -94,12 +104,18 @@ export class RoutingIsmWriter implements ArtifactWriter<
       AltVM.IsmType.ROUTING,
       this.signer,
     );
+    if (rawRoutingIsmWriter.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED routing-ISM writer handling will be implemented in slice 5',
+      );
+    }
 
     const rawRoutingConfig: Artifact<
-      RawRoutingIsmArtifactConfig,
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: config.type,
         owner: config.owner,
         domains: deployedDomainIsms,
@@ -113,6 +129,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
     const deployedRoutingIsmConfig: DeployedRoutingIsmArtifact = {
       artifactState: deployedRoutingIsm.artifactState,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: deployedRoutingIsm.config.type,
         owner: deployedRoutingIsm.config.owner,
         domains: deployedDomainIsms,
@@ -154,6 +171,11 @@ export class RoutingIsmWriter implements ArtifactWriter<
 
         let domainIsmUpdateTxs: AnnotatedTx[];
         if (config.type === AltVM.IsmType.ROUTING) {
+          if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+            throw new Error(
+              'EMBEDDED routing-ISM child handling will be implemented in slice 5',
+            );
+          }
           domainIsmUpdateTxs = await this.update({
             artifactState,
             config,
@@ -177,10 +199,8 @@ export class RoutingIsmWriter implements ArtifactWriter<
       } else if (isArtifactNew(domainIsmConfig)) {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
       } else {
-        // This should never happen - all artifact states are handled above
-        const _exhaustiveCheck: never = domainIsmConfig;
-        this.logger.error(
-          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
+        throw new Error(
+          `EMBEDDED routing-ISM child handling will be implemented in slice 5 (domain ${domainId})`,
         );
       }
     }
@@ -189,13 +209,19 @@ export class RoutingIsmWriter implements ArtifactWriter<
       AltVM.IsmType.ROUTING,
       this.signer,
     );
+    if (rawRoutingWriter.composition !== ArtifactComposition.ORCHESTRATED) {
+      throw new Error(
+        'EMBEDDED routing-ISM writer handling will be implemented in slice 5',
+      );
+    }
 
     const rawRoutingArtifact: ArtifactDeployed<
-      RawRoutingIsmArtifactConfig,
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: config.type,
         owner: config.owner,
         domains: deployedDomains,
@@ -212,6 +238,11 @@ export class RoutingIsmWriter implements ArtifactWriter<
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { config, artifactState } = artifact;
     if (config.type === AltVM.IsmType.ROUTING) {
+      if (config.composition !== ArtifactComposition.ORCHESTRATED) {
+        throw new Error(
+          'EMBEDDED routing-ISM child handling will be implemented in slice 5',
+        );
+      }
       return this.create({
         config,
         artifactState,
