@@ -9,7 +9,7 @@ use ethers::providers::Middleware;
 use ethers_core::abi::ethereum_types::H160;
 use tracing::{instrument, warn};
 
-use futures_util::future::try_join;
+use futures_util::future::{join_all, try_join};
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType,
@@ -17,6 +17,7 @@ use hyperlane_core::{
 };
 use num_traits::cast::FromPrimitive;
 
+use crate::interfaces::i_aggregation_ism::IAggregationIsm;
 use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
@@ -213,6 +214,44 @@ where
                         if token_amount <= current_level {
                             return Ok(Some(U256::zero()));
                         }
+                    }
+                }
+            }
+
+            // For Aggregation ISMs, verify() fails during dry-run when any sub-ISM (e.g.
+            // TrustedRelayerIsm) depends on mailbox state set by process() before verify() runs.
+            // Recursively check each sub-ISM: if threshold of them pass, the aggregation passes.
+            if module_type == ModuleType::Aggregation {
+                let aggregation =
+                    IAggregationIsm::new(ism.contract.address(), ism.contract.client());
+                let raw_msg: ethers::types::Bytes =
+                    RawHyperlaneMessage::from(message).to_vec().into();
+                if let Ok((sub_addrs, thresh)) =
+                    aggregation.modules_and_threshold(raw_msg).call().await
+                {
+                    let threshold = thresh as usize;
+                    let sub_isps: Vec<_> = sub_addrs
+                        .into_iter()
+                        .map(|addr| {
+                            let sub_locator = ContractLocator {
+                                domain: &self.domain,
+                                address: addr.into(),
+                            };
+                            EthereumInterchainSecurityModule::new(
+                                self.contract.client(),
+                                &sub_locator,
+                            )
+                        })
+                        .collect();
+                    let sub_results =
+                        join_all(sub_isps.iter().map(|s| s.dry_run_verify(message, metadata)))
+                            .await;
+                    let valid_count = sub_results
+                        .iter()
+                        .filter(|r| matches!(r, Ok(Some(_))))
+                        .count();
+                    if valid_count >= threshold {
+                        return Ok(Some(U256::zero()));
                     }
                 }
             }
