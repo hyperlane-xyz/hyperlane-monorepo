@@ -504,9 +504,7 @@ export function warpArtifactToDerivedConfig(
   const config = artifact.config;
 
   if (config.composition === ArtifactComposition.EMBEDDED) {
-    throw new Error(
-      'EMBEDDED warp derive handling will be implemented in slice 5',
-    );
+    throw new Error('Embedded warp composition is not yet supported');
   }
 
   // Convert remoteRouters from domain IDs back to chain names

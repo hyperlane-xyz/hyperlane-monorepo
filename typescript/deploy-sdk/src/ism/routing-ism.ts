@@ -23,7 +23,7 @@ import {
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 
@@ -62,18 +62,31 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
 
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
     const artifact = await this.ismReader.read(address);
-    if (artifact.config.type !== AltVM.IsmType.ROUTING) {
-      throw new Error(
-        `Expected ROUTING ISM at ${address}, got ${artifact.config.type}`,
-      );
+    const { config } = artifact;
+    if (config.type !== AltVM.IsmType.ROUTING) {
+      throw new Error(`Expected ROUTING ISM at ${address}, got ${config.type}`);
     }
-    return artifact as DeployedRoutingIsmArtifact;
+    return {
+      artifactState: artifact.artifactState,
+      config,
+      deployed: artifact.deployed,
+    };
   }
 
   async create(
     artifact: ArtifactNew<OrchestratedRoutingIsmArtifactConfig>,
   ): Promise<[DeployedRoutingIsmArtifact, TxReceipt[]]> {
     const { config } = artifact;
+
+    const rawRoutingIsmWriter = this.artifactManager.createWriter(
+      AltVM.IsmType.ROUTING,
+      this.signer,
+    );
+    assert(
+      rawRoutingIsmWriter.composition === ArtifactComposition.ORCHESTRATED,
+      `Routing ISM composition mismatch: config is '${ArtifactComposition.ORCHESTRATED}' but the protocol's raw routing-ISM writer is '${rawRoutingIsmWriter.composition}'`,
+    );
+
     const allReceipts: TxReceipt[] = [];
 
     const deployedDomainIsms: Record<
@@ -95,19 +108,9 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
         allReceipts.push(...receipts);
       } else {
         throw new Error(
-          `EMBEDDED routing-ISM child handling will be implemented in slice 5 (domain ${domainId})`,
+          `Unexpected EMBEDDED child under ORCHESTRATED routing ISM (domain ${domainId})`,
         );
       }
-    }
-
-    const rawRoutingIsmWriter = this.artifactManager.createWriter(
-      AltVM.IsmType.ROUTING,
-      this.signer,
-    );
-    if (rawRoutingIsmWriter.composition !== ArtifactComposition.ORCHESTRATED) {
-      throw new Error(
-        'EMBEDDED routing-ISM writer handling will be implemented in slice 5',
-      );
     }
 
     const rawRoutingConfig: Artifact<
@@ -143,6 +146,15 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
   async update(artifact: DeployedRoutingIsmArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
+    const rawRoutingWriter = this.artifactManager.createWriter(
+      AltVM.IsmType.ROUTING,
+      this.signer,
+    );
+    assert(
+      rawRoutingWriter.composition === ArtifactComposition.ORCHESTRATED,
+      `Routing ISM composition mismatch: config is '${ArtifactComposition.ORCHESTRATED}' but the protocol's raw routing-ISM writer is '${rawRoutingWriter.composition}'`,
+    );
+
     const updateTxs: AnnotatedTx[] = [];
 
     const deployedDomains: Record<
@@ -171,11 +183,10 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
 
         let domainIsmUpdateTxs: AnnotatedTx[];
         if (config.type === AltVM.IsmType.ROUTING) {
-          if (config.composition !== ArtifactComposition.ORCHESTRATED) {
-            throw new Error(
-              'EMBEDDED routing-ISM child handling will be implemented in slice 5',
-            );
-          }
+          assert(
+            config.composition === ArtifactComposition.ORCHESTRATED,
+            `Unexpected EMBEDDED nested routing ISM under ORCHESTRATED parent (domain ${domainId})`,
+          );
           domainIsmUpdateTxs = await this.update({
             artifactState,
             config,
@@ -200,19 +211,9 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
       } else {
         throw new Error(
-          `EMBEDDED routing-ISM child handling will be implemented in slice 5 (domain ${domainId})`,
+          `Unexpected EMBEDDED child under ORCHESTRATED routing ISM (domain ${domainId})`,
         );
       }
-    }
-
-    const rawRoutingWriter = this.artifactManager.createWriter(
-      AltVM.IsmType.ROUTING,
-      this.signer,
-    );
-    if (rawRoutingWriter.composition !== ArtifactComposition.ORCHESTRATED) {
-      throw new Error(
-        'EMBEDDED routing-ISM writer handling will be implemented in slice 5',
-      );
     }
 
     const rawRoutingArtifact: ArtifactDeployed<
@@ -238,11 +239,10 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { config, artifactState } = artifact;
     if (config.type === AltVM.IsmType.ROUTING) {
-      if (config.composition !== ArtifactComposition.ORCHESTRATED) {
-        throw new Error(
-          'EMBEDDED routing-ISM child handling will be implemented in slice 5',
-        );
-      }
+      assert(
+        config.composition === ArtifactComposition.ORCHESTRATED,
+        'Unexpected EMBEDDED nested routing ISM under ORCHESTRATED parent',
+      );
       return this.create({
         config,
         artifactState,

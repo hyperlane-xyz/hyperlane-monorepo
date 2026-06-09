@@ -251,16 +251,35 @@ export function mergeIsmArtifacts(
     'Expected both configs to be of type domainRoutingIsm',
   );
 
-  if (
-    expectedConfig.composition === ArtifactComposition.EMBEDDED ||
-    currentConfig.composition === ArtifactComposition.EMBEDDED
-  ) {
-    throw new Error(
-      'EMBEDDED routing-ISM merge handling will be implemented in slice 5',
-    );
+  // Composition mode mismatch: the on-chain artifact and the expected config
+  // use different routing-ISM compositions (orchestrated vs embedded). There
+  // is no in-place migration between modes; deploy a fresh artifact for the
+  // expected mode.
+  if (currentConfig.composition !== expectedConfig.composition) {
+    return {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    };
   }
 
-  // Merge domain ISMs recursively
+  // Both EMBEDDED: defer per-domain diffing to the raw writer's update path,
+  // which enumerates live on-chain children (e.g. SVM DomainData PDAs) and
+  // reconciles against the expected config. Returning DEPLOYED with the
+  // expected config + current address tells the orchestrator "this artifact
+  // exists; let the writer figure out the diff".
+  if (expectedConfig.composition === ArtifactComposition.EMBEDDED) {
+    const deployedAddress = isArtifactDeployed(expectedArtifact)
+      ? expectedArtifact.deployed
+      : currentArtifact.deployed;
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedConfig,
+      deployed: deployedAddress,
+    };
+  }
+
+  // Both ORCHESTRATED: merge domain ISMs recursively so unchanged children
+  // keep their addresses.
   const mergedDomains: Record<
     number,
     Artifact<IsmArtifactConfig, DeployedIsmAddress>
@@ -289,10 +308,6 @@ export function mergeIsmArtifacts(
       mergedDomains[domainId] = mergeIsmArtifacts(
         currentDeployedIsm,
         expectedDomainIsm,
-      );
-    } else if (isArtifactEmbedded(expectedDomainIsm)) {
-      throw new Error(
-        'EMBEDDED routing-ISM merge handling will be implemented in slice 5',
       );
     } else {
       mergedDomains[domainId] = expectedDomainIsm;
@@ -343,14 +358,10 @@ export function ismArtifactToDerivedConfig(
 
   switch (config.type) {
     case 'domainRoutingIsm': {
-      if (config.composition === ArtifactComposition.EMBEDDED) {
-        throw new Error(
-          'EMBEDDED routing-ISM derive handling will be implemented in slice 5',
-        );
-      }
-
-      // For routing ISMs, convert domain IDs back to chain names
-      // and convert nested artifacts to IsmConfig or address strings
+      // Composition is an internal deployment detail; both ORCHESTRATED and
+      // EMBEDDED produce the same DerivedIsmConfig shape (chain name → IsmConfig
+      // or address). Embedded children appear as ArtifactDeployed via the
+      // ConfigOnChain collapse and feed back through the same recursive call.
       const domains: Record<string, IsmConfig | string> = {};
 
       for (const [domainIdStr, domainArtifact] of Object.entries(
@@ -376,9 +387,10 @@ export function ismArtifactToDerivedConfig(
           throw new Error(
             `Cannot convert routing ISM to derived config: nested ISM for domain ${chainName} (${domainId}) is NEW and has no address`,
           );
-        } else if (isArtifactEmbedded(domainArtifact)) {
-          throw new Error(
-            'EMBEDDED routing-ISM derive handling will be implemented in slice 5',
+        } else {
+          assert(
+            !isArtifactEmbedded(domainArtifact),
+            `Unexpected ArtifactEmbedded in deployed routing ISM derived-config conversion (domain ${chainName}/${domainId}); embedded children should appear as ArtifactDeployed post-create`,
           );
         }
       }

@@ -21,7 +21,7 @@ import {
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 type OrchestratedIsmArtifactConfig = WithCompositionVariant<
   IsmArtifactConfig,
@@ -84,6 +84,17 @@ export class IsmReader implements OrchestratedArtifactReader<
 
     // For routing ISMs, expand nested domain ISMs recursively
     if (config.type === AltVM.IsmType.ROUTING) {
+      const rawReader = this.artifactManager.createReader(
+        AltVM.IsmType.ROUTING,
+      );
+      assert(
+        rawReader.composition === ArtifactComposition.ORCHESTRATED,
+        `Routing ISM composition mismatch at ${address}: orchestrated reader cannot expand a '${rawReader.composition}' raw routing-ISM reader`,
+      );
+      assert(
+        config.composition === ArtifactComposition.ORCHESTRATED,
+        `Routing ISM composition mismatch at ${address}: orchestrated reader cannot expand an on-chain '${config.composition}' config`,
+      );
       return this.expandRoutingIsm({ artifactState, config, deployed });
     }
 

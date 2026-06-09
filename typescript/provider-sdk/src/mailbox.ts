@@ -153,7 +153,7 @@ export function mailboxArtifactToDerivedCoreConfig(
   },
 ): DerivedCoreConfig {
   if (artifact.config.composition === ArtifactComposition.EMBEDDED) {
-    throw new Error('EMBEDDED mailbox handling will be implemented in slice 5');
+    throw new Error('Embedded mailbox composition is not yet supported');
   }
 
   const { defaultIsm, defaultHook, requiredHook, owner, contractVersion } =

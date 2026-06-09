@@ -10,11 +10,13 @@ import {
   isArtifactNew,
   isArtifactUnderived,
 } from './artifact.js';
+import { ChainLookup } from './chain.js';
 import {
   DeployedIsmArtifact,
   IsmArtifactConfig,
   MultisigIsmConfig,
   RoutingIsmArtifactConfig,
+  ismArtifactToDerivedConfig,
   mergeIsmArtifacts,
 } from './ism.js';
 
@@ -711,6 +713,223 @@ describe('mergeIsmArtifacts', () => {
       expect(Object.keys(resultConfig.domains)).to.deep.equal(['1']);
       expect(resultConfig.domains[domain1]).to.exist;
       expect(resultConfig.domains[domain2]).to.be.undefined;
+    });
+  });
+
+  describe('Routing ISM composition modes', () => {
+    interface CompositionCase {
+      name: string;
+      currentComposition: ArtifactComposition;
+      expectedComposition: ArtifactComposition;
+      expectedResultState: ArtifactState;
+      expectedAddress?: string;
+    }
+
+    const multisigChild: MultisigIsmConfig = {
+      type: 'merkleRootMultisigIsm',
+      validators: [validator1, validator2],
+      threshold: 2,
+    };
+
+    const buildCurrent = (
+      composition: ArtifactComposition,
+    ): DeployedIsmArtifact => {
+      if (composition === ArtifactComposition.EMBEDDED) {
+        return {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            composition: ArtifactComposition.EMBEDDED,
+            type: 'domainRoutingIsm',
+            owner: address1,
+            domains: {
+              [domain1]: {
+                artifactState: ArtifactState.EMBEDDED,
+                config: multisigChild,
+              },
+            },
+          },
+          deployed: { address: address1 },
+        };
+      }
+      return {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          composition: ArtifactComposition.ORCHESTRATED,
+          type: 'domainRoutingIsm',
+          owner: address1,
+          domains: {
+            [domain1]: {
+              artifactState: ArtifactState.DEPLOYED,
+              config: multisigChild,
+              deployed: { address: address2 },
+            },
+          },
+        },
+        deployed: { address: address1 },
+      };
+    };
+
+    const buildExpected = (
+      composition: ArtifactComposition,
+    ): ArtifactNew<RoutingIsmArtifactConfig> => {
+      if (composition === ArtifactComposition.EMBEDDED) {
+        return {
+          artifactState: ArtifactState.NEW,
+          config: {
+            composition: ArtifactComposition.EMBEDDED,
+            type: 'domainRoutingIsm',
+            owner: address1,
+            domains: {
+              [domain1]: {
+                artifactState: ArtifactState.EMBEDDED,
+                config: multisigChild,
+              },
+            },
+          },
+        };
+      }
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          composition: ArtifactComposition.ORCHESTRATED,
+          type: 'domainRoutingIsm',
+          owner: address1,
+          domains: {
+            [domain1]: {
+              artifactState: ArtifactState.NEW,
+              config: multisigChild,
+            },
+          },
+        },
+      };
+    };
+
+    const cases: CompositionCase[] = [
+      {
+        name: 'both embedded → DEPLOYED with expected config (defers diff to writer)',
+        currentComposition: ArtifactComposition.EMBEDDED,
+        expectedComposition: ArtifactComposition.EMBEDDED,
+        expectedResultState: ArtifactState.DEPLOYED,
+        expectedAddress: address1,
+      },
+      {
+        name: 'current orchestrated, expected embedded → NEW (no in-place migration)',
+        currentComposition: ArtifactComposition.ORCHESTRATED,
+        expectedComposition: ArtifactComposition.EMBEDDED,
+        expectedResultState: ArtifactState.NEW,
+      },
+      {
+        name: 'current embedded, expected orchestrated → NEW (no in-place migration)',
+        currentComposition: ArtifactComposition.EMBEDDED,
+        expectedComposition: ArtifactComposition.ORCHESTRATED,
+        expectedResultState: ArtifactState.NEW,
+      },
+      {
+        name: 'both orchestrated → DEPLOYED (regression of existing behavior)',
+        currentComposition: ArtifactComposition.ORCHESTRATED,
+        expectedComposition: ArtifactComposition.ORCHESTRATED,
+        expectedResultState: ArtifactState.DEPLOYED,
+        expectedAddress: address1,
+      },
+    ];
+
+    for (const tc of cases) {
+      it(tc.name, () => {
+        const current = buildCurrent(tc.currentComposition);
+        const expected = buildExpected(tc.expectedComposition);
+
+        const result = mergeIsmArtifacts(current, expected);
+
+        if (tc.expectedResultState === ArtifactState.NEW) {
+          expect(isArtifactNew(result)).to.be.true;
+          assert(isArtifactNew(result), 'Expected NEW artifact');
+          expect(result.config).to.deep.equal(expected.config);
+        } else {
+          expect(isArtifactDeployed(result)).to.be.true;
+          assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
+          expect(result.deployed.address).to.equal(tc.expectedAddress);
+        }
+      });
+    }
+  });
+});
+
+describe('ismArtifactToDerivedConfig — routing composition modes', () => {
+  const address1 = '0x1111111111111111111111111111111111111111';
+  const address2 = '0x2222222222222222222222222222222222222222';
+  const validator1 = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const validator2 = '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+  const domain1 = 1;
+  const chainName1 = 'chain1';
+
+  const chainLookup: ChainLookup = {
+    getChainMetadata: () => {
+      throw new Error('not needed');
+    },
+    getChainName: (domainId: number) =>
+      domainId === domain1 ? chainName1 : null,
+    getDomainId: (chainName: string) =>
+      chainName === chainName1 ? domain1 : null,
+    getKnownChainNames: () => [chainName1],
+  };
+
+  const multisigChild: MultisigIsmConfig = {
+    type: 'merkleRootMultisigIsm',
+    validators: [validator1, validator2],
+    threshold: 2,
+  };
+
+  it('produces identical derived shape for ORCHESTRATED and EMBEDDED routing inputs', () => {
+    const orchestrated: DeployedIsmArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        type: 'domainRoutingIsm',
+        owner: address1,
+        domains: {
+          [domain1]: {
+            artifactState: ArtifactState.DEPLOYED,
+            config: multisigChild,
+            deployed: { address: address2 },
+          },
+        },
+      },
+      deployed: { address: address1 },
+    };
+
+    const embedded: DeployedIsmArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        composition: ArtifactComposition.EMBEDDED,
+        type: 'domainRoutingIsm',
+        owner: address1,
+        domains: {
+          [domain1]: {
+            artifactState: ArtifactState.DEPLOYED,
+            config: multisigChild,
+            deployed: { address: address2 },
+          },
+        },
+      },
+      deployed: { address: address1 },
+    };
+
+    const fromOrchestrated = ismArtifactToDerivedConfig(
+      orchestrated,
+      chainLookup,
+    );
+    const fromEmbedded = ismArtifactToDerivedConfig(embedded, chainLookup);
+
+    expect(fromEmbedded).to.deep.equal(fromOrchestrated);
+    assert(
+      fromEmbedded.type === 'domainRoutingIsm',
+      'Expected routing ISM result',
+    );
+    expect(fromEmbedded.address).to.equal(address1);
+    expect(fromEmbedded.owner).to.equal(address1);
+    expect(fromEmbedded.domains[chainName1]).to.deep.equal({
+      ...multisigChild,
+      address: address2,
     });
   });
 });
