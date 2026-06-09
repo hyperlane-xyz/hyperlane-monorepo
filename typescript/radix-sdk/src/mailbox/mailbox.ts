@@ -1,11 +1,13 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedMailboxAddress,
@@ -32,20 +34,30 @@ import {
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
 
-export class RadixMailboxReader implements ArtifactReader<
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+export class RadixMailboxReader implements OrchestratedArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+  ): Promise<
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+  > {
     const mailboxConfig = await getMailboxConfig(this.gateway, address);
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: mailboxConfig.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -76,7 +88,7 @@ export class RadixMailboxReader implements ArtifactReader<
 
 export class RadixMailboxWriter
   extends RadixMailboxReader
-  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -88,9 +100,12 @@ export class RadixMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<MailboxOnChain>,
+    artifact: ArtifactNew<OrchestratedMailboxOnChain>,
   ): Promise<
-    [ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>, TxReceipt[]]
+    [
+      ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>,
+      TxReceipt[],
+    ]
   > {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
@@ -160,7 +175,7 @@ export class RadixMailboxWriter
     // intended owner once all configuration is complete.
 
     const deployedArtifact: ArtifactDeployed<
-      MailboxOnChain,
+      OrchestratedMailboxOnChain,
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -178,7 +193,10 @@ export class RadixMailboxWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
     const updateTxs: AnnotatedRadixTransaction[] = [];

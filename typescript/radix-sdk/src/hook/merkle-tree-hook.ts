@@ -2,11 +2,12 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
@@ -21,10 +22,12 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class RadixMerkleTreeHookReader implements ArtifactReader<
+export class RadixMerkleTreeHookReader implements OrchestratedArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -46,7 +49,8 @@ export class RadixMerkleTreeHookReader implements ArtifactReader<
 
 export class RadixMerkleTreeHookWriter
   extends RadixMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements
+    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

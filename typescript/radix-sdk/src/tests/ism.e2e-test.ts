@@ -3,9 +3,11 @@ import { expect } from 'chai';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -27,6 +29,11 @@ import {
 } from '../testing/constants.js';
 
 import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 describe('Radix ISMs (e2e)', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -147,6 +154,10 @@ describe('Radix ISMs (e2e)', function () {
 
         it('should return no transactions when calling update', async () => {
           const writer = artifactManager.createWriter(type, radixSigner);
+          assert(
+            writer.composition === ArtifactComposition.ORCHESTRATED,
+            'Radix ISM writer is expected to be orchestrated',
+          );
 
           const [deployedIsm] = await writer.create({ config });
 
@@ -165,8 +176,8 @@ describe('Radix ISMs (e2e)', function () {
     const DOMAIN_2 = 96;
     const DOMAIN_3 = 100;
 
-    let config: RawRoutingIsmArtifactConfig;
-    let routingIsmWriter: ArtifactWriter<
+    let config: OrchestratedRawRoutingIsmArtifactConfig;
+    let routingIsmWriter: OrchestratedArtifactWriter<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >;
@@ -197,6 +208,7 @@ describe('Radix ISMs (e2e)', function () {
       multisigIsmAddress = multisigIsm.deployed.address;
 
       config = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         domains: {
@@ -211,10 +223,15 @@ describe('Radix ISMs (e2e)', function () {
         },
       };
 
-      routingIsmWriter = artifactManager.createWriter(
+      const writer = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         radixSigner,
       );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix routing ISM writer is expected to be orchestrated',
+      );
+      routingIsmWriter = writer;
     });
 
     it('should create and read the provided config', async () => {
@@ -238,7 +255,7 @@ describe('Radix ISMs (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -275,7 +292,7 @@ describe('Radix ISMs (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -287,11 +304,7 @@ describe('Radix ISMs (e2e)', function () {
         },
       };
 
-      const writer = artifactManager.createWriter(
-        AltVM.IsmType.ROUTING,
-        radixSigner,
-      );
-      const txs = await writer.update(updatedConfig);
+      const txs = await routingIsmWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length.greaterThan(0);
       const removeTx = txs.find((tx) => tx.annotation?.includes('Remove'));
@@ -311,7 +324,7 @@ describe('Radix ISMs (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -327,11 +340,7 @@ describe('Radix ISMs (e2e)', function () {
         },
       };
 
-      const writer = artifactManager.createWriter(
-        AltVM.IsmType.ROUTING,
-        radixSigner,
-      );
-      const txs = await writer.update(updatedConfig);
+      const txs = await routingIsmWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length.greaterThan(0);
 
@@ -350,7 +359,7 @@ describe('Radix ISMs (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -360,11 +369,7 @@ describe('Radix ISMs (e2e)', function () {
         },
       };
 
-      const writer = artifactManager.createWriter(
-        AltVM.IsmType.ROUTING,
-        radixSigner,
-      );
-      const txs = await writer.update(updatedConfig);
+      const txs = await routingIsmWriter.update(updatedConfig);
 
       expect(txs).to.be.an('array').with.length.greaterThan(0);
 

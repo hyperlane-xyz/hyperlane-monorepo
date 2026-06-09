@@ -4,8 +4,11 @@ import chaiAsPromised from 'chai-as-promised';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactState,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -13,6 +16,7 @@ import {
   RawCollateralWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
   RawWarpArtifactConfig,
+  RawWarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
@@ -30,6 +34,32 @@ import { transactionManifestToString } from '../utils/utils.js';
 import { RadixWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
+  RawSyntheticWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawWarpArtifactConfig = WithCompositionVariant<
+  RawWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+function createOrchestratedWarpWriter<T extends WarpType>(
+  artifactManager: RadixWarpArtifactManager,
+  type: T,
+  signer: RadixSigner,
+): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  const writer = artifactManager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Radix ${type} writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 chai.use(chaiAsPromised);
 
@@ -90,14 +120,15 @@ describe('Radix Warp Tokens (e2e)', function () {
     type: WarpType;
     name: string;
     getConfig: () =>
-      | RawCollateralWarpArtifactConfig
-      | RawSyntheticWarpArtifactConfig;
+      | OrchestratedRawCollateralWarpArtifactConfig
+      | OrchestratedRawSyntheticWarpArtifactConfig;
     expectedFields?: Record<string, any>;
   }> = [
     {
       type: AltVM.TokenType.collateral,
       name: 'collateral',
       getConfig: () => ({
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.collateral,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         mailbox: TEST_RADIX_DEPLOYER_ADDRESS,
@@ -113,6 +144,7 @@ describe('Radix Warp Tokens (e2e)', function () {
       type: AltVM.TokenType.synthetic,
       name: 'synthetic',
       getConfig: () => ({
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.synthetic,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         mailbox: TEST_RADIX_DEPLOYER_ADDRESS,
@@ -131,7 +163,11 @@ describe('Radix Warp Tokens (e2e)', function () {
       it('should create and read token', async () => {
         const config = getConfig();
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [result, receipts] = await writer.create({ config });
 
         expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -158,7 +194,11 @@ describe('Radix Warp Tokens (e2e)', function () {
       it('should enroll remote routers', async () => {
         const initialConfig = getConfig();
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({
           config: initialConfig,
         });
@@ -223,7 +263,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           [DOMAIN_2]: '200000',
         };
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({
           config: initialConfig,
         });
@@ -273,7 +317,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           [DOMAIN_1]: '100000',
         };
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({
           config: initialConfig,
         });
@@ -319,7 +367,11 @@ describe('Radix Warp Tokens (e2e)', function () {
       it('should transfer ownership via update (ownership last)', async () => {
         const initialConfig = getConfig();
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({
           config: initialConfig,
         });
@@ -328,7 +380,7 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         // Update routers, ISM, AND ownership
         const updatedConfig: ArtifactDeployed<
-          RawWarpArtifactConfig,
+          OrchestratedRawWarpArtifactConfig,
           DeployedWarpAddress
         > = {
           ...deployedToken,
@@ -384,7 +436,11 @@ describe('Radix Warp Tokens (e2e)', function () {
       it('should return no update transactions when config is unchanged', async () => {
         const config = getConfig();
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({ config });
 
         const txs = await writer.update(deployedToken);
@@ -404,7 +460,11 @@ describe('Radix Warp Tokens (e2e)', function () {
             },
           };
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -446,7 +506,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Start with no ISM
           initialConfig.interchainSecurityModule = undefined;
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -501,7 +565,11 @@ describe('Radix Warp Tokens (e2e)', function () {
             },
           };
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -560,7 +628,11 @@ describe('Radix Warp Tokens (e2e)', function () {
             },
           };
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -577,7 +649,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Create without ISM
           initialConfig.interchainSecurityModule = undefined;
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -601,7 +677,11 @@ describe('Radix Warp Tokens (e2e)', function () {
             },
           };
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
@@ -646,13 +726,17 @@ describe('Radix Warp Tokens (e2e)', function () {
         it('should not generate ISM update tx when current ism is undefined and the 0 address is provided in the config', async () => {
           const initialConfig = getConfig();
 
-          const writer = artifactManager.createWriter(type, radixSigner);
+          const writer = createOrchestratedWarpWriter(
+            artifactManager,
+            type,
+            radixSigner,
+          );
           const [deployedToken] = await writer.create({
             config: initialConfig,
           });
 
           const updatedConfig: ArtifactDeployed<
-            RawWarpArtifactConfig,
+            OrchestratedRawWarpArtifactConfig,
             DeployedWarpAddress
           > = {
             ...deployedToken,
@@ -689,7 +773,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           [DOMAIN_1]: '100000',
         };
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({
           config: initialConfig,
         });
@@ -700,7 +788,7 @@ describe('Radix Warp Tokens (e2e)', function () {
         const newOwnerAddress = otherRadixSigner.getSignerAddress();
 
         const ownershipTransferConfig: ArtifactDeployed<
-          RawWarpArtifactConfig,
+          OrchestratedRawWarpArtifactConfig,
           DeployedWarpAddress
         > = {
           ...deployedToken,
@@ -799,7 +887,11 @@ describe('Radix Warp Tokens (e2e)', function () {
       it(`should detect and read ${name} token`, async () => {
         const config = getConfig();
 
-        const writer = artifactManager.createWriter(type, radixSigner);
+        const writer = createOrchestratedWarpWriter(
+          artifactManager,
+          type,
+          radixSigner,
+        );
         const [deployedToken] = await writer.create({ config });
 
         // Read via generic readWarpToken (without knowing the type)

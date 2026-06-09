@@ -2,11 +2,12 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -24,10 +25,12 @@ import {
   getCreateMessageIdMultisigIsmTx,
 } from './ism-tx.js';
 
-export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
+export class RadixMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -51,7 +54,7 @@ export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class RadixMessageIdMultisigIsmWriter
   extends RadixMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -103,10 +106,12 @@ export class RadixMessageIdMultisigIsmWriter
   }
 }
 
-export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
+export class RadixMerkleRootMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -130,7 +135,7 @@ export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
 
 export class RadixMerkleRootMultisigIsmWriter
   extends RadixMerkleRootMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

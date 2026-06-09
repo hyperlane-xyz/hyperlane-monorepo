@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { RawValidatorAnnounceConfig } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
@@ -16,6 +20,11 @@ import {
 import { RadixValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 
 import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 describe('Radix ValidatorAnnounce (e2e)', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -56,7 +65,8 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
     );
 
     // Create a test mailbox for validator announce to reference
-    const mailboxConfig: MailboxOnChain = {
+    const mailboxConfig: OrchestratedMailboxOnChain = {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: TEST_RADIX_DEPLOYER_ADDRESS,
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,
@@ -75,6 +85,10 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
     const mailboxWriter = mailboxArtifactManager.createWriter(
       'mailbox',
       radixSigner,
+    );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Radix mailbox writer is expected to be orchestrated',
     );
     const [deployedMailbox] = await mailboxWriter.create({
       config: mailboxConfig,

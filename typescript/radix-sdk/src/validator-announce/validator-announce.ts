@@ -1,11 +1,12 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -20,10 +21,12 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getValidatorAnnounceConfig } from './validator-announce-query.js';
 import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
 
-export class RadixValidatorAnnounceReader implements ArtifactReader<
+export class RadixValidatorAnnounceReader implements OrchestratedArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -54,7 +57,10 @@ export class RadixValidatorAnnounceReader implements ArtifactReader<
 export class RadixValidatorAnnounceWriter
   extends RadixValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    OrchestratedArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

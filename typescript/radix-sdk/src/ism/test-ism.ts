@@ -2,11 +2,12 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -21,10 +22,12 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getTestIsmConfig } from './ism-query.js';
 import { getCreateNoopIsmTx } from './ism-tx.js';
 
-export class RadixTestIsmReader implements ArtifactReader<
+export class RadixTestIsmReader implements OrchestratedArtifactReader<
   TestIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -46,7 +49,7 @@ export class RadixTestIsmReader implements ArtifactReader<
 
 export class RadixTestIsmWriter
   extends RadixTestIsmReader
-  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

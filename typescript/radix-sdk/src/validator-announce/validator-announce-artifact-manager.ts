@@ -31,26 +31,41 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
   }
 
   createReader<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
   ): ArtifactReader<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new RadixValidatorAnnounceReader(this.gateway);
+    const readers: {
+      [K in ValidatorAnnounceType]: () => ArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () => new RadixValidatorAnnounceReader(this.gateway),
+    };
+
+    return readers[type]();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
     signer: RadixSigner,
   ): ArtifactWriter<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
     const baseSigner = signer.getBaseSigner();
-    return new RadixValidatorAnnounceWriter(
-      this.gateway,
-      baseSigner,
-      this.base,
-    );
+    const writers: {
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () =>
+        new RadixValidatorAnnounceWriter(this.gateway, baseSigner, this.base),
+    };
+
+    return writers[type]();
   }
 }

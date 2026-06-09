@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
@@ -14,6 +18,11 @@ import {
 } from '../testing/constants.js';
 
 import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 describe('Radix Mailbox (e2e)', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -56,7 +65,8 @@ describe('Radix Mailbox (e2e)', function () {
 
   describe('Mailbox Artifact Operations', () => {
     it('should create a mailbox with ISM and hooks', async () => {
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -73,6 +83,10 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [result, receipts] = await writer.create({ config });
 
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -87,7 +101,8 @@ describe('Radix Mailbox (e2e)', function () {
     });
 
     it('should skip optional mailbox setters when zero addresses are provided', async () => {
-      const zeroAddressConfig: MailboxOnChain = {
+      const zeroAddressConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -104,6 +119,10 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox, receipts] = await writer.create({
         config: zeroAddressConfig,
       });
@@ -125,7 +144,8 @@ describe('Radix Mailbox (e2e)', function () {
     });
 
     it('should read a mailbox configuration from chain', async () => {
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -142,6 +162,10 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       const reader = artifactManager.createReader('mailbox');
@@ -168,7 +192,8 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should update mailbox when ISM changes', async () => {
       // Create initial mailbox
-      const initialConfig: MailboxOnChain = {
+      const initialConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -185,11 +210,16 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config: initialConfig });
 
       // Update with new ISM address (use deployer address as different address)
       const newIsmAddress = TEST_RADIX_DEPLOYER_ADDRESS;
-      const updatedConfig: MailboxOnChain = {
+      const updatedConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -218,7 +248,8 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should update mailbox when owner changes', async () => {
       // Create initial mailbox
-      const initialConfig: MailboxOnChain = {
+      const initialConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -235,11 +266,16 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config: initialConfig });
 
       // Update with new owner
       const newOwner = TEST_RADIX_BURN_ADDRESS;
-      const updatedConfig: MailboxOnChain = {
+      const updatedConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: newOwner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -268,7 +304,8 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should return no transactions when mailbox state matches desired state', async () => {
       // Create mailbox
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -285,6 +322,10 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       // Update with same config
@@ -295,7 +336,8 @@ describe('Radix Mailbox (e2e)', function () {
     });
 
     it('should use readMailbox convenience method', async () => {
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -312,6 +354,10 @@ describe('Radix Mailbox (e2e)', function () {
       };
 
       const writer = artifactManager.createWriter('mailbox', radixSigner);
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Radix mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       // Use the convenience method

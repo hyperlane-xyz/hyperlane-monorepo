@@ -2,11 +2,13 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -28,15 +30,22 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 function withErrorContext(context: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(`${context}: ${message}`);
 }
 
-export class RadixCollateralTokenReader implements ArtifactReader<
+export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly gateway: GatewayApiClient,
     protected readonly base: RadixBase,
@@ -45,7 +54,10 @@ export class RadixCollateralTokenReader implements ArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
   > {
     // Fetch token info
     const token = await getCollateralWarpTokenConfig(
@@ -59,7 +71,8 @@ export class RadixCollateralTokenReader implements ArtifactReader<
       );
     });
 
-    const config: RawCollateralWarpArtifactConfig = {
+    const config: OrchestratedRawCollateralWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.collateral,
       owner: token.owner,
       mailbox: token.mailbox,
@@ -92,7 +105,10 @@ export class RadixCollateralTokenReader implements ArtifactReader<
 export class RadixCollateralTokenWriter
   extends RadixCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    OrchestratedArtifactWriter<
+      RawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
 {
   constructor(
     gateway: GatewayApiClient,
@@ -103,10 +119,13 @@ export class RadixCollateralTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       TxReceipt[],
     ]
   > {
@@ -212,7 +231,7 @@ export class RadixCollateralTokenWriter
     // enrolled with the other tokens deployed and only the owner can perform that enrollment.
 
     const deployedArtifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -227,7 +246,7 @@ export class RadixCollateralTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedRadixTransaction[]> {

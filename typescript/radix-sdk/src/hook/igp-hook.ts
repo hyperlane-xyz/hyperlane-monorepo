@@ -2,11 +2,12 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
@@ -26,10 +27,12 @@ import {
   getSetIgpOwnerTx,
 } from './hook-tx.js';
 
-export class RadixIgpHookReader implements ArtifactReader<
+export class RadixIgpHookReader implements OrchestratedArtifactReader<
   IgpHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -84,7 +87,7 @@ export class RadixIgpHookReader implements ArtifactReader<
 
 export class RadixIgpHookWriter
   extends RadixIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements OrchestratedArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
