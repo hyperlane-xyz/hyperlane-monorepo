@@ -325,7 +325,7 @@ Run with `run_in_background: true`. Wait for `Listening on http://localhost:<por
 The command runs from `typescript/cli`:
 
 ```bash
-cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp apply \
+pnpm -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.ethereum $<DEPLOYER_KEY_VAR> \
   [--key.sealevel $<SEALEVEL_KEY_VAR>]  # only if new chain is Sealevel

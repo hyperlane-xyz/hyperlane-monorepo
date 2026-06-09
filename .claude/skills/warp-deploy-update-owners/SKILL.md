@@ -121,9 +121,8 @@ Run with `run_in_background: true`. Wait for the log line `Server running` and n
 Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes:
 
 ```bash
-cd typescript/cli
 
-pnpm hyperlane warp apply \
+pnpm -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.ethereum $MY_ETH_KEY_VAR \
   [--key.sealevel $MY_SOL_KEY_VAR]  # only if sealevel chains present
@@ -149,9 +148,8 @@ If the user confirms, run it. Show the full output on completion.
 After warp apply completes, run the canonical CLI verifier against the deployed route. This is the **gate** before downstream steps (monitor deploy, registry PR) — if `warp check` reports violations, the route isn't actually in the target state and the rest of the flow shouldn't proceed.
 
 ```bash
-cd /path/to/hyperlane-monorepo/typescript/cli
 
-pnpm hyperlane warp check \
+pnpm -C typescript/cli hyperlane warp check \
   --registry http://localhost:<port> \
   --warp-route-id <WARP_ROUTE_ID>
 ```
@@ -161,7 +159,7 @@ This is the comprehensive check — compares the on-chain state of every contrac
 **Additionally, IF any chain owner in the route is an ICA** (per the resolution from `/warp-deploy-validate-owners`, or visible in the deploy.yaml `owner` fields), also run the ICA-aware variant:
 
 ```bash
-pnpm hyperlane warp check --ica \
+pnpm -C typescript/cli hyperlane warp check --ica \
   --origin <ICA_ORIGIN_CHAIN> \
   --chains <ICA_CHAINS> \
   --warp-route-id <WARP_ROUTE_ID> \

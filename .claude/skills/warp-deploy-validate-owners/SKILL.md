@@ -55,7 +55,7 @@ For each chain, run the validation appropriate to its owner type.
 For chains where the owner is an ICA controlled by an origin Safe (typically `ethereum`):
 
 ```bash
-pnpm hyperlane ica deploy \
+pnpm -C typescript/cli hyperlane ica deploy \
   --registry <local-registry-path-or-http-url> \
   --origin <origin-chain> \
   --chains <chain> \
