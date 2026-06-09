@@ -1081,6 +1081,18 @@ const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
     '0xA9C9a8FB36Ce3e5ffBAC3757dA7141262723541F', // USDC
     '0xeB1b48b238E15A62e1858a601B6BfFdf41163AE3', // USDT
   ],
+  polygon: [
+    '0x28a96f9928dB06317356caACd5641C4Fde4424C7', // USDC
+    '0x766A80a7a6BBA555731DC1726DB5BFa030631270', // USDT
+  ],
+  bsc: [
+    '0x6E66a10Ce72fBdFA45Ab7de3693321246E254123', // USDC
+    '0x050dcc964BCA53eF1A98A2347995cabC73cE25b9', // USDT
+  ],
+  katana: [
+    '0x936e8A1fBD8317Be59A9B8924a300993c8Bf7ce6', // USDC
+    '0x0b51aFdd3F43446a621C555B16A1cb781D8443Ad', // USDT
+  ],
 });
 
 const fastPath: RootAgentConfig = {
@@ -1088,7 +1100,15 @@ const fastPath: RootAgentConfig = {
   context: Contexts.FastPath,
   contextChainNames: {
     validator: [],
-    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    relayer: [
+      'arbitrum',
+      'base',
+      'citrea',
+      'ethereum',
+      'polygon',
+      'bsc',
+      'katana',
+    ],
     scraper: [],
   },
   rolesWithKeys: [Role.Relayer],
