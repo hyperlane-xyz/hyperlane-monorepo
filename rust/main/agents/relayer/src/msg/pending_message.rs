@@ -665,9 +665,14 @@ impl PendingMessage {
     ) -> Option<Self> {
         let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let reprepare_reason = match &message_status {
+            PendingOperationStatus::Retry(r) => Some(r.clone()),
+            _ => None,
+        };
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
+            let next_attempt_after =
+                Self::next_attempt_after(num_retries, max_retries, reprepare_reason.as_ref());
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
@@ -682,8 +687,12 @@ impl PendingMessage {
         self
     }
 
-    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, None)
+    fn next_attempt_after(
+        num_retries: u32,
+        max_retries: u32,
+        reason: Option<&ReprepareReason>,
+    ) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, reason)
             .and_then(|dur| Instant::now().checked_add(dur))
     }
 
@@ -1044,7 +1053,12 @@ impl PendingMessage {
             }
             // Offset retries so 11→1, 12→2, … resuming the normal ramp.
             // Pass reason=None to avoid recursing into this branch again.
-            return Self::calculate_msg_backoff(num_retries - 10, max_retries, message_id, None);
+            return Self::calculate_msg_backoff(
+                num_retries.saturating_sub(10),
+                max_retries,
+                message_id,
+                None,
+            );
         }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
@@ -1234,6 +1248,7 @@ mod test {
         let next_prepare_attempt = PendingMessage::next_attempt_after(
             DEFAULT_MAX_MESSAGE_RETRIES,
             DEFAULT_MAX_MESSAGE_RETRIES,
+            None,
         )
         .unwrap();
 

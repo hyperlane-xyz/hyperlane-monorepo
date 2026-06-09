@@ -344,6 +344,20 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
         }
 
+        // When every sub-module failure is purely "signatures not yet collected" and we
+        // can't reach threshold without them, propagate AwaitingValidatorSignatures so
+        // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
+        let ok_count = sub_modules_and_metas.iter().filter(|r| r.is_ok()).count();
+        if ok_count < threshold
+            && sub_modules_and_metas.iter().any(|r| r.is_err())
+            && sub_modules_and_metas
+                .iter()
+                .filter_map(|r| r.as_ref().err())
+                .all(|e| matches!(e, MetadataBuildError::AwaitingValidatorSignatures))
+        {
+            return Err(MetadataBuildError::AwaitingValidatorSignatures);
+        }
+
         // Partitions things into
         // 1. ok_sub_modules: ISMs with valid metadata
         // 2. err_sub_modules: ISMs with invalid metadata
