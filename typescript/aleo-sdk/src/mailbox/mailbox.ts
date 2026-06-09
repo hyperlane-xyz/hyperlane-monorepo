@@ -1,9 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -35,24 +37,34 @@ import {
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
 
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 /**
  * Reader for Aleo Mailbox.
  * Reads deployed mailbox configuration from the chain.
  */
-export class AleoMailboxReader implements ArtifactReader<
+export class AleoMailboxReader implements OrchestratedArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+  ): Promise<
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+  > {
     const mailboxConfig = await getMailboxConfig(this.aleoClient, address);
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: mailboxConfig.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -87,7 +99,7 @@ export class AleoMailboxReader implements ArtifactReader<
  */
 export class AleoMailboxWriter
   extends AleoMailboxReader
-  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     private readonly config: AleoArtifactNetworkConfig,
@@ -98,9 +110,12 @@ export class AleoMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<MailboxOnChain>,
+    artifact: ArtifactNew<OrchestratedMailboxOnChain>,
   ): Promise<
-    [ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>, AleoReceipt[]]
+    [
+      ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>,
+      AleoReceipt[],
+    ]
   > {
     const { config } = artifact;
     const allReceipts: AleoReceipt[] = [];
@@ -187,7 +202,7 @@ export class AleoMailboxWriter
     // when all configuration is complete.
 
     const deployedArtifact: ArtifactDeployed<
-      MailboxOnChain,
+      OrchestratedMailboxOnChain,
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -202,7 +217,10 @@ export class AleoMailboxWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >,
   ): Promise<AnnotatedAleoTransaction[]> {
     const { config, deployed } = artifact;
     const updateTxs: AnnotatedAleoTransaction[] = [];

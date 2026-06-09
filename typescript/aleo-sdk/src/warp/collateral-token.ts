@@ -1,9 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -33,15 +35,22 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 function withErrorContext(context: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(`${context}: ${message}`);
 }
 
-export class AleoCollateralTokenReader implements ArtifactReader<
+export class AleoCollateralTokenReader implements OrchestratedArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly aleoClient: AnyAleoNetworkClient,
     protected readonly onChainArtifactManagers: OnChainArtifactManagers,
@@ -50,7 +59,10 @@ export class AleoCollateralTokenReader implements ArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
   > {
     // Fetch token config using internal Aleo types
     const token = await getCollateralWarpTokenConfig(
@@ -68,7 +80,8 @@ export class AleoCollateralTokenReader implements ArtifactReader<
     // Convert to provider-sdk artifact format
     const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
       aleoWarpFieldsToArtifactApi(token);
-    const config: RawCollateralWarpArtifactConfig = {
+    const config: OrchestratedRawCollateralWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.collateral,
       owner: token.owner,
       mailbox: token.mailbox,
@@ -95,7 +108,10 @@ export class AleoCollateralTokenReader implements ArtifactReader<
 export class AleoCollateralTokenWriter
   extends AleoCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    OrchestratedArtifactWriter<
+      RawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,
@@ -106,10 +122,13 @@ export class AleoCollateralTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       AleoReceipt[],
     ]
   > {
@@ -174,7 +193,7 @@ export class AleoCollateralTokenWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -189,7 +208,7 @@ export class AleoCollateralTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedAleoTransaction[]> {

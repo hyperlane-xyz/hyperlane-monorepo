@@ -2,9 +2,10 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -23,10 +24,12 @@ import { getNewIsmAddress } from './base.js';
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 
-export class AleoMessageIdMultisigIsmReader implements ArtifactReader<
+export class AleoMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -53,7 +56,7 @@ export class AleoMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class AleoMessageIdMultisigIsmWriter
   extends AleoMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

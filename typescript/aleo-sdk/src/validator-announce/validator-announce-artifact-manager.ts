@@ -1,6 +1,8 @@
 import {
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedValidatorAnnounceAddress,
@@ -37,25 +39,38 @@ export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnoun
   }
 
   createReader<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
   ): ArtifactReader<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new AleoValidatorAnnounceReader(this.aleoClient);
+    const readers: {
+      [K in ValidatorAnnounceType]: () => OrchestratedArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () => new AleoValidatorAnnounceReader(this.aleoClient),
+    };
+    return readers[type]();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
     signer: AleoSigner,
   ): ArtifactWriter<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new AleoValidatorAnnounceWriter(
-      this.config,
-      this.aleoClient,
-      signer,
-    );
+    const writers: {
+      [K in ValidatorAnnounceType]: () => OrchestratedArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () =>
+        new AleoValidatorAnnounceWriter(this.config, this.aleoClient, signer),
+    };
+    return writers[type]();
   }
 }

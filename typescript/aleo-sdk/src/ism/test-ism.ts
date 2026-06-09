@@ -2,9 +2,10 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -23,10 +24,12 @@ import { getNewIsmAddress } from './base.js';
 import { getTestIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
 
-export class AleoTestIsmReader implements ArtifactReader<
+export class AleoTestIsmReader implements OrchestratedArtifactReader<
   TestIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -48,7 +51,7 @@ export class AleoTestIsmReader implements ArtifactReader<
 
 export class AleoTestIsmWriter
   extends AleoTestIsmReader
-  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

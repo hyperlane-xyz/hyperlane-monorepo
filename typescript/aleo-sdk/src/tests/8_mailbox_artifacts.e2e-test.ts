@@ -5,8 +5,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -16,7 +18,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressAleo } from '@hyperlane-xyz/utils';
+import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -29,6 +31,37 @@ import {
 } from '../testing/constants.js';
 import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+function createOrchestratedMailboxWriter(
+  manager: AleoMailboxArtifactManager,
+  signer: AleoSigner,
+): OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress> {
+  const writer = manager.createWriter('mailbox', signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    'Aleo mailbox writer is expected to be orchestrated',
+  );
+  return writer;
+}
+
+async function readOrchestratedMailbox(
+  manager: AleoMailboxArtifactManager,
+  address: string,
+): Promise<
+  ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+> {
+  const reader = manager.createReader('mailbox');
+  assert(
+    reader.composition === ArtifactComposition.ORCHESTRATED,
+    'Aleo mailbox reader is expected to be orchestrated',
+  );
+  return reader.read(address);
+}
 
 chai.use(chaiAsPromised);
 
@@ -84,7 +117,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       });
 
       // Step 2: Create mailbox with ISM but null hooks
-      const initialConfig: MailboxOnChain = {
+      const initialConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -100,7 +134,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      const writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      const writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       const [result, createReceipts] = await writer.create({
         config: initialConfig,
       });
@@ -133,7 +170,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       });
 
       // Step 4: Update mailbox to set hooks
-      const updatedConfig: MailboxOnChain = {
+      const updatedConfig: OrchestratedMailboxOnChain = {
         ...initialConfig,
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
@@ -192,7 +229,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -208,7 +246,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      const writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      const writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       const [result, receipts] = await writer.create({ config });
 
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -233,7 +274,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
 
       // Create mailbox with TEST_OWNER_ADDRESS in config
       // But ownership should NOT be transferred during creation
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: TEST_OWNER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -249,7 +291,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      const writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      const writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       const [result, receipts] = await writer.create({ config });
 
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -275,7 +320,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -291,7 +337,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      const writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      const writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       const reader = mailboxArtifactManager.createReader('mailbox');
@@ -320,7 +369,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -336,7 +386,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      const writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      const writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       const readMailbox = await mailboxArtifactManager.readMailbox(
@@ -353,10 +406,13 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
 
   describe('Mailbox Updates', () => {
     let deployedMailbox: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >;
+    let writer: OrchestratedArtifactWriter<
       MailboxOnChain,
       DeployedMailboxAddress
     >;
-    let writer: ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
 
     beforeEach(async () => {
       // Step 1: Create ISM
@@ -369,7 +425,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       });
 
       // Step 2: Create mailbox with ISM but null hooks
-      const initialConfig: MailboxOnChain = {
+      const initialConfig: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -385,7 +442,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       };
 
-      writer = mailboxArtifactManager.createWriter('mailbox', aleoSigner);
+      writer = createOrchestratedMailboxWriter(
+        mailboxArtifactManager,
+        aleoSigner,
+      );
       [deployedMailbox] = await writer.create({ config: initialConfig });
 
       // Step 3: Create hook with the mailbox context
@@ -403,7 +463,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       });
 
       // Step 4: Update mailbox to set default hook
-      const updatedConfig: MailboxOnChain = {
+      const updatedConfig: OrchestratedMailboxOnChain = {
         ...initialConfig,
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
@@ -431,11 +491,17 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       name: string;
       setupNewValue: () => Promise<string>;
       updateConfig: (
-        mailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+        mailbox: ArtifactDeployed<
+          OrchestratedMailboxOnChain,
+          DeployedMailboxAddress
+        >,
         newValue: string,
-      ) => ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>;
+      ) => ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>;
       verifyUpdate: (
-        readMailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+        readMailbox: ArtifactDeployed<
+          OrchestratedMailboxOnChain,
+          DeployedMailboxAddress
+        >,
         newValue: string,
       ) => void;
     }> = [
@@ -573,8 +639,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
           const receipt = await signer.sendAndConfirmTransaction(txs[0]);
           expect(receipt.transactionHash).to.not.be.empty;
 
-          const reader = mailboxArtifactManager.createReader('mailbox');
-          const readMailbox = await reader.read(
+          const readMailbox = await readOrchestratedMailbox(
+            mailboxArtifactManager,
             deployedMailbox.deployed.address,
           );
           verifyUpdate(readMailbox, newValue);

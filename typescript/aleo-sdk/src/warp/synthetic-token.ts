@@ -1,9 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -33,15 +35,22 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
+  RawSyntheticWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 function withErrorContext(context: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(`${context}: ${message}`);
 }
 
-export class AleoSyntheticTokenReader implements ArtifactReader<
+export class AleoSyntheticTokenReader implements OrchestratedArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly aleoClient: AnyAleoNetworkClient,
     protected readonly onChainArtifactManagers: OnChainArtifactManagers,
@@ -50,7 +59,10 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawSyntheticWarpArtifactConfig,
+      DeployedWarpAddress
+    >
   > {
     // Fetch token config using internal Aleo types
     const token = await getSyntheticWarpTokenConfig(
@@ -68,7 +80,8 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
     // Convert to provider-sdk artifact format
     const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
       aleoWarpFieldsToArtifactApi(token);
-    const config: RawSyntheticWarpArtifactConfig = {
+    const config: OrchestratedRawSyntheticWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.synthetic,
       owner: token.owner,
       mailbox: token.mailbox,
@@ -93,7 +106,11 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
 
 export class AleoSyntheticTokenWriter
   extends AleoSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    OrchestratedArtifactWriter<
+      RawSyntheticWarpArtifactConfig,
+      DeployedWarpAddress
+    >
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,
@@ -104,10 +121,13 @@ export class AleoSyntheticTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawSyntheticWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawSyntheticWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       AleoReceipt[],
     ]
   > {
@@ -173,7 +193,7 @@ export class AleoSyntheticTokenWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawSyntheticWarpArtifactConfig,
+      OrchestratedRawSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -188,7 +208,7 @@ export class AleoSyntheticTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawSyntheticWarpArtifactConfig,
+      OrchestratedRawSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedAleoTransaction[]> {

@@ -2,10 +2,12 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
   type ArtifactUnderived,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -30,16 +32,26 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class AleoRoutingIsmRawReader implements ArtifactReader<
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+export class AleoRoutingIsmRawReader implements OrchestratedArtifactReader<
   RawRoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+    ArtifactDeployed<
+      OrchestratedRawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    >
   > {
     const ismConfig = await getRoutingIsmConfig(this.aleoClient, address);
 
@@ -56,6 +68,7 @@ export class AleoRoutingIsmRawReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: IsmType.ROUTING,
         owner: ismConfig.owner,
         domains,
@@ -69,7 +82,8 @@ export class AleoRoutingIsmRawReader implements ArtifactReader<
 
 export class AleoRoutingIsmRawWriter
   extends AleoRoutingIsmRawReader
-  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  implements
+    OrchestratedArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,
@@ -79,10 +93,13 @@ export class AleoRoutingIsmRawWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawRoutingIsmArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+      ArtifactDeployed<
+        OrchestratedRawRoutingIsmArtifactConfig,
+        DeployedIsmAddress
+      >,
       AleoReceipt[],
     ]
   > {
@@ -127,7 +144,7 @@ export class AleoRoutingIsmRawWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawRoutingIsmArtifactConfig,
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -141,7 +158,10 @@ export class AleoRoutingIsmRawWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedRawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    >,
   ): Promise<AnnotatedAleoTransaction[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);

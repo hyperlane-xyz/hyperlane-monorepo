@@ -2,8 +2,11 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { eqAddressAleo } from '@hyperlane-xyz/utils';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -73,8 +76,13 @@ describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
       'mailbox',
       aleoSigner,
     );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Aleo mailbox writer is expected to be orchestrated',
+    );
     const [deployedMailbox] = await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

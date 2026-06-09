@@ -5,6 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { HookType, type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
@@ -67,8 +68,13 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       'mailbox',
       aleoSigner,
     );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Aleo mailbox writer is expected to be orchestrated',
+    );
     const [deployedMailbox] = await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

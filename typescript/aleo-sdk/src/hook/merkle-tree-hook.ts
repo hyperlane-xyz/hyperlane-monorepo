@@ -2,9 +2,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -28,10 +29,12 @@ import { getNewHookAddress } from './base.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class AleoMerkleTreeHookReader implements ArtifactReader<
+export class AleoMerkleTreeHookReader implements OrchestratedArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -53,7 +56,8 @@ export class AleoMerkleTreeHookReader implements ArtifactReader<
 
 export class AleoMerkleTreeHookWriter
   extends AleoMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements
+    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

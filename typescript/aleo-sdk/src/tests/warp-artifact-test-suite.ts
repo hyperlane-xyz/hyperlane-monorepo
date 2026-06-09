@@ -2,16 +2,24 @@ import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactDeployed,
+  ArtifactComposition,
+  ArtifactState,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import type {
-  DeployedRawWarpArtifact,
+  DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
   RawNativeWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
+  RawWarpArtifactConfig,
+  RawWarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
@@ -21,6 +29,40 @@ import { type AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { type AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { TEST_ALEO_BURN_ADDRESS } from '../testing/constants.js';
 import { type AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+
+type OrchestratedRawNativeWarpArtifactConfig = WithCompositionVariant<
+  RawNativeWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
+  RawSyntheticWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type OrchestratedRawWarpArtifactConfig = WithCompositionVariant<
+  RawWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+type DeployedOrchestratedRawWarpArtifact = ArtifactDeployed<
+  OrchestratedRawWarpArtifactConfig,
+  DeployedWarpAddress
+>;
+
+function createOrchestratedWarpWriter<T extends WarpType>(
+  artifactManager: AleoWarpArtifactManager,
+  type: T,
+  signer: AleoSigner,
+): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  const writer = artifactManager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Aleo ${type} writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 const DOMAIN_1 = 42;
 const DOMAIN_2 = 96;
@@ -38,9 +80,9 @@ export interface WarpTokenTestCase {
   type: WarpType;
   name: string;
   getConfig: () =>
-    | RawNativeWarpArtifactConfig
-    | RawCollateralWarpArtifactConfig
-    | RawSyntheticWarpArtifactConfig;
+    | OrchestratedRawNativeWarpArtifactConfig
+    | OrchestratedRawCollateralWarpArtifactConfig
+    | OrchestratedRawSyntheticWarpArtifactConfig;
   expectedFields?: Record<string, unknown>;
 }
 
@@ -63,7 +105,11 @@ export function warpArtifactTestSuite(
   it('should create and read token', async () => {
     const config = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [result, receipts] = await writer.create({ config });
 
     expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -92,13 +138,17 @@ export function warpArtifactTestSuite(
   it('should enroll remote routers', async () => {
     const initialConfig = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({
       config: initialConfig,
     });
 
     // Update with remote routers
-    const updatedConfig: DeployedRawWarpArtifact = {
+    const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -157,13 +207,17 @@ export function warpArtifactTestSuite(
       [DOMAIN_2]: '200000',
     };
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({
       config: initialConfig,
     });
 
     // Remove DOMAIN_2
-    const updatedConfig: DeployedRawWarpArtifact = {
+    const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -207,7 +261,11 @@ export function warpArtifactTestSuite(
       [DOMAIN_1]: '100000',
     };
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({
       config: initialConfig,
     });
@@ -218,7 +276,7 @@ export function warpArtifactTestSuite(
     expect(readToken1.config.destinationGas[DOMAIN_1]).to.equal('100000');
 
     // Update only gas (router address unchanged)
-    const updatedConfig: DeployedRawWarpArtifact = {
+    const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -253,7 +311,11 @@ export function warpArtifactTestSuite(
   it('should transfer ownership via update (ownership last)', async () => {
     const initialConfig = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({
       config: initialConfig,
     });
@@ -261,7 +323,7 @@ export function warpArtifactTestSuite(
     const customIsmAddress = TEST_ALEO_BURN_ADDRESS;
 
     // Update routers, ISM, AND ownership
-    const updatedConfig: DeployedRawWarpArtifact = {
+    const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -312,7 +374,11 @@ export function warpArtifactTestSuite(
   it('should return no update transactions when config is unchanged', async () => {
     const config = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({ config });
 
     const txs = await writer.update(deployedToken);
@@ -340,7 +406,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -360,7 +430,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to clear ISM (set to undefined)
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -386,7 +456,11 @@ export function warpArtifactTestSuite(
       // Start with no ISM
       initialConfig.interchainSecurityModule = undefined;
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -406,7 +480,7 @@ export function warpArtifactTestSuite(
       });
       const customIsmAddress = deployedIsm.deployed.address;
 
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -465,7 +539,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -486,7 +564,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to second ISM
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -533,7 +611,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -550,7 +632,11 @@ export function warpArtifactTestSuite(
       // Create without ISM
       initialConfig.interchainSecurityModule = undefined;
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -565,12 +651,16 @@ export function warpArtifactTestSuite(
     it('should not generate ISM update tx when current ism is undefined and the 0 address is provided in the config', async () => {
       const initialConfig = getConfig();
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
 
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -612,7 +702,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -632,7 +726,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to clear hook (set to undefined)
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -658,7 +752,11 @@ export function warpArtifactTestSuite(
       // Start with no hook
       initialConfig.hook = undefined;
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -678,7 +776,7 @@ export function warpArtifactTestSuite(
       });
       const customHookAddress = deployedHook.deployed.address;
 
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -737,7 +835,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -758,7 +860,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to second hook
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -805,7 +907,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -822,7 +928,11 @@ export function warpArtifactTestSuite(
       // Create without hook
       initialConfig.hook = undefined;
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -855,7 +965,11 @@ export function warpArtifactTestSuite(
         },
       };
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
@@ -876,7 +990,7 @@ export function warpArtifactTestSuite(
 
       // Update to zero address (should unset hook)
       const zeroAddress = TEST_ALEO_BURN_ADDRESS;
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -905,12 +1019,16 @@ export function warpArtifactTestSuite(
     it('should not generate hook update tx when current hook is undefined and the 0 address is provided in the config', async () => {
       const initialConfig = getConfig();
 
-      const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+      const writer = createOrchestratedWarpWriter(
+        ctx.artifactManager,
+        type,
+        ctx.aleoSigner,
+      );
       const [deployedToken] = await writer.create({
         config: initialConfig,
       });
 
-      const updatedConfig: DeployedRawWarpArtifact = {
+      const updatedConfig: DeployedOrchestratedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -934,7 +1052,11 @@ export function warpArtifactTestSuite(
   it(`should detect and read ${testCase.name} token via readWarpToken`, async () => {
     const config = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    const writer = createOrchestratedWarpWriter(
+      ctx.artifactManager,
+      type,
+      ctx.aleoSigner,
+    );
     const [deployedToken] = await writer.create({ config });
 
     // Read via generic readWarpToken (without knowing the type)

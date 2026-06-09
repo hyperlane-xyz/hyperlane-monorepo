@@ -2,9 +2,12 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 
-import { isNullish } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -70,8 +73,13 @@ describe('7a. Aleo Warp Native Token Artifact API (e2e)', function () {
       'mailbox',
       aleoSigner,
     );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Aleo mailbox writer is expected to be orchestrated',
+    );
     const [deployedMailbox] = await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: aleoSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -123,6 +131,7 @@ describe('7a. Aleo Warp Native Token Artifact API (e2e)', function () {
       type: AltVM.TokenType.native,
       name: 'native',
       getConfig: () => ({
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.native,
         owner: aleoSigner.getSignerAddress(),
         mailbox: mailboxAddress,

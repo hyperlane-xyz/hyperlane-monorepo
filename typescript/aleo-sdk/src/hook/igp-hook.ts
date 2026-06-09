@@ -2,9 +2,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -30,10 +31,12 @@ import {
   getSetIgpHookOwnerTx,
 } from './hook-tx.js';
 
-export class AleoIgpHookReader implements ArtifactReader<
+export class AleoIgpHookReader implements OrchestratedArtifactReader<
   IgpHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -82,7 +85,7 @@ export class AleoIgpHookReader implements ArtifactReader<
 
 export class AleoIgpHookWriter
   extends AleoIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements OrchestratedArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

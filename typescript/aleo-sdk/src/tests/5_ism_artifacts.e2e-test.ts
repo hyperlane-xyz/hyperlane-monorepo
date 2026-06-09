@@ -5,11 +5,16 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  type DeployedIsmAddress,
   type IsmType,
   type MultisigIsmConfig,
+  type RawIsmArtifactConfigs,
   type RawRoutingIsmArtifactConfig,
   type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -17,10 +22,28 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { normalizeConfig } from '@hyperlane-xyz/utils';
+import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+function createOrchestratedIsmWriter<T extends IsmType>(
+  manager: AleoIsmArtifactManager,
+  type: T,
+  signer: AleoSigner,
+): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  const writer = manager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Aleo ${type} ISM writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 chai.use(chaiAsPromised);
 
@@ -92,7 +115,11 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     testCases.forEach(({ name, type, config, verifyConfig }) => {
       describe(name, () => {
         it(`should create a ${type}`, async () => {
-          const writer = artifactManager.createWriter(type, signer);
+          const writer = createOrchestratedIsmWriter(
+            artifactManager,
+            type,
+            signer,
+          );
           const [result, receipts] = await writer.create({ config });
 
           expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -102,7 +129,11 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         });
 
         it(`should read a ${type}`, async () => {
-          const writer = artifactManager.createWriter(type, signer);
+          const writer = createOrchestratedIsmWriter(
+            artifactManager,
+            type,
+            signer,
+          );
           const [deployedIsm] = await writer.create({ config });
 
           const reader = artifactManager.createReader(type);
@@ -120,7 +151,11 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         });
 
         it(`should read ${name} using AleoIsmArtifactManager.readIsm()`, async () => {
-          const writer = artifactManager.createWriter(type, signer);
+          const writer = createOrchestratedIsmWriter(
+            artifactManager,
+            type,
+            signer,
+          );
           const [deployedIsm] = await writer.create({ config });
 
           const readIsm = await artifactManager.readIsm(
@@ -139,7 +174,11 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         });
 
         it('should return no transactions when calling update', async () => {
-          const writer = artifactManager.createWriter(type, signer);
+          const writer = createOrchestratedIsmWriter(
+            artifactManager,
+            type,
+            signer,
+          );
           const [deployedIsm] = await writer.create({ config });
 
           const txs = await writer.update(deployedIsm);
@@ -196,7 +235,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should create and read the provided config', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -211,7 +251,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -237,7 +278,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should read Routing ISM using AleoIsmArtifactManager.readIsm()', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -252,7 +294,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -281,7 +324,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should verify nested ISM addresses can be read', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -296,7 +340,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -326,7 +371,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should add a new domain ISM', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -341,7 +387,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -349,7 +396,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
       // Add a new domain
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         { address: string }
       > = {
         ...routingIsm,
@@ -383,7 +430,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should remove a domain ISM', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -398,7 +446,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -406,7 +455,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
       // Remove DOMAIN_2
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         { address: string }
       > = {
         ...routingIsm,
@@ -434,7 +483,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should update the ISM address for an existing domain', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -449,7 +499,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -457,7 +508,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
       // Update DOMAIN_1 to use multisig ISM instead of test ISM
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         { address: string }
       > = {
         ...routingIsm,
@@ -494,7 +545,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       const burnAddress =
         'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
 
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: burnAddress,
         domains: {
@@ -509,7 +561,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -526,7 +579,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     });
 
     it('should transfer ownership of the ISM', async () => {
-      const config: RawRoutingIsmArtifactConfig = {
+      const config: OrchestratedRawRoutingIsmArtifactConfig = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -541,7 +595,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         },
       };
 
-      const writer = artifactManager.createWriter(
+      const writer = createOrchestratedIsmWriter(
+        artifactManager,
         AltVM.IsmType.ROUTING,
         signer,
       );
@@ -553,7 +608,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
       // Transfer ownership
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         { address: string }
       > = {
         ...routingIsm,

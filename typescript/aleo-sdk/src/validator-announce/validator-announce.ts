@@ -1,9 +1,10 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedValidatorAnnounceAddress,
@@ -33,10 +34,12 @@ import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
  * Reader for Aleo ValidatorAnnounce.
  * Reads deployed validator announce configuration from the chain.
  */
-export class AleoValidatorAnnounceReader implements ArtifactReader<
+export class AleoValidatorAnnounceReader implements OrchestratedArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -71,7 +74,10 @@ export class AleoValidatorAnnounceReader implements ArtifactReader<
 export class AleoValidatorAnnounceWriter
   extends AleoValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    OrchestratedArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     private readonly config: AleoArtifactNetworkConfig,
