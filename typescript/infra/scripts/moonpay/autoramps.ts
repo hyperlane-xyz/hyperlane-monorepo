@@ -1,5 +1,6 @@
+#!/usr/bin/env tsx
 /**
- * Manages Iron autoramps for the CROSS/moonpay route (USDC and USDT).
+ * MoonPay: manages Iron autoramps for the CROSS/moonpay route (USDC and USDT).
  *
  * Sources of truth (registry):
  *   deployments/warp_routes/USDC/moonpay-config.yaml
@@ -23,10 +24,10 @@
  *
  * Required env: IRON_API_KEY  (or set in typescript/infra/.env)
  *
- * Usage:
- *   pnpm iron:autoramps status
- *   pnpm iron:autoramps sync --dry-run
- *   pnpm iron:autoramps sync
+ * Usage (from typescript/infra/):
+ *   pnpm tsx scripts/moonpay/autoramps.ts status
+ *   pnpm tsx scripts/moonpay/autoramps.ts sync --dry-run
+ *   pnpm tsx scripts/moonpay/autoramps.ts sync
  */
 
 import 'dotenv/config';

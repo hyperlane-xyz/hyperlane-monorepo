@@ -33,8 +33,7 @@
     "test:ci": "pnpm test:unit && pnpm test:hardhat",
     "update-agent-config:mainnet3": "tsx scripts/agents/update-agent-config.ts -e mainnet3",
     "update-agent-config:test": "tsx scripts/agents/update-agent-config.ts -e test",
-    "update-agent-config:testnet4": "tsx scripts/agents/update-agent-config.ts -e testnet4",
-    "iron:autoramps": "tsx scripts/iron/autoramps.ts"
+    "update-agent-config:testnet4": "tsx scripts/agents/update-agent-config.ts -e testnet4"
   },
   "dependencies": {
     "@arbitrum/sdk": "catalog:",
