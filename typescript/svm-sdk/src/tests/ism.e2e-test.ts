@@ -5,6 +5,7 @@ import { before, describe, it } from 'mocha';
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
@@ -12,11 +13,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-import {
-  SvmMessageIdMultisigIsmReader,
-  SvmMessageIdMultisigIsmWriter,
-  type SvmMultisigIsmConfig,
-} from '../ism/multisig-ism.js';
+import { SvmRoutingMultisigReader } from '../ism/routing-multisig-reader.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from '../ism/test-ism.js';
 import type { SvmDeployedIsm } from '../types.js';
 import { createRpc } from '../rpc.js';
@@ -104,67 +101,88 @@ describe('SVM ISM E2E Tests', function () {
     });
   });
 
-  describe('Multisig ISM', () => {
-    it('should create and read Multisig ISM with domain configs', async function () {
-      const writer = new SvmMessageIdMultisigIsmWriter(rpc, signer);
-
-      const config: SvmMultisigIsmConfig = {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        validators: [],
-        threshold: 0,
-        program: { programId: TEST_PROGRAM_IDS.multisigIsm },
-        domains: {
-          1: {
-            validators: [
-              '0x1111111111111111111111111111111111111111',
-              '0x2222222222222222222222222222222222222222',
-              '0x3333333333333333333333333333333333333333',
-            ],
-            threshold: 2,
-          },
-          137: {
-            validators: [
-              '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-              '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-            ],
-            threshold: 1,
-          },
-        },
-      };
+  describe('Routing Multisig ISM (embedded)', () => {
+    it('creates and reads a routing multisig with per-domain configs', async function () {
+      const manager = new SvmIsmArtifactManager(rpc);
+      const writer = manager.createWriter('domainRoutingIsm', signer);
+      assert(
+        writer.composition === ArtifactComposition.EMBEDDED,
+        'expected EMBEDDED routing-multisig writer on SVM',
+      );
 
       const [deployed, receipts] = await writer.create({
         artifactState: ArtifactState.NEW,
-        config,
+        config: {
+          composition: ArtifactComposition.EMBEDDED,
+          type: 'domainRoutingIsm',
+          owner: signer.getSignerAddress(),
+          domains: {
+            1: {
+              artifactState: ArtifactState.DEPLOYED,
+              config: {
+                type: 'messageIdMultisigIsm',
+                validators: [
+                  '0x1111111111111111111111111111111111111111',
+                  '0x2222222222222222222222222222222222222222',
+                  '0x3333333333333333333333333333333333333333',
+                ],
+                threshold: 2,
+              },
+              deployed: { address: '' },
+            },
+            137: {
+              artifactState: ArtifactState.DEPLOYED,
+              config: {
+                type: 'messageIdMultisigIsm',
+                validators: [
+                  '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                  '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                ],
+                threshold: 1,
+              },
+              deployed: { address: '' },
+            },
+          },
+        },
       });
 
       expect(receipts).to.have.length.greaterThan(0);
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
+      expect(deployed.config.type).to.equal('domainRoutingIsm');
+      expect(deployed.config.composition).to.equal(
+        ArtifactComposition.EMBEDDED,
+      );
+      expect(Object.keys(deployed.config.domains)).to.have.length(2);
 
-      const reader = new SvmMessageIdMultisigIsmReader(rpc);
+      const reader = new SvmRoutingMultisigReader(rpc, [1, 137]);
       const readResult = await reader.read(TEST_PROGRAM_IDS.multisigIsm);
 
       expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(readResult.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
+      expect(readResult.config.type).to.equal('domainRoutingIsm');
 
-      const domain1 = await reader.readDomain(TEST_PROGRAM_IDS.multisigIsm, 1);
-      assert(domain1, 'expected domain1 to exist');
-      expect(domain1.threshold).to.equal(2);
-      expect(domain1.validators).to.have.length(3);
-
-      const domain137 = await reader.readDomain(
-        TEST_PROGRAM_IDS.multisigIsm,
-        137,
+      const domain1 = readResult.config.domains[1];
+      assert(domain1, 'expected domain 1 to exist');
+      assert(
+        domain1.config.type === 'messageIdMultisigIsm',
+        'expected multisig child',
       );
-      assert(domain137, 'expected domain137 to exist');
-      expect(domain137.threshold).to.equal(1);
-      expect(domain137.validators).to.have.length(2);
+      expect(domain1.config.threshold).to.equal(2);
+      expect(domain1.config.validators).to.have.length(3);
+
+      const domain137 = readResult.config.domains[137];
+      assert(domain137, 'expected domain 137 to exist');
+      assert(
+        domain137.config.type === 'messageIdMultisigIsm',
+        'expected multisig child',
+      );
+      expect(domain137.config.threshold).to.equal(1);
+      expect(domain137.config.validators).to.have.length(2);
     });
   });
 
   describe('ISM Artifact Manager', () => {
     it('should detect ISM type from address', async function () {
-      const manager = new SvmIsmArtifactManager(rpc);
+      const manager = new SvmIsmArtifactManager(rpc, [1, 137]);
 
       try {
         const testIsmArtifact = await manager.readIsm(TEST_PROGRAM_IDS.testIsm);
@@ -172,13 +190,13 @@ describe('SVM ISM E2E Tests', function () {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('Unable to detect ISM type')) {
-          // Test ISM binary may be incompatible; verify multisig detection works
-          const multisigArtifact = await manager.readIsm(
+          // Test ISM binary may be incompatible; verify routing-multisig
+          // detection still works (programs are sequenced earlier in this
+          // suite, so the multisig program has state by now).
+          const routingArtifact = await manager.readIsm(
             TEST_PROGRAM_IDS.multisigIsm,
           );
-          expect(multisigArtifact.config.type).to.equal(
-            IsmType.MESSAGE_ID_MULTISIG,
-          );
+          expect(routingArtifact.config.type).to.equal('domainRoutingIsm');
         } else {
           throw err;
         }
@@ -186,10 +204,20 @@ describe('SVM ISM E2E Tests', function () {
     });
 
     it('should create readers for different ISM types', () => {
-      const manager = new SvmIsmArtifactManager(rpc);
+      const manager = new SvmIsmArtifactManager(rpc, [1, 137]);
 
       const testIsmReader = manager.createReader(IsmType.TEST_ISM);
       expect(testIsmReader).to.be.instanceOf(SvmTestIsmReader);
+
+      const routingReader = manager.createReader(IsmType.ROUTING);
+      expect(routingReader).to.be.instanceOf(SvmRoutingMultisigReader);
+    });
+
+    it('throws when domainRoutingIsm reader is requested without candidateDomains', () => {
+      const manager = new SvmIsmArtifactManager(rpc);
+      expect(() => manager.createReader(IsmType.ROUTING)).to.throw(
+        /domainRoutingIsm reader requires candidateDomains/,
+      );
     });
 
     it('should create writers for different ISM types', () => {
