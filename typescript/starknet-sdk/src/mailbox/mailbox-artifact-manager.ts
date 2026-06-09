@@ -1,11 +1,15 @@
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedMailboxAddress,
@@ -34,19 +38,23 @@ import {
   getSetRequiredHookTx,
 } from './mailbox-tx.js';
 
-class StarknetMailboxReader implements ArtifactReader<
+type OrchestratedRawMailboxConfig = WithCompositionVariant<
+  RawMailboxArtifactConfigs['mailbox'],
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+class StarknetMailboxReader implements OrchestratedArtifactReader<
   RawMailboxArtifactConfigs['mailbox'],
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<
-      RawMailboxArtifactConfigs['mailbox'],
-      DeployedMailboxAddress
-    >
+    ArtifactDeployed<OrchestratedRawMailboxConfig, DeployedMailboxAddress>
   > {
     const mailbox = await getMailboxConfig(
       this.provider.getRawProvider(),
@@ -56,6 +64,7 @@ class StarknetMailboxReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: mailbox.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -87,7 +96,10 @@ class StarknetMailboxReader implements ArtifactReader<
 class StarknetMailboxWriter
   extends StarknetMailboxReader
   implements
-    ArtifactWriter<RawMailboxArtifactConfigs['mailbox'], DeployedMailboxAddress>
+    OrchestratedArtifactWriter<
+      RawMailboxArtifactConfigs['mailbox'],
+      DeployedMailboxAddress
+    >
 {
   constructor(
     provider: StarknetProvider,
@@ -127,13 +139,10 @@ class StarknetMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawMailboxArtifactConfigs['mailbox']>,
+    artifact: ArtifactNew<OrchestratedRawMailboxConfig>,
   ): Promise<
     [
-      ArtifactDeployed<
-        RawMailboxArtifactConfigs['mailbox'],
-        DeployedMailboxAddress
-      >,
+      ArtifactDeployed<OrchestratedRawMailboxConfig, DeployedMailboxAddress>,
       TxReceipt[],
     ]
   > {
@@ -179,7 +188,7 @@ class StarknetMailboxWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawMailboxArtifactConfigs['mailbox'],
+      OrchestratedRawMailboxConfig,
       DeployedMailboxAddress
     >,
   ): Promise<AnnotatedTx[]> {
@@ -277,7 +286,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
-      [K in MailboxType]: ArtifactReader<
+      [K in MailboxType]: OrchestratedArtifactReader<
         RawMailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
@@ -294,7 +303,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const writerFactories: {
-      [K in MailboxType]: () => ArtifactWriter<
+      [K in MailboxType]: () => OrchestratedArtifactWriter<
         RawMailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;

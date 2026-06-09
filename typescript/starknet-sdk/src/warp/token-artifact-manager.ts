@@ -1,9 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
   addressToUnderivedArtifact,
   artifactOnChainToAddress,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -60,7 +62,9 @@ export function getStarknetWarpType(tokenType: string): WarpType {
 export abstract class StarknetWarpTokenReaderBase<
   T extends WarpType,
   C extends RawWarpArtifactConfigs[T],
-> implements ArtifactReader<C, DeployedWarpAddress> {
+> implements OrchestratedArtifactReader<C, DeployedWarpAddress> {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly provider: StarknetProvider) {}
 
   protected abstract readonly tokenType: T;
@@ -68,11 +72,16 @@ export abstract class StarknetWarpTokenReaderBase<
   protected abstract toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): C;
+  ): WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>;
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<C, DeployedWarpAddress>> {
+  ): Promise<
+    ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      DeployedWarpAddress
+    >
+  > {
     const token = await this.provider.getToken({ tokenAddress: address });
     const remoteRouters = await this.provider.getRemoteRouters({
       tokenAddress: address,
@@ -129,7 +138,7 @@ export abstract class StarknetWarpTokenWriterBase<
   C extends RawWarpArtifactConfigs[T],
 >
   extends StarknetWarpTokenReaderBase<T, C>
-  implements ArtifactWriter<C, DeployedWarpAddress>
+  implements OrchestratedArtifactWriter<C, DeployedWarpAddress>
 {
   constructor(
     provider: StarknetProvider,
@@ -139,14 +148,24 @@ export abstract class StarknetWarpTokenWriterBase<
   }
 
   protected abstract createToken(
-    artifact: ArtifactNew<C>,
+    artifact: ArtifactNew<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>
+    >,
   ): Promise<StarknetTxReceipt>;
 
-  protected validateCreateConfig(config: C): void {
+  protected validateCreateConfig(
+    config: WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+  ): void {
     assert(!config.scale, 'scale is unsupported for Starknet warp tokens');
   }
 
-  protected validateUpdateConfig(current: C, expected: C): void {
+  protected validateUpdateConfig(
+    current: WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+    expected: WithCompositionVariant<
+      C,
+      typeof ArtifactComposition.ORCHESTRATED
+    >,
+  ): void {
     assert(!expected.scale, 'scale is unsupported for Starknet warp tokens');
     assert(
       eqAddressStarknet(current.mailbox, expected.mailbox),
@@ -155,8 +174,18 @@ export abstract class StarknetWarpTokenWriterBase<
   }
 
   async create(
-    artifact: ArtifactNew<C>,
-  ): Promise<[ArtifactDeployed<C, DeployedWarpAddress>, TxReceipt[]]> {
+    artifact: ArtifactNew<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>
+    >,
+  ): Promise<
+    [
+      ArtifactDeployed<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        DeployedWarpAddress
+      >,
+      TxReceipt[],
+    ]
+  > {
     this.validateCreateConfig(artifact.config);
     this.assertNoOrphanDestinationGas(artifact.config);
 
@@ -189,7 +218,10 @@ export abstract class StarknetWarpTokenWriterBase<
   }
 
   async update(
-    artifact: ArtifactDeployed<C, DeployedWarpAddress>,
+    artifact: ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      DeployedWarpAddress
+    >,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
     const expectedConfig = this.preserveUnsetHookAndIsm(
@@ -305,7 +337,13 @@ export abstract class StarknetWarpTokenWriterBase<
     return txs;
   }
 
-  private preserveUnsetHookAndIsm(current: C, expected: C): C {
+  private preserveUnsetHookAndIsm(
+    current: WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+    expected: WithCompositionVariant<
+      C,
+      typeof ArtifactComposition.ORCHESTRATED
+    >,
+  ): WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED> {
     const expectedIsm = artifactOnChainToAddress(
       expected.interchainSecurityModule,
       normalizeStarknetAddressSafe,
@@ -336,7 +374,9 @@ export abstract class StarknetWarpTokenWriterBase<
     };
   }
 
-  private assertNoOrphanDestinationGas(config: C): void {
+  private assertNoOrphanDestinationGas(
+    config: WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+  ): void {
     for (const domain of Object.keys(config.destinationGas)) {
       assert(
         config.remoteRouters[Number(domain)],
@@ -347,7 +387,10 @@ export abstract class StarknetWarpTokenWriterBase<
 
   private async applyPostCreateConfig(
     tokenAddress: string,
-    expected: C,
+    expected: WithCompositionVariant<
+      C,
+      typeof ArtifactComposition.ORCHESTRATED
+    >,
     current: Pick<
       RawWarpArtifactConfig,
       | 'owner'

@@ -2,9 +2,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -20,10 +21,12 @@ import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class StarknetMerkleTreeHookReader implements ArtifactReader<
+export class StarknetMerkleTreeHookReader implements OrchestratedArtifactReader<
   RawHookArtifactConfigs['merkleTreeHook'],
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   async read(
     address: string,
   ): Promise<
@@ -43,7 +46,7 @@ export class StarknetMerkleTreeHookReader implements ArtifactReader<
 export class StarknetMerkleTreeHookWriter
   extends StarknetMerkleTreeHookReader
   implements
-    ArtifactWriter<
+    OrchestratedArtifactWriter<
       RawHookArtifactConfigs['merkleTreeHook'],
       DeployedHookAddress
     >

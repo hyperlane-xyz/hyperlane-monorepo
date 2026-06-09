@@ -3,6 +3,8 @@ import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -69,7 +71,7 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     const readers: Partial<{
-      [K in IsmType]: () => ArtifactReader<
+      [K in IsmType]: () => OrchestratedArtifactReader<
         RawIsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
@@ -93,7 +95,10 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
     const writers: Partial<{
       [K in IsmType]: (
         starknetSigner: StarknetSigner,
-      ) => ArtifactWriter<RawIsmArtifactConfigs[K], DeployedIsmAddress>;
+      ) => OrchestratedArtifactWriter<
+        RawIsmArtifactConfigs[K],
+        DeployedIsmAddress
+      >;
     }> = {
       testIsm: (starknetSigner) =>
         new StarknetTestIsmWriter(this.provider, starknetSigner),

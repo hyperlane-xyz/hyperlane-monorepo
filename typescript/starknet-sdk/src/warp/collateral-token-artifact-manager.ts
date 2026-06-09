@@ -1,4 +1,8 @@
-import { type ArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactNew,
+  ArtifactComposition,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
   type RawWarpArtifactConfigs,
@@ -6,6 +10,7 @@ import {
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 import {
   type StarknetRemoteRoutersOnChain,
@@ -14,7 +19,11 @@ import {
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
 import { getCreateCollateralTokenTx } from './warp-tx.js';
-import { getMailboxConfig } from '../mailbox/mailbox-query.js';
+
+type OrchestratedCollateralConfig = WithCompositionVariant<
+  RawWarpArtifactConfigs['collateral'],
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 export class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
   'collateral',
@@ -25,8 +34,9 @@ export class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['collateral'] {
+  ): OrchestratedCollateralConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.collateral,
       ...this.baseConfig(token, remoteRouters),
       token: normalizeStarknetAddressSafe(token.denom),
@@ -46,8 +56,9 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['collateral'] {
+  ): OrchestratedCollateralConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.collateral,
       ...this.baseConfig(token, remoteRouters),
       token: normalizeStarknetAddressSafe(token.denom),
@@ -58,7 +69,7 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
   }
 
   protected async createToken(
-    artifact: ArtifactNew<RawWarpArtifactConfigs['collateral']>,
+    artifact: ArtifactNew<OrchestratedCollateralConfig>,
   ) {
     const mailbox = await getMailboxConfig(
       this.provider.getRawProvider(),
@@ -74,8 +85,8 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
   }
 
   protected override validateUpdateConfig(
-    current: RawWarpArtifactConfigs['collateral'],
-    expected: RawWarpArtifactConfigs['collateral'],
+    current: OrchestratedCollateralConfig,
+    expected: OrchestratedCollateralConfig,
   ): void {
     super.validateUpdateConfig(current, expected);
     assert(

@@ -2,7 +2,11 @@ import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert } from '@hyperlane-xyz/utils';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
@@ -71,10 +75,15 @@ describe('StarknetWarpArtifactManager', () => {
     provider.getRemoteRouters = async () => ({ remoteRouters: [] });
 
     const writer = manager.createWriter('native', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet native writer is expected to be orchestrated',
+    );
     const txs = await writer.update({
       artifactState: ArtifactState.DEPLOYED,
       deployed: { address: '0xabc' },
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: '0x111',
@@ -112,10 +121,15 @@ describe('StarknetWarpArtifactManager', () => {
     provider.getRemoteRouters = async () => ({ remoteRouters: [] });
 
     const writer = manager.createWriter('native', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet native writer is expected to be orchestrated',
+    );
     const txs = await writer.update({
       artifactState: ArtifactState.DEPLOYED,
       deployed: { address: '0xabc' },
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: '0x111',

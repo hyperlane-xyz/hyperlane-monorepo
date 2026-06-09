@@ -1,7 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  type ArtifactReader,
-  type ArtifactWriter,
+  ArtifactComposition,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -9,11 +10,12 @@ import {
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-export function createStarknetInterchainGasPaymasterHookReader(): ArtifactReader<
+export function createStarknetInterchainGasPaymasterHookReader(): OrchestratedArtifactReader<
   RawHookArtifactConfigs['interchainGasPaymaster'],
   DeployedHookAddress
 > {
   return {
+    composition: ArtifactComposition.ORCHESTRATED,
     read: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -23,11 +25,12 @@ export function createStarknetInterchainGasPaymasterHookReader(): ArtifactReader
   };
 }
 
-export function createStarknetInterchainGasPaymasterHookWriter(): ArtifactWriter<
+export function createStarknetInterchainGasPaymasterHookWriter(): OrchestratedArtifactWriter<
   RawHookArtifactConfigs['interchainGasPaymaster'],
   DeployedHookAddress
 > {
   return {
+    composition: ArtifactComposition.ORCHESTRATED,
     read: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,

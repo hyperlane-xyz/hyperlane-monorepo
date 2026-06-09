@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
@@ -43,25 +46,32 @@ describe('4. starknet sdk validator announce e2e tests', function () {
     assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
     const hookAddress = hookReceipt.contractAddress;
 
-    const [mailbox] = await mailboxArtifactManager
-      .createWriter('mailbox', signer)
-      .create({
-        config: {
-          owner: signer.getSignerAddress(),
-          defaultIsm: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: ism.deployed.address },
-          },
-          defaultHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
-          requiredHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      signer,
+    );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
+    const [mailbox] = await mailboxWriter.create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ism.deployed.address },
         },
-      });
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+      },
+    });
     mailboxAddress = mailbox.deployed.address;
     artifactManager = new StarknetValidatorAnnounceArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,

@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
@@ -52,8 +55,13 @@ describe('2. starknet sdk mailbox e2e tests', function () {
     const { ismAddress, hookAddress } = await createPrerequisites();
 
     const writer = artifactManager.createWriter('mailbox', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
     const [created, receipts] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -97,8 +105,13 @@ describe('2. starknet sdk mailbox e2e tests', function () {
     const next = await createPrerequisites();
 
     const writer = artifactManager.createWriter('mailbox', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
     const [created] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -119,6 +132,7 @@ describe('2. starknet sdk mailbox e2e tests', function () {
     const txs = await writer.update({
       ...created,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: newOwner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

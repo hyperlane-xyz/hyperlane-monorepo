@@ -4,7 +4,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -13,6 +16,8 @@ import {
 import {
   type DeployedWarpAddress,
   type RawWarpArtifactConfig,
+  type RawWarpArtifactConfigs,
+  type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -25,6 +30,19 @@ import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+
+function createOrchestratedWarpWriter<T extends WarpType>(
+  manager: StarknetWarpArtifactManager,
+  type: T,
+  signer: StarknetSigner,
+): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  const writer = manager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Starknet ${type} writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 describe('5b. starknet sdk warp transfer e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -53,25 +71,32 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     const mailboxArtifactManager = new StarknetMailboxArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const [mailbox] = await mailboxArtifactManager
-      .createWriter('mailbox', signer)
-      .create({
-        config: {
-          owner: signer.getSignerAddress(),
-          defaultIsm: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: ism.deployed.address },
-          },
-          defaultHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
-          requiredHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      signer,
+    );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
+    const [mailbox] = await mailboxWriter.create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ism.deployed.address },
         },
-      });
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+      },
+    });
     return mailbox.deployed.address;
   }
 
@@ -80,11 +105,19 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     mailboxAddress: string,
     warpWriter: {
       update: (
-        artifact: ArtifactDeployed<C, DeployedWarpAddress>,
+        artifact: ArtifactDeployed<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          DeployedWarpAddress
+        >,
       ) => Promise<AnnotatedTx[]>;
       read: (
         address: string,
-      ) => Promise<ArtifactDeployed<C, DeployedWarpAddress>>;
+      ) => Promise<
+        ArtifactDeployed<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          DeployedWarpAddress
+        >
+      >;
     },
   ) {
     // Enroll remote router via artifact writer
@@ -161,9 +194,14 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const writer = warpArtifactManager.createWriter('native', signer);
+    const writer = createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'native',
+      signer,
+    );
     const [nativeToken] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -187,9 +225,14 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const writer = warpArtifactManager.createWriter('collateral', signer);
+    const writer = createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'collateral',
+      signer,
+    );
     const [collateralToken] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,

@@ -1,9 +1,15 @@
-import { type ArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactNew,
+  ArtifactComposition,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
   type RawWarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
+
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 import {
   type StarknetRemoteRoutersOnChain,
@@ -12,7 +18,11 @@ import {
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
 import { getCreateSyntheticTokenTx } from './warp-tx.js';
-import { getMailboxConfig } from '../mailbox/mailbox-query.js';
+
+type OrchestratedSyntheticConfig = WithCompositionVariant<
+  RawWarpArtifactConfigs['synthetic'],
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 export class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
   'synthetic',
@@ -23,8 +33,9 @@ export class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['synthetic'] {
+  ): OrchestratedSyntheticConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.synthetic,
       ...this.baseConfig(token, remoteRouters),
       name: token.name,
@@ -43,8 +54,9 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['synthetic'] {
+  ): OrchestratedSyntheticConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.synthetic,
       ...this.baseConfig(token, remoteRouters),
       name: token.name,
@@ -54,7 +66,7 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   }
 
   protected override validateCreateConfig(
-    config: RawWarpArtifactConfigs['synthetic'],
+    config: OrchestratedSyntheticConfig,
   ): void {
     super.validateCreateConfig(config);
     assert(
@@ -64,8 +76,8 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   }
 
   protected override validateUpdateConfig(
-    current: RawWarpArtifactConfigs['synthetic'],
-    expected: RawWarpArtifactConfigs['synthetic'],
+    current: OrchestratedSyntheticConfig,
+    expected: OrchestratedSyntheticConfig,
   ): void {
     super.validateUpdateConfig(current, expected);
     assert(
@@ -87,7 +99,7 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   }
 
   protected async createToken(
-    artifact: ArtifactNew<RawWarpArtifactConfigs['synthetic']>,
+    artifact: ArtifactNew<OrchestratedSyntheticConfig>,
   ) {
     const mailbox = await getMailboxConfig(
       this.provider.getRawProvider(),

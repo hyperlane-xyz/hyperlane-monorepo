@@ -2,9 +2,10 @@ import { type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -114,10 +115,12 @@ async function readProtocolFeeMaxFromStorage(
   return undefined;
 }
 
-export class StarknetProtocolFeeHookReader implements ArtifactReader<
+export class StarknetProtocolFeeHookReader implements OrchestratedArtifactReader<
   RawHookArtifactConfigs['protocolFee'],
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly provider: StarknetProvider,
@@ -178,7 +181,10 @@ export class StarknetProtocolFeeHookReader implements ArtifactReader<
 export class StarknetProtocolFeeHookWriter
   extends StarknetProtocolFeeHookReader
   implements
-    ArtifactWriter<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
+    OrchestratedArtifactWriter<
+      RawHookArtifactConfigs['protocolFee'],
+      DeployedHookAddress
+    >
 {
   constructor(
     chainMetadata: ChainMetadataForAltVM,

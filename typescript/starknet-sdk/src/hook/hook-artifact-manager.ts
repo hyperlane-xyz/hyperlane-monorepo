@@ -3,6 +3,8 @@ import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -83,7 +85,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
+      [K in HookType]: () => OrchestratedArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
@@ -113,7 +115,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     );
 
     const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
+      [K in HookType]: () => OrchestratedArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;

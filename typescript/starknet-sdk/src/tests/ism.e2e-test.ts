@@ -1,8 +1,21 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { eqAddressStarknet, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  type OrchestratedArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type DeployedIsmAddress,
+  type IsmType,
+  type RawIsmArtifactConfigs,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  assert,
+  eqAddressStarknet,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -12,6 +25,19 @@ import {
 } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetAnnotatedTx } from '../types.js';
+
+function createOrchestratedIsmWriter<T extends IsmType>(
+  manager: StarknetIsmArtifactManager,
+  type: T,
+  signer: StarknetSigner,
+): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  const writer = manager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Starknet ${type} ISM writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 function normalizeValidators(addresses: string[]): string[] {
   return addresses
@@ -116,9 +142,14 @@ describe('1. starknet sdk ISM e2e tests', function () {
     const noopA = noopAResult.deployed.address;
     const noopB = noopBResult.deployed.address;
 
-    const writer = artifactManager.createWriter(AltVM.IsmType.ROUTING, signer);
+    const writer = createOrchestratedIsmWriter(
+      artifactManager,
+      AltVM.IsmType.ROUTING,
+      signer,
+    );
     const [created] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: signer.getSignerAddress(),
         domains: {
@@ -138,6 +169,7 @@ describe('1. starknet sdk ISM e2e tests', function () {
     const updateTxs = await writer.update({
       ...created,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: newOwner,
         domains: {

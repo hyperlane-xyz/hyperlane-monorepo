@@ -2,8 +2,12 @@ import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
@@ -70,9 +74,14 @@ describe('StarknetMailboxArtifactManager', () => {
     };
 
     const writer = manager.createWriter('mailbox', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
     const [artifact, receipts] = await writer.create({
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -101,9 +110,14 @@ describe('StarknetMailboxArtifactManager', () => {
     const signer = new MockStarknetSigner();
 
     const writer = manager.createWriter('mailbox', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
     const [artifact, receipts] = await writer.create({
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

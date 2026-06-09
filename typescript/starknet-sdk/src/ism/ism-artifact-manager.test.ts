@@ -2,8 +2,12 @@ import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
@@ -78,10 +82,15 @@ describe('StarknetIsmArtifactManager', () => {
     const manager = new StarknetIsmArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
     const writer = manager.createWriter('domainRoutingIsm', signer);
+    assert(
+      writer.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet routing ISM writer is expected to be orchestrated',
+    );
 
     const [, receipts] = await writer.create({
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: signer.getSignerAddress(),
         domains: {

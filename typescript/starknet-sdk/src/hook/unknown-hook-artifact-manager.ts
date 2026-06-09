@@ -1,9 +1,10 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -16,10 +17,12 @@ import {
 
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
-export class StarknetUnknownHookReader implements ArtifactReader<
+export class StarknetUnknownHookReader implements OrchestratedArtifactReader<
   RawHookArtifactConfigs['unknownHook'],
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   async read(
     address: string,
   ): Promise<
@@ -36,7 +39,10 @@ export class StarknetUnknownHookReader implements ArtifactReader<
 export class StarknetUnknownHookWriter
   extends StarknetUnknownHookReader
   implements
-    ArtifactWriter<RawHookArtifactConfigs['unknownHook'], DeployedHookAddress>
+    OrchestratedArtifactWriter<
+      RawHookArtifactConfigs['unknownHook'],
+      DeployedHookAddress
+    >
 {
   async create(
     _artifact: ArtifactNew<RawHookArtifactConfigs['unknownHook']>,

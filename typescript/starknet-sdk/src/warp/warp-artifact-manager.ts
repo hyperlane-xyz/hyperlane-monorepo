@@ -3,6 +3,9 @@ import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
   type ArtifactWriter,
+  ArtifactComposition,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -59,7 +62,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
-      [K in WarpType]: ArtifactReader<
+      [K in WarpType]: OrchestratedArtifactReader<
         RawWarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
@@ -68,6 +71,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
       collateral: new StarknetCollateralTokenReader(this.provider),
       synthetic: new StarknetSyntheticTokenReader(this.provider),
       crossCollateral: {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: async () => {
           throw new Error(
             'Cross-collateral tokens are not supported on Starknet',
@@ -85,7 +89,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
     assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
 
     const writers: {
-      [K in WarpType]: ArtifactWriter<
+      [K in WarpType]: OrchestratedArtifactWriter<
         RawWarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
@@ -94,6 +98,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
       collateral: new StarknetCollateralTokenWriter(this.provider, signer),
       synthetic: new StarknetSyntheticTokenWriter(this.provider, signer),
       crossCollateral: {
+        composition: ArtifactComposition.ORCHESTRATED,
         read: async () => {
           throw new Error(
             'Cross-collateral tokens are not supported on Starknet',

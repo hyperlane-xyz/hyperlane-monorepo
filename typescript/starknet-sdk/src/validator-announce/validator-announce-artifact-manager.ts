@@ -1,11 +1,14 @@
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ArtifactComposition,
   ArtifactDeployed,
   ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -83,10 +86,12 @@ async function readMailboxAddressFromStorage(
   return uniqueCandidates.length === 1 ? uniqueCandidates[0] : undefined;
 }
 
-class StarknetValidatorAnnounceReader implements ArtifactReader<
+class StarknetValidatorAnnounceReader implements OrchestratedArtifactReader<
   RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
   DeployedValidatorAnnounceAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly provider: StarknetProvider) {}
 
   async read(
@@ -129,7 +134,7 @@ class StarknetValidatorAnnounceReader implements ArtifactReader<
 class StarknetValidatorAnnounceWriter
   extends StarknetValidatorAnnounceReader
   implements
-    ArtifactWriter<
+    OrchestratedArtifactWriter<
       RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
       DeployedValidatorAnnounceAddress
     >
@@ -218,7 +223,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     DeployedValidatorAnnounceAddress
   > {
     const readers: {
-      [K in ValidatorAnnounceType]: ArtifactReader<
+      [K in ValidatorAnnounceType]: OrchestratedArtifactReader<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;
@@ -238,7 +243,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     DeployedValidatorAnnounceAddress
   > {
     const writerFactories: {
-      [K in ValidatorAnnounceType]: () => ArtifactWriter<
+      [K in ValidatorAnnounceType]: () => OrchestratedArtifactWriter<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;

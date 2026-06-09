@@ -2,9 +2,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -21,10 +22,12 @@ import { StarknetSigner } from '../clients/signer.js';
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 
-export class StarknetMessageIdMultisigIsmReader implements ArtifactReader<
+export class StarknetMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
   RawIsmArtifactConfigs['messageIdMultisigIsm'],
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -54,7 +57,7 @@ export class StarknetMessageIdMultisigIsmReader implements ArtifactReader<
 export class StarknetMessageIdMultisigIsmWriter
   extends StarknetMessageIdMultisigIsmReader
   implements
-    ArtifactWriter<
+    OrchestratedArtifactWriter<
       RawIsmArtifactConfigs['messageIdMultisigIsm'],
       DeployedIsmAddress
     >

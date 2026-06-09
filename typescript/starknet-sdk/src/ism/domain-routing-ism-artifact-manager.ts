@@ -1,9 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
   isArtifactDeployed,
   isArtifactNew,
   isArtifactUnderived,
@@ -29,17 +31,24 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class StarknetRoutingIsmReader implements ArtifactReader<
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawIsmArtifactConfigs['domainRoutingIsm'],
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+export class StarknetRoutingIsmReader implements OrchestratedArtifactReader<
   RawIsmArtifactConfigs['domainRoutingIsm'],
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
     address: string,
   ): Promise<
     ArtifactDeployed<
-      RawIsmArtifactConfigs['domainRoutingIsm'],
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >
   > {
@@ -47,7 +56,7 @@ export class StarknetRoutingIsmReader implements ArtifactReader<
       this.provider.getRawProvider(),
       address,
     );
-    const domains: RawIsmArtifactConfigs['domainRoutingIsm']['domains'] = {};
+    const domains: OrchestratedRawRoutingIsmArtifactConfig['domains'] = {};
 
     for (const route of routing.routes) {
       domains[route.domainId] = {
@@ -59,6 +68,7 @@ export class StarknetRoutingIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: 'domainRoutingIsm',
         owner: routing.owner,
         domains,
@@ -71,7 +81,7 @@ export class StarknetRoutingIsmReader implements ArtifactReader<
 export class StarknetRoutingIsmWriter
   extends StarknetRoutingIsmReader
   implements
-    ArtifactWriter<
+    OrchestratedArtifactWriter<
       RawIsmArtifactConfigs['domainRoutingIsm'],
       DeployedIsmAddress
     >
@@ -84,11 +94,11 @@ export class StarknetRoutingIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawIsmArtifactConfigs['domainRoutingIsm']>,
+    artifact: ArtifactNew<OrchestratedRawRoutingIsmArtifactConfig>,
   ): Promise<
     [
       ArtifactDeployed<
-        RawIsmArtifactConfigs['domainRoutingIsm'],
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       >,
       TxReceipt[],
@@ -149,7 +159,7 @@ export class StarknetRoutingIsmWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawIsmArtifactConfigs['domainRoutingIsm'],
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >,
   ): Promise<AnnotatedTx[]> {

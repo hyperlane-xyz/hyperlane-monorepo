@@ -1,8 +1,14 @@
-import { type ArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactNew,
+  ArtifactComposition,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
   type RawWarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
+
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 import {
   type StarknetRemoteRoutersOnChain,
@@ -11,7 +17,11 @@ import {
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
 import { getCreateNativeTokenTx } from './warp-tx.js';
-import { getMailboxConfig } from '../mailbox/mailbox-query.js';
+
+type OrchestratedNativeConfig = WithCompositionVariant<
+  RawWarpArtifactConfigs['native'],
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 export class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
   'native',
@@ -22,8 +32,9 @@ export class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['native'] {
+  ): OrchestratedNativeConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.native,
       ...this.baseConfig(token, remoteRouters),
     };
@@ -39,16 +50,15 @@ export class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
   protected toConfig(
     token: StarknetWarpTokenOnChain,
     remoteRouters: StarknetRemoteRoutersOnChain,
-  ): RawWarpArtifactConfigs['native'] {
+  ): OrchestratedNativeConfig {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.native,
       ...this.baseConfig(token, remoteRouters),
     };
   }
 
-  protected async createToken(
-    artifact: ArtifactNew<RawWarpArtifactConfigs['native']>,
-  ) {
+  protected async createToken(artifact: ArtifactNew<OrchestratedNativeConfig>) {
     const mailbox = await getMailboxConfig(
       this.provider.getRawProvider(),
       artifact.config.mailbox,

@@ -1,25 +1,46 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
-
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  type OrchestratedArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type DeployedWarpAddress,
+  type RawWarpArtifactConfigs,
+  type WarpType,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
-import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_STARKNET_CHAIN_METADATA,
 } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
+import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+
+function createOrchestratedWarpWriter<T extends WarpType>(
+  manager: StarknetWarpArtifactManager,
+  type: T,
+  signer: StarknetSigner,
+): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  const writer = manager.createWriter(type, signer);
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Starknet ${type} writer is expected to be orchestrated`,
+  );
+  return writer;
+}
 
 describe('5a. starknet sdk warp core e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -46,25 +67,32 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const mailboxArtifactManager = new StarknetMailboxArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const [mailbox] = await mailboxArtifactManager
-      .createWriter('mailbox', signer)
-      .create({
-        config: {
-          owner: signer.getSignerAddress(),
-          defaultIsm: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: ism.deployed.address },
-          },
-          defaultHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
-          requiredHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hookAddress },
-          },
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      signer,
+    );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Starknet mailbox writer is expected to be orchestrated',
+    );
+    const [mailbox] = await mailboxWriter.create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ism.deployed.address },
         },
-      });
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: hookAddress },
+        },
+      },
+    });
     return mailbox.deployed.address;
   }
 
@@ -73,17 +101,20 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const [nativeToken] = await warpArtifactManager
-      .createWriter('native', signer)
-      .create({
-        config: {
-          type: AltVM.TokenType.native,
-          owner: signer.getSignerAddress(),
-          mailbox: mailboxAddress,
-          remoteRouters: {},
-          destinationGas: {},
-        },
-      });
+    const [nativeToken] = await createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'native',
+      signer,
+    ).create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        type: AltVM.TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
     const readToken = await warpArtifactManager.readWarpToken(
       nativeToken.deployed.address,
     );
@@ -101,20 +132,23 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const [syntheticToken] = await warpArtifactManager
-      .createWriter('synthetic', signer)
-      .create({
-        config: {
-          type: AltVM.TokenType.synthetic,
-          owner: signer.getSignerAddress(),
-          mailbox: mailboxAddress,
-          name: 'TEST',
-          symbol: 'TEST',
-          decimals: 18,
-          remoteRouters: {},
-          destinationGas: {},
-        },
-      });
+    const [syntheticToken] = await createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'synthetic',
+      signer,
+    ).create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        type: AltVM.TokenType.synthetic,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        name: 'TEST',
+        symbol: 'TEST',
+        decimals: 18,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
 
     const readToken = await warpArtifactManager.readWarpToken(
       syntheticToken.deployed.address,
@@ -137,18 +171,21 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const [collateralToken] = await warpArtifactManager
-      .createWriter('collateral', signer)
-      .create({
-        config: {
-          type: AltVM.TokenType.collateral,
-          owner: signer.getSignerAddress(),
-          mailbox: mailboxAddress,
-          token: collateralDenom,
-          remoteRouters: {},
-          destinationGas: {},
-        },
-      });
+    const [collateralToken] = await createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'collateral',
+      signer,
+    ).create({
+      config: {
+        composition: ArtifactComposition.ORCHESTRATED,
+        type: AltVM.TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralDenom,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
 
     const collateralReader = warpArtifactManager.createReader('collateral');
     const readToken = await collateralReader.read(
@@ -172,9 +209,14 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const warpWriter = warpArtifactManager.createWriter('native', signer);
+    const warpWriter = createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'native',
+      signer,
+    );
     const [nativeToken] = await warpWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -235,9 +277,14 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const warpArtifactManager = new StarknetWarpArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
-    const warpWriter = warpArtifactManager.createWriter('native', signer);
+    const warpWriter = createOrchestratedWarpWriter(
+      warpArtifactManager,
+      'native',
+      signer,
+    );
     const [nativeToken] = await warpWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
