@@ -10,16 +10,29 @@ import type {
   IRawIsmArtifactManager,
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import type { SvmDeployedIsm, SvmRpc } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
+import { SvmRoutingMultisigReader } from './routing-multisig-reader.js';
+import { SvmRoutingMultisigWriter } from './routing-multisig-writer.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
 export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
-  constructor(private readonly rpc: SvmRpc) {}
+  constructor(
+    private readonly rpc: SvmRpc,
+    /**
+     * Superset of remote domain ids the routing-multisig reader/writer may
+     * encounter on-chain. Required for `domainRoutingIsm` reader/writer
+     * dispatch because DomainData PDAs don't carry the domain id in their
+     * payload — see `SvmRoutingMultisigReader` JSDoc. Callers that don't
+     * need domain-routing reads can omit it.
+     */
+    private readonly candidateDomains?: readonly number[],
+  ) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const programId = parseAddress(address);
@@ -39,10 +52,16 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       >;
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
-      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      domainRoutingIsm: () => {
+        assert(
+          this.candidateDomains !== undefined,
+          'domainRoutingIsm reader requires candidateDomains — pass via SvmIsmArtifactManager constructor (DomainData PDAs do not store the domain id)',
+        );
+        return new SvmRoutingMultisigReader(this.rpc, this.candidateDomains);
+      },
       messageIdMultisigIsm: () => {
         throw new Error(
-          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmReader directly.',
+          'On SVM, multisig validators are configured per-domain inside a routing-multisig program. Use type "domainRoutingIsm" instead.',
         );
       },
     };
@@ -67,10 +86,18 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
           this.rpc,
           signer,
         ),
-      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      domainRoutingIsm: () =>
+        new SvmRoutingMultisigWriter(
+          {
+            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.multisigIsm },
+            candidateDomains: this.candidateDomains,
+          },
+          this.rpc,
+          signer,
+        ),
       messageIdMultisigIsm: () => {
         throw new Error(
-          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmWriter directly.',
+          'On SVM, multisig validators are configured per-domain inside a routing-multisig program. Use type "domainRoutingIsm" instead.',
         );
       },
     };
@@ -84,7 +111,8 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       case IsmType.TEST_ISM:
         return 'testIsm';
       case IsmType.MESSAGE_ID_MULTISIG:
-        return 'messageIdMultisigIsm';
+      case IsmType.ROUTING:
+        return 'domainRoutingIsm';
       default:
         throw new Error(`Unsupported ISM type on Solana: ${ismType}`);
     }

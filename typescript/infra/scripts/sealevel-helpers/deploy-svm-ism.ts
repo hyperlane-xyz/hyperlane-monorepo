@@ -30,8 +30,7 @@ import chalk from 'chalk';
 import path from 'path';
 
 import {
-  HYPERLANE_SVM_PROGRAM_BYTES,
-  SealevelMessageIdMultisigIsmWriter,
+  SealevelIsmArtifactManager,
   SealevelSigner,
   createRpc,
   fetchMultisigIsmAccessControl,
@@ -39,9 +38,12 @@ import {
   getProgramUpgradeAuthority,
   getSetUpgradeAuthorityInstruction,
 } from '@hyperlane-xyz/sealevel-sdk';
-import type { SealevelMultisigIsmConfig } from '@hyperlane-xyz/sealevel-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ChainName, IsmType } from '@hyperlane-xyz/sdk';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type { RawRoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
@@ -88,21 +90,30 @@ async function loadDeployerKey(
   return bs58.encode(keypairBytes);
 }
 
+type EmbeddedRoutingIsmArtifactConfig = Extract<
+  RawRoutingIsmArtifactConfig,
+  { composition: typeof ArtifactComposition.EMBEDDED }
+>;
+
 /**
  * Convert the hyperlane-context multisig config (keyed by chain name with
- * IsmType) into the svm-sdk's SvmMultisigIsmConfig domains map (keyed by
- * domain ID).
+ * IsmType) into the EMBEDDED routing-multisig domains map (keyed by domain
+ * ID) consumed by the artifact-manager writer.
  */
-function buildDomainMap(
+function buildRoutingDomains(
   config: SvmMultisigConfigMap,
-): Record<number, { validators: string[]; threshold: number }> {
-  const domains: Record<number, { validators: string[]; threshold: number }> =
-    {};
+): EmbeddedRoutingIsmArtifactConfig['domains'] {
+  const domains: EmbeddedRoutingIsmArtifactConfig['domains'] = {};
   for (const [remoteChain, entry] of Object.entries(config)) {
     const meta = getChain(remoteChain);
     domains[meta.domainId] = {
-      validators: entry.validators,
-      threshold: entry.threshold,
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: 'messageIdMultisigIsm',
+        validators: entry.validators,
+        threshold: entry.threshold,
+      },
+      deployed: { address: '' },
     };
   }
   return domains;
@@ -161,7 +172,7 @@ async function processChain(
   logger.info(chalk.gray(`  Squads vault: ${vaultAddress}`));
   logger.info(chalk.gray(`  Deployer:     ${deployerAddress}`));
 
-  // ── Step 1-2-3: Deploy + Init + Configure via SvmMessageIdMultisigIsmWriter
+  // ── Step 1-2-3: Deploy + Init + Configure via EMBEDDED routing-multisig writer
   logger.info(chalk.yellow('\n[1-3/6] Deploy, initialize, and configure ISM'));
 
   const rcDir = path.resolve(
@@ -180,7 +191,7 @@ async function processChain(
     throw new Error(`Config not found: ${configPath}`);
   }
   const multisigConfig: SvmMultisigConfigMap = readJson(configPath);
-  const domains = buildDomainMap(multisigConfig);
+  const domains = buildRoutingDomains(multisigConfig);
   logger.info(
     chalk.gray(
       `  ${Object.keys(domains).length} remote domains from ${configPath}`,
@@ -194,19 +205,21 @@ async function processChain(
     programAddress = address(existing.program_id);
     logger.info(chalk.gray(`  Already deployed: ${programAddress}`));
   } else {
-    // Use the Writer to deploy + init + configure in one shot
-    const writer = new SealevelMessageIdMultisigIsmWriter(rpc, signer);
-    const ismConfig: SealevelMultisigIsmConfig = {
-      type: IsmType.MESSAGE_ID_MULTISIG,
-      validators: [],
-      threshold: 0,
-      program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.multisigIsm },
-      domains,
-    };
+    const manager = new SealevelIsmArtifactManager(rpc);
+    const writer = manager.createWriter('domainRoutingIsm', signer);
+    assert(
+      writer.composition === ArtifactComposition.EMBEDDED,
+      'expected EMBEDDED routing-multisig writer on SVM',
+    );
 
     const [deployed, receipts] = await writer.create({
       artifactState: ArtifactState.NEW,
-      config: ismConfig,
+      config: {
+        composition: ArtifactComposition.EMBEDDED,
+        type: 'domainRoutingIsm',
+        owner: signer.getSignerAddress(),
+        domains,
+      },
     });
 
     programAddress = deployed.deployed.programId;

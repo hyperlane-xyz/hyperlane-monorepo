@@ -4,7 +4,6 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 
 import {
   type AccessControlData,
-  type DomainData,
   decodeMultisigIsmAccessControlAccount,
   decodeMultisigIsmDomainDataAccount,
 } from '../accounts/multisig-ism-message-id.js';
@@ -19,7 +18,6 @@ import {
 import { decodeMultisigIsmMessageIdProgramInstruction } from '../instructions/multisig-ism-message-id.js';
 import {
   deriveMultisigIsmAccessControlPda,
-  deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
 } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
@@ -55,20 +53,6 @@ export async function fetchMultisigIsmAccessControl(
   const raw = await fetchAccountDataRaw(rpc, accessControlPda);
   if (!raw || raw.length === 0) return null;
   return decodeMultisigIsmAccessControlAccount(raw);
-}
-
-export async function fetchMultisigIsmDomainData(
-  rpc: Rpc<SolanaRpcApi>,
-  programId: Address,
-  domain: number,
-): Promise<DomainData | null> {
-  const { address: domainPda } = await deriveMultisigIsmDomainDataPda(
-    programId,
-    domain,
-  );
-  const raw = await fetchAccountDataRaw(rpc, domainPda);
-  if (!raw || raw.length === 0) return null;
-  return decodeMultisigIsmDomainDataAccount(raw);
 }
 
 export async function detectIsmType(
