@@ -112,12 +112,19 @@ async function main() {
       'Optional token decimals used to format the amount into its native denomination if the token metadata cannot be derived on chain',
     )
 
+    .number('price')
+    .describe(
+      'price',
+      'USD price per unit, used only as a fallback when CoinGecko has no price for this token (common for new/testnet/not-yet-listed tokens). When CoinGecko returns a price, this is ignored.',
+    )
+
     .boolean('dry-run')
     .describe('dry-run', 'Simulate the transaction without sending')
     .default('dry-run', false).argv;
 
   const config = getEnvironmentConfig(argv.environment);
-  const { recipient, amount, chain, dryRun, token, decimals, symbol } = argv;
+  const { recipient, amount, chain, dryRun, token, decimals, symbol, price } =
+    argv;
 
   logger.info(
     {
@@ -195,6 +202,7 @@ async function main() {
       chainName: chain,
       dryRun,
       fundInfo: tokenToFundInfo,
+      priceFallback: price,
     });
 
     logger.info('Funding operation completed successfully');
@@ -217,6 +225,7 @@ interface FundingParams {
   chainName: ChainName;
   fundInfo: TokenToFundInfo;
   dryRun: boolean;
+  priceFallback?: number;
 }
 
 async function fundAccount({
@@ -224,6 +233,7 @@ async function fundAccount({
   chainName,
   dryRun,
   fundInfo,
+  priceFallback,
 }: FundingParams): Promise<void> {
   const { amount, recipientAddress, tokenDecimals } = fundInfo;
 
@@ -247,23 +257,50 @@ async function fundAccount({
     apiKey: await getCoinGeckoApiKey(fundingLogger),
   });
 
-  let tokenPrice;
+  let coinGeckoPrice: number | undefined;
   try {
     if (fundInfo.type === TokenFundingType.non_native) {
-      tokenPrice = await tokenPriceGetter.fetchPriceDataByContractAddress(
+      coinGeckoPrice = await tokenPriceGetter.fetchPriceDataByContractAddress(
         chainName,
         fundInfo.tokenAddress,
       );
     } else {
-      tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
+      coinGeckoPrice = await tokenPriceGetter.getTokenPrice(chainName);
     }
   } catch (err) {
-    fundingLogger.error(
+    fundingLogger.warn(
       { err },
-      `Failed to get token price for ${chainName}, falling back to 1usd`,
+      `CoinGecko price lookup failed for ${chainName}`,
     );
-    tokenPrice = 1;
   }
+
+  let tokenPrice: number;
+  if (
+    typeof coinGeckoPrice === 'number' &&
+    Number.isFinite(coinGeckoPrice) &&
+    coinGeckoPrice > 0
+  ) {
+    tokenPrice = coinGeckoPrice;
+    fundingLogger.info(
+      { tokenPrice },
+      `Using CoinGecko price for chain ${chainName}: $${tokenPrice}/unit`,
+    );
+  } else if (
+    typeof priceFallback === 'number' &&
+    Number.isFinite(priceFallback) &&
+    priceFallback > 0
+  ) {
+    tokenPrice = priceFallback;
+    fundingLogger.info(
+      { tokenPrice },
+      `Using --price fallback for chain ${chainName}: $${tokenPrice}/unit`,
+    );
+  } else {
+    throw new Error(
+      `Could not resolve token price for chain ${chainName}; CoinGecko returned no price and --price was not supplied. Re-run with --price <usd-per-unit> to set a manual fallback.`,
+    );
+  }
+
   const fundingAmountInUsd = amount * tokenPrice;
 
   if (fundingAmountInUsd > MAX_FUNDING_AMOUNT_IN_USD) {

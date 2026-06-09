@@ -119,13 +119,21 @@ async function main() {
     process.exit(1);
   }
 
-  const getOwnerIcaChains = (
-    chains?.length ? chains : config.supportedChainNames
-  ).filter(
+  const requestedChains = chains?.length ? chains : config.supportedChainNames;
+  const getOwnerIcaChains = requestedChains.filter(
     (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
   );
+  const droppedChains = requestedChains.filter(
+    (chain) => !isEthereumProtocolChain(chain) || chainsToSkip.includes(chain),
+  );
 
+  let hadFailure = false;
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
+
+  for (const chain of droppedChains) {
+    results[chain] = { ICA: 'DROPPED (non-EVM or in chainsToSkip)' };
+  }
+
   const { fulfilled, rejected } = await mapAllSettled(
     getOwnerIcaChains,
     async (chain) => {
@@ -168,6 +176,7 @@ async function main() {
         `Failed to process ${chain}:`,
         'error' in value ? value.error : 'Unknown error',
       );
+      hadFailure = true;
     } else {
       results[chain] = value.result;
     }
@@ -175,11 +184,12 @@ async function main() {
 
   for (const [chain, error] of rejected) {
     rootLogger.error(`Promise rejected for ${chain}:`, error);
+    hadFailure = true;
   }
 
   // eslint-disable-next-line no-console
   console.table(results);
-  process.exit(0);
+  process.exit(hadFailure ? 1 : 0);
 }
 
 main()

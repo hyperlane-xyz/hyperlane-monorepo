@@ -172,4 +172,7 @@ async function main() {
 
 main()
   .then(() => rootLogger.info('Deploy successful!'))
-  .catch(rootLogger.error);
+  .catch((err) => {
+    rootLogger.error(err);
+    process.exit(1);
+  });
