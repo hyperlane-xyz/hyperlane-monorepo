@@ -96,9 +96,11 @@ Warp fee owners:
 
 If the ticket specifies custom fee owners, show those instead and label them accordingly.
 
-Ask the user:
+Ask the user to confirm or provide corrections. End your message with this marker (this MUST be the very last thing in your message):
 
-> **Are these the correct owner addresses?** Type `yes` to proceed, or provide corrections.
+```test
+[CONFIRM: Owner addresses are correct]
+```
 
 Wait for confirmation before proceeding. If the user provides corrections, update your record of owner addresses accordingly.
 
@@ -132,9 +134,11 @@ pnpm -C typescript/cli hyperlane warp apply \
 
 Where `<WARP_ROUTE_ID>` is the stable route ID from init-route Step 7a (e.g. `USDS/igra` or `USDS/ethereum-igra`).
 
-Show the user the exact command and ask:
+Show the user the exact command, then end your message with this marker (this MUST be the very last thing in your message):
 
-> **Ready to run warp apply to transfer ownership?** Type `yes` to execute, or `no` to run manually.
+```test
+[CONFIRM: Run warp apply to transfer ownership for <WARP_ROUTE_ID>]
+```
 
 If the user confirms, run it. Show the full output on completion.
 
@@ -207,9 +211,11 @@ If no logo is attached to the ticket and no local file exists, skip this step.
 
 ### 11c: Show Final Config for Review
 
-Show the user the complete final content of `<chains>-config.yaml`. Ask:
+Show the user the complete final content of `<chains>-config.yaml`, then end your message with this marker (this MUST be the very last thing in your message):
 
-> **Does this config.yaml look correct?** Type `yes` to proceed, or describe any changes needed.
+```test
+[CONFIRM: Proceed with config.yaml as written]
+```
 
 Do not proceed to Step 12 until the user confirms.
 

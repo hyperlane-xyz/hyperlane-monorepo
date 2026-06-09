@@ -191,9 +191,11 @@ tron:
 - Copy `decimals`, `name`, `symbol` from existing entries
 - `owner` is always the customer's ICA or Safe address from Step 5 — never the deployer
 
-Write the updated deploy.yaml back to the registry. Show the user the diff (new chain entry only).
+Write the updated deploy.yaml back to the registry. Show the user the diff (new chain entry only), then end your message with this marker (this MUST be the very last thing in your message):
 
-Ask: **"Does this deploy.yaml look correct? Type `yes` to proceed, or describe changes needed."**
+```test
+[CONFIRM: Proceed with deploy.yaml extension for <new-chain>]
+```
 
 Do not proceed until confirmed.
 
@@ -345,7 +347,11 @@ Tell the user:
 > Existing chains requiring customer signature: `<list>`
 > New chain being deployed: `<new-chain>`
 
-Ask: **"Ready to run? Type `yes` to execute or `no` to run manually."**
+End your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Run warp apply to extend route to <new-chain>]
+```
 
 ### 9c: Run the Command
 

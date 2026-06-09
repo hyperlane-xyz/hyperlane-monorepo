@@ -435,9 +435,15 @@ Check if a directory and/or file already exists. If it does, show the user the e
 
 Write the deploy.yaml to the registry path, then show the user the final content and full path.
 
-Ask the user: **"Does this deploy.yaml look correct? Type `yes` to proceed to deployment, or describe any changes needed."**
+Ask the user to review the deploy.yaml and confirm or describe any changes needed. End your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Proceed with deploy.yaml as written]
+```
 
 Do not proceed to Step 7 until the user confirms.
+
+> **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
 ---
 
@@ -497,9 +503,11 @@ pnpm -C typescript/cli hyperlane warp deploy \
 
 Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
 
-Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. Then ask:
+Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. End your message with this marker (this MUST be the very last thing in your message):
 
-> **Ready to run the warp deploy?** Type `yes` to execute, or `no` to run it manually.
+```test
+[CONFIRM: Run warp deploy for <warp-route-id>]
+```
 
 ---
 

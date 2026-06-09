@@ -21,7 +21,13 @@ If Linear ticket URL(s) are provided, fetch each ticket to extract the warp rout
 
 ## Step 1: Confirm the warp route ID(s)
 
-Show the user the warp route IDs you'll add and ask them to confirm before proceeding.
+Show the user the warp route IDs you'll add, then end your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Add warp route IDs <ids> to Nexus whitelist]
+```
+
+> **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
 ---
 

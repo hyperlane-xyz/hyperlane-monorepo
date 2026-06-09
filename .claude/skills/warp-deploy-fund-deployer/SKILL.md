@@ -397,9 +397,11 @@ Show the user all generated commands in a table with the USD equivalent for each
 Total: ~XX.XX USD
 ```
 
-Then ask:
+This will transfer funds from the Hyperlane deployer key to the recipient address. End your message with this marker (this MUST be the very last thing in your message):
 
-> **Ready to run these funding commands?** This will transfer funds from the Hyperlane deployer key to the recipient address. Type `yes` to proceed or `no` to skip.
+```test
+[CONFIRM: Transfer funds from deployer key to <recipient-address> across <N> chains]
+```
 
 When running each command, print a one-line status before and after each transfer:
 
