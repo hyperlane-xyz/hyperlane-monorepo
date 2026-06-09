@@ -71,6 +71,21 @@ export const warpRouteWhitelist: Array<string> | null = [
 
 ---
 
+## Step 3b: Verify the edit compiles
+
+Before committing, run the repo's TypeScript type-check to catch any syntax slip (trailing comma, mis-quoted string, etc.) that would ship a broken Nexus build:
+
+```bash
+cd "$REPO_PATH"
+pnpm typecheck
+```
+
+(The `typecheck` script is defined in `package.json` as `tsc`.)
+
+If `pnpm typecheck` reports any error from `src/consts/warpRouteWhitelist.ts`, **stop** — surface the error, do not commit. The most common cause is a stray comma or a non-string array entry; re-read the file, fix, and re-run until clean.
+
+---
+
 ## Step 4: Commit and push
 
 ```bash
