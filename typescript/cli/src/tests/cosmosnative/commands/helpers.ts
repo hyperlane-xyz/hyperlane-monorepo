@@ -2,6 +2,7 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import path from 'path';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactComposition } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   CosmosNativeSigner,
   CosmosWarpArtifactManager,
@@ -57,8 +58,13 @@ export async function deployCollateralToken(
     AltVM.TokenType.collateral,
     signer,
   );
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Cosmos ${AltVM.TokenType.collateral} writer is expected to be orchestrated`,
+  );
   const [result] = await writer.create({
     config: {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.collateral,
       owner: signer.getSignerAddress(),
       mailbox,
@@ -102,8 +108,13 @@ export async function deploySyntheticToken(
     AltVM.TokenType.synthetic,
     signer,
   );
+  assert(
+    writer.composition === ArtifactComposition.ORCHESTRATED,
+    `Cosmos ${AltVM.TokenType.synthetic} writer is expected to be orchestrated`,
+  );
   const [result] = await writer.create({
     config: {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.synthetic,
       owner: signer.getSignerAddress(),
       mailbox,

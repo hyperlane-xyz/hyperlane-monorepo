@@ -18,7 +18,7 @@ import {
   ExplorerLicenseType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { deepEquals, mustGet } from '@hyperlane-xyz/utils';
+import { assert, deepEquals, mustGet } from '@hyperlane-xyz/utils';
 
 import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { type WriteCommandContext } from '../context/types.js';
@@ -34,7 +34,10 @@ import {
   validateCoreIsmCompatibility,
 } from './utils.js';
 import { getSubmitterByStrategy } from './warp.js';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -123,7 +126,15 @@ export async function runCoreDeploy(params: DeployParams) {
 
       const coreWriter = createCoreWriter(metadata, chainLookup, signer);
       const coreArtifact = coreConfigToArtifact(validatedConfig, chainLookup);
-      const [result] = await coreWriter.create(coreArtifact);
+      const { config: coreConfig } = coreArtifact;
+      assert(
+        coreConfig.composition === ArtifactComposition.ORCHESTRATED,
+        'EMBEDDED core artifact handling will be implemented in slice 5',
+      );
+      const [result] = await coreWriter.create({
+        artifactState: coreArtifact.artifactState,
+        config: coreConfig,
+      });
 
       await completeDeploy(context, 'core', initialBalances, userAddress, [
         chain,
