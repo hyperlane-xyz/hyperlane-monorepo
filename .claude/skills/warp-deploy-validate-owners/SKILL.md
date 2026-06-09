@@ -59,7 +59,14 @@ pnpm -C typescript/cli hyperlane ica deploy \
   --registry <local-registry-path-or-http-url> \
   --origin <origin-chain> \
   --chains <chain> \
-  --owner <safe-address-on-origin>
+  --owner <owner-address-on-origin> \
+  --key.ethereum $HYP_KEY
+```
+
+**Key flag is required.** `ica deploy` is a sign command (it submits an `enrollRemoteRouter` tx on the origin chain). Pass `--key.<protocol>` matching the origin chain's protocol — for ethereum-origin ICAs (the common case) use `--key.ethereum $HYP_KEY` with the env var holding the deployer private key Haggis / the operator has access to. Never combine `--key` (legacy) with `--key.<protocol>`. Before running, end your message with a `[CONFIRM:]` marker because deploying ICAs is destructive (spends gas + creates contracts).
+
+```test
+[CONFIRM: Deploy ICA on <chain> from <origin> owner <owner>]
 ```
 
 - The command derives the ICA address deterministically from `(origin chain ID, owner, ICA router, ISM)`.
