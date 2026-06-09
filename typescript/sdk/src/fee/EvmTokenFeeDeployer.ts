@@ -130,30 +130,33 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [firstSigner, config.token, maxFee, halfAmount, signerAddress],
     );
 
-    // When multiple destinations share identical fee configs, the deployer
-    // cache returns the same contract instance. By then ownership has already
-    // been transferred, so skip setup if we are no longer the owner.
-    const currentOwner = await contract.owner();
-    if (eqAddress(currentOwner, signerAddress)) {
-      for (const signer of additionalSigners) {
-        await this.multiProvider.handleTx(
-          chain,
-          contract.addQuoteSigner(
-            signer,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
-        );
-      }
+    const existingSigners = await contract.quoteSigners();
+    const existingSet = new Set(existingSigners.map((s) => s.toLowerCase()));
+    const signersToAdd = additionalSigners.filter(
+      (s) => !existingSet.has(s.toLowerCase()),
+    );
+    for (const signer of signersToAdd) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.addQuoteSigner(
+          signer,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
 
-      if (!eqAddress(signerAddress, config.owner)) {
-        await this.multiProvider.handleTx(
-          chain,
-          contract.transferOwnership(
-            config.owner,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
-        );
-      }
+    const currentOwner = await contract.owner();
+    if (
+      eqAddress(currentOwner, signerAddress) &&
+      !eqAddress(signerAddress, config.owner)
+    ) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.transferOwnership(
+          config.owner,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
     }
 
     return contract;

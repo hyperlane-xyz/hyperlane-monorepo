@@ -1,10 +1,9 @@
-import { BigNumber, Wallet } from 'ethers';
+import { BigNumber } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
@@ -16,12 +15,12 @@ import { getEnvironmentConfig } from '../core-utils.js';
 type TxFile = {
   version: string;
   chainId: string;
-  meta: any;
+  meta: unknown;
   transactions: Array<{ to: string; value: string; data: string }>;
 };
 
 async function main() {
-  const { directory, file, safeAddress, propose, key } = await withPropose(
+  const { directory, file, safeAddress, propose } = await withPropose(
     yargs(process.argv.slice(2))
       .option('directory', {
         type: 'string',
@@ -39,11 +38,6 @@ async function main() {
         describe: 'Safe address to propose transactions to',
         demandOption: true,
         alias: 's',
-      })
-      .option('key', {
-        type: 'string',
-        describe: 'Private key to use as signer (overrides GCP key lookup)',
-        alias: 'k',
       })
       .check((argv) => {
         if (!argv.directory && !argv.file) {
@@ -64,18 +58,19 @@ async function main() {
     }
     filePaths = [file];
   } else {
-    if (!fs.existsSync(directory!)) {
+    assert(directory, 'missing --directory flag');
+    if (!fs.existsSync(directory)) {
       rootLogger.error(`Directory ${directory} does not exist`);
       process.exit(1);
     }
     const entries = fs
-      .readdirSync(directory!)
+      .readdirSync(directory)
       .filter((f) => path.extname(f) === '.json');
     if (entries.length === 0) {
       rootLogger.error(`No JSON files found in ${directory}`);
       process.exit(1);
     }
-    filePaths = entries.map((f) => path.join(directory!, f));
+    filePaths = entries.map((f) => path.join(directory, f));
   }
 
   const config = getEnvironmentConfig('mainnet3');
@@ -85,18 +80,19 @@ async function main() {
     true,
   );
 
-  if (key) {
-    const wallet = new Wallet(key);
-    multiProvider.setSharedSigner(wallet);
-  }
-
   for (const filePath of filePaths) {
-    const txFile = readJson<TxFile>(filePath);
+    let txFile: TxFile;
+    try {
+      txFile = readJson<TxFile>(filePath);
+    } catch (error) {
+      rootLogger.error(`Failed to parse ${filePath}, skipping:`, error);
+      continue;
+    }
 
     const chainId = txFile.chainId;
-    let chainName: ChainName;
+    let chainName: string;
     try {
-      chainName = multiProvider.getChainName(chainId) as ChainName;
+      chainName = multiProvider.getChainName(chainId);
     } catch {
       rootLogger.error(
         `Could not resolve chain name for chainId ${chainId} (${filePath}), skipping`,

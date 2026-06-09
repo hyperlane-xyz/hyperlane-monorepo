@@ -515,15 +515,14 @@ async function main(): Promise<void> {
     'IRON_API_KEY env var is required (or set in typescript/infra/.env)',
   );
 
-  const a = argv as any;
-  const [cmd] = a._ as string[];
+  const [cmd] = argv._ as string[];
 
   switch (cmd) {
     case 'status':
       await cmdStatus(apiKey);
       break;
     case 'sync':
-      await cmdSync(apiKey, a.dryRun);
+      await cmdSync(apiKey, (argv as { dryRun: boolean }).dryRun);
       break;
     default:
       throw new Error(`Unknown command: ${cmd}`);

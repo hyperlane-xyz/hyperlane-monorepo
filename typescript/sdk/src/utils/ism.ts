@@ -169,10 +169,8 @@ export function sortArraysInConfig(config: any): any {
         Array.isArray(config[key])
       ) {
         sortedConfig[key] = [...config[key]].sort((a: any, b: any) => {
-          const aKey =
-            typeof a === 'object' && a !== null ? a.type : (a as string);
-          const bKey =
-            typeof b === 'object' && b !== null ? b.type : (b as string);
+          const aKey = typeof a === 'object' && a !== null ? a.type : String(a);
+          const bKey = typeof b === 'object' && b !== null ? b.type : String(b);
           if (aKey < bKey) return -1;
           if (aKey > bKey) return 1;
           return 0;
