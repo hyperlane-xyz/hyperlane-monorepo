@@ -230,28 +230,29 @@ echo "Local registry HEAD:  $LOCAL_COMMIT"
 echo "Remote registry HEAD: $REMOTE_COMMIT"
 
 if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
-  echo "⚠️  Local registry is not up to date."
-else
-  echo "✅ Local registry is up to date."
+  echo "❌ Local registry is not up to date."
+  echo "Run \`git -C $REGISTRY_PATH pull\` and retry. Aborting to avoid stale agent config."
+  exit 1
 fi
+
+echo "✅ Local registry is up to date."
 ```
 
 **If the local registry is behind:**
 
-- Stop and tell the user: "Your local `hyperlane-registry` is not on the latest `main` commit. Please run `git -C <path> pull` before continuing, otherwise `update-agent-config` may fail due to missing chain configs."
-- Wait for the user to confirm they have updated it before proceeding.
+- The check above `exit 1`s — surface the error to the user and stop. They must run `git -C <path> pull` before retrying.
 
 ---
 
-## Step 4: Run update-agent-config
+## Step 4: Run agent-configs (repo root, regenerates BOTH mainnet3 and testnet4)
 
-From the monorepo root, run:
+From the **monorepo root**, run:
 
 ```bash
-pnpm -C typescript/infra run update-agent-config:mainnet3
+pnpm agent-configs
 ```
 
-This script regenerates agent configuration files based on the updated registry. It may take a minute.
+This regenerates agent configuration files based on the updated registry — **both** `mainnet_config.json` and `testnet_config.json`. Use this instead of `pnpm -C typescript/infra run update-agent-config:mainnet3`, which only touches mainnet3 and lets testnet4 drift (the regression behind PR #8846).
 
 - Stream/show the output to the user
 - If it fails, show the error and stop — do not proceed until the user resolves it
@@ -307,16 +308,30 @@ Create the monorepo PR directly using `gh pr create`. First check out a branch:
 git checkout -b <your-name>/add-warp-route-<token>-<chains>
 ```
 
-Then stage and commit all changed files (warpIds.ts, .registryrc, agent config JSONs, and for multi-collateral: warpFees.ts, configGetter, warp.ts, rebalancer config):
+Then stage and commit **only the files this skill modifies** — do NOT `git add` whole directories, as that picks up unrelated stale edits.
+
+For a simple route:
 
 ```bash
 git add typescript/infra/config/environments/mainnet3/warp/warpIds.ts
 git add .registryrc
-git add typescript/infra/config/environments/mainnet3/
-git add typescript/infra/config/warp.ts
+git add rust/main/app-contexts/mainnet_config.json
+git add rust/main/config/mainnet_config.json
+git add rust/main/config/testnet_config.json
 git commit -m "feat: add <WARP_ROUTE_ID> warp route"
 git push -u origin HEAD
 ```
+
+For a multi-collateral / config-getter route, also add the specific files you created/modified:
+
+```bash
+git add typescript/infra/config/environments/mainnet3/warp/configGetters/get<Name>WarpConfig.ts
+git add typescript/infra/config/warp.ts
+git add typescript/infra/config/environments/mainnet3/governance/ica/warpFees.ts        # only if you uncommented an entry
+git add typescript/infra/config/environments/mainnet3/rebalancer/<TOKEN>/<label>-config.yaml
+```
+
+Run `git status` before commit and visually confirm the staged set matches the intended changes; abort and unstage any unexpected files.
 
 Then open the PR:
 
@@ -370,6 +385,6 @@ Show the user the PR URL when done.
 
 ## Notes
 
-- The `update-agent-config` script reads `.registryrc` to determine which registry version to use, so updating `.registryrc` first is required
+- The repo-root `pnpm agent-configs` script reads `.registryrc` to determine which registry version to use, so updating `.registryrc` first is required. Always run from the repo root — the env-specific `update-agent-config:mainnet3` lets testnet4 configs drift.
 - Do not skip steps — each depends on the previous
 - If any step fails, surface the error clearly and wait for user input
