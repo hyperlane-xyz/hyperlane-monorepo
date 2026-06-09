@@ -102,13 +102,13 @@ Ask the user:
 
 Wait for confirmation before proceeding. If the user provides corrections, update your record of owner addresses accordingly.
 
-### 10b: Update deploy.yaml with Real Owners
+### 10c: Update deploy.yaml with Real Owners
 
 Update the deploy.yaml by replacing the deployer address with the correct real owner per chain. Only update explicit `owner` keys: the chain-level `owner` field and `owner` inside any `tokenFee` and `feeContracts` blocks. Do not do a global string replace — parse the YAML structure and target only these specific keys.
 
 Write the updated deploy.yaml back to the registry path. Show the user the diff (old → new owners).
 
-### 10c: Build and Run Warp Apply
+### 10d: Build and Run Warp Apply
 
 First, start the HTTP registry in the background to use private RPC URLs:
 
@@ -144,23 +144,40 @@ If the user confirms, run it. Show the full output on completion.
 - Deployer key no longer has funds → top up and retry
 - ICA address not yet deployed → deploy ICA first, then retry
 
-### 10d: Verify Ownership with Warp Read
+### 10e: Verify the Route with Comprehensive `warp check`
 
-After warp apply completes, run warp read to confirm all ownership transfers took effect:
+After warp apply completes, run the canonical CLI verifier against the deployed route. This is the **gate** before downstream steps (monitor deploy, registry PR) — if `warp check` reports violations, the route isn't actually in the target state and the rest of the flow shouldn't proceed.
 
 ```bash
 cd /path/to/hyperlane-monorepo/typescript/cli
 
-pnpm hyperlane warp read \
+pnpm hyperlane warp check \
   --registry http://localhost:<port> \
-  -w <WARP_ROUTE_ID>
+  --warp-route-id <WARP_ROUTE_ID>
 ```
 
-Show the user the output and verify that each chain's `owner` matches the expected real owner address. Flag any discrepancies.
+This is the comprehensive check — compares the on-chain state of every contract in the route against the target `deploy.yaml`. No violations = the deployment matches the config (ownership, ISM, hook, fee, rate-limit, all of it).
 
-### 10e: Stop the HTTP Registry
+**Additionally, IF any chain owner in the route is an ICA** (per the resolution from `/warp-deploy-validate-owners`, or visible in the deploy.yaml `owner` fields), also run the ICA-aware variant:
 
-After warp read completes (or on any failure after Step 10c), stop the HTTP registry using `TaskStop` with the task ID noted in Step 10c. Always stop it — even on failure — so no background process is left running.
+```bash
+pnpm hyperlane warp check --ica \
+  --origin <ICA_ORIGIN_CHAIN> \
+  --chains <ICA_CHAINS> \
+  --warp-route-id <WARP_ROUTE_ID> \
+  --registry http://localhost:<port>
+```
+
+`--origin` is the chain where the controlling Safe lives (typically `ethereum`). `--chains` is the space-separated list of destination chains whose owners are ICAs derived from that origin. This verifies each ICA address derives correctly from the configured owner Safe.
+
+Show the user the full `warp check` output. If there are violations:
+
+- Surface each violation clearly (chain, field, actual vs expected).
+- **Stop**. Do not proceed to Step 11 / 12 (the monorepo register-route and monitor deploy that follow). The route isn't in the right state — investigate and re-apply before continuing.
+
+### 10f: Stop the HTTP Registry
+
+After `warp check` completes (or on any failure after Step 10d), stop the HTTP registry using `TaskStop` with the task ID noted in Step 10d. Always stop it — even on failure — so no background process is left running.
 
 ---
 
@@ -178,13 +195,17 @@ If not found on CoinGecko, note this to the user and skip.
 
 ### 11b: Add Logo
 
-Check the Linear ticket for an attached SVG or PNG logo (the "SVG logo" row in the ticket table). If a logo is attached:
+Check if `/warp-deploy-init-route` already cached the logo locally at `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.svg` (or `logo.png`) — that skill downloads the Linear-uploaded logo eagerly after fetching the ticket, so the JWT signed-URL doesn't expire by the time we get here.
 
-1. Use `mcp__claude_ai_Linear__extract_images` to view the image. Then re-fetch the issue with `mcp__claude_ai_Linear__get_issue` to get a fresh signed URL (the JWT expires in ~5 minutes), and immediately `curl -s -L "<fresh-url>" -o $REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.png` (or `.svg` if SVG is provided).
-2. Save it to `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.svg` (or `logo.png` if only PNG is available).
+1. **If the local file exists** (the happy path): proceed directly to step 3.
+2. **If the local file is missing** (e.g. init-route was skipped or the cached file got purged): re-fetch the issue via `mcp__plugin_linear_linear__get_issue` to obtain a fresh signed URL, then immediately:
+   ```bash
+   curl -sSL "<fresh-signed-url>" -o "$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.<ext>"
+   ```
+   Use `logo.svg` if the upload is SVG; `logo.png` otherwise.
 3. Add `logoURI: /deployments/warp_routes/<TOKEN>/logo.svg` (or `/deployments/warp_routes/<TOKEN>/logo.png`) to **every** token entry in config.yaml (all legs — synthetic and native), after `coinGeckoId` (or after `addressOrDenom` if no coinGeckoId). The path is always the absolute path from the registry root.
 
-If no logo is attached or the logo is already in the registry, skip this step.
+If no logo is attached to the ticket and no local file exists, skip this step.
 
 ### 11c: Show Final Config for Review
 

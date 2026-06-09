@@ -53,18 +53,19 @@ Show the user the ticket title and description before proceeding.
 
 Parse the ticket description to extract the following. Ask the user to clarify anything that is ambiguous or missing:
 
-| Field                            | Description                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Token name**                   | Full name (e.g. `RISE`)                                                                       |
-| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                          |
-| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure |
-| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes             |
-| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC         |
-| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                          |
-| **Warp fee**                     | Fee in basis points (bps), if specified (e.g. `6bps`)                                         |
-| **Fee owner**                    | Address that receives fees — defaults to the chain's `owner` if not specified                 |
-| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                         |
-| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)           |
+| Field                            | Description                                                                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Token name**                   | Full name (e.g. `RISE`)                                                                                                                                                                       |
+| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                                                                                                                          |
+| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure                                                                                                 |
+| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes                                                                                                             |
+| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC                                                                                                         |
+| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                                                                                                                          |
+| **Warp fee**                     | Fee in basis points (bps) + direction (`deposits` / `withdrawals`) from the ticket's `Warp Fee` checkboxes                                                                                    |
+| **Fee owner**                    | Address that receives fees — defaults to "Standard AW controlled ICA" per the ticket                                                                                                          |
+| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                                                                                                                         |
+| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                                           |
+| **Daily Rate Limit**             | Optional amount (e.g. `200,000,000`) — present in the structured `Daily Rate Limit` row on newer tickets. If present, the route adds a rate-limited hook on the synthetic chain (see Step 4). |
 
 **Yield routes**: if the ticket mentions "yield", "ERC4626", "vault", "rebasing", "Aave", or the token is a known yield-bearing token (sUSDS, sDAI, etc.), it is a yield route. There are two subtypes:
 
@@ -97,6 +98,19 @@ cast call <collateral-token-address> "asset()(address)" --rpc-url <RPC_URL>
 **Multi-collateral routes**: when the ticket lists multiple collateral chains, each gets its own `token` address. All `owner` fields use the deployer address — real ICA/multisig addresses are set later in `/warp-deploy-update-owners`.
 
 **Rebalancing**: if the ticket includes liquidity weights (e.g. `35% ethereum, 20% arb…`), the route uses the rebalancer. Add `allowedRebalancers` and `allowedRebalancingBridges` to each **collateral chain** (not synthetic). Use the hardcoded values in the reference tables below — no need to search the registry. The **weights themselves** are NOT in the deploy.yaml — they go in `typescript/infra/config/environments/mainnet3/balances/desiredRebalancerBalances.json` in the monorepo. Flag this to the user as a separate step.
+
+**Daily Rate Limit**: if the ticket's `Daily Rate Limit` row is set (e.g. `200,000,000`), the route needs a rate-limited hook on the synthetic chain. Add the hook config to that chain's entry in deploy.yaml. The value is the daily rate limit cap in the token's smallest unit (i.e. apply `× 10^decimals` to the human-readable number from the ticket).
+
+**Ownership validation prerequisite**: before generating the deploy.yaml in Step 4, **the agent invokes** `/warp-deploy-validate-owners` with the same Linear ticket as input. That skill produces a per-chain owner resolution table (ICA / Safe / Squads / EOA-rejected). The deploy.yaml in Step 4 uses the same deployer address for `owner` fields (real owner transfer happens later in `/warp-deploy-update-owners`), but the validation pass ensures the eventual owners are valid before any chain is touched. If `/warp-deploy-validate-owners` reports any ❌ row, abort — don't proceed to deploy against rejected owners.
+
+**Logo handling**: the Linear ticket's `SVG logo` row links to a Linear upload URL with `?signature=…&exp=…` JWT parameters that expire (typically ~5 minutes). To prevent 401s mid-flow on longer runs, **download the logo eagerly right after fetching the ticket** in Step 1 and cache it locally to `<registry>/deployments/warp_routes/<TOKEN>/logo.<ext>`:
+
+```bash
+# After mcp__plugin_linear_linear__get_issue returns, grab the SVG/PNG row's image URL
+curl -sSL -o "$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.<ext>" "<signed-url>"
+```
+
+Use `logo.svg` if the upload is SVG; `logo.png` otherwise. The local file is then referenced by `logoURI` in `<chain>-config.yaml` later (`/warp-deploy-update-owners` Step 11b). Eagerly downloading prevents the signed URL from expiring before that later step needs to read it.
 
 ---
 
@@ -497,7 +511,7 @@ If the user confirms, first start the HTTP registry in the background to get pri
 cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
-Run with `run_in_background: true`. Wait for the server to be ready by checking the logs for a line like `Listening on http://localhost:<port>`. Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
+Run with `run_in_background: true`. Wait for the log line `Server running` (the actual line emitted by `typescript/http-registry-server/HttpServer.ts`; it includes the port in JSON metadata). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
 
 Tell the user upfront:
 

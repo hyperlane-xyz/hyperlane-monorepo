@@ -125,7 +125,14 @@ Common native token CoinGecko IDs:
 | celo | `celo` |
 | gnosis | `xdai` |
 
-If CoinGecko fails, fall back to 0 USD — still fund based on the gas price calculation, just omit the USD column.
+If CoinGecko fails for a chain, **do not silently fall back to 0 USD** — that would bypass the 10 USD warning and the funding script's `MAX_FUNDING_AMOUNT_IN_USD` safety bound. Instead, the agent tries **alternative price venues** in order before escalating to the user:
+
+1. **CoinMarketCap** — `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest` (requires `CMC_API_KEY`).
+2. **Binance public API** — `https://api.binance.com/api/v3/ticker/price?symbol=<SYMBOL>USDT` for tokens with active Binance markets.
+3. **Uniswap on-chain quote** — query the relevant Uniswap V3 pool's `slot0` against a stablecoin pair (USDC / USDT) on the same chain; useful for tokens with liquidity but no CEX listing.
+4. **Only if all of the above fail**: surface the missing price to the user and ask them to supply a manual override via the funding script's `--price` flag (see Step 8).
+
+When an alternative venue produces a price, log which venue and the value (so the operator can audit). The fund-wallet script's `MAX_FUNDING_AMOUNT_IN_USD` safety bound stays in force regardless of which source produced the price.
 
 **⚠️ Warning threshold**: If the required amount (with buffer) exceeds **10 USD**, warn the user explicitly before running funding commands. This is a signal that gas is unusually expensive on that chain right now.
 
@@ -210,11 +217,7 @@ curl -s "https://api.coingecko.com/api/v3/simple/token_price/<platform>?contract
 
 Where `<platform>` is the CoinGecko platform ID for the chain (e.g. `ethereum`, `arbitrum-one`, `base`, `polygon-pos`, `binance-smart-chain`).
 
-For well-known tokens, use these approximate prices if CoinGecko fails:
-
-- USDC / USDT / DAI: $1.00
-- WETH: same as ETH price
-- WBTC: check ETH price × ~15 (rough ratio, not reliable — prefer API)
+If CoinGecko has no price for the collateral token, **do not invent one with hardcoded fallbacks** — those silently bypass the `MAX_FUNDING_AMOUNT_IN_USD` safety bound. The agent uses the same alternative-venue chain as Step 4: CoinMarketCap → Binance → Uniswap on-chain quote → only as a last resort, ask the user for a manual `--price <usd>` override on `fund-wallet-from-deployer-key.ts` (see Step 8). Always log which venue produced the price.
 
 **Threshold: 1 USD worth of collateral token** (or its underlying asset if ERC4626)
 
@@ -314,6 +317,20 @@ pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   -c <CHAIN> \
   -t <TOKEN_ADDRESS>
 ```
+
+**For tokens not on CoinGecko** (new launches, testnet tokens, internal tokens): the agent should first exhaust the alternative price venues per Step 4 / Step 6 (CoinMarketCap → Binance → Uniswap on-chain quote). Only when **all** of those fail should the agent ask the user for a manual `--price <usd-per-unit>` override. Example, passing a manual price of $0.50 as a last resort:
+
+```bash
+pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+  --recipient <DEPLOYER_ADDRESS> \
+  --amount <AMOUNT> \
+  -e mainnet3 \
+  -c <CHAIN> \
+  -t <TOKEN_ADDRESS> \
+  --price 0.5
+```
+
+The script rejects `--price 0` and any non-positive / non-finite value — the safety bound (`MAX_FUNDING_AMOUNT_IN_USD`) requires a positive price. Without `--price` (or with an invalid value), the script hard-fails when CoinGecko has no price for the token. Whenever the agent supplies a price discovered from an alternative venue (CoinMarketCap / Binance / Uniswap), it should pass that via `--price`.
 
 **ERC4626 vaults**: use the **underlying asset address** (from `asset()`) as `<TOKEN_ADDRESS>`, not the vault token address. The deployer needs the underlying asset to test the route; the vault share is not what gets transferred during bridging tests.
 
