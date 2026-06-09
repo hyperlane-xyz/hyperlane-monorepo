@@ -2,8 +2,11 @@ import { QueryClient } from '@cosmjs/stargate';
 import { connectComet } from '@cosmjs/tendermint-rpc';
 
 import {
+  ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -63,66 +66,98 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   /**
    * Factory method to create mailbox readers.
    *
-   * @param _type - Mailbox type (currently only 'mailbox')
+   * @param type - Mailbox type (currently only 'mailbox')
    * @returns Mailbox reader
    */
   createReader<T extends MailboxType>(
-    _type: T,
+    type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return {
-      read: async (address: string) => {
-        const query = await this.query.get();
-        const reader = new CosmosMailboxReader(query);
-        return reader.read(address);
-      },
-    } satisfies ArtifactReader<
+    const wrapper: OrchestratedArtifactReader<
       RawMailboxArtifactConfigs[T],
       DeployedMailboxAddress
-    >;
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
+        const query = await this.query.get();
+        const reader = this.createReaderWithQuery(type, query);
+        return reader.read(address);
+      },
+    };
+    return wrapper;
+  }
+
+  private createReaderWithQuery<T extends MailboxType>(
+    type: T,
+    query: CosmosMailboxQueryClient,
+  ): OrchestratedArtifactReader<
+    RawMailboxArtifactConfigs[T],
+    DeployedMailboxAddress
+  > {
+    const readers: {
+      [K in MailboxType]: () => OrchestratedArtifactReader<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () => new CosmosMailboxReader(query),
+    };
+
+    return readers[type]();
   }
 
   /**
    * Factory method to create mailbox writers.
    *
-   * @param _type - Mailbox type (currently only 'mailbox')
+   * @param type - Mailbox type (currently only 'mailbox')
    * @param signer - Signer to use for writing transactions
    * @returns Mailbox writer
    */
   createWriter<T extends MailboxType>(
-    _type: T,
+    type: T,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactWriter<
+      RawMailboxArtifactConfigs[T],
+      DeployedMailboxAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.query.get();
-        const writer = new CosmosMailboxWriter(
-          query,
-          signer,
-          this.config.domainId,
-        );
+        const writer = this.createWriterWithQuery(type, query, signer);
         return writer.read(address);
       },
       create: async (artifact) => {
         const query = await this.query.get();
-        const writer = new CosmosMailboxWriter(
-          query,
-          signer,
-          this.config.domainId,
-        );
+        const writer = this.createWriterWithQuery(type, query, signer);
         return writer.create(artifact);
       },
       update: async (artifact) => {
         const query = await this.query.get();
-        const writer = new CosmosMailboxWriter(
-          query,
-          signer,
-          this.config.domainId,
-        );
+        const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
-    } satisfies ArtifactWriter<
-      RawMailboxArtifactConfigs[T],
-      DeployedMailboxAddress
-    >;
+    };
+    return wrapper;
+  }
+
+  private createWriterWithQuery<T extends MailboxType>(
+    type: T,
+    query: CosmosMailboxQueryClient,
+    signer: CosmosNativeSigner,
+  ): OrchestratedArtifactWriter<
+    RawMailboxArtifactConfigs[T],
+    DeployedMailboxAddress
+  > {
+    const writers: {
+      [K in MailboxType]: () => OrchestratedArtifactWriter<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () =>
+        new CosmosMailboxWriter(query, signer, this.config.domainId),
+    };
+
+    return writers[type]();
   }
 }

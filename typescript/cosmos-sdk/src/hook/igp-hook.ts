@@ -4,9 +4,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -29,10 +30,12 @@ import {
  * Reader for Cosmos IGP (Interchain Gas Paymaster) Hook.
  * Reads deployed IGP hook configuration from the chain.
  */
-export class CosmosIgpHookReader implements ArtifactReader<
+export class CosmosIgpHookReader implements OrchestratedArtifactReader<
   IgpHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly query: CosmosHookQueryClient) {}
 
   async read(
@@ -85,7 +88,7 @@ export class CosmosIgpHookReader implements ArtifactReader<
  */
 export class CosmosIgpHookWriter
   extends CosmosIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements OrchestratedArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     query: CosmosHookQueryClient,

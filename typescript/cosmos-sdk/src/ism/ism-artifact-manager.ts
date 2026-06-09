@@ -1,10 +1,12 @@
 import { QueryClient } from '@cosmjs/stargate';
 import { connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -96,13 +98,18 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactReader<
+      RawIsmArtifactConfigs[T],
+      DeployedIsmAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const reader = this.createReaderWithQuery(type, query);
         return reader.read(address);
       },
-    } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress>;
+    };
+    return wrapper;
   }
 
   /**
@@ -115,37 +122,20 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   private createReaderWithQuery<T extends IsmType>(
     type: T,
     query: CosmosIsmQueryClient,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new CosmosTestIsmReader(query) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
-        return new CosmosMerkleRootMultisigIsmReader(
-          query,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new CosmosMessageIdMultisigIsmReader(
-          query,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new CosmosRoutingIsmRawReader(
-          query,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
-    }
+  ): OrchestratedArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+    const readers: {
+      [K in IsmType]: () => OrchestratedArtifactReader<
+        RawIsmArtifactConfigs[K],
+        DeployedIsmAddress
+      >;
+    } = {
+      testIsm: () => new CosmosTestIsmReader(query),
+      merkleRootMultisigIsm: () => new CosmosMerkleRootMultisigIsmReader(query),
+      messageIdMultisigIsm: () => new CosmosMessageIdMultisigIsmReader(query),
+      domainRoutingIsm: () => new CosmosRoutingIsmRawReader(query),
+    };
+
+    return readers[type]();
   }
 
   /**
@@ -160,8 +150,12 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactWriter<
+      RawIsmArtifactConfigs[T],
+      DeployedIsmAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.read(address);
@@ -177,6 +171,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
         return writer.update(artifact);
       },
     };
+    return wrapper;
   }
 
   /**
@@ -191,42 +186,21 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
     query: CosmosIsmQueryClient,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new CosmosTestIsmWriter(
-          query,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
-        return new CosmosMerkleRootMultisigIsmWriter(
-          query,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new CosmosMessageIdMultisigIsmWriter(
-          query,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new CosmosRoutingIsmRawWriter(
-          query,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
-    }
+  ): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+    const writers: {
+      [K in IsmType]: () => OrchestratedArtifactWriter<
+        RawIsmArtifactConfigs[K],
+        DeployedIsmAddress
+      >;
+    } = {
+      testIsm: () => new CosmosTestIsmWriter(query, signer),
+      merkleRootMultisigIsm: () =>
+        new CosmosMerkleRootMultisigIsmWriter(query, signer),
+      messageIdMultisigIsm: () =>
+        new CosmosMessageIdMultisigIsmWriter(query, signer),
+      domainRoutingIsm: () => new CosmosRoutingIsmRawWriter(query, signer),
+    };
+
+    return writers[type]();
   }
 }

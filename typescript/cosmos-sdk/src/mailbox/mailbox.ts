@@ -3,9 +3,11 @@ import { type DeliverTxResponse } from '@cosmjs/stargate';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -33,24 +35,34 @@ import {
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
 
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 /**
  * Reader for Cosmos Mailbox.
  * Reads deployed mailbox configuration from the chain.
  */
-export class CosmosMailboxReader implements ArtifactReader<
+export class CosmosMailboxReader implements OrchestratedArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly query: CosmosMailboxQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+  ): Promise<
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+  > {
     const mailboxConfig = await getMailboxConfig(this.query, address);
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: mailboxConfig.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -85,7 +97,7 @@ export class CosmosMailboxReader implements ArtifactReader<
  */
 export class CosmosMailboxWriter
   extends CosmosMailboxReader
-  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     query: CosmosMailboxQueryClient,
@@ -96,10 +108,10 @@ export class CosmosMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<MailboxOnChain>,
+    artifact: ArtifactNew<OrchestratedMailboxOnChain>,
   ): Promise<
     [
-      ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+      ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>,
       DeliverTxResponse[],
     ]
   > {
@@ -163,7 +175,7 @@ export class CosmosMailboxWriter
     // intended owner once all configuration is complete.
 
     const deployedArtifact: ArtifactDeployed<
-      MailboxOnChain,
+      OrchestratedMailboxOnChain,
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -178,7 +190,10 @@ export class CosmosMailboxWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >,
   ): Promise<AnnotatedEncodeObject[]> {
     const { config, deployed } = artifact;
     const updateTxs: AnnotatedEncodeObject[] = [];

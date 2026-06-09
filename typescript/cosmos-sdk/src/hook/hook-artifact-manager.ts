@@ -3,8 +3,11 @@ import { connectComet } from '@cosmjs/tendermint-rpc';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -92,13 +95,18 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactReader<
+      RawHookArtifactConfigs[T],
+      DeployedHookAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const reader = this.createReaderWithQuery(type, query);
         return reader.read(address);
       },
-    } satisfies ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress>;
+    };
+    return wrapper;
   }
 
   /**
@@ -111,9 +119,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   private createReaderWithQuery<T extends HookType>(
     type: T,
     query: CosmosHookQueryClient,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): OrchestratedArtifactReader<
+    RawHookArtifactConfigs[T],
+    DeployedHookAddress
+  > {
     const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
+      [K in HookType]: () => OrchestratedArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
@@ -142,8 +153,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactWriter<
+      RawHookArtifactConfigs[T],
+      DeployedHookAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.read(address);
@@ -158,7 +173,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
-    } satisfies ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress>;
+    };
+    return wrapper;
   }
 
   /**
@@ -173,9 +189,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): OrchestratedArtifactWriter<
+    RawHookArtifactConfigs[T],
+    DeployedHookAddress
+  > {
     const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
+      [K in HookType]: () => OrchestratedArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;

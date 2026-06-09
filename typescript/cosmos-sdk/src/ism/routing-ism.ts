@@ -4,10 +4,12 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
   type ArtifactUnderived,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -27,21 +29,31 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 /**
  * Reader for Cosmos Routing ISM (raw, with underived nested ISMs).
  * Returns nested ISMs as address-only references (UNDERIVED state).
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
-export class CosmosRoutingIsmRawReader implements ArtifactReader<
+export class CosmosRoutingIsmRawReader implements OrchestratedArtifactReader<
   RawRoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+    ArtifactDeployed<
+      OrchestratedRawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    >
   > {
     const ismConfig = await getRoutingIsmConfig(this.query, address);
 
@@ -59,6 +71,7 @@ export class CosmosRoutingIsmRawReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: IsmType.ROUTING,
         owner: ismConfig.owner,
         domains,
@@ -76,7 +89,8 @@ export class CosmosRoutingIsmRawReader implements ArtifactReader<
  */
 export class CosmosRoutingIsmRawWriter
   extends CosmosRoutingIsmRawReader
-  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  implements
+    OrchestratedArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
@@ -86,10 +100,13 @@ export class CosmosRoutingIsmRawWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawRoutingIsmArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+      ArtifactDeployed<
+        OrchestratedRawRoutingIsmArtifactConfig,
+        DeployedIsmAddress
+      >,
       DeliverTxResponse[],
     ]
   > {
@@ -128,7 +145,7 @@ export class CosmosRoutingIsmRawWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawRoutingIsmArtifactConfig,
+      OrchestratedRawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -142,7 +159,10 @@ export class CosmosRoutingIsmRawWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedRawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    >,
   ): Promise<AnnotatedEncodeObject[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);

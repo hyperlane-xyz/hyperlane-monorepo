@@ -4,9 +4,11 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -30,20 +32,31 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-export class CosmosSyntheticTokenReader implements ArtifactReader<
+type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
+  RawSyntheticWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+export class CosmosSyntheticTokenReader implements OrchestratedArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly query: CosmosWarpQueryClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawSyntheticWarpArtifactConfig,
+      DeployedWarpAddress
+    >
   > {
     const tokenConfig = await getSyntheticWarpTokenConfig(this.query, address);
 
-    const config: RawSyntheticWarpArtifactConfig = {
+    const config: OrchestratedRawSyntheticWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.synthetic,
       owner: tokenConfig.owner,
       mailbox: tokenConfig.mailbox,
@@ -74,7 +87,11 @@ export class CosmosSyntheticTokenReader implements ArtifactReader<
 
 export class CosmosSyntheticTokenWriter
   extends CosmosSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    OrchestratedArtifactWriter<
+      RawSyntheticWarpArtifactConfig,
+      DeployedWarpAddress
+    >
 {
   constructor(
     query: CosmosWarpQueryClient,
@@ -84,10 +101,13 @@ export class CosmosSyntheticTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawSyntheticWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawSyntheticWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       DeliverTxResponse[],
     ]
   > {
@@ -136,7 +156,7 @@ export class CosmosSyntheticTokenWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawSyntheticWarpArtifactConfig,
+      OrchestratedRawSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -151,7 +171,7 @@ export class CosmosSyntheticTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawSyntheticWarpArtifactConfig,
+      OrchestratedRawSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedEncodeObject[]> {

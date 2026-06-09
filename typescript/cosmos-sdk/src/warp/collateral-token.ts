@@ -4,9 +4,11 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -30,21 +32,31 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
 function withErrorContext(context: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(`${context}: ${message}`);
 }
 
-export class CosmosCollateralTokenReader implements ArtifactReader<
+export class CosmosCollateralTokenReader implements OrchestratedArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly query: CosmosWarpQueryClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
   > {
     const tokenConfig = await getCollateralWarpTokenConfig(
       this.query,
@@ -56,7 +68,8 @@ export class CosmosCollateralTokenReader implements ArtifactReader<
       );
     });
 
-    const config: RawCollateralWarpArtifactConfig = {
+    const config: OrchestratedRawCollateralWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.collateral,
       owner: tokenConfig.owner,
       mailbox: tokenConfig.mailbox,
@@ -89,7 +102,10 @@ export class CosmosCollateralTokenReader implements ArtifactReader<
 export class CosmosCollateralTokenWriter
   extends CosmosCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    OrchestratedArtifactWriter<
+      RawCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >
 {
   constructor(
     query: CosmosWarpQueryClient,
@@ -99,10 +115,13 @@ export class CosmosCollateralTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       DeliverTxResponse[],
     ]
   > {
@@ -173,7 +192,7 @@ export class CosmosCollateralTokenWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -188,7 +207,7 @@ export class CosmosCollateralTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedEncodeObject[]> {

@@ -5,8 +5,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -24,6 +26,11 @@ import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 import { createSigner } from '../testing/utils.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 chai.use(chaiAsPromised);
 
@@ -65,8 +72,13 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       'mailbox',
       cosmosSigner,
     );
+    assert(
+      tempMailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Cosmos mailbox writer is expected to be orchestrated',
+    );
     const [tempMailbox] = await tempMailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: tempIsm,
         defaultHook: {
@@ -113,7 +125,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         config: { type: AltVM.HookType.MERKLE_TREE },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -132,6 +145,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       const writer = mailboxArtifactManager.createWriter(
         'mailbox',
         cosmosSigner,
+      );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
       );
       const [result, receipts] = await writer.create({ config });
 
@@ -169,7 +186,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -188,6 +206,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       const writer = mailboxArtifactManager.createWriter(
         'mailbox',
         cosmosSigner,
+      );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
       );
       const [result, receipts] = await writer.create({ config });
 
@@ -212,7 +234,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       const bobAddress = bobSigner.getSignerAddress();
       const aliceAddress = cosmosSigner.getSignerAddress();
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: bobAddress,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -231,6 +254,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       const writer = mailboxArtifactManager.createWriter(
         'mailbox',
         cosmosSigner,
+      );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
       );
       const [result, receipts] = await writer.create({ config });
 
@@ -255,7 +282,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -274,6 +302,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       const writer = mailboxArtifactManager.createWriter(
         'mailbox',
         cosmosSigner,
+      );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
       );
       const [deployedMailbox] = await writer.create({ config });
 
@@ -300,7 +332,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         config: { type: AltVM.IsmType.TEST_ISM },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -320,6 +353,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         'mailbox',
         cosmosSigner,
       );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
+      );
       const [deployedMailbox] = await writer.create({ config });
 
       const readMailbox = await mailboxArtifactManager.readMailbox(
@@ -336,10 +373,13 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
 
   describe('Mailbox Updates', () => {
     let deployedMailbox: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >;
+    let writer: OrchestratedArtifactWriter<
       MailboxOnChain,
       DeployedMailboxAddress
     >;
-    let writer: ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
 
     beforeEach(async () => {
       const ismWriter = ismArtifactManager.createWriter(
@@ -358,7 +398,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         config: { type: AltVM.HookType.MERKLE_TREE },
       });
 
-      const config: MailboxOnChain = {
+      const config: OrchestratedMailboxOnChain = {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -374,13 +415,24 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
       };
 
-      writer = mailboxArtifactManager.createWriter('mailbox', cosmosSigner);
+      const newWriter = mailboxArtifactManager.createWriter(
+        'mailbox',
+        cosmosSigner,
+      );
+      assert(
+        newWriter.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos mailbox writer is expected to be orchestrated',
+      );
+      writer = newWriter;
       [deployedMailbox] = await writer.create({ config });
     });
 
     function verifyFullConfig(
-      readMailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
-      expectedConfig: MailboxOnChain,
+      readMailbox: ArtifactDeployed<
+        OrchestratedMailboxOnChain,
+        DeployedMailboxAddress
+      >,
+      expectedConfig: OrchestratedMailboxOnChain,
     ) {
       expect(readMailbox.config.owner).to.equal(expectedConfig.owner);
       expect(readMailbox.config.defaultIsm.deployed.address).to.equal(
@@ -398,9 +450,12 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       name: string;
       setupNewValue: () => Promise<string>;
       updateConfig: (
-        mailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+        mailbox: ArtifactDeployed<
+          OrchestratedMailboxOnChain,
+          DeployedMailboxAddress
+        >,
         newValue: string,
-      ) => ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>;
+      ) => ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>;
     }> = [
       {
         name: 'default ISM',
@@ -503,6 +558,10 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         expect(receipt.code).to.equal(0);
 
         const reader = mailboxArtifactManager.createReader('mailbox');
+        assert(
+          reader.composition === ArtifactComposition.ORCHESTRATED,
+          'Cosmos mailbox reader is expected to be orchestrated',
+        );
         const readMailbox = await reader.read(deployedMailbox.deployed.address);
         verifyFullConfig(readMailbox, updatedArtifact.config);
       });

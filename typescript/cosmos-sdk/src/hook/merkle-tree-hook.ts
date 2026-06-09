@@ -4,9 +4,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -28,10 +29,12 @@ import { getCreateMerkleTreeHookTx } from './hook-tx.js';
  * Reads deployed MerkleTree hook configuration from the chain.
  * MerkleTree hooks are immutable once deployed.
  */
-export class CosmosMerkleTreeHookReader implements ArtifactReader<
+export class CosmosMerkleTreeHookReader implements OrchestratedArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly query: CosmosHookQueryClient) {}
 
   async read(
@@ -58,7 +61,8 @@ export class CosmosMerkleTreeHookReader implements ArtifactReader<
  */
 export class CosmosMerkleTreeHookWriter
   extends CosmosMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements
+    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     query: CosmosHookQueryClient,

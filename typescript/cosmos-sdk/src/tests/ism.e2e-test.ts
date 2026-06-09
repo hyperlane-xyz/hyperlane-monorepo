@@ -4,8 +4,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -24,6 +26,11 @@ import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createSigner } from '../testing/utils.js';
+
+type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
+  RawRoutingIsmArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 describe('Cosmos ISM Artifact API (e2e)', function () {
   this.timeout(100_000);
@@ -130,6 +137,10 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
 
         it('should return no transactions when calling update', async () => {
           const writer = artifactManager.createWriter(type, cosmosSigner);
+          assert(
+            writer.composition === ArtifactComposition.ORCHESTRATED,
+            'Cosmos ISM writer is expected to be orchestrated',
+          );
           const [deployedIsm] = await writer.create({ config });
 
           const txs = await writer.update(deployedIsm);
@@ -147,8 +158,8 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
     const DOMAIN_2 = 96;
     const DOMAIN_3 = 100;
 
-    let config: RawRoutingIsmArtifactConfig;
-    let routingIsmWriter: ArtifactWriter<
+    let config: OrchestratedRawRoutingIsmArtifactConfig;
+    let routingIsmWriter: OrchestratedArtifactWriter<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >;
@@ -177,6 +188,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       multisigIsmAddress = multisigIsm.deployed.address;
 
       config = {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: AltVM.IsmType.ROUTING,
         owner: cosmosSigner.getSignerAddress(),
         domains: {
@@ -191,10 +203,15 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
         },
       };
 
-      routingIsmWriter = artifactManager.createWriter(
+      const writer = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         cosmosSigner,
       );
+      assert(
+        writer.composition === ArtifactComposition.ORCHESTRATED,
+        'Cosmos routing ISM writer is expected to be orchestrated',
+      );
+      routingIsmWriter = writer;
     });
 
     it('should create and read the provided config', async () => {
@@ -218,7 +235,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -253,7 +270,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       const [routingIsm] = await routingIsmWriter.create({ config });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -290,7 +307,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       });
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,
@@ -326,7 +343,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       const bobSigner = await createSigner('bob');
 
       const updatedConfig: ArtifactDeployed<
-        RawRoutingIsmArtifactConfig,
+        OrchestratedRawRoutingIsmArtifactConfig,
         DeployedIsmAddress
       > = {
         ...routingIsm,

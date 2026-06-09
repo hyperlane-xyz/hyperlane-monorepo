@@ -3,8 +3,11 @@ import { connectComet } from '@cosmjs/tendermint-rpc';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedRawWarpArtifact,
@@ -74,21 +77,29 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactReader<
+      RawWarpArtifactConfigs[T],
+      DeployedWarpAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const reader = this.createReaderWithQuery(type, query);
         return reader.read(address);
       },
-    } satisfies ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
+    };
+    return wrapper;
   }
 
   private createReaderWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): OrchestratedArtifactReader<
+    RawWarpArtifactConfigs[T],
+    DeployedWarpAddress
+  > {
     const readers: {
-      [K in WarpType]: () => ArtifactReader<
+      [K in WarpType]: () => OrchestratedArtifactReader<
         RawWarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
@@ -111,8 +122,12 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
+    const wrapper: OrchestratedArtifactWriter<
+      RawWarpArtifactConfigs[T],
+      DeployedWarpAddress
+    > = {
+      composition: ArtifactComposition.ORCHESTRATED,
+      read: async (address) => {
         const query = await this.getQuery();
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.read(address);
@@ -127,16 +142,20 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
-    } satisfies ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
+    };
+    return wrapper;
   }
 
   private createWriterWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): OrchestratedArtifactWriter<
+    RawWarpArtifactConfigs[T],
+    DeployedWarpAddress
+  > {
     const writers: {
-      [K in WarpType]: () => ArtifactWriter<
+      [K in WarpType]: () => OrchestratedArtifactWriter<
         RawWarpArtifactConfigs[K],
         DeployedWarpAddress
       >;

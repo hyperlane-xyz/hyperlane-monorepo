@@ -5,6 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -67,8 +68,13 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       'mailbox',
       cosmosSigner,
     );
+    assert(
+      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
+      'Cosmos mailbox writer is expected to be orchestrated',
+    );
     const [mailbox] = await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: cosmosSigner.getSignerAddress(),
         defaultIsm: testIsm,
         defaultHook: {

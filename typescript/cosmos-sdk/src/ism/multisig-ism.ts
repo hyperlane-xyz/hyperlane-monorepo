@@ -4,9 +4,10 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -31,10 +32,12 @@ import {
  * Reader for Cosmos Message ID Multisig ISM.
  * Uses message IDs for validator signature verification.
  */
-export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
+export class CosmosMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
@@ -62,7 +65,7 @@ export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
  */
 export class CosmosMessageIdMultisigIsmWriter
   extends CosmosMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
@@ -119,10 +122,12 @@ export class CosmosMessageIdMultisigIsmWriter
  * Reader for Cosmos Merkle Root Multisig ISM.
  * Uses merkle root proofs for validator signature verification.
  */
-export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
+export class CosmosMerkleRootMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
@@ -150,7 +155,7 @@ export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
  */
 export class CosmosMerkleRootMultisigIsmWriter
   extends CosmosMerkleRootMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
