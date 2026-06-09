@@ -879,6 +879,39 @@ const blacklist: MatchingList = [
     originDomain: getDomainId('starknet'),
     destinationDomain: getDomainId('starknet'),
   },
+  // Humanity exploiter blacklisting.
+  // Compromised H/humanity warp route — both legs share this router.
+  {
+    senderAddress: '0x44F161aE29361E332dEA039DFA2F404E0bC5B5Cc',
+  },
+  {
+    recipientAddress: '0x44F161aE29361E332dEA039DFA2F404E0bC5B5Cc',
+  },
+  // Humanity exploiter addresses.
+  {
+    senderAddress: [
+      '0x36560d6ac2004e1bb483e77b791e905dd4f5e672',
+      '0xee4B6B8967Aa947ac3aEf540eE07ea6099C566F7',
+      '0x4dD6288307661BBf0B1785B531dbAd3fac8c909D',
+      '0x456Cb73b35022E4B524e5510807776453d984AeF',
+      '0xD1ea823D421E0c829ee11F772AF487fd352678EA',
+      '0x9e995952eF7665B243eeEF0693acD7FEd7150504',
+      '0x6Aa22CB8420E94Fc2119364b4c7885710aE753bB',
+      '0xAf2a4989922299EB14A29E332dad1012A8aaD3A0',
+    ],
+  },
+  {
+    recipientAddress: [
+      '0x36560d6ac2004e1bb483e77b791e905dd4f5e672',
+      '0xee4B6B8967Aa947ac3aEf540eE07ea6099C566F7',
+      '0x4dD6288307661BBf0B1785B531dbAd3fac8c909D',
+      '0x456Cb73b35022E4B524e5510807776453d984AeF',
+      '0xD1ea823D421E0c829ee11F772AF487fd352678EA',
+      '0x9e995952eF7665B243eeEF0693acD7FEd7150504',
+      '0x6Aa22CB8420E94Fc2119364b4c7885710aE753bB',
+      '0xAf2a4989922299EB14A29E332dad1012A8aaD3A0',
+    ],
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
