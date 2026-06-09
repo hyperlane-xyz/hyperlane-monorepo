@@ -5,7 +5,11 @@ import { before, describe, it } from 'mocha';
 
 chai.use(chaiAsPromised);
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { sleep } from '@hyperlane-xyz/utils';
 
@@ -18,6 +22,11 @@ import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { LEGACY_SVM_PROGRAM_BYTES } from '../testing/legacy/legacy-program-bytes.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -36,9 +45,10 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
   let testIsmAddress: Address;
 
   function makeMailboxConfig(
-    overrides: Partial<MailboxOnChain> = {},
-  ): MailboxOnChain {
+    overrides: Partial<OrchestratedMailboxOnChain> = {},
+  ): OrchestratedMailboxOnChain {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: signer.getSignerAddress(),
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,

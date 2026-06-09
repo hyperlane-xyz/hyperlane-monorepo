@@ -2,10 +2,14 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { it } from 'mocha';
 
-import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-
-import { supportsFeeConfig } from '../version/version-query.js';
+import type {
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedWarpAddress,
   RawNativeWarpArtifactConfig,
@@ -16,18 +20,34 @@ import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import type { createRpc } from '../rpc.js';
 import { airdropSol } from '../testing/setup.js';
+import { supportsFeeConfig } from '../version/version-query.js';
+
+type OrchestratedRawWarpArtifactConfig = WithCompositionVariant<
+  RawWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+type OrchestratedRawNativeWarpArtifactConfig = WithCompositionVariant<
+  RawNativeWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 /**
  * Overrides that can be applied to any token type config.
  * Excludes the `type` discriminant — each test provides its own fixed type.
  */
 export type WarpConfigOverrides = Partial<
-  Omit<RawNativeWarpArtifactConfig, 'type'>
+  Omit<OrchestratedRawNativeWarpArtifactConfig, 'type'>
 >;
 
 export interface WarpTestContext {
-  writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
-  makeConfig(overrides?: WarpConfigOverrides): RawWarpArtifactConfig;
+  writer: OrchestratedArtifactWriter<
+    RawWarpArtifactConfig,
+    DeployedWarpAddress
+  >;
+  makeConfig(
+    overrides?: WarpConfigOverrides,
+  ): OrchestratedRawWarpArtifactConfig;
   igpProgramId: Address;
   testIsmAddress: Address;
   signer: SvmSigner;

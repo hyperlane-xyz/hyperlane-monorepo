@@ -4,6 +4,7 @@ import { before, describe, it } from 'mocha';
 
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
@@ -183,6 +184,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       signer,
     ).create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -284,6 +286,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
     );
     const [warpDeployed] = await ccWarpWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.crossCollateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -431,6 +434,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: TokenType.crossCollateral,
           owner: signer.getSignerAddress(),
           mailbox: mailboxAddress,

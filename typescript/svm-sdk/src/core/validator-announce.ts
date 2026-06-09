@@ -3,9 +3,10 @@ import { address as parseAddress } from '@solana/kit';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedValidatorAnnounceAddress,
@@ -22,10 +23,12 @@ import { buildInitValidatorAnnounceInstruction } from './validator-announce-tx.j
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmValidatorAnnounceConfig } from './types.js';
 
-export class SvmValidatorAnnounceReader implements ArtifactReader<
+export class SvmValidatorAnnounceReader implements OrchestratedArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
@@ -56,7 +59,10 @@ export class SvmValidatorAnnounceReader implements ArtifactReader<
 export class SvmValidatorAnnounceWriter
   extends SvmValidatorAnnounceReader
   implements
-    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+    OrchestratedArtifactWriter<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
 {
   constructor(
     private readonly config: SvmValidatorAnnounceConfig,

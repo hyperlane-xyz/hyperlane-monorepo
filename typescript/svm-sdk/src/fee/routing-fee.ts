@@ -9,9 +9,10 @@ import {
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -58,10 +59,12 @@ import {
  * invisible and won't be added or removed. Callers must ensure the context
  * covers all active domains to avoid partial diffs.
  */
-export class SvmRoutingFeeReader implements ArtifactReader<
+export class SvmRoutingFeeReader implements OrchestratedArtifactReader<
   WithWildcardSigners<RoutingFeeArtifactConfig>,
   SvmDeployedFee
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly rpc: SvmRpc,
     protected readonly context: FeeReadContext,
@@ -123,7 +126,8 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
 export class SvmRoutingFeeWriter
   extends SvmRoutingFeeReader
-  implements ArtifactWriter<RoutingFeeArtifactConfig, SvmDeployedFee>
+  implements
+    OrchestratedArtifactWriter<RoutingFeeArtifactConfig, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,

@@ -5,7 +5,10 @@ import { before, describe, it } from 'mocha';
 
 chai.use(chaiAsPromised);
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
@@ -115,6 +118,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const [deployed] = await legacyWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -173,6 +177,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -208,6 +213,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -243,6 +249,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const [deployed] = await legacyWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -328,6 +335,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const [deployed] = await legacyWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,

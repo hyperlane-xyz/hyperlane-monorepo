@@ -3,9 +3,11 @@ import { address as parseAddress } from '@solana/kit';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedMailboxAddress,
@@ -21,6 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -33,32 +36,40 @@ import {
 } from '../types.js';
 
 import {
+  fetchMailboxInboxAccount,
+  fetchMailboxOutboxAccount,
+  fetchMailboxProgramVersion,
+} from './mailbox-query.js';
+import {
   buildInitMailboxInstruction,
   buildSetDefaultIsmInstruction,
   buildTransferMailboxOwnershipInstruction,
   type MailboxInitData,
 } from './mailbox-tx.js';
-import {
-  fetchMailboxInboxAccount,
-  fetchMailboxOutboxAccount,
-  fetchMailboxProgramVersion,
-} from './mailbox-query.js';
-import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmMailboxConfig } from './types.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 // Default protocol fee values for mailbox initialization.
 const DEFAULT_MAX_PROTOCOL_FEE = 1_000_000_000n;
 const DEFAULT_PROTOCOL_FEE = 0n;
 
-export class SvmMailboxReader implements ArtifactReader<
+export class SvmMailboxReader implements OrchestratedArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+  ): Promise<
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
+  > {
     const programId = parseAddress(address);
 
     const inbox = await fetchMailboxInboxAccount(this.rpc, programId);
@@ -85,7 +96,8 @@ export class SvmMailboxReader implements ArtifactReader<
       deployed: { address: programId },
     };
 
-    const config: MailboxOnChain = {
+    const config: OrchestratedMailboxOnChain = {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: outbox.owner ?? ZERO_ADDRESS_HEX_32,
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,
@@ -109,7 +121,7 @@ export class SvmMailboxReader implements ArtifactReader<
 
 export class SvmMailboxWriter
   extends SvmMailboxReader
-  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     private readonly config: SvmMailboxConfig,
@@ -120,9 +132,12 @@ export class SvmMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<MailboxOnChain>,
+    artifact: ArtifactNew<OrchestratedMailboxOnChain>,
   ): Promise<
-    [ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>, SvmReceipt[]]
+    [
+      ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>,
+      SvmReceipt[],
+    ]
   > {
     const receipts: SvmReceipt[] = [];
     const mailboxConfig = artifact.config;
@@ -179,7 +194,10 @@ export class SvmMailboxWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+    artifact: ArtifactDeployed<
+      OrchestratedMailboxOnChain,
+      DeployedMailboxAddress
+    >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
     const current = await this.read(programId);

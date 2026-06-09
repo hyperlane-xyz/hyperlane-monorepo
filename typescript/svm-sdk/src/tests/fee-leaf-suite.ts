@@ -3,10 +3,14 @@ import { expect } from 'chai';
 import { it } from 'mocha';
 
 import type {
-  ArtifactReader,
-  ArtifactWriter,
+  OrchestratedArtifactReader,
+  OrchestratedArtifactWriter,
+  WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 
 import type { BaseFeeConfig, FeeParams } from '@hyperlane-xyz/provider-sdk/fee';
@@ -23,10 +27,14 @@ import { airdropSol, createSplMint } from '../testing/setup.js';
 type ParamsFeeConfig = BaseFeeConfig & { type: string; params: FeeParams };
 
 export interface LeafFeeTestContext<C extends ParamsFeeConfig> {
-  writer: ArtifactWriter<C, SvmDeployedFee>;
-  reader: ArtifactReader<C, SvmDeployedFee>;
-  makeConfig: (overrides?: Record<string, unknown>) => C;
-  makeWriter: (signer: SvmSigner) => ArtifactWriter<C, SvmDeployedFee>;
+  writer: OrchestratedArtifactWriter<C, SvmDeployedFee>;
+  reader: OrchestratedArtifactReader<C, SvmDeployedFee>;
+  makeConfig: (
+    overrides?: Record<string, unknown>,
+  ) => WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>;
+  makeWriter: (
+    signer: SvmSigner,
+  ) => OrchestratedArtifactWriter<C, SvmDeployedFee>;
   signer: SvmSigner;
   rpc: ReturnType<typeof createRpc>;
   rpcUrl: string;

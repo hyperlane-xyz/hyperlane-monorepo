@@ -2,7 +2,10 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
@@ -133,6 +136,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     const writer = makeWriter();
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -171,6 +175,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     const writer = makeWriter();
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -208,6 +213,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     const writer = makeWriter();
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -248,6 +254,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     const writer = makeWriter(DEFAULT_FEE_SALT);
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,
@@ -296,6 +303,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     const writer = makeWriter();
     const [deployed] = await writer.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.collateral,
         owner: signer.getSignerAddress(),
         mailbox: mailboxAddress,

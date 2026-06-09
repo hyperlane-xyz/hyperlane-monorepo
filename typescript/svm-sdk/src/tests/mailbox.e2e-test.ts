@@ -2,7 +2,11 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+  type WithCompositionVariant,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
@@ -11,11 +15,16 @@ import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
-import { FALLBACK_SIMULATION_PAYER } from '../version/version-query.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
+import { FALLBACK_SIMULATION_PAYER } from '../version/version-query.js';
+
+type OrchestratedMailboxOnChain = WithCompositionVariant<
+  MailboxOnChain,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -34,9 +43,10 @@ describe('SVM Mailbox E2E Tests', function () {
   let mailboxAddress: Address;
 
   function makeMailboxConfig(
-    overrides: Partial<MailboxOnChain> = {},
-  ): MailboxOnChain {
+    overrides: Partial<OrchestratedMailboxOnChain> = {},
+  ): OrchestratedMailboxOnChain {
     return {
+      composition: ArtifactComposition.ORCHESTRATED,
       owner: signer.getSignerAddress(),
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,
@@ -99,6 +109,7 @@ describe('SVM Mailbox E2E Tests', function () {
     const [deployedMailbox, deployReceipts] = await mailboxWriter.create({
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

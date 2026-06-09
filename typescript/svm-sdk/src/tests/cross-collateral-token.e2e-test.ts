@@ -5,7 +5,10 @@ import { step } from 'mocha-steps';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -94,6 +97,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
     );
     await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -131,6 +135,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
+          composition: ArtifactComposition.ORCHESTRATED,
           type: TokenType.crossCollateral,
           owner: signer.getSignerAddress(),
           mailbox: mailboxAddress,

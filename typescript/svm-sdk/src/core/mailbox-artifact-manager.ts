@@ -28,22 +28,41 @@ export class SvmMailboxArtifactManager implements IRawMailboxArtifactManager {
   }
 
   createReader<T extends MailboxType>(
-    _type: T,
+    type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return new SvmMailboxReader(this.rpc);
+    const readers: {
+      [K in MailboxType]: () => ArtifactReader<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () => new SvmMailboxReader(this.rpc),
+    };
+
+    return readers[type]();
   }
 
   createWriter<T extends MailboxType>(
-    _type: T,
+    type: T,
     signer: SvmSigner,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return new SvmMailboxWriter(
-      {
-        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
-        domainId: this.domainId,
-      },
-      this.rpc,
-      signer,
-    );
+    const writers: {
+      [K in MailboxType]: () => ArtifactWriter<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () =>
+        new SvmMailboxWriter(
+          {
+            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
+            domainId: this.domainId,
+          },
+          this.rpc,
+          signer,
+        ),
+    };
+
+    return writers[type]();
   }
 }

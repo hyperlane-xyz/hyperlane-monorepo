@@ -9,9 +9,11 @@ import { computeBps, FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -58,7 +60,8 @@ export type LeafFeeConfig =
 
 export abstract class SvmLeafFeeReader<
   C extends LeafFeeConfig,
-> implements ArtifactReader<C, SvmDeployedFee> {
+> implements OrchestratedArtifactReader<C, SvmDeployedFee> {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
   protected abstract readonly feeType: C['type'];
 
   constructor(
@@ -66,7 +69,14 @@ export abstract class SvmLeafFeeReader<
     protected readonly salt: Uint8Array,
   ) {}
 
-  async read(address: string): Promise<ArtifactDeployed<C, SvmDeployedFee>> {
+  async read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      SvmDeployedFee
+    >
+  > {
     const programId = parseAddress(address);
     const account = await fetchFeeAccount(this.rpc, programId, this.salt);
     assert(account, `Fee account not found for program: ${programId}`);
@@ -101,7 +111,9 @@ export abstract class SvmLeafFeeReader<
     // without re-deriving bps→raw.
     //
     // CAST: safe because LeafFeeConfig excludes OffchainQuotedLinearFeeConfig
-    // and all three remaining types share an identical shape.
+    // and all three remaining types share an identical shape. The
+    // WithCompositionVariant wrap narrows C to its ORCHESTRATED variant so
+    // callers in the orchestrated-only paths get the precise config type.
     const maxFeeStr = maxFee.toString();
     const halfAmountStr = halfAmount.toString();
     return {
@@ -116,7 +128,7 @@ export abstract class SvmLeafFeeReader<
           maxFee: maxFeeStr,
           halfAmount: halfAmountStr,
         },
-      } as C,
+      } as WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
       deployed: { address: programId, programId, feeAccountPda },
     };
   }
@@ -124,7 +136,7 @@ export abstract class SvmLeafFeeReader<
 
 export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
   extends SvmLeafFeeReader<C>
-  implements ArtifactWriter<C, SvmDeployedFee>
+  implements OrchestratedArtifactWriter<C, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,
@@ -137,8 +149,18 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
   }
 
   async create(
-    artifact: ArtifactNew<C>,
-  ): Promise<[ArtifactDeployed<C, SvmDeployedFee>, SvmReceipt[]]> {
+    artifact: ArtifactNew<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>
+    >,
+  ): Promise<
+    [
+      ArtifactDeployed<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        SvmDeployedFee
+      >,
+      SvmReceipt[],
+    ]
+  > {
     const feeConfig = artifact.config;
     const { programAddress: programId, receipts } = await resolveProgram(
       this.writerConfig.program,
@@ -227,7 +249,10 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
   }
 
   async update(
-    artifact: ArtifactDeployed<C, SvmDeployedFee>,
+    artifact: ArtifactDeployed<
+      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      SvmDeployedFee
+    >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const txs: AnnotatedSvmTransaction[] = [];
     const expected = artifact.config;

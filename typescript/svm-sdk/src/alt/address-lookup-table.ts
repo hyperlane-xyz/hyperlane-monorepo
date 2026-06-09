@@ -3,9 +3,10 @@ import { type Address, address as parseAddress } from '@solana/kit';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -91,10 +92,12 @@ export function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
   return [first, ...rest];
 }
 
-export class SvmAddressLookupTableReader implements ArtifactReader<
+export class SvmAddressLookupTableReader implements OrchestratedArtifactReader<
   SvmAltConfig,
   SvmDeployedAlt
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
@@ -121,7 +124,7 @@ export class SvmAddressLookupTableReader implements ArtifactReader<
 
 export class SvmAddressLookupTableWriter
   extends SvmAddressLookupTableReader
-  implements ArtifactWriter<SvmAltConfig, SvmDeployedAlt>
+  implements OrchestratedArtifactWriter<SvmAltConfig, SvmDeployedAlt>
 {
   constructor(
     rpc: SvmRpc,

@@ -4,9 +4,10 @@ import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
@@ -30,10 +31,12 @@ export type SvmMerkleTreeHookWriterConfig = Readonly<{
   mailboxAddress: string;
 }>;
 
-export class SvmMerkleTreeHookReader implements ArtifactReader<
+export class SvmMerkleTreeHookReader implements OrchestratedArtifactReader<
   MerkleTreeHookConfig,
   SvmDeployedHook
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly _rpc: SvmRpc) {}
 
   async read(
@@ -51,7 +54,7 @@ export class SvmMerkleTreeHookReader implements ArtifactReader<
 
 export class SvmMerkleTreeHookWriter
   extends SvmMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
+  implements OrchestratedArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
     private readonly config: SvmMerkleTreeHookWriterConfig,

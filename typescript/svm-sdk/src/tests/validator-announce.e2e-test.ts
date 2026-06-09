@@ -2,7 +2,10 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactComposition,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxWriter } from '../core/mailbox.js';
@@ -57,6 +60,7 @@ describe('SVM Validator Announce E2E Tests', function () {
     );
     await mailboxWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

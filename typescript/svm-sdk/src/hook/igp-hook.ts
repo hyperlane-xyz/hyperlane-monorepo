@@ -5,9 +5,10 @@ import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
@@ -78,10 +79,12 @@ export function deriveIgpSalt(context: string): Uint8Array {
 /** Zero salt — matches mainnet IGP deployments (H256::zero() in Rust). */
 export const DEFAULT_IGP_SALT = new Uint8Array(32);
 
-export class SvmIgpHookReader implements ArtifactReader<
+export class SvmIgpHookReader implements OrchestratedArtifactReader<
   IgpHookConfig,
   SvmDeployedIgpHook
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(
     protected readonly rpc: SvmRpc,
     protected readonly salt: Uint8Array,
@@ -159,7 +162,7 @@ export class SvmIgpHookReader implements ArtifactReader<
 
 export class SvmIgpHookWriter
   extends SvmIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
+  implements OrchestratedArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
     private readonly config: SvmIgpHookWriterConfig,

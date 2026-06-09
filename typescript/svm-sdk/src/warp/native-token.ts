@@ -3,9 +3,11 @@ import { address as parseAddress } from '@solana/kit';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -19,6 +21,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { writableAccount } from '../instructions/utils.js';
@@ -27,7 +31,6 @@ import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
-import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import {
   fetchNativeTokenAccount,
   fetchWarpProgramVersion,
@@ -41,21 +44,30 @@ import {
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
-import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
+
+type OrchestratedRawNativeWarpArtifactConfig = WithCompositionVariant<
+  RawNativeWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
 
 /** Native SOL decimal precision. */
 const SOL_DECIMALS = 9;
 
-export class SvmNativeTokenReader implements ArtifactReader<
+export class SvmNativeTokenReader implements OrchestratedArtifactReader<
   RawNativeWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawNativeWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchNativeTokenAccount(this.rpc, programId);
@@ -77,7 +89,8 @@ export class SvmNativeTokenReader implements ArtifactReader<
       token.owner,
     );
 
-    const config: RawNativeWarpArtifactConfig = {
+    const config: OrchestratedRawNativeWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.native,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
       mailbox: token.mailbox,
@@ -119,7 +132,11 @@ export class SvmNativeTokenReader implements ArtifactReader<
 
 export class SvmNativeTokenWriter
   extends SvmNativeTokenReader
-  implements ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
+  implements
+    OrchestratedArtifactWriter<
+      RawNativeWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -130,10 +147,13 @@ export class SvmNativeTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawNativeWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawNativeWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawNativeWarpArtifactConfig,
+        SvmDeployedWarpAddress
+      >,
       SvmReceipt[],
     ]
   > {
@@ -200,7 +220,7 @@ export class SvmNativeTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawNativeWarpArtifactConfig,
+      OrchestratedRawNativeWarpArtifactConfig,
       SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {

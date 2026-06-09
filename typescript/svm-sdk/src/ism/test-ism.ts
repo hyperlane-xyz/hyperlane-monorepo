@@ -4,9 +4,10 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -32,10 +33,12 @@ export type SvmTestIsmWriterConfig = Readonly<{
   program: SvmProgramTarget;
 }>;
 
-export class SvmTestIsmReader implements ArtifactReader<
+export class SvmTestIsmReader implements OrchestratedArtifactReader<
   TestIsmConfig,
   SvmDeployedIsm
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
@@ -57,7 +60,7 @@ export class SvmTestIsmReader implements ArtifactReader<
 
 export class SvmTestIsmWriter
   extends SvmTestIsmReader
-  implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
+  implements OrchestratedArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
     private readonly config: SvmTestIsmWriterConfig,

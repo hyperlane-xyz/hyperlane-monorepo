@@ -33,30 +33,49 @@ export class SvmValidatorAnnounceArtifactManager implements IRawValidatorAnnounc
   }
 
   createReader<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
   ): ArtifactReader<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new SvmValidatorAnnounceReader(this.rpc);
+    const readers: {
+      [K in ValidatorAnnounceType]: () => ArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () => new SvmValidatorAnnounceReader(this.rpc),
+    };
+
+    return readers[type]();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
-    _type: T,
+    type: T,
     signer: SvmSigner,
   ): ArtifactWriter<
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new SvmValidatorAnnounceWriter(
-      {
-        program: {
-          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.validatorAnnounce,
-        },
-        domainId: this.domainId,
-      },
-      this.rpc,
-      signer,
-    );
+    const writers: {
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () =>
+        new SvmValidatorAnnounceWriter(
+          {
+            program: {
+              programBytes: HYPERLANE_SVM_PROGRAM_BYTES.validatorAnnounce,
+            },
+            domainId: this.domainId,
+          },
+          this.rpc,
+          signer,
+        ),
+    };
+
+    return writers[type]();
   }
 }

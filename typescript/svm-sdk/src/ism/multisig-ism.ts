@@ -4,9 +4,10 @@ import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
@@ -60,10 +61,12 @@ export interface SvmMultisigIsmConfig extends MultisigIsmConfig {
   domains?: Record<number, { validators: string[]; threshold: number }>;
 }
 
-export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
+export class SvmMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
   MultisigIsmConfig,
   SvmDeployedIsm
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
@@ -112,7 +115,7 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class SvmMessageIdMultisigIsmWriter
   extends SvmMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
+  implements OrchestratedArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
 {
   constructor(
     rpc: SvmRpc,

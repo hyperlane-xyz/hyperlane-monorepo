@@ -14,6 +14,7 @@ import { before, describe, it } from 'mocha';
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { assert, pollAsync, toHexString } from '@hyperlane-xyz/utils';
@@ -492,6 +493,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     ).create({
       artifactState: ArtifactState.NEW,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         owner: signer.getSignerAddress(),
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -602,6 +604,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     );
     const [warpDeployed] = await warpWriter.create({
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: TEST_PROGRAM_IDS.mailbox,
@@ -738,6 +741,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
+        composition: ArtifactComposition.ORCHESTRATED,
         type: TokenType.native,
         owner: signer.getSignerAddress(),
         mailbox: TEST_PROGRAM_IDS.mailbox,
@@ -1001,6 +1005,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       );
       const [warpDeployed] = await warpWriter.create({
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: TokenType.crossCollateral,
           owner: signer.getSignerAddress(),
           mailbox: TEST_PROGRAM_IDS.mailbox,
@@ -1150,6 +1155,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       > = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
+          composition: ArtifactComposition.ORCHESTRATED,
           type: TokenType.crossCollateral,
           owner: signer.getSignerAddress(),
           mailbox: TEST_PROGRAM_IDS.mailbox,

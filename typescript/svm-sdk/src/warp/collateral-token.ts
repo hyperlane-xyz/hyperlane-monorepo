@@ -3,9 +3,11 @@ import { address as parseAddress } from '@solana/kit';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  type ArtifactReader,
+  ArtifactComposition,
   ArtifactState,
-  type ArtifactWriter,
+  type OrchestratedArtifactReader,
+  type OrchestratedArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -27,6 +29,7 @@ import {
   SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
@@ -35,7 +38,6 @@ import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
-import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import {
   fetchCollateralTokenAccount,
   fetchWarpProgramVersion,
@@ -51,16 +53,26 @@ import {
   scaleToRemoteDecimals,
 } from './warp-tx.js';
 
-export class SvmCollateralTokenReader implements ArtifactReader<
+type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
+  RawCollateralWarpArtifactConfig,
+  typeof ArtifactComposition.ORCHESTRATED
+>;
+
+export class SvmCollateralTokenReader implements OrchestratedArtifactReader<
   RawCollateralWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
+  readonly composition = ArtifactComposition.ORCHESTRATED;
+
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
+    ArtifactDeployed<
+      OrchestratedRawCollateralWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchCollateralTokenAccount(this.rpc, programId);
@@ -95,7 +107,8 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       token.owner,
     );
 
-    const config: RawCollateralWarpArtifactConfig = {
+    const config: OrchestratedRawCollateralWarpArtifactConfig = {
+      composition: ArtifactComposition.ORCHESTRATED,
       type: TokenType.collateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
       mailbox: token.mailbox,
@@ -141,7 +154,10 @@ export class SvmCollateralTokenReader implements ArtifactReader<
 export class SvmCollateralTokenWriter
   extends SvmCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
+    OrchestratedArtifactWriter<
+      RawCollateralWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -152,10 +168,13 @@ export class SvmCollateralTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>,
+      ArtifactDeployed<
+        OrchestratedRawCollateralWarpArtifactConfig,
+        SvmDeployedWarpAddress
+      >,
       SvmReceipt[],
     ]
   > {
@@ -257,7 +276,7 @@ export class SvmCollateralTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      RawCollateralWarpArtifactConfig,
+      OrchestratedRawCollateralWarpArtifactConfig,
       SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
