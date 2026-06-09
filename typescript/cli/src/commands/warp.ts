@@ -147,7 +147,6 @@ const balances: CommandModuleWithContext<
     out?: string;
     address?: string;
     raw?: boolean;
-    gas?: boolean;
   }
 > = {
   command: 'balances',
@@ -171,14 +170,8 @@ const balances: CommandModuleWithContext<
       description: 'Show balances in base units (without decimal formatting)',
       default: false,
     },
-    gas: {
-      type: 'boolean' as const,
-      description:
-        'Also show native gas token balances (e.g. ETH) for the given --address on each chain',
-      default: false,
-    },
   },
-  handler: async ({ context, warpRouteId, chains, out, address, raw, gas }) => {
+  handler: async ({ context, warpRouteId, chains, out, address, raw }) => {
     logCommandHeader('Hyperlane Warp Balances');
     await runWarpRouteBalances({
       context,
@@ -187,7 +180,6 @@ const balances: CommandModuleWithContext<
       out,
       address,
       raw,
-      gas,
     });
     process.exit(0);
   },
