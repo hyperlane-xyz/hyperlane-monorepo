@@ -19,7 +19,21 @@ If missing, ask now.
 
 This skill runs `warp apply` to extend a warp route to a new chain. It needs a deployer key matching the new chain's protocol to sign the new-chain deployment txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
 
-For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`. The deployer address used as the new chain's temporary `owner` is `keys.<new-chain-protocol>.address` from the artifact — never use the customer's real ICA/Safe address as the temporary owner.
+For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`.
+
+### Ownership model (read before Step 5/6)
+
+The deployer key plays TWO distinct roles in a chain extension; do not confuse them:
+
+1. **Deploy signer** — signs the deployment txs on the new chain (contract bytecode + initial proxy setup). The deployer transiently holds ownership during the deploy phase, for the lifespan of those few txs.
+2. **Initial-owner-transfer signer** — in the **same `warp apply` run**, signs the `transferOwnership(<customer-ICA-or-Safe>)` tx that moves the new contract's ownership to the customer's chosen owner. This is executed by the deployer's `jsonRpc` submitter atomically with the deploy.
+
+Implications for deploy.yaml:
+
+- The new chain's `owner` field in `deploy.yaml` is **always** the customer's ICA or Safe (per Step 5). It is **never** the deployer address.
+- The customer never signs anything on the new chain during the extension — the deployer signs deploy + transferOwnership for them. The customer only signs on existing chains (per the strategy file in Step 7).
+
+This is the opposite of the initial-deploy flow (`/warp-deploy-init-route`), where deploy.yaml carries the deployer as temporary owner and a separate `/warp-deploy-update-owners` run later transfers to the real owner. For extensions of routes already owned by a customer, the transfer happens atomically.
 
 ---
 
@@ -299,7 +313,7 @@ solanamainnet:
 
 ### If the new chain is also ICA-owned:
 
-If in Step 5 we deployed a new ICA for the customer on the new chain, we should still NOT include the new chain in the strategy (the new chain's contracts don't exist yet — `warp apply` will deploy them with our key). After deployment, we'll separately need to transfer ownership if we used the deployer as temp owner.
+If in Step 5 we deployed a new ICA for the customer on the new chain, still do NOT include the new chain in the strategy. The new chain's contracts don't exist yet — `warp apply` deploys them with the deployer key and atomically transfers ownership to the customer's ICA in the same run (per the Ownership model section at the top of this skill). No separate post-deploy ownership-transfer pass is needed.
 
 Write the strategy file.
 
@@ -358,18 +372,22 @@ Run it from `typescript/cli`. Show full output on completion.
 
 **On success:** the CLI deploys new contracts and writes tx proposal files to the receipts-dir.
 
-**After success — verify no `transferOwnership` to deployer:**
+**After success — verify the `transferOwnership` calls match the expected pattern:**
 
 ```bash
 grep -r "transferOwnership" /tmp/<customer>-<warp-route-id>-txs/
 ```
 
-If you see `transferOwnership` calls targeting the deployer address in files for **existing** chains, the deploy.yaml `owner` fields were corrupted (likely by a previous run). **Stop immediately — do not send these files to the customer.** To fix:
+Two distinct expectations (per the Ownership model section at the top of this skill):
+
+- **New chain's `jsonRpc` receipt** should contain `transferOwnership(<customer-ICA-or-Safe-from-Step-5>)` — the deployer's atomic post-deploy transfer to the customer. Confirm the target address matches Step 5's resolved ICA / Safe.
+- **Existing chains' receipt files** should NOT contain ANY `transferOwnership` calls. Existing-chain ownership is already where it should be; the extension does not change it.
+
+If either expectation is violated — `transferOwnership` to the deployer address anywhere, or `transferOwnership` calls targeting existing chains — the deploy.yaml `owner` fields were corrupted (typically by a previous run hitting the `runWarpRouteApply` corruption bug; see the Notes section). **Stop immediately — do not send these files to the customer.** To fix:
 
 1. Restore correct ICA owners in `deploy.yaml` for existing chains (check git history for original values)
-2. Restart the HTTP registry and re-run `warp apply`
-
-`transferOwnership` to the **new chain's deployer address** in the new chain's jsonRpc receipt is expected (the deployer owns the new contract and can manage it).
+2. Confirm the new chain's `owner` field is the customer's ICA / Safe (not the deployer address)
+3. Restart the HTTP registry and re-run `warp apply`
 
 **On failure:** stop the HTTP registry and show the error. Common issues:
 
