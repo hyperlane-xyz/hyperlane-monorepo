@@ -12,9 +12,13 @@ You are checking whether a deployer wallet has sufficient funds (gas + collatera
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516`)
-- **Deployer address** (required, e.g. `0xabc...`)
+- **Deployer address** (optional — auto-loaded from key-context if absent; see below)
 
-If either is missing, ask for them before proceeding.
+### Key Context (Prerequisite)
+
+This skill funds the deployer address(es) the warp-deploy chain will use. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist and the user did not provide an explicit deployer address, invoke `/warp-deploy-select-keys <ticket-id>` first.
+
+For each protocol resolved in the artifact, the recipient address for funding on that protocol's chains is `keys.<protocol>.address`. A pure-EVM route funds one EVM address across all EVM chains; a cross-VM route funds the protocol-matching address per chain (e.g. EVM address on EVM chains, SVM address on Solana, etc.). If the user supplied an explicit deployer address that does NOT match any address in the artifact, surface this discrepancy before proceeding.
 
 ---
 

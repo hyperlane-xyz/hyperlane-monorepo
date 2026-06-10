@@ -13,9 +13,14 @@ The user provides (or you have from a prior `/warp-deploy-init` session):
 
 - **Linear ticket URL or ID** (e.g. `https://linear.app/hyperlane/issue/ABC-123`)
 - **Registry path** (defaults to `$(pwd)/../hyperlane-registry`)
-- **Key env var(s)** used during deployment (e.g. `HYP_KEY`, `HYP_KEY_ETHEREUM`)
 
 If any of the above are missing, ask the user before proceeding.
+
+### Key Context (Prerequisite)
+
+This skill runs `warp apply` to transfer ownership and needs a deployer key per protocol to sign the txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
+
+For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`. Display the resolved name + derived address from the artifact at every `[CONFIRM:]` gate so the human can spot a wrong-key foot-gun.
 
 ### Reading the Linear Ticket
 
@@ -120,15 +125,15 @@ cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 
 Run with `run_in_background: true`. Wait for the log line `Server running` and note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
 
-Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes:
+Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
 
 pnpm -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.ethereum $MY_ETH_KEY_VAR \
-  [--key.sealevel $MY_SOL_KEY_VAR]  # only if sealevel chains present
-  [--key.cosmos $MY_COSMOS_KEY_VAR]  # only if cosmos chains present
+  --key.ethereum <KEY_ETHEREUM_VALUE> \
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]  # only if sealevel chains present
+  [--key.cosmos <KEY_COSMOS_VALUE>]      # only if cosmos chains present
   -w <WARP_ROUTE_ID>
 ```
 

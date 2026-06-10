@@ -12,19 +12,19 @@ You are generating the initial `deploy.yaml` for a new Hyperlane warp route depl
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516` or `https://linear.app/hyperlane-xyz/issue/ENG-3516/...`)
-- **Deployer address** (required — the temporary owner for all chains, e.g. `0xabc...`)
 
 If the ticket is not provided, ask for it now.
 
-If the deployer address is not provided, ask for it before proceeding. The deployer address is always used as the `owner` for every `owner` field in the deploy.yaml (chain-level and tokenFee-level). Real ownership is set later via `/warp-deploy-update-owners` — never use real Safe/ICA addresses in this step.
+### Key Context (Prerequisite)
 
-**Multi-protocol deployer addresses**: if the route spans multiple VM protocols (e.g. EVM + Sealevel), each protocol requires its own deployer address with a different format (EVM: `0x...`, Solana: base58). In this case, ask for a separate deployer address per protocol and use:
+This skill needs deployer key(s) per protocol to sign the warp-deploy txs, and the matching deployer address per protocol to fill `owner` fields in the deploy.yaml. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first — do not ask the user for an env var name or a deployer address inline.
 
-- The **EVM deployer address** as `owner` on all EVM chains
-- The **Sealevel deployer address** as `owner` on all Sealevel chains (Solana, Eclipse)
-- The **Cosmos deployer address** as `owner` on all Cosmos chains (if applicable)
+From the artifact, read per protocol:
 
-If the route spans multiple VM protocols and only one deployer address was given, check whether it matches the expected format for each protocol — if not, ask for the missing addresses.
+- `keys.<protocol>.name` — the GCP secret name (or env var name) for the signer
+- `keys.<protocol>.address` — the derived address used as `owner` in the deploy.yaml on all chains of that protocol
+
+A pure-EVM route uses one ethereum key + one EVM owner address across all EVM chains. A cross-VM route uses one key + address per protocol. Real ownership is transferred later via `/warp-deploy-update-owners` — never use real Safe/ICA addresses in this step.
 
 ---
 
@@ -476,18 +476,13 @@ For each chain in the route, determine its VM protocol type:
 
 If all chains are EVM, only one key is needed. If the route spans multiple VM types, a separate key flag is needed per protocol.
 
-### 7c: Ask for Key Environment Variables
+### 7c: Load Keys from the Key-Context Artifact
 
-For each unique protocol needed, ask the user:
-
-> **What environment variable holds your deployer private key for `{protocol}` chains?**
-> (Press enter to use the default: `HYP_KEY` for single-protocol routes, or `HYP_KEY_{PROTOCOL}` for multi-protocol)
-
-Use the provided variable name(s) to build the command.
+For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-contexts/<ticket-id>.yaml`. Do NOT ask the user for env var names inline — the artifact is the source of truth.
 
 ### 7d: Build and Show the Command
 
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt.
+Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the key-value expansion legend (see `/warp-deploy-validate-owners` for the canonical table; the same mapping applies here).
 
 > **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
@@ -495,15 +490,15 @@ Assemble the full deploy command. The command must be run from `typescript/cli`.
 pnpm -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
-  --key.ethereum $MY_ETH_KEY_VAR \
-  [--key.sealevel $MY_SOL_KEY_VAR]   # only if sealevel chains present
-  [--key.cosmos $MY_COSMOS_KEY_VAR]   # only if cosmos chains present
+  --key.ethereum <KEY_ETHEREUM_VALUE> \
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
+  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
   --yes
 ```
 
-Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
+Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
 
-Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. End your message with this marker (this MUST be the very last thing in your message):
+Show the user the exact command with the resolved secret/env-var NAMES substituted (from the artifact), never private-key values. Also show the corresponding derived `address` per protocol so the human can spot a wrong-key foot-gun at the gate. End your message with this marker (this MUST be the very last thing in your message):
 
 ```test
 [CONFIRM: Run warp deploy for <warp-route-id>]
@@ -528,13 +523,15 @@ Tell the user upfront:
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`:
+Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
 pnpm -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
-  --key.ethereum $MY_ETH_KEY_VAR \
+  --key.ethereum <KEY_ETHEREUM_VALUE> \
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
+  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
   --yes
 ```
 
@@ -581,14 +578,14 @@ Send forward then back. Use the amounts from the calculation above:
 pnpm -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain1> --destination <chain2> \
-  --amount 10000 --key $MY_PK \
+  --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 
 # Return (fee charged — use reduced amount)
 pnpm -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain2> --destination <chain1> \
-  --amount 9000 --key $MY_PK \
+  --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 ```
 
@@ -602,14 +599,14 @@ Do NOT use `--round-trip`. Test each native ↔ synthetic pair sequentially:
 pnpm -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <native-chain> --destination <synthetic-chain> \
-  --amount 10000 --key $MY_PK \
+  --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 
 # Then return: synthetic → native (fee charged — use reduced amount)
 pnpm -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <synthetic-chain> --destination <native-chain> \
-  --amount 9000 --key $MY_PK \
+  --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 ```
 

@@ -12,11 +12,14 @@ You are adding a new chain to an existing Hyperlane warp route. The route is own
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516`)
-- **Deployer address** (required — used to fund and sign new chain deployment transactions)
 
-If either is missing, ask now.
+If missing, ask now.
 
-**Multi-protocol note**: if the new chain is Sealevel, Cosmos, or Tron, ask for a separate deployer address for that protocol.
+### Key Context (Prerequisite)
+
+This skill runs `warp apply` to extend a warp route to a new chain. It needs a deployer key matching the new chain's protocol to sign the new-chain deployment txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
+
+For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`. The deployer address used as the new chain's temporary `owner` is `keys.<new-chain-protocol>.address` from the artifact — never use the customer's real ICA/Safe address as the temporary owner.
 
 ---
 
@@ -301,14 +304,9 @@ Write the strategy file.
 
 ---
 
-## Step 8: Ask for Key Environment Variables
+## Step 8: Load Keys from the Key-Context Artifact
 
-Ask the user:
-
-> **What environment variable holds your deployer private key for new chain deployment?**
-> (e.g. `PK_EVM`, `HYP_KEY`)
-
-If the new chain is Sealevel or Tron, also ask for its key var (may be the same EVM key).
+Read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-contexts/<ticket-id>.yaml` for every protocol touched by the extension. Do NOT ask the user for env var names inline — the artifact is the source of truth (see the "Key Context (Prerequisite)" section at the top of this skill).
 
 ---
 
@@ -324,14 +322,14 @@ Run with `run_in_background: true`. Wait for `Listening on http://localhost:<por
 
 ### 9b: Build and Show the Command
 
-The command runs from `typescript/cli`:
+The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
 pnpm -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.ethereum $<DEPLOYER_KEY_VAR> \
-  [--key.sealevel $<SEALEVEL_KEY_VAR>]  # only if new chain is Sealevel
-  [--key.tron $<TRON_KEY_VAR>]          # only if new chain is Tron
+  --key.ethereum <KEY_ETHEREUM_VALUE> \
+  [--key.sealevel <KEY_SEALEVEL_VALUE>]  # only if new chain is Sealevel
+  [--key.tron <KEY_TRON_VALUE>]          # only if new chain is Tron
   --strategy ~/.hyperlane/strategies/<customer>-strategy.yaml \
   --receipts-dir /tmp/<customer>-<warp-route-id>-txs \
   -w <WARP_ROUTE_ID> \
