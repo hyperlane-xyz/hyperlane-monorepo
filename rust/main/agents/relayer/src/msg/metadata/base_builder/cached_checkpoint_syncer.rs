@@ -14,7 +14,12 @@ use hyperlane_core::{
 
 const FETCH_CHECKPOINT_METHOD: &str = "fetch_checkpoint";
 const LATEST_INDEX_METHOD: &str = "latest_index";
-const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_secs(5);
+// Kept short so that on the merkle-root multisig path (where `latest_index`
+// gates the highest quorum index we search from) a freshly-advanced validator
+// is picked up within ~1 retry cycle, while still absorbing the bulk of
+// per-validator `latest_index` RPC/S3 load. The message-id multisig path only
+// uses `latest_index` for metrics, so it is unaffected by this TTL.
+const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CachedLatestIndexKey {
