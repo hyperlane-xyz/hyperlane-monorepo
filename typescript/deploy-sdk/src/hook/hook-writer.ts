@@ -6,11 +6,9 @@ import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedHookAddress,
   DeployedHookArtifact,
   HookArtifactConfig,
   HookConfig,
@@ -83,10 +81,7 @@ export function createHookWriter(
  * Note: In the future, the Artifact API will include an explicit check
  * to verify if an artifact type is updatable before attempting updates.
  */
-export class HookWriter
-  extends HookReader
-  implements OrchestratedArtifactWriter<HookArtifactConfig, DeployedHookAddress>
-{
+export class HookWriter extends HookReader {
   constructor(
     protected readonly artifactManager: IRawHookArtifactManager,
     protected readonly chainLookup: ChainLookup,

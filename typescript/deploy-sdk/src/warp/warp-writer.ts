@@ -10,7 +10,6 @@ import {
   ArtifactOnChain,
   ArtifactState,
   ConfigOnChain,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactEmbedded,
@@ -59,8 +58,7 @@ type OrchestratedWarpArtifactConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape: ORCHESTRATED warp with composite children
- * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
- * `OrchestratedArtifactWriter` contract.
+ * collapsed via `ConfigOnChain`. Returned from `create()`.
  */
 type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
   ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
@@ -109,10 +107,7 @@ export function createWarpTokenWriter(
  * - Delegates to typed writers from artifact manager for specific warp token types
  * - Protocol-agnostic through artifact manager abstraction
  */
-export class WarpTokenWriter
-  extends WarpTokenReader
-  implements OrchestratedArtifactWriter<WarpArtifactConfig, DeployedWarpAddress>
-{
+export class WarpTokenWriter extends WarpTokenReader {
   protected readonly ismWriter: IsmWriter;
   protected readonly hookWriterFactory: (mailbox: string) => HookWriter;
 

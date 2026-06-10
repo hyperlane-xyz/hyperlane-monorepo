@@ -7,7 +7,6 @@ import {
   ArtifactComposition,
   ArtifactDeployed,
   ConfigOnChain,
-  OrchestratedArtifactReader,
   WithCompositionVariant,
   isArtifactDeployed,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -30,8 +29,7 @@ type OrchestratedIsmArtifactConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape: ORCHESTRATED ISM with composite children
- * collapsed via `ConfigOnChain`. Returned from `read()` per the
- * `OrchestratedArtifactReader` contract.
+ * collapsed via `ConfigOnChain`. Returned from `read()`.
  */
 type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
   ConfigOnChain<OrchestratedIsmArtifactConfig, DeployedIsmAddress>,
@@ -68,11 +66,7 @@ export function createIsmReader(
  * Generic ISM Reader that can read any ISM type by detecting its type
  * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
-export class IsmReader implements OrchestratedArtifactReader<
-  IsmArtifactConfig,
-  DeployedIsmAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
+export class IsmReader {
   protected readonly logger: Logger = rootLogger.child({
     module: IsmReader.name,
   });
@@ -121,8 +115,7 @@ export class IsmReader implements OrchestratedArtifactReader<
    * Takes a pre-read raw artifact to avoid double reading.
    *
    * Returns the post-deploy on-chain shape — children collapse to
-   * `ArtifactOnChain` via `ConfigOnChain` — to match the
-   * `OrchestratedArtifactReader` contract.
+   * `ArtifactOnChain` via `ConfigOnChain`.
    */
   private async expandRoutingIsm(
     rawArtifact: ArtifactDeployed<

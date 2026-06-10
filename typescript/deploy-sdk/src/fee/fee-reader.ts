@@ -3,13 +3,7 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactComposition,
-  OrchestratedArtifactReader,
-} from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  DeployedFeeAddress,
   DeployedFeeArtifact,
-  FeeArtifactConfig,
   FeeReadContext,
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
@@ -43,12 +37,7 @@ export function createFeeReader(
  * The FeeReadContext is required at construction time to ensure the reader always
  * knows which domains and routers to check (some fee contracts are not enumerable).
  */
-export class FeeReader implements OrchestratedArtifactReader<
-  FeeArtifactConfig,
-  DeployedFeeAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
-
+export class FeeReader {
   constructor(
     protected readonly artifactManager: IRawFeeArtifactManager,
     protected readonly context: FeeReadContext,

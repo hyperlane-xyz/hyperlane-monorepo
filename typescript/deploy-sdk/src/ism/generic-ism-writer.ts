@@ -9,7 +9,6 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ConfigOnChain,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -32,8 +31,7 @@ type OrchestratedIsmArtifactConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape: ORCHESTRATED ISM with composite children
- * collapsed via `ConfigOnChain`. Matches the
- * `OrchestratedArtifactWriter<IsmArtifactConfig, D>.create()` return.
+ * collapsed via `ConfigOnChain`. Returned from `create()`.
  */
 type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
   ConfigOnChain<OrchestratedIsmArtifactConfig, DeployedIsmAddress>,
@@ -79,10 +77,7 @@ export function createIsmWriter(
  * - Uses RoutingIsmWriter for composite routing ISM operations
  * - Protocol-agnostic through artifact manager abstraction
  */
-export class IsmWriter
-  extends IsmReader
-  implements OrchestratedArtifactWriter<IsmArtifactConfig, DeployedIsmAddress>
-{
+export class IsmWriter extends IsmReader {
   private readonly routingWriter: RoutingIsmWriter;
 
   constructor(

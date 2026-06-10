@@ -8,7 +8,6 @@ import {
   ArtifactComposition,
   ArtifactDeployed,
   ConfigOnChain,
-  OrchestratedArtifactReader,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactUnderived,
@@ -49,8 +48,7 @@ type OrchestratedWarpArtifactConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape: ORCHESTRATED warp with composite children
- * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
- * `OrchestratedArtifactWriter` contract.
+ * collapsed via `ConfigOnChain`. Returned from `read()` / `create()`.
  */
 type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
   ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
@@ -61,11 +59,7 @@ type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
  * Generic Warp Token Reader that can read any warp token type by detecting its type
  * and expanding nested ISM artifacts if present.
  */
-export class WarpTokenReader implements OrchestratedArtifactReader<
-  WarpArtifactConfig,
-  DeployedWarpAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
+export class WarpTokenReader {
   protected readonly ismReader: IsmReader;
 
   constructor(

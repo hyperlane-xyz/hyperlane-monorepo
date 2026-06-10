@@ -3,12 +3,8 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  ArtifactNew,
-  OrchestratedArtifactWriter,
-} from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  DeployedFeeAddress,
   DeployedFeeArtifact,
   FeeArtifactConfig,
   FeeReadContext,
@@ -51,10 +47,7 @@ export function createFeeWriter(
  * The FeeReadContext is required at construction time to ensure the reader always
  * knows which domains and routers to check (some fee contracts are not enumerable).
  */
-export class FeeWriter
-  extends FeeReader
-  implements OrchestratedArtifactWriter<FeeArtifactConfig, DeployedFeeAddress>
-{
+export class FeeWriter extends FeeReader {
   constructor(
     artifactManager: IRawFeeArtifactManager,
     context: FeeReadContext,

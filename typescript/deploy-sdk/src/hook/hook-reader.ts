@@ -2,16 +2,10 @@ import {
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
-import {
-  ArtifactComposition,
-  OrchestratedArtifactReader,
-} from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedHookAddress,
   DeployedHookArtifact,
   DerivedHookConfig,
-  HookArtifactConfig,
   IRawHookArtifactManager,
   hookArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -49,11 +43,7 @@ export function createHookReader(
  * Generic Hook Reader that can read any hook type by detecting its type.
  * Unlike ISMs, hooks don't have composite/nested types, so no recursive expansion needed.
  */
-export class HookReader implements OrchestratedArtifactReader<
-  HookArtifactConfig,
-  DeployedHookAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
+export class HookReader {
   protected readonly logger: Logger = rootLogger.child({
     module: HookReader.name,
   });

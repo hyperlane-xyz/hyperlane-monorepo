@@ -8,7 +8,6 @@ import {
   ArtifactOnChain,
   ArtifactState,
   ConfigOnChain,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactNew,
@@ -35,18 +34,14 @@ type OrchestratedRoutingIsmArtifactConfig = WithCompositionVariant<
 /**
  * Post-deploy on-chain shape: ORCHESTRATED routing-ISM with children
  * collapsed to `ArtifactOnChain<>` via `ConfigOnChain`. Returned from
- * `read()` / `create()` per the `OrchestratedArtifactWriter` contract.
+ * `read()` / `create()`.
  */
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   ConfigOnChain<OrchestratedRoutingIsmArtifactConfig, DeployedIsmAddress>,
   DeployedIsmAddress
 >;
 
-export class RoutingIsmWriter implements OrchestratedArtifactWriter<
-  RoutingIsmArtifactConfig,
-  DeployedIsmAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
+export class RoutingIsmWriter {
   protected readonly logger: Logger = rootLogger.child({
     module: RoutingIsmWriter.name,
   });

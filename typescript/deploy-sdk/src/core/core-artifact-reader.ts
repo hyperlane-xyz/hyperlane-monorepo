@@ -6,7 +6,6 @@ import {
   ArtifactComposition,
   ArtifactDeployed,
   ArtifactState,
-  OrchestratedArtifactReader,
   WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -72,11 +71,7 @@ export function createCoreReader(
  * The raw mailbox reader returns UNDERIVED ISM/hook references (just addresses).
  * This composite reader expands them into full DEPLOYED artifacts with complete configs.
  */
-export class CoreArtifactReader implements OrchestratedArtifactReader<
-  MailboxOnChain,
-  DeployedMailboxAddress
-> {
-  readonly composition = ArtifactComposition.ORCHESTRATED;
+export class CoreArtifactReader {
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
   });
