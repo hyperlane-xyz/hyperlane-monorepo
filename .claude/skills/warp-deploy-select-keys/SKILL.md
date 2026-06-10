@@ -107,17 +107,40 @@ Wait for the user's response, then jump to 4a or 4b accordingly.
 
 ## Step 5: Verify Access + Derive Address (per protocol)
 
+### Transient-Retry Guideline
+
+Every `gcloud secrets versions access …` call in this step (5a verify, 5b derive) is observably flaky in Haggis's sandbox — auth tokens occasionally don't propagate on the first try and the call returns `PERMISSION_DENIED` or `UNAUTHENTICATED` even when the IAM bindings are correct. Before halting on any gcloud failure, **retry the failing call up to 3 times with a 1–2s sleep between attempts**. Only halt + surface the error to the user if all 3 attempts fail. The retry block:
+
+```bash
+for attempt in 1 2 3; do
+  if gcloud secrets versions access latest --secret=<name> > /dev/null 2>&1; then
+    echo "ok (attempt $attempt)"
+    break
+  fi
+  if [ "$attempt" = "3" ]; then
+    echo "FAILED after 3 attempts" >&2
+    exit 1
+  fi
+  sleep 2
+done
+```
+
+Tell the user which attempt succeeded (or that all 3 failed) so transient flakes are visible without being a wall-of-noise. Apply the same retry shape to the 5b derivation commands (they all use the same gcloud substitution).
+
 ### 5a: Verify Access (don't echo the value)
 
 ```bash
 gcloud secrets versions access latest --secret=<name> > /dev/null && echo ok
 ```
 
-If this fails, surface the error and stop the loop for this protocol. Common causes:
+(Wrap in the retry block above before running.)
+
+If all 3 attempts fail, surface the error and stop the loop for this protocol. Common persistent causes (after retries are exhausted):
 
 - Wrong secret name (typo)
 - Insufficient IAM permission (the calling identity needs `roles/secretmanager.secretAccessor`)
 - Project context mismatch
+- Active identity is the wrong principal (e.g., a workload-identity pool rather than the intended service account) — diagnose with `gcloud auth list --format='value(account)'`
 
 ### 5b: Derive the Signer Address
 
