@@ -385,6 +385,19 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
+   * GET /calls/:commitment — returns { exists: boolean }.
+   * Used by the router status service to detect call_lost without a time threshold.
+   */
+  public async handleCheckCommitment(req: Request, res: Response) {
+    const { commitment } = req.params;
+    const record = await prisma.commitment.findUnique({
+      where: { commitment },
+      select: { commitment: true },
+    });
+    return res.json({ exists: record !== null });
+  }
+
+  /**
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
@@ -404,6 +417,7 @@ export class CallCommitmentsService extends BaseService {
       commitmentRateLimit,
       this.handleCommitment.bind(this),
     );
+    router.get('/calls/:commitment', this.handleCheckCommitment.bind(this));
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
