@@ -13,7 +13,7 @@ import {
   ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { RawRoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
@@ -53,25 +53,30 @@ interface DomainEntry {
   config: DomainMultisig;
 }
 
+/**
+ * Pre-deploy shape of the routing-multisig config — children are
+ * `ArtifactEmbedded` (config only, no `.deployed`). This is what the
+ * writer's create() and update() accept per the `EmbeddedArtifactWriter`
+ * contract and what `computeRoutingMultisigUpdate` consumes.
+ */
 type EmbeddedRoutingConfig = Extract<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   { composition: typeof ArtifactComposition.EMBEDDED }
 >;
 
-function buildExpectedConfig(
+function buildEmbeddedCreateConfig(
   owner: Address,
   entries: DomainEntry[],
 ): EmbeddedRoutingConfig {
   const domains: EmbeddedRoutingConfig['domains'] = {};
   for (const entry of entries) {
     domains[entry.domain] = {
-      artifactState: ArtifactState.DEPLOYED,
+      artifactState: ArtifactState.EMBEDDED,
       config: {
         type: 'messageIdMultisigIsm',
         validators: entry.config.validators,
         threshold: entry.config.threshold,
       },
-      deployed: { address: parseAddress('11111111111111111111111111111112') },
     };
   }
   return {
@@ -206,7 +211,10 @@ describe('computeRoutingMultisigUpdate', () => {
         signer: SIGNER,
         currentOwner: c.currentOwner,
         currentDomains: c.currentDomains,
-        expectedConfig: buildExpectedConfig(c.expectedOwner, c.expectedEntries),
+        expectedConfig: buildEmbeddedCreateConfig(
+          c.expectedOwner,
+          c.expectedEntries,
+        ),
       });
 
       expect(txs).to.have.length(c.expectedTxCount);
@@ -239,7 +247,7 @@ describe('computeRoutingMultisigUpdate', () => {
           1: DOMAIN_1_CFG,
           137: DOMAIN_1_CFG_NEW_VALIDATORS,
         },
-        expectedConfig: buildExpectedConfig(OWNER_A, [
+        expectedConfig: buildEmbeddedCreateConfig(OWNER_A, [
           { domain: 1, config: DOMAIN_1_CFG },
         ]),
       });
@@ -392,7 +400,7 @@ describe('SvmRoutingMultisigWriter.update', () => {
 
     const txs = await writer.update({
       artifactState: ArtifactState.DEPLOYED,
-      config: buildExpectedConfig(SIGNER_OWNER, [
+      config: buildEmbeddedCreateConfig(SIGNER_OWNER, [
         {
           domain: 1,
           config: {
@@ -435,7 +443,7 @@ describe('SvmRoutingMultisigWriter.update', () => {
     try {
       await writer.update({
         artifactState: ArtifactState.DEPLOYED,
-        config: buildExpectedConfig(SIGNER_OWNER, [
+        config: buildEmbeddedCreateConfig(SIGNER_OWNER, [
           { domain: 1, config: DOMAIN_1_CFG_NEW_VALIDATORS },
         ]),
         deployed: { address: PROGRAM_ID, programId: PROGRAM_ID },
@@ -468,7 +476,7 @@ describe('SvmRoutingMultisigWriter.update', () => {
 
     const txs = await writer.update({
       artifactState: ArtifactState.DEPLOYED,
-      config: buildExpectedConfig(SIGNER_OWNER, [
+      config: buildEmbeddedCreateConfig(SIGNER_OWNER, [
         { domain: 1, config: DOMAIN_1_CFG },
       ]),
       deployed: { address: PROGRAM_ID, programId: PROGRAM_ID },

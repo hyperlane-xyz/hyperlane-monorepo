@@ -5,13 +5,11 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
+  type ConfigOnChain,
   type EmbeddedArtifactWriter,
   type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedIsmAddress,
-  RawRoutingIsmArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   assert,
   retryAsync,
@@ -48,9 +46,23 @@ import {
   SvmRoutingMultisigReader,
 } from './routing-multisig-reader.js';
 
+/**
+ * Pre-deploy shape — children are `ArtifactEmbedded`. Accepted on create()
+ * input and update() input per the `EmbeddedArtifactWriter` contract.
+ */
 type EmbeddedRoutingMultisigConfig = WithCompositionVariant<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   typeof ArtifactComposition.EMBEDDED
+>;
+
+/**
+ * Post-deploy on-chain shape — EMBEDDED children collapse to
+ * `ArtifactDeployed` via `ConfigOnChain`. Returned from create() per the
+ * `EmbeddedArtifactWriter` contract.
+ */
+type EmbeddedRoutingMultisigOnChain = ConfigOnChain<
+  EmbeddedRoutingMultisigConfig,
+  SvmDeployedIsm
 >;
 
 /**
@@ -82,7 +94,7 @@ interface DomainMultisig {
  * ISM: the program is the parent, each domain's DomainData PDA is a child.
  */
 export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   SvmDeployedIsm
 > {
   readonly composition = ArtifactComposition.EMBEDDED;
@@ -105,7 +117,7 @@ export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<EmbeddedRoutingMultisigConfig, SvmDeployedIsm>> {
+  ): Promise<ArtifactDeployed<EmbeddedRoutingMultisigOnChain, SvmDeployedIsm>> {
     return this.reader.read(address);
   }
 
@@ -120,7 +132,7 @@ export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
     artifact: ArtifactNew<EmbeddedRoutingMultisigConfig>,
   ): Promise<
     [
-      ArtifactDeployed<EmbeddedRoutingMultisigConfig, SvmDeployedIsm>,
+      ArtifactDeployed<EmbeddedRoutingMultisigOnChain, SvmDeployedIsm>,
       SvmReceipt[],
     ]
   > {
@@ -171,13 +183,7 @@ export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
       receipts.push(await this.svmSigner.send({ instructions: [transferIx] }));
     }
 
-    const domainChildren: Record<
-      number,
-      ArtifactDeployed<
-        EmbeddedRoutingMultisigConfig['domains'][number]['config'],
-        DeployedIsmAddress
-      >
-    > = {};
+    const domainChildren: EmbeddedRoutingMultisigOnChain['domains'] = {};
     for (const [domainStr, domainArtifact] of Object.entries(config.domains)) {
       const domain = parseDomain(domainStr);
       const domainConfig = domainArtifact.config;
@@ -203,7 +209,7 @@ export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
       domainChildren[domain] = {
         artifactState: ArtifactState.DEPLOYED,
         config: domainConfig,
-        deployed: { address: domainPda },
+        deployed: { address: domainPda, programId },
       };
     }
 

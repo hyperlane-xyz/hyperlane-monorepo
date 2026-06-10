@@ -10,7 +10,7 @@ import {
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
-  RawIsmArtifactConfigs,
+  IsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -63,34 +63,34 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new RadixTestIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
         return new RadixMerkleRootMultisigIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new RadixMessageIdMultisigIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new RadixRoutingIsmRawReader(
           this.gateway,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       default:
@@ -101,7 +101,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: RadixSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const baseSigner = signer.getBaseSigner();
 
     switch (type) {
@@ -111,7 +111,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           baseSigner,
           this.base,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
@@ -120,7 +120,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           baseSigner,
           this.base,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
@@ -129,7 +129,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           baseSigner,
           this.base,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
@@ -138,7 +138,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           baseSigner,
           this.base,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       default:

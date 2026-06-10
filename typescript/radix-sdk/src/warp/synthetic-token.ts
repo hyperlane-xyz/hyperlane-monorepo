@@ -6,17 +6,21 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
+  isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DeployedWarpAddress,
   RawSyntheticWarpArtifactConfig,
+  SyntheticWarpArtifactConfig,
   computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressRadix } from '@hyperlane-xyz/utils';
+import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -30,9 +34,20 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
-  RawSyntheticWarpArtifactConfig,
+type OrchestratedSyntheticWarpArtifactConfig = WithCompositionVariant<
+  SyntheticWarpArtifactConfig,
   typeof ArtifactComposition.ORCHESTRATED
+>;
+
+/**
+ * Post-deploy on-chain shape: composite ISM/hook/fee children collapse to
+ * `ArtifactOnChain<>` via `ConfigOnChain`. Returned from `read()` /
+ * `create()` per the `OrchestratedArtifactReader` /
+ * `OrchestratedArtifactWriter` contract.
+ */
+type OrchestratedSyntheticWarpArtifactOnChain = ConfigOnChain<
+  OrchestratedSyntheticWarpArtifactConfig,
+  DeployedWarpAddress
 >;
 
 function withErrorContext(context: string, error: unknown): Error {
@@ -41,7 +56,7 @@ function withErrorContext(context: string, error: unknown): Error {
 }
 
 export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
-  RawSyntheticWarpArtifactConfig,
+  SyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
   readonly composition = ArtifactComposition.ORCHESTRATED;
@@ -55,7 +70,7 @@ export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
     address: string,
   ): Promise<
     ArtifactDeployed<
-      OrchestratedRawSyntheticWarpArtifactConfig,
+      OrchestratedSyntheticWarpArtifactOnChain,
       DeployedWarpAddress
     >
   > {
@@ -71,7 +86,7 @@ export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
       );
     });
 
-    const config: OrchestratedRawSyntheticWarpArtifactConfig = {
+    const config: OrchestratedSyntheticWarpArtifactOnChain = {
       composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.synthetic,
       owner: token.owner,
@@ -104,10 +119,7 @@ export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
 export class RadixSyntheticTokenWriter
   extends RadixSyntheticTokenReader
   implements
-    OrchestratedArtifactWriter<
-      RawSyntheticWarpArtifactConfig,
-      DeployedWarpAddress
-    >
+    OrchestratedArtifactWriter<SyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     gateway: GatewayApiClient,
@@ -118,11 +130,11 @@ export class RadixSyntheticTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<OrchestratedRawSyntheticWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedSyntheticWarpArtifactConfig>,
   ): Promise<
     [
       ArtifactDeployed<
-        OrchestratedRawSyntheticWarpArtifactConfig,
+        OrchestratedSyntheticWarpArtifactOnChain,
         DeployedWarpAddress
       >,
       TxReceipt[],
@@ -168,7 +180,12 @@ export class RadixSyntheticTokenWriter
 
     // Set ISM if configured
     if (config.interchainSecurityModule) {
-      const ismAddress = config.interchainSecurityModule.deployed.address;
+      const ismArtifact = config.interchainSecurityModule;
+      assert(
+        isArtifactDeployed(ismArtifact) || isArtifactUnderived(ismArtifact),
+        `Synthetic warp create: ISM child must be resolved on-chain (DEPLOYED or UNDERIVED) before being passed to the raw writer; got artifactState=${ismArtifact.artifactState ?? 'new'}`,
+      );
+      const ismAddress = ismArtifact.deployed.address;
       const setIsmTx = await getSetTokenIsmTx(
         this.base,
         this.signer.getAddress(),
@@ -233,11 +250,16 @@ export class RadixSyntheticTokenWriter
     // enrolled with the other tokens deployed and only the owner can perform that enrollment.
 
     const deployedArtifact: ArtifactDeployed<
-      OrchestratedRawSyntheticWarpArtifactConfig,
+      OrchestratedSyntheticWarpArtifactOnChain,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
+      // CAST: ISM/hook/fee children were asserted to be DEPLOYED /
+      // UNDERIVED above; both are valid `ArtifactOnChain` positions.
+      // Bridge the pre-collapse `Artifact<>` union to the post-collapse
+      // `ArtifactOnChain<>` shape — TS can't reduce the generic mapped
+      // type at indexing time.
+      config: artifact.config as OrchestratedSyntheticWarpArtifactOnChain,
       deployed: {
         address,
       },
@@ -248,15 +270,28 @@ export class RadixSyntheticTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      OrchestratedRawSyntheticWarpArtifactConfig,
+      OrchestratedSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedRadixTransaction[]> {
     const currentArtifactState = await this.read(artifact.deployed.address);
 
+    // CAST: pre-collapse `OrchestratedSyntheticWarpArtifactConfig` and
+    // post-collapse `OrchestratedSyntheticWarpArtifactOnChain` are
+    // structurally identical at runtime when ISM/hook/fee children have
+    // been resolved by the caller (the deploy-sdk does this before
+    // invoking the raw writer). `getWarpTokenUpdateTxs` is typed against
+    // `RawWarpArtifactConfig` (post-collapse) and accesses children via
+    // `?.deployed.address`. Bridge the two equivalent shapes.
     return getWarpTokenUpdateTxs(
-      artifact,
-      currentArtifactState,
+      artifact as ArtifactDeployed<
+        RawSyntheticWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
+      currentArtifactState as ArtifactDeployed<
+        RawSyntheticWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       this.base,
       this.gateway,
       // The current owner is the only one that can execute the update transactions

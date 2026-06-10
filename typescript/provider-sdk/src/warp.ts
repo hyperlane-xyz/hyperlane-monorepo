@@ -294,11 +294,17 @@ export type DeployedRawWarpArtifact = ArtifactDeployed<
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
- * warp tokens on chain
+ * warp tokens on chain.
+ *
+ * The manager's `ConfigMap` is the pre-collapse `WarpArtifactConfigs`. Per-type
+ * writers consume bare pre-deploy configs and return the post-deploy on-chain
+ * shape via the `OrchestratedArtifactWriter` / `EmbeddedArtifactWriter` create
+ * signatures. The `Raw*ArtifactConfig` aliases stay as the public output
+ * shape of `read()` / `readWarpToken()`.
  */
 export interface IRawWarpArtifactManager extends IArtifactManager<
   WarpType,
-  RawWarpArtifactConfigs,
+  WarpArtifactConfigs,
   DeployedWarpAddress
 > {
   /**

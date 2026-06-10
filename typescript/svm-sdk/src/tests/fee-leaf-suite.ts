@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import { it } from 'mocha';
 
 import type {
+  ArtifactDeployed,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
@@ -43,6 +45,34 @@ export interface LeafFeeTestContext<C extends ParamsFeeConfig> {
 export function defineLeafFeeTests<C extends ParamsFeeConfig>(
   getContext: () => LeafFeeTestContext<C>,
 ): void {
+  type OrchestratedVariant = WithCompositionVariant<
+    C,
+    typeof ArtifactComposition.ORCHESTRATED
+  >;
+  type DeployedVariant = ArtifactDeployed<OrchestratedVariant, SvmDeployedFee>;
+
+  /**
+   * CAST: leaf fee configs have no nested `Artifact<>` positions, so
+   * `ConfigOnChain<X, D>` is structurally identical to `X`. TS can't reduce
+   * a generic mapped type at indexing time, so an explicit narrowing
+   * bridges the equivalent shapes returned by read()/create() back to the
+   * bare config variant tests assert on.
+   */
+  function narrowToBareConfig(
+    deployed: ArtifactDeployed<
+      ConfigOnChain<OrchestratedVariant, SvmDeployedFee>,
+      SvmDeployedFee
+    >,
+  ): DeployedVariant {
+    return {
+      artifactState: deployed.artifactState,
+      // Structural identity: ConfigOnChain<OrchestratedVariant, _> equals
+      // OrchestratedVariant when no nested Artifact<> positions exist.
+      config: deployed.config as OrchestratedVariant,
+      deployed: deployed.deployed,
+    };
+  }
+
   async function executeUpdateTxs(
     txs: Awaited<ReturnType<LeafFeeTestContext<C>['writer']['update']>>,
   ): Promise<void> {
@@ -57,13 +87,16 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     const owner = await generateKeyPairSigner();
     const config = makeConfig({ owner: owner.address });
 
-    const [deployed, receipts] = await writer.create({ config });
+    const [deployedRaw, receipts] = await writer.create({ config });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     expect(receipts.length).to.be.greaterThan(0);
     expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
     expect(deployed.config.type).to.equal(config.type);
 
-    const readResult = await writer.read(deployed.deployed.programId);
+    const readResult = narrowToBareConfig(
+      await writer.read(deployed.deployed.programId),
+    );
     expect(readResult.config.type).to.equal(config.type);
     expect(readResult.config.params.type).to.equal(FeeParamsType.raw);
     expect(readResult.config.owner).to.equal(owner.address);
@@ -80,7 +113,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
       token: mint,
     });
 
-    const [deployed] = await writer.create({ config });
+    const [deployedRaw] = await writer.create({ config });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     const expectedAta = await deriveAssociatedTokenAddress({
       wallet: beneficiary.address,
@@ -102,14 +136,15 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
 
   it('should return empty transactions when config is unchanged', async () => {
     const { writer, makeConfig } = getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
-    const updateTxs = await writer.update(deployed);
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const updateTxs = await writer.update(narrowToBareConfig(deployedRaw));
     expect(updateTxs).to.have.length(0);
   });
 
   it('should update fee params', async () => {
     const { writer, reader, makeConfig } = getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     const updateTxs = await writer.update({
       ...deployed,
@@ -125,14 +160,17 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(updateTxs).to.have.length(1);
     await executeUpdateTxs(updateTxs);
 
-    const readResult = await reader.read(deployed.deployed.programId);
+    const readResult = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     expect(readResult.config.params.maxFee).to.equal('9999999');
     expect(readResult.config.params.halfAmount).to.equal('4444444');
   });
 
   it('should update beneficiary', async () => {
     const { writer, reader, makeConfig } = getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     const newBeneficiary = await generateKeyPairSigner();
     const updateTxs = await writer.update({
@@ -146,13 +184,16 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(updateTx.instructions).to.have.length(1);
     await executeUpdateTxs(updateTxs);
 
-    const readResult = await reader.read(deployed.deployed.programId);
+    const readResult = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
   });
 
   it('should create beneficiary ATA when token is introduced without beneficiary change', async () => {
     const { writer, reader, signer, rpc, makeConfig } = getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     const mint = await createSplMint(rpc, signer, 9);
     const updateTxs = await writer.update({
@@ -170,7 +211,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     );
     await executeUpdateTxs(updateTxs);
 
-    const readResult = await reader.read(deployed.deployed.programId);
+    const readResult = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     const expectedAta = await deriveAssociatedTokenAddress({
       wallet: address(readResult.config.beneficiary),
       mint,
@@ -191,7 +234,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
 
   it('should update beneficiary and create ATA when token is set', async () => {
     const { writer, reader, signer, rpc, makeConfig } = getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     const mint = await createSplMint(rpc, signer, 9);
     const newBeneficiary = await generateKeyPairSigner();
@@ -210,7 +254,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     );
     await executeUpdateTxs(updateTxs);
 
-    const readResult = await reader.read(deployed.deployed.programId);
+    const readResult = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     expect(readResult.config.beneficiary).to.equal(newBeneficiary.address);
 
     const expectedAta = await deriveAssociatedTokenAddress({
@@ -226,7 +272,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
   it('should transfer ownership and new owner can update', async () => {
     const { writer, reader, rpc, rpcUrl, makeConfig, makeWriter } =
       getContext();
-    const [deployed] = await writer.create({ config: makeConfig() });
+    const [deployedRaw] = await writer.create({ config: makeConfig() });
+    const deployed = narrowToBareConfig(deployedRaw);
 
     // Create a new owner signer and fund it
     const newOwnerKey =
@@ -249,7 +296,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(transferTxs.length).to.be.greaterThan(0);
     await executeUpdateTxs(transferTxs);
 
-    const afterTransfer = await reader.read(deployed.deployed.programId);
+    const afterTransfer = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     expect(afterTransfer.config.owner).to.equal(
       newOwnerSigner.getSignerAddress(),
     );
@@ -272,7 +321,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
       await newOwnerSigner.send({ instructions: tx.instructions });
     }
 
-    const afterUpdate = await reader.read(deployed.deployed.programId);
+    const afterUpdate = narrowToBareConfig(
+      await reader.read(deployed.deployed.programId),
+    );
     expect(afterUpdate.config.params.maxFee).to.equal('7777777');
     expect(afterUpdate.config.params.halfAmount).to.equal('3333333');
   });

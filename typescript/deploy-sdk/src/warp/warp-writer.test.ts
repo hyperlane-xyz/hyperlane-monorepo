@@ -6,6 +6,7 @@ import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
   ArtifactDeployed,
   ArtifactNew,
+  ConfigOnChain,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -123,7 +124,10 @@ describe('WarpTokenWriter', () => {
   let readStub: Sinon.SinonStub<
     [string],
     Promise<
-      ArtifactDeployed<OrchestratedWarpArtifactConfig, DeployedWarpAddress>
+      ArtifactDeployed<
+        ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
+        DeployedWarpAddress
+      >
     >
   >;
 
@@ -144,11 +148,18 @@ describe('WarpTokenWriter', () => {
   };
 
   const baseDeployedArtifact: ArtifactDeployed<
-    OrchestratedWarpArtifactConfig,
+    ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
     DeployedWarpAddress
   > = {
     artifactState: ArtifactState.DEPLOYED,
-    config: actualConfig,
+    // CAST: `actualConfig` omits composite children (ISM/hook/fee), so
+    // pre-collapse and post-collapse shapes are structurally identical
+    // for this fixture. TS can't reduce the generic mapped type, hence
+    // the explicit bridge.
+    config: actualConfig as ConfigOnChain<
+      OrchestratedWarpArtifactConfig,
+      DeployedWarpAddress
+    >,
     deployed: { address: TOKEN_ADDRESS },
   };
 
@@ -466,10 +477,14 @@ describe('WarpTokenWriter', () => {
       ]);
 
       const currentArtifactWithIsm: ArtifactDeployed<
-        OrchestratedWarpArtifactConfig,
+        ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
         DeployedWarpAddress
       > = {
         ...baseDeployedArtifact,
+        // CAST: spreading pre-collapse `actualConfig` and overriding ISM
+        // with an ArtifactOnChain produces a type TS can't reduce to
+        // `ConfigOnChain<OrchestratedWarpArtifactConfig, _>`. Both shapes
+        // are structurally identical for this fixture (no NEW children).
         config: {
           ...actualConfig,
           interchainSecurityModule: {
@@ -477,7 +492,7 @@ describe('WarpTokenWriter', () => {
             config: ismConfig,
             deployed: { address: ISM_ADDRESS },
           },
-        },
+        } as ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
       };
 
       readStub.restore();
@@ -519,10 +534,13 @@ describe('WarpTokenWriter', () => {
       ]);
 
       const currentArtifactWithIsm: ArtifactDeployed<
-        OrchestratedWarpArtifactConfig,
+        ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
         DeployedWarpAddress
       > = {
         ...baseDeployedArtifact,
+        // CAST: spread of pre-collapse + ArtifactOnChain override —
+        // structurally identical to ConfigOnChain<...> for this fixture
+        // (no NEW children), but TS can't reduce the mapped type.
         config: {
           ...actualConfig,
           interchainSecurityModule: {
@@ -530,7 +548,7 @@ describe('WarpTokenWriter', () => {
             config: currentIsmConfig,
             deployed: { address: ISM_ADDRESS },
           },
-        },
+        } as ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
       };
 
       readStub.restore();
@@ -782,14 +800,16 @@ describe('WarpTokenWriter', () => {
     it('should reject changing token type', async () => {
       // Current artifact is collateral
       const currentArtifact: ArtifactDeployed<
-        OrchestratedWarpArtifactConfig,
+        ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
         DeployedWarpAddress
       > = {
         ...baseDeployedArtifact,
+        // CAST: structurally identical (no NEW children) but TS can't
+        // reduce the generic mapped type at indexing time.
         config: {
           ...actualConfig,
           type: TokenType.collateral,
-        },
+        } as ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
       };
 
       readStub.restore();

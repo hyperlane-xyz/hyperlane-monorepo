@@ -15,7 +15,7 @@ import {
   type DeployedRawWarpArtifact,
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -60,10 +60,10 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
 
   createReader<T extends WarpType>(
     type: T,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
       [K in WarpType]: OrchestratedArtifactReader<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {
@@ -85,12 +85,12 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
   createWriter<T extends WarpType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
 
     const writers: {
       [K in WarpType]: OrchestratedArtifactWriter<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {

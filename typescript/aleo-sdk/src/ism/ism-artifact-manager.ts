@@ -8,7 +8,7 @@ import {
   type DeployedRawIsmArtifact,
   type IRawIsmArtifactManager,
   type IsmType,
-  type RawIsmArtifactConfigs,
+  type IsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -60,27 +60,27 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new AleoTestIsmReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new AleoMessageIdMultisigIsmReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new AleoRoutingIsmRawReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       default:
@@ -91,14 +91,14 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: AleoSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new AleoTestIsmWriter(
           this.aleoClient,
           signer,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
@@ -106,7 +106,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
           this.aleoClient,
           signer,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
@@ -114,7 +114,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
           this.aleoClient,
           signer,
         ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
+          IsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       default:

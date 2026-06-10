@@ -19,7 +19,7 @@ import {
   type RawCollateralWarpArtifactConfig,
   type RawSyntheticWarpArtifactConfig,
   type RawWarpArtifactConfig,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -52,7 +52,7 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   artifactManager: CosmosWarpArtifactManager,
   type: T,
   signer: CosmosNativeSigner,
-): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
   const writer = artifactManager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

@@ -9,7 +9,7 @@ import {
 import {
   type DeployedIsmAddress,
   type IsmType,
-  type RawIsmArtifactConfigs,
+  type IsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   assert,
@@ -30,7 +30,7 @@ function createOrchestratedIsmWriter<T extends IsmType>(
   manager: StarknetIsmArtifactManager,
   type: T,
   signer: StarknetSigner,
-): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+): OrchestratedArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
   const writer = manager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

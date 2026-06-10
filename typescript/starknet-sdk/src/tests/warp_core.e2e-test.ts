@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   type DeployedWarpAddress,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
@@ -33,7 +33,7 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   manager: StarknetWarpArtifactManager,
   type: T,
   signer: StarknetSigner,
-): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
   const writer = manager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

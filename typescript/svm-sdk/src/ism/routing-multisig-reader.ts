@@ -4,13 +4,11 @@ import {
   type ArtifactDeployed,
   ArtifactComposition,
   ArtifactState,
+  type ConfigOnChain,
   type EmbeddedArtifactReader,
   type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedIsmAddress,
-  RawRoutingIsmArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert, rootLogger, ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import {
@@ -27,15 +25,25 @@ import type { SvmDeployedIsm, SvmRpc } from '../types.js';
 
 import { validatorBytesToHex } from './ism-query.js';
 
+/**
+ * Pre-deploy shape (children are `ArtifactEmbedded`).
+ */
 type EmbeddedRoutingMultisigConfig = WithCompositionVariant<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   typeof ArtifactComposition.EMBEDDED
 >;
 
-type EmbeddedDomainChild = ArtifactDeployed<
-  EmbeddedRoutingMultisigConfig['domains'][number]['config'],
-  DeployedIsmAddress
+/**
+ * Post-deploy on-chain shape: EMBEDDED children collapse to `ArtifactDeployed`
+ * via `ConfigOnChain`. This is what `read()` returns per the
+ * `EmbeddedArtifactReader` contract.
+ */
+type EmbeddedRoutingMultisigOnChain = ConfigOnChain<
+  EmbeddedRoutingMultisigConfig,
+  SvmDeployedIsm
 >;
+
+type EmbeddedDomainChild = EmbeddedRoutingMultisigOnChain['domains'][number];
 
 /**
  * Raw account input shape accepted by the pure decoder. Mirrors the relevant
@@ -58,7 +66,7 @@ export interface RoutingMultisigAccount {
  * specific set in `read()` results.
  */
 export class SvmRoutingMultisigReader implements EmbeddedArtifactReader<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   SvmDeployedIsm
 > {
   readonly composition = ArtifactComposition.EMBEDDED;
@@ -74,7 +82,7 @@ export class SvmRoutingMultisigReader implements EmbeddedArtifactReader<
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<EmbeddedRoutingMultisigConfig, SvmDeployedIsm>> {
+  ): Promise<ArtifactDeployed<EmbeddedRoutingMultisigOnChain, SvmDeployedIsm>> {
     const programId = parseAddress(address);
     const accounts = await fetchRoutingMultisigAccounts(this.rpc, programId);
     const { accessControl, domains, unmatchedDomainAccounts } =
@@ -197,12 +205,16 @@ async function resolveDomainAccounts(
     if (domain === undefined) continue;
     const decoded = decodeMultisigIsmDomainDataAccount(acc.data);
     if (decoded === null) continue;
-    out[domain] = buildDomainChild(acc.pubkey, decoded);
+    out[domain] = buildDomainChild(programId, acc.pubkey, decoded);
   }
   return out;
 }
 
-function buildDomainChild(pda: Address, data: DomainData): EmbeddedDomainChild {
+function buildDomainChild(
+  programId: Address,
+  pda: Address,
+  data: DomainData,
+): EmbeddedDomainChild {
   return {
     artifactState: ArtifactState.DEPLOYED,
     config: {
@@ -210,6 +222,6 @@ function buildDomainChild(pda: Address, data: DomainData): EmbeddedDomainChild {
       validators: validatorBytesToHex(data.validatorsAndThreshold.validators),
       threshold: data.validatorsAndThreshold.threshold,
     },
-    deployed: { address: pda },
+    deployed: { address: pda, programId },
   };
 }

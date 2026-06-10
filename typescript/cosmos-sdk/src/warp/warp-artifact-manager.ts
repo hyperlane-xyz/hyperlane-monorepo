@@ -13,7 +13,7 @@ import {
   type DeployedRawWarpArtifact,
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { LazyAsync } from '@hyperlane-xyz/utils';
@@ -75,10 +75,10 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
 
   createReader<T extends WarpType>(
     type: T,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactReader<
-      RawWarpArtifactConfigs[T],
+      WarpArtifactConfigs[T],
       DeployedWarpAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -94,13 +94,10 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
   private createReaderWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,
-  ): OrchestratedArtifactReader<
-    RawWarpArtifactConfigs[T],
-    DeployedWarpAddress
-  > {
+  ): OrchestratedArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
       [K in WarpType]: () => OrchestratedArtifactReader<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {
@@ -120,10 +117,10 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
   createWriter<T extends WarpType>(
     type: T,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactWriter<
-      RawWarpArtifactConfigs[T],
+      WarpArtifactConfigs[T],
       DeployedWarpAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -150,13 +147,10 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
     query: CosmosWarpQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<
-    RawWarpArtifactConfigs[T],
-    DeployedWarpAddress
-  > {
+  ): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const writers: {
       [K in WarpType]: () => OrchestratedArtifactWriter<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {

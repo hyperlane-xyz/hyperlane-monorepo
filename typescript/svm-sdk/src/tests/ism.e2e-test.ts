@@ -118,7 +118,7 @@ describe('SVM ISM E2E Tests', function () {
           owner: signer.getSignerAddress(),
           domains: {
             1: {
-              artifactState: ArtifactState.DEPLOYED,
+              artifactState: ArtifactState.EMBEDDED,
               config: {
                 type: 'messageIdMultisigIsm',
                 validators: [
@@ -128,10 +128,9 @@ describe('SVM ISM E2E Tests', function () {
                 ],
                 threshold: 2,
               },
-              deployed: { address: '' },
             },
             137: {
-              artifactState: ArtifactState.DEPLOYED,
+              artifactState: ArtifactState.EMBEDDED,
               config: {
                 type: 'messageIdMultisigIsm',
                 validators: [
@@ -140,7 +139,6 @@ describe('SVM ISM E2E Tests', function () {
                 ],
                 threshold: 1,
               },
-              deployed: { address: '' },
             },
           },
         },

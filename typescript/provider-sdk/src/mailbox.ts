@@ -109,11 +109,17 @@ export type DeployedRawMailboxArtifact = ArtifactDeployed<
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
- * Mailboxes on chain
+ * Mailboxes on chain.
+ *
+ * The manager's `ConfigMap` is the pre-collapse `MailboxArtifactConfigs`. The
+ * writer consumes the bare pre-deploy mailbox config (ISM / Hook children
+ * remain in their `Artifact<>` union shape) and returns the post-deploy
+ * on-chain shape. The `Raw*ArtifactConfig` aliases stay as the public output
+ * shape of `read()`.
  */
 export interface IRawMailboxArtifactManager extends IArtifactManager<
   MailboxType,
-  RawMailboxArtifactConfigs,
+  MailboxArtifactConfigs,
   DeployedMailboxAddress
 > {
   /**

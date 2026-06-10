@@ -6,7 +6,7 @@ import {
   type DeployedRawWarpArtifact,
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -53,10 +53,10 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
 
   createReader<T extends WarpType>(
     type: T,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
       [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {
@@ -86,10 +86,10 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
   createWriter<T extends WarpType>(
     type: T,
     signer: AleoSigner,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const writers: {
       [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {

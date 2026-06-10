@@ -42,7 +42,7 @@ import {
   ArtifactComposition,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { RawRoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -91,7 +91,7 @@ async function loadDeployerKey(
 }
 
 type EmbeddedRoutingIsmArtifactConfig = Extract<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   { composition: typeof ArtifactComposition.EMBEDDED }
 >;
 
@@ -107,13 +107,12 @@ function buildRoutingDomains(
   for (const [remoteChain, entry] of Object.entries(config)) {
     const meta = getChain(remoteChain);
     domains[meta.domainId] = {
-      artifactState: ArtifactState.DEPLOYED,
+      artifactState: ArtifactState.EMBEDDED,
       config: {
         type: 'messageIdMultisigIsm',
         validators: entry.validators,
         threshold: entry.threshold,
       },
-      deployed: { address: '' },
     };
   }
   return domains;

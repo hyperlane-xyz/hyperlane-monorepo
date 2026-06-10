@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -20,13 +20,13 @@ import {
 import { getCreateSyntheticTokenTx } from './warp-tx.js';
 
 type OrchestratedSyntheticConfig = WithCompositionVariant<
-  RawWarpArtifactConfigs['synthetic'],
+  WarpArtifactConfigs['synthetic'],
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
 export class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
   'synthetic',
-  RawWarpArtifactConfigs['synthetic']
+  WarpArtifactConfigs['synthetic']
 > {
   protected readonly tokenType = 'synthetic' as const;
 
@@ -47,7 +47,7 @@ export class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
 
 export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   'synthetic',
-  RawWarpArtifactConfigs['synthetic']
+  WarpArtifactConfigs['synthetic']
 > {
   protected readonly tokenType = 'synthetic' as const;
 

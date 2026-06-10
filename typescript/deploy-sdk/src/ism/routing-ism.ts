@@ -7,6 +7,7 @@ import {
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
+  ConfigOnChain,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
@@ -19,7 +20,6 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
-  RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -31,13 +31,14 @@ type OrchestratedRoutingIsmArtifactConfig = WithCompositionVariant<
   RoutingIsmArtifactConfig,
   typeof ArtifactComposition.ORCHESTRATED
 >;
-type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
-  RawRoutingIsmArtifactConfig,
-  typeof ArtifactComposition.ORCHESTRATED
->;
 
+/**
+ * Post-deploy on-chain shape: ORCHESTRATED routing-ISM with children
+ * collapsed to `ArtifactOnChain<>` via `ConfigOnChain`. Returned from
+ * `read()` / `create()` per the `OrchestratedArtifactWriter` contract.
+ */
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
-  OrchestratedRoutingIsmArtifactConfig,
+  ConfigOnChain<OrchestratedRoutingIsmArtifactConfig, DeployedIsmAddress>,
   DeployedIsmAddress
 >;
 
@@ -114,7 +115,7 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
     }
 
     const rawRoutingConfig: Artifact<
-      OrchestratedRawRoutingIsmArtifactConfig,
+      OrchestratedRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       config: {
@@ -187,9 +188,18 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
             config.composition === ArtifactComposition.ORCHESTRATED,
             `Unexpected EMBEDDED nested routing ISM under ORCHESTRATED parent (domain ${domainId})`,
           );
+          // CAST: `ConfigOnChain` collapses one level; nested routing-ISM
+          // children inside a post-collapse parent still carry the
+          // pre-collapse `RoutingIsmArtifactConfig` shape. Runtime values
+          // are already DEPLOYED/UNDERIVED (the parent's read produced
+          // them), so the cast bridges TS's one-level mapped-type
+          // limitation back to the post-collapse `DeployedRoutingIsmArtifact`.
           domainIsmUpdateTxs = await this.update({
             artifactState,
-            config,
+            config: config as ConfigOnChain<
+              OrchestratedRoutingIsmArtifactConfig,
+              DeployedIsmAddress
+            >,
             deployed,
           });
         } else {
@@ -217,7 +227,7 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
     }
 
     const rawRoutingArtifact: ArtifactDeployed<
-      OrchestratedRawRoutingIsmArtifactConfig,
+      OrchestratedRoutingIsmArtifactConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,

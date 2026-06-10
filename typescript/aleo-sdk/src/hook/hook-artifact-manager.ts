@@ -8,7 +8,7 @@ import {
   type DeployedHookArtifact,
   type HookType,
   type IRawHookArtifactManager,
-  type RawHookArtifactConfigs,
+  type HookArtifactConfigs,
   altVmHookTypeToProviderHookType,
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -61,10 +61,10 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
 
   createReader<T extends HookType>(
     type: T,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
       [K in HookType]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {
@@ -84,13 +84,13 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createWriter<T extends HookType>(
     type: T,
     signer: AleoSigner,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     const mailboxAddress = this.mailboxAddress;
     assert(mailboxAddress, 'mailbox address required for hook deployment');
 
     const writers: Partial<{
       [K in HookType]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {

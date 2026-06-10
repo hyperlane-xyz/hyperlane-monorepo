@@ -7,6 +7,7 @@ import {
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
@@ -16,7 +17,7 @@ import {
   DeployedRawMailboxArtifact,
   IRawMailboxArtifactManager,
   MailboxType,
-  RawMailboxArtifactConfigs,
+  MailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -38,13 +39,26 @@ import {
   getSetRequiredHookTx,
 } from './mailbox-tx.js';
 
-type OrchestratedRawMailboxConfig = WithCompositionVariant<
-  RawMailboxArtifactConfigs['mailbox'],
+/**
+ * Pre-deploy ORCHESTRATED mailbox config (ISM/hook children are `Artifact<>`).
+ */
+type OrchestratedMailboxConfig = WithCompositionVariant<
+  MailboxArtifactConfigs['mailbox'],
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
+/**
+ * Post-deploy on-chain shape — children collapse to `ArtifactOnChain<>` via
+ * `ConfigOnChain`. Returned from `read()` / `create()` per the
+ * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ */
+type OrchestratedMailboxOnChain = ConfigOnChain<
+  OrchestratedMailboxConfig,
+  DeployedMailboxAddress
+>;
+
 class StarknetMailboxReader implements OrchestratedArtifactReader<
-  RawMailboxArtifactConfigs['mailbox'],
+  MailboxArtifactConfigs['mailbox'],
   DeployedMailboxAddress
 > {
   readonly composition = ArtifactComposition.ORCHESTRATED;
@@ -54,7 +68,7 @@ class StarknetMailboxReader implements OrchestratedArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<OrchestratedRawMailboxConfig, DeployedMailboxAddress>
+    ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>
   > {
     const mailbox = await getMailboxConfig(
       this.provider.getRawProvider(),
@@ -97,7 +111,7 @@ class StarknetMailboxWriter
   extends StarknetMailboxReader
   implements
     OrchestratedArtifactWriter<
-      RawMailboxArtifactConfigs['mailbox'],
+      MailboxArtifactConfigs['mailbox'],
       DeployedMailboxAddress
     >
 {
@@ -109,7 +123,14 @@ class StarknetMailboxWriter
     super(provider);
   }
 
-  private getNestedAddress(nested: { deployed: { address: string } }): string {
+  private getNestedAddress(nested: {
+    artifactState?: string;
+    deployed?: { address: string };
+  }): string {
+    assert(
+      nested.deployed,
+      `Mailbox writer: nested child must be resolved on-chain (DEPLOYED or UNDERIVED) before being passed to the raw writer; got artifactState=${nested.artifactState ?? 'new'}`,
+    );
     return normalizeStarknetAddressSafe(nested.deployed.address);
   }
 
@@ -139,10 +160,10 @@ class StarknetMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<OrchestratedRawMailboxConfig>,
+    artifact: ArtifactNew<OrchestratedMailboxConfig>,
   ): Promise<
     [
-      ArtifactDeployed<OrchestratedRawMailboxConfig, DeployedMailboxAddress>,
+      ArtifactDeployed<OrchestratedMailboxOnChain, DeployedMailboxAddress>,
       TxReceipt[],
     ]
   > {
@@ -176,7 +197,11 @@ class StarknetMailboxWriter
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: artifact.config,
+        // CAST: ISM/hook children were asserted to be DEPLOYED / UNDERIVED
+        // via `getNestedAddress` above; both are valid `ArtifactOnChain`
+        // positions. Bridge the pre-collapse `Artifact<>` union to the
+        // post-collapse shape — TS can't reduce the mapped type.
+        config: artifact.config as OrchestratedMailboxOnChain,
         deployed: {
           address: normalizeStarknetAddressSafe(mailboxAddress),
           domainId: this.chainMetadata.domainId,
@@ -188,7 +213,7 @@ class StarknetMailboxWriter
 
   async update(
     artifact: ArtifactDeployed<
-      OrchestratedRawMailboxConfig,
+      OrchestratedMailboxConfig,
       DeployedMailboxAddress
     >,
   ): Promise<AnnotatedTx[]> {
@@ -284,10 +309,10 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
 
   createReader<T extends MailboxType>(
     type: T,
-  ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
       [K in MailboxType]: OrchestratedArtifactReader<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
@@ -301,10 +326,10 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
   createWriter<T extends MailboxType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const writerFactories: {
       [K in MailboxType]: () => OrchestratedArtifactWriter<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {

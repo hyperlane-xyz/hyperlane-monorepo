@@ -8,7 +8,7 @@ import {
   DeployedMailboxAddress,
   IRawMailboxArtifactManager,
   MailboxType,
-  RawMailboxArtifactConfigs,
+  MailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -30,10 +30,10 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
 
   createReader<T extends MailboxType>(
     _type: T,
-  ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
       [K in MailboxType]: () => ArtifactReader<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
@@ -46,11 +46,11 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   createWriter<T extends MailboxType>(
     _type: T,
     signer: RadixSigner,
-  ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const baseSigner = signer.getBaseSigner();
     const writers: {
       [K in MailboxType]: () => ArtifactWriter<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {

@@ -195,11 +195,16 @@ function hasUnreadableProtocolFeeMax(config: HookArtifactConfig): boolean {
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
- * Hooks on chain
+ * Hooks on chain.
+ *
+ * The manager's `ConfigMap` is the pre-collapse `HookArtifactConfigs`. Hook
+ * configs currently have no nested artifacts so pre- and post-collapse are
+ * identical, but keeping the mapping uniform with ISM / Warp / Mailbox makes
+ * future composite hook types easy to add.
  */
 export interface IRawHookArtifactManager extends IArtifactManager<
   HookType,
-  RawHookArtifactConfigs,
+  HookArtifactConfigs,
   DeployedHookAddress
 > {
   /**

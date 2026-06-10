@@ -7,16 +7,19 @@ import {
   ArtifactNew,
   ArtifactState,
   ArtifactUnderived,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
+  isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
+import { assert, eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -30,13 +33,23 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
-type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
-  RawRoutingIsmArtifactConfig,
+type OrchestratedRoutingIsmArtifactConfig = WithCompositionVariant<
+  RoutingIsmArtifactConfig,
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
+/**
+ * Post-deploy on-chain shape — ORCHESTRATED routing-ISM with children
+ * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
+ * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ */
+type OrchestratedRoutingIsmOnChain = ConfigOnChain<
+  OrchestratedRoutingIsmArtifactConfig,
+  DeployedIsmAddress
+>;
+
 export class RadixRoutingIsmRawReader implements OrchestratedArtifactReader<
-  RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
   readonly composition = ArtifactComposition.ORCHESTRATED;
@@ -46,10 +59,7 @@ export class RadixRoutingIsmRawReader implements OrchestratedArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<
-      OrchestratedRawRoutingIsmArtifactConfig,
-      DeployedIsmAddress
-    >
+    ArtifactDeployed<OrchestratedRoutingIsmOnChain, DeployedIsmAddress>
   > {
     const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
 
@@ -81,7 +91,7 @@ export class RadixRoutingIsmRawReader implements OrchestratedArtifactReader<
 export class RadixRoutingIsmRawWriter
   extends RadixRoutingIsmRawReader
   implements
-    OrchestratedArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+    OrchestratedArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -92,25 +102,26 @@ export class RadixRoutingIsmRawWriter
   }
 
   async create(
-    artifact: ArtifactNew<OrchestratedRawRoutingIsmArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedRoutingIsmArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<
-        OrchestratedRawRoutingIsmArtifactConfig,
-        DeployedIsmAddress
-      >,
+      ArtifactDeployed<OrchestratedRoutingIsmOnChain, DeployedIsmAddress>,
       TxReceipt[],
     ]
   > {
     const { config } = artifact;
     const receipts: TxReceipt[] = [];
 
-    const routes = Object.entries(config.domains).map(
-      ([domainId, ismAddress]) => ({
+    const routes = Object.entries(config.domains).map(([domainId, child]) => {
+      assert(
+        isArtifactDeployed(child) || isArtifactUnderived(child),
+        `Routing ISM create: domain ${domainId} child must be resolved on-chain (DEPLOYED or UNDERIVED) before being passed to the raw writer; got artifactState=${child.artifactState ?? 'new'}`,
+      );
+      return {
         domainId: parseInt(domainId),
-        ismAddress: ismAddress.deployed.address,
-      }),
-    );
+        ismAddress: child.deployed.address,
+      };
+    });
 
     const transactionManifest = await getCreateRoutingIsmTx(
       this.base,
@@ -139,11 +150,15 @@ export class RadixRoutingIsmRawWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      OrchestratedRawRoutingIsmArtifactConfig,
+      OrchestratedRoutingIsmOnChain,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
+      // CAST: the create input's children were asserted to be DEPLOYED /
+      // UNDERIVED above; both are valid `ArtifactOnChain` positions.
+      // Bridge the pre-collapse `Artifact<>` union to the post-collapse
+      // `ArtifactOnChain<>` shape — TS can't reduce the mapped type.
+      config: artifact.config as OrchestratedRoutingIsmOnChain,
       deployed: {
         address,
       },
@@ -154,7 +169,7 @@ export class RadixRoutingIsmRawWriter
 
   async update(
     artifact: ArtifactDeployed<
-      OrchestratedRawRoutingIsmArtifactConfig,
+      OrchestratedRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >,
   ): Promise<AnnotatedRadixTransaction[]> {
@@ -173,6 +188,10 @@ export class RadixRoutingIsmRawWriter
         ? currentConfig.config.domains[domain].deployed.address
         : undefined;
 
+      assert(
+        isArtifactDeployed(expectedIsm) || isArtifactUnderived(expectedIsm),
+        `Routing ISM update: domain ${domain} child must be resolved on-chain (DEPLOYED or UNDERIVED) before being passed to the raw writer; got artifactState=${expectedIsm.artifactState ?? 'new'}`,
+      );
       const expectedIsmAddress = expectedIsm.deployed.address;
 
       if (

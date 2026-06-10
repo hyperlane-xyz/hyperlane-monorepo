@@ -11,7 +11,7 @@ import {
   type DeployedRawIsmArtifact,
   type IRawIsmArtifactManager,
   type IsmType,
-  type RawIsmArtifactConfigs,
+  type IsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -69,10 +69,10 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const readers: Partial<{
       [K in IsmType]: () => OrchestratedArtifactReader<
-        RawIsmArtifactConfigs[K],
+        IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
     }> = {
@@ -91,12 +91,12 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const writers: Partial<{
       [K in IsmType]: (
         starknetSigner: StarknetSigner,
       ) => OrchestratedArtifactWriter<
-        RawIsmArtifactConfigs[K],
+        IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
     }> = {

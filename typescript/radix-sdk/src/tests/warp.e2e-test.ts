@@ -16,7 +16,7 @@ import {
   RawCollateralWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
   RawWarpArtifactConfig,
-  RawWarpArtifactConfigs,
+  WarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
@@ -52,7 +52,7 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   artifactManager: RadixWarpArtifactManager,
   type: T,
   signer: RadixSigner,
-): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
   const writer = artifactManager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

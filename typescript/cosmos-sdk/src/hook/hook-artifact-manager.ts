@@ -14,7 +14,7 @@ import {
   type DeployedHookArtifact,
   type HookType,
   type IRawHookArtifactManager,
-  type RawHookArtifactConfigs,
+  type HookArtifactConfigs,
   altVmHookTypeToProviderHookType,
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -93,10 +93,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
    */
   createReader<T extends HookType>(
     type: T,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactReader<
-      RawHookArtifactConfigs[T],
+      HookArtifactConfigs[T],
       DeployedHookAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -119,13 +119,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   private createReaderWithQuery<T extends HookType>(
     type: T,
     query: CosmosHookQueryClient,
-  ): OrchestratedArtifactReader<
-    RawHookArtifactConfigs[T],
-    DeployedHookAddress
-  > {
+  ): OrchestratedArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
       [K in HookType]: () => OrchestratedArtifactReader<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {
@@ -151,10 +148,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   createWriter<T extends HookType>(
     type: T,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactWriter<
-      RawHookArtifactConfigs[T],
+      HookArtifactConfigs[T],
       DeployedHookAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -189,13 +186,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<
-    RawHookArtifactConfigs[T],
-    DeployedHookAddress
-  > {
+  ): OrchestratedArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     const writers: Partial<{
       [K in HookType]: () => OrchestratedArtifactWriter<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {

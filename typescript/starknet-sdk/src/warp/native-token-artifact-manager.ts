@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
@@ -19,13 +19,13 @@ import {
 import { getCreateNativeTokenTx } from './warp-tx.js';
 
 type OrchestratedNativeConfig = WithCompositionVariant<
-  RawWarpArtifactConfigs['native'],
+  WarpArtifactConfigs['native'],
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
 export class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
   'native',
-  RawWarpArtifactConfigs['native']
+  WarpArtifactConfigs['native']
 > {
   protected readonly tokenType = 'native' as const;
 
@@ -43,7 +43,7 @@ export class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
 
 export class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
   'native',
-  RawWarpArtifactConfigs['native']
+  WarpArtifactConfigs['native']
 > {
   protected readonly tokenType = 'native' as const;
 

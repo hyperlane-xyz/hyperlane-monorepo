@@ -7,6 +7,7 @@ import {
   Artifact,
   ArtifactComposition,
   ArtifactDeployed,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   WithCompositionVariant,
   isArtifactDeployed,
@@ -46,8 +47,13 @@ type OrchestratedWarpArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
+/**
+ * Post-deploy on-chain shape: ORCHESTRATED warp with composite children
+ * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
+ * `OrchestratedArtifactWriter` contract.
+ */
 type OrchestratedDeployedWarpArtifact = ArtifactDeployed<
-  OrchestratedWarpArtifactConfig,
+  ConfigOnChain<OrchestratedWarpArtifactConfig, DeployedWarpAddress>,
   DeployedWarpAddress
 >;
 

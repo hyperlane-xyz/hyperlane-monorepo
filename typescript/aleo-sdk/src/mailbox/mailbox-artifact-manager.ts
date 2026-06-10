@@ -6,7 +6,7 @@ import {
   type DeployedMailboxAddress,
   type IRawMailboxArtifactManager,
   type MailboxType,
-  type RawMailboxArtifactConfigs,
+  type MailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -36,10 +36,10 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
 
   createReader<T extends MailboxType>(
     type: T,
-  ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
       [K in MailboxType]: () => ArtifactReader<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
@@ -53,10 +53,10 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
   createWriter<T extends MailboxType>(
     type: T,
     signer: AleoSigner,
-  ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const writers: {
       [K in MailboxType]: () => ArtifactWriter<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {

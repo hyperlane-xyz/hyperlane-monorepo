@@ -11,6 +11,7 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
+  type ConfigOnChain,
   type OrchestratedArtifactReader,
   type OrchestratedArtifactWriter,
   type WithCompositionVariant,
@@ -73,7 +74,10 @@ export abstract class SvmLeafFeeReader<
     address: string,
   ): Promise<
     ArtifactDeployed<
-      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        SvmDeployedFee
+      >,
       SvmDeployedFee
     >
   > {
@@ -128,7 +132,10 @@ export abstract class SvmLeafFeeReader<
           maxFee: maxFeeStr,
           halfAmount: halfAmountStr,
         },
-      } as WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      } as ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        SvmDeployedFee
+      >,
       deployed: { address: programId, programId, feeAccountPda },
     };
   }
@@ -155,7 +162,10 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
   ): Promise<
     [
       ArtifactDeployed<
-        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          SvmDeployedFee
+        >,
         SvmDeployedFee
       >,
       SvmReceipt[],
@@ -241,7 +251,14 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: feeConfig,
+        // CAST: LeafFeeConfig has no nested Artifact<> positions, so
+        // ConfigOnChain<X, D> is structurally identical to X. TS can't
+        // reduce a generic mapped type, so an explicit cast bridges the
+        // two equivalent shapes.
+        config: feeConfig as ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          SvmDeployedFee
+        >,
         deployed: { address: programId, programId, feeAccountPda },
       },
       receipts,
@@ -259,7 +276,14 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
     const { programId, feeAccountPda } = artifact.deployed;
 
     const current = await this.read(programId);
-    const currentConfig = current.config;
+    // CAST: LeafFeeConfig has no nested Artifact<> positions, so
+    // ConfigOnChain<X, D> is structurally identical to X. TS can't
+    // reduce a generic mapped type at indexing time, so an explicit
+    // narrowing bridges the two equivalent shapes.
+    const currentConfig = current.config as WithCompositionVariant<
+      C,
+      typeof ArtifactComposition.ORCHESTRATED
+    >;
 
     assert(
       !isZeroishAddress(currentConfig.owner),

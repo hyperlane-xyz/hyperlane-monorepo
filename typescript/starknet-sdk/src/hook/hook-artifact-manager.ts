@@ -11,7 +11,7 @@ import {
   type DeployedHookArtifact,
   type HookType,
   type IRawHookArtifactManager,
-  type RawHookArtifactConfigs,
+  type HookArtifactConfigs,
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
@@ -83,10 +83,10 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
 
   createReader<T extends HookType>(
     type: T,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
       [K in HookType]: () => OrchestratedArtifactReader<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {
@@ -107,7 +107,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
   createWriter<T extends HookType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     const starknetSigner = this.requireStarknetSigner(signer);
     assert(
       this.mailboxAddress || type !== AltVM.HookType.MERKLE_TREE,
@@ -116,7 +116,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
 
     const writers: Partial<{
       [K in HookType]: () => OrchestratedArtifactWriter<
-        RawHookArtifactConfigs[K],
+        HookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {

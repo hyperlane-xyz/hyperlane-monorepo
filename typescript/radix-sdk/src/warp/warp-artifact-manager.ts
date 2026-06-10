@@ -8,7 +8,7 @@ import {
   DeployedRawWarpArtifact,
   DeployedWarpAddress,
   IRawWarpArtifactManager,
-  RawWarpArtifactConfigs,
+  WarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -51,10 +51,10 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
 
   createReader<T extends WarpType>(
     type: T,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
       [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {
@@ -74,12 +74,12 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
   createWriter<T extends WarpType>(
     type: T,
     signer: RadixSigner,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const baseSigner = signer.getBaseSigner();
 
     const writers: {
       [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
+        WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
     } = {

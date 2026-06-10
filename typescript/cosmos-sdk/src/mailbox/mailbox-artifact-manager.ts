@@ -13,7 +13,7 @@ import {
   type DeployedRawMailboxArtifact,
   type IRawMailboxArtifactManager,
   type MailboxType,
-  type RawMailboxArtifactConfigs,
+  type MailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { LazyAsync } from '@hyperlane-xyz/utils';
 
@@ -71,9 +71,9 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
    */
   createReader<T extends MailboxType>(
     type: T,
-  ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const wrapper: OrchestratedArtifactReader<
-      RawMailboxArtifactConfigs[T],
+      MailboxArtifactConfigs[T],
       DeployedMailboxAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -90,12 +90,12 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
     type: T,
     query: CosmosMailboxQueryClient,
   ): OrchestratedArtifactReader<
-    RawMailboxArtifactConfigs[T],
+    MailboxArtifactConfigs[T],
     DeployedMailboxAddress
   > {
     const readers: {
       [K in MailboxType]: () => OrchestratedArtifactReader<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
@@ -115,9 +115,9 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   createWriter<T extends MailboxType>(
     type: T,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
+  ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const wrapper: OrchestratedArtifactWriter<
-      RawMailboxArtifactConfigs[T],
+      MailboxArtifactConfigs[T],
       DeployedMailboxAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -145,12 +145,12 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
     query: CosmosMailboxQueryClient,
     signer: CosmosNativeSigner,
   ): OrchestratedArtifactWriter<
-    RawMailboxArtifactConfigs[T],
+    MailboxArtifactConfigs[T],
     DeployedMailboxAddress
   > {
     const writers: {
       [K in MailboxType]: () => OrchestratedArtifactWriter<
-        RawMailboxArtifactConfigs[K],
+        MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {

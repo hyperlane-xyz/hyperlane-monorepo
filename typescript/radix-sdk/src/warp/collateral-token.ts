@@ -6,17 +6,21 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   OrchestratedArtifactWriter,
   WithCompositionVariant,
+  isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  CollateralWarpArtifactConfig,
   DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
   computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressRadix } from '@hyperlane-xyz/utils';
+import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -30,9 +34,22 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
-  RawCollateralWarpArtifactConfig,
+/**
+ * Pre-deploy ORCHESTRATED collateral warp config (children are `Artifact<>`).
+ */
+type OrchestratedCollateralWarpArtifactConfig = WithCompositionVariant<
+  CollateralWarpArtifactConfig,
   typeof ArtifactComposition.ORCHESTRATED
+>;
+
+/**
+ * Post-deploy on-chain shape — children collapse to `ArtifactOnChain<>` via
+ * `ConfigOnChain`. Returned from `read()` / `create()` per the
+ * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ */
+type OrchestratedCollateralWarpArtifactOnChain = ConfigOnChain<
+  OrchestratedCollateralWarpArtifactConfig,
+  DeployedWarpAddress
 >;
 
 function withErrorContext(context: string, error: unknown): Error {
@@ -41,7 +58,7 @@ function withErrorContext(context: string, error: unknown): Error {
 }
 
 export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
-  RawCollateralWarpArtifactConfig,
+  CollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
   readonly composition = ArtifactComposition.ORCHESTRATED;
@@ -55,7 +72,7 @@ export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
     address: string,
   ): Promise<
     ArtifactDeployed<
-      OrchestratedRawCollateralWarpArtifactConfig,
+      OrchestratedCollateralWarpArtifactOnChain,
       DeployedWarpAddress
     >
   > {
@@ -71,7 +88,7 @@ export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
       );
     });
 
-    const config: OrchestratedRawCollateralWarpArtifactConfig = {
+    const config: OrchestratedCollateralWarpArtifactOnChain = {
       composition: ArtifactComposition.ORCHESTRATED,
       type: AltVM.TokenType.collateral,
       owner: token.owner,
@@ -106,7 +123,7 @@ export class RadixCollateralTokenWriter
   extends RadixCollateralTokenReader
   implements
     OrchestratedArtifactWriter<
-      RawCollateralWarpArtifactConfig,
+      CollateralWarpArtifactConfig,
       DeployedWarpAddress
     >
 {
@@ -119,11 +136,11 @@ export class RadixCollateralTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<OrchestratedRawCollateralWarpArtifactConfig>,
+    artifact: ArtifactNew<OrchestratedCollateralWarpArtifactConfig>,
   ): Promise<
     [
       ArtifactDeployed<
-        OrchestratedRawCollateralWarpArtifactConfig,
+        OrchestratedCollateralWarpArtifactOnChain,
         DeployedWarpAddress
       >,
       TxReceipt[],
@@ -167,12 +184,17 @@ export class RadixCollateralTokenWriter
 
     // Set ISM if configured
     if (config.interchainSecurityModule) {
+      const ismArtifact = config.interchainSecurityModule;
+      assert(
+        isArtifactDeployed(ismArtifact) || isArtifactUnderived(ismArtifact),
+        `Collateral warp create: ISM child must be resolved on-chain (DEPLOYED or UNDERIVED) before being passed to the raw writer; got artifactState=${ismArtifact.artifactState ?? 'new'}`,
+      );
       const setIsmTx = await getSetTokenIsmTx(
         this.base,
         this.signer.getAddress(),
         {
           tokenAddress: address,
-          ismAddress: config.interchainSecurityModule.deployed.address,
+          ismAddress: ismArtifact.deployed.address,
         },
       ).catch((error: unknown) => {
         throw withErrorContext(
@@ -231,11 +253,15 @@ export class RadixCollateralTokenWriter
     // enrolled with the other tokens deployed and only the owner can perform that enrollment.
 
     const deployedArtifact: ArtifactDeployed<
-      OrchestratedRawCollateralWarpArtifactConfig,
+      OrchestratedCollateralWarpArtifactOnChain,
       DeployedWarpAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
+      // CAST: ISM/hook/fee children were asserted to be DEPLOYED /
+      // UNDERIVED above; both are valid `ArtifactOnChain` positions.
+      // Bridge the pre-collapse `Artifact<>` union to the post-collapse
+      // `ArtifactOnChain<>` shape — TS can't reduce the mapped type.
+      config: artifact.config as OrchestratedCollateralWarpArtifactOnChain,
       deployed: {
         address,
       },
@@ -246,16 +272,29 @@ export class RadixCollateralTokenWriter
 
   async update(
     artifact: ArtifactDeployed<
-      OrchestratedRawCollateralWarpArtifactConfig,
+      OrchestratedCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedRadixTransaction[]> {
     // Read current state
     const currentArtifactState = await this.read(artifact.deployed.address);
 
+    // CAST: pre-collapse `OrchestratedCollateralWarpArtifactConfig` and
+    // post-collapse `OrchestratedCollateralWarpArtifactOnChain` are
+    // structurally identical when ISM/hook/fee children are resolved by
+    // the caller (the deploy-sdk does this before invoking the raw
+    // writer). `getWarpTokenUpdateTxs` is typed against
+    // `RawWarpArtifactConfig` (post-collapse) and accesses children via
+    // `?.deployed.address`. Bridge the two equivalent shapes.
     return getWarpTokenUpdateTxs(
-      artifact,
-      currentArtifactState,
+      artifact as ArtifactDeployed<
+        RawCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
+      currentArtifactState as ArtifactDeployed<
+        RawCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      >,
       this.base,
       this.gateway,
       // The current owner is the only one that can execute the update transactions

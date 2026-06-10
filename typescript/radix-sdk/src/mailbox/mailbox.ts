@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedMailboxAddress,
+  MailboxArtifactConfig,
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -40,7 +41,7 @@ type OrchestratedMailboxOnChain = WithCompositionVariant<
 >;
 
 export class RadixMailboxReader implements OrchestratedArtifactReader<
-  MailboxOnChain,
+  MailboxArtifactConfig,
   DeployedMailboxAddress
 > {
   readonly composition = ArtifactComposition.ORCHESTRATED;
@@ -88,7 +89,8 @@ export class RadixMailboxReader implements OrchestratedArtifactReader<
 
 export class RadixMailboxWriter
   extends RadixMailboxReader
-  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements
+    OrchestratedArtifactWriter<MailboxArtifactConfig, DeployedMailboxAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

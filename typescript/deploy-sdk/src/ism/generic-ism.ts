@@ -6,6 +6,7 @@ import {
 import {
   ArtifactComposition,
   ArtifactDeployed,
+  ConfigOnChain,
   OrchestratedArtifactReader,
   WithCompositionVariant,
   isArtifactDeployed,
@@ -19,7 +20,6 @@ import {
   IsmArtifactConfig,
   ismArtifactToDerivedConfig,
   RawRoutingIsmArtifactConfig,
-  RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -28,8 +28,18 @@ type OrchestratedIsmArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
-type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
+type OrchestratedIsmOnChain = ConfigOnChain<
   OrchestratedIsmArtifactConfig,
+  DeployedIsmAddress
+>;
+
+/**
+ * Post-deploy on-chain shape: ORCHESTRATED ISM with composite children
+ * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
+ * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ */
+type OrchestratedDeployedIsmArtifact = ArtifactDeployed<
+  OrchestratedIsmOnChain,
   DeployedIsmAddress
 >;
 
@@ -82,7 +92,17 @@ export class IsmReader implements OrchestratedArtifactReader<
     const { artifactState, config, deployed } =
       await this.artifactManager.readIsm(address);
 
-    // For routing ISMs, expand nested domain ISMs recursively
+    // For routing ISMs, expand nested domain ISMs recursively.
+    //
+    // EMBEDDED routing-ISM reads bypass this generic reader — the raw
+    // reader exposes the post-deploy shape directly via its own
+    // `read()` method. The deploy-sdk's `IsmReader` only handles the
+    // ORCHESTRATED composition for now; callers wiring up EMBEDDED
+    // routing flows (e.g. SVM cross-VM core deploy) invoke the raw
+    // reader directly. Routing-ISM EMBEDDED dispatch via this generic
+    // reader requires widening `DeployedIsmArtifact` in provider-sdk to
+    // carry post-collapse EMBEDDED children (`ArtifactDeployed<>` rather
+    // than `ArtifactEmbedded<>`) and is tracked as follow-up work.
     if (config.type === AltVM.IsmType.ROUTING) {
       const rawReader = this.artifactManager.createReader(
         AltVM.IsmType.ROUTING,
@@ -109,21 +129,17 @@ export class IsmReader implements OrchestratedArtifactReader<
   /**
    * Expands a raw routing ISM config by recursively reading the domain ISMs.
    * Takes a pre-read raw artifact to avoid double reading.
+   *
+   * Returns the post-deploy on-chain shape — children collapse to
+   * `ArtifactOnChain` via `ConfigOnChain` — to match the
+   * `OrchestratedArtifactReader` contract.
    */
   private async expandRoutingIsm(
     rawArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >,
-  ): Promise<
-    ArtifactDeployed<
-      WithCompositionVariant<
-        RoutingIsmArtifactConfig,
-        typeof ArtifactComposition.ORCHESTRATED
-      >,
-      DeployedIsmAddress
-    >
-  > {
+  ): Promise<OrchestratedDeployedIsmArtifact> {
     const { artifactState, config, deployed } = rawArtifact;
     const domains: Record<number, DeployedIsmArtifact> = {};
 

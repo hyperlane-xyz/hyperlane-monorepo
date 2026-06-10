@@ -6,6 +6,7 @@ import {
   ArtifactComposition,
   ArtifactDeployed,
   ArtifactState,
+  ConfigOnChain,
   WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -144,9 +145,12 @@ function buildOrchestratedNewConfig(): OrchestratedRoutingConfig {
 }
 
 type DeployedOrchestratedRoutingIsmArtifact = ArtifactDeployed<
-  WithCompositionVariant<
-    RoutingIsmArtifactConfig,
-    typeof ArtifactComposition.ORCHESTRATED
+  ConfigOnChain<
+    WithCompositionVariant<
+      RoutingIsmArtifactConfig,
+      typeof ArtifactComposition.ORCHESTRATED
+    >,
+    DeployedIsmAddress
   >,
   DeployedIsmAddress
 >;

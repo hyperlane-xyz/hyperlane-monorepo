@@ -8,7 +8,7 @@ import type {
 import type {
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
-  RawIsmArtifactConfigs,
+  IsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -42,12 +42,12 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     return reader.read(address);
   }
 
-  createReader<T extends keyof RawIsmArtifactConfigs>(
+  createReader<T extends keyof IsmArtifactConfigs>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], SvmDeployedIsm> {
+  ): ArtifactReader<IsmArtifactConfigs[T], SvmDeployedIsm> {
     const readers: {
-      [K in keyof RawIsmArtifactConfigs]?: () => ArtifactReader<
-        RawIsmArtifactConfigs[K],
+      [K in keyof IsmArtifactConfigs]?: () => ArtifactReader<
+        IsmArtifactConfigs[K],
         SvmDeployedIsm
       >;
     } = {
@@ -70,13 +70,13 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     return factory();
   }
 
-  createWriter<T extends keyof RawIsmArtifactConfigs>(
+  createWriter<T extends keyof IsmArtifactConfigs>(
     type: T,
     signer: SvmSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], SvmDeployedIsm> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], SvmDeployedIsm> {
     const writers: {
-      [K in keyof RawIsmArtifactConfigs]?: () => ArtifactWriter<
-        RawIsmArtifactConfigs[K],
+      [K in keyof IsmArtifactConfigs]?: () => ArtifactWriter<
+        IsmArtifactConfigs[K],
         SvmDeployedIsm
       >;
     } = {
@@ -106,7 +106,7 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     return factory();
   }
 
-  private altVmToTypeKey(ismType: IsmType): keyof RawIsmArtifactConfigs {
+  private altVmToTypeKey(ismType: IsmType): keyof IsmArtifactConfigs {
     switch (ismType) {
       case IsmType.TEST_ISM:
         return 'testIsm';

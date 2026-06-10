@@ -19,7 +19,7 @@ import type {
   RawNativeWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
   RawWarpArtifactConfig,
-  RawWarpArtifactConfigs,
+  WarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
@@ -55,7 +55,7 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   artifactManager: AleoWarpArtifactManager,
   type: T,
   signer: AleoSigner,
-): OrchestratedArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
   const writer = artifactManager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

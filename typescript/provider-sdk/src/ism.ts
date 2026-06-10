@@ -145,11 +145,18 @@ export type DeployedRawIsmArtifact = ArtifactDeployed<
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
- * ISMs on chain
+ * ISMs on chain.
+ *
+ * The manager's `ConfigMap` is the pre-collapse `IsmArtifactConfigs`. Per-type
+ * writers consume bare pre-deploy configs (children remain in their
+ * `Artifact<>` union shape) and return the post-deploy on-chain shape via the
+ * `OrchestratedArtifactWriter` / `EmbeddedArtifactWriter` create signatures.
+ * The `Raw*ArtifactConfig` aliases stay as the public output shape of
+ * `read()`.
  */
 export interface IRawIsmArtifactManager extends IArtifactManager<
   IsmType,
-  RawIsmArtifactConfigs,
+  IsmArtifactConfigs,
   DeployedIsmAddress
 > {
   /**

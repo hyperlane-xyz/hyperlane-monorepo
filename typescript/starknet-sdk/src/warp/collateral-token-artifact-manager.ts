@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
@@ -21,13 +21,13 @@ import {
 import { getCreateCollateralTokenTx } from './warp-tx.js';
 
 type OrchestratedCollateralConfig = WithCompositionVariant<
-  RawWarpArtifactConfigs['collateral'],
+  WarpArtifactConfigs['collateral'],
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
 export class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
   'collateral',
-  RawWarpArtifactConfigs['collateral']
+  WarpArtifactConfigs['collateral']
 > {
   protected readonly tokenType = 'collateral' as const;
 
@@ -49,7 +49,7 @@ export class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
 
 export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
   'collateral',
-  RawWarpArtifactConfigs['collateral']
+  WarpArtifactConfigs['collateral']
 > {
   protected readonly tokenType = 'collateral' as const;
 

@@ -1,13 +1,18 @@
 import {
+  type Artifact,
   type ArtifactDeployed,
   type ArtifactNew,
+  type ArtifactOnChain,
   ArtifactComposition,
   ArtifactState,
+  type ConfigOnChain,
   type OrchestratedArtifactReader,
   type OrchestratedArtifactWriter,
   type WithCompositionVariant,
   addressToUnderivedArtifact,
   artifactOnChainToAddress,
+  isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -18,7 +23,7 @@ import {
   computeRemoteRoutersUpdates,
   type DeployedWarpAddress,
   type RawWarpArtifactConfig,
-  type RawWarpArtifactConfigs,
+  type WarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -51,6 +56,23 @@ function normalizeGas(gas: string | undefined): string {
   return BigInt(gas ?? '0').toString();
 }
 
+/**
+ * Narrows an `Artifact<>` child to its on-chain variant. Returns undefined
+ * when the input is undefined; throws when the input is in a pre-deploy
+ * state (NEW or EMBEDDED) — the deploy-sdk must resolve children before
+ * invoking the raw writer.
+ */
+function toOnChainOrUndefined<C, D extends { address: string }>(
+  child: Artifact<C, D> | undefined,
+): ArtifactOnChain<C, D> | undefined {
+  if (!child) return undefined;
+  assert(
+    isArtifactDeployed(child) || isArtifactUnderived(child),
+    `Starknet warp writer: nested child must be resolved on-chain (DEPLOYED or UNDERIVED); got artifactState=${child.artifactState ?? 'new'}`,
+  );
+  return child;
+}
+
 export function getStarknetWarpType(tokenType: string): WarpType {
   if (tokenType === TokenType.native) return 'native';
   if (tokenType === TokenType.collateral) return 'collateral';
@@ -61,7 +83,7 @@ export function getStarknetWarpType(tokenType: string): WarpType {
 
 export abstract class StarknetWarpTokenReaderBase<
   T extends WarpType,
-  C extends RawWarpArtifactConfigs[T],
+  C extends WarpArtifactConfigs[T],
 > implements OrchestratedArtifactReader<C, DeployedWarpAddress> {
   readonly composition = ArtifactComposition.ORCHESTRATED;
 
@@ -78,7 +100,10 @@ export abstract class StarknetWarpTokenReaderBase<
     address: string,
   ): Promise<
     ArtifactDeployed<
-      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        DeployedWarpAddress
+      >,
       DeployedWarpAddress
     >
   > {
@@ -95,7 +120,14 @@ export abstract class StarknetWarpTokenReaderBase<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: this.toConfig(token, remoteRouters),
+      // CAST: `toConfig` returns the pre-collapse variant with
+      // `ArtifactUnderived` children (already on-chain). `ConfigOnChain`
+      // is structurally identical here — TS can't reduce the generic
+      // mapped type at indexing time.
+      config: this.toConfig(token, remoteRouters) as ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        DeployedWarpAddress
+      >,
       deployed: { address: normalizeStarknetAddressSafe(token.address) },
     };
   }
@@ -135,7 +167,7 @@ export abstract class StarknetWarpTokenReaderBase<
 
 export abstract class StarknetWarpTokenWriterBase<
   T extends WarpType,
-  C extends RawWarpArtifactConfigs[T],
+  C extends WarpArtifactConfigs[T],
 >
   extends StarknetWarpTokenReaderBase<T, C>
   implements OrchestratedArtifactWriter<C, DeployedWarpAddress>
@@ -180,7 +212,10 @@ export abstract class StarknetWarpTokenWriterBase<
   ): Promise<
     [
       ArtifactDeployed<
-        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          DeployedWarpAddress
+        >,
         DeployedWarpAddress
       >,
       TxReceipt[],
@@ -210,7 +245,14 @@ export abstract class StarknetWarpTokenWriterBase<
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: artifact.config,
+        // CAST: ISM/hook children passed into create are expected to be
+        // resolved (DEPLOYED / UNDERIVED). `ConfigOnChain<X, _>` is
+        // structurally identical to `X` here — TS can't reduce the
+        // generic mapped type at indexing time.
+        config: artifact.config as ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          DeployedWarpAddress
+        >,
         deployed: { address: normalizeStarknetAddressSafe(tokenAddress) },
       },
       receipts,
@@ -224,18 +266,25 @@ export abstract class StarknetWarpTokenWriterBase<
     >,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
+    // CAST: read() returns post-collapse via ConfigOnChain; helper methods
+    // below treat the on-chain config as the pre-collapse variant with
+    // resolved children. They're structurally identical at runtime.
+    const currentConfig = current.config as WithCompositionVariant<
+      C,
+      typeof ArtifactComposition.ORCHESTRATED
+    >;
     const expectedConfig = this.preserveUnsetHookAndIsm(
-      current.config,
+      currentConfig,
       artifact.config,
     );
-    this.validateUpdateConfig(current.config, expectedConfig);
+    this.validateUpdateConfig(currentConfig, expectedConfig);
     this.assertNoOrphanDestinationGas(expectedConfig);
 
     const txs: AnnotatedTx[] = [];
     const tokenAddress = artifact.deployed.address;
     let ownerTx: StarknetAnnotatedTx | undefined;
 
-    const currentOwner = current.config.owner;
+    const currentOwner = currentConfig.owner;
     if (!eqAddressStarknet(currentOwner, expectedConfig.owner)) {
       ownerTx = {
         annotation: 'Setting warp token owner',
@@ -247,11 +296,11 @@ export abstract class StarknetWarpTokenWriterBase<
     }
 
     const currentIsm = artifactOnChainToAddress(
-      current.config.interchainSecurityModule,
+      toOnChainOrUndefined(currentConfig.interchainSecurityModule),
       normalizeStarknetAddressSafe,
     );
     const expectedIsm = artifactOnChainToAddress(
-      expectedConfig.interchainSecurityModule,
+      toOnChainOrUndefined(expectedConfig.interchainSecurityModule),
       normalizeStarknetAddressSafe,
     );
     if (
@@ -270,11 +319,11 @@ export abstract class StarknetWarpTokenWriterBase<
     }
 
     const currentHook = artifactOnChainToAddress(
-      current.config.hook,
+      toOnChainOrUndefined(currentConfig.hook),
       normalizeStarknetAddressSafe,
     );
     const expectedHook = artifactOnChainToAddress(
-      expectedConfig.hook,
+      toOnChainOrUndefined(expectedConfig.hook),
       normalizeStarknetAddressSafe,
     );
     if (
@@ -294,8 +343,8 @@ export abstract class StarknetWarpTokenWriterBase<
 
     const routerUpdates = computeRemoteRoutersUpdates(
       {
-        remoteRouters: current.config.remoteRouters,
-        destinationGas: current.config.destinationGas,
+        remoteRouters: currentConfig.remoteRouters,
+        destinationGas: currentConfig.destinationGas,
       },
       {
         remoteRouters: expectedConfig.remoteRouters,
@@ -345,11 +394,11 @@ export abstract class StarknetWarpTokenWriterBase<
     >,
   ): WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED> {
     const expectedIsm = artifactOnChainToAddress(
-      expected.interchainSecurityModule,
+      toOnChainOrUndefined(expected.interchainSecurityModule),
       normalizeStarknetAddressSafe,
     );
     const expectedHook = artifactOnChainToAddress(
-      expected.hook,
+      toOnChainOrUndefined(expected.hook),
       normalizeStarknetAddressSafe,
     );
 
@@ -358,7 +407,7 @@ export abstract class StarknetWarpTokenWriterBase<
       interchainSecurityModule: isEmptyAddress(expectedIsm)
         ? addressToUnderivedArtifact(
             artifactOnChainToAddress(
-              current.interchainSecurityModule,
+              toOnChainOrUndefined(current.interchainSecurityModule),
               normalizeStarknetAddressSafe,
             ),
           )
@@ -366,7 +415,7 @@ export abstract class StarknetWarpTokenWriterBase<
       hook: isEmptyAddress(expectedHook)
         ? addressToUnderivedArtifact(
             artifactOnChainToAddress(
-              current.hook,
+              toOnChainOrUndefined(current.hook),
               normalizeStarknetAddressSafe,
             ),
           )
@@ -404,7 +453,7 @@ export abstract class StarknetWarpTokenWriterBase<
     let ownerTx: StarknetAnnotatedTx | undefined;
 
     const expectedIsm = artifactOnChainToAddress(
-      expected.interchainSecurityModule,
+      toOnChainOrUndefined(expected.interchainSecurityModule),
       normalizeStarknetAddressSafe,
     );
     if (expectedIsm) {
@@ -416,7 +465,7 @@ export abstract class StarknetWarpTokenWriterBase<
     }
 
     const expectedHook = artifactOnChainToAddress(
-      expected.hook,
+      toOnChainOrUndefined(expected.hook),
       normalizeStarknetAddressSafe,
     );
     if (expectedHook) {

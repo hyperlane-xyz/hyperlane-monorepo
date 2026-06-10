@@ -630,3 +630,82 @@ export type _Test24 = AssertTrue<
     typeof ArtifactComposition.ORCHESTRATED
   >
 >;
+
+// ============================================================================
+// Writer create input/output split: bare pre-deploy in, ConfigOnChain out
+//
+// For composite C (WithComposition), create's input has children in the
+// pre-deploy shape (Artifact<> for ORCHESTRATED, ArtifactEmbedded<> for
+// EMBEDDED), and create's output collapses children to ArtifactOnChain<> /
+// ArtifactDeployed<> via ConfigOnChain. The two are intentionally different
+// shapes — writers consume the input as-given and produce the post-deploy
+// shape independently.
+// ============================================================================
+
+type EmbeddedWriterCreateInput = Parameters<EmbeddedWriter['create']>[0];
+type EmbeddedWriterCreateOutput = Awaited<
+  ReturnType<EmbeddedWriter['create']>
+>[0];
+
+// Embedded create input: children are ArtifactEmbedded
+export type _Test25a = AssertTrue<
+  Equals<
+    EmbeddedWriterCreateInput,
+    ArtifactNew<
+      WithEmbeddedChildren<BaseCompositeConfig> & {
+        composition: typeof ArtifactComposition.EMBEDDED;
+      }
+    >
+  >
+>;
+
+// Embedded create output: children collapse to ArtifactDeployed via ConfigOnChain
+export type _Test25b = AssertTrue<
+  Equals<
+    EmbeddedWriterCreateOutput,
+    ArtifactDeployed<
+      ConfigOnChain<
+        WithEmbeddedChildren<BaseCompositeConfig> & {
+          composition: typeof ArtifactComposition.EMBEDDED;
+        },
+        TestDeployed
+      >,
+      TestDeployed
+    >
+  >
+>;
+
+type OrchestratedWriterCreateInput = Parameters<
+  OrchestratedWriter['create']
+>[0];
+type OrchestratedWriterCreateOutput = Awaited<
+  ReturnType<OrchestratedWriter['create']>
+>[0];
+
+// Orchestrated create input: children stay in Artifact<> union (pre-deploy)
+export type _Test25c = AssertTrue<
+  Equals<
+    OrchestratedWriterCreateInput,
+    ArtifactNew<
+      BaseCompositeConfig & {
+        composition: typeof ArtifactComposition.ORCHESTRATED;
+      }
+    >
+  >
+>;
+
+// Orchestrated create output: children collapse to ArtifactOnChain via ConfigOnChain
+export type _Test25d = AssertTrue<
+  Equals<
+    OrchestratedWriterCreateOutput,
+    ArtifactDeployed<
+      ConfigOnChain<
+        BaseCompositeConfig & {
+          composition: typeof ArtifactComposition.ORCHESTRATED;
+        },
+        TestDeployed
+      >,
+      TestDeployed
+    >
+  >
+>;

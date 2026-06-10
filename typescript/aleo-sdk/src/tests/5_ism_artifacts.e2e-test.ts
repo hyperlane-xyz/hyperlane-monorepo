@@ -14,7 +14,7 @@ import {
   type DeployedIsmAddress,
   type IsmType,
   type MultisigIsmConfig,
-  type RawIsmArtifactConfigs,
+  type IsmArtifactConfigs,
   type RawRoutingIsmArtifactConfig,
   type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -36,7 +36,7 @@ function createOrchestratedIsmWriter<T extends IsmType>(
   manager: AleoIsmArtifactManager,
   type: T,
   signer: AleoSigner,
-): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+): OrchestratedArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
   const writer = manager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

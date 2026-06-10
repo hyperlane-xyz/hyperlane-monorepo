@@ -137,6 +137,10 @@ export type WithCompositionVariant<
 /**
  * Reader for the orchestrated composition variant. Children are independently
  * deployed; the artifact's address resolves to the parent contract/program only.
+ *
+ * `read()` returns the post-deploy on-chain shape: children are
+ * `ArtifactOnChain` (DEPLOYED | UNDERIVED), with EMBEDDED children — if any —
+ * collapsed to `ArtifactDeployed` via `ConfigOnChain`.
  */
 export interface OrchestratedArtifactReader<C, D> {
   readonly composition: typeof ArtifactComposition.ORCHESTRATED;
@@ -144,7 +148,10 @@ export interface OrchestratedArtifactReader<C, D> {
     address: string,
   ): Promise<
     ArtifactDeployed<
-      WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+      ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        D
+      >,
       D
     >
   >;
@@ -152,6 +159,11 @@ export interface OrchestratedArtifactReader<C, D> {
 
 /**
  * Writer for the orchestrated composition variant.
+ *
+ * `create()` accepts the bare pre-deploy config — children remain in their
+ * `Artifact<>` union shape — and returns the post-deploy on-chain shape.
+ * `update()` accepts the post-deploy on-chain shape; child reconciliation is
+ * the writer's responsibility (most writers enumerate live state directly).
  */
 export interface OrchestratedArtifactWriter<
   C,
@@ -164,7 +176,10 @@ export interface OrchestratedArtifactWriter<
   ): Promise<
     [
       ArtifactDeployed<
-        WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+        ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>,
+          D
+        >,
         D
       >,
       TxReceipt[],
@@ -182,6 +197,9 @@ export interface OrchestratedArtifactWriter<
  * Reader for the embedded composition variant. Children live inside the
  * parent's address space (e.g. SVM PDAs); the parent's read returns the full
  * subtree.
+ *
+ * `read()` returns the post-deploy on-chain shape with embedded children
+ * collapsed to `ArtifactDeployed` via `ConfigOnChain`.
  */
 export interface EmbeddedArtifactReader<C, D> {
   readonly composition: typeof ArtifactComposition.EMBEDDED;
@@ -189,7 +207,10 @@ export interface EmbeddedArtifactReader<C, D> {
     address: string,
   ): Promise<
     ArtifactDeployed<
-      WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+      ConfigOnChain<
+        WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+        D
+      >,
       D
     >
   >;
@@ -197,6 +218,12 @@ export interface EmbeddedArtifactReader<C, D> {
 
 /**
  * Writer for the embedded composition variant.
+ *
+ * `create()` accepts the bare pre-deploy config (children are `ArtifactEmbedded`)
+ * and returns the post-deploy on-chain shape with children collapsed to
+ * `ArtifactDeployed`. `update()` accepts the bare pre-deploy config too —
+ * runtime writers enumerate live on-chain children directly rather than
+ * relying on the input.
  */
 export interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<
   C,
@@ -209,7 +236,10 @@ export interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<
   ): Promise<
     [
       ArtifactDeployed<
-        WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+        ConfigOnChain<
+          WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>,
+          D
+        >,
         D
       >,
       TxReceipt[],

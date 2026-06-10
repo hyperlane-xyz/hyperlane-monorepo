@@ -13,7 +13,7 @@ import {
   type DeployedRawIsmArtifact,
   type IRawIsmArtifactManager,
   type IsmType,
-  type RawIsmArtifactConfigs,
+  type IsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { LazyAsync } from '@hyperlane-xyz/utils';
 
@@ -81,7 +81,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     // but createReaderWithQuery expects a specific type T extends IsmType.
     // The reader will return the correct artifact type at runtime.
     const reader = this.createReaderWithQuery(
-      altVMType as keyof RawIsmArtifactConfigs,
+      altVMType as keyof IsmArtifactConfigs,
       query,
     );
     return reader.read(address);
@@ -96,10 +96,10 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    */
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactReader<
-      RawIsmArtifactConfigs[T],
+      IsmArtifactConfigs[T],
       DeployedIsmAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -122,10 +122,10 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   private createReaderWithQuery<T extends IsmType>(
     type: T,
     query: CosmosIsmQueryClient,
-  ): OrchestratedArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): OrchestratedArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const readers: {
       [K in IsmType]: () => OrchestratedArtifactReader<
-        RawIsmArtifactConfigs[K],
+        IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
     } = {
@@ -148,10 +148,10 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
     const wrapper: OrchestratedArtifactWriter<
-      RawIsmArtifactConfigs[T],
+      IsmArtifactConfigs[T],
       DeployedIsmAddress
     > = {
       composition: ArtifactComposition.ORCHESTRATED,
@@ -186,10 +186,10 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
     query: CosmosIsmQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): OrchestratedArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const writers: {
       [K in IsmType]: () => OrchestratedArtifactWriter<
-        RawIsmArtifactConfigs[K],
+        IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
     } = {
