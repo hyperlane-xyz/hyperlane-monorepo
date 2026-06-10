@@ -199,13 +199,16 @@ For minimal-tool sandboxes (no `ps`/`lsof`/`pkill`/`fuser`), use the `/proc` cmd
 
 ## Step 11: Add CoinGecko ID and Finalize Config
 
+> **YAML sort-order rules (applies to every edit in this step and any registry YAML edit in this skill).** The registry CI / CodeRabbit policy is strict on two levels of alphabetical sorting:
+>
+> 1. **Chain entries at the top level must be in alphabetical order by chain name.** E.g. an arbitrum + base + ethereum route has `arbitrum:` before `base:` before `ethereum:`. If you're inserting a new chain or restructuring an existing file, re-sort the top level by chain name.
+> 2. **Keys within each chain entry must be in strict alphabetical order.** When adding a new field (e.g. `coinGeckoId`, `logoURI`), insert it at its alphabetical position — never at the top, bottom, or "after a specific sibling key". Example final key order for a config.yaml token block: `addressOrDenom`, `chainName`, `coinGeckoId`, `connections`, `decimals`, `logoURI`, `name`, `standard`, `symbol`, `tokenType`.
+
 ### 11a: Look Up CoinGecko ID
 
 Search CoinGecko for the token symbol/name in the registry core-config.yaml.
 
-If found, add `coinGeckoId: <api-id>` to each **non-synthetic** token entry in the config.yaml (i.e., `collateral` and `native` entries only — NOT `synthetic` entries).
-
-Update the config.yaml file with the coinGeckoId field added after `addressOrDenom` (or at the end of each matching token block, before `connections`).
+If found, add `coinGeckoId: <api-id>` to each **non-synthetic** token entry in the config.yaml (i.e., `collateral` and `native` entries only — NOT `synthetic` entries). **Insert at the alphabetical position in the token block** (between `chainName` and `connections`). Do NOT append at the top or bottom — that fails the sort check.
 
 If not found on CoinGecko, note this to the user and skip.
 
@@ -219,9 +222,18 @@ Check if `/warp-deploy-init-route` already cached the logo locally at `$REGISTRY
    curl -sSL "<fresh-signed-url>" -o "$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/logo.<ext>"
    ```
    Use `logo.svg` if the upload is SVG; `logo.png` otherwise.
-3. Add `logoURI: /deployments/warp_routes/<TOKEN>/logo.svg` (or `/deployments/warp_routes/<TOKEN>/logo.png`) to **every** token entry in config.yaml (all legs — synthetic and native), after `coinGeckoId` (or after `addressOrDenom` if no coinGeckoId). The path is always the absolute path from the registry root.
+3. Add `logoURI: /deployments/warp_routes/<TOKEN>/logo.svg` (or `/deployments/warp_routes/<TOKEN>/logo.png`) to **every** token entry in config.yaml (all legs — synthetic and native). **Insert at its alphabetical position** — `logoURI` lands between `decimals` and `name`. The path is always the absolute path from the registry root.
 
 If no logo is attached to the ticket and no local file exists, skip this step.
+
+### 11b-check: Verify Sort Order Before Step 11c
+
+Before showing the file for review, confirm both invariants on the final config.yaml:
+
+- Top-level chain entries are in alphabetical order by chain name.
+- Within each chain's token block, all keys are in alphabetical order (visual scan against the canonical key list above is sufficient; for stronger confidence pipe through `yq` and compare).
+
+If either invariant fails, fix the file before proceeding to 11c. The registry CI / CodeRabbit will block the PR otherwise.
 
 ### 11c: Show Final Config for Review
 
