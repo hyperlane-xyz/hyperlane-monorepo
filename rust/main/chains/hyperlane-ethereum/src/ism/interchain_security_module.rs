@@ -194,9 +194,12 @@ where
                         })
                         .collect();
                     let sub_results = join_all(sub_isps.iter().enumerate().map(|(i, s)| {
-                        let sub_metadata = aggregation_sub_metadata(metadata, i)
-                            .unwrap_or_else(|| Metadata::new(vec![]));
+                        let sub_metadata = aggregation_sub_metadata(metadata, i);
                         async move {
+                            let Some(sub_metadata) = sub_metadata else {
+                                // No metadata for this sub-ISM; skip it (mirrors Solidity behaviour).
+                                return Ok(None);
+                            };
                             s.dry_run_verify_inner(message, &sub_metadata, depth.saturating_sub(1))
                                 .await
                         }
