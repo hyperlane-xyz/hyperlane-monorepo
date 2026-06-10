@@ -51,8 +51,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// abi-encoded `CallLib.Call[]` to run after source collateral is escrowed.
     /// @param domain Must equal `localDomain`; this bridge only rebalances locally.
     /// @param collateralAmount The source collateral amount to rebalance.
-    /// @param sourceRouter The source collateral router to pull from. Must allow
-    /// this wrapper as a rebalancer/bridge and `msg.sender` as a rebalancer.
+    /// @param sourceRouter The source collateral router to pull from. Must be a
+    /// `CrossCollateralRouter` (the only `IRebalanceTargets` implementer, queried
+    /// to authorize the recipient) and must allow this wrapper as a
+    /// rebalancer/bridge and `msg.sender` as a rebalancer.
     /// @param destinationRecipient The destination collateral router to fund.
     /// Must be an allowed rebalance target on the source router (its enrolled
     /// remote router for `localDomain` or an explicitly allowed rebalance target).
