@@ -488,23 +488,23 @@ If all chains are EVM, only one key is needed. If the route spans multiple VM ty
 
 For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-contexts/<ticket-id>.yaml`. Do NOT ask the user for env var names inline — the artifact is the source of truth.
 
-### 7d: Build and Show the Command
+### 7d: Build and Show the Command (preview only — do NOT run yet)
 
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the key-value expansion legend (see `/warp-deploy-validate-owners` for the canonical table; the same mapping applies here).
+Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (AW-680 live-test finding: a base public-RPC gas estimate underflowed and the deploy went out-of-gas).
 
-> **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
+The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the key-value expansion legend (see `/warp-deploy-validate-owners` for the canonical table; the same mapping applies here).
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<new-chain> \
+  --warp-route-id <TOKEN>/<chains-alphabetical> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
   [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
   --yes
 ```
 
-Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
+Where `<TOKEN>/<chains-alphabetical>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
 
 Show the user the exact command with the resolved secret/env-var NAMES substituted (from the artifact), never private-key values. Also show the corresponding derived `address` per protocol so the human can spot a wrong-key foot-gun at the gate. End your message with this marker (this MUST be the very last thing in your message):
 
@@ -516,7 +516,9 @@ Show the user the exact command with the resolved secret/env-var NAMES substitut
 
 ## Step 8: Run Warp Deploy
 
-If the user confirms, first start the HTTP registry in the background to get private RPC URLs from Secret Manager:
+### 8a: Start the HTTP Registry FIRST
+
+The HTTP registry MUST be running before the deploy command. Starting it later or skipping it means the deploy falls back to public-RPC gas estimates and is exposed to OOG / nonce errors on chains with flaky public free-tier RPCs (notably base, optimism, drpc-routed chains).
 
 ```bash
 cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
@@ -524,26 +526,28 @@ cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 
 Run with `run_in_background: true`. Wait for the log line `Server running` (the actual line emitted by `typescript/http-registry-server/HttpServer.ts`; it includes the port in JSON metadata). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
 
+### 8b: Run the Deploy Command
+
 Tell the user upfront:
 
-> **Starting warp deploy for `<TOKEN>/<new-chain>`.**
+> **Starting warp deploy for `<TOKEN>/<chains-alphabetical>`.**
 > This deploys contracts on each chain sequentially and typically takes **5–15 minutes**.
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
+Then run the deploy command from `typescript/cli`, with the port substituted from Step 8a. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<new-chain> \
+  --warp-route-id <TOKEN>/<chains-alphabetical> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
   [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
   --yes
 ```
 
-**On success:** the CLI writes a `<new-chain>-config.yaml` file next to the deploy.yaml in the registry. Show the user the full deploy output so they can see which contracts were deployed and their addresses.
+**On success:** the CLI writes a `<chains-alphabetical>-config.yaml` file next to the deploy.yaml in the registry. Show the user the full deploy output so they can see which contracts were deployed and their addresses.
 
 **On failure:** show the error output and stop the HTTP registry (Step 8a), then do not proceed to Step 9. Common issues:
 
@@ -557,7 +561,16 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
 
 Run the send test **now, while the deployer still owns the contracts** — before transferring ownership in Step 10.
 
-Use the same key environment variable from Step 7c (no need to ask again).
+Use the same key from the key-context artifact (loaded in Step 7c).
+
+### HTTP-registry cache lag — wait before first send
+
+The HTTP registry caches route configs in memory. Right after `warp deploy` writes the new `<chains-alphabetical>-config.yaml`, the running HTTP registry server may not have refreshed its cache yet — the first `warp send` will 404 with `route not found`. Wait ~5 seconds before the first send, and if the first send still 404's, verify the route is visible via `curl http://localhost:<port>/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-config.yaml`, sleep another 5s, and retry.
+
+```bash
+sleep 5
+# Then run the first send. If it 404's, verify with curl + sleep 5 + retry once before giving up.
+```
 
 ### Amount calculation
 
@@ -587,14 +600,14 @@ pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain1> --destination <chain2> \
   --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
-  -w <TOKEN>/<new-chain>
+  -w <TOKEN>/<chains-alphabetical>
 
 # Return (fee charged — use reduced amount)
 pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain2> --destination <chain1> \
   --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \
-  -w <TOKEN>/<new-chain>
+  -w <TOKEN>/<chains-alphabetical>
 ```
 
 ### Multi-chain routes (1 native/collateral + multiple synthetics)
@@ -608,14 +621,14 @@ pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <native-chain> --destination <synthetic-chain> \
   --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
-  -w <TOKEN>/<new-chain>
+  -w <TOKEN>/<chains-alphabetical>
 
 # Then return: synthetic → native (fee charged — use reduced amount)
 pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <synthetic-chain> --destination <native-chain> \
   --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \
-  -w <TOKEN>/<new-chain>
+  -w <TOKEN>/<chains-alphabetical>
 ```
 
 Skip any leg where the deployer has insufficient balance. After each forward send from a native chain, check the native balance — IGP payments accumulate across sends.
