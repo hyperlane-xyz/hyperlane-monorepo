@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::cache::FunctionCallCache;
 
-use super::CacheResult;
+use super::{CacheResult, ExpirationType};
 
 /// A Cache wrapper that instruments the cache calls with metrics.
 #[derive(new, Debug, Clone)]
@@ -30,6 +30,28 @@ where
         if let Some(inner) = &self.inner {
             return inner
                 .cache_call_result(domain_name, fn_key, fn_params, result)
+                .await;
+        }
+        Ok(())
+    }
+
+    async fn cache_call_result_with_expiration(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+        expiration: ExpirationType,
+    ) -> CacheResult<()> {
+        if let Some(inner) = &self.inner {
+            return inner
+                .cache_call_result_with_expiration(
+                    domain_name,
+                    fn_key,
+                    fn_params,
+                    result,
+                    expiration,
+                )
                 .await;
         }
         Ok(())

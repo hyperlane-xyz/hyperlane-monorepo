@@ -1,15 +1,31 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use hyperlane_base::{cache::FunctionCallCache, CheckpointSyncer};
+use hyperlane_base::{
+    cache::{ExpirationType, FunctionCallCache},
+    CheckpointSyncer,
+};
 use hyperlane_core::{
     ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId, H256,
 };
 
 const FETCH_CHECKPOINT_METHOD: &str = "fetch_checkpoint";
+const LATEST_INDEX_METHOD: &str = "latest_index";
+// Kept short so that on the merkle-root multisig path (where `latest_index`
+// gates the highest quorum index we search from) a freshly-advanced validator
+// is picked up within ~1 retry cycle, while still absorbing the bulk of
+// per-validator `latest_index` RPC/S3 load. The message-id multisig path only
+// uses `latest_index` for metrics, so it is unaffected by this TTL.
+const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_secs(2);
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CachedLatestIndexKey {
+    validator: H256,
+    storage_location: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CachedCheckpointKey {
@@ -49,6 +65,13 @@ impl<C> CachedCheckpointSyncer<C> {
             validator: self.validator,
             storage_location: self.storage_location.clone(),
             index,
+        }
+    }
+
+    fn latest_index_cache_key(&self) -> CachedLatestIndexKey {
+        CachedLatestIndexKey {
+            validator: self.validator,
+            storage_location: self.storage_location.clone(),
         }
     }
 
@@ -97,7 +120,49 @@ where
     C: FunctionCallCache + Debug,
 {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        self.inner.latest_index().await
+        let cache_key = self.latest_index_cache_key();
+        match self
+            .cache
+            .get_cached_call_result::<u32>(
+                &self.origin_domain_name,
+                LATEST_INDEX_METHOD,
+                &cache_key,
+            )
+            .await
+        {
+            Ok(Some(latest_index)) => return Ok(Some(latest_index)),
+            Ok(None) => {}
+            Err(err) => {
+                debug!(
+                    error = %err,
+                    validator = ?self.validator,
+                    "Failed to fetch latest checkpoint index from cache"
+                );
+            }
+        }
+
+        let result = self.inner.latest_index().await;
+        if let Ok(Some(latest_index)) = &result {
+            if let Err(err) = self
+                .cache
+                .cache_call_result_with_expiration(
+                    &self.origin_domain_name,
+                    LATEST_INDEX_METHOD,
+                    &cache_key,
+                    latest_index,
+                    ExpirationType::AfterDuration(LATEST_INDEX_CACHE_TTL),
+                )
+                .await
+            {
+                debug!(
+                    error = %err,
+                    validator = ?self.validator,
+                    latest_index,
+                    "Failed to cache latest checkpoint index"
+                );
+            }
+        }
+        result
     }
 
     async fn write_latest_index(&self, index: u32) -> Result<()> {
@@ -211,7 +276,9 @@ mod tests {
     #[derive(Debug)]
     struct CountingCheckpointSyncer {
         fetch_count: Arc<AtomicUsize>,
+        latest_index_count: Arc<AtomicUsize>,
         responses: Mutex<VecDeque<Result<Option<SignedCheckpointWithMessageId>>>>,
+        latest_index_responses: Mutex<VecDeque<Result<Option<u32>>>>,
     }
 
     impl CountingCheckpointSyncer {
@@ -219,12 +286,31 @@ mod tests {
             responses: Vec<Result<Option<SignedCheckpointWithMessageId>>>,
         ) -> (Self, Arc<AtomicUsize>) {
             let fetch_count = Arc::new(AtomicUsize::new(0));
+            let latest_index_count = Arc::new(AtomicUsize::new(0));
             (
                 Self {
                     fetch_count: fetch_count.clone(),
+                    latest_index_count,
                     responses: Mutex::new(responses.into()),
+                    latest_index_responses: Mutex::new(VecDeque::new()),
                 },
                 fetch_count,
+            )
+        }
+
+        fn new_with_latest_index_responses(
+            latest_index_responses: Vec<Result<Option<u32>>>,
+        ) -> (Self, Arc<AtomicUsize>) {
+            let fetch_count = Arc::new(AtomicUsize::new(0));
+            let latest_index_count = Arc::new(AtomicUsize::new(0));
+            (
+                Self {
+                    fetch_count,
+                    latest_index_count: latest_index_count.clone(),
+                    responses: Mutex::new(VecDeque::new()),
+                    latest_index_responses: Mutex::new(latest_index_responses.into()),
+                },
+                latest_index_count,
             )
         }
     }
@@ -232,7 +318,12 @@ mod tests {
     #[async_trait::async_trait]
     impl CheckpointSyncer for CountingCheckpointSyncer {
         async fn latest_index(&self) -> Result<Option<u32>> {
-            Ok(Some(0))
+            self.latest_index_count.fetch_add(1, Ordering::Relaxed);
+            self.latest_index_responses
+                .lock()
+                .map_err(|_| eyre::eyre!("Failed to lock latest index responses"))?
+                .pop_front()
+                .unwrap_or_else(|| bail!("No latest index response"))
         }
 
         async fn write_latest_index(&self, _index: u32) -> Result<()> {
@@ -488,5 +579,72 @@ mod tests {
         assert_eq!(second, Some(signed_checkpoint));
         assert_eq!(first_fetch_count.load(Ordering::Relaxed), 1);
         assert_eq!(second_fetch_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn caches_successful_latest_index_fetches() {
+        let signer = test_signer();
+        let (inner, latest_index_count) =
+            CountingCheckpointSyncer::new_with_latest_index_responses(vec![Ok(Some(10))]);
+        let syncer = CachedCheckpointSyncer::new(
+            Box::new(inner),
+            LocalCache::new("test-cache"),
+            "testorigin".to_string(),
+            validator(&signer),
+            "test".to_string(),
+        );
+
+        let first = syncer.latest_index().await.expect("first fetch");
+        let second = syncer.latest_index().await.expect("second fetch");
+
+        assert_eq!(first, Some(10));
+        assert_eq!(second, Some(10));
+        assert_eq!(latest_index_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn does_not_cache_missing_latest_index_fetches() {
+        let signer = test_signer();
+        let (inner, latest_index_count) =
+            CountingCheckpointSyncer::new_with_latest_index_responses(vec![Ok(None), Ok(Some(10))]);
+        let syncer = CachedCheckpointSyncer::new(
+            Box::new(inner),
+            LocalCache::new("test-cache"),
+            "testorigin".to_string(),
+            validator(&signer),
+            "test".to_string(),
+        );
+
+        let first = syncer.latest_index().await.expect("first fetch");
+        let second = syncer.latest_index().await.expect("second fetch");
+
+        assert_eq!(first, None);
+        assert_eq!(second, Some(10));
+        assert_eq!(latest_index_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn expires_cached_latest_index_fetches() {
+        let signer = test_signer();
+        let (inner, latest_index_count) =
+            CountingCheckpointSyncer::new_with_latest_index_responses(vec![
+                Ok(Some(10)),
+                Ok(Some(11)),
+            ]);
+        let syncer = CachedCheckpointSyncer::new(
+            Box::new(inner),
+            LocalCache::new("test-cache"),
+            "testorigin".to_string(),
+            validator(&signer),
+            "test".to_string(),
+        );
+
+        let first = syncer.latest_index().await.expect("first fetch");
+        tokio::time::sleep(LATEST_INDEX_CACHE_TTL + Duration::from_secs(1)).await;
+        let second = syncer.latest_index().await.expect("second fetch");
+
+        assert_eq!(first, Some(10));
+        assert_eq!(second, Some(11));
+        assert_eq!(latest_index_count.load(Ordering::Relaxed), 2);
     }
 }
