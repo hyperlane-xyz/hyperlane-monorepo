@@ -193,6 +193,8 @@ Show the user the full `warp check` output. If there are violations:
 
 After `warp check` completes (or on any failure after Step 10d), stop the HTTP registry using `TaskStop` with the task ID noted in Step 10d. Always stop it — even on failure — so no background process is left running.
 
+For minimal-tool sandboxes (no `ps`/`lsof`/`pkill`/`fuser`), use the `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route` (search "TaskStop" in that skill). Always run the fallback after `TaskStop` — idempotent if the process is already gone.
+
 ---
 
 ## Step 11: Add CoinGecko ID and Finalize Config

@@ -651,6 +651,22 @@ Stop the HTTP registry:
 
 Use `TaskStop` or `KillShell` with the ID noted when starting the registry. Always stop it — even if sends failed — so no background process is left running.
 
+If `TaskStop` doesn't clean up the underlying process (some sandboxes leave the registry running) and `ps`/`lsof`/`pkill`/`fuser` aren't available either, fall back to a `/proc` cmdline scan:
+
+```bash
+# Find PIDs matching the registry process — exclude the scanning shell itself
+SELF_PID=$$
+for pid in $(ls /proc | grep -E '^[0-9]+$'); do
+  [ "$pid" = "$SELF_PID" ] && continue
+  if grep -aql 'http-registry-server\|start:http-registry' /proc/$pid/cmdline 2>/dev/null; then
+    echo "killing http-registry pid=$pid"
+    kill "$pid" 2>/dev/null || true
+  fi
+done
+```
+
+This is the durable fallback for minimal-tool sandboxes (verified in the AW-680 live test). Always run after `TaskStop` regardless — idempotent if the process is already gone.
+
 ---
 
 ## Next Steps
