@@ -13,7 +13,7 @@ A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cos
 
 The user provides:
 
-- **Linear ticket ID** (required, e.g. `AW-680`) — namespaces the resolved key-context artifact.
+- **Linear ticket ID** (required, e.g. `AW-123`) — namespaces the resolved key-context artifact.
 - **Per protocol**, ONE of (the user picks the form they want; the agent never enumerates GCP secrets unprompted):
   - **Specific key spec** — a single reference the agent uses directly. Any of:
     - GCP secret name (e.g. `mainnet3-haggis-deployer-key`)
@@ -245,8 +245,8 @@ cosmos    | gcp-secret  | hyp-cosmos-signer             | neutron1abc...xyz
 Then write `~/.hyperlane/key-contexts/<ticket-id>.yaml`:
 
 ```yaml
-ticket: AW-680
-resolvedAt: '2026-06-10T17:00:00Z'
+ticket: AW-123
+resolvedAt: '<ISO-8601 timestamp>'
 keys:
   ethereum:
     source: gcp-secret # or: env-var | keystore

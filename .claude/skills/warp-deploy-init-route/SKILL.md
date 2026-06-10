@@ -490,7 +490,7 @@ For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<pr
 
 ### 7d: Build and Show the Command (preview only — do NOT run yet)
 
-Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (AW-680 live-test finding: a base public-RPC gas estimate underflowed and the deploy went out-of-gas).
+Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (stale-gas underflow → mid-deploy out-of-gas on opstack chains in particular).
 
 The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the key-value expansion legend (see `/warp-deploy-validate-owners` for the canonical table; the same mapping applies here).
 
@@ -665,7 +665,7 @@ for pid in $(ls /proc | grep -E '^[0-9]+$'); do
 done
 ```
 
-This is the durable fallback for minimal-tool sandboxes (verified in the AW-680 live test). Always run after `TaskStop` regardless — idempotent if the process is already gone.
+This is the durable fallback for minimal-tool sandboxes. Always run after `TaskStop` regardless — idempotent if the process is already gone.
 
 ---
 
