@@ -209,7 +209,7 @@ impl ValidatorSubmitter {
         // then tight-poll at 1s until the checkpoint appears. Clamp to self.interval
         // so a stale block_height can't produce a sleep longer than normal polling.
         self.estimated_block_time
-            .saturating_mul(blocks_to_wait as u32)
+            .saturating_mul(u32::try_from(blocks_to_wait).unwrap_or(u32::MAX))
             .saturating_sub(self.estimated_block_time)
             .max(Duration::from_secs(1))
             .min(self.interval)

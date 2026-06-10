@@ -1048,7 +1048,7 @@ impl PendingMessage {
         // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
         // from the beginning rather than landing mid-table at the 3-min arm.
         if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
-            if num_retries <= 10 {
+            if (1..=10).contains(&num_retries) {
                 return Some(Duration::from_secs(1));
             }
             // Offset retries so 11→1, 12→2, … resuming the normal ramp.
