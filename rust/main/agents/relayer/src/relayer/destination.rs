@@ -133,7 +133,10 @@ impl DestinationFactory {
     ) -> Option<Signers> {
         let start_entity_init = Instant::now();
 
-        if !matches!(domain.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+        if !matches!(
+            domain.domain_protocol(),
+            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Tron
+        ) {
             return None;
         }
 
@@ -143,7 +146,7 @@ impl DestinationFactory {
             .build::<Signers>()
             .await
             .map_err(|e| {
-                warn!(error = ?e, "Failed to build Ethereum signer for CCIP-read ISM.");
+                warn!(error = ?e, domain = %domain.name(), "Failed to build signer for CCIP-read ISM.");
                 e
             })
             .ok();

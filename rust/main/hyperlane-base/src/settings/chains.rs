@@ -1344,8 +1344,10 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Tron(_) => {
-                Err(eyre!("Tron does not support CCIP read ISM yet")).context(ctx)
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronCcipReadIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn CcipReadIsm>)
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
