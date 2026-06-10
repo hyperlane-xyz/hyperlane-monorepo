@@ -165,7 +165,7 @@ export class CallCommitmentsService extends BaseService {
     }
 
     logger.info(data, 'Commitment processing completed successfully');
-    return res.sendStatus(200);
+    return res.status(200).json({ commitment });
   }
 
   public async handleFetchCommitment(
