@@ -5,7 +5,7 @@ description: Preflight that resolves which private key(s) to use for the warp-de
 
 # Warp Route Deploy — Select Keys
 
-You are resolving which private key(s) the warp-deploy chain should use for signing across every protocol in the route. Run this BEFORE any of `/warp-deploy-fund-deployer`, `/warp-deploy-validate-owners`, `/warp-deploy-init-route`, `/warp-deploy-update-owners`, `/warp-deploy-extend-route` — or have those skills invoke this one when the artifact is missing.
+You are resolving which private key(s) the warp-deploy chain should use for signing across every protocol in the route. Run this BEFORE any of `/warp-deploy-fund-deployer`, `/warp-deploy-validate-owners`, `/warp-deploy-init-route`, `/warp-deploy-update-owners`, `/warp-update-extend` — or have those skills invoke this one when the artifact is missing.
 
 A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cosmos`) — each needs its own key. This skill walks every required protocol and resolves them in one pass.
 

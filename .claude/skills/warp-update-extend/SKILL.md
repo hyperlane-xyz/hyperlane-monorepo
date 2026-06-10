@@ -1,5 +1,5 @@
 ---
-name: warp-deploy-extend-route
+name: warp-update-extend
 description: Add a new chain to an existing warp route owned by a customer. Reads a Linear ticket, adds the new chain to the deploy.yaml, builds a customer-specific strategy file for existing chains, runs warp apply, and outputs transaction files for the customer to sign via their multisig.
 ---
 

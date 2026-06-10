@@ -135,7 +135,7 @@ For every chain, also confirm the address format matches the protocol:
 
 - **EVM**: 20-byte hex starting with `0x`, length 42 chars
 - **SVM**: base58 32-byte (typically 32-44 char base58)
-- **Tron**: base58 starting with `T` OR EVM hex `0x` (Tron contracts in `deploy.yaml` use the hex form per `warp-deploy-extend-route` conventions — convert if needed)
+- **Tron**: base58 starting with `T` OR EVM hex `0x` (Tron contracts in `deploy.yaml` use the hex form per `warp-update-extend` conventions — convert if needed)
 - **Cosmos**: bech32 with chain-specific prefix
 
 A format mismatch is a stop condition — surface to the user.
