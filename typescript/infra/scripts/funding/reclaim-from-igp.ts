@@ -1,6 +1,7 @@
 import chalk from 'chalk';
-import { formatEther, parseEther } from 'ethers/lib/utils.js';
+import { formatEther, formatUnits, parseEther } from 'ethers/lib/utils.js';
 
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import {
   isZeroishAddress,
@@ -38,6 +39,8 @@ type ReclaimStatus = (typeof ReclaimStatus)[keyof typeof ReclaimStatus];
 
 interface ReclaimResult {
   chain: string;
+  // 'native' for the native-balance claim, or a fee-token label for claimToken.
+  token: string;
   balance: string;
   threshold: string;
   status: ReclaimStatus;
@@ -61,6 +64,10 @@ async function main() {
   const keyFunderConfig = getKeyFunderConfig(environmentConfig);
   const igpClaimThresholds = keyFunderConfig.igpClaimThresholdPerChain;
   const desiredBalances = keyFunderConfig.desiredBalancePerChain;
+
+  // Per-chain IGP hook configs; tokenOracleConfig (keyed by fee token address)
+  // is the source of truth for which ERC20 fee tokens to claim via claimToken.
+  const igpConfigs = environmentConfig.igp;
 
   // Filter chains if provided
   const chainsToProcess = chains?.length
@@ -106,10 +113,13 @@ async function main() {
 
   const reclaimResults = await promiseObjAll(
     objMap(filteredPaymasters, async (chain, paymaster) => {
-      if (!paymaster) return null;
+      if (!paymaster) return [];
 
+      const provider = multiProvider.getProvider(chain);
+      const chainResults: ReclaimResult[] = [];
+
+      // ---- Native claim ----
       try {
-        const provider = multiProvider.getProvider(chain);
         const balance = await provider.getBalance(paymaster.address);
         const formattedBalance = formatEther(balance);
 
@@ -140,122 +150,143 @@ async function main() {
           }
         }
 
-        // Skip if balance is zero (even with --force)
-        if (balance.isZero()) {
-          return {
-            chain,
-            balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(formatEther(threshold)),
-            status: ReclaimStatus.BELOW_THRESHOLD,
-          };
-        }
-
-        // Only reclaim when greater than the reclaim threshold (unless --force is used)
-        if (!force && balance.lt(threshold)) {
-          return {
-            chain,
-            balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(formatEther(threshold)),
-            status: ReclaimStatus.BELOW_THRESHOLD,
-          };
-        }
-
-        // Estimate the gas cost for the claim transaction
-        const gasEstimate = await paymaster.estimateGas.claim();
-        const feeData = await provider.getFeeData();
-
-        // Calculate total cost: gas * (gasPrice or maxFeePerGas)
-        const gasPrice = feeData.maxFeePerGas || feeData.gasPrice;
-        if (!gasPrice) {
-          return {
-            chain,
-            balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(thresholdStr),
-            status: ReclaimStatus.NO_GAS_PRICE,
-          };
-        }
-
-        const estimatedCost = gasEstimate.mul(gasPrice);
-        const costThreshold = estimatedCost.mul(2); // 2x the cost
-
-        // Only proceed if balance > 2x the estimated cost (unless --force is used)
-        if (!force && balance.lte(costThreshold)) {
-          return {
-            chain,
-            balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(formatEther(threshold)),
-            status: ReclaimStatus.INSUFFICIENT_FOR_GAS,
-          };
-        }
-
-        rootLogger.debug(`Claiming from IGP on ${chain}...`);
-        let tx;
-        let explorerUrl;
-        if (dryRun) {
-          rootLogger.info(`[DRY RUN] Would claim from IGP on ${chain}`);
+        let status: ReclaimStatus;
+        if (balance.isZero() || (!force && balance.lt(threshold))) {
+          // Skip if balance is zero (even with --force) or below threshold
+          status = ReclaimStatus.BELOW_THRESHOLD;
         } else {
-          tx = await paymaster.claim();
-          explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
-          rootLogger.info(
-            `Claimed from IGP on ${chain}: ${explorerUrl || tx.hash}`,
-          );
-        }
+          // Estimate the gas cost for the claim transaction
+          const gasEstimate = await paymaster.estimateGas.claim();
+          const feeData = await provider.getFeeData();
 
-        return {
-          chain,
-          balance: formatTo5SF(formattedBalance),
-          threshold: formatTo5SF(formatEther(threshold)),
-          status: ReclaimStatus.SUCCESS,
-        };
-      } catch (error) {
-        const provider = multiProvider.getProvider(chain);
-        let balance = 'N/A';
-        let thresholdDisplay = '0.1';
-        try {
-          const bal = await provider.getBalance(paymaster.address);
-          balance = formatTo5SF(formatEther(bal));
-        } catch {
-          // Balance fetch failed, leave as N/A
-        }
+          // Calculate total cost: gas * (gasPrice or maxFeePerGas)
+          const gasPrice = feeData.maxFeePerGas || feeData.gasPrice;
+          if (!gasPrice) {
+            status = ReclaimStatus.NO_GAS_PRICE;
+          } else {
+            const estimatedCost = gasEstimate.mul(gasPrice);
+            const costThreshold = estimatedCost.mul(2); // 2x the cost
 
-        // Calculate threshold for display
-        const thresholdStr = igpClaimThresholds[chain];
-        if (thresholdStr) {
-          thresholdDisplay = thresholdStr;
-        } else {
-          const desired = desiredBalances[chain];
-          if (desired) {
-            thresholdDisplay = formatEther(parseEther(desired).div(5));
+            // Only proceed if balance > 2x the estimated cost (unless --force is used)
+            if (!force && balance.lte(costThreshold)) {
+              status = ReclaimStatus.INSUFFICIENT_FOR_GAS;
+            } else if (dryRun) {
+              rootLogger.info(`[DRY RUN] Would claim from IGP on ${chain}`);
+              status = ReclaimStatus.SUCCESS;
+            } else {
+              rootLogger.debug(`Claiming from IGP on ${chain}...`);
+              const tx = await paymaster.claim();
+              const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
+              rootLogger.info(
+                `Claimed from IGP on ${chain}: ${explorerUrl || tx.hash}`,
+              );
+              status = ReclaimStatus.SUCCESS;
+            }
           }
         }
 
+        chainResults.push({
+          chain,
+          token: 'native',
+          balance: formatTo5SF(formattedBalance),
+          threshold: formatTo5SF(formatEther(threshold)),
+          status,
+        });
+      } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        // Extract just the key error info, not the full stack
         const shortError = errorMsg.split('\n')[0];
         rootLogger.error(
           chalk.red(`Error claiming from IGP on ${chain}: ${shortError}`),
         );
-        return {
+        chainResults.push({
           chain,
-          balance,
-          threshold: formatTo5SF(thresholdDisplay),
+          token: 'native',
+          balance: 'N/A',
+          threshold: 'N/A',
           status: ReclaimStatus.ERROR,
-        };
+        });
       }
+
+      // ---- Fee-token claims ----
+      // Fee tokens are enumerated from the IGP's tokenOracleConfig (the same set
+      // configured via setTokenGasOracles). Empty on legacy IGPs / chains with no
+      // token-denominated fees, so this is a no-op there. The manual script claims
+      // any non-zero configured fee-token balance; gas is paid by the signer in the
+      // native token, so the native 2x-gas guard above does not apply here.
+      const feeTokens = Object.keys(igpConfigs[chain]?.tokenOracleConfig ?? {});
+      for (const tokenAddr of feeTokens) {
+        let label = tokenAddr;
+        try {
+          const erc20 = ERC20__factory.connect(tokenAddr, provider);
+          const [tokenBalance, decimals, symbol] = await Promise.all([
+            erc20.balanceOf(paymaster.address),
+            erc20.decimals(),
+            erc20.symbol(),
+          ]);
+          label = `${symbol} (${tokenAddr.slice(0, 8)}…)`;
+          const formattedTokenBalance = formatUnits(tokenBalance, decimals);
+
+          if (tokenBalance.isZero()) {
+            chainResults.push({
+              chain,
+              token: label,
+              balance: formatTo5SF(formattedTokenBalance),
+              threshold: '0',
+              status: ReclaimStatus.BELOW_THRESHOLD,
+            });
+            continue;
+          }
+
+          if (dryRun) {
+            rootLogger.info(
+              `[DRY RUN] Would claim ${label} from IGP on ${chain}`,
+            );
+          } else {
+            const tx = await paymaster.claimToken(tokenAddr);
+            const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
+            rootLogger.info(
+              `Claimed ${label} from IGP on ${chain}: ${explorerUrl || tx.hash}`,
+            );
+          }
+
+          chainResults.push({
+            chain,
+            token: label,
+            balance: formatTo5SF(formattedTokenBalance),
+            threshold: '0',
+            status: ReclaimStatus.SUCCESS,
+          });
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          const shortError = errorMsg.split('\n')[0];
+          rootLogger.error(
+            chalk.red(
+              `Error claiming token ${label} from IGP on ${chain}: ${shortError}`,
+            ),
+          );
+          chainResults.push({
+            chain,
+            token: label,
+            balance: 'N/A',
+            threshold: 'N/A',
+            status: ReclaimStatus.ERROR,
+          });
+        }
+      }
+
+      return chainResults;
     }),
   );
 
-  // Convert to array and filter out nulls
-  const filteredResults = Object.values(reclaimResults).filter(
-    (result): result is ReclaimResult =>
-      result !== null && result !== undefined,
-  );
-  results.push(...filteredResults);
+  // Flatten per-chain result arrays
+  results.push(...Object.values(reclaimResults).flat());
 
   // Show all chains in the table
   if (results.length > 0) {
     const tableData = results.map((r) => ({
       chain: r.chain,
+      token: r.token,
       balance: r.balance,
       threshold: r.threshold,
       status: r.status,
@@ -274,7 +305,7 @@ async function main() {
   ).length;
 
   rootLogger.info(
-    chalk.green(`\nSuccessfully claimed from ${successCount} chain(s)`),
+    chalk.green(`\nSuccessfully executed ${successCount} claim(s)`),
   );
   if (errorCount > 0) {
     rootLogger.error(
