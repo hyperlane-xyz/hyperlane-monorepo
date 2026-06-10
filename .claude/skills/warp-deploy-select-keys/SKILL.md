@@ -1,6 +1,6 @@
 ---
 name: warp-deploy-select-keys
-description: Preflight that resolves which private key(s) to use for the warp-deploy chain across every protocol in the route (EVM / Sealevel / Cosmos / Starknet / Tron). Either accepts a user-supplied key spec per protocol or enumerates candidate GCP secret names — never values — and asks the user to pick. Persists the resolution as a key-context artifact at `~/.hyperlane/key-contexts/<ticket-id>.yaml` that downstream warp-deploy skills auto-load.
+description: Preflight that resolves which private key(s) to use for the warp-deploy chain across every protocol in the route (EVM / Sealevel / Cosmos / Starknet / Tron). For each protocol the user supplies either a specific key spec (GCP secret name, env var, or keystore path) or a candidate list of GCP secret names for the agent to surface and the user to pick. The agent never enumerates GCP secrets on its own and never reads secret values without an explicit user-approved pick. Persists the resolution to `~/.hyperlane/key-contexts/<ticket-id>.yaml` for downstream warp-deploy skills to auto-load.
 ---
 
 # Warp Route Deploy — Select Keys
@@ -14,12 +14,14 @@ A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cos
 The user provides:
 
 - **Linear ticket ID** (required, e.g. `AW-680`) — namespaces the resolved key-context artifact.
-- **Key spec(s)** (optional, per protocol) — any of:
-  - GCP secret name (e.g. `hyp-mainnet-deployer-test`, `hyp-svm-deployer`, `hyp-cosmos-signer`)
-  - Environment variable name (e.g. `HYP_KEY`, `HYP_KEY_SVM`)
-  - Keystore file path
+- **Per protocol**, ONE of (the user picks the form they want; the agent never enumerates GCP secrets unprompted):
+  - **Specific key spec** — a single reference the agent uses directly. Any of:
+    - GCP secret name (e.g. `mainnet3-haggis-deployer-key`)
+    - Environment variable name (e.g. `HYP_KEY`)
+    - Keystore file path
+  - **Candidate list of GCP secret names** — multiple names the agent presents to the user to pick from with a `[CONFIRM:]` per pick. The user is responsible for compiling this list (from their own `gcloud secrets list` output, prior knowledge, a Notion page of allowed test keys, etc.); the agent doesn't run `gcloud secrets list` itself.
 
-The user may supply specs for some protocols and leave others unspecified — the skill enumerates GCP candidates only for the protocols still missing.
+If neither is supplied for a required protocol, the skill halts and asks the user inline.
 
 ---
 
@@ -65,57 +67,41 @@ For each required protocol in Step 1, run Steps 4–5. Within a single skill inv
 
 ## Step 4: Resolve the Key for the Current Protocol
 
-### 4a: Detect a Pre-Supplied Key Spec
+The agent NEVER enumerates GCP secrets project-wide on its own. For each protocol, the user supplies either a specific key spec OR a candidate list of GCP secret names — follow the matching path.
 
-If the user has already told you (in the conversation context or via the parent skill's input) which key to use for THIS protocol, skip to Step 5 (Verify + Derive) for this protocol. Otherwise, proceed to GCP enumeration.
+### 4a: Pre-Supplied Specific Key Spec
 
-### 4b: Check gcloud Project Context
+If the user has already told you (in the conversation context, in the parent skill's input, or via this skill's invocation arguments) which exact key to use for THIS protocol — a single GCP secret name, env var name, or keystore path — record it and skip directly to Step 5 (Verify + Derive). No further user interaction needed for this protocol at Step 4.
 
-```bash
-gcloud config get-value project
+### 4b: User-Supplied Candidate List
+
+If the user provided a list of candidate GCP secret names for THIS protocol (typically two-to-five names — the test deployer, an alternate, etc.), present the list to the user with a `[CONFIRM:]` marker per pick:
+
 ```
-
-If the output is empty, halt and tell the user:
-
-> The active gcloud project is not set. Run `gcloud config set project <project-id>` and retry, or supply a key spec directly (GCP secret name, env var, or keystore path).
-
-### 4c: List Candidate Secret Names (per protocol)
-
-Use a broad name filter with protocol-specific term hints. Names are listed; values are NEVER read during enumeration.
-
-| Protocol   | Filter                                                                                                    |
-| ---------- | --------------------------------------------------------------------------------------------------------- |
-| `ethereum` | `--filter="(name:deployer OR name:signer OR name:evm) AND name:key"`                                      |
-| `sealevel` | `--filter="(name:sealevel OR name:solana OR name:svm) AND (name:deployer OR name:signer OR name:key)"`    |
-| `cosmos`   | `--filter="(name:cosmos OR name:neutron OR name:osmosis) AND (name:deployer OR name:signer OR name:key)"` |
-| `starknet` | `--filter="name:starknet AND (name:deployer OR name:signer OR name:key)"`                                 |
-| `tron`     | `--filter="name:tron AND (name:deployer OR name:signer OR name:key)"`                                     |
-
-Run:
-
-```bash
-gcloud secrets list \
-  --filter="<protocol-specific filter from table above>" \
-  --format="value(name)"
+Candidates for the <protocol> deployer key:
+- <candidate-1>
+- <candidate-2>
+- <candidate-3>
 ```
-
-If the filter returns nothing for a protocol, fall back to a broader query:
-
-```bash
-gcloud secrets list --filter="name:key" --format="value(name)"
-```
-
-…and tell the user the narrow filter returned no results so you're showing all key-named secrets. The user picks; the agent must NOT pre-pick by name heuristic (e.g. "the one with `test` in the name" is exactly the foot-gun this skill exists to close).
-
-### 4d: Present Candidates and Ask the User to Pick
-
-Show the full candidate list per protocol. End your message with a `[CONFIRM:]` marker:
 
 ```test
-[CONFIRM: Use <secret-name> as the <protocol> deployer key]
+[CONFIRM: Use <candidate-1> as the <protocol> deployer key]
 ```
 
-If the user supplies a name not in the candidate list (a secret the filter missed, or a non-GCP key spec — env var or keystore path), accept it and proceed.
+The user picks one. Do NOT pre-pick by name heuristic (e.g. "the one with `test` in the name") — that's exactly the foot-gun this skill exists to close. The human reading the candidate list and approving the pick IS the safeguard.
+
+### 4c: Neither Provided — Ask the User Inline
+
+If the user didn't supply a specific key spec OR a candidate list for THIS protocol at invocation, halt and ask inline:
+
+> For the `<protocol>` deployer key, supply either:
+>
+> - A specific reference — GCP secret name, env var name, or keystore path
+> - A list of candidate GCP secret names you'd like me to surface for you to pick from
+>
+> I don't enumerate GCP secrets myself: my IAM scope typically lacks `secretmanager.secrets.list` project-wide, and even with it granted, enumerating without an explicit candidate list invites accidentally picking the wrong key. The human providing the input IS the safeguard.
+
+Wait for the user's response, then jump to 4a or 4b accordingly.
 
 ---
 
@@ -274,10 +260,10 @@ Then proceed to the next skill in the chain (typically `/warp-deploy-fund-deploy
 
 ## Notes
 
-- **Disclosure is the safeguard.** The skill surfaces the candidate list + derived address to the human; the human picks. There is no automated allowlist enforcement — trust the human in the loop.
-- **Never read secret values during enumeration.** Step 4c lists names only. Values are accessed only after Step 4d approval (Step 5b derivation) or downstream consumption.
-- **gcloud project comes from the active context.** No hardcoded project ID; the skill assumes `gcloud config get-value project` already points at the right project.
-- **For local Claude Code runs without GCP**, the user supplies an env var or keystore path directly per protocol; Step 4c is skipped for those protocols.
+- **Disclosure is the safeguard.** The agent never picks a key on its own. It either uses an exact user-supplied reference (4a) or surfaces a user-supplied candidate list and asks the user to pick (4b).
+- **The agent does NOT run `gcloud secrets list`.** Project-wide enumeration is intentionally out of scope. Reasons: (a) typical agent IAM scope lacks `secretmanager.secrets.list`; (b) even with it granted, surfacing every project-wide secret name invites foot-guns (production-deployer secret appears alongside test-deployer secret with no semantic distinction). The human supplying the candidate list scopes the agent's options up-front.
+- **Never read secret values without an approved pick.** Values are accessed only in Step 5 after the user has either pre-supplied an exact reference (4a) or approved a pick from the candidate list (4b).
+- **For local Claude Code runs without GCP**, supply an env var or keystore path directly per protocol via 4a.
 - **Idempotent.** Re-running for the same ticket reuses the existing artifact unless the user opts to re-resolve in Step 2.
 - **Partial re-resolution.** When the route grows (e.g. a new chain on a new VM is added to a previously-resolved ticket), the skill detects missing protocols in the existing artifact and only re-resolves those, preserving the rest.
 - **Multi-protocol routes resolve in one pass.** All required protocols are surfaced in Step 1, walked in Step 3, and committed atomically in Step 6 — no partial mid-loop writes.
