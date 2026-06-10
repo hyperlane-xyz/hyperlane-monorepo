@@ -108,15 +108,15 @@ export class SafeMultiSend extends MultiSend {
   private async proposeIndividualTransactions(
     calls: CallData[],
   ): Promise<string[]> {
-    const nonce = SAFE_NONCE_OVERRIDES[this.chain];
+    const baseNonce = SAFE_NONCE_OVERRIDES[this.chain];
     const hashes: string[] = [];
-    for (const call of calls) {
+    for (const [i, call] of calls.entries()) {
       const safeTransactionData = createSafeTransactionData(call);
       const safeTransaction = await createSafeTransaction(
         this.safeSdk,
         [safeTransactionData],
         undefined,
-        nonce,
+        baseNonce !== undefined ? baseNonce + i : undefined,
       );
       hashes.push(
         await this.proposeSafeTransaction(

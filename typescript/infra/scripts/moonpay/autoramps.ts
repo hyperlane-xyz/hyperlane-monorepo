@@ -213,7 +213,10 @@ function loadLanesForRoute(config: RouteConfig): LaneSpec[] {
   const tokens = route.tokens.filter((t) => t.addressOrDenom);
 
   const router = new Map<string, string>(
-    tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    tokens.map((t) => {
+      assert(t.addressOrDenom, `Token on ${t.chainName} has no address`);
+      return [t.chainName, t.addressOrDenom];
+    }),
   );
   const symbol = new Map<string, string>(
     tokens.map((t) => [t.chainName, t.symbol]),
@@ -243,20 +246,29 @@ function loadLanesForRoute(config: RouteConfig): LaneSpec[] {
 
       // Mint: spoke → hub (user deposits spoke token, hub token is minted/received)
       // Redeem: hub → spoke (user deposits hub token, spoke token is released)
+      const hubRouter = router.get(hubChain);
+      assert(hubRouter, `No router address for hub chain ${hubChain}`);
+      const spokeRouter = router.get(spokeChain);
+      assert(spokeRouter, `No router address for spoke chain ${spokeChain}`);
+      const hubSymbol = symbol.get(hubChain);
+      assert(hubSymbol, `No symbol for hub chain ${hubChain}`);
+      const spokeSymbol = symbol.get(spokeChain);
+      assert(spokeSymbol, `No symbol for spoke chain ${spokeChain}`);
+
       const baseMint = {
         origin: spokeChain,
         dest: hubChain,
-        recipientAddress: router.get(hubChain)!,
-        originSymbol: symbol.get(spokeChain)!,
-        destSymbol: symbol.get(hubChain)!,
+        recipientAddress: hubRouter,
+        originSymbol: spokeSymbol,
+        destSymbol: hubSymbol,
         routeLabel: config.label,
       };
       const baseRedeem = {
         origin: hubChain,
         dest: spokeChain,
-        recipientAddress: router.get(spokeChain)!,
-        originSymbol: symbol.get(hubChain)!,
-        destSymbol: symbol.get(spokeChain)!,
+        recipientAddress: spokeRouter,
+        originSymbol: hubSymbol,
+        destSymbol: spokeSymbol,
         routeLabel: config.label,
       };
 
@@ -515,7 +527,7 @@ async function main(): Promise<void> {
     'IRON_API_KEY env var is required (or set in typescript/infra/.env)',
   );
 
-  const [cmd] = argv._ as string[];
+  const cmd = String(argv._[0]);
 
   switch (cmd) {
     case 'status':
