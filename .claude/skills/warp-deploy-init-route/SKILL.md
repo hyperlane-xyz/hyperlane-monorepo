@@ -415,19 +415,24 @@ solanamainnet:
 The deploy.yaml goes in the local registry at:
 
 ```
-$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<new-chain>-deploy.yaml
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-deploy.yaml
 ```
 
 Where:
 
 - `<TOKEN>` is the token symbol (uppercase)
-- `<new-chain>` is the **primary new destination chain** — i.e., the new chain being added, typically the synthetic chain. Do NOT include all chains in the filename; using only the new chain creates a stable ID that doesn't change when additional chains are added later.
+- `<chains-alphabetical>` is **every chain in the route**, lowercase, joined with `-` in alphabetical order.
 
-Example: for USDS bridging from ethereum (collateral) to igra (synthetic), the file is `deployments/warp_routes/USDS/igra-deploy.yaml` — NOT `ethereum-igra-deploy.yaml`.
+Examples (matching current registry convention):
 
-Exception: if there is no clear "primary" new chain (e.g., both chains are new/co-equal), use just the synthetic or destination chain name.
+- `base` + `arbitrum` → `arbitrum-base-deploy.yaml`
+- `ethereum` + `coti` → `coti-ethereum-deploy.yaml`
+- `arbitrum` + `base` + `blast` + `bsc` → `arbitrum-base-blast-bsc-deploy.yaml`
+- single chain (no other legs deployed yet) → `<chain>-deploy.yaml`
 
-Check if a directory and/or file already exists. If it does, show the user the existing file and ask if they want to overwrite.
+This matches existing multi-chain routes in the registry (e.g. `arbitrum-base-blast-…`). Naming the file after every chain — rather than just the "new" or synthetic chain — prevents collisions when more routes with the same token are added later (e.g. a future `ETH/arbitrum-only` route wouldn't conflict with this one).
+
+Before writing, **scan `deployments/warp_routes/<TOKEN>/` for existing routes** and check that the alphabetical-joined filename you're about to write doesn't already exist. If it does, show the user the existing file and ask if they want to overwrite.
 
 ---
 
@@ -454,14 +459,17 @@ Do not proceed to Step 7 until the user confirms.
 The warp route ID is derived from the deploy.yaml output path:
 
 ```
-$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<new-chain>-deploy.yaml
-                                        └─────────────────────────────┘
-                                        Warp route ID = <TOKEN>/<new-chain>
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-deploy.yaml
+                                        └────────────────────────────────────┘
+                                        Warp route ID = <TOKEN>/<chains-alphabetical>
 ```
 
-Example: if the file is `deployments/warp_routes/USDS/igra-deploy.yaml`, the warp route ID is `USDS/igra`.
+Examples:
 
-The stable warp route ID uses only the primary new chain name (not all chains), so it stays constant if more chains are added to the route later.
+- `deployments/warp_routes/ETH/arbitrum-base-deploy.yaml` → warp route ID `ETH/arbitrum-base`
+- `deployments/warp_routes/USDC/eclipsemainnet-ethereum-solanamainnet-deploy.yaml` → `USDC/eclipsemainnet-ethereum-solanamainnet`
+
+The route ID matches the filename suffix (without `-deploy.yaml`). It includes every chain in the route, lowercase, joined by `-` in alphabetical order — the same convention Step 5 uses for the filename.
 
 ### 7b: Identify Required Protocols
 
