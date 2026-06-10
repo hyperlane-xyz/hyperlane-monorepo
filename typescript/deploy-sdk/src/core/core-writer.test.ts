@@ -23,7 +23,7 @@ import {
   IRawHookArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
-  DeployedIsmArtifact,
+  RawDeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -99,7 +99,7 @@ describe('CoreWriter', () => {
     blockNumber: 123,
   };
 
-  const mockIsm: DeployedIsmArtifact = {
+  const mockIsm: RawDeployedIsmArtifact = {
     artifactState: ArtifactState.DEPLOYED,
     config: {
       type: 'merkleRootMultisigIsm',
@@ -328,7 +328,7 @@ describe('CoreWriter', () => {
       const ismCreateStub = sinon
         .stub<
           [ArtifactNew<IsmArtifactConfig>],
-          Promise<[DeployedIsmArtifact, TxReceipt[]]>
+          Promise<[RawDeployedIsmArtifact, TxReceipt[]]>
         >()
         .callsFake(async () => [mockIsm, [mockReceipt]]);
 
@@ -983,7 +983,7 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const newIsm: DeployedIsmArtifact = {
+      const newIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           type: 'messageIdMultisigIsm',
@@ -1014,7 +1014,7 @@ describe('CoreWriter', () => {
       const ismCreateStub = sinon
         .stub<
           [ArtifactNew<IsmArtifactConfig>],
-          Promise<[DeployedIsmArtifact, TxReceipt[]]>
+          Promise<[RawDeployedIsmArtifact, TxReceipt[]]>
         >()
         .callsFake(async () => [newIsm, [mockReceipt]]);
 
@@ -1190,7 +1190,7 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const newIsm: DeployedIsmArtifact = {
+      const newIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           type: 'merkleRootMultisigIsm',
@@ -1221,7 +1221,7 @@ describe('CoreWriter', () => {
       const ismCreateStub = sinon
         .stub<
           [ArtifactNew<IsmArtifactConfig>],
-          Promise<[DeployedIsmArtifact, TxReceipt[]]>
+          Promise<[RawDeployedIsmArtifact, TxReceipt[]]>
         >()
         .callsFake(async () => [newIsm, [mockReceipt]]);
 
@@ -1439,7 +1439,7 @@ describe('CoreWriter', () => {
 
     it('should wire correct addresses into mailbox update', async () => {
       // ARRANGE
-      const newIsm: DeployedIsmArtifact = {
+      const newIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           type: 'messageIdMultisigIsm',

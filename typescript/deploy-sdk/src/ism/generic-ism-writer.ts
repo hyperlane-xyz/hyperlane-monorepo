@@ -15,10 +15,9 @@ import {
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddress,
-  DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
-  RoutingIsmArtifactConfig,
+  RawDeployedIsmArtifact,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
@@ -104,6 +103,11 @@ export class IsmWriter
    * For routing ISMs, delegates to RoutingIsmWriter to handle nested ISM deployments.
    * For other ISM types, requests a typed writer from the artifact manager.
    *
+   * EMBEDDED routing-ISM creation is not exposed via this orchestrated writer
+   * — callers wanting embedded deploys instantiate the raw routing-ISM writer
+   * directly (the on-chain shape is materially different from ORCHESTRATED
+   * and the orchestrated wrapper's return type cannot express both).
+   *
    * @param artifact The ISM configuration to deploy (can be new or reference existing)
    * @returns A tuple of [deployed artifact, transaction receipts]
    */
@@ -113,11 +117,7 @@ export class IsmWriter
     const { artifactState, config } = artifact;
 
     // Routing ISMs are composite — use RoutingIsmWriter for nested
-    // deployments. EMBEDDED routing dispatch via this generic writer is
-    // deferred; the SVM EMBEDDED routing-multisig writer is invoked
-    // directly by callers wiring cross-VM core deploys (the deploy-sdk
-    // here only handles ORCHESTRATED until `DeployedIsmArtifact` is
-    // widened to carry post-collapse EMBEDDED children).
+    // deployments. EMBEDDED routing-ISM creation is not handled here.
     if (config.type === AltVM.IsmType.ROUTING) {
       const rawWriter = this.artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
@@ -125,11 +125,11 @@ export class IsmWriter
       );
       assert(
         rawWriter.composition === ArtifactComposition.ORCHESTRATED,
-        `Routing ISM composition mismatch: '${config.composition}' config cannot be created by a '${rawWriter.composition}' raw routing-ISM writer`,
+        `Routing ISM composition mismatch: '${config.composition}' config cannot be created by a '${rawWriter.composition}' raw routing-ISM writer; instantiate the raw routing-ISM writer directly`,
       );
       assert(
         config.composition === ArtifactComposition.ORCHESTRATED,
-        `Routing ISM composition mismatch: orchestrated writer cannot create an '${config.composition}' config`,
+        `Routing ISM composition mismatch: orchestrated writer cannot create an '${config.composition}' config; instantiate the raw routing-ISM writer directly`,
       );
       return this.routingWriter.create({ artifactState, config });
     }
@@ -144,17 +144,16 @@ export class IsmWriter
    * Only routing ISMs support updates (domain enrollment/unenrollment, owner changes).
    * Multisig and test ISMs are immutable - returns empty array.
    *
+   * EMBEDDED routing-ISM updates are not handled here; callers driving SVM
+   * EMBEDDED updates invoke the raw routing-ISM writer directly.
+   *
    * @param artifact The desired ISM state (must include deployed address)
    * @returns Array of transactions needed to perform the update
    */
-  async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
+  async update(artifact: RawDeployedIsmArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
     // Only routing ISMs are mutable - support domain updates and owner changes.
-    // EMBEDDED routing dispatch via this generic writer is deferred (see
-    // `create` above and `IsmReader.read`); callers driving SVM EMBEDDED
-    // updates invoke the raw writer directly until `DeployedIsmArtifact`
-    // is widened to carry post-collapse EMBEDDED children.
     if (config.type === AltVM.IsmType.ROUTING) {
       const rawWriter = this.artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
@@ -162,26 +161,15 @@ export class IsmWriter
       );
       assert(
         rawWriter.composition === ArtifactComposition.ORCHESTRATED,
-        `Routing ISM composition mismatch: '${config.composition}' config cannot be updated by a '${rawWriter.composition}' raw routing-ISM writer`,
+        `Routing ISM composition mismatch: '${config.composition}' config cannot be updated by a '${rawWriter.composition}' raw routing-ISM writer; instantiate the raw routing-ISM writer directly`,
       );
       assert(
         config.composition === ArtifactComposition.ORCHESTRATED,
-        `Routing ISM composition mismatch: orchestrated writer cannot update an '${config.composition}' config`,
+        `Routing ISM composition mismatch: orchestrated writer cannot update an '${config.composition}' config; instantiate the raw routing-ISM writer directly`,
       );
-      // CAST: `DeployedIsmArtifact` carries the pre-collapse
-      // `IsmArtifactConfig`. The recursive `RoutingIsmWriter.update`
-      // expects the post-collapse `ConfigOnChain<...>` shape. Runtime
-      // values are already DEPLOYED/UNDERIVED (caller produced them via
-      // a read), so this bridges TS's one-level mapped-type limitation.
       return this.routingWriter.update({
         artifactState,
-        config: config as ConfigOnChain<
-          WithCompositionVariant<
-            RoutingIsmArtifactConfig,
-            typeof ArtifactComposition.ORCHESTRATED
-          >,
-          DeployedIsmAddress
-        >,
+        config,
         deployed,
       });
     }

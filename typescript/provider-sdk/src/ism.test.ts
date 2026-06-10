@@ -15,6 +15,7 @@ import {
   DeployedIsmArtifact,
   IsmArtifactConfig,
   MultisigIsmConfig,
+  RawDeployedIsmArtifact,
   RoutingIsmArtifactConfig,
   ismArtifactToDerivedConfig,
   mergeIsmArtifacts,
@@ -31,10 +32,10 @@ describe('mergeIsmArtifacts', () => {
 
   interface TestCase {
     name: string;
-    currentArtifact: DeployedIsmArtifact | undefined;
+    currentArtifact: RawDeployedIsmArtifact | undefined;
     expectedArtifact:
       | { artifactState: typeof ArtifactState.NEW; config: IsmArtifactConfig }
-      | DeployedIsmArtifact
+      | RawDeployedIsmArtifact
       | ArtifactNew<IsmArtifactConfig>; // Input to mergeIsmArtifacts
     expectedConfig: IsmArtifactConfig; // Expected config of RESULT
     expectedArtifactState: ArtifactState; // Expected state of RESULT
@@ -360,7 +361,7 @@ describe('mergeIsmArtifacts', () => {
         },
       };
 
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: currentConfig,
         deployed: { address: address1 },
@@ -396,7 +397,7 @@ describe('mergeIsmArtifacts', () => {
     });
 
     it('should mark domain ISM as NEW when its config changes', () => {
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           composition: ArtifactComposition.ORCHESTRATED,
@@ -452,7 +453,7 @@ describe('mergeIsmArtifacts', () => {
     });
 
     it('should mark newly added domain ISM as NEW', () => {
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           composition: ArtifactComposition.ORCHESTRATED,
@@ -523,7 +524,7 @@ describe('mergeIsmArtifacts', () => {
     });
 
     it('should pass through UNDERIVED domain ISMs without modification', () => {
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           composition: ArtifactComposition.ORCHESTRATED,
@@ -596,7 +597,7 @@ describe('mergeIsmArtifacts', () => {
         threshold: 2,
       };
 
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           composition: ArtifactComposition.ORCHESTRATED,
@@ -650,7 +651,7 @@ describe('mergeIsmArtifacts', () => {
     });
 
     it('should remove domains not present in expected config', () => {
-      const currentArtifact: DeployedIsmArtifact = {
+      const currentArtifact: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
           composition: ArtifactComposition.ORCHESTRATED,
@@ -733,7 +734,7 @@ describe('mergeIsmArtifacts', () => {
 
     const buildCurrent = (
       composition: ArtifactComposition,
-    ): DeployedIsmArtifact => {
+    ): RawDeployedIsmArtifact => {
       if (composition === ArtifactComposition.EMBEDDED) {
         return {
           artifactState: ArtifactState.DEPLOYED,
@@ -878,11 +879,7 @@ describe('ismArtifactToDerivedConfig — routing composition modes', () => {
     threshold: 2,
   };
 
-  // TODO(slice-6 cleanup): once DeployedIsmArtifact uses the post-collapse ConfigOnChain shape,
-  // re-enable this test with embedded children constructed as ArtifactDeployed (the runtime
-  // contract). Currently the pre-collapse type allows ArtifactEmbedded children but the runtime
-  // asserts against them.
-  it.skip('produces identical derived shape for ORCHESTRATED and EMBEDDED routing inputs', () => {
+  it('produces identical derived shape for ORCHESTRATED and EMBEDDED routing inputs', () => {
     const orchestrated: DeployedIsmArtifact = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
@@ -908,8 +905,9 @@ describe('ismArtifactToDerivedConfig — routing composition modes', () => {
         owner: address1,
         domains: {
           [domain1]: {
-            artifactState: ArtifactState.EMBEDDED,
+            artifactState: ArtifactState.DEPLOYED,
             config: multisigChild,
+            deployed: { address: address2 },
           },
         },
       },

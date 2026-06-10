@@ -91,10 +91,15 @@ export interface IsmArtifactConfigs {
 export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
 
 /**
- * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...)
+ * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...).
+ *
+ * Wraps `ConfigOnChain<IsmArtifactConfig, DeployedIsmAddress>` so embedded
+ * routing-ISM children — which exist on-chain alongside their parent — type
+ * as `ArtifactDeployed` post-create, matching the runtime contract of both
+ * `OrchestratedArtifactReader.read()` and `EmbeddedArtifactReader.read()`.
  */
 export type DeployedIsmArtifact = ArtifactDeployed<
-  IsmArtifactConfig,
+  ConfigOnChain<IsmArtifactConfig, DeployedIsmAddress>,
   DeployedIsmAddress
 >;
 
@@ -201,6 +206,26 @@ export function shouldDeployNewIsm(
 }
 
 /**
+ * Pre-collapse alias for `mergeIsmArtifacts` and `ismArtifactToDerivedConfig`.
+ *
+ * These functions process in-memory diff/conversion artifacts where
+ * routing-ISM domain children may be in any artifact state (NEW for partial
+ * redeploys, DEPLOYED for unchanged, etc). The post-collapse
+ * `DeployedIsmArtifact` is structurally narrower (ORCHESTRATED children
+ * restricted to `ArtifactOnChain<>`, EMBEDDED children to `ArtifactDeployed<>`)
+ * and cannot represent the partial-redeploy semantic.
+ *
+ * Both functions accept post-collapse data via this union widening: post-deploy
+ * read results structurally satisfy this pre-collapse type for non-routing and
+ * ORCHESTRATED cases; for EMBEDDED routing the runtime body branches on
+ * `artifactState` and handles either shape.
+ */
+export type RawDeployedIsmArtifact = ArtifactDeployed<
+  IsmArtifactConfig,
+  DeployedIsmAddress
+>;
+
+/**
  * Merges current (on-chain) and expected ISM artifacts, preserving DEPLOYED state
  * for unchanged nested ISMs in routing configurations.
  *
@@ -212,9 +237,9 @@ export function shouldDeployNewIsm(
  * @returns Merged artifact with appropriate deployment states
  */
 export function mergeIsmArtifacts(
-  currentArtifact: DeployedIsmArtifact | undefined,
-  expectedArtifact: ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact,
-): ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact {
+  currentArtifact: RawDeployedIsmArtifact | undefined,
+  expectedArtifact: ArtifactNew<IsmArtifactConfig> | RawDeployedIsmArtifact,
+): ArtifactNew<IsmArtifactConfig> | RawDeployedIsmArtifact {
   const expectedConfig = expectedArtifact.config;
 
   // No current ISM - return expected as-is
@@ -303,7 +328,7 @@ export function mergeIsmArtifacts(
       ? currentConfig.domains[domainId]
       : undefined;
 
-    let currentDeployedIsm: DeployedIsmArtifact | undefined;
+    let currentDeployedIsm: RawDeployedIsmArtifact | undefined;
     if (currentDomainIsm && isArtifactDeployed(currentDomainIsm)) {
       currentDeployedIsm = currentDomainIsm;
     }
@@ -357,7 +382,7 @@ export function altVMIsmTypeToProviderSdkType(
 }
 
 export function ismArtifactToDerivedConfig(
-  artifact: DeployedIsmArtifact,
+  artifact: RawDeployedIsmArtifact | DeployedIsmArtifact,
   chainLookup: ChainLookup,
 ): DerivedIsmConfig {
   const config = artifact.config;

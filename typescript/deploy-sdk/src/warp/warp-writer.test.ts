@@ -21,7 +21,7 @@ import type {
   HookArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import type {
-  DeployedIsmArtifact,
+  RawDeployedIsmArtifact,
   IsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import type {
@@ -93,9 +93,9 @@ interface MockArtifactManager {
 interface MockIsmWriter {
   create: Sinon.SinonStub<
     [ArtifactNew<IsmArtifactConfig>],
-    Promise<[DeployedIsmArtifact, TxReceipt[]]>
+    Promise<[RawDeployedIsmArtifact, TxReceipt[]]>
   >;
-  update: Sinon.SinonStub<[DeployedIsmArtifact], Promise<AnnotatedTx[]>>;
+  update: Sinon.SinonStub<[RawDeployedIsmArtifact], Promise<AnnotatedTx[]>>;
   read: Sinon.SinonStub;
 }
 
@@ -202,9 +202,9 @@ describe('WarpTokenWriter', () => {
     mockIsmWriter = {
       create: Sinon.stub<
         [ArtifactNew<IsmArtifactConfig>],
-        Promise<[DeployedIsmArtifact, TxReceipt[]]>
+        Promise<[RawDeployedIsmArtifact, TxReceipt[]]>
       >(),
-      update: Sinon.stub<[DeployedIsmArtifact], Promise<AnnotatedTx[]>>(),
+      update: Sinon.stub<[RawDeployedIsmArtifact], Promise<AnnotatedTx[]>>(),
       read: Sinon.stub(),
     } as MockIsmWriter;
 
@@ -437,7 +437,7 @@ describe('WarpTokenWriter', () => {
       };
 
       // Mock ISM creation
-      const deployedIsm: DeployedIsmArtifact = {
+      const deployedIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: newIsmConfig,
         deployed: { address: ISM_ADDRESS },
@@ -571,7 +571,7 @@ describe('WarpTokenWriter', () => {
 
       // Mock ISM creation (new ISM type)
       const newIsmAddress = '0x0000000000000000000000000000000000000004';
-      const deployedNewIsm: DeployedIsmArtifact = {
+      const deployedNewIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: newIsmConfig,
         deployed: { address: newIsmAddress },
@@ -864,7 +864,7 @@ describe('WarpTokenWriter', () => {
       };
 
       // Mock ISM creation
-      const deployedIsm: DeployedIsmArtifact = {
+      const deployedIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: newIsmConfig,
         deployed: { address: ISM_ADDRESS },
@@ -923,7 +923,7 @@ describe('WarpTokenWriter', () => {
       };
 
       // Mock ISM creation
-      const deployedIsm: DeployedIsmArtifact = {
+      const deployedIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: newIsmConfig,
         deployed: { address: ISM_ADDRESS },
@@ -1015,7 +1015,7 @@ describe('WarpTokenWriter', () => {
       };
 
       // Mock ISM creation
-      const deployedIsm: DeployedIsmArtifact = {
+      const deployedIsm: RawDeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: newIsmConfig,
         deployed: { address: ISM_ADDRESS },

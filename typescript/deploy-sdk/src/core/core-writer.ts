@@ -26,8 +26,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmAddress,
-  DeployedIsmArtifact,
   IsmArtifactConfig,
+  RawDeployedIsmArtifact,
   mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -417,7 +417,7 @@ export class CoreWriter extends CoreArtifactReader {
   }
 
   private async deployOrUpdateIsm(
-    currentIsmArtifact: DeployedIsmArtifact | undefined,
+    currentIsmArtifact: RawDeployedIsmArtifact | undefined,
     expectedIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
   ): Promise<{ address: string; transactions: AnnotatedTx[] }> {
     const chainName = this.chainMetadata.name;

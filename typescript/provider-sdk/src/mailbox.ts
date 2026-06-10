@@ -22,6 +22,7 @@ import type {
   DeployedIsmArtifact,
   DerivedIsmConfig,
   IsmArtifactConfig,
+  RawDeployedIsmArtifact,
 } from './ism.js';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
@@ -149,7 +150,7 @@ export function mailboxArtifactToDerivedCoreConfig(
   chainLookup: ChainLookup,
   converters: {
     ismArtifactToDerivedConfig: (
-      artifact: DeployedIsmArtifact,
+      artifact: RawDeployedIsmArtifact | DeployedIsmArtifact,
       chainLookup: ChainLookup,
     ) => DerivedIsmConfig;
     hookArtifactToDerivedConfig: (

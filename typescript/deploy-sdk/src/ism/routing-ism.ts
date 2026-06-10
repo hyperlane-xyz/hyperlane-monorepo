@@ -17,9 +17,9 @@ import {
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddress,
-  DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  RawDeployedIsmArtifact,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -144,7 +144,12 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
     return [deployedRoutingIsmConfig, allReceipts];
   }
 
-  async update(artifact: DeployedRoutingIsmArtifact): Promise<AnnotatedTx[]> {
+  async update(
+    artifact: ArtifactDeployed<
+      OrchestratedRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    >,
+  ): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
     const rawRoutingWriter = this.artifactManager.createWriter(
@@ -188,18 +193,9 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
             config.composition === ArtifactComposition.ORCHESTRATED,
             `Unexpected EMBEDDED nested routing ISM under ORCHESTRATED parent (domain ${domainId})`,
           );
-          // CAST: `ConfigOnChain` collapses one level; nested routing-ISM
-          // children inside a post-collapse parent still carry the
-          // pre-collapse `RoutingIsmArtifactConfig` shape. Runtime values
-          // are already DEPLOYED/UNDERIVED (the parent's read produced
-          // them), so the cast bridges TS's one-level mapped-type
-          // limitation back to the post-collapse `DeployedRoutingIsmArtifact`.
           domainIsmUpdateTxs = await this.update({
             artifactState,
-            config: config as ConfigOnChain<
-              OrchestratedRoutingIsmArtifactConfig,
-              DeployedIsmAddress
-            >,
+            config,
             deployed,
           });
         } else {
@@ -246,7 +242,7 @@ export class RoutingIsmWriter implements OrchestratedArtifactWriter<
 
   private async deployDomainIsm(
     artifact: ArtifactNew<IsmArtifactConfig>,
-  ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
+  ): Promise<[RawDeployedIsmArtifact, TxReceipt[]]> {
     const { config, artifactState } = artifact;
     if (config.type === AltVM.IsmType.ROUTING) {
       assert(

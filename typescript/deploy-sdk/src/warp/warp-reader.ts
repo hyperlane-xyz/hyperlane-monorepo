@@ -26,8 +26,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmAddress,
-  DeployedIsmArtifact,
   IsmArtifactConfig,
+  RawDeployedIsmArtifact,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedWarpAddress,
@@ -125,7 +125,7 @@ export class WarpTokenReader implements OrchestratedArtifactReader<
    */
   private async expandIsmArtifact(
     ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<DeployedIsmArtifact | undefined> {
+  ): Promise<RawDeployedIsmArtifact | undefined> {
     if (!ismArtifact) {
       return undefined;
     }

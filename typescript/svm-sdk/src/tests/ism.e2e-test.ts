@@ -176,6 +176,62 @@ describe('SVM ISM E2E Tests', function () {
       expect(domain137.config.threshold).to.equal(1);
       expect(domain137.config.validators).to.have.length(2);
     });
+
+    it('updates only the changed domain via writer.update', async () => {
+      // Continuation of the prior test's state: domain 1 has threshold 2 with
+      // three validators; domain 137 has threshold 1 with two validators.
+      // Flip domain 1's validators while leaving domain 137 unchanged; expect
+      // a single SetValidatorsAndThreshold tx for domain 1.
+      const manager = new SvmIsmArtifactManager(rpc, [1, 137]);
+      const writer = manager.createWriter('domainRoutingIsm', signer);
+      assert(
+        writer.composition === ArtifactComposition.EMBEDDED,
+        'expected EMBEDDED routing-multisig writer on SVM',
+      );
+
+      const newValidatorsDomain1 = [
+        '0xdddddddddddddddddddddddddddddddddddddddd',
+        '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        '0xffffffffffffffffffffffffffffffffffffffff',
+      ];
+
+      const updateTxs = await writer.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          composition: ArtifactComposition.EMBEDDED,
+          type: 'domainRoutingIsm',
+          owner: signer.getSignerAddress(),
+          domains: {
+            1: {
+              artifactState: ArtifactState.EMBEDDED,
+              config: {
+                type: 'messageIdMultisigIsm',
+                validators: newValidatorsDomain1,
+                threshold: 2,
+              },
+            },
+            137: {
+              artifactState: ArtifactState.EMBEDDED,
+              config: {
+                type: 'messageIdMultisigIsm',
+                validators: [
+                  '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                  '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                ],
+                threshold: 1,
+              },
+            },
+          },
+        },
+        deployed: {
+          address: TEST_PROGRAM_IDS.multisigIsm,
+          programId: address(TEST_PROGRAM_IDS.multisigIsm),
+        },
+      });
+
+      // Single domain changed → single update tx.
+      expect(updateTxs).to.have.length(1);
+    });
   });
 
   describe('ISM Artifact Manager', () => {
