@@ -170,12 +170,19 @@ This is the comprehensive check — compares the on-chain state of every contrac
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp check --ica \
   --origin <ICA_ORIGIN_CHAIN> \
+  --originOwner <CONTROLLING_OWNER_ON_ORIGIN> \
   --chains <ICA_CHAINS> \
   --warp-route-id <WARP_ROUTE_ID> \
   --registry http://localhost:<port>
 ```
 
-`--origin` is the chain where the controlling Safe lives (typically `ethereum`). `--chains` is the space-separated list of destination chains whose owners are ICAs derived from that origin. This verifies each ICA address derives correctly from the configured owner Safe.
+- `--origin` is the chain where the controlling Safe / EOA lives (typically `ethereum`).
+- `--chains` is the space-separated list of destination chains whose owners are ICAs derived from that origin.
+- `--originOwner` is the controlling Safe / EOA address on `--origin` — **REQUIRED when the origin chain is NOT one of the chains in the route**. If you omit it in that case, the CLI errors with `Origin chain <name> does not have an owner configured`. When the origin chain IS in the route (e.g. ethereum-collateral routes), the CLI infers `--originOwner` from the route's ethereum-leg `owner` field and you can omit the flag. Safest to always pass it explicitly.
+
+This verifies each ICA address derives correctly from the configured controlling owner.
+
+The `warp check` run may also emit transient warnings from public RPCs that the CLI falls back to — most commonly `drpc.org` returning HTTP 408 `Request timeout on the free tier`. These are harmless noise from the public free-tier endpoint and don't affect the check result. Ignore unless the run actually fails.
 
 Show the user the full `warp check` output. If there are violations:
 
