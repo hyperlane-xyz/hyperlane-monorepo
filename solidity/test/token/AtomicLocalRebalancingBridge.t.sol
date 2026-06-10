@@ -8,6 +8,7 @@ import {TestSwapTarget} from "contracts/test/TestSwapTarget.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
@@ -252,7 +253,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     function test_localRebalance_integrationUsesRealSourceRouterRebalanceFlow()
         public
     {
-        HypERC20Collateral source = new HypERC20Collateral(
+        CrossCollateralRouter source = new CrossCollateralRouter(
             address(inputToken),
             1,
             1,
@@ -279,7 +280,12 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        _rebalance(address(source), bytes32(0), 100e6, _rebalancerCalls(100e6));
+        _rebalance(
+            address(source),
+            _toBytes32(address(destination)),
+            100e6,
+            _rebalancerCalls(100e6)
+        );
 
         assertEq(inputToken.balanceOf(address(source)), 0);
         assertEq(inputToken.balanceOf(address(bridge)), 0);
@@ -300,7 +306,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.prank(rebalancer);
         _rebalance(
             address(sourceRouter),
-            bytes32(0),
+            _toBytes32(address(unlisted)),
             100e6,
             _rebalancerCalls(100e6)
         );
@@ -548,7 +554,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             new MockMailbox(LOCAL_DOMAIN + 1)
         );
 
-        HypERC20Collateral source = new HypERC20Collateral(
+        CrossCollateralRouter source = new CrossCollateralRouter(
             address(inputToken),
             1,
             1,
@@ -598,7 +604,12 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        _rebalance(address(source), bytes32(0), 100e6, calls);
+        _rebalance(
+            address(source),
+            _toBytes32(address(destination)),
+            100e6,
+            calls
+        );
     }
 
     function test_transferRemote_revertsWhenCallsDrainSourceCollateral()
@@ -732,7 +743,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 LOCAL_DOMAIN,
                 amountIn,
                 ITokenBridge(address(sourceRouter)),
-                bytes32(0),
+                _toBytes32(address(destinationRouter)),
                 abi.encode(calls)
             )
         {
@@ -954,13 +965,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
     function test_localRebalance_usesCrossCollateralEnrollmentPath() public {
         swapTarget.setOutputAmount(100e6);
-        sourceRouter.setRecipient(LOCAL_DOMAIN, address(altDestinationRouter));
-        sourceRouter.setCallbackRecipient(address(altDestinationRouter));
+        // altDestinationRouter is enrolled only as a cross-collateral target (see
+        // setUp), not as the primary router, so this exercises the explicit
+        // rebalance-target branch of isRebalanceTarget.
 
         vm.prank(rebalancer);
         _rebalance(
             address(sourceRouter),
-            bytes32(0),
+            _toBytes32(address(altDestinationRouter)),
             100e6,
             _rebalancerCalls(100e6)
         );
@@ -974,6 +986,12 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         uint256 amount,
         CallLib.Call[] memory calls
     ) internal {
+        // bytes32(0) is a test sentinel for "the default destination router".
+        // Resolve it here (reading state, not an external call, so vm.prank is
+        // preserved) since the bridge no longer defaults the target itself.
+        if (recipient == bytes32(0)) {
+            recipient = _toBytes32(address(destinationRouter));
+        }
         bridge.rebalance(
             LOCAL_DOMAIN,
             amount,

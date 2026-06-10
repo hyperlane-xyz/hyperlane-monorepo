@@ -37,6 +37,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error UnauthorizedRebalancer();
     error InvalidRecipient();
     error InvalidToken();
+    error NativeRefundFailed();
 
     constructor(uint32 _localDomain) {
         localDomain = _localDomain;
@@ -53,8 +54,8 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// @param sourceRouter The source collateral router to pull from. Must allow
     /// this wrapper as a rebalancer/bridge and `msg.sender` as a rebalancer.
     /// @param destinationRecipient The destination collateral router to fund.
-    /// Pass `bytes32(0)` to default to the source router's enrolled local remote
-    /// router; otherwise it must be an allowed rebalance target on the source.
+    /// Must be an allowed rebalance target on the source router (its enrolled
+    /// remote router for `localDomain` or an explicitly allowed rebalance target).
     /// @param data Abi-encoded `CallLib.Call[]`. Use calls for token approvals and
     /// DEX swaps. Calls must leave enough output token on this wrapper for it to
     /// pay the destination router.
@@ -99,23 +100,33 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             destinationRouter
         );
 
-        // Escrow source collateral into this wrapper via the source router's
-        // canonical rebalance flow, which calls back into `transferRemote`.
+        // --- Flow of funds ---
+        // 1. Escrow: pull `collateralAmount` of inputToken from the source into
+        //    this wrapper via the source's canonical rebalance flow, which calls
+        //    back into `transferRemote`. The active-source slot authenticates that
+        //    callback and is the only reentrancy guard: a nested `rebalance` reverts
+        //    `RebalanceAlreadyActive`. It is deliberately not a full transient lock
+        //    over the whole body; the post-call balance invariants below bound what
+        //    the rebalancer-supplied calls can do.
         _ACTIVE_SOURCE_SLOT.store(TypeCasts.addressToBytes32(address(source)));
         source.rebalance(localDomain, collateralAmount, this);
         _ACTIVE_SOURCE_SLOT.clear();
 
+        // 2. Swap: run rebalancer-supplied calls (e.g. approve + DEX swap) that
+        //    convert the escrowed inputToken into outputToken held by this wrapper.
         CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
-        // Source may be topped up, but calls must not drain more than amountIn.
+        // 3. Source invariant: calls may top the source up but must not drain it
+        //    by more than the escrowed `collateralAmount`.
         if (
             IERC20(inputToken).balanceOf(address(source)) <
             sourceBalanceBefore - collateralAmount
         ) {
             revert InvalidInputDelta();
         }
-        // Pay the destination directly so calls cannot satisfy the local
-        // balance delta by routing output through the destination router.
+        // 4. Fund destination: pay `requiredDelta` of outputToken directly from
+        //    this wrapper so calls cannot satisfy the local balance delta by
+        //    routing output through the destination router itself.
         if (IERC20(outputToken).balanceOf(address(this)) < requiredDelta) {
             revert InsufficientOutput();
         }
@@ -126,23 +137,21 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         ) {
             revert InsufficientOutput();
         }
-        // Keep the wrapper stateless for exact-output and variable-output paths.
+        // 5. Refund: sweep residual input/output tokens and any native value back
+        //    to the rebalancer, keeping the wrapper stateless across calls.
         _refundTokenBalance(inputToken, msg.sender);
         _refundTokenBalance(outputToken, msg.sender);
+        _refundNativeBalance(msg.sender);
     }
 
-    /// @dev Resolves and authorizes the destination router. `bytes32(0)` defaults
-    /// to the source router's enrolled local remote router; an explicit recipient
-    /// must be an allowed rebalance target on the source.
+    /// @dev Authorizes the destination router. The recipient must be an allowed
+    /// rebalance target on the source (its enrolled remote router for `localDomain`
+    /// or an explicitly allowed cross-collateral target). A target must always be
+    /// passed explicitly; there is no implicit default.
     function _resolveDestination(
         MovableCollateralRouter source,
         bytes32 destinationRecipient
     ) internal view returns (address destinationRouter) {
-        if (destinationRecipient == bytes32(0)) {
-            bytes32 enrolled = source.routers(localDomain);
-            if (enrolled == bytes32(0)) revert InvalidRecipient();
-            return TypeCasts.bytes32ToAddress(enrolled);
-        }
         if (
             !IRebalanceTargets(address(source)).isRebalanceTarget(
                 localDomain,
@@ -192,7 +201,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         return bytes32(0);
     }
 
-    /// @dev Converts `amountIn` from input-token units to output-token units.
+    /// @dev Converts `amountIn` from input-token units to output-token units by
+    /// decimal scale only. Precondition: input and output are 1:1 in value (same
+    /// asset or a pegged pair). It applies no price or router-scale conversion, so
+    /// the rebalancer-supplied calls must source any value difference themselves.
     /// Both tokens must implement `decimals()`, and the invariant assumes
     /// standard balance-stable ERC20 behavior: no fee-on-transfer, reflection,
     /// rebasing, or balance-altering hooks. Incompatible assets should be
@@ -217,5 +229,15 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     function _refundTokenBalance(address token, address recipient) internal {
         uint256 refund = IERC20(token).balanceOf(address(this));
         if (refund > 0) IERC20(token).safeTransfer(recipient, refund);
+    }
+
+    /// @dev Returns any native value left on the wrapper (e.g. unused msg.value)
+    /// to `recipient`. Reverts rather than stranding funds if the transfer fails.
+    function _refundNativeBalance(address recipient) internal {
+        uint256 refund = address(this).balance;
+        if (refund > 0) {
+            (bool success, ) = recipient.call{value: refund}("");
+            if (!success) revert NativeRefundFailed();
+        }
     }
 }
