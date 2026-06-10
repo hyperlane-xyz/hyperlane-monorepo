@@ -42,7 +42,9 @@ pnpm --silent -C typescript/cli hyperlane warp read \
 
 `warp read` is a read-only command and does NOT require a key. The output is a YAML document with the deploy.yaml shape — one block per chain, with on-chain values populated for `owner`, `interchainSecurityModule`, `hook`, `proxyAdmin`, and any `tokenFee.feeContracts` block. Capture the full output for the next steps.
 
-If `warp read` fails on a specific chain (RPC error, missing chain in registry, contract reverted), surface the per-chain error and continue with the chains that succeeded — partial resolution is more useful than nothing. Mark the failed chain's row as `❌ READ_FAILED` in the final table.
+**Expected non-fatal warnings**: `warp read` emits `Failed to get configured rebalancers for token …` / `Failed to get allowed rebalancer bridges for token …` errors on routes that don't have a rebalancer configured (most non-multi-collateral routes). The errors are noisy but non-fatal — the read completes and the YAML is still produced. Ignore them unless the YAML is empty or `❌ Warp route config read successfully:` is missing from the output.
+
+If `warp read` fails on a specific chain (real RPC error, missing chain in registry, contract reverted in a way that aborts the read), surface the per-chain error and continue with the chains that succeeded — partial resolution is more useful than nothing. Mark the failed chain's row as `❌ READ_FAILED` in the final table.
 
 ---
 
@@ -50,22 +52,75 @@ If `warp read` fails on a specific chain (RPC error, missing chain in registry, 
 
 From the `warp read` output, build a flat list of `(chain, artifactType, address, ownerAddress)` tuples. The artifact types and where they appear in the YAML:
 
-| Artifact type | Source field in `warp read` output                                                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `router`      | top-level chain block address (the warp-token contract) + its `owner`                                                                          |
-| `proxyAdmin`  | `<chain>.proxyAdmin.address` + `<chain>.proxyAdmin.owner`                                                                                      |
-| `ism`         | `<chain>.interchainSecurityModule.address` + its `owner` (if the ISM has one — multisig/aggregation ISMs typically don't, but custom ones can) |
-| `hook`        | `<chain>.hook.address` + its `owner` (if the hook has one)                                                                                     |
-| `fee:routing` | `<chain>.tokenFee.address` (the RoutingFee contract on the synthetic side) + `<chain>.tokenFee.owner`                                          |
-| `fee:linear`  | each `<chain>.tokenFee.feeContracts.<other-chain>.address` (the LinearFee contracts) + per-block `.owner`                                      |
+### Top-level artifacts (always present per chain)
 
-If `warp read` doesn't surface a particular `owner` field directly, fall back to:
+| Artifact type | Source field in `warp read` output                                                           | Shape  | Owner from warp read?   |
+| ------------- | -------------------------------------------------------------------------------------------- | ------ | ----------------------- |
+| `router`      | top-level chain block (the warp-token contract address is the route entry) + `<chain>.owner` | flat   | ✅ (the chain `.owner`) |
+| `proxyAdmin`  | `<chain>.proxyAdmin.{address, owner}`                                                        | nested | ✅                      |
+| `fee:routing` | `<chain>.tokenFee.{address, owner}` (synthetic side only)                                    | nested | ✅                      |
+| `fee:linear`  | each `<chain>.tokenFee.feeContracts.<other-chain>.{address, owner, bps}`                     | nested | ✅                      |
+
+### ISM and hook artifacts (flat-or-nested — walk the tree)
+
+`interchainSecurityModule` and `hook` are NOT always flat addresses. They can be either:
+
+1. **A flat string** — typically `0x0000000000000000000000000000000000000000` ("use mailbox default", skip as artifact) or a non-zero address for an existing custom contract whose internals aren't surfaced by `warp read`.
+2. **A nested object** — recent routes use complex ISM trees (e.g. `staticAggregationIsm` of `rateLimitedIsm` + `pausableIsm` + `defaultFallbackRoutingIsm`) or hook trees (e.g. `amountRoutingHook`). Each sub-component is its own deployed contract with its own `address`, `type`, and (sometimes) `owner`.
+
+**Algorithm for each ISM / hook field**:
+
+1. If `typeof field === 'string'`:
+   - `0x0…0` (zero address) → uses mailbox default. Skip — do NOT add a row.
+   - Non-zero address → custom contract. Record as ONE artifact row with `type: <unknown-or-from-context>`, `address: <field-value>`. Resolve owner via `cast call <addr> "owner()(address)"`. If the contract doesn't implement `owner()`, mark `owner: null` + `type: immutable`.
+2. If `field` is an object:
+   - **Walk the tree depth-first**. At each node that has an `owner` field, record it as a separate artifact (with `address`, `type`, `owner`, and any type-specific fields like `maxCapacity` / `paused`). Aggregation containers themselves (e.g. `staticAggregationIsm`) typically have NO `owner` — they're constructor-immutable; do not record them as actionable artifacts, but DO record each of their constituent sub-modules.
+   - Containers to descend into:
+     - `modules: [...]` — array of sub-modules (aggregation ISMs)
+     - `domains: { <chainName>: <ism-or-hook> }` — map keyed by remote chain (routing ISMs / hooks)
+     - `lowerHook`, `upperHook` — nested hook fields (`amountRoutingHook`)
+     - any other field whose value is itself an object with `type` set
+   - At each leaf node with an `owner`, record a row like `{ chain, type: <node.type>, address: <node.address>, owner: <node.owner>, details: { ...type-specific fields... } }`.
+
+**Real example** — `evENI/bsc` `interchainSecurityModule`:
+
+```yaml
+interchainSecurityModule:
+  address: '0x57078Bc6...'
+  type: staticAggregationIsm # container, no owner — skip
+  modules:
+    - {
+        address: '0x3b9486c2...',
+        type: rateLimitedIsm,
+        owner: '0xf000...',
+        maxCapacity: '20999...',
+      } # → 1 artifact row
+    - {
+        address: '0x58E16564...',
+        type: defaultFallbackRoutingIsm,
+        owner: '0xf000...',
+        domains: {},
+      } # → 1 artifact row
+    - {
+        address: '0x67a1910e...',
+        type: pausableIsm,
+        owner: '0xf000...',
+        paused: false,
+      } # → 1 artifact row
+  threshold: 3
+```
+
+That single `interchainSecurityModule` field produces THREE artifact rows in the resolution table — one per leaf sub-ISM with an owner.
+
+### `cast call` fallback for any missing owner field
+
+If a nested-shape artifact's `owner` is unexpectedly missing (rare; might happen if the warp read schema changes or for non-standard contracts), fall back to:
 
 ```bash
 cast call <artifact-address> "owner()(address)" --rpc-url <chain-rpc-from-registry>
 ```
 
-Always prefer the `warp read` value when available — it's the canonical source.
+Always prefer the `warp read` value when present — it's the canonical source.
 
 ---
 
