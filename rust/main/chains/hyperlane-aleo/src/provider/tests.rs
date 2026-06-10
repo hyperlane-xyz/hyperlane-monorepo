@@ -278,14 +278,20 @@ async fn provable_mainnet_get_block_range() {
         });
     println!("block {latest}: ok (sanity)");
 
-    for height in 18077366u32..=18077376 {
+    let mut offending: Vec<u32> = Vec::new();
+    for height in 19154505u32..=19154515 {
         match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
             Err(err) => {
-                panic!("first error at block {height}: {err:?}");
+                println!("block {height}: ERROR {err:?}");
+                offending.push(height);
             }
         }
     }
+    assert!(
+        offending.is_empty(),
+        "offending blocks (deserialize failure): {offending:?}"
+    );
 }
 
 #[tokio::test]
