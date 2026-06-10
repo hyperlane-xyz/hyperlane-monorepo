@@ -325,7 +325,7 @@ Run with `run_in_background: true`. Wait for `Listening on http://localhost:<por
 The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
-pnpm -C typescript/cli hyperlane warp apply \
+pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]  # only if new chain is Sealevel

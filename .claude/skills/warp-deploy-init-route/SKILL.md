@@ -487,7 +487,7 @@ Assemble the full deploy command. The command must be run from `typescript/cli`.
 > **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
 ```bash
-pnpm -C typescript/cli hyperlane warp deploy \
+pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
@@ -526,7 +526,7 @@ Tell the user upfront:
 Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
 
 ```bash
-pnpm -C typescript/cli hyperlane warp deploy \
+pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
@@ -575,14 +575,14 @@ Send forward then back. Use the amounts from the calculation above:
 ```bash
 
 # Forward (no fee on this direction for standard routes)
-pnpm -C typescript/cli hyperlane warp send \
+pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain1> --destination <chain2> \
   --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 
 # Return (fee charged — use reduced amount)
-pnpm -C typescript/cli hyperlane warp send \
+pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <chain2> --destination <chain1> \
   --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \
@@ -596,14 +596,14 @@ Do NOT use `--round-trip`. Test each native ↔ synthetic pair sequentially:
 ```bash
 
 # For each synthetic chain: send native → synthetic (forward, no fee)
-pnpm -C typescript/cli hyperlane warp send \
+pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <native-chain> --destination <synthetic-chain> \
   --amount 10000 --key.ethereum <KEY_ETHEREUM_VALUE> \
   -w <TOKEN>/<new-chain>
 
 # Then return: synthetic → native (fee charged — use reduced amount)
-pnpm -C typescript/cli hyperlane warp send \
+pnpm --silent -C typescript/cli hyperlane warp send \
   --registry http://localhost:<port> \
   --origin <synthetic-chain> --destination <native-chain> \
   --amount 9000 --key.ethereum <KEY_ETHEREUM_VALUE> \

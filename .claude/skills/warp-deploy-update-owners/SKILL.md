@@ -129,7 +129,7 @@ Assemble the warp apply command. Use only the HTTP registry — started with `--
 
 ```bash
 
-pnpm -C typescript/cli hyperlane warp apply \
+pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]  # only if sealevel chains present
@@ -158,7 +158,7 @@ After warp apply completes, run the canonical CLI verifier against the deployed 
 
 ```bash
 
-pnpm -C typescript/cli hyperlane warp check \
+pnpm --silent -C typescript/cli hyperlane warp check \
   --registry http://localhost:<port> \
   --warp-route-id <WARP_ROUTE_ID>
 ```
@@ -168,7 +168,7 @@ This is the comprehensive check — compares the on-chain state of every contrac
 **Additionally, IF any chain owner in the route is an ICA** (per the resolution from `/warp-deploy-validate-owners`, or visible in the deploy.yaml `owner` fields), also run the ICA-aware variant:
 
 ```bash
-pnpm -C typescript/cli hyperlane warp check --ica \
+pnpm --silent -C typescript/cli hyperlane warp check --ica \
   --origin <ICA_ORIGIN_CHAIN> \
   --chains <ICA_CHAINS> \
   --warp-route-id <WARP_ROUTE_ID> \
