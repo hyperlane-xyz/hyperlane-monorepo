@@ -43,6 +43,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error InvalidInputDelta();
     error UnauthorizedRebalancer();
     error InvalidToken();
+    error NativeRefundFailed();
 
     constructor(uint32 _localDomain, address _sourceRouter) {
         localDomain = _localDomain;
@@ -60,6 +61,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     ) external payable {
         if (_REENTRANCY_GUARD_SLOT.loadBool()) revert RebalanceAlreadyActive();
         _REENTRANCY_GUARD_SLOT.set();
+
+        // Excludes pre-existing native from the refund.
+        uint256 nativeBefore = address(this).balance - msg.value;
 
         MovableCollateralRouter source = MovableCollateralRouter(sourceRouter);
         if (!source.isAllowedRebalancer(msg.sender)) {
@@ -124,6 +128,14 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         _refundDelta(inputToken, inputSelfBefore, msg.sender);
         if (outputToken != inputToken) {
             _refundDelta(outputToken, outputSelfBefore, msg.sender);
+        }
+        // Refund this call's unspent native before clearing the guard.
+        uint256 nativeBalance = address(this).balance;
+        if (nativeBalance > nativeBefore) {
+            (bool ok, ) = msg.sender.call{value: nativeBalance - nativeBefore}(
+                ""
+            );
+            if (!ok) revert NativeRefundFailed();
         }
 
         _REENTRANCY_GUARD_SLOT.clear();

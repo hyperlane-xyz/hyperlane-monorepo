@@ -165,6 +165,16 @@ contract ReentrantCallTarget {
     }
 }
 
+contract NonReceivingRebalancer {
+    function rebalanceWithValue(
+        AtomicLocalRebalancingBridge target,
+        uint256 amountIn,
+        CallLib.Call[] calldata calls
+    ) external payable {
+        target.localRebalance{value: msg.value}(amountIn, calls);
+    }
+}
+
 contract AtomicLocalRebalancingBridgeTest is Test {
     uint32 internal constant LOCAL_DOMAIN = 10;
 
@@ -541,6 +551,47 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(inputToken.balanceOf(address(sameTokenDest)), 100e6);
         assertEq(inputToken.balanceOf(address(bridge)), 50e6);
         assertEq(inputToken.balanceOf(rebalancer), 0);
+    }
+
+    function test_localRebalance_refundsUnspentNative() public {
+        swapTarget.setOutputAmount(100e6);
+        vm.deal(rebalancer, 1 ether);
+        uint256 balanceBefore = rebalancer.balance;
+
+        vm.prank(rebalancer);
+        bridge.localRebalance{value: 1 ether}(100e6, _rebalancerCalls(100e6));
+
+        assertEq(rebalancer.balance, balanceBefore);
+        assertEq(address(bridge).balance, 0);
+    }
+
+    function test_localRebalance_doesNotRefundPreExistingNative() public {
+        swapTarget.setOutputAmount(100e6);
+        vm.deal(address(bridge), 5 ether);
+        vm.deal(rebalancer, 1 ether);
+        uint256 balanceBefore = rebalancer.balance;
+
+        vm.prank(rebalancer);
+        bridge.localRebalance{value: 1 ether}(100e6, _rebalancerCalls(100e6));
+
+        assertEq(rebalancer.balance, balanceBefore);
+        assertEq(address(bridge).balance, 5 ether);
+    }
+
+    function test_localRebalance_revertsWhenNativeRefundFails() public {
+        swapTarget.setOutputAmount(100e6);
+        NonReceivingRebalancer caller = new NonReceivingRebalancer();
+        sourceRouter.addRebalancer(address(caller));
+        vm.deal(address(caller), 1 ether);
+
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.NativeRefundFailed.selector
+        );
+        caller.rebalanceWithValue{value: 1 ether}(
+            bridge,
+            100e6,
+            _rebalancerCalls(100e6)
+        );
     }
 
     function test_transferRemote_revertsIfCallsBridgeOutThroughDestinationRouter()
