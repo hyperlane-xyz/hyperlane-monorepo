@@ -50,7 +50,7 @@ fn generate_test_core_contract_addresses() -> CoreContractAddresses {
                 .unwrap()
                 .as_slice(),
         ),
-        quoted_calls: None,
+        igp_version: Default::default(),
     }
 }
 
