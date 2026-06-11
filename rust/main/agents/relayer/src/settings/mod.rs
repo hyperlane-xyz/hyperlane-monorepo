@@ -703,9 +703,9 @@ mod test {
     #[test]
     fn fee_token_policy_rejects_matching_legacy_origin() {
         let settings = parse_settings(json!({
-            "relaychains": "legacy,latest",
+            "relaychains": "oldorigin,latest",
             "chains": {
-                "legacy": chain_config("legacy", 1000, Some("legacy")),
+                "oldorigin": chain_config("oldorigin", 1000, Some("legacy")),
                 "latest": chain_config("latest", 2000, Some("latest")),
             },
             "gaspaymentenforcement": [{
@@ -716,9 +716,20 @@ mod test {
             }],
         }));
 
-        assert_fee_token_igp_error(
-            settings.expect_err("matched legacy origin must reject feeToken policy"),
-            "legacy",
+        let error = settings
+            .expect_err("matched legacy origin must reject feeToken policy")
+            .to_string();
+        assert!(
+            error.contains("non-legacy IGP"),
+            "unexpected error: {error}",
+        );
+        assert!(
+            error.contains("oldorigin"),
+            "expected error to name rejected origin: {error}",
+        );
+        assert!(
+            !error.contains("latest"),
+            "error should not name unmatched latest origin: {error}",
         );
     }
 
