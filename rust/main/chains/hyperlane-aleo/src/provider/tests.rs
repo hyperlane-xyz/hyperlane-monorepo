@@ -294,6 +294,59 @@ async fn provable_mainnet_get_block_range() {
     );
 }
 
+// Minimal, self-contained reproduction with no Hyperlane abstractions.
+// Fetches the raw block JSON over plain reqwest (the node returns HTTP 200 with a
+// body in both cases) and deserializes it straight into snarkVM's `Block` type.
+// Block 19154506 deserializes fine; block 19154507 fails with
+// "Mismatching solution ID, possible data corruption" — so the failure is purely
+// in snarkVM block deserialization, not in the HTTP layer.
+//
+// Run with:
+//   cargo test -p hyperlane-aleo --all-features -- --ignored --nocapture provable_mainnet_block_deserialization
+#[tokio::test]
+#[ignore = "hits live https://api.explorer.provable.com/v2/mainnet"]
+async fn provable_mainnet_block_deserialization() {
+    use snarkvm::prelude::Block;
+
+    // (height, expect deserialization to succeed)
+    for (height, expect_ok) in [(19154506u32, true), (19154507u32, false)] {
+        let url = format!("https://api.explorer.provable.com/v2/mainnet/block/{height}");
+        println!("\n--- block {height} ---");
+        println!("GET {url}");
+
+        // 1. Fetch the raw JSON body. The node returns HTTP 200 with a body for
+        //    both blocks, so this step always succeeds.
+        let response = reqwest::get(&url).await.expect("HTTP request failed");
+        let status = response.status();
+        let body = response.text().await.expect("failed to read response body");
+        println!("HTTP {status}, received {} bytes of JSON", body.len());
+        assert!(status.is_success(), "unexpected HTTP status {status}");
+
+        // 2. Deserialize the body straight into snarkVM's `Block`. This is the
+        //    step that fails for block 19154507.
+        match serde_json::from_str::<Block<MainnetV0>>(&body) {
+            Ok(block) => {
+                println!(
+                    "OK  deserialized block {height}: hash={} timestamp={}",
+                    block.hash(),
+                    block.timestamp(),
+                );
+                assert!(
+                    expect_ok,
+                    "block {height} deserialized but a failure was expected"
+                );
+            }
+            Err(err) => {
+                println!("ERR deserializing block {height}: {err}");
+                assert!(
+                    !expect_ok,
+                    "block {height} failed to deserialize but success was expected: {err}"
+                );
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn test_program_with_imports() {
     let provider = get_mock_provider_with_programs();
