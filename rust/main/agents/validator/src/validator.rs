@@ -389,7 +389,6 @@ impl Validator {
     async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
-            self.origin_chain_conf.estimated_block_time,
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),

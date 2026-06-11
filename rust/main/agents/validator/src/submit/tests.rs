@@ -201,7 +201,6 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
     // instantiate the validator submitter
     let validator_submitter = ValidatorSubmitter::new(
         Duration::from_secs(1),
-        Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),
         dummy_singleton_handle(),
@@ -319,7 +318,6 @@ async fn sign_and_submit_checkpoint_same_signature() {
 
     // instantiate the validator submitter
     let validator_submitter = ValidatorSubmitter::new(
-        Duration::from_secs(1),
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),
@@ -439,7 +437,6 @@ async fn sign_and_submit_checkpoint_different_signature() {
 
     // instantiate the validator submitter
     let validator_submitter = ValidatorSubmitter::new(
-        Duration::from_secs(1),
         Duration::from_secs(1),
         ReorgPeriod::from_blocks(expected_reorg_period),
         Arc::new(mock_merkle_tree_hook),

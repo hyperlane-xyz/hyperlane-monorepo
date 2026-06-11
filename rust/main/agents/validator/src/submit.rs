@@ -25,7 +25,6 @@ use crate::reorg_reporter::ReorgReporter;
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
-    estimated_block_time: Duration,
     reorg_period: ReorgPeriod,
     #[allow(unused)]
     singleton_signer: SingletonSignerHandle,
@@ -42,7 +41,6 @@ impl ValidatorSubmitter {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         interval: Duration,
-        estimated_block_time: Duration,
         reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         singleton_signer: SingletonSignerHandle,
@@ -56,7 +54,6 @@ impl ValidatorSubmitter {
         Self {
             reorg_period,
             interval,
-            estimated_block_time,
             merkle_tree_hook,
             singleton_signer,
             signer,
@@ -165,54 +162,8 @@ impl ValidatorSubmitter {
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
 
-            sleep(self.next_checkpoint_sleep(&latest_checkpoint)).await;
+            sleep(Duration::from_secs(2)).await;
         }
-    }
-
-    /// Computes how long to sleep before polling for the next checkpoint.
-    ///
-    /// When the next pending leaf's insertion block is known and the reorg period is
-    /// block-based, sleeps until roughly when that leaf's reorg window expires rather
-    /// than using a fixed interval. Falls back to `self.interval` when fully caught up
-    /// or when the reorg period is tag-based (e.g. "finalized").
-    fn next_checkpoint_sleep(&self, latest_checkpoint: &CheckpointAtBlock) -> Duration {
-        // Tag-based reorg periods ("finalized", "safe") can't be converted to a block
-        // count, so we can't predict when the next checkpoint will be ready.
-        let ReorgPeriod::Blocks(_) = &self.reorg_period else {
-            return self.interval;
-        };
-
-        // block_height is the finalized block at which latest_checkpoint was queried
-        // (i.e. current_block - reorg_period_blocks). Only available if the RPC
-        // returned it.
-        let Some(finalized_block) = latest_checkpoint.block_height else {
-            return self.interval;
-        };
-
-        let next_index = latest_checkpoint.index.saturating_add(1);
-        let next_leaf_block = match self
-            .db
-            .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&next_index)
-            .ok()
-            .flatten()
-        {
-            Some(b) => b,
-            // No indexed leaf beyond the current checkpoint — fully caught up.
-            None => return self.interval,
-        };
-
-        // How many more blocks need to be produced after the current finalized tip
-        // before next_leaf clears the reorg window.
-        let blocks_to_wait = next_leaf_block.saturating_sub(finalized_block);
-
-        // Wake up ~1 block early to avoid missing the window due to timing variance,
-        // then tight-poll at 1s until the checkpoint appears. Clamp to self.interval
-        // so a stale block_height can't produce a sleep longer than normal polling.
-        self.estimated_block_time
-            .saturating_mul(u32::try_from(blocks_to_wait).unwrap_or(u32::MAX))
-            .saturating_sub(self.estimated_block_time)
-            .max(Duration::from_secs(1))
-            .min(self.interval)
     }
 
     /// Submits signed checkpoints relating to the given tree until the correctness checkpoint (inclusive).
