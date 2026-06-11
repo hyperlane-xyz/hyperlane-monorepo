@@ -213,7 +213,7 @@ export async function proposeSafeTransaction(
   safeTransaction: SafeTransaction,
   safeAddress: Address,
   signer: ethers.Signer,
-): Promise<void> {
+): Promise<string> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
   const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
@@ -231,6 +231,8 @@ export async function proposeSafeTransaction(
   rootLogger.info(
     chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
   );
+
+  return safeTxHash;
 }
 
 export async function deleteAllPendingSafeTxs(

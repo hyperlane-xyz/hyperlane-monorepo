@@ -17,6 +17,7 @@ import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -32,15 +33,19 @@ const ROUTE_CHAINS = [
   'solanamainnet',
   'arbitrum',
   'base',
+  'bsc',
   'citrea',
   'ethereum',
+  'katana',
+  'polygon',
 ] as const satisfies readonly ChainName[];
 const CCTP_CHAINS = [
   'arbitrum',
   'base',
   'ethereum',
+  'polygon',
 ] as const satisfies readonly ChainName[];
-const EVM_CHAINS = ['arbitrum', 'base', 'ethereum'] as const;
+const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
@@ -51,15 +56,21 @@ const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
+  bsc: awSafes.bsc,
   citrea: awIcas.citrea,
   ethereum: awSafes.ethereum,
+  katana: awIcas.katana,
+  polygon: awIcas.polygon,
 } as const;
 
 const feeOwnersByChain = {
   arbitrum: warpFeesIcas.arbitrum,
   base: warpFeesIcas.base,
+  bsc: warpFeesIcas.bsc,
   citrea: warpFeesIcas.citrea,
-  ethereum: warpFeesIcas.ethereum,
+  ethereum: warpFeesSafes.ethereum,
+  katana: warpFeesIcas.katana,
+  polygon: warpFeesIcas.polygon,
 } as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -82,7 +93,10 @@ function getCctpFastRouteAddresses(): Record<EvmChain, string> {
   ) as Record<EvmChain, string>;
 }
 
-function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
+function getTBDAAddresses(): Record<
+  'arbitrum' | 'base' | 'ethereum' | 'citrea' | 'polygon',
+  string
+> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaIronBridge);
   assert(route, 'CROSS/ctusd-usdc-ironbridge route not found in registry');
 
@@ -97,6 +111,7 @@ function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
     base: find('base'),
     ethereum: find('ethereum'),
     citrea: find('citrea'),
+    polygon: find('polygon'),
   };
 }
 
@@ -141,6 +156,29 @@ function buildRemoteIsm(
     return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
   }
 
+  if (local === 'bsc' || local === 'katana') {
+    return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
+  }
+
+  if (remote === 'bsc' || remote === 'katana') {
+    return {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: AMOUNT_ROUTING_THRESHOLD,
+          lowerIsm: {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: FAST_PATH_RELAYER,
+          },
+          upperIsm: buildDefaultIsm(owner),
+        },
+        buildDefaultIsm(owner),
+      ],
+    };
+  }
+
   return buildDefaultIsm(owner);
 }
 
@@ -150,7 +188,10 @@ function shouldIncludeInnerRoutingRemote(
 ): boolean {
   return (
     (isCctpChain(local) && isCctpChain(remote)) ||
-    (local === 'citrea' && remote === 'ethereum')
+    (local === 'citrea' && remote === 'ethereum') ||
+    ((local === 'bsc' || local === 'katana') && remote !== 'solanamainnet') ||
+    remote === 'bsc' ||
+    remote === 'katana'
   );
 }
 
@@ -178,8 +219,9 @@ function buildInterchainSecurityModule(
 ): IsmConfig | undefined {
   if (local === 'solanamainnet') return undefined;
 
-  if (local === 'citrea') {
-    // Amount routing: small txs use trusted relayer for fast finality, large use default
+  if (local === 'citrea' || local === 'bsc' || local === 'katana') {
+    // Amount routing: small txs use trusted relayer for fast finality, large use default.
+    // BSC threshold is in message units (normalized by scale to 6 dec), same value as citrea.
     return {
       type: IsmType.AGGREGATION,
       threshold: 1,
@@ -260,7 +302,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
-    ['arbitrum', 'base', 'ethereum'],
+    ['arbitrum', 'base', 'ethereum', 'polygon'],
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
 
@@ -270,14 +312,20 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     solanamainnet: solanaOwner,
     arbitrum: arbitrumOwner,
     base: baseOwner,
+    bsc: bscOwner,
     citrea: citreaOwner,
     ethereum: ethereumOwner,
+    katana: katanaOwner,
+    polygon: polygonOwner,
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
+    bsc: bscFeeOwner,
     citrea: citreaFeeOwner,
     ethereum: ethereumFeeOwner,
+    katana: katanaFeeOwner,
+    polygon: polygonFeeOwner,
   } = feeOwnersByChain;
 
   const crossCollateralRouters = getUsdtCrossCollateralRouters();
@@ -331,6 +379,30 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       tokenFee: buildCrossCollateralRoutingFee(baseFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
+    bsc: {
+      type: TokenType.crossCollateral,
+      token: tokens.bsc.USDC,
+      mailbox: routerConfig.bsc.mailbox,
+      owner: bscOwner,
+      scale: { numerator: 1, denominator: 1_000_000_000_000 },
+      hook: buildHook('bsc', bscOwner),
+      interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
+      tokenFee: buildCrossCollateralRoutingFee(bscFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    katana: {
+      type: TokenType.crossCollateral,
+      token: tokens.katana.USDC,
+      mailbox: routerConfig.katana.mailbox,
+      owner: katanaOwner,
+      hook: buildHook('katana', katanaOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'katana',
+        katanaOwner,
+      ),
+      tokenFee: buildCrossCollateralRoutingFee(katanaFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
     citrea: {
       type: TokenType.crossCollateral,
       token: tokens.citrea.ctUSD,
@@ -369,6 +441,24 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         ethereumOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(ethereumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    polygon: {
+      type: TokenType.crossCollateral,
+      token: tokens.polygon.USDC,
+      mailbox: routerConfig.polygon.mailbox,
+      owner: polygonOwner,
+      ...cctpRebalancingConfigByChain.polygon,
+      allowedRebalancingBridges: {
+        ...cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
+        [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }],
+      },
+      hook: buildHook('polygon', polygonOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'polygon',
+        polygonOwner,
+      ),
+      tokenFee: buildCrossCollateralRoutingFee(polygonFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
   };
