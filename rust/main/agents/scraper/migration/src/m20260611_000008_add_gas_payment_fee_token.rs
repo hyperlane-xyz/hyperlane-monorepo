@@ -2,7 +2,6 @@ use sea_orm::ConnectionTrait;
 use sea_orm_migration::prelude::*;
 
 use crate::l20230309_types::*;
-use crate::m20230309_000004_create_table_gas_payment::{GasPayment, TotalGasPayment};
 
 const NATIVE_FEE_TOKEN: &str = "'\\x0000000000000000000000000000000000000000'::bytea";
 
@@ -135,4 +134,23 @@ impl MigrationTrait for Migration {
 
         Ok(())
     }
+}
+
+#[derive(Iden)]
+enum GasPayment {
+    Table,
+    MsgId,
+    Payment,
+    GasAmount,
+    FeeToken,
+}
+
+#[derive(Iden)]
+enum TotalGasPayment {
+    Table,
+    MsgId,
+    FeeToken,
+    NumPayments,
+    TotalPayment,
+    TotalGasAmount,
 }

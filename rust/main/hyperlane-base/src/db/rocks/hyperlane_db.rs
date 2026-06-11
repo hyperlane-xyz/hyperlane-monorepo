@@ -275,26 +275,30 @@ impl HyperlaneRocksDB {
             )?;
         }
 
-        let gas_payment_token_key = GasPaymentTokenKey::from(event);
-        let existing_token_payment = self
-            .retrieve_interchain_gas_payment_data_by_gas_payment_token_key(&gas_payment_token_key)?
-            .map(|payment| {
-                payment.complete_with_fee_token(
-                    gas_payment_token_key.message_id,
-                    gas_payment_token_key.destination,
-                    gas_payment_token_key.fee_token,
-                )
-            })
-            .unwrap_or_else(|| {
-                InterchainGasPayment::from_gas_payment_token_key(gas_payment_token_key)
-            });
-        let token_total = existing_token_payment.add(event);
+        if event.fee_token != H160::zero() {
+            let gas_payment_token_key = GasPaymentTokenKey::from(event);
+            let existing_token_payment = self
+                .retrieve_interchain_gas_payment_data_by_gas_payment_token_key(
+                    &gas_payment_token_key,
+                )?
+                .map(|payment| {
+                    payment.complete_with_fee_token(
+                        gas_payment_token_key.message_id,
+                        gas_payment_token_key.destination,
+                        gas_payment_token_key.fee_token,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    InterchainGasPayment::from_gas_payment_token_key(gas_payment_token_key)
+                });
+            let token_total = existing_token_payment.add(event);
 
-        debug!(?event, new_total_gas_payment=?token_total, "Storing token gas payment");
-        self.store_interchain_gas_payment_data_by_gas_payment_token_key(
-            &gas_payment_token_key,
-            &token_total.into(),
-        )?;
+            debug!(?event, new_total_gas_payment=?token_total, "Storing token gas payment");
+            self.store_interchain_gas_payment_data_by_gas_payment_token_key(
+                &gas_payment_token_key,
+                &token_total.into(),
+            )?;
+        }
 
         Ok(())
     }

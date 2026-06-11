@@ -350,6 +350,13 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             }
 
             for domain in &relay_chains {
+                if !gas_payment_policy
+                    .matching_list
+                    .origin_domain_matches(domain.id(), true)
+                {
+                    continue;
+                }
+
                 let chain_setup = match base.chain_setup(domain) {
                     Ok(chain_setup) => chain_setup,
                     Err(e) => {

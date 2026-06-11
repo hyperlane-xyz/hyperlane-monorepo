@@ -33,13 +33,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(GasPayment::MsgId, Hash).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::Payment, Wei).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::GasAmount, Wei).not_null())
-                    .col(
-                        ColumnDef::new_with_type(GasPayment::FeeToken, Address)
-                            .not_null()
-                            .default(SimpleExpr::Custom(
-                                "'\\x0000000000000000000000000000000000000000'::bytea".to_owned(),
-                            )),
-                    )
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
                     .col(
                         ColumnDef::new(GasPayment::LogIndex)
@@ -97,17 +90,6 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(GasPayment::Table)
-                    .name("gas_payment_msg_id_fee_token_idx")
-                    .col(GasPayment::MsgId)
-                    .col(GasPayment::FeeToken)
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .table(GasPayment::Table)
                     .name("gas_payment_domain_id_idx")
                     .col(GasPayment::Domain)
                     .col(GasPayment::Id)
@@ -145,21 +127,18 @@ impl MigrationTrait for Migration {
             CREATE VIEW "{tgp_table}" AS
             SELECT
                 "gp"."{gp_mid}" AS "{tgp_mid}",
-                "gp"."{gp_fee_token}" AS "{tgp_fee_token}",
                 COUNT("gp"."{gp_mid}") AS "{tgp_num_payments}",
                 SUM("gp"."{gp_payment}") AS "{tgp_payment}",
                 SUM("gp"."{gp_gas_amount}") AS "{tgp_gas_amount}"
             FROM "{gp_table}" AS "gp"
-            GROUP BY "gp"."{gp_mid}", "gp"."{gp_fee_token}"
+            GROUP BY "gp"."{gp_mid}"
             "#,
                 gp_table = GasPayment::Table.to_string(),
                 gp_mid = GasPayment::MsgId.to_string(),
-                gp_fee_token = GasPayment::FeeToken.to_string(),
                 gp_payment = GasPayment::Payment.to_string(),
                 gp_gas_amount = GasPayment::GasAmount.to_string(),
                 tgp_table = TotalGasPayment::Table.to_string(),
                 tgp_mid = TotalGasPayment::MsgId.to_string(),
-                tgp_fee_token = TotalGasPayment::FeeToken.to_string(),
                 tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
                 tgp_payment = TotalGasPayment::TotalPayment.to_string(),
                 tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
@@ -200,8 +179,6 @@ pub enum GasPayment {
     Payment,
     /// Amount of destination gas paid for.
     GasAmount,
-    /// Origin fee token address. Native gas payments use the zero address.
-    FeeToken,
     /// Transaction the payment was made in.
     TxId,
     /// Used to disambiguate duplicate payments from multiple payments made in
@@ -223,7 +200,6 @@ pub enum GasPayment {
 pub enum TotalGasPayment {
     Table,
     MsgId,
-    FeeToken,
     NumPayments,
     TotalPayment,
     TotalGasAmount,

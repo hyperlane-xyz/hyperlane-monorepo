@@ -37,11 +37,11 @@ where
 #[cfg(test)]
 mod test {
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta,
-        RawHyperlaneMessage, H256, H512, U256,
+        GasPaymentKey, GasPaymentTokenKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+        Indexed, InterchainGasPayment, LogMeta, RawHyperlaneMessage, H160, H256, H512, U256,
     };
 
-    use crate::db::{HyperlaneDb, HyperlaneRocksDB};
+    use crate::db::{HyperlaneDb, HyperlaneRocksDB, InterchainGasPaymentData};
 
     use super::*;
 
@@ -120,6 +120,58 @@ mod test {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved, tx_hash);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn db_native_token_key_reads_legacy_total_after_new_native_payment() {
+        run_test_db(|db| async move {
+            let db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain(
+                    "db_native_token_key_reads_legacy_total_after_new_native_payment",
+                ),
+                db,
+            );
+            let message_id = H256::random();
+            let destination = 123;
+            let gas_payment_key = GasPaymentKey {
+                message_id,
+                destination,
+            };
+
+            db.store_interchain_gas_payment_data_by_gas_payment_key(
+                &gas_payment_key,
+                &InterchainGasPaymentData {
+                    payment: U256::from(7),
+                    gas_amount: U256::from(8),
+                },
+            )
+            .unwrap();
+
+            db.process_gas_payment(
+                InterchainGasPayment {
+                    message_id,
+                    destination,
+                    fee_token: H160::zero(),
+                    payment: U256::from(3),
+                    gas_amount: U256::from(4),
+                },
+                &LogMeta::random(),
+            )
+            .unwrap();
+
+            let token_payment = db
+                .retrieve_gas_payment_by_gas_payment_token_key(GasPaymentTokenKey {
+                    message_id,
+                    destination,
+                    fee_token: H160::zero(),
+                })
+                .unwrap()
+                .unwrap();
+
+            assert_eq!(token_payment.payment, U256::from(10));
+            assert_eq!(token_payment.gas_amount, U256::from(12));
         })
         .await;
     }

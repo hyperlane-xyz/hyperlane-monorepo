@@ -379,7 +379,7 @@ impl<T: Decode> Decode for Vec<T> {
 mod test {
     use std::io::Cursor;
 
-    use crate::{Decode, Encode, Indexed, H256};
+    use crate::{Decode, Encode, Indexed, H160, H256, U256};
 
     #[test]
     fn test_encoding_indexed() {
@@ -401,6 +401,39 @@ mod test {
         let encoded = payment.to_vec();
         let decoded = super::InterchainGasPayment::read_from(&mut &encoded[..]).unwrap();
         assert_eq!(payment, decoded);
+    }
+
+    #[test]
+    fn test_decoding_legacy_interchain_gas_payment_defaults_native_fee_token() {
+        let mut encoded = vec![];
+        let message_id = H256::random();
+        let destination = 42u32;
+        let payment = U256::from(100);
+        let gas_amount = U256::from(200);
+
+        message_id.write_to(&mut encoded).unwrap();
+        destination.write_to(&mut encoded).unwrap();
+        payment.write_to(&mut encoded).unwrap();
+        gas_amount.write_to(&mut encoded).unwrap();
+
+        let decoded = super::InterchainGasPayment::read_from(&mut &encoded[..]).unwrap();
+        assert_eq!(decoded.message_id, message_id);
+        assert_eq!(decoded.destination, destination);
+        assert_eq!(decoded.fee_token, H160::zero());
+        assert_eq!(decoded.payment, payment);
+        assert_eq!(decoded.gas_amount, gas_amount);
+    }
+
+    #[test]
+    fn test_decoding_truncated_interchain_gas_payment_errors() {
+        let mut encoded = vec![];
+        H256::random().write_to(&mut encoded).unwrap();
+        42u32.write_to(&mut encoded).unwrap();
+        U256::from(100).write_to(&mut encoded).unwrap();
+        encoded.extend_from_slice(&[1, 2, 3]);
+
+        let result = super::InterchainGasPayment::read_from(&mut &encoded[..]);
+        assert!(result.is_err());
     }
 
     #[test]

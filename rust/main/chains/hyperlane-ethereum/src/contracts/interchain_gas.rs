@@ -137,6 +137,9 @@ where
             .map(|(_, log_meta)| LogMeta::from(log_meta.clone()).transaction_id)
             .collect::<HashSet<_>>();
 
+        // New IGP emits `GasPaymentWithFeeToken` for every payment and the
+        // legacy `GasPayment` only for native payments, so token-aware logs
+        // supersede legacy logs from the same transaction.
         Ok(legacy_events
             .into_iter()
             .filter(|(_, log_meta)| {
