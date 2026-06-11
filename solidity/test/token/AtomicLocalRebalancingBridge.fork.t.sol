@@ -4,6 +4,7 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
@@ -44,6 +45,8 @@ interface IAerodromeRouter {
 }
 
 abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
+    using SafeERC20 for IERC20;
+
     AtomicLocalRebalancingBridge internal bridge;
     HypERC20Collateral internal sourceRouter;
     HypERC20Collateral internal destinationRouter;
@@ -90,8 +93,10 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     }
 
     function _approveOutputForBridge(IERC20 destinationToken) internal {
+        // forceApprove handles non-standard tokens (e.g. mainnet USDT) whose
+        // approve does not return a bool.
         vm.prank(rebalancer);
-        destinationToken.approve(address(bridge), type(uint256).max);
+        destinationToken.forceApprove(address(bridge), type(uint256).max);
     }
 
     function _approveInputCall(
@@ -279,7 +284,7 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
     address internal constant AERODROME_FACTORY =
         0x420DD381b31aEf6683db6B902084cB0FFECe40Da;
     uint32 internal constant LOCAL_DOMAIN = 8453;
-    uint256 internal constant FORK_BLOCK = 32_739_842;
+    uint256 internal constant FORK_BLOCK = 40_000_000;
 
     function setUp() public {
         _setUpFork(
