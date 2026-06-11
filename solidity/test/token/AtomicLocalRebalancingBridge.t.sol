@@ -420,6 +420,22 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
+    function test_transferRemote_refundsSurplusButKeepsDonation() public {
+        // A prior donation of the output token sits on the bridge.
+        outputToken.mintTo(address(bridge), 50e6);
+        // Calls produce 3e6 more output than requiredDelta.
+        swapTarget.setOutputAmount(103e6);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+
+        // Destination gets requiredDelta, only the produced surplus is refunded,
+        // and the donation stays on the bridge.
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
+        assertEq(outputToken.balanceOf(rebalancer), 3e6);
+        assertEq(outputToken.balanceOf(address(bridge)), 50e6);
+    }
+
     function test_transferRemote_sweepsSurplusInputToRebalancer() public {
         outputToken.mintTo(rebalancer, 100e6);
         vm.prank(rebalancer);
@@ -481,6 +497,50 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
         bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+    }
+
+    function test_localRebalance_revertsWhenDestinationFundedByDonation()
+        public
+    {
+        // A prior donation of the output token sits on the bridge.
+        outputToken.mintTo(address(bridge), 100e6);
+
+        // Calls produce no new output: the rebalancer tries to satisfy the
+        // destination from the donation while pocketing the escrowed input.
+        CallLib.Call[] memory noCalls = new CallLib.Call[](0);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InsufficientOutput.selector
+        );
+        bridge.localRebalance(100e6, noCalls);
+    }
+
+    function test_localRebalance_sharedTokenFundsFromEscrowAndKeepsDonation()
+        public
+    {
+        // input == output: destination holds the same token as the source, so
+        // the escrow itself funds the destination with no swap.
+        MockRebalanceRouter sameTokenDest = new MockRebalanceRouter(
+            inputToken,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        sourceRouter.setCallbackRecipient(address(sameTokenDest));
+
+        // A prior donation of the shared token sits on the bridge.
+        inputToken.mintTo(address(bridge), 50e6);
+
+        CallLib.Call[] memory noCalls = new CallLib.Call[](0);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(100e6, noCalls);
+
+        // Escrow funds the destination; the donation is preserved, not swept.
+        assertEq(inputToken.balanceOf(address(sameTokenDest)), 100e6);
+        assertEq(inputToken.balanceOf(address(bridge)), 50e6);
+        assertEq(inputToken.balanceOf(rebalancer), 0);
     }
 
     function test_transferRemote_revertsIfCallsBridgeOutThroughDestinationRouter()

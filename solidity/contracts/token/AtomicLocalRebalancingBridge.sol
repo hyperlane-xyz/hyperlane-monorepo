@@ -71,6 +71,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         uint256 sourceBalanceBefore = IERC20(inputToken).balanceOf(
             sourceRouter
         );
+        // Snapshot the wrapper's own balance before escrow so donations cannot
+        // count toward funding or be swept as a refund.
+        uint256 inputSelfBefore = IERC20(inputToken).balanceOf(address(this));
 
         address destinationRouter = _rebalanceSource(
             source,
@@ -85,6 +88,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             outputToken,
             amountIn
         );
+        // For a shared input/output token reuse the entry snapshot so escrow
+        // counts toward funding; otherwise exclude any output-token donation.
+        uint256 outputSelfBefore = outputToken == inputToken
+            ? inputSelfBefore
+            : IERC20(outputToken).balanceOf(address(this));
         uint256 destinationBalanceBefore = IERC20(outputToken).balanceOf(
             destinationRouter
         );
@@ -97,9 +105,12 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         ) {
             revert InvalidInputDelta();
         }
-        // Pay the destination directly so calls cannot satisfy the local
-        // balance delta by routing output through the destination router.
-        if (IERC20(outputToken).balanceOf(address(this)) < requiredDelta) {
+        // Calls must produce at least requiredDelta of new output; donations
+        // and escrow already on the wrapper cannot fund the destination.
+        if (
+            IERC20(outputToken).balanceOf(address(this)) <
+            outputSelfBefore + requiredDelta
+        ) {
             revert InsufficientOutput();
         }
         IERC20(outputToken).safeTransfer(destinationRouter, requiredDelta);
@@ -109,9 +120,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         ) {
             revert InsufficientOutput();
         }
-        // Keep the wrapper stateless for exact-output and variable-output paths.
-        _refundTokenBalance(inputToken, msg.sender);
-        _refundTokenBalance(outputToken, msg.sender);
+        // Refund only balances accrued during this call; never sweep donations.
+        _refundDelta(inputToken, inputSelfBefore, msg.sender);
+        if (outputToken != inputToken) {
+            _refundDelta(outputToken, outputSelfBefore, msg.sender);
+        }
 
         _REENTRANCY_GUARD_SLOT.clear();
     }
@@ -197,8 +210,14 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         return 10 ** uint256(IERC20Metadata(token).decimals());
     }
 
-    function _refundTokenBalance(address token, address recipient) internal {
-        uint256 refund = IERC20(token).balanceOf(address(this));
-        if (refund > 0) IERC20(token).safeTransfer(recipient, refund);
+    function _refundDelta(
+        address token,
+        uint256 balanceBefore,
+        address recipient
+    ) internal {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance > balanceBefore) {
+            IERC20(token).safeTransfer(recipient, balance - balanceBefore);
+        }
     }
 }
