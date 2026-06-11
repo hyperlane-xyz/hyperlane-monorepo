@@ -927,7 +927,7 @@ impl PendingMessage {
     }
 
     fn requeue_ica_reveal(&mut self) -> PendingOperationResult {
-        self.ica_reveal_attempts += 1;
+        self.ica_reveal_attempts = self.ica_reveal_attempts.saturating_add(1);
         let (interval, phase) = if self.ica_reveal_attempts <= REVEAL_POLL_FAST_MAX {
             (REVEAL_POLL_FAST_INTERVAL, "fast")
         } else {
