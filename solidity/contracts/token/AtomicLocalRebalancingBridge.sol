@@ -28,6 +28,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
 
     uint32 public immutable localDomain;
 
+    /// @notice The source router this bridge rebalances from.
+    address public immutable sourceRouter;
+
     error RebalanceAlreadyActive();
     error NoActiveRebalance();
     error InvalidCallback();
@@ -36,8 +39,9 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error UnauthorizedRebalancer();
     error InvalidToken();
 
-    constructor(uint32 _localDomain) {
+    constructor(uint32 _localDomain, address _sourceRouter) {
         localDomain = _localDomain;
+        sourceRouter = _sourceRouter;
     }
 
     /// @notice Executes a same-chain rebalance into an enrolled destination
@@ -46,7 +50,6 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// wrapper. Use calls for token approvals and DEX swaps. Calls must leave
     /// enough output token on this wrapper for it to pay the destination router.
     function localRebalance(
-        address sourceRouter,
         uint256 amountIn,
         CallLib.Call[] calldata calls
     ) external payable {
