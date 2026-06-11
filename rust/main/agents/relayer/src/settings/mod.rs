@@ -349,6 +349,9 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 continue;
             }
 
+            // `relayChains` is the relayer's only chain set; wildcard fee-token policies apply to
+            // every configured relay chain as a possible origin. Mixed legacy/latest deployments
+            // must scope fee-token policies with `matchingList`.
             for domain in &relay_chains {
                 if !gas_payment_policy
                     .matching_list

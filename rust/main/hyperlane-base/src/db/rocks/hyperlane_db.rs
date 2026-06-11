@@ -273,9 +273,7 @@ impl HyperlaneRocksDB {
                 &gas_payment_key,
                 &total.into(),
             )?;
-        }
-
-        if event.fee_token != H160::zero() {
+        } else {
             let gas_payment_token_key = GasPaymentTokenKey::from(event);
             let existing_token_payment = self
                 .retrieve_interchain_gas_payment_data_by_gas_payment_token_key(
