@@ -22,7 +22,8 @@ use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, H512,
+    U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -60,8 +61,6 @@ pub const ISM_MAX_COUNT: u32 = 100;
 /// is the only available signal. Use Display (not Debug) to avoid a dependency
 /// on the internal structure of the error type's Debug representation.
 const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
-const REVEAL_POLL_INTERVAL: Duration = Duration::from_secs(1);
-const REVEAL_POLL_MAX: u32 = 30;
 
 fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
     err.to_string().contains(ICA_INVALID_REVEAL)
@@ -142,13 +141,6 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     fail_fast: bool,
-    /// Number of consecutive times this message has been returned to the queue
-    /// due to an "ICA: Invalid Reveal" simulation failure. Tracked separately
-    /// from `num_retries` so these transient waits don't consume the fail-fast
-    /// retry budget.
-    #[new(default)]
-    #[serde(skip_serializing)]
-    ica_reveal_attempts: u32,
 }
 
 impl Debug for PendingMessage {
@@ -257,6 +249,13 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
+    fn origin_tx_hash(&self) -> Option<H512> {
+        self.ctx
+            .origin_db
+            .retrieve_dispatched_tx_hash_by_message_id(&self.message.id())
+            .unwrap_or_default()
+    }
+
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
@@ -310,6 +309,8 @@ impl PendingOperation for PendingMessage {
 
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
+        // Exception: ICA reveal failures are transient (commit not yet confirmed) and
+        // unrelated to metadata validity — signal via gas_limit=0 for batch submission.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
                 match self
@@ -321,6 +322,17 @@ impl PendingOperation for PendingMessage {
                     Ok(s) => {
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
+                    }
+                    Err(e) if is_ica_invalid_reveal(&e) => {
+                        info!(
+                            message_id = ?self.message.id(),
+                            "ICA: Invalid Reveal — returning gas_limit=0 for batch submission"
+                        );
+                        self.submission_data = Some(Box::new(MessageSubmissionData {
+                            metadata: metadata.clone(),
+                            gas_limit: U256::zero(),
+                        }));
+                        return PendingOperationResult::Success;
                     }
                     Err(_) => {
                         self.clear_metadata();
@@ -366,7 +378,6 @@ impl PendingOperation for PendingMessage {
                     .await
                 {
                     Ok(cost) => {
-                        self.ica_reveal_attempts = 0;
                         info!(
                             message_id = ?self.message.id(),
                             gas_limit = ?cost.gas_limit,
@@ -375,23 +386,17 @@ impl PendingOperation for PendingMessage {
                         cost
                     }
                     Err(e) => {
-                        if self.fail_fast
-                            && is_ica_invalid_reveal(&e)
-                            && self.ica_reveal_attempts < REVEAL_POLL_MAX
-                        {
-                            self.ica_reveal_attempts += 1;
-                            warn!(
+                        if is_ica_invalid_reveal(&e) {
+                            info!(
                                 message_id = ?self.message.id(),
-                                attempt = self.ica_reveal_attempts,
-                                max_attempts = REVEAL_POLL_MAX,
-                                "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing after 1s"
+                                "ICA: Invalid Reveal — returning gas_limit=0 for batch submission"
                             );
-                            return self.delay_reprepare(
-                                REVEAL_POLL_INTERVAL,
-                                ReprepareReason::AwaitingIcaReveal,
-                            );
+                            self.submission_data = Some(Box::new(MessageSubmissionData {
+                                metadata,
+                                gas_limit: U256::zero(),
+                            }));
+                            return PendingOperationResult::Success;
                         }
-                        self.ica_reveal_attempts = 0;
                         warn!(
                             message_id = ?self.message.id(),
                             error = %e,
@@ -919,19 +924,6 @@ impl PendingMessage {
         };
 
         GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
-    }
-
-    /// Return `Reprepare` after `delay` without consuming the fail-fast retry budget.
-    /// Used for transient waits (e.g. ICA reveal polling) so that small `max_retries`
-    /// budgets are not exhausted by infrastructure delays.
-    fn delay_reprepare(
-        &mut self,
-        delay: Duration,
-        reason: ReprepareReason,
-    ) -> PendingOperationResult {
-        self.submitted = false;
-        self.next_attempt_after = Instant::now().checked_add(delay);
-        PendingOperationResult::Reprepare(reason)
     }
 
     fn on_reprepare<E: Debug>(

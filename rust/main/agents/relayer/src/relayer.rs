@@ -343,13 +343,17 @@ impl BaseAgent for Relayer {
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destinations.len());
+        let mut batch_send_channels = HashMap::with_capacity(self.destinations.len());
         let mut prep_queues = HashMap::with_capacity(self.destinations.len());
         start_entity_init = Instant::now();
         for (dest_domain, destination) in &self.destinations {
             let dest_conf = &destination.chain_conf;
 
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+            let (batch_send_channel, batch_receive_channel) =
+                mpsc::unbounded_channel::<Vec<QueueOperation>>();
             send_channels.insert(dest_domain.id(), send_channel);
+            batch_send_channels.insert(dest_domain.id(), batch_send_channel);
 
             let dispatcher_entrypoint = self
                 .destinations
@@ -391,6 +395,7 @@ impl BaseAgent for Relayer {
             let message_processor = MessageProcessor::new(
                 dest_domain.clone(),
                 receive_channel,
+                Some(batch_receive_channel),
                 &sender,
                 MessageProcessorMetrics::new(&self.core.metrics, dest_domain),
                 max_batch_size,
@@ -540,7 +545,7 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
 
         let (relayer_router, maybe_relay_api_state) = self
-            .build_router(prep_queues, send_channels, sender.clone())
+            .build_router(prep_queues, batch_send_channels, sender.clone())
             .await;
 
         // Bind relay API on its own port (default 8900), keeping it separate from metrics.
@@ -605,7 +610,7 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
-        send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
+        batch_send_channels: HashMap<u32, mpsc::UnboundedSender<Vec<QueueOperation>>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> (Router, Option<RelayApiState>) {
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
@@ -677,7 +682,7 @@ impl Relayer {
                     indexers,
                     igp_indexers,
                     dbs.clone(),
-                    send_channels,
+                    batch_send_channels,
                     msg_ctxs.clone(),
                     relay_api_metrics,
                 )

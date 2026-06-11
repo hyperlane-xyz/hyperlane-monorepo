@@ -20,7 +20,7 @@ use hyperlane_application::ApplicationReport;
 
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
+    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, H512, U256,
 };
 
 /// Boxed operation that can be stored in an operation queue
@@ -174,6 +174,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// If this operation points to a mailbox contract, return it
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        None
+    }
+
+    /// The origin transaction hash that dispatched this operation, if known.
+    /// Used to group operations from the same origin tx for batch submission.
+    fn origin_tx_hash(&self) -> Option<H512> {
         None
     }
 

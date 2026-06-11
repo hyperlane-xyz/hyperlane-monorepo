@@ -159,7 +159,10 @@ pub struct ServerState {
     /// gas payment check never races the background `tx_id_indexer_task`.
     igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
     dbs: HashMap<u32, HyperlaneRocksDB>,
-    send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    /// Batch send channels keyed by destination domain id. Messages sent here are
+    /// inserted atomically into the prepare queue so all siblings from the same
+    /// origin tx always land in the same `process_batch` call.
+    batch_send_channels: HashMap<u32, UnboundedSender<Vec<QueueOperation>>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
     metrics: RelayApiMetrics,
     // Optional features
@@ -176,7 +179,7 @@ impl ServerState {
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
         igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
         dbs: HashMap<u32, HyperlaneRocksDB>,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        batch_send_channels: HashMap<u32, UnboundedSender<Vec<QueueOperation>>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
         metrics: RelayApiMetrics,
     ) -> Self {
@@ -184,7 +187,7 @@ impl ServerState {
             indexers,
             igp_indexers,
             dbs,
-            send_channels,
+            batch_send_channels,
             msg_ctxs,
             metrics,
             rate_limiter: None,
@@ -516,7 +519,6 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
 
     // 2. Get shared resources once
     let msg_ctxs = &state.msg_ctxs;
-    let send_channels = &state.send_channels;
 
     // 3. Process each message
     let mut processed_messages = Vec::new();
@@ -525,7 +527,6 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
     // If any message fails here, no side effects have occurred.
     struct ValidatedMessage {
         pending_msg: PendingMessage,
-        send_channel: UnboundedSender<QueueOperation>,
         message_id: H256,
         origin_domain: u32,
         tx_hash: H512,
@@ -676,17 +677,20 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             }
         }
 
-        let send_channel = send_channels
-            .get(&extracted.message.destination)
-            .ok_or_else(|| {
-                warn!(
-                    message_id = ?extracted.message_id,
-                    destination_domain = extracted.message.destination,
-                    "No send channel for destination domain"
-                );
-                ServerError::InvalidRequest("Unsupported destination".to_string())
-            })?
-            .clone();
+        // Validate the destination is supported (batch channel existence is the source of truth).
+        if !state
+            .batch_send_channels
+            .contains_key(&extracted.message.destination)
+        {
+            warn!(
+                message_id = ?extracted.message_id,
+                destination_domain = extracted.message.destination,
+                "No send channel for destination domain"
+            );
+            return Err(ServerError::InvalidRequest(
+                "Unsupported destination".to_string(),
+            ));
+        }
 
         // 1 retry: one attempt in the relay API queue, then drop and let the
         // contract indexer re-queue it within seconds via the classical path.
@@ -707,7 +711,6 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
 
         validated.push(ValidatedMessage {
             pending_msg,
-            send_channel,
             message_id: extracted.message_id,
             origin_domain: extracted.message.origin,
             tx_hash: extracted.tx_hash,
@@ -794,12 +797,16 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
 
     // Phase 3: send all validated messages.
     //
-    // Pre-check: verify every destination channel is open before sending anything.
+    // Pre-check: verify every destination batch channel is open before sending anything.
     // UnboundedSender::send() only fails when the receiver (processor) has been
     // dropped. If any channel is already closed we bail here — no messages have
     // entered the queue yet, so the caller's retry is safe and won't double-enqueue.
     for v in &validated {
-        if v.send_channel.is_closed() {
+        let channel_closed = state
+            .batch_send_channels
+            .get(&v.destination_domain)
+            .map_or(true, |ch| ch.is_closed());
+        if channel_closed {
             error!(
                 message_id = ?v.message_id,
                 destination_domain = v.destination_domain,
@@ -812,40 +819,11 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         }
     }
 
-    // Send phase. A failure here is an extreme race (channel closed between the
-    // is_closed() check above and this send). If that happens, messages already
-    // sent in this loop may be double-enqueued on the caller's retry — this is
-    // unavoidable without transactional send semantics, but the pre-check above
-    // eliminates the common case (channel already closed before we start).
-    for v in validated {
-        if let Err(e) = v
-            .send_channel
-            .send(Box::new(v.pending_msg) as QueueOperation)
-        {
-            error!(
-                message_id = ?v.message_id,
-                error = %e,
-                "Processor channel closed mid-send (race); earlier messages in this \
-                 batch may be double-enqueued on retry"
-            );
-            state.record_failure("send_failed");
-            return Err(ServerError::InternalError(
-                "Failed to send message to processor".to_string(),
-            ));
-        }
-
-        info!(
-            message_id = ?v.message_id,
-            destination = v.destination_domain,
-            app_context = ?v.app_context,
-            "Successfully sent message to processor channel"
-        );
-
-        // Store messageId→txHash so the CCIP-read builder can pass the tx hash to the
-        // offchain lookup server, allowing it to skip the GraphQL/scraper lookup and query
-        // Circle directly. This is safe on reorgs: worst case Circle returns no attestation
-        // for a reorged tx hash, which just causes a retry.
-        // We do NOT write nonce→messageId mappings (that would corrupt the DB on reorgs).
+    // Store messageId→txHash for every message, then group by destination and send
+    // each group as an atomic batch. Atomic insertion guarantees all siblings from
+    // the same origin tx land in the same process_batch cycle so they are submitted
+    // together in a single Multicall3 transaction.
+    for v in &validated {
         if let Some(db) = state.dbs.get(&v.origin_domain) {
             use hyperlane_base::db::HyperlaneDb;
             if let Err(e) = db.store_dispatched_tx_hash_by_message_id(&v.message_id, &v.tx_hash) {
@@ -856,13 +834,50 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
                 );
             }
         }
+    }
 
+    // Group by destination domain and send each group as one Vec.
+    let mut by_destination: HashMap<u32, Vec<QueueOperation>> = HashMap::new();
+    for v in validated {
+        info!(
+            message_id = ?v.message_id,
+            destination = v.destination_domain,
+            app_context = ?v.app_context,
+            "Queuing message for atomic batch send"
+        );
         processed_messages.push(MessageInfo {
             message_id: format!("{:x}", v.message_id),
             origin: v.origin_domain,
             destination: v.destination_domain,
             nonce: v.nonce,
         });
+        by_destination
+            .entry(v.destination_domain)
+            .or_default()
+            .push(Box::new(v.pending_msg) as QueueOperation);
+    }
+
+    for (dest_domain, ops) in by_destination {
+        let channel = state
+            .batch_send_channels
+            .get(&dest_domain)
+            .expect("channel existence checked above");
+        let count = ops.len();
+        if let Err(e) = channel.send(ops) {
+            error!(
+                destination_domain = dest_domain,
+                error = %e,
+                "Processor channel closed mid-send (race); messages may be double-enqueued on retry"
+            );
+            state.record_failure("send_failed");
+            return Err(ServerError::InternalError(
+                "Failed to send messages to processor".to_string(),
+            ));
+        }
+        info!(
+            destination_domain = dest_domain,
+            count, "Sent atomic batch to processor"
+        );
     }
 
     state.record_success();

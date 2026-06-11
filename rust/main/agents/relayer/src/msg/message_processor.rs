@@ -1,6 +1,7 @@
 #![allow(clippy::doc_markdown)] // TODO: `rustc` 1.80.1 clippy issue
 #![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +23,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason,
+    PendingOperationStatus, QueueOperation, ReprepareReason, H512, U256,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
@@ -87,6 +88,8 @@ pub struct MessageProcessor {
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
+    /// Receiver for batches of messages that must be inserted atomically (relay API path).
+    batch_rx: Option<mpsc::UnboundedReceiver<Vec<QueueOperation>>>,
     /// Metrics for message processor.
     metrics: MessageProcessorMetrics,
     /// Max batch size for submitting messages
@@ -106,6 +109,7 @@ impl MessageProcessor {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
+        batch_rx: Option<mpsc::UnboundedReceiver<Vec<QueueOperation>>>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: MessageProcessorMetrics,
         max_batch_size: u32,
@@ -134,6 +138,7 @@ impl MessageProcessor {
             domain,
             // Using Options so that method which needs it can take from struct
             rx: Some(rx),
+            batch_rx,
             metrics,
             max_batch_size,
             max_submit_queue_len,
@@ -165,6 +170,7 @@ impl MessageProcessor {
 
     async fn run(mut self) {
         let rx_prepare = self.rx.take().expect("rx should be initialised");
+        let batch_rx = self.batch_rx.take();
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
@@ -179,20 +185,35 @@ impl MessageProcessor {
         };
 
         let confirm_task = self.create_classic_confirm_task();
+        let receive_task = self.create_receive_task(rx_prepare);
 
-        let tasks = [
-            self.create_receive_task(rx_prepare),
-            prepare_task,
-            submit_task,
-            confirm_task,
-        ];
-
-        if let Err(err) = try_join_all(tasks).await {
-            error!(
-                error=?err,
-                domain=?self.domain.name(),
-                "MessageProcessor task panicked for domain"
-            );
+        if let Some(batch_rx) = batch_rx {
+            let batch_receive_task = self.create_batch_receive_task(batch_rx);
+            if let Err(err) = try_join_all([
+                receive_task,
+                batch_receive_task,
+                prepare_task,
+                submit_task,
+                confirm_task,
+            ])
+            .await
+            {
+                error!(
+                    error=?err,
+                    domain=?self.domain.name(),
+                    "MessageProcessor task panicked for domain"
+                );
+            }
+        } else {
+            if let Err(err) =
+                try_join_all([receive_task, prepare_task, submit_task, confirm_task]).await
+            {
+                error!(
+                    error=?err,
+                    domain=?self.domain.name(),
+                    "MessageProcessor task panicked for domain"
+                );
+            }
         }
     }
 
@@ -206,6 +227,27 @@ impl MessageProcessor {
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
                 receive_task(self.domain.clone(), rx_prepare, self.prepare_queue.clone()),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_batch_receive_task(
+        &self,
+        batch_rx: mpsc::UnboundedReceiver<Vec<QueueOperation>>,
+    ) -> JoinHandle<()> {
+        let name = Self::task_name("batch_receive::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                batch_receive_task(
+                    self.domain.clone(),
+                    batch_rx,
+                    self.prepare_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.metrics.clone(),
+                ),
             ))
             .expect("spawning tokio task from Builder is infallible")
     }
@@ -348,6 +390,40 @@ async fn receive_task(
     }
 }
 
+/// Receives batches of operations sent together by the relay API and processes
+/// them as a single unit, bypassing the prepare-queue pop limit (max_batch_size).
+///
+/// Calling `process_batch` inline guarantees that all siblings from the same
+/// origin transaction are prepared and grouped together, so `OperationBatch::submit`
+/// sees them all in one call. This is necessary because `max_batch_size` defaults
+/// to 1, which would otherwise break the group into separate single-op batches.
+///
+/// Ops that are not ready after the first preparation attempt are pushed to
+/// `prepare_queue` for retry by the regular prepare task.
+#[instrument(skip_all, fields(%domain))]
+async fn batch_receive_task(
+    domain: HyperlaneDomain,
+    mut rx: mpsc::UnboundedReceiver<Vec<QueueOperation>>,
+    mut prepare_queue: OpQueue,
+    submit_queue: OpQueue,
+    confirm_queue: OpQueue,
+    metrics: MessageProcessorMetrics,
+) {
+    while let Some(ops) = rx.recv().await {
+        debug_assert!(ops.iter().all(|op| *op.destination_domain() == domain));
+        info!(count = ops.len(), "Processing relay-API batch directly");
+        process_batch(
+            domain.clone(),
+            ops,
+            &mut prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+        )
+        .await;
+    }
+}
+
 #[instrument(skip_all, fields(%domain))]
 async fn prepare_classic_task(
     domain: HyperlaneDomain,
@@ -481,17 +557,14 @@ async fn process_batch(
         .count();
 
     let batch_len = batch.len();
+    let mut success_ops: Vec<QueueOperation> = Vec::new();
     for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
         let app_context = op.app_context();
         match prepare_result {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation prepared");
-
                 metrics.inc_prepared(app_context);
-                // TODO: push multiple messages at once
-                submit_queue
-                    .push(op, Some(PendingOperationStatus::ReadyToSubmit))
-                    .await;
+                success_ops.push(op);
             }
             PendingOperationResult::NotReady => {
                 prepare_queue.push(op, None).await;
@@ -514,6 +587,82 @@ async fn process_batch(
             }
         }
     }
+
+    // Group successful ops by origin tx hash for atomic batch submission.
+    // Ops without a known origin tx hash are submitted individually.
+    let mut ungrouped: Vec<QueueOperation> = Vec::new();
+    let mut by_origin_tx: HashMap<H512, Vec<QueueOperation>> = HashMap::new();
+    for op in success_ops {
+        match op.origin_tx_hash() {
+            Some(hash) => by_origin_tx.entry(hash).or_default().push(op),
+            None => ungrouped.push(op),
+        }
+    }
+
+    for op in ungrouped {
+        submit_queue
+            .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+            .await;
+    }
+
+    for (_hash, ops) in by_origin_tx {
+        if ops.len() == 1 {
+            let op = ops.into_iter().next().expect("length checked");
+            // A gas_limit of zero means this op cannot be submitted alone (e.g. ICA reveal
+            // before its commit has been confirmed). Reprepare and wait for a batch cycle
+            // where it appears alongside its sibling.
+            if op.get_tx_cost_estimate() == Some(U256::zero()) {
+                info!(
+                    message_id = ?op.id(),
+                    "Op needs batch sibling (gas_limit=0), re-queuing"
+                );
+                prepare_queue
+                    .push(
+                        op,
+                        Some(PendingOperationStatus::Retry(
+                            ReprepareReason::AwaitingIcaReveal,
+                        )),
+                    )
+                    .await;
+            } else {
+                submit_queue
+                    .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                    .await;
+            }
+        } else {
+            // Only use Multicall3 batch submission when there is a real dependency
+            // between ops (e.g. ICA reveal that cannot be estimated until its commit
+            // is on-chain, signalled by gas_limit=0). Independent ops (all non-zero
+            // gas_limit) go through the lander path individually — same as a single
+            // message — to avoid the extra Multicall3 overhead and preserve latency.
+            let has_ica_dependency = ops
+                .iter()
+                .any(|op| op.get_tx_cost_estimate() == Some(U256::zero()));
+            if has_ica_dependency {
+                // Sort by origin nonce so commit (nonce N) always precedes reveal
+                // (nonce N+1) in the Multicall3 call list. The simulate_batch uses
+                // allowFailure=true, so if reveal appears before commit in the Vec
+                // the simulation sees no commitment yet and marks reveal as failed,
+                // splitting it out to the slow retry path.
+                let mut ops = ops;
+                ops.sort_by_key(|op| op.priority());
+                info!(
+                    op_count = ops.len(),
+                    "Submitting ICA-dependent origin-tx batch via Multicall3"
+                );
+                OperationBatch::new(ops, domain.clone())
+                    .submit(prepare_queue, confirm_queue, metrics)
+                    .await;
+            } else {
+                for op in ops {
+                    submit_queue
+                        .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                        .await;
+                }
+            }
+        }
+    }
+
     if not_ready_count == batch_len {
         // none of the operations are ready yet, so wait for a little bit
         sleep(Duration::from_millis(500)).await;
@@ -523,9 +672,9 @@ async fn process_batch(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_classic_task(
     domain: HyperlaneDomain,
-    mut prepare_queue: OpQueue,
+    prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
-    mut confirm_queue: OpQueue,
+    confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
 ) {
@@ -541,11 +690,11 @@ async fn submit_classic_task(
             }
             std::cmp::Ordering::Equal => {
                 let op = batch.pop().expect("Should not happen");
-                submit_single_operation(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
+                submit_single_operation(op, &prepare_queue, &confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {
                 OperationBatch::new(batch, domain.clone())
-                    .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
+                    .submit(&prepare_queue, &confirm_queue, &metrics)
                     .await;
             }
         }
@@ -677,8 +826,8 @@ async fn prepare_op(
 #[instrument(skip(prepare_queue, confirm_queue, metrics), ret, level = "debug")]
 pub(crate) async fn submit_single_operation(
     mut op: QueueOperation,
-    prepare_queue: &mut OpQueue,
-    confirm_queue: &mut OpQueue,
+    prepare_queue: &OpQueue,
+    confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
 ) {
     let status = op.submit().await;

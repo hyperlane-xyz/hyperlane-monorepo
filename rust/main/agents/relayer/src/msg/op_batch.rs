@@ -29,8 +29,8 @@ impl OperationBatch {
     #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
-        prepare_queue: &mut OpQueue,
-        confirm_queue: &mut OpQueue,
+        prepare_queue: &OpQueue,
+        confirm_queue: &OpQueue,
         metrics: &MessageProcessorMetrics,
     ) {
         let excluded_ops = match self.try_submit_as_batch(metrics).await {
@@ -112,7 +112,7 @@ impl OperationBatch {
     async fn handle_batch_result(
         operations: Vec<QueueOperation>,
         batch_result: BatchResult,
-        confirm_queue: &mut OpQueue,
+        confirm_queue: &OpQueue,
     ) -> Vec<Box<dyn PendingOperation>> {
         let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
             operations.into_iter().enumerate().partition_map(|(i, op)| {
@@ -133,7 +133,7 @@ impl OperationBatch {
     async fn update_sent_ops_state(
         sent_ops: Vec<Box<dyn PendingOperation>>,
         outcome: TxOutcome,
-        confirm_queue: &mut OpQueue,
+        confirm_queue: &OpQueue,
     ) {
         let total_estimated_cost = total_estimated_cost(sent_ops.as_slice());
         for mut op in sent_ops {
@@ -153,8 +153,8 @@ impl OperationBatch {
 
     async fn submit_serially(
         self,
-        prepare_queue: &mut OpQueue,
-        confirm_queue: &mut OpQueue,
+        prepare_queue: &OpQueue,
+        confirm_queue: &OpQueue,
         metrics: &MessageProcessorMetrics,
     ) {
         for op in self.operations.into_iter() {
