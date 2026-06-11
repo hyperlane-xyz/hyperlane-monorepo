@@ -31,6 +31,15 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   TokenFeeConfig,
   EvmTokenFeeFactories
 > {
+  // Caching is keyed by contract type name, not by constructor args. Enabling
+  // it would cause all sub-fee contracts of the same type (e.g. every
+  // OffchainQuotedLinearFee inside a RoutingFee) to share one address,
+  // regardless of whether their params (token, maxFee, bps, quoteSigners)
+  // differ. This would silently deploy the wrong config for all but the first
+  // destination, and make transferOwnership fail on cached contracts already
+  // owned by the Safe. Each sub-fee must be a unique deployment.
+  protected override cachingEnabled = false;
+
   protected readonly tokenFeeReader: EvmTokenFeeReader;
   constructor(
     protected readonly multiProvider: MultiProvider,

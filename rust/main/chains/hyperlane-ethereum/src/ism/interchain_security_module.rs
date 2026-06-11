@@ -9,7 +9,7 @@ use ethers::providers::Middleware;
 use ethers_core::abi::ethereum_types::H160;
 use tracing::{instrument, warn};
 
-use futures_util::future::try_join;
+use futures_util::future::{join_all, try_join};
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType,
@@ -17,6 +17,7 @@ use hyperlane_core::{
 };
 use num_traits::cast::FromPrimitive;
 
+use crate::interfaces::i_aggregation_ism::IAggregationIsm;
 use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
@@ -75,71 +76,21 @@ where
             domain: locator.domain.clone(),
         }
     }
-}
 
-impl<M> HyperlaneChain for EthereumInterchainSecurityModule<M>
-where
-    M: Middleware + 'static,
-{
-    fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
-    }
-
-    fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(EthereumProvider::new(
-            self.contract.client(),
-            self.domain.clone(),
-        ))
-    }
-}
-
-impl<M> HyperlaneContract for EthereumInterchainSecurityModule<M>
-where
-    M: Middleware + 'static,
-{
-    fn address(&self) -> H256 {
-        self.contract.address().into()
-    }
-}
-
-// The address 0x69BE704F62F7CbC1a30E35E0153D89e2b0A6Aa55 as a byte array.
-// This address was randomly generated in order to estimate gas better than
-// using a fixed address like repeating the 0xab byte, as required by ZkSync chains.
-// This is due to some compression optimizations that ZkSync does when an address is low entropy.
-const RANDOM_ADDRESS: H160 = H160([
-    0x69, 0xBE, 0x70, 0x4F, 0x62, 0xF7, 0xCB, 0xC1, 0xA3, 0x0E, 0x35, 0xE0, 0x15, 0x3D, 0x89, 0xE2,
-    0xB0, 0xA6, 0xAA, 0x55,
-]);
-
-// ISM routing chains are shallow in practice; this cap prevents infinite loops from
-// cycles or pathological on-chain configurations.
-const MAX_ISM_ROUTING_DEPTH: usize = 10;
-
-#[async_trait]
-impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument]
-    async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module = self.contract.module_type().call().await?;
-        if let Some(module_type) = ModuleType::from_u8(module) {
-            Ok(module_type)
-        } else {
-            warn!(%module, "Unknown module type");
-            Ok(ModuleType::Unused)
-        }
-    }
-
-    #[instrument]
-    async fn dry_run_verify(
+    async fn dry_run_verify_inner(
         &self,
         message: &HyperlaneMessage,
         metadata: &Metadata,
+        depth: usize,
     ) -> ChainResult<Option<U256>> {
+        if depth == 0 {
+            warn!("Max ISM depth reached in dry_run_verify");
+            return Ok(None);
+        }
+
         let mut current_address = self.contract.address();
 
-        for _ in 0..=MAX_ISM_ROUTING_DEPTH {
+        for _ in 0..MAX_ISM_DEPTH {
             let locator = ContractLocator {
                 domain: &self.domain,
                 address: current_address.into(),
@@ -217,6 +168,53 @@ where
                 }
             }
 
+            // For Aggregation ISMs, verify() fails during dry-run when any sub-ISM (e.g.
+            // TrustedRelayerIsm) depends on mailbox state set by process() before verify() runs.
+            // Recursively check each sub-ISM: if threshold of them pass, the aggregation passes.
+            if module_type == ModuleType::Aggregation {
+                let aggregation =
+                    IAggregationIsm::new(ism.contract.address(), ism.contract.client());
+                let raw_msg: ethers::types::Bytes =
+                    RawHyperlaneMessage::from(message).to_vec().into();
+                if let Ok((sub_addrs, thresh)) =
+                    aggregation.modules_and_threshold(raw_msg).call().await
+                {
+                    let threshold = thresh as usize;
+                    let sub_isps: Vec<_> = sub_addrs
+                        .into_iter()
+                        .map(|addr| {
+                            let sub_locator = ContractLocator {
+                                domain: &self.domain,
+                                address: addr.into(),
+                            };
+                            EthereumInterchainSecurityModule::new(
+                                self.contract.client(),
+                                &sub_locator,
+                            )
+                        })
+                        .collect();
+                    let sub_results = join_all(sub_isps.iter().enumerate().map(|(i, s)| {
+                        let sub_metadata = aggregation_sub_metadata(metadata, i);
+                        async move {
+                            let Some(sub_metadata) = sub_metadata else {
+                                // No metadata for this sub-ISM; skip it (mirrors Solidity behaviour).
+                                return Ok(None);
+                            };
+                            s.dry_run_verify_inner(message, &sub_metadata, depth.saturating_sub(1))
+                                .await
+                        }
+                    }))
+                    .await;
+                    let valid_count = sub_results
+                        .iter()
+                        .filter(|r| matches!(r, Ok(Some(_))))
+                        .count();
+                    if valid_count >= threshold {
+                        return Ok(Some(U256::zero()));
+                    }
+                }
+            }
+
             // If verify() returned false above, the routed sub-ISM may be a Null/TrustedRelayer ISM
             // whose verify depends on mailbox state set during process(). Iterate to discover it.
             if module_type == ModuleType::Routing {
@@ -238,10 +236,99 @@ where
         }
 
         warn!(
-            max_depth = MAX_ISM_ROUTING_DEPTH,
-            "Max ISM routing depth reached in dry_run_verify"
+            max_depth = MAX_ISM_DEPTH,
+            "Max ISM depth reached in dry_run_verify"
         );
         Ok(None)
+    }
+}
+
+impl<M> HyperlaneChain for EthereumInterchainSecurityModule<M>
+where
+    M: Middleware + 'static,
+{
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.contract.client(),
+            self.domain.clone(),
+        ))
+    }
+}
+
+impl<M> HyperlaneContract for EthereumInterchainSecurityModule<M>
+where
+    M: Middleware + 'static,
+{
+    fn address(&self) -> H256 {
+        self.contract.address().into()
+    }
+}
+
+// The address 0x69BE704F62F7CbC1a30E35E0153D89e2b0A6Aa55 as a byte array.
+// This address was randomly generated in order to estimate gas better than
+// using a fixed address like repeating the 0xab byte, as required by ZkSync chains.
+// This is due to some compression optimizations that ZkSync does when an address is low entropy.
+const RANDOM_ADDRESS: H160 = H160([
+    0x69, 0xBE, 0x70, 0x4F, 0x62, 0xF7, 0xCB, 0xC1, 0xA3, 0x0E, 0x35, 0xE0, 0x15, 0x3D, 0x89, 0xE2,
+    0xB0, 0xA6, 0xAA, 0x55,
+]);
+
+// Caps both routing hops per level and aggregation nesting depth, preventing
+// multiplicative fan-out from nested AggregationISMs and cycles.
+const MAX_ISM_DEPTH: usize = 10;
+
+// Byte width of each range field in AggregationIsmMetadata: (start: u32, end: u32) per sub-ISM.
+const AGGREGATION_RANGE_SIZE: usize = 4;
+
+/// Extracts the per-sub-ISM metadata slice from a packed AggregationIsmMetadata blob.
+/// Format: [index * 8 .. index * 8 + 8] holds (start: u32, end: u32) big-endian.
+/// When start == 0 the sub-ISM has no metadata; returns None in that case.
+fn aggregation_sub_metadata(metadata: &Metadata, index: usize) -> Option<Metadata> {
+    let bytes = metadata.as_ref();
+    let range_start = index
+        .saturating_mul(AGGREGATION_RANGE_SIZE)
+        .saturating_mul(2);
+    let range_mid = range_start.saturating_add(AGGREGATION_RANGE_SIZE);
+    let range_end = range_mid.saturating_add(AGGREGATION_RANGE_SIZE);
+    if bytes.len() < range_end {
+        return None;
+    }
+    let start = u32::from_be_bytes(bytes[range_start..range_mid].try_into().ok()?) as usize;
+    let end = u32::from_be_bytes(bytes[range_mid..range_end].try_into().ok()?) as usize;
+    if start == 0 || end > bytes.len() || start > end {
+        return None;
+    }
+    Some(Metadata::new(bytes[start..end].to_vec()))
+}
+
+#[async_trait]
+impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument]
+    async fn module_type(&self) -> ChainResult<ModuleType> {
+        let module = self.contract.module_type().call().await?;
+        if let Some(module_type) = ModuleType::from_u8(module) {
+            Ok(module_type)
+        } else {
+            warn!(%module, "Unknown module type");
+            Ok(ModuleType::Unused)
+        }
+    }
+
+    #[instrument]
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &Metadata,
+    ) -> ChainResult<Option<U256>> {
+        self.dry_run_verify_inner(message, metadata, MAX_ISM_DEPTH)
+            .await
     }
 }
 
