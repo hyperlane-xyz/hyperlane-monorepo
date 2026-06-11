@@ -27,6 +27,7 @@ import {
 import {
   addressToBytes32,
   bytes32ToAddress,
+  assert,
   eqAddress,
   parseMessage,
 } from '@hyperlane-xyz/utils';
@@ -389,12 +390,31 @@ export class CallCommitmentsService extends BaseService {
    * Used by the router status service to detect call_lost without a time threshold.
    */
   public async handleCheckCommitment(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
-    const record = await prisma.commitment.findUnique({
-      where: { commitment },
-      select: { commitment: true },
-    });
-    return res.json({ exists: record !== null });
+    assert(commitment, 'Route parameter :commitment must be present');
+    try {
+      const record = await prisma.commitment.findUnique({
+        where: { commitment },
+        select: { commitment: true },
+      });
+      return res.json({ exists: record !== null });
+    } catch (error: any) {
+      logger.error(
+        {
+          commitment,
+          error: error.message,
+          stack: error.stack,
+          error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+        },
+        'Database error during commitment existence check',
+      );
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 
   /**
@@ -417,7 +437,11 @@ export class CallCommitmentsService extends BaseService {
       commitmentRateLimit,
       this.handleCommitment.bind(this),
     );
-    router.get('/calls/:commitment', this.handleCheckCommitment.bind(this));
+    router.get(
+      '/calls/:commitment',
+      commitmentRateLimit,
+      this.handleCheckCommitment.bind(this),
+    );
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
