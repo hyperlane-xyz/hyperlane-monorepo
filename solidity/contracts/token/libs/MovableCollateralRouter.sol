@@ -175,6 +175,12 @@ abstract contract MovableCollateralRouter is TokenRouter {
             recipient,
             collateralAmount
         );
+
+        // Revoke any allowance the bridge did not consume.
+        if (collateralToken != address(0)) {
+            IERC20(collateralToken).forceApprove(address(bridge), 0);
+        }
+
         emit CollateralMoved(domain, recipient, collateralAmount, msg.sender);
     }
 
