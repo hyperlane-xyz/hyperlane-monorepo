@@ -4,13 +4,16 @@
  * Usage:
  *   HYP_KEY=0x<private-key> npx tsx src/mcp/server.ts
  *
+ * To use a different env var for the private key, set METASWAPS_KEY_VAR:
+ *   METASWAPS_KEY_VAR=PK_EVM PK_EVM=0x<key> npx tsx src/mcp/server.ts
+ *
  * Or register in your Claude Code config (.mcp.json):
  *   {
  *     "mcpServers": {
  *       "metaswaps": {
  *         "command": "npx",
  *         "args": ["tsx", "/path/to/metaswaps-sdk/src/mcp/server.ts"],
- *         "env": { "HYP_KEY": "0x..." }
+ *         "env": { "METASWAPS_KEY_VAR": "PK_EVM" }
  *       }
  *     }
  *   }
@@ -127,13 +130,14 @@ server.tool(
       .describe('The full QuoteResponse JSON returned by metaswaps_quote'),
   },
   async ({ quoteJson }) => {
-    const privateKey = process.env.HYP_KEY;
+    const keyVar = process.env.METASWAPS_KEY_VAR ?? 'HYP_KEY';
+    const privateKey = process.env[keyVar];
     if (!privateKey) {
       return {
         content: [
           {
             type: 'text' as const,
-            text: 'Error: HYP_KEY environment variable is not set.',
+            text: `Error: ${keyVar} environment variable is not set. Set METASWAPS_KEY_VAR to use a different variable name.`,
           },
         ],
         isError: true,
