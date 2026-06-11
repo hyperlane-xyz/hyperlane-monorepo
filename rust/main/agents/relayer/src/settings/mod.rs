@@ -590,6 +590,18 @@ mod test {
         )
     }
 
+    fn assert_fee_token_igp_error(error: ConfigParsingError, chain_name: &str) {
+        let error = error.to_string();
+        assert!(
+            error.contains("non-legacy IGP"),
+            "unexpected error: {error}",
+        );
+        assert!(
+            error.contains(chain_name),
+            "expected error to name `{chain_name}`: {error}",
+        );
+    }
+
     #[test]
     fn test_parse_address_blacklist() {
         let valid_address1 = b"valid".to_vec();
@@ -662,10 +674,9 @@ mod test {
             }],
         }));
 
-        let error = settings.expect_err("missing IGP version must reject feeToken policy");
-        assert!(
-            error.to_string().contains("non-legacy IGP"),
-            "unexpected error: {error:?}",
+        assert_fee_token_igp_error(
+            settings.expect_err("missing IGP version must reject feeToken policy"),
+            "legacy",
         );
     }
 
@@ -683,10 +694,9 @@ mod test {
             }],
         }));
 
-        let error = settings.expect_err("legacy IGP must reject feeToken policy");
-        assert!(
-            error.to_string().contains("non-legacy IGP"),
-            "unexpected error: {error:?}",
+        assert_fee_token_igp_error(
+            settings.expect_err("legacy IGP must reject feeToken policy"),
+            "legacy",
         );
     }
 
@@ -706,10 +716,32 @@ mod test {
             }],
         }));
 
-        let error = settings.expect_err("matched legacy origin must reject feeToken policy");
+        assert_fee_token_igp_error(
+            settings.expect_err("matched legacy origin must reject feeToken policy"),
+            "legacy",
+        );
+    }
+
+    #[test]
+    fn wildcard_fee_token_policy_rejects_each_legacy_relay_chain() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy1,legacy2",
+            "chains": {
+                "legacy1": chain_config("legacy1", 1000, Some("legacy")),
+                "legacy2": chain_config("legacy2", 2000, None),
+            },
+            "gaspaymentenforcement": [{
+                "type": "minimum",
+                "payment": "1",
+                "feetoken": "0x0000000000000000000000000000000000000005",
+            }],
+        }));
+
+        let error = settings.expect_err("wildcard feeToken policy must reject all legacy origins");
+        let error = error.to_string();
         assert!(
-            error.to_string().contains("non-legacy IGP"),
-            "unexpected error: {error:?}",
+            error.contains("legacy1") && error.contains("legacy2"),
+            "expected error to name both legacy origins: {error}",
         );
     }
 
