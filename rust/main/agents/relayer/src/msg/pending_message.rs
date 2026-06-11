@@ -938,7 +938,8 @@ impl PendingMessage {
         reason: ReprepareReason,
     ) -> PendingOperationResult {
         self.submitted = false;
-        self.next_attempt_after = Instant::now().checked_add(delay);
+        self.last_attempted_at = Instant::now();
+        self.next_attempt_after = self.last_attempted_at.checked_add(delay);
         PendingOperationResult::Reprepare(reason)
     }
 
