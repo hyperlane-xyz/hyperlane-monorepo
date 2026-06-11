@@ -21,6 +21,11 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
 
+    // Reentrancy guard spanning the whole `localRebalance` body, including the
+    // arbitrary `calls` window.
+    bytes32 private constant _REENTRANCY_GUARD_SLOT =
+        keccak256("hyperlane.atomicLocalRebalancingBridge.reentrancyGuard");
+
     // Stores the expected source router during `localRebalance`; the source
     // router callback replaces it with the resolved destination router.
     bytes32 private constant _CALLBACK_RECIPIENT_SLOT =
@@ -53,9 +58,8 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         uint256 amountIn,
         CallLib.Call[] calldata calls
     ) external payable {
-        if (_CALLBACK_RECIPIENT_SLOT.loadBytes32() != bytes32(0)) {
-            revert RebalanceAlreadyActive();
-        }
+        if (_REENTRANCY_GUARD_SLOT.loadBool()) revert RebalanceAlreadyActive();
+        _REENTRANCY_GUARD_SLOT.set();
 
         MovableCollateralRouter source = MovableCollateralRouter(sourceRouter);
         if (!source.isAllowedRebalancer(msg.sender)) {
@@ -108,6 +112,8 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         // Keep the wrapper stateless for exact-output and variable-output paths.
         _refundTokenBalance(inputToken, msg.sender);
         _refundTokenBalance(outputToken, msg.sender);
+
+        _REENTRANCY_GUARD_SLOT.clear();
     }
 
     function _rebalanceSource(

@@ -152,6 +152,19 @@ contract MockRebalanceRouter {
     }
 }
 
+contract ReentrantCallTarget {
+    AtomicLocalRebalancingBridge public immutable bridge;
+
+    constructor(AtomicLocalRebalancingBridge _bridge) {
+        bridge = _bridge;
+    }
+
+    function reenter() external {
+        CallLib.Call[] memory empty = new CallLib.Call[](0);
+        bridge.localRebalance(1, empty);
+    }
+}
+
 contract AtomicLocalRebalancingBridgeTest is Test {
     uint32 internal constant LOCAL_DOMAIN = 10;
 
@@ -301,6 +314,23 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             AtomicLocalRebalancingBridge.RebalanceAlreadyActive.selector
         );
         bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+    }
+
+    function test_localRebalance_revertsOnReentrancyDuringCalls() public {
+        ReentrantCallTarget target = new ReentrantCallTarget(bridge);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.build(
+            address(target),
+            0,
+            abi.encodeCall(ReentrantCallTarget.reenter, ())
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.RebalanceAlreadyActive.selector
+        );
+        bridge.localRebalance(100e6, calls);
     }
 
     function test_quoteTransferRemote_revertsForNonLocalDomain() public {
