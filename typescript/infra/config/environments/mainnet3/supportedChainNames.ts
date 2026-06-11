@@ -96,7 +96,7 @@ export const mainnet3SupportedChainNames = [
   'radix',
   'rarichain',
   'reactive',
-  // 'robinhood',
+  'robinhood',
   'ronin',
   'sei',
   'shibarium',

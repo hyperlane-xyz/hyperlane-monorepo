@@ -1683,15 +1683,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  // robinhood: {
-  //   threshold: 1,
-  //   validators: [
-  //     {
-  //       address: '0x4b22d7b451e5ad05e91356ef847cc7c253533584',
-  //       alias: AW_VALIDATOR_ALIAS,
-  //     },
-  //   ],
-  // },
+  robinhood: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4b22d7b451e5ad05e91356ef847cc7c253533584',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
 
   ronin: {
     threshold: 4,
