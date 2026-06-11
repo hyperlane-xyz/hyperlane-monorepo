@@ -325,6 +325,7 @@ impl PendingOperation for PendingMessage {
                     .await
                 {
                     Ok(s) => {
+                        self.ica_reveal_attempts = 0;
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
                     }
