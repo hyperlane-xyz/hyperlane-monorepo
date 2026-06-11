@@ -6394,6 +6394,7 @@ dependencies = [
  "num-traits",
  "prost 0.13.4",
  "prost-types 0.13.4",
+ "regex",
  "reqwest 0.11.27",
  "reqwest-utils",
  "serde",
