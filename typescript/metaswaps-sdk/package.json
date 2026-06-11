@@ -1,0 +1,60 @@
+{
+  "name": "@hyperlane-xyz/metaswaps-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Hyperlane Metaswaps — cross-chain token swaps via the Universal Router",
+  "keywords": [
+    "Cross-chain",
+    "Hyperlane",
+    "Metaswaps",
+    "SDK",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc -w",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf ./dist",
+    "check": "tsc --noEmit",
+    "lint": "oxlint -c ../../oxlint.json",
+    "format": "oxfmt --write ./src",
+    "example:quote": "tsx src/examples/quote.ts"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/registry": "catalog:",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "viem": "catalog:"
+  },
+  "peerDependencies": {
+    "viem": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "viem": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
