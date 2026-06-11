@@ -480,15 +480,12 @@ describe('hyperlane warp apply with submitters', async function () {
         hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
       });
 
-      // Extract the transaction file from the logs
+      // Extract the combined bundle file path from the logs
       const output = result.text();
       const filePathMatch = output.match(
-        /Transaction receipts.*successfully written to (.*-gnosisSafeTxBuilder-.*\.json)/,
+        /Combined \d+ bundle\(s\).*written to (.*\.json)/,
       );
-      assert(
-        filePathMatch,
-        'Expected transaction receipts file path in output',
-      );
+      assert(filePathMatch, 'Expected combined bundle file path in output');
       const [, filePath] = filePathMatch;
 
       // Read the exported JSON file

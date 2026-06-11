@@ -60,8 +60,11 @@ pub const ISM_MAX_COUNT: u32 = 100;
 /// is the only available signal. Use Display (not Debug) to avoid a dependency
 /// on the internal structure of the error type's Debug representation.
 const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
-const REVEAL_POLL_INTERVAL: Duration = Duration::from_secs(1);
-const REVEAL_POLL_MAX: u32 = 30;
+const REVEAL_POLL_FAST_INTERVAL: Duration = Duration::from_secs(1);
+const REVEAL_POLL_FAST_MAX: u32 = 30; // first 30s: poll every 1s
+const REVEAL_POLL_SLOW_INTERVAL: Duration = Duration::from_secs(5);
+const REVEAL_POLL_SLOW_COUNT: u32 = 36; // next 3min: poll every 5s
+const REVEAL_POLL_TOTAL_MAX: u32 = REVEAL_POLL_FAST_MAX + REVEAL_POLL_SLOW_COUNT;
 
 fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
     err.to_string().contains(ICA_INVALID_REVEAL)
@@ -310,6 +313,9 @@ impl PendingOperation for PendingMessage {
 
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
+        // Exception: ICA reveal failures are transient (commit not yet confirmed) and
+        // unrelated to metadata validity — don't clear the cache so CCIP data isn't
+        // re-fetched on every 1s poll cycle.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
                 match self
@@ -319,8 +325,15 @@ impl PendingOperation for PendingMessage {
                     .await
                 {
                     Ok(s) => {
+                        self.ica_reveal_attempts = 0;
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
+                    }
+                    Err(e)
+                        if is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX =>
+                    {
+                        return self.requeue_ica_reveal();
                     }
                     Err(_) => {
                         self.clear_metadata();
@@ -375,23 +388,16 @@ impl PendingOperation for PendingMessage {
                         cost
                     }
                     Err(e) => {
-                        if self.fail_fast
-                            && is_ica_invalid_reveal(&e)
-                            && self.ica_reveal_attempts < REVEAL_POLL_MAX
+                        if is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX
                         {
-                            self.ica_reveal_attempts += 1;
-                            warn!(
-                                message_id = ?self.message.id(),
-                                attempt = self.ica_reveal_attempts,
-                                max_attempts = REVEAL_POLL_MAX,
-                                "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing after 1s"
-                            );
-                            return self.delay_reprepare(
-                                REVEAL_POLL_INTERVAL,
-                                ReprepareReason::AwaitingIcaReveal,
-                            );
+                            return self.requeue_ica_reveal();
                         }
-                        self.ica_reveal_attempts = 0;
+                        // Only reset on non-reveal errors; leave attempts pinned at cap so a
+                        // permanently-failing reveal doesn't re-enter the fast-poll burst.
+                        if !is_ica_invalid_reveal(&e) {
+                            self.ica_reveal_attempts = 0;
+                        }
                         warn!(
                             message_id = ?self.message.id(),
                             error = %e,
@@ -921,6 +927,24 @@ impl PendingMessage {
         GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
     }
 
+    fn requeue_ica_reveal(&mut self) -> PendingOperationResult {
+        self.ica_reveal_attempts = self.ica_reveal_attempts.saturating_add(1);
+        let (interval, phase) = if self.ica_reveal_attempts <= REVEAL_POLL_FAST_MAX {
+            (REVEAL_POLL_FAST_INTERVAL, "fast")
+        } else {
+            (REVEAL_POLL_SLOW_INTERVAL, "slow")
+        };
+        warn!(
+            message_id = ?self.message.id(),
+            attempt = self.ica_reveal_attempts,
+            max_attempts = REVEAL_POLL_TOTAL_MAX,
+            phase,
+            interval_secs = interval.as_secs(),
+            "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing"
+        );
+        self.delay_reprepare(interval, ReprepareReason::AwaitingIcaReveal)
+    }
+
     /// Return `Reprepare` after `delay` without consuming the fail-fast retry budget.
     /// Used for transient waits (e.g. ICA reveal polling) so that small `max_retries`
     /// budgets are not exhausted by infrastructure delays.
@@ -930,7 +954,8 @@ impl PendingMessage {
         reason: ReprepareReason,
     ) -> PendingOperationResult {
         self.submitted = false;
-        self.next_attempt_after = Instant::now().checked_add(delay);
+        self.last_attempted_at = Instant::now();
+        self.next_attempt_after = self.last_attempted_at.checked_add(delay);
         PendingOperationResult::Reprepare(reason)
     }
 

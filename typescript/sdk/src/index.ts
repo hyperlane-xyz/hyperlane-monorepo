@@ -769,7 +769,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpModule, type WarpUpdateResult } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   WARP_ROUTE_CHECK_SCALE_TYPE,
