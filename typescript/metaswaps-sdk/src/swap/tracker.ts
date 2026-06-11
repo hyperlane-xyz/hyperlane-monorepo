@@ -5,6 +5,7 @@ import {
   CROSS_CHAIN_SWAP_TOPIC,
   DEFAULT_EXPLORER_API_URL,
   DEFAULT_POLLING_INTERVAL_MS,
+  DEFAULT_RELAY_API_URL,
   DISPATCH_ID_TOPIC,
 } from '../utils/constants.js';
 import { maybeSubmitToRelayApi } from './relay.js';
@@ -55,7 +56,7 @@ export class SwapTracker {
   constructor(
     private readonly pollingInterval: number = DEFAULT_POLLING_INTERVAL_MS,
     private readonly explorerApiUrl: string = DEFAULT_EXPLORER_API_URL,
-    private readonly relayApiUrl?: string,
+    private readonly relayApiUrl: string = DEFAULT_RELAY_API_URL,
   ) {
     this.originConfirmed = new Promise((resolve, reject) => {
       this._originResolve = resolve;
@@ -144,9 +145,7 @@ export class SwapTracker {
       }
 
       // Fire-and-forget CCTP relay submission before resolving origin.
-      if (this.relayApiUrl) {
-        void maybeSubmitToRelayApi(receipt, srcChainId, this.relayApiUrl);
-      }
+      void maybeSubmitToRelayApi(receipt, srcChainId, this.relayApiUrl);
 
       this.transition(SwapStatus.OriginConfirmed);
       this._originResolve();

@@ -12,6 +12,8 @@ export const DEFAULT_CCS_URL =
 export const DEFAULT_EXPLORER_API_URL =
   'https://explorer4.hasura.app/v1/graphql';
 
+export const DEFAULT_RELAY_API_URL = 'https://relay-api.hyperlane.xyz';
+
 // ── Timing / UX ──────────────────────────────────────────────────────────────
 
 export const DEFAULT_POLLING_INTERVAL_MS = 5_000;

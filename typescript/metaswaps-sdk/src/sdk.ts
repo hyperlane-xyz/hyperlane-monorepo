@@ -15,6 +15,7 @@ import {
   DEFAULT_CCS_URL,
   DEFAULT_EXPLORER_API_URL,
   DEFAULT_POLLING_INTERVAL_MS,
+  DEFAULT_RELAY_API_URL,
   DEFAULT_ROUTING_URL,
   resolveRpcUrl,
 } from './utils/constants.js';
@@ -26,9 +27,9 @@ export class MetaswapsSDK {
     routingUrl: string;
     ccsUrl: string;
     explorerApiUrl: string;
+    relayApiUrl: string;
     pollingInterval: number;
     chainRpcUrls: Record<number, string>;
-    relayApiUrl?: string;
     logger: Logger;
   };
 
@@ -39,9 +40,9 @@ export class MetaswapsSDK {
       routingUrl,
       ccsUrl: config.ccsUrl ?? DEFAULT_CCS_URL,
       explorerApiUrl: config.explorerApiUrl ?? DEFAULT_EXPLORER_API_URL,
+      relayApiUrl: config.relayApiUrl ?? DEFAULT_RELAY_API_URL,
       pollingInterval: config.pollingInterval ?? DEFAULT_POLLING_INTERVAL_MS,
       chainRpcUrls: config.chainRpcUrls ?? {},
-      relayApiUrl: config.relayApiUrl,
       logger: config.logger ?? pino({ level: 'info' }),
     };
   }

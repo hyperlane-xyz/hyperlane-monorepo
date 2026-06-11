@@ -23,9 +23,10 @@ export interface MetaswapsSDKConfig {
   // Falls back to the bundled defaults for unsupplied chains.
   chainRpcUrls?: Record<number, string>;
 
-  // Optional relay API URL for fast CCTP processing.
-  // When set, the SDK submits origin transactions containing CCTP MessageSent
-  // events to {relayApiUrl}/relay immediately after origin confirmation.
+  // Relay API base URL for fast CCTP processing.
+  // Default: 'https://relay-api.hyperlane.xyz'
+  // Origin transactions containing CCTP MessageSent events are submitted to
+  // {relayApiUrl}/relay immediately after origin confirmation.
   relayApiUrl?: string;
 
   logger?: Logger;
