@@ -221,6 +221,9 @@
   "neutron": {
     "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
   },
+  "nexus": {
+    "validators": ["0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4"]
+  },
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
   },
@@ -320,6 +323,9 @@
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
+  "tea": {
+    "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
+  },
   "tron": {
     "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
   },
@@ -359,13 +365,7 @@
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
   },
-  "nexus": {
-    "validators": ["0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4"]
-  },
   "robinhood": {
     "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
-  },
-  "tea": {
-    "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
   }
 }
