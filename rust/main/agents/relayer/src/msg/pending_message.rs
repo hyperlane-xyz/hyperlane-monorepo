@@ -1366,7 +1366,7 @@ mod test {
     fn test_could_not_fetch_metadata_backoff() {
         let reason = ReprepareReason::AwaitingValidatorSignatures;
 
-        // Fast-path: retries 1–10 always return 1s
+        // Fast-path: retries 1–10 always return 2s
         for i in 1..=10 {
             assert_eq!(
                 PendingMessage::calculate_msg_backoff(
@@ -1375,8 +1375,8 @@ mod test {
                     None,
                     Some(&reason)
                 ),
-                Some(Duration::from_secs(1)),
-                "retry {i} should be 1s"
+                Some(Duration::from_secs(2)),
+                "retry {i} should be 2s"
             );
         }
 
