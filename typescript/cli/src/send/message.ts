@@ -1,8 +1,13 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
-import { type ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import {
+  type ChainName,
+  HyperlaneCore,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
@@ -159,6 +164,14 @@ async function executeDelivery({
       log('Attempting self-relay of message');
       await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');
+      await logMessageDeliveryTime(
+        origin,
+        destination,
+        dispatchTx.blockNumber,
+        message.id,
+        chainAddresses,
+        multiProvider,
+      );
     } else {
       if (skipWaitForDelivery) {
         return;
@@ -168,11 +181,56 @@ async function executeDelivery({
       // Max wait 10 minutes
       await core.waitForMessageProcessed(dispatchTx, 10000, 60);
       logGreen('Message was delivered!');
+      await logMessageDeliveryTime(
+        origin,
+        destination,
+        dispatchTx.blockNumber,
+        message.id,
+        chainAddresses,
+        multiProvider,
+      );
     }
   } catch (e) {
     errorRed(
       `Encountered error sending message from ${origin} to ${destination}`,
     );
     throw e;
+  }
+}
+
+async function logMessageDeliveryTime(
+  origin: ChainName,
+  destination: ChainName,
+  dispatchBlockNumber: number,
+  messageId: string,
+  chainAddresses: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  if (
+    !isEVMLike(multiProvider.getProtocol(origin)) ||
+    !isEVMLike(multiProvider.getProtocol(destination))
+  ) {
+    return;
+  }
+  try {
+    const mailboxAddress = chainAddresses[destination]?.mailbox;
+    if (!mailboxAddress) return;
+
+    const mailbox = Mailbox__factory.connect(
+      mailboxAddress,
+      multiProvider.getProvider(destination),
+    );
+    const processedBlockNum = await mailbox.processedAt(messageId);
+    const [dispatchBlock, processedBlock] = await Promise.all([
+      multiProvider.getProvider(origin).getBlock(dispatchBlockNumber),
+      multiProvider.getProvider(destination).getBlock(processedBlockNum),
+    ]);
+    if (dispatchBlock && processedBlock) {
+      logGreen(
+        `Delivery time: ${processedBlock.timestamp - dispatchBlock.timestamp}s`,
+      );
+    }
+  } catch {
+    // Non-fatal: delivery time is informational only
   }
 }
