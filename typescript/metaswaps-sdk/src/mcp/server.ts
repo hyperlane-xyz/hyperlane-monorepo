@@ -19,8 +19,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { MetaswapsSDK } from '../sdk.js';
-import { checkMessageDelivery } from '../swap/tracker.js';
-import { SwapStatus } from '../swap/tracker.js';
+import { checkMessageDelivery, SwapStatus } from '../swap/tracker.js';
 import type { QuoteResponse } from '../client/schemas.js';
 
 const sdk = new MetaswapsSDK({
@@ -215,7 +214,7 @@ server.tool(
 
 server.tool(
   'metaswaps_check_delivery',
-  'Check whether a Hyperlane message has been delivered on the destination chain. Call this periodically after metaswaps_swap returns msgIds. For bridge→swap routes there are multiple message IDs — all must be delivered for the full swap to complete.',
+  'Check whether a Hyperlane message has been delivered on the destination chain. Call this periodically after metaswaps_swap returns msgIds. For bridge→swap routes there are multiple messages labeled warp/commit/reveal — use the msgId field from each LabeledMsgId to check delivery.',
   {
     msgId: z
       .string()

@@ -46,6 +46,8 @@ export type { WalletConfig } from './wallet/types.js';
 export {
   SwapStatus,
   checkMessageDelivery,
+  type SwapMessageLabel,
+  type LabeledMsgId,
   type SwapStatusUpdate,
   type SwapDeliveryResult,
   type MessageDeliveryStatus,
@@ -65,6 +67,7 @@ export {
   BRIDGE_EVENT_TOPIC,
   CROSS_CHAIN_SWAP_TOPIC,
   DISPATCH_ID_TOPIC,
+  DISPATCH_TOPIC,
   CCTP_MESSAGE_SENT_TOPIC,
   CCTP_MESSAGE_TRANSMITTER_ADDRESSES,
   REGISTRY_RPC_URLS,

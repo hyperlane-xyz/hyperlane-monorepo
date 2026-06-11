@@ -48,6 +48,12 @@ export const CROSS_CHAIN_SWAP_TOPIC = ethers.utils.id(
 // topics[1] is the bytes32 messageId — the canonical identifier for explorer polling.
 export const DISPATCH_ID_TOPIC = ethers.utils.id('DispatchId(bytes32)');
 
+// Emitted by Mailbox alongside DispatchId. Carries indexed sender + full message bytes.
+// topics[1] = sender (padded address), data = abi.encode(bytes message)
+export const DISPATCH_TOPIC = ethers.utils.id(
+  'Dispatch(address,uint32,bytes32,bytes)',
+);
+
 // keccak256("MessageSent(bytes)") — emitted by Circle's MessageTransmitter V2
 // for CCTP transfers. Used to detect if a tx needs relay API submission.
 export const CCTP_MESSAGE_SENT_TOPIC =

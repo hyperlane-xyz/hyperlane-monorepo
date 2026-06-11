@@ -7,9 +7,17 @@ import {
   DEFAULT_POLLING_INTERVAL_MS,
   DEFAULT_RELAY_API_URL,
   DISPATCH_ID_TOPIC,
+  DISPATCH_TOPIC,
 } from '../utils/constants.js';
 import { maybeSubmitToRelayApi } from './relay.js';
 import { sleep } from '../utils.js';
+
+export type SwapMessageLabel = 'warp' | 'commit' | 'reveal';
+
+export interface LabeledMsgId {
+  msgId: string;
+  label: SwapMessageLabel;
+}
 
 export enum SwapStatus {
   Pending = 'Pending',
@@ -26,7 +34,7 @@ export interface SwapStatusUpdate {
   status: SwapStatus;
   timestamp: number;
   originTxHash?: string;
-  msgIds?: string[];
+  msgIds?: LabeledMsgId[];
   destinationTxHash?: string;
   error?: string;
 }
@@ -34,12 +42,12 @@ export interface SwapStatusUpdate {
 export interface SwapDeliveryResult {
   status: SwapStatus;
   destinationTxHash?: string;
-  msgIds?: string[];
+  msgIds?: LabeledMsgId[];
 }
 
 export class SwapTracker {
   private _status: SwapStatus = SwapStatus.Pending;
-  private _msgIds: string[] = [];
+  private _msgIds: LabeledMsgId[] = [];
   private _originTxHash?: string;
   private _destinationTxHash?: string;
   private _error?: string;
@@ -158,8 +166,13 @@ export class SwapTracker {
         return;
       }
 
-      // Extract Hyperlane message IDs from Mailbox DispatchId events.
-      const msgIds = extractDispatchIds(receipt);
+      // Extract Hyperlane message IDs, labeled by type (warp / commit / reveal).
+      const bridgeRouters = new Set(
+        route.steps
+          .filter((s) => s.type === 'bridge')
+          .map((s) => s.router.toLowerCase()),
+      );
+      const msgIds = extractLabeledMsgIds(receipt, bridgeRouters);
       if (msgIds.length === 0) {
         throw new Error(
           'Origin transaction confirmed but no Hyperlane DispatchId events found — the bridge call may have reverted internally',
@@ -180,13 +193,13 @@ export class SwapTracker {
   }
 
   private async trackHyperlane(
-    msgIds: string[],
+    msgIds: LabeledMsgId[],
     _dstChainId: number,
   ): Promise<void> {
-    const hasDestSwap = msgIds.length >= 2; // commit + reveal = 2 messages
+    const hasDestSwap = msgIds.some((m) => m.label === 'commit');
     // Poll all message IDs in parallel; resolve when all are delivered.
     try {
-      await Promise.all(msgIds.map((id) => this.pollMessageDelivered(id)));
+      await Promise.all(msgIds.map((m) => this.pollMessageDelivered(m.msgId)));
       this.transition(
         hasDestSwap
           ? SwapStatus.DestSwapExecuted
@@ -274,18 +287,50 @@ export function receiptHasBridgeEvent(
   );
 }
 
-// Extracts Hyperlane message IDs from Mailbox DispatchId(bytes32) events.
-// topics[0] = DispatchId event selector
-// topics[1] = bytes32 messageId (the identifier the explorer and relayer use)
+// Extracts Hyperlane message IDs from Mailbox events, labeled by type.
 //
-// A simple bridge emits 1 DispatchId. A bridge+dest-swap route emits 2
-// (one for the warp transfer, one for the ICA commit message).
-function extractDispatchIds(
+// The Mailbox always emits Dispatch + DispatchId as consecutive pairs in the same tx.
+// We pair them by emission order and label each based on:
+//   - sender matches a bridge router address → 'warp'
+//   - body byte 0 = 0x01 → 'commit' (ICA call commitment)
+//   - body byte 0 = 0x02 → 'reveal' (ICA call reveal)
+//   - otherwise → 'warp'
+//
+// Message body byte offset in abi.encode(bytes message):
+//   64 hex chars (ABI offset) + 64 hex chars (ABI length) + 77*2 hex chars (message header) = 282
+function extractLabeledMsgIds(
   receipt: ethers.providers.TransactionReceipt,
-): string[] {
-  return receipt.logs
-    .filter((log) => log.topics[0] === DISPATCH_ID_TOPIC && log.topics[1])
-    .map((log) => log.topics[1]);
+  bridgeRouters: Set<string>,
+): LabeledMsgId[] {
+  const dispatches = receipt.logs.filter(
+    (log) => log.topics[0] === DISPATCH_TOPIC,
+  );
+  const dispatchIds = receipt.logs.filter(
+    (log) => log.topics[0] === DISPATCH_ID_TOPIC && log.topics[1],
+  );
+
+  return dispatchIds.map((idLog, i) => {
+    const msgId = idLog.topics[1];
+    const dispatchLog = dispatches[i];
+    if (!dispatchLog) return { msgId, label: 'warp' as const };
+
+    // topics[1] = sender, right-padded to 32 bytes → last 40 hex chars = address
+    const sender = '0x' + dispatchLog.topics[1].slice(-40).toLowerCase();
+    if (bridgeRouters.has(sender)) return { msgId, label: 'warp' as const };
+
+    const dataHex = dispatchLog.data.startsWith('0x')
+      ? dispatchLog.data.slice(2)
+      : dispatchLog.data;
+    const BODY_FIRST_BYTE_OFFSET = 64 + 64 + 77 * 2; // 282 hex chars
+    const bodyByte = dataHex.slice(
+      BODY_FIRST_BYTE_OFFSET,
+      BODY_FIRST_BYTE_OFFSET + 2,
+    );
+
+    if (bodyByte === '01') return { msgId, label: 'commit' as const };
+    if (bodyByte === '02') return { msgId, label: 'reveal' as const };
+    return { msgId, label: 'warp' as const };
+  });
 }
 
 export interface MessageDeliveryStatus {

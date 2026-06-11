@@ -104,7 +104,7 @@ async function main(): Promise<void> {
         break;
       case SwapStatus.Bridging:
         console.log(
-          `[${ts}] Bridging… (msg IDs: ${update.msgIds?.join(', ')})`,
+          `[${ts}] Bridging… (msg IDs: ${update.msgIds?.map((m) => `${m.label}:${m.msgId}`).join(', ')})`,
         );
         break;
       case SwapStatus.DestinationConfirmed:
