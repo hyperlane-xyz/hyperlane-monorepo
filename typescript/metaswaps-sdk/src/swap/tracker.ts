@@ -281,3 +281,45 @@ function extractDispatchIds(
     .filter((log) => log.topics[0] === DISPATCH_ID_TOPIC && log.topics[1])
     .map((log) => log.topics[1]);
 }
+
+export interface MessageDeliveryStatus {
+  isDelivered: boolean;
+  destinationTxHash?: string;
+}
+
+// Single-shot delivery check — does not poll. Returns the current state.
+// Useful for agents that want to check status on their own schedule.
+export async function checkMessageDelivery(
+  msgId: string,
+  explorerApiUrl = DEFAULT_EXPLORER_API_URL,
+): Promise<MessageDeliveryStatus> {
+  const byteaMsgId = `\\x${msgId.replace(/^0x/i, '').toLowerCase()}`;
+  const query = `query($msgId: bytea!) {
+    message_view(where: {msg_id: {_eq: $msgId}}, limit: 1) {
+      is_delivered
+      destination_tx_hash
+    }
+  }`;
+  const res = await fetch(explorerApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables: { msgId: byteaMsgId } }),
+  });
+  if (!res.ok) throw new Error(`Explorer query failed: HTTP ${res.status}`);
+  const json = (await res.json()) as {
+    data?: {
+      message_view?: Array<{
+        is_delivered: boolean;
+        destination_tx_hash?: string | null;
+      }>;
+    };
+  };
+  const msg = json.data?.message_view?.[0];
+  if (!msg) return { isDelivered: false };
+  return {
+    isDelivered: msg.is_delivered,
+    destinationTxHash: msg.destination_tx_hash
+      ? '0x' + msg.destination_tx_hash.replace(/^\\x/, '')
+      : undefined,
+  };
+}

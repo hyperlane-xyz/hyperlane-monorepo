@@ -45,8 +45,10 @@ export type { WalletConfig } from './wallet/types.js';
 // Status tracking types
 export {
   SwapStatus,
+  checkMessageDelivery,
   type SwapStatusUpdate,
   type SwapDeliveryResult,
+  type MessageDeliveryStatus,
 } from './swap/tracker.js';
 
 // Config and handle types

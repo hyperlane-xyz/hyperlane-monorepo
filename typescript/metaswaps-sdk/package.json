@@ -31,10 +31,12 @@
     "check": "tsc --noEmit",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
-    "example:quote": "tsx src/examples/quote.ts"
+    "example:quote": "tsx src/examples/quote.ts",
+    "mcp": "tsx src/mcp/server.ts"
   },
   "dependencies": {
     "@hyperlane-xyz/registry": "catalog:",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ethers": "catalog:",
     "pino": "catalog:",
     "zod": "catalog:"
