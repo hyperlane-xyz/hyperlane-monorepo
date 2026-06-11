@@ -349,9 +349,10 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 continue;
             }
 
-            // `relayChains` is the relayer's only chain set; wildcard fee-token policies apply to
-            // every configured relay chain as a possible origin. Mixed legacy/latest deployments
-            // must scope fee-token policies with `matchingList`.
+            // `relayChains` is the relayer's only chain set. Fee-token policies with wildcard
+            // or destination-only matching lists apply to every configured relay chain as a
+            // possible origin. Mixed legacy/latest deployments must scope fee-token policies
+            // with `matchingList[].origindomain`.
             for domain in &relay_chains {
                 if !gas_payment_policy
                     .matching_list
@@ -648,6 +649,27 @@ mod test {
     }
 
     #[test]
+    fn fee_token_policy_rejects_missing_igp_version() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000, None),
+            },
+            "gaspaymentenforcement": [{
+                "type": "minimum",
+                "payment": "1",
+                "feetoken": "0x0000000000000000000000000000000000000005",
+            }],
+        }));
+
+        let error = settings.expect_err("missing IGP version must reject feeToken policy");
+        assert!(
+            error.to_string().contains("non-legacy IGP"),
+            "unexpected error: {error:?}",
+        );
+    }
+
+    #[test]
     fn fee_token_policy_rejects_legacy_igp_version() {
         let settings = parse_settings(json!({
             "relaychains": "legacy",
@@ -669,11 +691,34 @@ mod test {
     }
 
     #[test]
-    fn fee_token_policy_allows_default_latest_igp_version() {
+    fn fee_token_policy_rejects_matching_legacy_origin() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy,latest",
+            "chains": {
+                "legacy": chain_config("legacy", 1000, Some("legacy")),
+                "latest": chain_config("latest", 2000, Some("latest")),
+            },
+            "gaspaymentenforcement": [{
+                "type": "minimum",
+                "payment": "1",
+                "feetoken": "0x0000000000000000000000000000000000000005",
+                "matchinglist": [{ "origindomain": 1000 }],
+            }],
+        }));
+
+        let error = settings.expect_err("matched legacy origin must reject feeToken policy");
+        assert!(
+            error.to_string().contains("non-legacy IGP"),
+            "unexpected error: {error:?}",
+        );
+    }
+
+    #[test]
+    fn fee_token_policy_allows_explicit_latest_igp_version() {
         let settings = parse_settings(json!({
             "relaychains": "latest",
             "chains": {
-                "latest": chain_config("latest", 2000, None),
+                "latest": chain_config("latest", 2000, Some("latest")),
             },
             "gaspaymentenforcement": [{
                 "type": "minimum",
@@ -681,7 +726,7 @@ mod test {
                 "feetoken": "0x0000000000000000000000000000000000000005",
             }],
         }))
-        .expect("default IGP version should allow feeToken policy");
+        .expect("latest IGP version should allow feeToken policy");
 
         let domain = settings
             .base
@@ -705,7 +750,7 @@ mod test {
             "relaychains": "legacy,latest",
             "chains": {
                 "legacy": chain_config("legacy", 1000, Some("legacy")),
-                "latest": chain_config("latest", 2000, None),
+                "latest": chain_config("latest", 2000, Some("latest")),
             },
             "gaspaymentenforcement": [{
                 "type": "minimum",
@@ -717,5 +762,21 @@ mod test {
         .expect("unmatched legacy origin should not block feeToken policy");
 
         assert_eq!(settings.gas_payment_enforcement.len(), 1);
+    }
+
+    #[test]
+    fn rejects_invalid_igp_version() {
+        let settings = parse_settings(json!({
+            "relaychains": "chain",
+            "chains": {
+                "chain": chain_config("chain", 3000, Some("newfangled")),
+            },
+        }));
+
+        let error = settings.expect_err("invalid IGP version must reject config");
+        assert!(
+            error.to_string().contains("Invalid IGP version"),
+            "unexpected error: {error:?}",
+        );
     }
 }

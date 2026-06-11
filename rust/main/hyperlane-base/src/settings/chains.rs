@@ -52,9 +52,9 @@ use super::ChainSigner;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum IgpVersion {
     /// Legacy IGPs do not support offchain quoting or ERC20 fee-token payments.
+    #[default]
     Legacy,
     /// Latest IGPs support offchain quoting and ERC20 fee-token payments.
-    #[default]
     Latest,
 }
 
