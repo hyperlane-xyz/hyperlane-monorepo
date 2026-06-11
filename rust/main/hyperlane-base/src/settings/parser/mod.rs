@@ -238,6 +238,11 @@ fn parse_chain(
         .get_key("merkleTreeHook")
         .parse_address_hash()
         .end();
+    let quoted_calls = chain
+        .chain(&mut err)
+        .get_opt_key("quotedCalls")
+        .parse_address_hash()
+        .end();
 
     let batch_contract_address = chain
         .chain(&mut err)
@@ -356,6 +361,7 @@ fn parse_chain(
             interchain_gas_paymaster,
             validator_announce,
             merkle_tree_hook,
+            quoted_calls,
         },
         connection,
         metrics_conf: Default::default(),

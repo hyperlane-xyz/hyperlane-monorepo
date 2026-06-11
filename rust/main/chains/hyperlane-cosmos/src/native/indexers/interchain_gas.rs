@@ -8,7 +8,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512, U256,
 };
 
 use crate::{
@@ -119,6 +119,7 @@ impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
                 message_id,
                 payment,
                 gas_amount,
+                fee_token: H160::zero(),
             },
         ))
     }

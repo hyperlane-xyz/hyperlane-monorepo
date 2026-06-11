@@ -347,6 +347,9 @@ const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
+  feeToken: ZHash.optional().describe(
+    'The origin fee token that must have paid the IGP. The zero address, or unset, represents native tokens.',
+  ),
 });
 const GasPaymentEnforcementSchema = z.union([
   GasPaymentEnforcementBaseSchema.extend({

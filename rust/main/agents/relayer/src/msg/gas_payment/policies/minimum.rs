@@ -58,6 +58,7 @@ async fn test_gas_payment_policy_minimum() {
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
         destination: message.destination,
+        fee_token: Default::default(),
         payment: U256::from(999u32),
         gas_amount: U256::zero(),
     };
@@ -88,6 +89,7 @@ async fn test_gas_payment_policy_minimum() {
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
         destination: message.destination,
+        fee_token: Default::default(),
         payment: U256::from(1000u32),
         gas_amount: U256::zero(),
     };

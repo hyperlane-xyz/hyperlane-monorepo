@@ -16,7 +16,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -104,6 +104,8 @@ pub struct RelayerSettings {
 pub struct GasPaymentEnforcementConf {
     /// The gas payment enforcement policy
     pub policy: GasPaymentEnforcementPolicy,
+    /// Origin fee token that must have paid the IGP. The zero address represents native tokens.
+    pub fee_token: H160,
     /// An optional matching list, any message that matches will use this
     /// policy. By default all messages will match.
     pub matching_list: MatchingList,
@@ -222,6 +224,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
 
                 let matching_list = policy.chain(&mut err).get_opt_key("matchingList").and_then(parse_matching_list).unwrap_or_default();
+                let fee_token = policy.chain(&mut err)
+                    .get_opt_key("feeToken")
+                    .parse_from_str::<H160>("Expected feeToken to be an EVM address")
+                    .end()
+                    .unwrap_or_else(H160::zero);
 
                 let parse_minimum = |p| GasPaymentEnforcementPolicy::Minimum { payment: p };
                 match policy_type {
@@ -265,6 +272,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                         .take_err(&mut err, || cwp.add("type")),
                 }.map(|policy| GasPaymentEnforcementConf {
                     policy,
+                    fee_token,
                     matching_list,
                 })
             }).collect_vec()
@@ -335,6 +343,30 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     .take_config_err(&mut err)
             })
             .collect();
+
+        for gas_payment_policy in &gas_payment_enforcement {
+            if gas_payment_policy.fee_token == H160::zero() {
+                continue;
+            }
+
+            for domain in &relay_chains {
+                let chain_setup = match base.chain_setup(domain) {
+                    Ok(chain_setup) => chain_setup,
+                    Err(e) => {
+                        err.push((&p.cwp).add("gas_payment_enforcement"), e);
+                        continue;
+                    }
+                };
+                if chain_setup.addresses.quoted_calls.is_none() {
+                    err.push(
+                        (&p.cwp).add("gas_payment_enforcement"),
+                        eyre!(
+                            "`feeToken` gas payment enforcement requires `{domain}` chain addresses to include `quotedCalls`"
+                        ),
+                    );
+                }
+            }
+        }
 
         let (raw_metric_app_contexts_path, raw_metric_app_contexts) = p
             .get_opt_key("metricAppContexts")

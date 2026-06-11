@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{
-    FixedPointNumber, GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure,
-    InterchainGasPayment, TxCostEstimate, TxOutcome, U256,
+    FixedPointNumber, GasPaymentTokenKey, HyperlaneMessage, InterchainGasExpenditure,
+    InterchainGasPayment, TxCostEstimate, TxOutcome, H160, U256,
 };
 use tracing::{debug, error, trace};
 
@@ -54,7 +54,7 @@ pub struct GasPaymentEnforcer {
     /// use a wild-card white list to ensure all messages fall into one
     /// policy or another. If a message matches multiple policies'
     /// whitelists, then whichever is first in the list will be used.
-    policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList)>,
+    policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList, H160)>,
     db: HyperlaneRocksDB,
 }
 
@@ -67,7 +67,13 @@ impl GasPaymentEnforcer {
     ) -> Self {
         let policies = policy_configs
             .into_iter()
-            .map(|cfg| (Self::create_policy(&cfg.policy), cfg.matching_list))
+            .map(|cfg| {
+                (
+                    Self::create_policy(&cfg.policy),
+                    cfg.matching_list,
+                    cfg.fee_token,
+                )
+            })
             .collect();
 
         Self { policies, db }
@@ -79,7 +85,8 @@ impl GasPaymentEnforcer {
         policy: Box<dyn GasPaymentPolicy>,
         matching_list: MatchingList,
     ) {
-        self.policies.insert(index, (policy, matching_list));
+        self.policies
+            .insert(index, (policy, matching_list, H160::zero()));
     }
 
     pub fn create_policy(policy: &GasPaymentEnforcementPolicy) -> Box<dyn GasPaymentPolicy> {
@@ -99,7 +106,7 @@ impl GasPaymentEnforcer {
         self.policies.remove(index);
     }
 
-    pub fn get_policies(&self) -> &Vec<(Box<dyn GasPaymentPolicy>, MatchingList)> {
+    pub fn get_policies(&self) -> &Vec<(Box<dyn GasPaymentPolicy>, MatchingList, H160)> {
         &self.policies
     }
 }
@@ -113,23 +120,9 @@ impl GasPaymentEnforcer {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<GasPolicyStatus> {
         let msg_id = message.id();
-        let gas_payment_key = GasPaymentKey {
-            message_id: msg_id,
-            destination: message.destination,
-        };
-        let current_payment_option = self
-            .db
-            .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
-
-        let payment_found = current_payment_option.is_some();
-
-        let current_payment = match current_payment_option {
-            Some(payment) => payment,
-            None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
-        };
         let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
 
-        for (policy, whitelist) in &self.policies {
+        for (policy, whitelist, fee_token) in &self.policies {
             if !whitelist.msg_matches(message, true) {
                 trace!(
                     hyp_message=%message,
@@ -140,15 +133,33 @@ impl GasPaymentEnforcer {
                 continue;
             }
 
+            let gas_payment_key = GasPaymentTokenKey {
+                message_id: msg_id,
+                destination: message.destination,
+                fee_token: *fee_token,
+            };
+            let current_payment_option = self
+                .db
+                .retrieve_gas_payment_by_gas_payment_token_key(gas_payment_key)?;
+
+            let payment_found = current_payment_option.is_some();
+
+            let current_payment = match current_payment_option {
+                Some(payment) => payment,
+                None => InterchainGasPayment::from_gas_payment_token_key(gas_payment_key),
+            };
+
             trace!(
                 hyp_message=%message,
                 ?policy,
                 ?whitelist,
+                ?fee_token,
                 "Message matched whitelist for policy"
             );
             debug!(
                 hyp_message=%message,
                 ?policy,
+                ?fee_token,
                 ?current_payment,
                 ?current_expenditure,
                 ?tx_cost_estimate,
@@ -239,6 +250,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
+                    fee_token: Default::default(),
                     matching_list: Default::default(),
                 }],
                 hyperlane_db,
@@ -271,6 +283,7 @@ mod test {
                 // Require a payment
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
+                    fee_token: Default::default(),
                     matching_list,
                 }],
                 hyperlane_db,
@@ -307,6 +320,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db.clone(),
@@ -315,6 +329,7 @@ mod test {
             let wrong_destination_payment = InterchainGasPayment {
                 message_id: msg.id(),
                 destination: 456,
+                fee_token: Default::default(),
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
@@ -332,6 +347,7 @@ mod test {
             let correct_destination_payment = InterchainGasPayment {
                 message_id: msg.id(),
                 destination: msg.destination,
+                fee_token: Default::default(),
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
@@ -341,6 +357,69 @@ mod test {
             assert_eq!(
                 enforcer
                     .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::PolicyMet(U256::zero())
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_fee_token_specific_minimum_policy() {
+        #[allow(unused_must_use)]
+        test_utils::run_test_db(|db| async move {
+            let msg = HyperlaneMessage {
+                destination: 123,
+                ..HyperlaneMessage::default()
+            };
+            let fee_token = H160::from_str("0x0000000000000000000000000000000000001234").unwrap();
+
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_fee_token_specific_minimum_policy"),
+                db,
+            );
+
+            let token_payment = InterchainGasPayment {
+                message_id: msg.id(),
+                destination: msg.destination,
+                fee_token,
+                payment: U256::one(),
+                gas_amount: U256::one(),
+            };
+            hyperlane_db.process_gas_payment(token_payment, &LogMeta::random());
+
+            let native_enforcer = GasPaymentEnforcer::new(
+                vec![GasPaymentEnforcementConf {
+                    policy: GasPaymentEnforcementPolicy::Minimum {
+                        payment: U256::one(),
+                    },
+                    fee_token: H160::zero(),
+                    matching_list: MatchingList::default(),
+                }],
+                hyperlane_db.clone(),
+            );
+            assert_eq!(
+                native_enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default())
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::NoPaymentFound
+            );
+
+            let token_enforcer = GasPaymentEnforcer::new(
+                vec![GasPaymentEnforcementConf {
+                    policy: GasPaymentEnforcementPolicy::Minimum {
+                        payment: U256::one(),
+                    },
+                    fee_token,
+                    matching_list: MatchingList::default(),
+                }],
+                hyperlane_db,
+            );
+            assert_eq!(
+                token_enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default())
                     .await
                     .unwrap(),
                 GasPolicyStatus::PolicyMet(U256::zero())
@@ -368,6 +447,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::from(2),
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db.clone(),
@@ -376,6 +456,7 @@ mod test {
             let initial_payment = InterchainGasPayment {
                 message_id: msg.id(),
                 destination: msg.destination,
+                fee_token: Default::default(),
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
@@ -392,6 +473,7 @@ mod test {
             let deficit_payment = InterchainGasPayment {
                 message_id: msg.id(),
                 destination: msg.destination,
+                fee_token: Default::default(),
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
@@ -425,6 +507,7 @@ mod test {
                     GasPaymentEnforcementConf {
                         // No payment for special cases
                         policy: GasPaymentEnforcementPolicy::None,
+                        fee_token: Default::default(),
                         matching_list,
                     },
                     GasPaymentEnforcementConf {
@@ -432,6 +515,7 @@ mod test {
                         policy: GasPaymentEnforcementPolicy::Minimum {
                             payment: U256::one(),
                         },
+                        fee_token: Default::default(),
                         matching_list: MatchingList::default(),
                     },
                 ],
@@ -494,6 +578,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::from(0),
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -524,6 +609,7 @@ mod test {
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
                 destination: HyperlaneMessage::default().destination,
+                fee_token: Default::default(),
                 payment: U256::from(1),
                 gas_amount: U256::from(1),
             };
@@ -535,6 +621,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::from(1),
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -569,6 +656,7 @@ mod test {
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
                 destination: HyperlaneMessage::default().destination,
+                fee_token: Default::default(),
                 payment: U256::from(0),
                 gas_amount: U256::from(0),
             };
@@ -580,6 +668,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::from(0),
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -615,6 +704,7 @@ mod test {
                 // Require a payment
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -646,6 +736,7 @@ mod test {
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
                 destination: HyperlaneMessage::default().destination,
+                fee_token: Default::default(),
                 payment: U256::from(1),
                 gas_amount: U256::from(1),
             };
@@ -655,6 +746,7 @@ mod test {
                 // Require a payment
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -693,6 +785,7 @@ mod test {
                         gas_fraction_numerator: 1,
                         gas_fraction_denominator: 2,
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,
@@ -723,6 +816,7 @@ mod test {
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
                 destination: HyperlaneMessage::default().destination,
+                fee_token: Default::default(),
                 payment: U256::from(1),
                 gas_amount: U256::from(50),
             };
@@ -735,6 +829,7 @@ mod test {
                         gas_fraction_numerator: 1,
                         gas_fraction_denominator: 2,
                     },
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 hyperlane_db,

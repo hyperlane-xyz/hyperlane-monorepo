@@ -3,8 +3,8 @@ use std::io::{Error, ErrorKind};
 use uuid::Uuid;
 
 use crate::{
-    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneProtocolError, Indexed,
-    InterchainGasPayment, H160, H256, H512, U256,
+    identifiers::UniqueIdentifier, GasPaymentKey, GasPaymentTokenKey, HyperlaneProtocolError,
+    Indexed, InterchainGasPayment, H160, H256, H512, U256,
 };
 
 /// Simple trait for types with a canonical encoding
@@ -233,6 +233,33 @@ impl Decode for GasPaymentKey {
     }
 }
 
+impl Encode for GasPaymentTokenKey {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written: usize = 0;
+        written = written.saturating_add(self.message_id.write_to(writer)?);
+        written = written.saturating_add(self.destination.write_to(writer)?);
+        written = written.saturating_add(self.fee_token.write_to(writer)?);
+        Ok(written)
+    }
+}
+
+impl Decode for GasPaymentTokenKey {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        Ok(Self {
+            message_id: H256::read_from(reader)?,
+            destination: u32::read_from(reader)?,
+            fee_token: H160::read_from(reader)?,
+        })
+    }
+}
+
 impl Encode for InterchainGasPayment {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -243,6 +270,7 @@ impl Encode for InterchainGasPayment {
         written = written.saturating_add(self.destination.write_to(writer)?);
         written = written.saturating_add(self.payment.write_to(writer)?);
         written = written.saturating_add(self.gas_amount.write_to(writer)?);
+        written = written.saturating_add(self.fee_token.write_to(writer)?);
         Ok(written)
     }
 }
@@ -258,6 +286,15 @@ impl Decode for InterchainGasPayment {
             destination: u32::read_from(reader)?,
             payment: U256::read_from(reader)?,
             gas_amount: U256::read_from(reader)?,
+            fee_token: match H160::read_from(reader) {
+                Ok(fee_token) => fee_token,
+                Err(HyperlaneProtocolError::IoError(err))
+                    if err.kind() == ErrorKind::UnexpectedEof =>
+                {
+                    H160::zero()
+                }
+                Err(err) => return Err(err),
+            },
         })
     }
 }
@@ -357,6 +394,7 @@ mod test {
         let payment = super::InterchainGasPayment {
             message_id: Default::default(),
             destination: 42,
+            fee_token: Default::default(),
             payment: 100.into(),
             gas_amount: 200.into(),
         };

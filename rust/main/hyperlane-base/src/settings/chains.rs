@@ -234,6 +234,8 @@ pub struct CoreContractAddresses {
     pub validator_announce: H256,
     /// Address of the MerkleTreeHook contract
     pub merkle_tree_hook: H256,
+    /// Address of the QuotedCalls contract, if deployed for the chain.
+    pub quoted_calls: Option<H256>,
 }
 
 /// Indexing settings

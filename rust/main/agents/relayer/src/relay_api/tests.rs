@@ -583,6 +583,7 @@ async fn test_igp_payments_stored_before_enqueue() {
     let payment = InterchainGasPayment {
         message_id,
         destination: DEST_ID,
+        fee_token: Default::default(),
         payment: U256::from(100u64),
         gas_amount: U256::from(200u64),
     };

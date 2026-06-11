@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -16,8 +16,8 @@ use hyperlane_core::{
 
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 use crate::interfaces::i_interchain_gas_paymaster::{
-    GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
-    IINTERCHAINGASPAYMASTER_ABI,
+    GasPaymentFilter, GasPaymentWithFeeTokenFilter,
+    IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
 };
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod};
 
@@ -84,6 +84,26 @@ where
             reorg_period,
         }
     }
+
+    fn legacy_payment(log: GasPaymentFilter) -> InterchainGasPayment {
+        InterchainGasPayment {
+            message_id: H256::from(log.message_id),
+            destination: log.destination_domain,
+            fee_token: H160::zero(),
+            payment: log.payment.into(),
+            gas_amount: log.gas_amount.into(),
+        }
+    }
+
+    fn token_payment(log: GasPaymentWithFeeTokenFilter) -> InterchainGasPayment {
+        InterchainGasPayment {
+            message_id: H256::from(log.message_id),
+            destination: log.destination_domain,
+            fee_token: H160::from(log.fee_token),
+            payment: log.payment.into(),
+            gas_amount: log.gas_amount.into(),
+        }
+    }
 }
 
 #[async_trait]
@@ -97,27 +117,37 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let events = self
+        let legacy_events = self
             .contract
             .gas_payment_filter()
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()
             .await?;
+        let token_events = self
+            .contract
+            .gas_payment_with_fee_token_filter()
+            .from_block(*range.start())
+            .to_block(*range.end())
+            .query_with_meta()
+            .await?;
 
-        Ok(events
+        let token_event_txs = token_events
+            .iter()
+            .map(|(_, log_meta)| LogMeta::from(log_meta.clone()).transaction_id)
+            .collect::<HashSet<_>>();
+
+        Ok(legacy_events
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    Indexed::new(InterchainGasPayment {
-                        message_id: H256::from(log.message_id),
-                        destination: log.destination_domain,
-                        payment: log.payment.into(),
-                        gas_amount: log.gas_amount.into(),
-                    }),
-                    log_meta.into(),
-                )
+            .filter(|(_, log_meta)| {
+                !token_event_txs.contains(&LogMeta::from(log_meta.clone()).transaction_id)
             })
+            .map(|(log, log_meta)| (Indexed::new(Self::legacy_payment(log)), log_meta.into()))
+            .chain(
+                token_events.into_iter().map(|(log, log_meta)| {
+                    (Indexed::new(Self::token_payment(log)), log_meta.into())
+                }),
+            )
             .collect())
     }
 
@@ -130,6 +160,30 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        let token_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<GasPaymentWithFeeTokenFilter, M>(
+                    tx_hash, provider, contract,
+                )
+                .await?
+                .ok_or_else(|| {
+                    ChainCommunicationError::CustomError(format!(
+                        "No receipt found for tx hash {tx_hash:?}"
+                    ))
+                })
+            })
+        })
+        .await;
+
+        if !token_logs_and_meta.is_empty() {
+            return Ok(token_logs_and_meta
+                .into_iter()
+                .map(|(log, log_meta)| (Indexed::new(Self::token_payment(log)), log_meta))
+                .collect());
+        }
+
         let raw_logs_and_meta = call_and_retry_indefinitely(|| {
             let provider = self.provider.clone();
             let contract = self.contract.address();
@@ -147,17 +201,7 @@ where
 
         let logs = raw_logs_and_meta
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    Indexed::new(InterchainGasPayment {
-                        message_id: H256::from(log.message_id),
-                        destination: log.destination_domain,
-                        payment: log.payment.into(),
-                        gas_amount: log.gas_amount.into(),
-                    }),
-                    log_meta,
-                )
-            })
+            .map(|(log, log_meta)| (Indexed::new(Self::legacy_payment(log)), log_meta))
             .collect();
         Ok(logs)
     }
