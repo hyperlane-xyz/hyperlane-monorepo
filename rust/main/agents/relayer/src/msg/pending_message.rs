@@ -312,6 +312,9 @@ impl PendingOperation for PendingMessage {
 
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
+        // Exception: ICA reveal failures are transient (commit not yet confirmed) and
+        // unrelated to metadata validity — don't clear the cache so CCIP data isn't
+        // re-fetched on every 1s poll cycle.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
                 match self
@@ -323,6 +326,28 @@ impl PendingOperation for PendingMessage {
                     Ok(s) => {
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
+                    }
+                    Err(e)
+                        if is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts
+                                < REVEAL_POLL_FAST_MAX + REVEAL_POLL_SLOW_MAX =>
+                    {
+                        self.ica_reveal_attempts += 1;
+                        let (interval, phase) = if self.ica_reveal_attempts <= REVEAL_POLL_FAST_MAX
+                        {
+                            (REVEAL_POLL_FAST_INTERVAL, "fast")
+                        } else {
+                            (REVEAL_POLL_SLOW_INTERVAL, "slow")
+                        };
+                        warn!(
+                            message_id = ?self.message.id(),
+                            attempt = self.ica_reveal_attempts,
+                            max_attempts = REVEAL_POLL_FAST_MAX + REVEAL_POLL_SLOW_MAX,
+                            phase,
+                            interval_secs = interval.as_secs(),
+                            "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing"
+                        );
+                        return self.delay_reprepare(interval, ReprepareReason::AwaitingIcaReveal);
                     }
                     Err(_) => {
                         self.clear_metadata();
