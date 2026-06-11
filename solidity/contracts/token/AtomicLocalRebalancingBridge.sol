@@ -169,11 +169,10 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         address inputToken = MovableCollateralRouter(msg.sender).token();
 
         // Match router rebalance quote semantics: no native fee, exact source
-        // token amount pulled by transferRemote, no additional token fee.
-        quotes = new Quote[](3);
+        // token amount pulled by transferRemote.
+        quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: 0});
         quotes[1] = Quote({token: inputToken, amount: amount});
-        quotes[2] = Quote({token: inputToken, amount: 0});
     }
 
     /// @notice Router callback. Pulls input into escrow for the active local
