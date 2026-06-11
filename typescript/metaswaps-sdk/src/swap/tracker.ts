@@ -7,6 +7,7 @@ import {
   DEFAULT_POLLING_INTERVAL_MS,
   DISPATCH_ID_TOPIC,
 } from '../utils/constants.js';
+import { maybeSubmitToRelayApi } from './relay.js';
 import { sleep } from '../utils.js';
 
 export enum SwapStatus {
@@ -54,6 +55,7 @@ export class SwapTracker {
   constructor(
     private readonly pollingInterval: number = DEFAULT_POLLING_INTERVAL_MS,
     private readonly explorerApiUrl: string = DEFAULT_EXPLORER_API_URL,
+    private readonly relayApiUrl?: string,
   ) {
     this.originConfirmed = new Promise((resolve, reject) => {
       this._originResolve = resolve;
@@ -124,7 +126,7 @@ export class SwapTracker {
     txHash: string,
     provider: ethers.providers.Provider,
     route: RouteResponse,
-    _srcChainId: number,
+    srcChainId: number,
     dstChainId: number,
   ): Promise<void> {
     try {
@@ -139,6 +141,11 @@ export class SwapTracker {
         this._originReject(new Error(this._error));
         this._deliveredReject(new Error(this._error));
         return;
+      }
+
+      // Fire-and-forget CCTP relay submission before resolving origin.
+      if (this.relayApiUrl) {
+        void maybeSubmitToRelayApi(receipt, srcChainId, this.relayApiUrl);
       }
 
       this.transition(SwapStatus.OriginConfirmed);

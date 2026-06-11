@@ -23,6 +23,11 @@ export interface MetaswapsSDKConfig {
   // Falls back to the bundled defaults for unsupplied chains.
   chainRpcUrls?: Record<number, string>;
 
+  // Optional relay API URL for fast CCTP processing.
+  // When set, the SDK submits origin transactions containing CCTP MessageSent
+  // events to {relayApiUrl}/relay immediately after origin confirmation.
+  relayApiUrl?: string;
+
   logger?: Logger;
 
   // How many seconds in the future to set the UniversalRouter deadline.

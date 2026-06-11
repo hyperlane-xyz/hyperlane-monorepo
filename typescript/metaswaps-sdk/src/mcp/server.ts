@@ -23,7 +23,9 @@ import { checkMessageDelivery } from '../swap/tracker.js';
 import { SwapStatus } from '../swap/tracker.js';
 import type { QuoteResponse } from '../client/schemas.js';
 
-const sdk = new MetaswapsSDK();
+const sdk = new MetaswapsSDK({
+  relayApiUrl: process.env.RELAY_API_URL,
+});
 
 const server = new McpServer({
   name: 'metaswaps',

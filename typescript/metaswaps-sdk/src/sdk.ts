@@ -28,6 +28,7 @@ export class MetaswapsSDK {
     explorerApiUrl: string;
     pollingInterval: number;
     chainRpcUrls: Record<number, string>;
+    relayApiUrl?: string;
     logger: Logger;
   };
 
@@ -40,6 +41,7 @@ export class MetaswapsSDK {
       explorerApiUrl: config.explorerApiUrl ?? DEFAULT_EXPLORER_API_URL,
       pollingInterval: config.pollingInterval ?? DEFAULT_POLLING_INTERVAL_MS,
       chainRpcUrls: config.chainRpcUrls ?? {},
+      relayApiUrl: config.relayApiUrl,
       logger: config.logger ?? pino({ level: 'info' }),
     };
   }
@@ -75,6 +77,7 @@ export class MetaswapsSDK {
     const tracker = new SwapTracker(
       this.config.pollingInterval,
       this.config.explorerApiUrl,
+      this.config.relayApiUrl,
     );
 
     const originTxHash = await executeSwap(
