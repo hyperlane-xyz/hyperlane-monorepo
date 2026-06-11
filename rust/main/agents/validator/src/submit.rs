@@ -162,7 +162,7 @@ impl ValidatorSubmitter {
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
 
-            sleep(self.interval).await;
+            sleep(Duration::from_secs(2)).await;
         }
     }
 
