@@ -1064,8 +1064,8 @@ impl PendingMessage {
         reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
         // Signatures are simply not yet available (validator hasn't signed past the reorg
-        // period yet). Use a 1s fast-path for the first ~10 retries so the relayer picks
-        // them up within ~1s of the validator writing them, rather than waiting through the
+        // period yet). Use a 2s fast-path for the first ~10 retries so the relayer picks
+        // them up within ~2s of the validator writing them, rather than waiting through the
         // normal 5s→10s→30s→60s exponential backoff. Note: num_retries is the total persisted
         // retry counter across all reasons, not a per-reason count — messages that burned through
         // >10 retries before reaching metadata-wait won't get this fast-path.
@@ -1074,7 +1074,7 @@ impl PendingMessage {
         // from the beginning rather than landing mid-table at the 3-min arm.
         if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
             if (1..=10).contains(&num_retries) {
-                return Some(Duration::from_secs(1));
+                return Some(Duration::from_secs(2));
             }
             // Offset retries so 11→1, 12→2, … resuming the normal ramp.
             // Pass reason=None to avoid recursing into this branch again.
