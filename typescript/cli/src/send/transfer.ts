@@ -6,7 +6,6 @@ import { type Address, type Hex } from 'viem';
 
 import {
   CrossCollateralRouter__factory,
-  Mailbox__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
@@ -23,7 +22,6 @@ import {
   HyperlaneCore,
   MultiProtocolCore,
   MultiProtocolProvider,
-  type MultiProvider,
   PredicateApiClient,
   type PredicateAttestation,
   PredicateAttestationSchema,
@@ -59,7 +57,7 @@ import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { runSelfRelay } from '../utils/relay.js';
+import { logDeliveryTime, runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -814,43 +812,6 @@ async function executeDelivery({
     }
   }
   logGreen(`Transfer sent to ${destination} chain!`);
-}
-
-async function logDeliveryTime(
-  origin: ChainName,
-  destination: ChainName,
-  dispatchBlockNumber: number,
-  messageId: string,
-  chainAddresses: ChainMap<Record<string, string>>,
-  multiProvider: MultiProvider,
-): Promise<void> {
-  if (
-    !isEVMLike(multiProvider.getProtocol(origin)) ||
-    !isEVMLike(multiProvider.getProtocol(destination))
-  ) {
-    return;
-  }
-  try {
-    const mailboxAddress = chainAddresses[destination]?.mailbox;
-    if (!mailboxAddress) return;
-
-    const mailbox = Mailbox__factory.connect(
-      mailboxAddress,
-      multiProvider.getProvider(destination),
-    );
-    const processedBlockNum = await mailbox.processedAt(messageId);
-    const [dispatchBlock, processedBlock] = await Promise.all([
-      multiProvider.getProvider(origin).getBlock(dispatchBlockNumber),
-      multiProvider.getProvider(destination).getBlock(processedBlockNum),
-    ]);
-    if (dispatchBlock && processedBlock) {
-      logGreen(
-        `Delivery time: ${processedBlock.timestamp - dispatchBlock.timestamp}s`,
-      );
-    }
-  } catch {
-    // Non-fatal: delivery time is informational only
-  }
 }
 
 async function waitForExplorerDelivery(
