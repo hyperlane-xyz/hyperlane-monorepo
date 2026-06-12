@@ -340,6 +340,14 @@ contract InterchainGasPaymasterTest is Test {
             testGasLimit,
             _quote
         );
+        vm.expectEmit(true, true, true, true);
+        emit GasPaymentWithFeeToken(
+            testMessageId,
+            testDestinationDomain,
+            address(0),
+            testGasLimit,
+            _quote
+        );
         igp.payForGas{value: _quote + _overpayment}(
             testMessageId,
             testDestinationDomain,
@@ -457,6 +465,22 @@ contract InterchainGasPaymasterTest is Test {
         uint256 _refundAddressBalanceBefore = address(this).balance;
         uint256 _quote = igp.quoteDispatch("", testEncodedMessage);
         uint256 _overpayment = 21000;
+
+        bytes32 messageId = keccak256(testEncodedMessage);
+        uint256 totalGas = igp.destinationGasLimit(
+            testDestinationDomain,
+            DEFAULT_GAS_USAGE
+        );
+        vm.expectEmit(true, true, false, true);
+        emit GasPayment(messageId, testDestinationDomain, totalGas, _quote);
+        vm.expectEmit(true, true, true, true);
+        emit GasPaymentWithFeeToken(
+            messageId,
+            testDestinationDomain,
+            address(0),
+            totalGas,
+            _quote
+        );
 
         igp.postDispatch{value: _quote + _overpayment}("", testEncodedMessage);
 
