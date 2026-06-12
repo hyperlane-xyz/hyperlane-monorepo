@@ -89,7 +89,7 @@ describe('Rebalancer', () => {
 
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
         {
-          id: '0x1111111111111111111111111111111111111111111111111111111111111111',
+          id: 'test-message-id-success',
         } as any,
       ]);
 
@@ -110,6 +110,49 @@ describe('Rebalancer', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
+    });
+
+    it('should record rebalance amount metrics for successful routes', async () => {
+      const ctx = createRebalancerTestContext();
+      const metrics = {
+        recordRebalanceAmount: Sinon.stub(),
+        recordActionAttempt: Sinon.stub(),
+      };
+
+      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+        {
+          id: 'test-message-id-success',
+        } as any,
+      ]);
+
+      const rebalancer = new Rebalancer(
+        ctx.warpCore,
+        ctx.chainMetadata,
+        ctx.tokensByChainName,
+        ctx.multiProvider as any,
+        createMockActionTracker(),
+        testLogger,
+        metrics as any,
+      );
+
+      const route = buildTestMovableCollateralRoute({
+        origin: 'ethereum',
+        destination: 'arbitrum',
+      });
+
+      await rebalancer.rebalance([route]);
+
+      expect(metrics.recordRebalanceAmount.calledOnce).to.be.true;
+      const [recordedRoute, originTokenAmount] =
+        metrics.recordRebalanceAmount.firstCall.args;
+      expect(recordedRoute).to.include({
+        origin: route.origin,
+        destination: route.destination,
+        amount: route.amount,
+        bridge: route.bridge,
+        executionType: route.executionType,
+      });
+      expect(originTokenAmount.amount).to.equal(route.amount);
     });
 
     it('should return failure results for routes that fail preparation', async () => {

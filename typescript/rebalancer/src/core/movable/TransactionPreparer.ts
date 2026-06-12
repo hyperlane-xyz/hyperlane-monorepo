@@ -9,7 +9,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
+import { mapAllSettled } from '@hyperlane-xyz/utils';
 
 import type { PreparedTransaction } from '../../interfaces/IRebalancer.js';
 import { denormalizeToLocal } from '../../utils/balanceUtils.js';
@@ -42,32 +42,34 @@ export class MovableTransactionPreparer {
       (_, i) => i,
     );
 
-    const preparedTransactions = Array.from(fulfilled.values()).filter(
-      (tx): tx is PreparedTransaction => !isNullish(tx),
-    );
-
+    const preparedTransactions: PreparedTransaction[] = [];
     const preparationFailureResults: MovableInternalExecutionResult[] = [];
-    for (const [i, error] of rejected) {
-      preparationFailureResults.push({
-        route: routes[i],
-        intentId: routes[i].intentId,
-        success: false,
-        error: String(error),
-        messageId: '',
-      });
-    }
 
-    Array.from(fulfilled.entries()).forEach(([i, tx]) => {
-      if (isNullish(tx)) {
+    for (const [i, tx] of fulfilled) {
+      const route = routes[i];
+      if (tx) {
+        preparedTransactions.push(tx);
+      } else {
         preparationFailureResults.push({
-          route: routes[i],
-          intentId: routes[i].intentId,
+          route,
+          intentId: route.intentId,
           success: false,
           error: 'Preparation returned null',
           messageId: '',
         });
       }
-    });
+    }
+
+    for (const [i, error] of rejected) {
+      const route = routes[i];
+      preparationFailureResults.push({
+        route,
+        intentId: route.intentId,
+        success: false,
+        error: String(error),
+        messageId: '',
+      });
+    }
 
     return { preparedTransactions, preparationFailureResults };
   }

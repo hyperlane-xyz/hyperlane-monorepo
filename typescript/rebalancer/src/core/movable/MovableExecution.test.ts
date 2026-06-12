@@ -135,6 +135,63 @@ describe('movable collateral execution modules', () => {
       .false;
   });
 
+  it('records action attempt metrics for successful and failed sends', async () => {
+    const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+    const actionTracker = createActionTrackerStub();
+    const metrics = {
+      recordActionAttempt: Sinon.stub(),
+    };
+    const resultRecorder = new MovableResultRecorder(
+      ctx.multiProvider as unknown as MultiProvider,
+      actionTracker,
+      testLogger,
+    );
+    const executor = new MovableChainTransactionExecutor(
+      ctx.multiProvider as unknown as MultiProvider,
+      resultRecorder,
+      testLogger,
+      metrics as any,
+    );
+    const messageId = 'test-message-id-success';
+    sandbox
+      .stub(HyperlaneCore, 'getDispatchedMessages')
+      .returns([{ id: messageId }] as ReturnType<
+        typeof HyperlaneCore.getDispatchedMessages
+      >);
+
+    const failedTransaction = buildTestPreparedTransaction();
+    const successfulTransaction = buildTestPreparedTransaction({
+      route: buildInternalRoute({ intentId: 'intent-2' }),
+    });
+    (ctx.multiProvider.sendTransaction as Sinon.SinonStub)
+      .onFirstCall()
+      .rejects(new Error('Send failed'))
+      .onSecondCall()
+      .resolves({
+        transactionHash: 'test-tx-hash-success',
+      } as providers.TransactionReceipt);
+
+    const results = await executor.executeTransactions([
+      failedTransaction,
+      successfulTransaction,
+    ]);
+
+    expect(results).to.have.lengthOf(2);
+    expect(metrics.recordActionAttempt.calledTwice).to.be.true;
+    expect(
+      metrics.recordActionAttempt.firstCall.calledWithExactly(
+        failedTransaction.route,
+        false,
+      ),
+    ).to.be.true;
+    expect(
+      metrics.recordActionAttempt.secondCall.calledWithExactly(
+        successfulTransaction.route,
+        true,
+      ),
+    ).to.be.true;
+  });
+
   it('builds successful receipt results and records rebalance actions', async () => {
     const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
     const actionTracker = createActionTrackerStub();
