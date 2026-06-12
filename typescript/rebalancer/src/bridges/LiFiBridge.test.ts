@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { pino } from 'pino';
 
-import type { LiFiStep } from '@lifi/sdk';
+import type { LiFiStep, Route, RouteExtended, StatusResponse } from '@lifi/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
@@ -9,7 +9,7 @@ import type {
   BridgeQuoteParams,
   ExternalBridgeConfig,
 } from '../interfaces/IExternalBridge.js';
-import { LiFiBridge } from './LiFiBridge.js';
+import { LiFiBridge, type LiFiSdkRunner } from './LiFiBridge.js';
 
 const testLogger = pino({ level: 'silent' });
 
@@ -226,6 +226,55 @@ const VALIDATION_PATTERNS = [
 
 function isValidationError(msg: string): boolean {
   return VALIDATION_PATTERNS.some((pattern) => pattern.test(msg));
+}
+
+const NOT_FOUND_STATUS = {
+  status: 'NOT_FOUND',
+  tool: 'across',
+  sending: {},
+  receiving: {},
+} as StatusResponse;
+
+function createTestRunner(
+  overrides: Partial<LiFiSdkRunner> = {},
+): LiFiSdkRunner {
+  return {
+    providerScope: 'global',
+    createConfig: () => undefined,
+    setProviders: () => undefined,
+    getQuote: async () => createLiFiStep(),
+    convertQuoteToRoute: (quote: LiFiStep) =>
+      ({
+        id: quote.id,
+        fromChainId: quote.action.fromChainId,
+        toChainId: quote.action.toChainId,
+        fromToken: quote.action.fromToken,
+        toToken: quote.action.toToken,
+        fromAddress: quote.action.fromAddress,
+        toAddress: quote.action.toAddress,
+        fromAmount: quote.action.fromAmount,
+        toAmount: quote.estimate.toAmount,
+        steps: [quote],
+      }) as Route,
+    executeRoute: async (route: Route) =>
+      ({
+        steps: [
+          {
+            execution: {
+              process: [{ txHash: `0x${route.fromChainId.toString(16)}` }],
+            },
+          },
+        ],
+      }) as RouteExtended,
+    getStatus: async () => NOT_FOUND_STATUS,
+    fetch: async () =>
+      ({
+        ok: true,
+        json: async () => createLiFiStep(),
+        text: async () => '',
+      }) as Response,
+    ...overrides,
+  };
 }
 
 describe('LiFiBridge.execute() route validation', function () {
@@ -618,38 +667,39 @@ describe('LiFiBridge.quote() routing policy', function () {
   });
 
   it('should use RECOMMENDED order for reverse toAmount quotes', async () => {
-    const originalFetch = globalThis.fetch;
     let requestUrl = '';
 
-    globalThis.fetch = (async (input: URL | RequestInfo) => {
-      requestUrl = String(input);
-      return {
-        ok: true,
-        json: async () =>
-          createLiFiStep({
-            toChainId: 1151111081099710,
-            toAmount: '5000000000',
-          }),
-      } as Response;
-    }) as typeof fetch;
+    bridge = new LiFiBridge(
+      BRIDGE_CONFIG,
+      testLogger,
+      createTestRunner({
+        fetch: async (input: string) => {
+          requestUrl = input;
+          return {
+            ok: true,
+            json: async () =>
+              createLiFiStep({
+                toChainId: 1151111081099710,
+                toAmount: '5000000000',
+              }),
+          } as Response;
+        },
+      }),
+    );
 
-    try {
-      const quote = await bridge.quote({
-        fromChain: 42161,
-        toChain: 1151111081099710,
-        fromToken: TOKEN_ADDR,
-        toToken: TOKEN_ADDR,
-        fromAddress: SENDER_ADDR,
-        toAddress: SENDER_ADDR,
-        toAmount: 5000000000n,
-      });
-      const params = new URL(requestUrl).searchParams;
+    const quote = await bridge.quote({
+      fromChain: 42161,
+      toChain: 1151111081099710,
+      fromToken: TOKEN_ADDR,
+      toToken: TOKEN_ADDR,
+      fromAddress: SENDER_ADDR,
+      toAddress: SENDER_ADDR,
+      toAmount: 5000000000n,
+    });
+    const params = new URL(requestUrl).searchParams;
 
-      expect(params.get('order')).to.equal('RECOMMENDED');
-      expect(quote.requestParams.toAmount).to.equal(5000000000n);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    expect(params.get('order')).to.equal('RECOMMENDED');
+    expect(quote.requestParams.toAmount).to.equal(5000000000n);
   });
 });
 
@@ -661,27 +711,23 @@ describe('LiFiBridge.getStatus()', function () {
   });
 
   it('should translate Hyperlane domain IDs to LiFi chain IDs before SDK status lookup', async () => {
-    const originalFetch = globalThis.fetch;
-    let requestUrl = '';
+    let statusParams: Parameters<LiFiSdkRunner['getStatus']>[0] | undefined;
+    bridge = new LiFiBridge(
+      BRIDGE_CONFIG,
+      testLogger,
+      createTestRunner({
+        getStatus: async (params) => {
+          statusParams = params;
+          return NOT_FOUND_STATUS;
+        },
+      }),
+    );
 
-    globalThis.fetch = (async (input: URL | RequestInfo) => {
-      requestUrl = String(input);
-      return {
-        ok: true,
-        json: async () => ({ status: 'NOT_FOUND' }),
-      } as Response;
-    }) as typeof fetch;
+    const result = await bridge.getStatus('0x1234', 1399811149, 1399811149);
 
-    try {
-      const result = await bridge.getStatus('0x1234', 1399811149, 1399811149);
-      const params = new URL(requestUrl).searchParams;
-
-      expect(result.status).to.equal('not_found');
-      expect(params.get('fromChain')).to.equal('1151111081099710');
-      expect(params.get('toChain')).to.equal('1151111081099710');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    expect(result.status).to.equal('not_found');
+    expect(statusParams?.fromChain).to.equal(1151111081099710);
+    expect(statusParams?.toChain).to.equal(1151111081099710);
   });
 });
 
@@ -800,6 +846,121 @@ describe('LiFiBridge source protocol handling', function () {
       const msg = (error as Error).message;
       expect(msg).to.equal('expected downstream error');
     }
+  });
+
+  it('serializes all executions for a global provider runner', async () => {
+    const activeByChain = new Map<number, number>();
+    let differentChainRanWhileArbitrumActive = false;
+
+    const bridge = new LiFiBridge(
+      BRIDGE_CONFIG,
+      testLogger,
+      createTestRunner({
+        executeRoute: async (route: Route) => {
+          if (route.fromChainId === 10 && (activeByChain.get(42161) ?? 0) > 0) {
+            differentChainRanWhileArbitrumActive = true;
+          }
+
+          activeByChain.set(
+            route.fromChainId,
+            (activeByChain.get(route.fromChainId) ?? 0) + 1,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, route.fromChainId === 42161 ? 20 : 0),
+          );
+          activeByChain.set(
+            route.fromChainId,
+            (activeByChain.get(route.fromChainId) ?? 1) - 1,
+          );
+
+          return {
+            steps: [
+              {
+                execution: {
+                  process: [{ txHash: `0x${route.fromChainId.toString(16)}` }],
+                },
+              },
+            ],
+          } as RouteExtended;
+        },
+      }),
+    );
+    const arbitrumQuote = createTestQuote();
+    const optimismQuote = createTestQuote(
+      { fromChainId: 10 },
+      { fromChain: 10 },
+    );
+
+    await Promise.all([
+      bridge.execute(arbitrumQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+      bridge.execute(optimismQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    ]);
+
+    expect(differentChainRanWhileArbitrumActive).to.equal(false);
+  });
+
+  it('serializes same-source executions without blocking other source chains for scoped runners', async () => {
+    const activeByChain = new Map<number, number>();
+    let sameChainOverlap = false;
+    let differentChainRanWhileArbitrumActive = false;
+
+    const bridge = new LiFiBridge(
+      BRIDGE_CONFIG,
+      testLogger,
+      createTestRunner({
+        providerScope: 'scoped',
+        executeRoute: async (route: Route) => {
+          const currentActive = activeByChain.get(route.fromChainId) ?? 0;
+          if (currentActive > 0) {
+            sameChainOverlap = true;
+          }
+          if (route.fromChainId === 10 && (activeByChain.get(42161) ?? 0) > 0) {
+            differentChainRanWhileArbitrumActive = true;
+          }
+
+          activeByChain.set(route.fromChainId, currentActive + 1);
+          await new Promise((resolve) =>
+            setTimeout(resolve, route.fromChainId === 42161 ? 20 : 0),
+          );
+          activeByChain.set(route.fromChainId, currentActive);
+
+          return {
+            steps: [
+              {
+                execution: {
+                  process: [{ txHash: `0x${route.fromChainId.toString(16)}` }],
+                },
+              },
+            ],
+          } as RouteExtended;
+        },
+      }),
+    );
+    const firstArbitrumQuote = createTestQuote();
+    const secondArbitrumQuote = createTestQuote();
+    const optimismQuote = createTestQuote(
+      { fromChainId: 10 },
+      { fromChain: 10 },
+    );
+
+    await Promise.all([
+      bridge.execute(firstArbitrumQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+      bridge.execute(secondArbitrumQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+      bridge.execute(optimismQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    ]);
+
+    expect(sameChainOverlap).to.equal(false);
+    expect(differentChainRanWhileArbitrumActive).to.equal(true);
   });
 
   it('addressesEqual keeps Sealevel base58 comparison case-sensitive', () => {

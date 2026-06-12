@@ -3,8 +3,10 @@ import {
   KeypairWalletAdapter,
   Solana,
   type LiFiStep,
+  type QuoteRequest,
   type Route,
   type RouteExtended,
+  type StatusResponse,
   convertQuoteToRoute,
   createConfig,
   executeRoute,
@@ -61,6 +63,39 @@ const VIEM_CHAINS: Record<number, Chain> = {
  */
 const HYPERLANE_TO_LIFI_CHAIN_IDS: Record<number, number> = {
   1399811149: 1151111081099710, // Solana: Hyperlane domain → LiFi chain ID
+};
+
+type LiFiProviders = Parameters<typeof lifiConfig.setProviders>[0];
+type LiFiExecuteRouteOptions = Parameters<typeof executeRoute>[1];
+
+export interface LiFiSdkRunner {
+  providerScope: 'global' | 'scoped';
+  createConfig(config: Parameters<typeof createConfig>[0]): void;
+  setProviders(providers: LiFiProviders): void;
+  getQuote(params: QuoteRequest): Promise<LiFiStep>;
+  convertQuoteToRoute(quote: LiFiStep): Route;
+  executeRoute(
+    route: Route,
+    options: LiFiExecuteRouteOptions,
+  ): Promise<RouteExtended>;
+  getStatus(params: Parameters<typeof getStatus>[0]): Promise<StatusResponse>;
+  fetch(input: string): Promise<Response>;
+}
+
+const DEFAULT_LIFI_SDK_RUNNER: LiFiSdkRunner = {
+  providerScope: 'global',
+  createConfig,
+  setProviders: (providers) => lifiConfig.setProviders(providers),
+  getQuote: (params) => {
+    if ('toAmount' in params) {
+      return getQuote(params);
+    }
+    return getQuote(params);
+  },
+  convertQuoteToRoute,
+  executeRoute,
+  getStatus: (params) => getStatus(params),
+  fetch: async (input) => fetch(input),
 };
 
 /**
@@ -131,13 +166,19 @@ export class LiFiBridge implements IExternalBridge {
   }
   readonly logger: Logger;
   private initialized = false;
-  private _executeLock: Promise<void> = Promise.resolve();
+  private readonly executeLocks = new Map<string, Promise<void>>();
   private readonly config: ExternalBridgeConfig;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
+  private readonly lifiRunner: LiFiSdkRunner;
 
-  constructor(config: ExternalBridgeConfig, logger: Logger) {
+  constructor(
+    config: ExternalBridgeConfig,
+    logger: Logger,
+    lifiRunner: LiFiSdkRunner = DEFAULT_LIFI_SDK_RUNNER,
+  ) {
     this.config = config;
     this.logger = logger;
+    this.lifiRunner = lifiRunner;
     // Build LiFi chainId -> metadata map for O(1) lookups.
     // Numeric chainIds are only unique for EVM chains; non-EVM chains can
     // legitimately collide (e.g. radix and ethereum both use 1), so index
@@ -171,7 +212,7 @@ export class LiFiBridge implements IExternalBridge {
   private initialize(): void {
     if (this.initialized) return;
 
-    createConfig({
+    this.lifiRunner.createConfig({
       integrator: this.config.integrator,
       apiKey: this.config.apiKey,
     });
@@ -226,7 +267,7 @@ export class LiFiBridge implements IExternalBridge {
     fromChain: number,
     fromRpcUrl: string | undefined,
   ): void {
-    const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
+    const providers: LiFiProviders = [];
     switch (protocol) {
       case ProtocolType.Ethereum: {
         const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
@@ -267,7 +308,7 @@ export class LiFiBridge implements IExternalBridge {
         );
     }
 
-    lifiConfig.setProviders(providers);
+    this.lifiRunner.setProviders(providers);
 
     this.logger.debug(
       {
@@ -328,7 +369,7 @@ export class LiFiBridge implements IExternalBridge {
     const lifiFromChain = LiFiBridge.toLiFiChainId(params.fromChain);
     const lifiToChain = LiFiBridge.toLiFiChainId(params.toChain);
 
-    const quote = await getQuote({
+    const quote = await this.lifiRunner.getQuote({
       fromChain: lifiFromChain,
       toChain: lifiToChain,
       fromToken: params.fromToken,
@@ -412,7 +453,7 @@ export class LiFiBridge implements IExternalBridge {
       'Fetching LiFi toAmount quote',
     );
 
-    const response = await fetch(url);
+    const response = await this.lifiRunner.fetch(url);
     if (!response.ok) {
       const errorBody = await response.text();
       throw new Error(
@@ -501,7 +542,7 @@ export class LiFiBridge implements IExternalBridge {
     this.initialize();
 
     // Convert quote to route for execution
-    const route = convertQuoteToRoute(quote.route);
+    const route = this.lifiRunner.convertQuoteToRoute(quote.route);
 
     this.validateRouteAgainstRequest(route, quote.requestParams);
 
@@ -526,51 +567,45 @@ export class LiFiBridge implements IExternalBridge {
     );
 
     const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
-
-    let release!: () => void;
-    const acquired = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const prev = this._executeLock;
-    this._executeLock = acquired;
-    await prev;
+    const signerKey = privateKeys[sourceProtocol];
+    const executeLockKey = this.getExecutionLockKey(sourceProtocol, fromChain);
 
     let txHash: string | undefined;
-    let executedRoute!: RouteExtended;
 
-    try {
-      this.configureLiFiProvider(
-        sourceProtocol,
-        privateKeys[sourceProtocol]!,
-        fromChain,
-        fromRpcUrl,
-      );
+    const executedRoute = await this.withExecutionLock(
+      executeLockKey,
+      async () => {
+        this.configureLiFiProvider(
+          sourceProtocol,
+          signerKey,
+          fromChain,
+          fromRpcUrl,
+        );
 
-      // Execute route with update callbacks
-      executedRoute = await executeRoute(route, {
-        // Update callback for route progress
-        updateRouteHook: (updatedRoute: RouteExtended) => {
-          this.logger.debug(
-            { step: updatedRoute.steps[0]?.id },
-            'Route step updated',
-          );
+        // Execute route with update callbacks
+        return this.lifiRunner.executeRoute(route, {
+          // Update callback for route progress
+          updateRouteHook: (updatedRoute: RouteExtended) => {
+            this.logger.debug(
+              { step: updatedRoute.steps[0]?.id },
+              'Route step updated',
+            );
 
-          // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
-          const execution = updatedRoute.steps[0]?.execution;
-          if (execution?.process) {
-            for (const process of execution.process) {
-              if (process.txHash) {
-                txHash = process.txHash;
+            // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
+            const execution = updatedRoute.steps[0]?.execution;
+            if (execution?.process) {
+              for (const process of execution.process) {
+                if (process.txHash) {
+                  txHash = process.txHash;
+                }
               }
             }
-          }
-        },
-        // Auto-accept rate updates for rebalancing
-        acceptExchangeRateUpdateHook: async () => true,
-      });
-    } finally {
-      release();
-    }
+          },
+          // Auto-accept rate updates for rebalancing
+          acceptExchangeRateUpdateHook: async () => true,
+        });
+      },
+    );
 
     // Extract txHash from executed route if not captured in callbacks
     if (!txHash) {
@@ -613,6 +648,39 @@ export class LiFiBridge implements IExternalBridge {
       toChain,
       transferId,
     };
+  }
+
+  private getExecutionLockKey(
+    protocol: ProtocolType,
+    fromChain: number,
+  ): string {
+    if (this.lifiRunner.providerScope === 'global') {
+      return 'global';
+    }
+    return `${protocol}:${fromChain}`;
+  }
+
+  private async withExecutionLock<T>(
+    key: string,
+    execute: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.executeLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    this.executeLocks.set(key, current);
+    await previous;
+
+    try {
+      return await execute();
+    } finally {
+      release();
+      if (this.executeLocks.get(key) === current) {
+        this.executeLocks.delete(key);
+      }
+    }
   }
 
   /**
@@ -698,7 +766,7 @@ export class LiFiBridge implements IExternalBridge {
     this.initialize();
 
     try {
-      const status = await getStatus({
+      const status = await this.lifiRunner.getStatus({
         txHash,
         fromChain: LiFiBridge.toLiFiChainId(fromChain),
         toChain: LiFiBridge.toLiFiChainId(toChain),

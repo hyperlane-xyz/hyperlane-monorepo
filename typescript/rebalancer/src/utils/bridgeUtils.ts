@@ -1,7 +1,7 @@
 import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import { assert, type Address } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import { ExecutionType, type ExternalBridgeType } from '../config/types.js';
 import type { StrategyRoute } from '../interfaces/IStrategy.js';
 
 type BaseBridgeConfig = {
@@ -38,6 +38,158 @@ export type BridgeConfigWithOverride = BridgeConfig & {
   override?: ChainMap<Partial<BridgeConfig>>;
 };
 
+export type RouteExecutionMatrix = ChainMap<ChainMap<BridgeConfig>>;
+
+export type RouteExecutionConfigInput = BaseBridgeConfig & {
+  executionType?: ExecutionType | BridgeConfig['executionType'];
+  bridge?: Address;
+  externalBridge?: ExternalBridgeType;
+  override?: ChainMap<Partial<RouteExecutionConfigInput>>;
+};
+
+export type RouteExecutionConfigInputMap = ChainMap<RouteExecutionConfigInput>;
+
+export type RouteExecutionConfigSource =
+  | ChainMap<BridgeConfigWithOverride>
+  | RouteExecutionMatrix;
+
+export function isRouteExecutionMatrix(
+  config: RouteExecutionConfigSource,
+): config is RouteExecutionMatrix {
+  const firstValue = Object.values(config)[0];
+  return firstValue !== undefined && !('executionType' in firstValue);
+}
+
+export function resolveRouteExecutionConfig(
+  config: RouteExecutionConfigInput,
+): BridgeConfig {
+  const executionType = config.executionType ?? ExecutionType.MovableCollateral;
+
+  if (executionType === ExecutionType.Inventory) {
+    assert(
+      config.externalBridge,
+      'externalBridge is required for inventory execution',
+    );
+    return {
+      executionType: 'inventory',
+      externalBridge: config.externalBridge,
+      bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount,
+    };
+  }
+
+  assert(config.bridge, 'bridge is required for movableCollateral execution');
+  return {
+    executionType: 'movableCollateral',
+    bridge: config.bridge,
+    bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount,
+  };
+}
+
+export function buildRouteExecutionMatrixFromConfig(
+  chainConfigs: RouteExecutionConfigInputMap,
+): RouteExecutionMatrix {
+  const matrix: RouteExecutionMatrix = {};
+  const chains = Object.keys(chainConfigs);
+
+  for (const origin of chains) {
+    const originConfig = chainConfigs[origin];
+    matrix[origin] = {};
+
+    for (const destination of chains) {
+      if (origin === destination) {
+        continue;
+      }
+
+      const override = originConfig.override?.[destination];
+      matrix[origin][destination] = resolveRouteExecutionConfig({
+        ...originConfig,
+        ...override,
+      });
+    }
+  }
+
+  return matrix;
+}
+
+export function buildBridgeConfigMapFromConfig(
+  chainConfigs: RouteExecutionConfigInputMap,
+): ChainMap<BridgeConfigWithOverride> {
+  const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {};
+
+  for (const [origin, originConfig] of Object.entries(chainConfigs)) {
+    const override: ChainMap<Partial<BridgeConfig>> = {};
+
+    for (const [destination, destinationOverride] of Object.entries(
+      originConfig.override ?? {},
+    )) {
+      override[destination] = resolveRouteExecutionConfig({
+        ...originConfig,
+        ...destinationOverride,
+      });
+    }
+
+    const resolved = resolveRouteExecutionConfig(originConfig);
+    bridgeConfigs[origin] = {
+      ...resolved,
+      override: Object.keys(override).length > 0 ? override : undefined,
+    };
+  }
+
+  return bridgeConfigs;
+}
+
+export function buildRouteExecutionMatrix(
+  bridges: ChainMap<BridgeConfigWithOverride>,
+  chains = Object.keys(bridges),
+): RouteExecutionMatrix {
+  const matrix: RouteExecutionMatrix = {};
+
+  for (const origin of chains) {
+    const originConfig = bridges[origin];
+    assert(originConfig, `Missing bridge config for chain ${origin}`);
+    matrix[origin] = {};
+
+    for (const destination of chains) {
+      if (origin === destination) {
+        continue;
+      }
+
+      matrix[origin][destination] = getBridgeConfig(
+        bridges,
+        origin,
+        destination,
+      );
+    }
+  }
+
+  return matrix;
+}
+
+export function normalizeRouteExecutionMatrix(
+  config: RouteExecutionConfigSource,
+): RouteExecutionMatrix {
+  if (isRouteExecutionMatrix(config)) {
+    return config;
+  }
+
+  return buildRouteExecutionMatrix(config);
+}
+
+export function getRouteExecutionConfig(
+  matrix: RouteExecutionMatrix,
+  origin: ChainName,
+  destination: ChainName,
+): BridgeConfig {
+  const originMatrix = matrix[origin];
+  assert(originMatrix, `Missing route execution config for origin ${origin}`);
+  const routeConfig = originMatrix[destination];
+  assert(
+    routeConfig,
+    `Missing route execution config for ${origin} -> ${destination}`,
+  );
+  return routeConfig;
+}
+
 /**
  * Gets the bridge configuration for a specific chain pair, applying any overrides
  * @param bridges The map of bridge configurations by chain
@@ -51,13 +203,15 @@ export function getBridgeConfig(
   toChain: ChainName,
 ): BridgeConfig {
   const fromConfig = bridges[fromChain];
+  assert(fromConfig, `Missing bridge config for chain ${fromChain}`);
   const routeSpecificOverrides = fromConfig.override?.[toChain];
 
-  // Create a new object with the properties from bridgeConfig, excluding the overrides property
   const { override: _, ...baseConfig } = fromConfig;
 
-  // Return a new object with the base config and any overrides
-  return { ...baseConfig, ...routeSpecificOverrides } as BridgeConfig;
+  return resolveRouteExecutionConfig({
+    ...baseConfig,
+    ...routeSpecificOverrides,
+  });
 }
 
 /**

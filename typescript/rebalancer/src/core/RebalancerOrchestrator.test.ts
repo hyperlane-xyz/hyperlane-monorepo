@@ -230,6 +230,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(0);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(0);
@@ -289,10 +290,8 @@ describe('RebalancerOrchestrator', () => {
             bridge: TEST_ADDRESSES.bridge,
           },
           success: true,
-          messageId:
-            '0x1111111111111111111111111111111111111111111111111111111111111111',
-          txHash:
-            '0x2222222222222222222222222222222222222222222222222222222222222222',
+          messageId: 'test-message-id-success',
+          txHash: 'test-tx-hash-success',
         },
       ]);
 
@@ -314,6 +313,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
@@ -364,8 +364,69 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('failed');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(0);
+      expect(result.failedCount).to.equal(1);
+    });
+
+    it('should report partial status for mixed movable collateral results', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+        {
+          origin: 'arbitrum',
+          destination: 'ethereum',
+          amount: 500n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+      ]);
+
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: true,
+          messageId: 'test-message-id-success',
+          txHash: 'test-tx-hash-success',
+        },
+        {
+          route: {
+            origin: 'arbitrum',
+            destination: 'ethereum',
+            amount: 500n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: false,
+          error: 'Gas estimation failed',
+        },
+      ]);
+
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        rebalancers: [rebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+      });
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('partial');
+      expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(1);
     });
 
@@ -403,6 +464,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('failed');
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(1);
       expect((metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce).to
@@ -471,12 +533,22 @@ describe('RebalancerOrchestrator', () => {
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
-      const event = createMonitorEvent();
+      const inventoryBalances = {
+        ethereum: 2000n,
+        arbitrum: 1000n,
+      };
+      const event = createMonitorEvent({ inventoryBalances });
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(inventoryRebalancer.setInventoryBalances.called).to.be.false;
+      expect(inventoryRebalancer.rebalance.firstCall.args[1]).to.deep.include({
+        inventoryBalances,
+        confirmedBlockTags: event.confirmedBlockTags,
+      });
     });
   });
 
@@ -573,6 +645,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(2);
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
@@ -625,12 +698,21 @@ describe('RebalancerOrchestrator', () => {
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
-      const event = createMonitorEvent();
+      const inventoryBalances = {
+        ethereum: 2000n,
+        arbitrum: 1000n,
+      };
+      const event = createMonitorEvent({ inventoryBalances });
 
       await orchestrator.executeCycle(event);
 
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
       expect(inventoryRebalancer.rebalance.calledWith([])).to.be.true;
+      expect(inventoryRebalancer.setInventoryBalances.called).to.be.false;
+      expect(inventoryRebalancer.rebalance.firstCall.args[1]).to.deep.include({
+        inventoryBalances,
+        confirmedBlockTags: event.confirmedBlockTags,
+      });
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when routes are proposed', async () => {

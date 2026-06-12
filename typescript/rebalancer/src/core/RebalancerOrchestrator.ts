@@ -8,8 +8,11 @@ import {
   type MonitorEvent,
 } from '../interfaces/IMonitor.js';
 import type {
+  ExecutionSummary,
+  ExecutionStatus,
   ExecutionResult,
   IRebalancer,
+  RebalanceCycleContext,
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
@@ -21,8 +24,6 @@ import { Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
-
-import { InventoryRebalancer } from './InventoryRebalancer.js';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -40,6 +41,8 @@ const METRICS_PROCESS_TOKEN_TIMEOUT_MS = 30_000;
  * executedCount/failedCount: Counts from movable_collateral execution ONLY
  */
 export interface CycleResult {
+  /** Holistic status across all executor summaries. Counts below track movable collateral only. */
+  status: ExecutionStatus;
   balances: Record<string, bigint>;
   proposedRoutes: StrategyRoute[];
   executedCount: number;
@@ -99,6 +102,11 @@ export class RebalancerOrchestrator {
       event,
       this.logger,
     );
+    const context: RebalanceCycleContext = {
+      balances: rawBalances,
+      inventoryBalances: event.inventoryBalances,
+      confirmedBlockTags: event.confirmedBlockTags,
+    };
 
     this.logger.info(
       {
@@ -120,6 +128,7 @@ export class RebalancerOrchestrator {
 
     let executedCount = 0;
     let failedCount = 0;
+    let executionSummary = this.createExecutionSummary([]);
 
     if (strategyRoutes.length > 0) {
       this.logger.info(
@@ -133,21 +142,26 @@ export class RebalancerOrchestrator {
         'Routes proposed',
       );
 
-      const results = await this.executeWithTracking(strategyRoutes, event);
-      executedCount = results.executedCount;
-      failedCount = results.failedCount;
+      const execution = await this.executeWithTracking(strategyRoutes, context);
+      executionSummary = execution.summary;
+      executedCount = execution.executedCount;
+      failedCount = execution.failedCount;
     } else {
       this.logger.info('No rebalancing needed');
     }
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventoryRebalancer && strategyRoutes.length === 0) {
-      await this.executeRoutes([], inventoryRebalancer, event);
+      executionSummary = this.mergeExecutionSummaries([
+        executionSummary,
+        await this.executeRoutes([], inventoryRebalancer, context),
+      ]);
     }
 
     this.logger.info('Polling cycle completed');
 
     return {
+      status: executionSummary.status,
       balances: rawBalances,
       proposedRoutes: strategyRoutes,
       executedCount,
@@ -306,47 +320,53 @@ export class RebalancerOrchestrator {
 
   private async executeWithTracking(
     routes: StrategyRoute[],
-    event: MonitorEvent,
-  ): Promise<{ executedCount: number; failedCount: number }> {
+    context: RebalanceCycleContext,
+  ): Promise<{
+    summary: ExecutionSummary;
+    executedCount: number;
+    failedCount: number;
+  }> {
     const movableCollateral = routes.filter(isMovableCollateralRoute);
     const inventory = routes.filter(isInventoryRoute);
 
     let executedCount = 0;
     let failedCount = 0;
+    const summaries: ExecutionSummary[] = [];
 
     const movableCollateralRebalancer =
       this.rebalancersByType.get('movableCollateral');
     if (movableCollateral.length > 0 && movableCollateralRebalancer) {
-      const results = await this.executeRoutes(
+      const summary = await this.executeRoutes(
         movableCollateral,
         movableCollateralRebalancer,
-        event,
+        context,
       );
-      executedCount = results.filter((r) => r.success).length;
-      failedCount = results.filter((r) => !r.success).length;
+      summaries.push(summary);
+      executedCount = summary.results.filter((r) => r.success).length;
+      failedCount = summary.results.filter((r) => !r.success).length;
     }
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventory.length > 0 && inventoryRebalancer) {
-      await this.executeRoutes(inventory, inventoryRebalancer, event);
+      summaries.push(
+        await this.executeRoutes(inventory, inventoryRebalancer, context),
+      );
     }
 
-    return { executedCount, failedCount };
+    return {
+      summary: this.mergeExecutionSummaries(summaries),
+      executedCount,
+      failedCount,
+    };
   }
 
   private async executeRoutes(
     routes: StrategyRoute[],
     rebalancer: IRebalancer,
-    event: MonitorEvent,
-  ): Promise<ExecutionResult[]> {
-    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
-      (rebalancer as InventoryRebalancer).setInventoryBalances(
-        event.inventoryBalances,
-      );
-    }
-
+    context: RebalanceCycleContext,
+  ): Promise<ExecutionSummary> {
     try {
-      const results = await rebalancer.rebalance(routes);
+      const results = await rebalancer.rebalance(routes, context);
 
       const successful = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
@@ -378,7 +398,7 @@ export class RebalancerOrchestrator {
         );
       }
 
-      return results;
+      return this.createExecutionSummary(results);
     } catch (error: unknown) {
       if (rebalancer.rebalancerType === 'movableCollateral') {
         this.metrics?.recordRebalancerFailure();
@@ -388,12 +408,36 @@ export class RebalancerOrchestrator {
         { error, type: rebalancer.rebalancerType },
         'Error while executing routes',
       );
-      return routes.map((route) => ({
+      const results = routes.map((route) => ({
         route,
         success: false,
         error: errorMessageString,
         reason: 'executor_error',
       }));
+      return this.createExecutionSummary(results, [errorMessageString]);
     }
+  }
+
+  private createExecutionSummary(
+    results: ExecutionResult[],
+    systemErrors: string[] = [],
+  ): ExecutionSummary {
+    const successfulCount = results.filter((r) => r.success).length;
+    const failedCount = results.filter((r) => !r.success).length;
+    let status: ExecutionStatus = 'success';
+
+    if (failedCount > 0 || systemErrors.length > 0) {
+      status = successfulCount > 0 ? 'partial' : 'failed';
+    }
+
+    return { status, results, systemErrors };
+  }
+
+  private mergeExecutionSummaries(
+    summaries: ExecutionSummary[],
+  ): ExecutionSummary {
+    const results = summaries.flatMap((summary) => summary.results);
+    const systemErrors = summaries.flatMap((summary) => summary.systemErrors);
+    return this.createExecutionSummary(results, systemErrors);
   }
 }
