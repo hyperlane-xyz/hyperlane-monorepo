@@ -491,6 +491,13 @@ contract InterchainGasPaymaster is
         }
 
         emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
+        emit GasPaymentWithFeeToken(
+            _messageId,
+            _destinationDomain,
+            _feeToken,
+            _gasLimit,
+            _payment
+        );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
