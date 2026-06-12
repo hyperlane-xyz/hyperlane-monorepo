@@ -315,6 +315,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 info!("Built metadata using fast path");
                 return Ok(metadata);
             }
+            Err(MetadataBuildError::Refused(reason)) => {
+                return Err(MetadataBuildError::Refused(reason));
+            }
             Err(err) => {
                 warn!(
                     ?err,
