@@ -347,6 +347,9 @@ const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
+  feeToken: ZHash.optional().describe(
+    'The origin fee token that must have paid the IGP. The zero address, or unset, represents native tokens.',
+  ),
 });
 const GasPaymentEnforcementSchema = z.union([
   GasPaymentEnforcementBaseSchema.extend({
@@ -365,6 +368,10 @@ const GasPaymentEnforcementSchema = z.union([
   }),
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+
+function feeTokenIsNonZero(feeToken?: string): boolean {
+  return feeToken != null && /[1-9a-f]/i.test(feeToken.replace(/^0x/i, ''));
+}
 
 const MetricAppContextSchema = z.object({
   name: z.string().min(1),
@@ -520,6 +527,24 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
+}).superRefine((config, ctx) => {
+  // Mirror the Rust relayer gate: the current IGP event does not expose the
+  // token address, so exact non-native `feeToken` enforcement is rejected.
+  const { gasPaymentEnforcement } = config;
+  if (!Array.isArray(gasPaymentEnforcement)) {
+    return;
+  }
+  gasPaymentEnforcement.forEach((policy, policyIndex) => {
+    if (!feeTokenIsNonZero(policy.feeToken)) {
+      return;
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement', policyIndex, 'feeToken'],
+      message:
+        '`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; leave it unset and use onChainFeeQuoting for ERC20 IGP gas-amount sufficiency.',
+    });
+  });
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
