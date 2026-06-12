@@ -255,23 +255,12 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       'Found rebalancing routes',
     );
 
-    const filteredRoutes = this.filterRoutes(routes, actualBalances);
-
-    // Record metrics for each intent created
-    for (const route of filteredRoutes) {
-      this.metrics?.recordIntentCreated(route, this.name);
-    }
-
-    this.logger.debug(
-      {
-        context: this.constructor.name,
-        filteredRoutesCount: filteredRoutes.length,
-        droppedCount: routes.length - filteredRoutes.length,
-      },
-      'Filtered rebalancing routes',
+    return this.strategyPlanner.finalizeRoutes(
+      routes,
+      actualBalances,
+      this.name,
+      this.constructor.name,
     );
-
-    return filteredRoutes;
   }
 
   /**
