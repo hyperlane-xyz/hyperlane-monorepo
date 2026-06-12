@@ -46,6 +46,8 @@ function createMockActionTracker(): IActionTracker {
     getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
     getActionsByType: Sinon.stub().resolves([]),
     getActionsForIntent: Sinon.stub().resolves([]),
+    getActionsForIntents: Sinon.stub().resolves(new Map()),
+    getActionsByMessageIds: Sinon.stub().resolves(new Map()),
     getInflightInventoryMovements: Sinon.stub().resolves(0n),
   };
 }

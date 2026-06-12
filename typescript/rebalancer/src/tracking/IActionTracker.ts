@@ -171,23 +171,15 @@ export interface IActionTracker {
    * Get actions grouped by intent ID.
    * @param intentIds - IDs of the intents
    */
-  getActionsForIntents?(
+  getActionsForIntents(
     intentIds: readonly string[],
   ): Promise<Map<string, RebalanceAction[]>>;
-
-  /**
-   * Get an action by Hyperlane message ID.
-   * @param messageId - Message ID associated with the action
-   */
-  getActionByMessageId?(
-    messageId: string,
-  ): Promise<RebalanceAction | undefined>;
 
   /**
    * Get actions keyed by Hyperlane message ID.
    * @param messageIds - Message IDs associated with actions
    */
-  getActionsByMessageIds?(
+  getActionsByMessageIds(
     messageIds: readonly string[],
   ): Promise<Map<string, RebalanceAction>>;
 

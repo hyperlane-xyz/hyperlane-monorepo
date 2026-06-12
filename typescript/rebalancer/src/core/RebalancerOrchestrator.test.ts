@@ -118,7 +118,6 @@ function createMockActionTracker(): IActionTracker {
     getActionsByType: Sinon.stub().resolves([]),
     getActionsForIntent: Sinon.stub().resolves([]),
     getActionsForIntents: Sinon.stub().resolves(new Map()),
-    getActionByMessageId: Sinon.stub().resolves(undefined),
     getActionsByMessageIds: Sinon.stub().resolves(new Map()),
     getInflightInventoryMovements: Sinon.stub().resolves(0n),
   };
@@ -800,7 +799,10 @@ describe('RebalancerOrchestrator', () => {
       ).to.be.true;
       expect(
         logger.warn.calledWithMatch(
-          Sinon.match.has('source', 'transfers'),
+          Sinon.match({
+            source: 'transfers',
+            error: 'Transfer sync failed',
+          }),
           'ActionTracker sync source failed, using stale data',
         ),
       ).to.be.true;
@@ -1009,6 +1011,45 @@ describe('RebalancerOrchestrator', () => {
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
       expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+    });
+
+    it('should warn when detached token metrics processing fails', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+      const metrics = createMockMetrics();
+      (metrics.processToken as Sinon.SinonStub).rejects(
+        new Error('metrics failed'),
+      );
+      const logger = createMockLogger();
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger,
+        rebalancers: [],
+        metrics,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+      const event = createMonitorEvent();
+
+      await orchestrator.executeCycle(event);
+      await Promise.resolve();
+
+      expect(
+        logger.warn.calledWithMatch(
+          Sinon.match({
+            count: 2,
+            errors: ['metrics failed', 'metrics failed'],
+          }),
+          'Metrics token processing failed',
+        ),
+      ).to.be.true;
     });
   });
 });

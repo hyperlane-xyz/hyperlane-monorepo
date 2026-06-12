@@ -24,7 +24,7 @@ import { getRawBalances } from '../utils/balanceUtils.js';
 
 import { InventoryRebalancer } from './InventoryRebalancer.js';
 
-function errorToString(error: unknown): string {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -171,7 +171,7 @@ export class RebalancerOrchestrator {
       this.logger.warn(
         {
           count: failed.length,
-          errors: failed.map((result) => errorToString(result.reason)),
+          errors: failed.map((result) => errorMessage(result.reason)),
         },
         'Metrics token processing failed',
       );
@@ -253,7 +253,7 @@ export class RebalancerOrchestrator {
 
       staleSources.push(name);
       this.logger.warn(
-        { source: name, error: result.reason },
+        { source: name, error: errorMessage(result.reason) },
         'ActionTracker sync source failed, using stale data',
       );
     });
@@ -359,7 +359,7 @@ export class RebalancerOrchestrator {
       if (rebalancer.rebalancerType === 'movableCollateral') {
         this.metrics?.recordRebalancerFailure();
       }
-      const errorMessage = errorToString(error);
+      const errorMessageString = errorMessage(error);
       this.logger.error(
         { error, type: rebalancer.rebalancerType },
         'Error while executing routes',
@@ -367,7 +367,7 @@ export class RebalancerOrchestrator {
       return routes.map((route) => ({
         route,
         success: false,
-        error: errorMessage,
+        error: errorMessageString,
         reason: 'executor_error',
       }));
     }

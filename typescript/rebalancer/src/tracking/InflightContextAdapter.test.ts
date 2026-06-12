@@ -261,16 +261,16 @@ describe('InflightContextAdapter', () => {
 
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves([]);
-      actionTracker.getActionsForIntents!.resolves(actionsByIntent);
+      actionTracker.getActionsForIntents.resolves(actionsByIntent);
       multiProvider.getChainName.withArgs(1).returns('ethereum');
       multiProvider.getChainName.withArgs(2).returns('arbitrum');
       multiProvider.getChainName.withArgs(3).returns('optimism');
 
       const result = await adapter.getInflightContext();
 
-      expect(actionTracker.getActionsForIntents!.calledOnce).to.be.true;
+      expect(actionTracker.getActionsForIntents.calledOnce).to.be.true;
       expect(
-        actionTracker.getActionsForIntents!.firstCall.args[0],
+        actionTracker.getActionsForIntents.firstCall.args[0],
       ).to.deep.equal(['inventory-intent-1', 'inventory-intent-2']);
       expect(actionTracker.getActionsForIntent.notCalled).to.be.true;
       expect(result.pendingRebalances[0].deliveredAmount).to.equal(300n);

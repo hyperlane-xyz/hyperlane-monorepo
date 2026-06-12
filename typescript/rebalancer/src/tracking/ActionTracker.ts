@@ -730,12 +730,6 @@ export class ActionTracker implements IActionTracker {
     return this.groupActionsByIntent(intentIds, actions);
   }
 
-  async getActionByMessageId(
-    messageId: string,
-  ): Promise<RebalanceAction | undefined> {
-    return this.rebalanceActionStore.getOneByField('messageId', messageId);
-  }
-
   async getActionsByMessageIds(
     messageIds: readonly string[],
   ): Promise<Map<string, RebalanceAction>> {

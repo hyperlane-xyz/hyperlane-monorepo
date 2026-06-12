@@ -82,20 +82,6 @@ export class InflightContextAdapter {
   private async getActionsForIntents(
     intentIds: readonly string[],
   ): Promise<Map<string, RebalanceAction[]>> {
-    if (this.actionTracker.getActionsForIntents) {
-      return this.actionTracker.getActionsForIntents(intentIds);
-    }
-
-    const actionsByIntent = new Map<string, RebalanceAction[]>();
-    await Promise.all(
-      intentIds.map(async (intentId) => {
-        actionsByIntent.set(
-          intentId,
-          await this.actionTracker.getActionsForIntent(intentId),
-        );
-      }),
-    );
-
-    return actionsByIntent;
+    return this.actionTracker.getActionsForIntents(intentIds);
   }
 }
