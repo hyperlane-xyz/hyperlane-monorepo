@@ -106,7 +106,7 @@ export const REGISTRY_RPC_URLS: Record<number, string> = Object.fromEntries(
       const bCanon = b.name && !b.name.includes('testnet') ? 0 : 1;
       return aCanon - bCanon;
     })
-    .map((meta) => [meta.chainId, meta.rpcUrls[0].http] as [number, string]),
+    .map((meta) => [meta.chainId, meta.rpcUrls?.[0]?.http] as [number, string]),
 );
 
 export function resolveRpcUrl(
