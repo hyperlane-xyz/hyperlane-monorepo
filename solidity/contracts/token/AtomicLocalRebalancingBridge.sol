@@ -6,6 +6,7 @@ import {TransientStorage} from "../libs/TransientStorage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
+import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,14 +18,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
 /// @dev The wrapper must be configured as an allowed rebalancer/bridge on the
 /// source router. The source router is treated as the trust boundary.
-contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
+contract AtomicLocalRebalancingBridge is
+    ITokenBridge,
+    PackageVersioned,
+    ReentrancyGuardTransient
+{
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
-
-    // Reentrancy guard spanning the whole `localRebalance` body, including the
-    // arbitrary `calls` window.
-    bytes32 private constant _REENTRANCY_GUARD_SLOT =
-        keccak256("hyperlane.atomicLocalRebalancingBridge.reentrancyGuard");
 
     // Stores the expected source router during `localRebalance`; the source
     // router callback replaces it with the resolved destination router.
@@ -36,7 +36,6 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     /// @notice The source router this bridge rebalances from.
     address public immutable sourceRouter;
 
-    error RebalanceAlreadyActive();
     error NoActiveRebalance();
     error InvalidCallback();
     error InsufficientOutput();
@@ -59,10 +58,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     function localRebalance(
         uint256 amountIn,
         CallLib.Call[] calldata calls
-    ) external payable {
-        if (_REENTRANCY_GUARD_SLOT.loadBool()) revert RebalanceAlreadyActive();
-        _REENTRANCY_GUARD_SLOT.set();
-
+    ) external payable nonReentrant {
         // Excludes pre-existing native from the refund.
         uint256 nativeBefore = address(this).balance - msg.value;
 
@@ -139,8 +135,6 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
             );
             if (!ok) revert NativeRefundFailed();
         }
-
-        _REENTRANCY_GUARD_SLOT.clear();
     }
 
     function _rebalanceSource(

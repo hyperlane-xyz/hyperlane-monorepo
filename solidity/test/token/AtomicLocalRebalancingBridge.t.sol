@@ -9,6 +9,7 @@ import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {ReentrancyGuardTransient} from "contracts/libs/ReentrancyGuardTransient.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -325,7 +326,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert(
-            AtomicLocalRebalancingBridge.RebalanceAlreadyActive.selector
+            ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
         );
         bridge.localRebalance(100e6, _rebalancerCalls(100e6));
     }
@@ -342,7 +343,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert(
-            AtomicLocalRebalancingBridge.RebalanceAlreadyActive.selector
+            ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
         );
         bridge.localRebalance(100e6, calls);
     }
