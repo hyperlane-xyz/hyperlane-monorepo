@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
+    panic::AssertUnwindSafe,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use futures::future::try_join_all;
+use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
@@ -385,6 +386,7 @@ impl Scraper {
                     &domain_name,
                     "reconcile_task",
                 ]);
+                let mut next_after_id = 0;
 
                 loop {
                     liveness_metric.set(
@@ -394,25 +396,45 @@ impl Scraper {
                             .unwrap_or_default(),
                     );
 
-                    match store
-                        .reconcile_raw_message_dispatches(RAW_DISPATCH_RECONCILIATION_BATCH_SIZE)
-                        .await
-                    {
-                        Ok(0) => sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await,
-                        Ok(stored) => {
-                            stored_events_metric.inc_by(stored.into());
+                    let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
+                        next_after_id,
+                        RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                    ))
+                    .catch_unwind()
+                    .await;
+
+                    match result {
+                        Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
+                            next_after_id = 0;
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Ok(Ok(result)) if result.candidate_count == 0 => {
+                            sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
+                        }
+                        Ok(Ok(result)) => {
+                            next_after_id = result.next_after_id;
+                            stored_events_metric.inc_by(result.stored_count.into());
                             info!(
-                                stored,
+                                candidates = result.candidate_count,
+                                stored = result.stored_count,
+                                next_after_id,
                                 domain = domain_name,
                                 "Reconciled raw message dispatches"
                             );
                             sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
                         }
-                        Err(err) => {
+                        Ok(Err(err)) => {
                             warn!(
                                 ?err,
                                 domain = domain_name,
                                 "Failed to reconcile raw message dispatches"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                        Err(_) => {
+                            warn!(
+                                domain = domain_name,
+                                "Raw message dispatch reconciliation panicked; retrying"
                             );
                             sleep(RPC_RETRY_SLEEP_DURATION).await;
                         }

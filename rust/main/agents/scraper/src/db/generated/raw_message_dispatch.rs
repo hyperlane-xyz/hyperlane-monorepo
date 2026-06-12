@@ -82,7 +82,7 @@ impl ColumnTrait for Column {
             Self::Sender => ColumnType::VarBinary(StringLen::None).def(),
             Self::Recipient => ColumnType::VarBinary(StringLen::None).def(),
             Self::OriginMailbox => ColumnType::VarBinary(StringLen::None).def(),
-            Self::MsgBody => ColumnType::VarBinary(StringLen::None).def(),
+            Self::MsgBody => ColumnType::VarBinary(StringLen::None).def().null(),
         }
     }
 }

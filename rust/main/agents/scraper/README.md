@@ -17,6 +17,17 @@ To init the database, run from `rust` dir
 cargo run --package migration --bin init-db
 ```
 
+## Database migrations
+
+Deploy scraper database migrations before deploying a scraper binary that
+references newly-added columns. The raw message dispatch reconciler depends on
+`raw_message_dispatch.msg_body`; deploying that binary before migration makes
+raw dispatch inserts fail closed and stalls the message cursor until the column
+exists.
+
+For rollback, stop or roll back scraper binaries that reference a new column
+before dropping that column.
+
 To re-create the database, run from `rust` dir
 
 ```bash

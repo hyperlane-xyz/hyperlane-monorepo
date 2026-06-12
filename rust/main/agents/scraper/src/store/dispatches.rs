@@ -14,6 +14,13 @@ use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 /// Label for raw message dispatch metrics
 const RAW_MESSAGE_DISPATCH_LABEL: &str = "raw_message_dispatch";
 
+#[derive(Debug, Default)]
+pub(crate) struct RawDispatchReconciliationResult {
+    pub candidate_count: usize,
+    pub stored_count: u32,
+    pub next_after_id: i64,
+}
+
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
     /// Store dispatched messages from the origin mailbox into the database.
@@ -92,14 +99,31 @@ impl HyperlaneDbStore {
         Ok(stored as u32)
     }
 
-    pub(crate) async fn reconcile_raw_message_dispatches(&self, limit: u64) -> Result<u32> {
+    pub(crate) async fn reconcile_raw_message_dispatches(
+        &self,
+        after_id: i64,
+        limit: u64,
+    ) -> Result<RawDispatchReconciliationResult> {
         let raw_dispatches = self
             .db
-            .retrieve_unenriched_raw_dispatches(self.domain.id(), &self.mailbox_address, limit)
+            .retrieve_unenriched_raw_dispatches(
+                self.domain.id(),
+                &self.mailbox_address,
+                after_id,
+                limit,
+            )
             .await?;
         if raw_dispatches.is_empty() {
-            return Ok(0);
+            return Ok(RawDispatchReconciliationResult {
+                next_after_id: after_id,
+                ..Default::default()
+            });
         }
+        let next_after_id = raw_dispatches
+            .iter()
+            .map(|raw_dispatch| raw_dispatch.raw_id)
+            .max()
+            .unwrap_or(after_id);
 
         let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(raw_dispatches.iter().map(|r| &r.meta))
@@ -142,7 +166,11 @@ impl HyperlaneDbStore {
             );
         }
 
-        Ok(stored as u32)
+        Ok(RawDispatchReconciliationResult {
+            candidate_count: raw_dispatches.len(),
+            stored_count: stored as u32,
+            next_after_id,
+        })
     }
 }
 

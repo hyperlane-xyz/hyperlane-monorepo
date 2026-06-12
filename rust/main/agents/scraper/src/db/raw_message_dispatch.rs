@@ -26,6 +26,7 @@ pub struct StorableRawMessageDispatch<'a> {
 
 #[derive(Debug, Clone)]
 pub struct RawDispatchForEnrichment {
+    pub raw_id: i64,
     pub msg_id: H256,
     pub msg: HyperlaneMessage,
     pub meta: LogMeta,
@@ -178,6 +179,7 @@ impl ScraperDb {
         &self,
         origin_domain: u32,
         origin_mailbox: &H256,
+        after_id: i64,
         limit: u64,
     ) -> Result<Vec<RawDispatchForEnrichment>> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
@@ -195,12 +197,14 @@ impl ScraperDb {
                   AND raw_message_dispatch.origin_mailbox = $2
                   AND raw_message_dispatch.msg_body IS NOT NULL
                   AND "message".id IS NULL
-                ORDER BY raw_message_dispatch.nonce ASC
-                LIMIT $3
+                  AND raw_message_dispatch.id > $3
+                ORDER BY raw_message_dispatch.id ASC
+                LIMIT $4
                 "#,
                 [
                     (origin_domain as i32).into(),
                     origin_mailbox.into(),
+                    after_id.into(),
                     (limit as i64).into(),
                 ],
             ))
@@ -235,6 +239,7 @@ fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDisp
     let origin_mailbox = bytes_to_address(raw.origin_mailbox)?;
 
     Ok(RawDispatchForEnrichment {
+        raw_id: raw.id,
         msg_id: H256::from_slice(&raw.msg_id),
         msg: HyperlaneMessage {
             version: 3,
@@ -268,11 +273,12 @@ mod tests {
     use time::PrimitiveDateTime;
 
     use hyperlane_core::{
-        address_to_bytes, h256_to_bytes, h512_to_bytes, HyperlaneMessage, LogMeta, H256, H512, U256,
+        address_to_bytes, h256_to_bytes, h512_to_bytes, BlockInfo, HyperlaneMessage, LogMeta,
+        TxnInfo, TxnReceiptInfo, H256, H512, U256,
     };
 
     use crate::db::generated::raw_message_dispatch;
-    use crate::db::ScraperDb;
+    use crate::db::{ScraperDb, StorableMessage, StorableTxn};
 
     use super::{raw_dispatch_to_candidate, StorableRawMessageDispatch};
 
@@ -406,6 +412,7 @@ mod tests {
         let storable = candidate.storable_message(7);
 
         assert_eq!(candidate.msg_id, msg_id);
+        assert_eq!(candidate.raw_id, 1);
         assert_eq!(candidate.msg, msg);
         assert_eq!(candidate.meta.address, mailbox);
         assert_eq!(candidate.meta.block_number, 100);
@@ -664,7 +671,87 @@ mod tests {
             .expect("Last message should exist");
         assert_eq!(last_result.nonce, (MESSAGE_COUNT - 1) as i32);
 
-        // Test 4: Duplicate handling (same message ID should update, not fail)
+        // Test 4: raw dispatches with matching message rows are excluded from
+        // the reconciliation candidate query.
+        scraper_db
+            .store_blocks(
+                1,
+                [BlockInfo {
+                    hash: metas[1].block_hash,
+                    timestamp: 1,
+                    number: metas[1].block_number,
+                }]
+                .into_iter(),
+            )
+            .await?;
+        let block = scraper_db
+            .get_block_basic([&metas[1].block_hash].into_iter())
+            .await?
+            .pop()
+            .expect("block should exist");
+        scraper_db
+            .store_txns(
+                [StorableTxn {
+                    info: TxnInfo {
+                        hash: metas[1].transaction_id,
+                        gas_limit: U256::one(),
+                        max_priority_fee_per_gas: None,
+                        max_fee_per_gas: None,
+                        gas_price: None,
+                        nonce: 1,
+                        sender: H256::from_low_u64_be(1),
+                        recipient: Some(H256::from_low_u64_be(2)),
+                        receipt: Some(TxnReceiptInfo {
+                            gas_used: U256::one(),
+                            cumulative_gas_used: U256::one(),
+                            effective_gas_price: None,
+                        }),
+                        raw_input_data: None,
+                    },
+                    block_id: block.id,
+                }]
+                .into_iter(),
+            )
+            .await?;
+        let txn_id = scraper_db
+            .get_txn_ids([&metas[1].transaction_id].into_iter())
+            .await?
+            .get(&metas[1].transaction_id)
+            .copied()
+            .expect("txn should exist");
+        scraper_db
+            .store_dispatched_messages(
+                1,
+                &H256::from_low_u64_be(999),
+                [StorableMessage {
+                    msg: messages[1].clone(),
+                    meta: &metas[1],
+                    txn_id,
+                    id_override: None,
+                }]
+                .into_iter(),
+            )
+            .await?;
+
+        let candidates = scraper_db
+            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, 100)
+            .await?;
+        assert_eq!(candidates.len(), MESSAGE_COUNT - 1);
+        assert!(candidates.iter().any(|candidate| candidate.msg.nonce == 0));
+        assert!(candidates.iter().all(|candidate| candidate.msg.nonce != 1));
+
+        let paged_candidates = scraper_db
+            .retrieve_unenriched_raw_dispatches(
+                1,
+                &H256::from_low_u64_be(999),
+                candidates[0].raw_id,
+                1,
+            )
+            .await?;
+        assert_eq!(paged_candidates.len(), 1);
+        assert!(paged_candidates[0].raw_id > candidates[0].raw_id);
+
+        // Test 5: Duplicate handling (same message ID should update, not fail)
         let storables_dup: Vec<StorableRawMessageDispatch> = messages
             .iter()
             .take(10)
