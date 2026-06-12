@@ -58,6 +58,11 @@ contract AtomicLocalRebalancingBridge is
     constructor(uint32 _localDomain, address _sourceRouter) {
         localDomain = _localDomain;
         sourceRouter = _sourceRouter;
+        // Native-collateral sources are unsupported (decimal conversion needs an
+        // ERC20); reject them up front since the source is bound here.
+        if (MovableCollateralRouter(_sourceRouter).token() == address(0)) {
+            revert InvalidToken();
+        }
     }
 
     /// @notice Executes a same-chain rebalance into an enrolled destination
@@ -175,6 +180,7 @@ contract AtomicLocalRebalancingBridge is
     ) external view override(ITokenFee) returns (Quote[] memory quotes) {
         if (destination != localDomain) revert InvalidCallback();
         address inputToken = MovableCollateralRouter(msg.sender).token();
+        if (inputToken == address(0)) revert InvalidToken();
 
         // Match router rebalance quote semantics: no native fee, exact source
         // token amount pulled by transferRemote.

@@ -980,25 +980,29 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(100e6, noCalls);
     }
 
-    function test_localRebalance_revertsForInvalidInputToken() public {
-        sourceRouter = new MockRebalanceRouter(
+    function test_constructor_revertsForNativeSource() public {
+        MockRebalanceRouter nativeSource = new MockRebalanceRouter(
             ERC20Test(address(0)),
             LOCAL_DOMAIN,
             1,
             1
         );
-        AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
-                LOCAL_DOMAIN,
-                address(sourceRouter)
-            );
-        sourceRouter.addRebalancer(rebalancer);
-        sourceRouter.addRebalancer(address(localBridge));
 
-        CallLib.Call[] memory noCalls = new CallLib.Call[](0);
-
-        vm.prank(rebalancer);
         vm.expectRevert(AtomicLocalRebalancingBridge.InvalidToken.selector);
-        localBridge.localRebalance(100e6, noCalls);
+        new AtomicLocalRebalancingBridge(LOCAL_DOMAIN, address(nativeSource));
+    }
+
+    function test_quoteTransferRemote_revertsForNativeCallerToken() public {
+        MockRebalanceRouter nativeCaller = new MockRebalanceRouter(
+            ERC20Test(address(0)),
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+
+        vm.prank(address(nativeCaller));
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidToken.selector);
+        bridge.quoteTransferRemote(LOCAL_DOMAIN, bytes32(0), 100e6);
     }
 
     function test_localRebalance_allowsDecimalNormalizedRequiredDeltaDown()
