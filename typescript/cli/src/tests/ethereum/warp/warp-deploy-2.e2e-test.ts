@@ -139,9 +139,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    const MAX_UINT256 =
-      115792089237316195423570985008687907853269984665640564039457584007913129639935n;
-
     it('should set the allowed bridges and the related token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
@@ -190,7 +187,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance.toBigInt() === 0n).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(chain3DomainId);
@@ -263,7 +260,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance.toBigInt() === 0n).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(domain);
