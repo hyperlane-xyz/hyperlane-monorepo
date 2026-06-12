@@ -27,10 +27,14 @@ contract AtomicLocalRebalancingBridge is
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
 
-    // Stores the expected source router during `localRebalance`; the source
-    // router callback replaces it with the resolved destination router.
-    bytes32 private constant _CALLBACK_RECIPIENT_SLOT =
-        keccak256("hyperlane.atomicLocalRebalancingBridge.callbackRecipient");
+    bytes32 private constant _EXPECTED_SOURCE_ROUTER_SLOT =
+        keccak256(
+            "hyperlane.atomicLocalRebalancingBridge.expectedSourceRouter"
+        );
+    bytes32 private constant _RESOLVED_DESTINATION_ROUTER_SLOT =
+        keccak256(
+            "hyperlane.atomicLocalRebalancingBridge.resolvedDestinationRouter"
+        );
 
     uint32 public immutable localDomain;
 
@@ -39,6 +43,7 @@ contract AtomicLocalRebalancingBridge is
 
     error NoActiveRebalance();
     error InvalidCallback();
+    error MissingCallback();
     error InsufficientOutput();
     error InvalidInputDelta();
     error UnauthorizedRebalancer();
@@ -139,20 +144,22 @@ contract AtomicLocalRebalancingBridge is
 
     function _rebalanceSource(
         MovableCollateralRouter source,
-        address sourceRouter,
+        address expectedSourceRouter,
         uint256 amountIn
     ) internal returns (address destinationRouter) {
-        _CALLBACK_RECIPIENT_SLOT.store(
-            TypeCasts.addressToBytes32(sourceRouter)
+        _EXPECTED_SOURCE_ROUTER_SLOT.store(
+            TypeCasts.addressToBytes32(expectedSourceRouter)
         );
 
         // Enters this contract via transferRemote, which escrows source funds
         // and writes the destination recipient into transient storage.
         source.rebalance(localDomain, amountIn, this);
         destinationRouter = TypeCasts.bytes32ToAddress(
-            _CALLBACK_RECIPIENT_SLOT.loadBytes32()
+            _RESOLVED_DESTINATION_ROUTER_SLOT.loadBytes32()
         );
-        _CALLBACK_RECIPIENT_SLOT.clear();
+        if (destinationRouter == address(0)) revert MissingCallback();
+        _EXPECTED_SOURCE_ROUTER_SLOT.clear();
+        _RESOLVED_DESTINATION_ROUTER_SLOT.clear();
     }
 
     /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
@@ -178,12 +185,16 @@ contract AtomicLocalRebalancingBridge is
         bytes32 recipient,
         uint256 amount
     ) external payable override returns (bytes32) {
-        bytes32 activeSourceRouter = _CALLBACK_RECIPIENT_SLOT.loadBytes32();
+        bytes32 activeSourceRouter = _EXPECTED_SOURCE_ROUTER_SLOT.loadBytes32();
         if (activeSourceRouter == bytes32(0)) revert NoActiveRebalance();
         if (destination != localDomain) revert InvalidCallback();
         if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
             revert InvalidCallback();
         }
+        if (_RESOLVED_DESTINATION_ROUTER_SLOT.loadBytes32() != bytes32(0)) {
+            revert InvalidCallback();
+        }
+
         IERC20(MovableCollateralRouter(msg.sender).token()).safeTransferFrom(
             msg.sender,
             address(this),
@@ -191,7 +202,7 @@ contract AtomicLocalRebalancingBridge is
         );
         // Captured for localRebalance to resolve the destination router after
         // the source router finishes its rebalance flow.
-        _CALLBACK_RECIPIENT_SLOT.store(recipient);
+        _RESOLVED_DESTINATION_ROUTER_SLOT.store(recipient);
         return bytes32(0);
     }
 

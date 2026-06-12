@@ -33,6 +33,7 @@ contract MockRebalanceRouter {
     address public callbackSender;
     bool public quoteOnly;
     bool public reenter;
+    bool public doubleCallback;
 
     constructor(
         ERC20Test _token,
@@ -87,6 +88,10 @@ contract MockRebalanceRouter {
         reenter = _reenter;
     }
 
+    function setDoubleCallback(bool _doubleCallback) external {
+        doubleCallback = _doubleCallback;
+    }
+
     function addRebalancer(address rebalancer) external {
         if (!isAllowedRebalancer[rebalancer]) {
             _allowedRebalancers.push(rebalancer);
@@ -129,6 +134,13 @@ contract MockRebalanceRouter {
                 callbackRecipient,
                 collateralAmount
             );
+            if (doubleCallback) {
+                bridge.transferRemote(
+                    callbackDomain,
+                    callbackRecipient,
+                    collateralAmount
+                );
+            }
         } else {
             MockRebalanceRouter(callbackSender).callbackTransfer(
                 bridge,
@@ -317,7 +329,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     function test_localRebalance_revertsIfRouterDoesNotCallback() public {
         sourceRouter.setQuoteOnly(true);
         vm.prank(rebalancer);
-        vm.expectRevert();
+        vm.expectRevert(AtomicLocalRebalancingBridge.MissingCallback.selector);
+        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+    }
+
+    function test_localRebalance_revertsIfRouterCallbacksTwice() public {
+        sourceRouter.setDoubleCallback(true);
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
         bridge.localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
