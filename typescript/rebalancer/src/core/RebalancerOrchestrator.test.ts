@@ -11,7 +11,11 @@ import {
 } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  ExecutionResult,
+  ExecutionSummary,
+  IRebalancer,
+} from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
@@ -151,6 +155,14 @@ function createMockBridge(): IExternalBridge {
   } as unknown as IExternalBridge;
 }
 
+type ExecutionSummaryTester = {
+  createExecutionSummary(
+    results: ExecutionResult[],
+    systemErrors?: string[],
+  ): ExecutionSummary;
+  mergeExecutionSummaries(summaries: ExecutionSummary[]): ExecutionSummary;
+};
+
 function createMockMetrics(): Metrics {
   return {
     recordRebalancerSuccess: Sinon.stub(),
@@ -206,6 +218,66 @@ describe('RebalancerOrchestrator', () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe('execution summary status', () => {
+    function createSummaryTester(): ExecutionSummaryTester {
+      const deps: RebalancerOrchestratorDeps = {
+        strategy: createMockStrategy(),
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+      };
+      return new RebalancerOrchestrator(
+        deps,
+      ) as unknown as ExecutionSummaryTester;
+    }
+
+    const successfulResult: ExecutionResult = {
+      route: {
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: 1000n,
+      },
+      success: true,
+    };
+    const failedResult: ExecutionResult = {
+      ...successfulResult,
+      success: false,
+      error: 'failed',
+    };
+
+    it('should fail empty summaries with system errors', () => {
+      const summary = createSummaryTester().createExecutionSummary(
+        [],
+        ['executor failed'],
+      );
+
+      expect(summary.status).to.equal('failed');
+      expect(summary.systemErrors).to.deep.equal(['executor failed']);
+    });
+
+    it('should mark successful results with system errors as partial', () => {
+      const summary = createSummaryTester().createExecutionSummary(
+        [successfulResult],
+        ['inventory failed'],
+      );
+
+      expect(summary.status).to.equal('partial');
+    });
+
+    it('should merge success and failure summaries as partial', () => {
+      const tester = createSummaryTester();
+      const summary = tester.mergeExecutionSummaries([
+        tester.createExecutionSummary([successfulResult]),
+        tester.createExecutionSummary([failedResult]),
+      ]);
+
+      expect(summary.status).to.equal('partial');
+      expect(summary.results).to.deep.equal([successfulResult, failedResult]);
+    });
   });
 
   describe('executeCycle() - No Routes', () => {

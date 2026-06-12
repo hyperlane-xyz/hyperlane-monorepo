@@ -146,6 +146,7 @@ describe('bridgeConfig', () => {
     expect(result.executionType).to.equal(ExecutionType.Inventory);
     assert(isInventoryConfig(result));
     expect(result.externalBridge).to.equal(ExternalBridgeType.LiFi);
+    expect(result.bridgeMinAcceptedAmount).to.equal(0);
   });
 
   it('should allow override to change executionType from movableCollateral to inventory', () => {
@@ -252,7 +253,7 @@ describe('bridgeConfig', () => {
     expect(getRouteExecutionConfig(matrix, 'chain2', 'chain1')).to.deep.equal({
       executionType: 'movableCollateral',
       bridge: '0x0987654321098765432109876543210987654321',
-      bridgeMinAcceptedAmount: undefined,
+      bridgeMinAcceptedAmount: 0,
     });
   });
 
@@ -277,7 +278,7 @@ describe('bridgeConfig', () => {
     expect(getBridgeConfig(configs, 'chain1', 'chain2')).to.deep.equal({
       executionType: 'inventory',
       externalBridge: ExternalBridgeType.LiFi,
-      bridgeMinAcceptedAmount: undefined,
+      bridgeMinAcceptedAmount: 0,
     });
   });
 });

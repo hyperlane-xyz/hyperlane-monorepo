@@ -277,6 +277,20 @@ function createTestRunner(
   };
 }
 
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('LiFiBridge.execute() route validation', function () {
   // Allow extra time for tests that pass validation and reach SDK execution
   this.timeout(15000);
@@ -907,6 +921,11 @@ describe('LiFiBridge source protocol handling', function () {
     const activeByChain = new Map<number, number>();
     let sameChainOverlap = false;
     let differentChainRanWhileArbitrumActive = false;
+    let arbitrumExecutionCount = 0;
+    let firstArbitrumReleased = false;
+    const firstArbitrumEntered = deferred();
+    const releaseFirstArbitrum = deferred();
+    const optimismRan = deferred();
 
     const bridge = new LiFiBridge(
       BRIDGE_CONFIG,
@@ -923,9 +942,19 @@ describe('LiFiBridge source protocol handling', function () {
           }
 
           activeByChain.set(route.fromChainId, currentActive + 1);
-          await new Promise((resolve) =>
-            setTimeout(resolve, route.fromChainId === 42161 ? 20 : 0),
-          );
+          if (route.fromChainId === 42161) {
+            arbitrumExecutionCount++;
+            if (arbitrumExecutionCount === 1) {
+              firstArbitrumEntered.resolve();
+              await releaseFirstArbitrum.promise;
+              firstArbitrumReleased = true;
+            } else {
+              expect(firstArbitrumReleased).to.equal(true);
+            }
+          } else {
+            await firstArbitrumEntered.promise;
+            optimismRan.resolve();
+          }
           activeByChain.set(route.fromChainId, currentActive);
 
           return {
@@ -947,7 +976,7 @@ describe('LiFiBridge source protocol handling', function () {
       { fromChain: 10 },
     );
 
-    await Promise.all([
+    const executions = Promise.all([
       bridge.execute(firstArbitrumQuote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       }),
@@ -959,8 +988,54 @@ describe('LiFiBridge source protocol handling', function () {
       }),
     ]);
 
+    await optimismRan.promise;
+    releaseFirstArbitrum.resolve();
+    await executions;
+
     expect(sameChainOverlap).to.equal(false);
     expect(differentChainRanWhileArbitrumActive).to.equal(true);
+  });
+
+  it('releases scoped execution locks after executeRoute rejects', async () => {
+    let attempts = 0;
+    const bridge = new LiFiBridge(
+      BRIDGE_CONFIG,
+      testLogger,
+      createTestRunner({
+        providerScope: 'scoped',
+        executeRoute: async (route: Route) => {
+          attempts++;
+          if (attempts === 1) {
+            throw new Error('route execution failed');
+          }
+          return {
+            steps: [
+              {
+                execution: {
+                  process: [{ txHash: `0x${route.fromChainId.toString(16)}` }],
+                },
+              },
+            ],
+          } as RouteExtended;
+        },
+      }),
+    );
+
+    try {
+      await bridge.execute(createTestQuote(), {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      expect((error as Error).message).to.equal('route execution failed');
+    }
+
+    const result = await bridge.execute(createTestQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
+
+    expect(result.txHash).to.equal('0xa4b1');
+    expect(attempts).to.equal(2);
   });
 
   it('addressesEqual keeps Sealevel base58 comparison case-sensitive', () => {

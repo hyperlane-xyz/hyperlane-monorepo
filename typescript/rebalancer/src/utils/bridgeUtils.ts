@@ -62,7 +62,7 @@ export function resolveRouteExecutionConfig(
     return {
       executionType: 'inventory',
       externalBridge: config.externalBridge,
-      bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount,
+      bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
     };
   }
 
@@ -70,7 +70,7 @@ export function resolveRouteExecutionConfig(
   return {
     executionType: 'movableCollateral',
     bridge: config.bridge,
-    bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount,
+    bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
   };
 }
 
