@@ -223,13 +223,18 @@ where
 
             let logs = {
                 let store = store.lock().await;
-                match Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
-                {
-                    Ok(logs) => logs,
-                    Err(err) => {
-                        warn!(?err, ?tx_id, "Error storing logs in db");
-                        continue;
-                    }
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
+            let logs = match logs {
+                Ok(logs) => logs,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        ?tx_id,
+                        "Error storing logs in db; tx-id task will rely on cursor retry"
+                    );
+                    sleep(SLEEP_DURATION).await;
+                    continue;
                 }
             };
             let num_logs = logs.len() as u64;
@@ -293,18 +298,18 @@ where
 
             let logs = {
                 let store = store.lock().await;
-                match Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
-                {
-                    Ok(logs) => logs,
-                    Err(err) => {
-                        warn!(
-                            ?err,
-                            ?range,
-                            "Skipping cursor update because logs failed to store"
-                        );
-                        sleep(SLEEP_DURATION).await;
-                        continue;
-                    }
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
+            let logs = match logs {
+                Ok(logs) => logs,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        ?range,
+                        "Skipping cursor update because logs failed to store"
+                    );
+                    sleep(SLEEP_DURATION).await;
+                    continue;
                 }
             };
             let logs_found = logs.len() as u64;
@@ -364,10 +369,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::ops::RangeInclusive;
+    use std::{
+        ops::RangeInclusive,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc as StdArc,
+        },
+    };
 
     use async_trait::async_trait;
-    use prometheus::IntCounter;
+    use prometheus::{IntCounter, IntGauge};
 
     use hyperlane_core::{
         ChainCommunicationError, ChainResult, HyperlaneMessage, Indexer, KnownHyperlaneDomain,
@@ -375,8 +386,10 @@ mod tests {
 
     use super::*;
 
-    #[derive(Clone, Debug)]
-    struct MockIndexer;
+    #[derive(Clone, Debug, Default)]
+    struct MockIndexer {
+        logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+    }
 
     #[async_trait]
     impl Indexer<HyperlaneMessage> for MockIndexer {
@@ -384,9 +397,7 @@ mod tests {
             &self,
             _range: RangeInclusive<u32>,
         ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-            Err(ChainCommunicationError::from_other_str(
-                "mock indexer does not fetch logs",
-            ))
+            Ok(self.logs.clone())
         }
 
         async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -400,11 +411,15 @@ mod tests {
     struct StoreResult {
         stored: u32,
         error: Option<&'static str>,
+        calls: Option<StdArc<AtomicUsize>>,
     }
 
     #[async_trait]
     impl HyperlaneLogStore<HyperlaneMessage> for StoreResult {
         async fn store_logs(&self, _logs: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
+            if let Some(calls) = &self.calls {
+                calls.fetch_add(1, Ordering::SeqCst);
+            }
             match self.error {
                 Some(err) => Err(eyre::eyre!(err)),
                 None => Ok(self.stored),
@@ -419,6 +434,15 @@ mod tests {
     fn stored_logs_metric() -> IntCounter {
         IntCounter::new("test_stored_events", "test stored events")
             .expect("test counter should be valid")
+    }
+
+    fn indexed_height_metric() -> IntGauge {
+        IntGauge::new("test_indexed_height", "test indexed height")
+            .expect("test gauge should be valid")
+    }
+
+    fn liveness_metric() -> IntGauge {
+        IntGauge::new("test_liveness", "test liveness").expect("test gauge should be valid")
     }
 
     fn test_logs() -> Vec<(Indexed<HyperlaneMessage>, LogMeta)> {
@@ -438,6 +462,7 @@ mod tests {
                 &StoreResult {
                     stored: 1,
                     error: None,
+                    calls: None,
                 },
                 test_logs(),
                 &metric,
@@ -459,6 +484,7 @@ mod tests {
                 &StoreResult {
                     stored: 0,
                     error: Some("db unavailable"),
+                    calls: None,
                 },
                 test_logs(),
                 &metric,
@@ -467,6 +493,71 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(metric.get(), 0);
+    }
+
+    #[derive(Debug)]
+    struct MockCursor {
+        updates: StdArc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl ContractSyncCursor<HyperlaneMessage> for MockCursor {
+        async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            Ok((CursorAction::Query(0..=0), Duration::default()))
+        }
+
+        fn latest_queried_block(&self) -> u32 {
+            0
+        }
+
+        async fn update(
+            &mut self,
+            _logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+            _range: RangeInclusive<u32>,
+        ) -> Result<()> {
+            self.updates.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn cursor_indexer_task_skips_cursor_update_when_store_errors() {
+        let store_calls = StdArc::new(AtomicUsize::new(0));
+        let cursor_updates = StdArc::new(AtomicUsize::new(0));
+        let store = StoreResult {
+            stored: 0,
+            error: Some("db unavailable"),
+            calls: Some(store_calls.clone()),
+        };
+        let cursor = MockCursor {
+            updates: cursor_updates.clone(),
+        };
+
+        let task = tokio::spawn(
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::cursor_indexer_task(
+                test_domain(),
+                MockIndexer { logs: test_logs() },
+                Arc::new(Mutex::new(store)),
+                Box::new(cursor),
+                None,
+                stored_logs_metric(),
+                indexed_height_metric(),
+                liveness_metric(),
+            ),
+        );
+
+        for _ in 0..50 {
+            if store_calls.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        assert_eq!(store_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(cursor_updates.load(Ordering::SeqCst), 0);
+
+        task.abort();
+        let _ = task.await;
     }
 }
 

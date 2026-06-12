@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
@@ -75,7 +75,7 @@ impl HyperlaneDbStore {
             .await?
             .map(|t| (t.hash, t))
             .collect();
-        let storable = storable_messages_for_txns(messages, &txns)?;
+        let (storable, missing_txns) = storable_message_prefix_for_txns(messages, &txns);
         let stored = self
             .db
             .store_dispatched_messages(
@@ -84,26 +84,49 @@ impl HyperlaneDbStore {
                 storable.into_iter(),
             )
             .await?;
+
+        if let Some(missing_txns) = missing_txns {
+            eyre::bail!(
+                "stored {stored} contiguous enriched message dispatches before first missing transaction; failed to enrich {} of {} message dispatches; missing transaction ids: {:?}",
+                missing_txns.missing_dispatches,
+                messages.len(),
+                missing_txns.missing_tx_hashes,
+            );
+        }
+
         Ok(stored as u32)
     }
 }
 
-fn storable_messages_for_txns<'a>(
+#[derive(Debug, PartialEq, Eq)]
+struct MissingDispatchTxns {
+    missing_dispatches: usize,
+    missing_tx_hashes: Vec<H512>,
+}
+
+fn storable_message_prefix_for_txns<'a>(
     messages: &'a [(Indexed<HyperlaneMessage>, LogMeta)],
     txns: &HashMap<H512, TxnWithId>,
-) -> Result<Vec<StorableMessage<'a>>, Report> {
-    let mut missing_dispatch_tx_hashes = Vec::new();
+) -> (Vec<StorableMessage<'a>>, Option<MissingDispatchTxns>) {
+    let mut missing_dispatches: usize = 0;
     let mut missing_tx_hashes = Vec::new();
+    let mut unique_missing_tx_hashes = HashSet::new();
     let mut storable = Vec::with_capacity(messages.len());
+    let mut found_first_gap = false;
 
     for (message, meta) in messages {
         let Some(txn) = txns.get(&meta.transaction_id) else {
-            missing_dispatch_tx_hashes.push(meta.transaction_id);
-            if !missing_tx_hashes.contains(&meta.transaction_id) {
+            found_first_gap = true;
+            missing_dispatches = missing_dispatches.saturating_add(1);
+            if unique_missing_tx_hashes.insert(meta.transaction_id) {
                 missing_tx_hashes.push(meta.transaction_id);
             }
             continue;
         };
+
+        if found_first_gap {
+            continue;
+        }
 
         storable.push(StorableMessage {
             msg: message.inner().clone(),
@@ -113,15 +136,11 @@ fn storable_messages_for_txns<'a>(
         });
     }
 
-    if !missing_tx_hashes.is_empty() {
-        let missing_dispatches = missing_dispatch_tx_hashes.len();
-        eyre::bail!(
-            "failed to enrich {missing_dispatches} of {} message dispatches; missing transaction ids: {missing_tx_hashes:?}",
-            messages.len(),
-        );
-    }
-
-    Ok(storable)
+    let missing_txns = (missing_dispatches > 0).then_some(MissingDispatchTxns {
+        missing_dispatches,
+        missing_tx_hashes,
+    });
+    (storable, missing_txns)
 }
 
 #[async_trait]
@@ -166,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn storable_messages_for_txns_allows_multiple_messages_per_txn() {
+    fn storable_message_prefix_for_txns_allows_multiple_messages_per_txn() {
         let txn_hash = H512::from_low_u64_be(1);
         let messages = vec![
             (indexed_message(0), log_meta(txn_hash)),
@@ -180,35 +199,83 @@ mod tests {
             },
         )]);
 
-        let storable = storable_messages_for_txns(&messages, &txns)
-            .expect("all messages should have transaction ids");
+        let (storable, missing_txns) = storable_message_prefix_for_txns(&messages, &txns);
 
+        assert!(missing_txns.is_none());
         assert_eq!(storable.len(), messages.len());
         assert!(storable.iter().all(|message| message.txn_id == 7));
     }
 
     #[test]
-    fn storable_messages_for_txns_errors_on_missing_enrichment_txn() {
+    fn storable_message_prefix_for_txns_stores_prefix_before_first_missing_txn() {
         let found_txn_hash = H512::from_low_u64_be(1);
         let missing_txn_hash = H512::from_low_u64_be(2);
+        let later_found_txn_hash = H512::from_low_u64_be(3);
         let messages = vec![
             (indexed_message(0), log_meta(found_txn_hash)),
             (indexed_message(1), log_meta(missing_txn_hash)),
-            (indexed_message(2), log_meta(missing_txn_hash)),
+            (indexed_message(2), log_meta(later_found_txn_hash)),
         ];
-        let txns = HashMap::from([(
-            found_txn_hash,
-            TxnWithId {
-                hash: found_txn_hash,
-                id: 7,
-            },
-        )]);
+        let txns = HashMap::from([
+            (
+                found_txn_hash,
+                TxnWithId {
+                    hash: found_txn_hash,
+                    id: 7,
+                },
+            ),
+            (
+                later_found_txn_hash,
+                TxnWithId {
+                    hash: later_found_txn_hash,
+                    id: 8,
+                },
+            ),
+        ]);
 
-        let err = storable_messages_for_txns(&messages, &txns)
-            .err()
-            .expect("expected missing transaction id error");
+        let (storable, missing_txns) = storable_message_prefix_for_txns(&messages, &txns);
 
-        assert!(err.to_string().contains("failed to enrich 2 of 3"));
-        assert!(err.to_string().contains(&format!("{missing_txn_hash:?}")));
+        assert_eq!(storable.len(), 1);
+        assert_eq!(storable[0].msg.nonce, 0);
+        assert_eq!(storable[0].txn_id, 7);
+        assert_eq!(
+            missing_txns,
+            Some(MissingDispatchTxns {
+                missing_dispatches: 1,
+                missing_tx_hashes: vec![missing_txn_hash],
+            })
+        );
+    }
+
+    #[test]
+    fn storable_message_prefix_for_txns_all_missing_returns_empty_prefix() {
+        let missing_txn_hash = H512::from_low_u64_be(2);
+        let messages = vec![
+            (indexed_message(0), log_meta(missing_txn_hash)),
+            (indexed_message(1), log_meta(missing_txn_hash)),
+        ];
+        let txns = HashMap::new();
+
+        let (storable, missing_txns) = storable_message_prefix_for_txns(&messages, &txns);
+
+        assert!(storable.is_empty());
+        assert_eq!(
+            missing_txns,
+            Some(MissingDispatchTxns {
+                missing_dispatches: 2,
+                missing_tx_hashes: vec![missing_txn_hash],
+            })
+        );
+    }
+
+    #[test]
+    fn storable_message_prefix_for_txns_empty_input_returns_empty_prefix() {
+        let messages = vec![];
+        let txns = HashMap::new();
+
+        let (storable, missing_txns) = storable_message_prefix_for_txns(&messages, &txns);
+
+        assert!(storable.is_empty());
+        assert!(missing_txns.is_none());
     }
 }
