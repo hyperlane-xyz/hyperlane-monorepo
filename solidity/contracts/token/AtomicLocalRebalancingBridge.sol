@@ -129,6 +129,10 @@ contract AtomicLocalRebalancingBridge is
         ) {
             revert InvalidInputDelta();
         }
+        // Calls must not spend the wrapper's pre-call input donation.
+        if (IERC20(inputToken).balanceOf(address(this)) < inputSelfBefore) {
+            revert InvalidInputDelta();
+        }
         // Calls must produce at least requiredDelta of new output; donations
         // and escrow already on the wrapper cannot fund the destination.
         if (

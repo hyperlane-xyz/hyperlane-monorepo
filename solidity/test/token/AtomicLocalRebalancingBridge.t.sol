@@ -564,6 +564,32 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.localRebalance(100e6, noCalls);
     }
 
+    function test_localRebalance_revertsWhenCallsSpendInputDonation() public {
+        // A prior donation of the input token sits on the bridge.
+        inputToken.mintTo(address(bridge), 50e6);
+        // Swap the escrow AND the donation, so the surplus output would be
+        // refunded to the rebalancer if the input donation were spendable.
+        swapTarget.setOutputAmount(150e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](2);
+        calls[0] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(IERC20.approve, (address(swapTarget), 150e6))
+        );
+        calls[1] = CallLib.build(
+            address(swapTarget),
+            0,
+            abi.encodeCall(TestSwapTarget.swapExactInput, (150e6))
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InvalidInputDelta.selector
+        );
+        bridge.localRebalance(100e6, calls);
+    }
+
     function test_localRebalance_sharedTokenFundsFromEscrowAndKeepsDonation()
         public
     {
