@@ -6,6 +6,7 @@ import {
   CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   GasRouter__factory,
+  IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
   PredicateRouterWrapper__factory,
@@ -27,6 +28,7 @@ import {
   deepEquals,
   difference,
   eqAddress,
+  intersection,
   isAddressEvm,
   isNullish,
   isObjEmpty,
@@ -105,6 +107,12 @@ import {
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
 };
+
+// The last contract version where `approveTokenForBridge` granted max allowance
+// instead of revoking it. Hardcoded (not CONTRACTS_PACKAGE_VERSION) because the
+// package version moves to the next major at release and would wrongly match the
+// new revoke-semantics implementations.
+const MAX_LEGACY_BRIDGE_APPROVAL_VERSION = '11.3.1';
 
 const getAllowedRebalancingBridgesByDomain = (
   allowedRebalancingBridgesByDomain: NonNullable<
@@ -228,11 +236,13 @@ export class EvmWarpModule extends HyperlaneModule<
      * 3. createHookAndPredicateUpdateTxs() handles hook + predicate wrapper together so the
      *    pending new hook address is threaded through without leaking into other method signatures
      */
+    const upgradeTxs = await this.upgradeWarpRouteImplementationTx(
+      actualConfig,
+      expectedConfig,
+    );
+
     transactions.push(
-      ...(await this.upgradeWarpRouteImplementationTx(
-        actualConfig,
-        expectedConfig,
-      )),
+      ...upgradeTxs,
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
@@ -266,6 +276,11 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      ...(await this.createRevokeStaleBridgeAllowancesTxs(
+        actualConfig,
+        expectedConfig,
+        upgradeTxs.length > 0,
+      )),
 
       ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
       ...this.createRemoveRemoteOutputAssetsTxs(actualConfig, expectedConfig),
@@ -721,6 +736,116 @@ export class EvmWarpModule extends HyperlaneModule<
         });
       },
     );
+  }
+
+  /**
+   * Revokes legacy standing ERC20 allowances for bridges that remain allowlisted
+   * after an in-place upgrade.
+   *
+   * Pre-atomic-rebalancing routers granted `type(uint256).max` to every enrolled
+   * bridge in `_addBridge`. After upgrading, bridges that are removed have their
+   * allowance revoked on-chain by `_removeBridge`, and newly-added bridges never
+   * received a legacy allowance. Bridges that REMAIN allowlisted, however, keep the
+   * stale max allowance until the next rebalance. This method emits txs that set
+   * those allowances back to zero so an allowlisted bridge has no out-of-band
+   * transferFrom power over the router balance.
+   *
+   * `approveTokenForBridge` only has revoke semantics on the new implementation;
+   * on legacy impls the same selector GRANTS max. Revoke txs are therefore only
+   * emitted when the router is currently on a legacy impl AND this run upgrades it
+   * in place, so the revoke txs execute against the new revoke-semantics impl.
+   */
+  async createRevokeStaleBridgeAllowancesTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+    upgradeScheduled: boolean,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    // Only emit revoke txs when this run upgrades the router in place, so the
+    // revoke executes against the new (revoke-semantics) implementation.
+    if (!upgradeScheduled) {
+      return [];
+    }
+
+    // Only routers currently on a legacy impl still hold the `type(uint256).max`
+    // allowance from the removed `_addBridge`. On a new impl `approveTokenForBridge`
+    // already revokes, so there is nothing stale to clear.
+    if (
+      !actualConfig.contractVersion ||
+      compareVersions(
+        actualConfig.contractVersion,
+        MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
+      ) > 0
+    ) {
+      return [];
+    }
+
+    const provider = this.multiProvider.getProvider(this.chainId);
+
+    // The collateral token backing the router. Native routes (address(0)) never
+    // held ERC20 approvals, so there is nothing to revoke.
+    const collateralToken = await MovableCollateralRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      provider,
+    ).token();
+    if (isZeroishAddress(collateralToken)) {
+      return [];
+    }
+
+    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.allowedRebalancingBridges ?? {},
+      ),
+    );
+    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
+    );
+
+    const remainingBridges = new Set<Address>();
+    for (const [domain, bridges] of Object.entries(actualAllowedBridges)) {
+      const expectedBridges = expectedAllowedBridges[domain] ?? new Set();
+      for (const bridge of intersection(bridges, expectedBridges)) {
+        remainingBridges.add(bridge);
+      }
+    }
+
+    const revokeTxs: AnnotatedEV5Transaction[] = [];
+    for (const bridge of remainingBridges) {
+      const allowance = await IERC20__factory.connect(
+        collateralToken,
+        provider,
+      ).allowance(this.args.addresses.deployedTokenRoute, bridge);
+
+      if (allowance.isZero()) {
+        continue;
+      }
+
+      revokeTxs.push({
+        chainId: this.chainId,
+        annotation: `Revoking legacy bridge allowance for token "${collateralToken}" and bridge "${bridge}" on "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+          'approveTokenForBridge(address,address)',
+          [collateralToken, bridge],
+        ),
+      });
+    }
+
+    return revokeTxs;
   }
 
   createAddRemoteOutputAssetsTxs(

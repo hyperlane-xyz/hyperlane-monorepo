@@ -9,4 +9,4 @@ The core Solidity package adds `AtomicLocalRebalancingBridge` for same-chain loc
 
 The `approveTokenForBridge(address,address)` helper is deprecated and clears legacy standing approval instead of setting max approval. The selector is retained for upgrade and governance-tooling compatibility.
 
-The SDK no longer emits bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field is still accepted for compatibility but is ignored.
+The SDK no longer emits bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field is still accepted for compatibility but is ignored. During `warp apply`, the SDK revokes legacy standing rebalancing-bridge allowances when a route is upgraded in place from a pre-revoke contract version, so an upgraded route does not retain the old max approval.
