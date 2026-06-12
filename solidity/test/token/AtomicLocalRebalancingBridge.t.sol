@@ -13,6 +13,7 @@ import {ReentrancyGuardTransient} from "contracts/libs/ReentrancyGuardTransient.
 import {Quotes} from "contracts/token/libs/Quotes.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract MockRebalanceRouter {
     using Quotes for Quote[];
@@ -823,6 +824,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
+    /// forge-config: default.fuzz.runs = 1000
     function testFuzz_localRebalance_doesNotDecreaseRouterTokenSum(
         bytes32 actions,
         uint256 rawAmountIn
@@ -887,6 +889,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         } catch {}
     }
 
+    /// forge-config: default.fuzz.runs = 1000
     function testFuzz_localRebalance_crossDecimalPreservesValue(
         uint256 rawAmountIn,
         uint8 inDecRaw,
@@ -919,8 +922,22 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         src.addRebalancer(address(localBridge));
 
         uint256 amountIn = bound(rawAmountIn, 1, 1_000 * (10 ** inDec));
-        uint256 swapOut = bound(rawSwapOut, 0, 2_000 * (10 ** outDec));
         inTok.mintTo(address(src), 1_000_000 * (10 ** inDec));
+
+        // The bridge converts by decimals (rounding up), so bound the swap
+        // output at or above requiredDelta to keep the rebalance succeeding and
+        // assert the invariant on every run (no swallowed reverts).
+        uint256 requiredDelta = Math.mulDiv(
+            amountIn,
+            10 ** outDec,
+            10 ** inDec,
+            Math.Rounding.Up
+        );
+        uint256 swapOut = bound(
+            rawSwapOut,
+            requiredDelta,
+            requiredDelta + 1_000 * (10 ** outDec)
+        );
 
         TestSwapTarget swap = new TestSwapTarget(
             address(inTok),
@@ -941,20 +958,23 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             abi.encodeCall(TestSwapTarget.swapExactInput, (amountIn))
         );
 
-        // Decimal-normalized value across the two routers must not decrease.
         uint256 valueBefore = inTok.balanceOf(address(src)) *
             (10 ** (36 - inDec)) +
             outTok.balanceOf(address(dst)) *
             (10 ** (36 - outDec));
 
         vm.prank(rebalancer);
-        try localBridge.localRebalance(amountIn, calls) {
-            uint256 valueAfter = inTok.balanceOf(address(src)) *
-                (10 ** (36 - inDec)) +
-                outTok.balanceOf(address(dst)) *
-                (10 ** (36 - outDec));
-            assertGe(valueAfter, valueBefore);
-        } catch {}
+        localBridge.localRebalance(amountIn, calls);
+
+        uint256 valueAfter = inTok.balanceOf(address(src)) *
+            (10 ** (36 - inDec)) +
+            outTok.balanceOf(address(dst)) *
+            (10 ** (36 - outDec));
+
+        // Decimal-normalized router value must not decrease, and may only
+        // increase by the sub-unit up-rounding of requiredDelta.
+        assertGe(valueAfter, valueBefore);
+        assertLt(valueAfter - valueBefore, 10 ** (36 - outDec));
     }
 
     function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
