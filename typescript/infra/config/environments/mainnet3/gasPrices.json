@@ -39,10 +39,6 @@
     "amount": "779.371350051",
     "decimals": 9
   },
-  "botanix": {
-    "amount": "0.00375",
-    "decimals": 9
-  },
   "avalanche": {
     "amount": "10.0",
     "decimals": 9
@@ -69,6 +65,10 @@
   },
   "boba": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "botanix": {
+    "amount": "0.00375",
     "decimals": 9
   },
   "bsc": {
@@ -307,6 +307,10 @@
     "amount": "0.0053",
     "decimals": 1
   },
+  "nexus": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "nibiru": {
     "amount": "1000.0",
     "decimals": 9
@@ -373,6 +377,10 @@
   },
   "reactive": {
     "amount": "600.0",
+    "decimals": 9
+  },
+  "robinhood": {
+    "amount": "0.1",
     "decimals": 9
   },
   "ronin": {
@@ -449,6 +457,10 @@
   },
   "taiko": {
     "amount": "0.125",
+    "decimals": 9
+  },
+  "tea": {
+    "amount": "0.0011",
     "decimals": 9
   },
   "tron": {

@@ -1409,5 +1409,35 @@ export const validatorChainConfig = (
         'nesa',
       ),
     },
+    nexus: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nexus'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4'],
+        },
+        'nexus',
+      ),
+    },
+    robinhood: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('robinhood'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4b22d7b451e5ad05e91356ef847cc7c253533584'],
+        },
+        'robinhood',
+      ),
+    },
+    tea: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('tea'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb442f3df246b8c7f067da15a6e390c253f6eaeb6'],
+        },
+        'tea',
+      ),
+    },
   };
 };

@@ -99,6 +99,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
+  // nexus: {
+  //   transactionOverrides: {
+  //     gasPrice: 2 * 10 ** 9, // 2 gwei
+  //   },
+  // },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {
