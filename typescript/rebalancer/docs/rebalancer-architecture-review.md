@@ -4,7 +4,7 @@ Date: 2026-06-12
 
 Scope: `typescript/rebalancer` package. Findings are from local code inspection plus three read-only subagent slices covering core runtime, strategy/config, and bridges/tracking/tests.
 
-Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice was completed in this PR; larger planner/executor decomposition remains future work.
+Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice landed in PR #8880. The stacked follow-up PR implemented cycle context, shared planning/projection, and LiFi SDK isolation. The remaining work is deeper executor and test-fixture decomposition.
 
 ## Bottom Line
 
@@ -14,7 +14,7 @@ The main issue is that important runtime state and side effects are hidden behin
 
 Recommended direction: rearchitect around explicit cycle snapshots, pure-ish planning, typed execution plans, query-oriented tracking state, and small executor modules.
 
-## Implemented In This PR
+## Implemented In PR #8880
 
 These slices directly target cycle latency and failure visibility without changing external config shape.
 
@@ -39,20 +39,46 @@ These slices directly target cycle latency and failure visibility without changi
 - Executor throws now return failed route results for attempted routes rather than silently producing an empty result set.
 - Benefit: slow metrics work and partial tracker-source failures do not stall the whole cycle, and failed execution paths are visible in cycle accounting.
 
-## Follow-Up Stacked Draft PR TODOs
+## Implemented In This Stacked PR
 
-Use this as the TODO list for the next draft PR on top of this one. Keep the north star performance, but use the larger module split to make future performance work safer.
+These slices improve modularity and remove performance blockers from hidden mutable state and global SDK constraints.
 
-- [ ] Add explicit `RebalanceCycleContext`, `ExecutionSummary`, and `CycleResult.status`.
-- [ ] Remove inventory state injection through `InventoryRebalancer.setInventoryBalances()` by passing cycle context into executors.
-- [ ] Normalize config into a resolved route execution matrix so strategies do not perform bridge/execution config lookups.
-- [ ] Move pending-transfer, pending-rebalance, and proposed-route projection into a shared `BalanceProjector`.
-- [ ] Introduce `StrategyPlanner` and centralize route materialization/filtering after strategy evaluation.
+### Slice 4: Explicit Cycle Context And Execution Status
+
+- Added `RebalanceCycleContext` for balances, inventory balances, and confirmed block tags.
+- Added `ExecutionSummary` and `CycleResult.status` so route failures and executor-level errors are surfaced as `success`, `partial`, or `failed`.
+- The orchestrator now passes cycle context into rebalancers and no longer imports/casts to `InventoryRebalancer` to inject inventory balances.
+- Benefit: execution accounting is explicit and testable, and inventory execution no longer depends on an orchestrator side channel.
+
+### Slice 5: Shared Balance Projection And Route Planning
+
+- Added `BalanceProjector` for pending transfers, pending rebalances, and proposed route projection.
+- Added `RoutePlanner` helpers to centralize route materialization from surplus/deficit deltas and the resolved route execution matrix.
+- Normalized bridge config into `RouteExecutionMatrix` so route execution config is resolved once instead of repeatedly merged with late non-null assertions.
+- Benefit: strategy evaluation does less repeated config work, planning behavior is easier to unit test, and future strategy changes can target deltas instead of executable route construction.
+
+### Slice 6: LiFi SDK Runner And Provider-Scope Locks
+
+- Wrapped LiFi SDK calls and REST fetch behind an injected `LiFiSdkRunner`.
+- Made execution locking follow the runner's provider scope: the default global LiFi SDK runner remains globally serialized, while injected scoped runners can serialize by source protocol and source chain.
+- Tests now use deterministic runner fakes for quote/status/execution behavior instead of mutating global fetch or relying on SDK internals.
+- Benefit: SDK global state is isolated behind a narrow seam, default execution avoids provider clobbering races, scoped runners can unlock safe source-chain concurrency, and bridge tests are faster and less brittle.
+
+## Remaining Follow-Up TODOs
+
+Keep the north star performance, but use the larger module split to make future performance work safer.
+
+- [x] Add explicit `RebalanceCycleContext`, `ExecutionSummary`, and `CycleResult.status`.
+- [x] Remove inventory state injection through `InventoryRebalancer.setInventoryBalances()` by passing cycle context into executors.
+- [x] Normalize config into a resolved route execution matrix so strategies do not perform bridge/execution config lookups.
+- [x] Move pending-transfer, pending-rebalance, and proposed-route projection into a shared `BalanceProjector`.
+- [x] Introduce shared route planning and centralize route materialization after strategy evaluation.
+- [ ] Move route filtering and metrics emission out of `BaseStrategy` into a dedicated `StrategyPlanner`.
 - [ ] Split movable collateral execution into route validation, transaction preparation, chain transaction execution, and result recording modules.
 - [ ] Split inventory execution into intent resolution, inventory planning, bridge capacity estimation, movement execution, and `transferRemote` execution modules.
-- [ ] Wrap LiFi SDK/global state behind an injected client/runner and narrow the execution lock to the actual signer/source-chain constraint.
+- [x] Wrap LiFi SDK/global state behind an injected client/runner and make execution locking follow the runner's provider-state scope.
 - [ ] Replace route-specific e2e deployment managers with a declarative fixture builder and shared deploy/enroll/seed helpers.
-- [ ] Add deterministic unit fakes for external bridges separate from local integration bridge adapters.
+- [x] Add deterministic unit fakes for LiFi execution/status behavior separate from local integration bridge adapters.
 
 ## Current Shape
 

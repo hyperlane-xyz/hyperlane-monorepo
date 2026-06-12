@@ -1,16 +1,26 @@
 import {
+  type ChainMap,
   type EvmMovableCollateralAdapter,
   type IToken,
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
 
+import type { ConfirmedBlockTags } from './IMonitor.js';
 import {
   type InventoryRoute,
   type MovableCollateralRoute,
+  type RawBalances,
   type Route,
 } from './IStrategy.js';
 
 export type RebalancerType = 'movableCollateral' | 'inventory';
+export type ExecutionStatus = 'success' | 'partial' | 'failed';
+
+export interface RebalanceCycleContext {
+  balances: RawBalances;
+  inventoryBalances?: ChainMap<bigint>;
+  confirmedBlockTags?: ConfirmedBlockTags;
+}
 
 export interface ExecutionResult<R extends Route = Route> {
   route: R;
@@ -31,12 +41,21 @@ export interface InventoryExecutionResult extends ExecutionResult<InventoryRoute
   amountSent?: bigint;
 }
 
+export interface ExecutionSummary<
+  R extends Route = Route,
+  E extends ExecutionResult<R> = ExecutionResult<R>,
+> {
+  status: ExecutionStatus;
+  results: E[];
+  systemErrors: string[];
+}
+
 export interface IRebalancer<
   R extends Route = Route,
   E extends ExecutionResult<R> = ExecutionResult<R>,
 > {
   readonly rebalancerType: RebalancerType;
-  rebalance(routes: R[]): Promise<E[]>;
+  rebalance(routes: R[], context?: RebalanceCycleContext): Promise<E[]>;
 }
 
 export type IMovableCollateralRebalancer = IRebalancer<

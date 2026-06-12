@@ -31,6 +31,7 @@ import type {
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
+  RebalanceCycleContext,
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
@@ -414,7 +415,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    */
   async rebalance(
     routes: InventoryRoute[],
+    context?: RebalanceCycleContext,
   ): Promise<InventoryExecutionResult[]> {
+    if (context?.inventoryBalances) {
+      this.setInventoryBalances(context.inventoryBalances);
+    }
+
     this.consumedInventory.clear();
 
     // 1. Check for existing in_progress intent

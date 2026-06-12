@@ -11,15 +11,18 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import { BalanceProjector, planRoutes } from '../planning/index.js';
+import type { BalanceDelta } from '../planning/types.js';
 import {
   type BridgeConfig,
   type BridgeConfigWithOverride,
-  createStrategyRoute,
-  getBridgeConfig,
+  getRouteExecutionConfig,
+  normalizeRouteExecutionMatrix,
+  type RouteExecutionMatrix,
 } from '../utils/bridgeUtils.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
-export type Delta = { chain: ChainName; amount: bigint };
+export type Delta = BalanceDelta;
 
 /**
  * Base abstract class for rebalancing strategies
@@ -29,13 +32,13 @@ export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
   protected readonly metrics?: Metrics;
   protected readonly logger: Logger;
-  protected readonly bridgeConfigs: ChainMap<BridgeConfigWithOverride>;
+  protected readonly routeExecutionMatrix: RouteExecutionMatrix;
   protected readonly tokensByChainName?: ChainMap<Token>;
 
   constructor(
     chains: ChainName[],
     logger: Logger,
-    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
+    routeExecutionConfig: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
     tokensByChainName?: ChainMap<Token>,
   ) {
@@ -45,7 +48,8 @@ export abstract class BaseStrategy implements IStrategy {
     }
     this.chains = chains;
     this.logger = logger;
-    this.bridgeConfigs = bridgeConfigs;
+    this.routeExecutionMatrix =
+      normalizeRouteExecutionMatrix(routeExecutionConfig);
     this.metrics = metrics;
     this.tokensByChainName = tokensByChainName;
   }
@@ -54,7 +58,11 @@ export abstract class BaseStrategy implements IStrategy {
     origin: ChainName,
     destination: ChainName,
   ): BridgeConfig {
-    return getBridgeConfig(this.bridgeConfigs, origin, destination);
+    return getRouteExecutionConfig(
+      this.routeExecutionMatrix,
+      origin,
+      destination,
+    );
   }
 
   /**
@@ -176,50 +184,7 @@ export abstract class BaseStrategy implements IStrategy {
     surpluses.sort((a, b) => (a.amount > b.amount ? -1 : 1));
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: StrategyRoute[] = [];
-
-    // Transfer from surplus to deficit until all deficits are balanced.
-    while (deficits.length > 0 && surpluses.length > 0) {
-      const surplus = surpluses[0];
-      const deficit = deficits[0];
-
-      // Transfers the whole surplus or just the amount to balance the deficit
-      const transferAmount =
-        surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
-
-      // Skip zero-amount routes (can occur after scaling when surpluses < deficits)
-      if (transferAmount > 0n) {
-        // Get bridge config for this route (with destination-specific overrides)
-        const bridgeConfig = this.getBridgeConfigForRoute(
-          surplus.chain,
-          deficit.chain,
-        );
-
-        // Create appropriate route type based on execution type
-        routes.push(
-          createStrategyRoute(
-            bridgeConfig,
-            surplus.chain,
-            deficit.chain,
-            transferAmount,
-          ),
-        );
-      }
-
-      // Decreases the amounts for the following iterations
-      deficit.amount -= transferAmount;
-      surplus.amount -= transferAmount;
-
-      // Removes the deficit if it is fully balanced (including scaled-to-zero)
-      if (deficit.amount <= 0n) {
-        deficits.shift();
-      }
-
-      // Removes the surplus if it has been drained
-      if (surplus.amount <= 0n) {
-        surpluses.shift();
-      }
-    }
+    const routes = planRoutes(surpluses, deficits, this.routeExecutionMatrix);
 
     this.logger.debug(
       {
@@ -309,40 +274,12 @@ export abstract class BaseStrategy implements IStrategy {
     rawBalances: RawBalances,
     pendingTransfers: Route[],
   ): RawBalances {
-    if (pendingTransfers.length === 0) {
-      return rawBalances;
-    }
-
-    const reserved = { ...rawBalances };
-
-    for (const transfer of pendingTransfers) {
-      const destBalance = reserved[transfer.destination] ?? 0n;
-      // Reserve the transfer amount from destination
-      // Allow negative values to indicate collateral deficits
-      reserved[transfer.destination] = destBalance - transfer.amount;
-
-      this.logger.debug(
-        {
-          context: this.constructor.name,
-          destination: transfer.destination,
-          amount: transfer.amount.toString(),
-          newBalance: reserved[transfer.destination].toString(),
-        },
-        'Reserved collateral for pending transfer',
-      );
-    }
-
-    this.logger.info(
-      {
-        reservations: pendingTransfers.map((t) => ({
-          destination: t.destination,
-          amount: t.amount.toString(),
-        })),
-      },
-      'Collateral reserved for pending transfers',
+    return BalanceProjector.reserveCollateral(
+      rawBalances,
+      pendingTransfers,
+      this.logger,
+      this.constructor.name,
     );
-
-    return reserved;
   }
 
   /**
@@ -366,83 +303,12 @@ export abstract class BaseStrategy implements IStrategy {
     rawBalances: RawBalances,
     pendingRebalances: RouteWithContext[],
   ): RawBalances {
-    if (pendingRebalances.length === 0) {
-      return rawBalances;
-    }
-
-    const simulated = { ...rawBalances };
-
-    for (const rebalance of pendingRebalances) {
-      if (rebalance.executionMethod === 'inventory') {
-        // Inventory: simulate eventual final state
-        const total = rebalance.amount;
-        const delivered = rebalance.deliveredAmount ?? 0n;
-        const awaiting = rebalance.awaitingDeliveryAmount ?? 0n;
-
-        // Destination: add unfulfilled amount (total - delivered - awaiting)
-        // This is what's NOT yet reflected in on-chain balance
-        const destinationAdjustment = total - delivered - awaiting;
-        if (destinationAdjustment > 0n) {
-          simulated[rebalance.destination] =
-            (simulated[rebalance.destination] ?? 0n) + destinationAdjustment;
-
-          this.logger.debug(
-            {
-              context: this.constructor.name,
-              destination: rebalance.destination,
-              destinationAdjustment: destinationAdjustment.toString(),
-            },
-            'Simulated inventory rebalance (destination increase for unfulfilled)',
-          );
-        }
-
-        // Origin: subtract pending amount (total - delivered)
-        // This is what WILL decrease when all messages deliver
-        const originAdjustment = total - delivered;
-        if (originAdjustment > 0n) {
-          simulated[rebalance.origin] =
-            (simulated[rebalance.origin] ?? 0n) - originAdjustment;
-
-          this.logger.debug(
-            {
-              context: this.constructor.name,
-              origin: rebalance.origin,
-              originAdjustment: originAdjustment.toString(),
-            },
-            'Simulated inventory rebalance (origin decrease for pending)',
-          );
-        }
-      } else {
-        // Movable collateral: origin already deducted on-chain, add to destination
-        simulated[rebalance.destination] =
-          (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
-
-        this.logger.debug(
-          {
-            context: this.constructor.name,
-            destination: rebalance.destination,
-            amount: rebalance.amount.toString(),
-          },
-          'Simulated movable collateral rebalance (destination increase)',
-        );
-      }
-    }
-
-    this.logger.info(
-      {
-        simulations: pendingRebalances.map((r) => ({
-          from: r.origin,
-          to: r.destination,
-          amount: r.amount.toString(),
-          executionMethod: r.executionMethod ?? 'movable_collateral',
-          deliveredAmount: r.deliveredAmount?.toString() ?? '0',
-          awaitingDeliveryAmount: r.awaitingDeliveryAmount?.toString() ?? '0',
-        })),
-      },
-      'Simulated pending rebalances',
+    return BalanceProjector.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances,
+      this.logger,
+      this.constructor.name,
     );
-
-    return simulated;
   }
 
   /**
@@ -461,44 +327,12 @@ export abstract class BaseStrategy implements IStrategy {
     rawBalances: RawBalances,
     proposedRebalances: Route[],
   ): RawBalances {
-    if (proposedRebalances.length === 0) {
-      return rawBalances;
-    }
-
-    const simulated = { ...rawBalances };
-
-    for (const rebalance of proposedRebalances) {
-      // Subtract from origin (not yet deducted on-chain)
-      simulated[rebalance.origin] =
-        (simulated[rebalance.origin] ?? 0n) - rebalance.amount;
-
-      // Add to destination
-      simulated[rebalance.destination] =
-        (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
-
-      this.logger.debug(
-        {
-          context: this.constructor.name,
-          origin: rebalance.origin,
-          destination: rebalance.destination,
-          amount: rebalance.amount.toString(),
-        },
-        'Simulated proposed rebalance (origin decrease, destination increase)',
-      );
-    }
-
-    this.logger.info(
-      {
-        simulations: proposedRebalances.map((r) => ({
-          from: r.origin,
-          to: r.destination,
-          amount: r.amount.toString(),
-        })),
-      },
-      'Simulated proposed rebalances',
+    return BalanceProjector.simulateProposedRebalances(
+      rawBalances,
+      proposedRebalances,
+      this.logger,
+      this.constructor.name,
     );
-
-    return simulated;
   }
 
   protected filterRoutes(

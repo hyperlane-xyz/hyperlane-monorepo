@@ -291,6 +291,47 @@ describe('CollateralDeficitStrategy', () => {
       expect(result.surpluses).to.have.lengthOf(2); // Both chains have surplus
     });
 
+    it('should simulate proposed rebalances by subtracting origin and adding destination', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+      };
+      const bridgeConfigs = extractBridgeConfigs(config);
+
+      const strategy = new CollateralDeficitStrategy(
+        config,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+
+      const rawBalances: RawBalances = {
+        [chain1]: -10_000_000n,
+        [chain2]: 20_000_000n,
+      };
+      const proposedRebalances: StrategyRoute[] = [
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 15_000_000n,
+          executionType: 'movableCollateral',
+          bridge: BRIDGE2,
+        },
+      ];
+
+      const result = strategy['getCategorizedBalances'](
+        rawBalances,
+        [],
+        proposedRebalances,
+      );
+
+      expect(result.deficits).to.have.lengthOf(0);
+      expect(result.surpluses).to.deep.equal([
+        { chain: chain1, amount: 5_000_000n },
+        { chain: chain2, amount: 5_000_000n },
+      ]);
+    });
+
     it('should handle multiple chains with mixed balances', () => {
       const strategy = new CollateralDeficitStrategy(
         {
@@ -440,6 +481,48 @@ describe('CollateralDeficitStrategy', () => {
         expect([chain2, chain3]).to.include(route.origin);
         expect(route.destination).to.equal(chain1);
       });
+    });
+
+    it('should avoid routes already covered by proposed rebalances', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '0' },
+        [chain2]: { bridge: BRIDGE2, buffer: '0' },
+      };
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new CollateralDeficitStrategy(
+        config,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+
+      const routes = strategy.getRebalancingRoutes(
+        {
+          [chain1]: 0n,
+          [chain2]: 10_000_000n,
+        },
+        {
+          pendingTransfers: [
+            {
+              origin: chain2,
+              destination: chain1,
+              amount: 10_000_000n,
+            },
+          ],
+          pendingRebalances: [],
+          proposedRebalances: [
+            {
+              origin: chain2,
+              destination: chain1,
+              amount: 10_000_000n,
+              executionType: 'movableCollateral',
+              bridge: BRIDGE2,
+            },
+          ],
+        },
+      );
+
+      expect(routes).to.deep.equal([]);
     });
   });
 

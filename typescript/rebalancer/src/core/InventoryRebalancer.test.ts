@@ -342,6 +342,40 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
     });
 
+    it('uses inventory balances from cycle context without prior balance setup', async () => {
+      const route = createTestRoute();
+      createTestIntent();
+
+      const localRebalancer = new InventoryRebalancer(
+        config,
+        actionTracker as unknown as IActionTracker,
+        { lifi: bridge as unknown as IExternalBridge },
+        warpCore as unknown as WarpCore,
+        multiProvider as unknown as MultiProvider,
+        testLogger,
+      );
+
+      const results = await localRebalancer.rebalance([route], {
+        balances: {},
+        inventoryBalances: {
+          [SOLANA_CHAIN]: 10000000000n,
+          [ARBITRUM_CHAIN]: 0n,
+        },
+      });
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(multiProvider.sendTransaction.calledOnce).to.be.true;
+
+      const [chainArg] = multiProvider.sendTransaction.firstCall.args;
+      expect(chainArg).to.equal(SOLANA_CHAIN);
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_deposit');
+      expect(actionParams.amount).to.equal(10000000000n);
+    });
+
     it('executes transferRemote with correct parameters (swapped direction)', async () => {
       const route = createTestRoute({ amount: 5000000000n }); // 5k USDC
       createTestIntent({ amount: 5000000000n });

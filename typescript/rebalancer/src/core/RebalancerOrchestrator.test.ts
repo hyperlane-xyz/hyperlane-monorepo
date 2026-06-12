@@ -11,7 +11,11 @@ import {
 } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  ExecutionResult,
+  ExecutionSummary,
+  IRebalancer,
+} from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
@@ -151,6 +155,14 @@ function createMockBridge(): IExternalBridge {
   } as unknown as IExternalBridge;
 }
 
+type ExecutionSummaryTester = {
+  createExecutionSummary(
+    results: ExecutionResult[],
+    systemErrors?: string[],
+  ): ExecutionSummary;
+  mergeExecutionSummaries(summaries: ExecutionSummary[]): ExecutionSummary;
+};
+
 function createMockMetrics(): Metrics {
   return {
     recordRebalancerSuccess: Sinon.stub(),
@@ -208,6 +220,66 @@ describe('RebalancerOrchestrator', () => {
     sandbox.restore();
   });
 
+  describe('execution summary status', () => {
+    function createSummaryTester(): ExecutionSummaryTester {
+      const deps: RebalancerOrchestratorDeps = {
+        strategy: createMockStrategy(),
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+      };
+      return new RebalancerOrchestrator(
+        deps,
+      ) as unknown as ExecutionSummaryTester;
+    }
+
+    const successfulResult: ExecutionResult = {
+      route: {
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: 1000n,
+      },
+      success: true,
+    };
+    const failedResult: ExecutionResult = {
+      ...successfulResult,
+      success: false,
+      error: 'failed',
+    };
+
+    it('should fail empty summaries with system errors', () => {
+      const summary = createSummaryTester().createExecutionSummary(
+        [],
+        ['executor failed'],
+      );
+
+      expect(summary.status).to.equal('failed');
+      expect(summary.systemErrors).to.deep.equal(['executor failed']);
+    });
+
+    it('should mark successful results with system errors as partial', () => {
+      const summary = createSummaryTester().createExecutionSummary(
+        [successfulResult],
+        ['inventory failed'],
+      );
+
+      expect(summary.status).to.equal('partial');
+    });
+
+    it('should merge success and failure summaries as partial', () => {
+      const tester = createSummaryTester();
+      const summary = tester.mergeExecutionSummaries([
+        tester.createExecutionSummary([successfulResult]),
+        tester.createExecutionSummary([failedResult]),
+      ]);
+
+      expect(summary.status).to.equal('partial');
+      expect(summary.results).to.deep.equal([successfulResult, failedResult]);
+    });
+  });
+
   describe('executeCycle() - No Routes', () => {
     it('should complete cycle when no routes proposed', async () => {
       const strategy = createMockStrategy();
@@ -230,6 +302,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(0);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(0);
@@ -289,10 +362,8 @@ describe('RebalancerOrchestrator', () => {
             bridge: TEST_ADDRESSES.bridge,
           },
           success: true,
-          messageId:
-            '0x1111111111111111111111111111111111111111111111111111111111111111',
-          txHash:
-            '0x2222222222222222222222222222222222222222222222222222222222222222',
+          messageId: 'test-message-id-success',
+          txHash: 'test-tx-hash-success',
         },
       ]);
 
@@ -314,6 +385,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
@@ -364,8 +436,69 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('failed');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(0);
+      expect(result.failedCount).to.equal(1);
+    });
+
+    it('should report partial status for mixed movable collateral results', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+        {
+          origin: 'arbitrum',
+          destination: 'ethereum',
+          amount: 500n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+      ]);
+
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: true,
+          messageId: 'test-message-id-success',
+          txHash: 'test-tx-hash-success',
+        },
+        {
+          route: {
+            origin: 'arbitrum',
+            destination: 'ethereum',
+            amount: 500n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: false,
+          error: 'Gas estimation failed',
+        },
+      ]);
+
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        rebalancers: [rebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+      });
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('partial');
+      expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(1);
     });
 
@@ -403,6 +536,7 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('failed');
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(1);
       expect((metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce).to
@@ -471,12 +605,82 @@ describe('RebalancerOrchestrator', () => {
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
-      const event = createMonitorEvent();
+      const inventoryBalances = {
+        ethereum: 2000n,
+        arbitrum: 1000n,
+      };
+      const event = createMonitorEvent({ inventoryBalances });
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(inventoryRebalancer.setInventoryBalances.called).to.be.false;
+      expect(inventoryRebalancer.rebalance.firstCall.args[1]).to.deep.include({
+        inventoryBalances,
+        confirmedBlockTags: event.confirmedBlockTags,
+      });
+    });
+
+    it('should report failed status when inventory executor throws', async () => {
+      const config: RebalancerConfig = {
+        warpRouteId: 'TEST/route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              ethereum: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 50n, tolerance: 10n },
+                executionType: ExecutionType.Inventory,
+              },
+              arbitrum: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 50n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          externalBridge: 'lifi',
+          executionType: 'inventory',
+        },
+      ]);
+
+      const inventoryRebalancer = createMockInventoryRebalancer();
+      inventoryRebalancer.rebalance.rejects(new Error('Inventory failed'));
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        rebalancers: [inventoryRebalancer],
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: config,
+        logger: testLogger,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('failed');
+      expect(result.proposedRoutes).to.have.lengthOf(1);
+      expect(result.executedCount).to.equal(0);
+      expect(result.failedCount).to.equal(0);
     });
   });
 
@@ -573,11 +777,99 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(2);
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
       expect(rebalancer.rebalance.calledOnce).to.be.true;
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+    });
+
+    it('should report partial status when movable succeeds and inventory throws', async () => {
+      const config: RebalancerConfig = {
+        warpRouteId: 'TEST/route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              ethereum: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 33n, tolerance: 10n },
+              },
+              arbitrum: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 33n, tolerance: 10n },
+                executionType: ExecutionType.Inventory,
+              },
+              optimism: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 34n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'optimism',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+        {
+          origin: 'arbitrum',
+          destination: 'ethereum',
+          amount: 500n,
+          externalBridge: 'lifi',
+          executionType: 'inventory',
+        },
+      ]);
+
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'optimism',
+            amount: 1000n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: true,
+          messageId: '0x1111',
+          txHash: '0x2222',
+        },
+      ]);
+
+      const inventoryRebalancer = createMockInventoryRebalancer();
+      inventoryRebalancer.rebalance.rejects(new Error('Inventory failed'));
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        rebalancers: [rebalancer, inventoryRebalancer],
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: config,
+        logger: testLogger,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('partial');
+      expect(result.proposedRoutes).to.have.lengthOf(2);
+      expect(result.executedCount).to.equal(1);
+      expect(result.failedCount).to.equal(0);
     });
   });
 
@@ -625,12 +917,21 @@ describe('RebalancerOrchestrator', () => {
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
-      const event = createMonitorEvent();
+      const inventoryBalances = {
+        ethereum: 2000n,
+        arbitrum: 1000n,
+      };
+      const event = createMonitorEvent({ inventoryBalances });
 
       await orchestrator.executeCycle(event);
 
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
       expect(inventoryRebalancer.rebalance.calledWith([])).to.be.true;
+      expect(inventoryRebalancer.setInventoryBalances.called).to.be.false;
+      expect(inventoryRebalancer.rebalance.firstCall.args[1]).to.deep.include({
+        inventoryBalances,
+        confirmedBlockTags: event.confirmedBlockTags,
+      });
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when routes are proposed', async () => {

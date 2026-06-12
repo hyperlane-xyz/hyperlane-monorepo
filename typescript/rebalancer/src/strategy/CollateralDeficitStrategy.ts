@@ -13,9 +13,9 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
+import { planRoutes } from '../planning/index.js';
 import {
   type BridgeConfigWithOverride,
-  createStrategyRoute,
   isInventoryConfig,
   isMovableCollateralConfig,
 } from '../utils/bridgeUtils.js';
@@ -158,6 +158,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   ): StrategyRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
+    const proposedRebalances = inflightContext?.proposedRebalances ?? [];
 
     this.logger.info(
       {
@@ -168,6 +169,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
         })),
         pendingRebalances: pendingRebalances.length,
         pendingTransfers: pendingTransfers.length,
+        proposedRebalances: proposedRebalances.length,
       },
       'Strategy evaluating',
     );
@@ -185,6 +187,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     const { surpluses, deficits } = this.getCategorizedBalances(
       effectiveBalances,
       pendingRebalances,
+      proposedRebalances,
     );
 
     this.logger.debug(
@@ -241,36 +244,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     // Sort deficits by amount (largest first)
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: StrategyRoute[] = [];
-
-    // Match surpluses to deficits
-    while (deficits.length > 0 && surpluses.length > 0) {
-      const surplus = surpluses[0];
-      const deficit = deficits[0];
-      const transferAmount =
-        surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
-
-      if (transferAmount > 0n) {
-        const bridgeConfig = this.getBridgeConfigForRoute(
-          surplus.chain,
-          deficit.chain,
-        );
-        routes.push(
-          createStrategyRoute(
-            bridgeConfig,
-            surplus.chain,
-            deficit.chain,
-            transferAmount,
-          ),
-        );
-      }
-
-      deficit.amount -= transferAmount;
-      surplus.amount -= transferAmount;
-
-      if (deficit.amount <= 0n) deficits.shift();
-      if (surplus.amount <= 0n) surpluses.shift();
-    }
+    const routes = planRoutes(surpluses, deficits, this.routeExecutionMatrix);
 
     this.logger.debug(
       { context: this.constructor.name, routes },
