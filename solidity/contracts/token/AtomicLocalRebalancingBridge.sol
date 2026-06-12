@@ -46,6 +46,13 @@ contract AtomicLocalRebalancingBridge is
     /// @notice The source router this bridge rebalances from.
     address public immutable sourceRouter;
 
+    /// @notice Emitted on a successful local rebalance.
+    event LocalRebalanceExecuted(
+        address indexed destinationRouter,
+        uint256 amountIn,
+        uint256 requiredDelta
+    );
+
     error NoActiveRebalance();
     error InvalidCallback();
     error MissingCallback();
@@ -150,6 +157,8 @@ contract AtomicLocalRebalancingBridge is
                 nativeBalance - nativeBefore
             );
         }
+
+        emit LocalRebalanceExecuted(destinationRouter, amountIn, requiredDelta);
     }
 
     function _rebalanceSource(

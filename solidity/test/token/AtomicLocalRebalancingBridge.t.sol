@@ -267,6 +267,20 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
+    function test_localRebalance_emitsLocalRebalanceExecuted() public {
+        swapTarget.setOutputAmount(100e6);
+
+        vm.expectEmit(true, true, true, true, address(bridge));
+        emit AtomicLocalRebalancingBridge.LocalRebalanceExecuted(
+            address(destinationRouter),
+            100e6,
+            100e6
+        );
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+    }
+
     function test_localRebalance_integrationUsesRealSourceRouterRebalanceFlow()
         public
     {
