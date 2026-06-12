@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use async_trait::async_trait;
 use derive_more::AsRef;
@@ -19,6 +23,9 @@ use hyperlane_base::{
 use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
+const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
+const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -224,6 +231,12 @@ impl Scraper {
             .await?;
         tasks.push(gas_payment_indexer);
 
+        tasks.push(self.build_raw_dispatch_reconciler(
+            domain.clone(),
+            self.contract_sync_metrics.clone(),
+            store.clone(),
+        ));
+
         if let Some(ccr_task) = self
             .build_ccr_indexer(
                 domain,
@@ -352,6 +365,62 @@ impl Scraper {
                 .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         );
         Ok((task, maybe_broadcaser))
+    }
+
+    fn build_raw_dispatch_reconciler(
+        &self,
+        domain: HyperlaneDomain,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        store: HyperlaneDbStore,
+    ) -> JoinHandle<()> {
+        let domain_name = domain.name().to_owned();
+        let span_domain_name = domain_name.clone();
+        tokio::spawn(
+            async move {
+                let stored_events_metric = contract_sync_metrics
+                    .stored_events
+                    .with_label_values(&["message_dispatch_reconciled", &domain_name]);
+                let liveness_metric = contract_sync_metrics.liveness_metrics.with_label_values(&[
+                    "raw_message_dispatch_reconciliation",
+                    &domain_name,
+                    "reconcile_task",
+                ]);
+
+                loop {
+                    liveness_metric.set(
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map(|duration| duration.as_secs() as i64)
+                            .unwrap_or_default(),
+                    );
+
+                    match store
+                        .reconcile_raw_message_dispatches(RAW_DISPATCH_RECONCILIATION_BATCH_SIZE)
+                        .await
+                    {
+                        Ok(0) => sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await,
+                        Ok(stored) => {
+                            stored_events_metric.inc_by(stored.into());
+                            info!(
+                                stored,
+                                domain = domain_name,
+                                "Reconciled raw message dispatches"
+                            );
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Err(err) => {
+                            warn!(
+                                ?err,
+                                domain = domain_name,
+                                "Failed to reconcile raw message dispatches"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                    }
+                }
+            }
+            .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),
+        )
     }
 
     async fn build_delivery_indexer(
