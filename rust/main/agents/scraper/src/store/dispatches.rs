@@ -75,24 +75,53 @@ impl HyperlaneDbStore {
             .await?
             .map(|t| (t.hash, t))
             .collect();
-        let storable = messages
-            .iter()
-            .filter_map(|(message, meta)| {
-                txns.get(&meta.transaction_id)
-                    .map(|t| (message.inner().clone(), meta, t.id))
-            })
-            .map(|(msg, meta, txn_id)| StorableMessage {
-                msg,
-                meta,
-                txn_id,
-                id_override: None,
-            });
+        let storable = storable_messages_for_txns(messages, &txns)?;
         let stored = self
             .db
-            .store_dispatched_messages(self.domain.id(), &self.mailbox_address, storable)
+            .store_dispatched_messages(
+                self.domain.id(),
+                &self.mailbox_address,
+                storable.into_iter(),
+            )
             .await?;
         Ok(stored as u32)
     }
+}
+
+fn storable_messages_for_txns<'a>(
+    messages: &'a [(Indexed<HyperlaneMessage>, LogMeta)],
+    txns: &HashMap<H512, TxnWithId>,
+) -> Result<Vec<StorableMessage<'a>>, Report> {
+    let mut missing_dispatch_tx_hashes = Vec::new();
+    let mut missing_tx_hashes = Vec::new();
+    let mut storable = Vec::with_capacity(messages.len());
+
+    for (message, meta) in messages {
+        let Some(txn) = txns.get(&meta.transaction_id) else {
+            missing_dispatch_tx_hashes.push(meta.transaction_id);
+            if !missing_tx_hashes.contains(&meta.transaction_id) {
+                missing_tx_hashes.push(meta.transaction_id);
+            }
+            continue;
+        };
+
+        storable.push(StorableMessage {
+            msg: message.inner().clone(),
+            meta,
+            txn_id: txn.id,
+            id_override: None,
+        });
+    }
+
+    if !missing_tx_hashes.is_empty() {
+        let missing_dispatches = missing_dispatch_tx_hashes.len();
+        eyre::bail!(
+            "failed to enrich {missing_dispatches} of {} message dispatches; missing transaction ids: {missing_tx_hashes:?}",
+            messages.len(),
+        );
+    }
+
+    Ok(storable)
 }
 
 #[async_trait]
@@ -115,5 +144,71 @@ impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneDbS
         );
         let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
         Ok(self.db.retrieve_block_number(block_id).await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn indexed_message(nonce: u32) -> Indexed<HyperlaneMessage> {
+        Indexed::new(HyperlaneMessage {
+            nonce,
+            ..Default::default()
+        })
+    }
+
+    fn log_meta(transaction_id: H512) -> LogMeta {
+        LogMeta {
+            transaction_id,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn storable_messages_for_txns_allows_multiple_messages_per_txn() {
+        let txn_hash = H512::from_low_u64_be(1);
+        let messages = vec![
+            (indexed_message(0), log_meta(txn_hash)),
+            (indexed_message(1), log_meta(txn_hash)),
+        ];
+        let txns = HashMap::from([(
+            txn_hash,
+            TxnWithId {
+                hash: txn_hash,
+                id: 7,
+            },
+        )]);
+
+        let storable = storable_messages_for_txns(&messages, &txns)
+            .expect("all messages should have transaction ids");
+
+        assert_eq!(storable.len(), messages.len());
+        assert!(storable.iter().all(|message| message.txn_id == 7));
+    }
+
+    #[test]
+    fn storable_messages_for_txns_errors_on_missing_enrichment_txn() {
+        let found_txn_hash = H512::from_low_u64_be(1);
+        let missing_txn_hash = H512::from_low_u64_be(2);
+        let messages = vec![
+            (indexed_message(0), log_meta(found_txn_hash)),
+            (indexed_message(1), log_meta(missing_txn_hash)),
+            (indexed_message(2), log_meta(missing_txn_hash)),
+        ];
+        let txns = HashMap::from([(
+            found_txn_hash,
+            TxnWithId {
+                hash: found_txn_hash,
+                id: 7,
+            },
+        )]);
+
+        let err = storable_messages_for_txns(&messages, &txns)
+            .err()
+            .expect("expected missing transaction id error");
+
+        assert!(err.to_string().contains("failed to enrich 2 of 3"));
+        assert!(err.to_string().contains(&format!("{missing_txn_hash:?}")));
     }
 }

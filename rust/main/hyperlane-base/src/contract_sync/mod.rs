@@ -223,7 +223,14 @@ where
 
             let logs = {
                 let store = store.lock().await;
-                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+                match Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+                {
+                    Ok(logs) => logs,
+                    Err(err) => {
+                        warn!(?err, ?tx_id, "Error storing logs in db");
+                        continue;
+                    }
+                }
             };
             let num_logs = logs.len() as u64;
             info!(
@@ -286,7 +293,19 @@ where
 
             let logs = {
                 let store = store.lock().await;
-                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+                match Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+                {
+                    Ok(logs) => logs,
+                    Err(err) => {
+                        warn!(
+                            ?err,
+                            ?range,
+                            "Skipping cursor update because logs failed to store"
+                        );
+                        sleep(SLEEP_DURATION).await;
+                        continue;
+                    }
+                }
             };
             let logs_found = logs.len() as u64;
             info!(
@@ -323,18 +342,12 @@ where
         store: &S,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Vec<(Indexed<T>, LogMeta)> {
+    ) -> Result<Vec<(Indexed<T>, LogMeta)>> {
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
         // Store deliveries
-        let stored = match store.store_logs(&logs).await {
-            Ok(stored) => stored,
-            Err(err) => {
-                warn!(?err, "Error storing logs in db");
-                Default::default()
-            }
-        };
+        let stored = store.store_logs(&logs).await?;
         if stored > 0 {
             debug!(
                 domain = domain.name(),
@@ -345,7 +358,115 @@ where
         }
         // Report amount of deliveries stored into db
         stored_logs_metric.inc_by(stored as u64);
-        logs
+        Ok(logs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::RangeInclusive;
+
+    use async_trait::async_trait;
+    use prometheus::IntCounter;
+
+    use hyperlane_core::{
+        ChainCommunicationError, ChainResult, HyperlaneMessage, Indexer, KnownHyperlaneDomain,
+    };
+
+    use super::*;
+
+    #[derive(Clone, Debug)]
+    struct MockIndexer;
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for MockIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            Err(ChainCommunicationError::from_other_str(
+                "mock indexer does not fetch logs",
+            ))
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Err(ChainCommunicationError::from_other_str(
+                "mock indexer does not fetch finalized blocks",
+            ))
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct StoreResult {
+        stored: u32,
+        error: Option<&'static str>,
+    }
+
+    #[async_trait]
+    impl HyperlaneLogStore<HyperlaneMessage> for StoreResult {
+        async fn store_logs(&self, _logs: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
+            match self.error {
+                Some(err) => Err(eyre::eyre!(err)),
+                None => Ok(self.stored),
+            }
+        }
+    }
+
+    fn test_domain() -> HyperlaneDomain {
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)
+    }
+
+    fn stored_logs_metric() -> IntCounter {
+        IntCounter::new("test_stored_events", "test stored events")
+            .expect("test counter should be valid")
+    }
+
+    fn test_logs() -> Vec<(Indexed<HyperlaneMessage>, LogMeta)> {
+        vec![(
+            Indexed::new(HyperlaneMessage::default()).with_sequence(0),
+            LogMeta::default(),
+        )]
+    }
+
+    #[tokio::test]
+    async fn dedupe_and_store_logs_returns_logs_and_updates_metric_on_success() {
+        let metric = stored_logs_metric();
+
+        let logs =
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::dedupe_and_store_logs(
+                &test_domain(),
+                &StoreResult {
+                    stored: 1,
+                    error: None,
+                },
+                test_logs(),
+                &metric,
+            )
+            .await
+            .expect("store logs should succeed");
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(metric.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn dedupe_and_store_logs_returns_error_without_updating_metric() {
+        let metric = stored_logs_metric();
+
+        let result =
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::dedupe_and_store_logs(
+                &test_domain(),
+                &StoreResult {
+                    stored: 0,
+                    error: Some("db unavailable"),
+                },
+                test_logs(),
+                &metric,
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert_eq!(metric.get(), 0);
     }
 }
 
