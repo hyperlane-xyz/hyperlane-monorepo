@@ -271,6 +271,7 @@ describe('InventoryRebalancer E2E', () => {
       destination: SOLANA_DOMAIN,
       amount: 10000000000n,
       executionMethod: 'inventory',
+      externalBridge: ExternalBridgeType.LiFi,
       createdAt: now,
       updatedAt: now,
       ...overrides,
