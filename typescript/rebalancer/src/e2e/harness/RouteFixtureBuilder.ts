@@ -2,7 +2,9 @@ import { ethers, providers } from 'ethers';
 
 import {
   ERC20Test__factory,
+  type HypERC20Collateral,
   HypERC20Collateral__factory,
+  type HypNative,
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 
@@ -13,7 +15,9 @@ export type ChainInfra = Record<
   { mailbox: string; ism: string; merkleHook: string }
 >;
 
-export type RouteGroupMap = Record<TestChain, ethers.Contract>;
+type DeployedRoute = HypERC20Collateral | HypNative;
+
+export type RouteGroupMap = Record<TestChain, DeployedRoute>;
 export type TokenMap = Record<TestChain, ethers.Contract>;
 type RouteAddressMap = Record<TestChain, { address: string }>;
 type RebalancerRouteWithMethod = {
@@ -23,10 +27,8 @@ type BridgeRouteWithMethod = {
   address: string;
   addBridge: (destinationDomain: number, bridge: string) => Promise<unknown>;
 };
-type RebalancerRoute = ethers.Contract | RebalancerRouteWithMethod;
-type BridgeRoute = ethers.Contract | BridgeRouteWithMethod;
-type RebalancerRouteMap = Record<TestChain, RebalancerRoute>;
-type BridgeRouteMap = Record<TestChain, BridgeRoute>;
+type RebalancerRouteMap = Record<TestChain, RebalancerRouteWithMethod>;
+type BridgeRouteMap = Record<TestChain, BridgeRouteWithMethod>;
 
 export interface DeployedRouteFixture {
   routeGroups: Record<string, RouteGroupMap>;
@@ -169,7 +171,7 @@ export class RouteFixtureBuilder {
     tokens: Record<string, TokenMap>,
     chain: TestChain,
     deployer: ethers.Wallet,
-  ): Promise<ethers.Contract> {
+  ): Promise<HypERC20Collateral> {
     const token = tokens[spec.tokenId]?.[chain];
     if (!token) {
       throw new Error(`Missing ERC20 token ${spec.tokenId} for chain ${chain}`);
@@ -194,7 +196,7 @@ export class RouteFixtureBuilder {
     spec: NativeRouteGroupSpec,
     chain: TestChain,
     deployer: ethers.Wallet,
-  ): Promise<ethers.Contract> {
+  ): Promise<HypNative> {
     const route = await new HypNative__factory(deployer).deploy(
       spec.scaleNumerator,
       spec.scaleDenominator,
@@ -252,7 +254,7 @@ export async function addRebalancersToRouteGroups(
   for (const routeGroup of routeGroups) {
     for (const chain of TEST_CHAIN_CONFIGS) {
       for (const rebalancer of rebalancersForChain(chain.name)) {
-        await addRebalancer(routeGroup[chain.name], rebalancer);
+        await routeGroup[chain.name].addRebalancer(rebalancer);
       }
     }
   }
@@ -266,8 +268,7 @@ export async function addBridgesToMonitoredRoutes(
     for (const destination of TEST_CHAIN_CONFIGS) {
       if (destination.name === chain.name) continue;
       for (const bridgeRouteGroup of bridgeRouteGroups) {
-        await addBridge(
-          monitoredRouters[chain.name],
+        await monitoredRouters[chain.name].addBridge(
           destination.domainId,
           bridgeRouteGroup[chain.name].address,
         );
@@ -338,23 +339,6 @@ export function routeAddresses(
     anvil2: routeGroup.anvil2.address,
     anvil3: routeGroup.anvil3.address,
   };
-}
-
-function addRebalancer(
-  route: RebalancerRoute,
-  rebalancer: string,
-): Promise<unknown> {
-  const withMethod = route as RebalancerRouteWithMethod;
-  return withMethod.addRebalancer(rebalancer);
-}
-
-function addBridge(
-  route: BridgeRoute,
-  destinationDomain: number,
-  bridge: string,
-): Promise<unknown> {
-  const withMethod = route as BridgeRouteWithMethod;
-  return withMethod.addBridge(destinationDomain, bridge);
 }
 
 function erc20TokenForChain(
