@@ -258,7 +258,7 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
                 hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"
             );
-            MetadataBuildError::CouldNotFetch
+            MetadataBuildError::AwaitingValidatorSignatures
         })?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
