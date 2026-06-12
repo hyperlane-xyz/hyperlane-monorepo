@@ -354,6 +354,53 @@ async fn provable_mainnet_block_deserialization() {
     }
 }
 
+// Fully offline reproduction: parses the captured block JSON fixtures straight
+// from disk (no network). Proves the failure is in the bytes themselves — the
+// good block 19154506 deserializes, the bad block 19154507 fails with
+// "Mismatching solution ID, possible data corruption".
+//
+// Run with:
+//   cargo test -p hyperlane-aleo --all-features parse_captured_block_json_fixtures
+#[test]
+fn parse_captured_block_json_fixtures() {
+    use snarkvm::prelude::Block;
+
+    let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("repro_artifacts");
+
+    // (height, expect deserialization to succeed)
+    for (height, expect_ok) in [(19154506u32, true), (19154507u32, false)] {
+        let path = fixtures_dir.join(format!("aleo_block_{height}.json"));
+        let body = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()));
+        println!(
+            "\n--- block {height} ({} bytes from {}) ---",
+            body.len(),
+            path.display()
+        );
+
+        match serde_json::from_str::<Block<MainnetV0>>(&body) {
+            Ok(block) => {
+                println!(
+                    "OK  deserialized block {height}: hash={} timestamp={}",
+                    block.hash(),
+                    block.timestamp(),
+                );
+                assert!(
+                    expect_ok,
+                    "block {height} deserialized but a failure was expected"
+                );
+            }
+            Err(err) => {
+                println!("ERR deserializing block {height}: {err}");
+                assert!(
+                    !expect_ok,
+                    "block {height} failed to deserialize but success was expected: {err}"
+                );
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn test_program_with_imports() {
     let provider = get_mock_provider_with_programs();
