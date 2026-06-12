@@ -847,6 +847,76 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         } catch {}
     }
 
+    function testFuzz_localRebalance_crossDecimalPreservesValue(
+        uint256 rawAmountIn,
+        uint8 inDecRaw,
+        uint8 outDecRaw,
+        uint256 rawSwapOut
+    ) public {
+        uint8 inDec = uint8(bound(inDecRaw, 2, 18));
+        uint8 outDec = uint8(bound(outDecRaw, 2, 18));
+
+        ERC20Test inTok = new ERC20Test("In", "IN", 0, inDec);
+        ERC20Test outTok = new ERC20Test("Out", "OUT", 0, outDec);
+        MockRebalanceRouter src = new MockRebalanceRouter(
+            inTok,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        MockRebalanceRouter dst = new MockRebalanceRouter(
+            outTok,
+            LOCAL_DOMAIN,
+            1,
+            1
+        );
+        AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
+                LOCAL_DOMAIN,
+                address(src)
+            );
+        src.setCallbackRecipient(address(dst));
+        src.addRebalancer(rebalancer);
+        src.addRebalancer(address(localBridge));
+
+        uint256 amountIn = bound(rawAmountIn, 1, 1_000 * (10 ** inDec));
+        uint256 swapOut = bound(rawSwapOut, 0, 2_000 * (10 ** outDec));
+        inTok.mintTo(address(src), 1_000_000 * (10 ** inDec));
+
+        TestSwapTarget swap = new TestSwapTarget(
+            address(inTok),
+            address(outTok)
+        );
+        swap.setOutputAmount(swapOut);
+        outTok.mintTo(address(swap), type(uint128).max);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](2);
+        calls[0] = CallLib.build(
+            address(inTok),
+            0,
+            abi.encodeCall(IERC20.approve, (address(swap), amountIn))
+        );
+        calls[1] = CallLib.build(
+            address(swap),
+            0,
+            abi.encodeCall(TestSwapTarget.swapExactInput, (amountIn))
+        );
+
+        // Decimal-normalized value across the two routers must not decrease.
+        uint256 valueBefore = inTok.balanceOf(address(src)) *
+            (10 ** (36 - inDec)) +
+            outTok.balanceOf(address(dst)) *
+            (10 ** (36 - outDec));
+
+        vm.prank(rebalancer);
+        try localBridge.localRebalance(amountIn, calls) {
+            uint256 valueAfter = inTok.balanceOf(address(src)) *
+                (10 ** (36 - inDec)) +
+                outTok.balanceOf(address(dst)) *
+                (10 ** (36 - outDec));
+            assertGe(valueAfter, valueBefore);
+        } catch {}
+    }
+
     function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
         outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
         destinationRouter = new MockRebalanceRouter(

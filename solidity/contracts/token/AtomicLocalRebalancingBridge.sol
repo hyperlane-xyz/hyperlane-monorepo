@@ -19,6 +19,11 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
 /// @dev The wrapper must be configured as an allowed rebalancer/bridge on the
 /// source router. The source router is treated as the trust boundary.
+/// @dev The source router's configured local recipient (destination router)
+/// MUST hold a token economically at par with the source collateral: output is
+/// converted from input by decimals only, so a non-par recipient reverts or
+/// demands absurd top-ups. Par is a configuration-only invariant, under the
+/// same trust model as cross-collateral routing.
 contract AtomicLocalRebalancingBridge is
     ITokenBridge,
     PackageVersioned,
@@ -206,7 +211,9 @@ contract AtomicLocalRebalancingBridge is
         return bytes32(0);
     }
 
-    /// @dev Converts `amountIn` from input-token units to output-token units.
+    /// @dev Converts `amountIn` from input-token units to output-token units by
+    /// decimals only. Input and output MUST be economically at par (1:1 value
+    /// per whole unit); a non-par pair reverts or demands absurd top-ups.
     /// Both tokens must implement `decimals()`, and the invariant assumes
     /// standard balance-stable ERC20 behavior: no fee-on-transfer, reflection,
     /// rebasing, or balance-altering hooks. Incompatible assets should be

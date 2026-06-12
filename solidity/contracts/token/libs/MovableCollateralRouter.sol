@@ -104,14 +104,16 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /**
      * @notice Clears legacy standing token approval for a bridge.
-     * @dev Deprecated: `rebalance` grants exact collateral-token approval from
-     *      the bridge quote. This selector is retained so existing upgrade /
-     *      governance tooling remains compatible and can revoke old allowances.
+     * @custom:deprecated Despite the name this revokes rather than approves.
+     *      `rebalance` grants exact per-call approval from the bridge quote;
+     *      the selector is retained so existing upgrade / governance tooling
+     *      stays compatible and can clear old max allowances.
      */
     function approveTokenForBridge(
         IERC20 token,
         ITokenBridge bridge
     ) external onlyOwner {
+        // Revokes the allowance; it does not approve.
         token.forceApprove(address(bridge), 0);
     }
 
