@@ -175,6 +175,10 @@ contract NonReceivingRebalancer {
     }
 }
 
+contract NativeSink {
+    receive() external payable {}
+}
+
 contract AtomicLocalRebalancingBridgeTest is Test {
     uint32 internal constant LOCAL_DOMAIN = 10;
 
@@ -576,6 +580,29 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         assertEq(rebalancer.balance, balanceBefore);
         assertEq(address(bridge).balance, 5 ether);
+    }
+
+    function test_localRebalance_revertsIfCallsSpendPreExistingNative() public {
+        swapTarget.setOutputAmount(100e6);
+        NativeSink sink = new NativeSink();
+        vm.deal(address(bridge), 5 ether);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = CallLib.build(
+            address(sink),
+            CallLib.NATIVE_BALANCE_SENTINEL,
+            ""
+        );
+
+        vm.deal(rebalancer, 1 ether);
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InvalidNativeDelta.selector
+        );
+        bridge.localRebalance{value: 1 ether}(100e6, calls);
     }
 
     function test_localRebalance_revertsWhenNativeRefundFails() public {

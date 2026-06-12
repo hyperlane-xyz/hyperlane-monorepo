@@ -43,6 +43,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
     error InvalidInputDelta();
     error UnauthorizedRebalancer();
     error InvalidToken();
+    error InvalidNativeDelta();
     error NativeRefundFailed();
 
     constructor(uint32 _localDomain, address _sourceRouter) {
@@ -102,6 +103,7 @@ contract AtomicLocalRebalancingBridge is ITokenBridge, PackageVersioned {
         );
         CallLib.multicallCalldata(calls);
 
+        if (address(this).balance < nativeBefore) revert InvalidNativeDelta();
         // Source may be topped up, but calls must not drain more than amountIn.
         if (
             IERC20(inputToken).balanceOf(sourceRouter) <
