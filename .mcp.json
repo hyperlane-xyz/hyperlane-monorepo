@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "metaswaps": {
+      "command": "npx",
+      "args": ["tsx", "typescript/metaswaps-sdk/src/mcp/server.ts"],
+      "env": {
+        "HYP_KEY": ""
+      }
+    }
+  }
+}
