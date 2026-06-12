@@ -49,17 +49,6 @@ export type RouteExecutionConfigInput = BaseBridgeConfig & {
 
 export type RouteExecutionConfigInputMap = ChainMap<RouteExecutionConfigInput>;
 
-export type RouteExecutionConfigSource =
-  | ChainMap<BridgeConfigWithOverride>
-  | RouteExecutionMatrix;
-
-export function isRouteExecutionMatrix(
-  config: RouteExecutionConfigSource,
-): config is RouteExecutionMatrix {
-  const firstValue = Object.values(config)[0];
-  return firstValue !== undefined && !('executionType' in firstValue);
-}
-
 export function resolveRouteExecutionConfig(
   config: RouteExecutionConfigInput,
 ): BridgeConfig {
@@ -83,32 +72,6 @@ export function resolveRouteExecutionConfig(
     bridge: config.bridge,
     bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount,
   };
-}
-
-export function buildRouteExecutionMatrixFromConfig(
-  chainConfigs: RouteExecutionConfigInputMap,
-): RouteExecutionMatrix {
-  const matrix: RouteExecutionMatrix = {};
-  const chains = Object.keys(chainConfigs);
-
-  for (const origin of chains) {
-    const originConfig = chainConfigs[origin];
-    matrix[origin] = {};
-
-    for (const destination of chains) {
-      if (origin === destination) {
-        continue;
-      }
-
-      const override = originConfig.override?.[destination];
-      matrix[origin][destination] = resolveRouteExecutionConfig({
-        ...originConfig,
-        ...override,
-      });
-    }
-  }
-
-  return matrix;
 }
 
 export function buildBridgeConfigMapFromConfig(
@@ -166,12 +129,8 @@ export function buildRouteExecutionMatrix(
 }
 
 export function normalizeRouteExecutionMatrix(
-  config: RouteExecutionConfigSource,
+  config: ChainMap<BridgeConfigWithOverride>,
 ): RouteExecutionMatrix {
-  if (isRouteExecutionMatrix(config)) {
-    return config;
-  }
-
   return buildRouteExecutionMatrix(config);
 }
 

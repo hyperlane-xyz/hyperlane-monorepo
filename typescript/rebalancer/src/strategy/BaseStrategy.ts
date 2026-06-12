@@ -15,9 +15,9 @@ import { BalanceProjector, planRoutes } from '../planning/index.js';
 import type { BalanceDelta } from '../planning/types.js';
 import {
   type BridgeConfig,
+  type BridgeConfigWithOverride,
   getRouteExecutionConfig,
   normalizeRouteExecutionMatrix,
-  type RouteExecutionConfigSource,
   type RouteExecutionMatrix,
 } from '../utils/bridgeUtils.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
@@ -38,7 +38,7 @@ export abstract class BaseStrategy implements IStrategy {
   constructor(
     chains: ChainName[],
     logger: Logger,
-    routeExecutionConfig: RouteExecutionConfigSource,
+    routeExecutionConfig: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
     tokensByChainName?: ChainMap<Token>,
   ) {

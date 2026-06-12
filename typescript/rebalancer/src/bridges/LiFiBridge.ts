@@ -69,6 +69,11 @@ type LiFiProviders = Parameters<typeof lifiConfig.setProviders>[0];
 type LiFiExecuteRouteOptions = Parameters<typeof executeRoute>[1];
 
 export interface LiFiSdkRunner {
+  /**
+   * `scoped` runners must isolate provider state per execution scope before
+   * allowing source-chain concurrency. The default SDK runner mutates global
+   * LiFi provider state and therefore remains globally serialized.
+   */
   providerScope: 'global' | 'scoped';
   createConfig(config: Parameters<typeof createConfig>[0]): void;
   setProviders(providers: LiFiProviders): void;
@@ -86,12 +91,7 @@ const DEFAULT_LIFI_SDK_RUNNER: LiFiSdkRunner = {
   providerScope: 'global',
   createConfig,
   setProviders: (providers) => lifiConfig.setProviders(providers),
-  getQuote: (params) => {
-    if ('toAmount' in params) {
-      return getQuote(params);
-    }
-    return getQuote(params);
-  },
+  getQuote,
   convertQuoteToRoute,
   executeRoute,
   getStatus: (params) => getStatus(params),

@@ -7,7 +7,7 @@ import { type ChainMap } from '@hyperlane-xyz/sdk';
 import { ExecutionType, ExternalBridgeType } from '../config/types.js';
 import {
   buildBridgeConfigMapFromConfig,
-  buildRouteExecutionMatrixFromConfig,
+  buildRouteExecutionMatrix,
   type BridgeConfigWithOverride,
   getBridgeConfig,
   getRouteExecutionConfig,
@@ -225,7 +225,7 @@ describe('bridgeConfig', () => {
   });
 
   it('should build resolved per-origin/per-destination execution matrix', () => {
-    const matrix = buildRouteExecutionMatrixFromConfig({
+    const configs = buildBridgeConfigMapFromConfig({
       chain1: {
         executionType: ExecutionType.MovableCollateral,
         bridge: '0x1234567890123456789012345678901234567890',
@@ -242,6 +242,7 @@ describe('bridgeConfig', () => {
         bridge: '0x0987654321098765432109876543210987654321',
       },
     });
+    const matrix = buildRouteExecutionMatrix(configs);
 
     expect(getRouteExecutionConfig(matrix, 'chain1', 'chain2')).to.deep.equal({
       executionType: 'inventory',
