@@ -278,11 +278,124 @@ async fn provable_mainnet_get_block_range() {
         });
     println!("block {latest}: ok (sanity)");
 
-    for height in 18077366u32..=18077376 {
+    let mut offending: Vec<u32> = Vec::new();
+    for height in 19154505u32..=19154515 {
         match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
             Err(err) => {
-                panic!("first error at block {height}: {err:?}");
+                println!("block {height}: ERROR {err:?}");
+                offending.push(height);
+            }
+        }
+    }
+    assert!(
+        offending.is_empty(),
+        "offending blocks (deserialize failure): {offending:?}"
+    );
+}
+
+// Minimal, self-contained reproduction with no Hyperlane abstractions.
+// Fetches the raw block JSON over plain reqwest (the node returns HTTP 200 with a
+// body in both cases) and deserializes it straight into snarkVM's `Block` type.
+// Block 19154506 deserializes fine; block 19154507 fails with
+// "Mismatching solution ID, possible data corruption" — so the failure is purely
+// in snarkVM block deserialization, not in the HTTP layer.
+//
+// Run with:
+//   cargo test -p hyperlane-aleo --all-features -- --ignored --nocapture provable_mainnet_block_deserialization
+#[tokio::test]
+#[ignore = "hits live https://api.explorer.provable.com/v2/mainnet"]
+async fn provable_mainnet_block_deserialization() {
+    use snarkvm::prelude::Block;
+
+    // (height, expect deserialization to succeed)
+    for (height, expect_ok) in [(19154506u32, true), (19154507u32, false)] {
+        let url = format!("https://api.explorer.provable.com/v2/mainnet/block/{height}");
+        println!("\n--- block {height} ---");
+        println!("GET {url}");
+
+        // 1. Fetch the raw JSON body. The node returns HTTP 200 with a body for
+        //    both blocks, so this step always succeeds.
+        let response = reqwest::get(&url).await.expect("HTTP request failed");
+        let status = response.status();
+        let body = response.text().await.expect("failed to read response body");
+        println!("HTTP {status}, received {} bytes of JSON", body.len());
+        assert!(status.is_success(), "unexpected HTTP status {status}");
+
+        // 1b. Persist the exact bytes the client received, before any parsing.
+        //     This is the authoritative artifact for the Aleo team to inspect:
+        //     the raw block JSON as handed to the deserializer.
+        let dump_path = std::env::temp_dir().join(format!("aleo_block_{height}.json"));
+        std::fs::write(&dump_path, &body).expect("failed to write block JSON dump");
+        println!("wrote raw block JSON to {}", dump_path.display());
+
+        // 2. Deserialize the body straight into snarkVM's `Block`. This is the
+        //    step that fails for block 19154507.
+        match serde_json::from_str::<Block<MainnetV0>>(&body) {
+            Ok(block) => {
+                println!(
+                    "OK  deserialized block {height}: hash={} timestamp={}",
+                    block.hash(),
+                    block.timestamp(),
+                );
+                assert!(
+                    expect_ok,
+                    "block {height} deserialized but a failure was expected"
+                );
+            }
+            Err(err) => {
+                println!("ERR deserializing block {height}: {err}");
+                assert!(
+                    !expect_ok,
+                    "block {height} failed to deserialize but success was expected: {err}"
+                );
+            }
+        }
+    }
+}
+
+// Fully offline reproduction: parses the captured block JSON fixtures straight
+// from disk (no network). Proves the failure is in the bytes themselves — the
+// good block 19154506 deserializes, the bad block 19154507 fails with
+// "Mismatching solution ID, possible data corruption".
+//
+// Run with:
+//   cargo test -p hyperlane-aleo --all-features parse_captured_block_json_fixtures
+#[test]
+fn parse_captured_block_json_fixtures() {
+    use snarkvm::prelude::Block;
+
+    let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("repro_artifacts");
+
+    // (height, expect deserialization to succeed)
+    for (height, expect_ok) in [(19154506u32, true), (19154507u32, false)] {
+        let path = fixtures_dir.join(format!("aleo_block_{height}.json"));
+        let body = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()));
+        println!(
+            "\n--- block {height} ({} bytes from {}) ---",
+            body.len(),
+            path.display()
+        );
+
+        match serde_json::from_str::<Block<MainnetV0>>(&body) {
+            Ok(block) => {
+                println!(
+                    "OK  deserialized block {height}: hash={} timestamp={}",
+                    block.hash(),
+                    block.timestamp(),
+                );
+                assert!(
+                    expect_ok,
+                    "block {height} deserialized but a failure was expected"
+                );
+            }
+            Err(err) => {
+                println!("ERR deserializing block {height}: {err}");
+                assert!(
+                    !expect_ok,
+                    "block {height} failed to deserialize but success was expected: {err}"
+                );
             }
         }
     }
