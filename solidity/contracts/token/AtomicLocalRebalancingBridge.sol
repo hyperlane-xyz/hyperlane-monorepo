@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title AtomicLocalRebalancingBridge
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
@@ -43,7 +44,6 @@ contract AtomicLocalRebalancingBridge is
     error UnauthorizedRebalancer();
     error InvalidToken();
     error InvalidNativeDelta();
-    error NativeRefundFailed();
 
     constructor(uint32 _localDomain, address _sourceRouter) {
         localDomain = _localDomain;
@@ -127,13 +127,13 @@ contract AtomicLocalRebalancingBridge is
         if (outputToken != inputToken) {
             _refundDelta(outputToken, outputSelfBefore, msg.sender);
         }
-        // Refund this call's unspent native before clearing the guard.
+        // Refund this call's unspent native.
         uint256 nativeBalance = address(this).balance;
         if (nativeBalance > nativeBefore) {
-            (bool ok, ) = msg.sender.call{value: nativeBalance - nativeBefore}(
-                ""
+            Address.sendValue(
+                payable(msg.sender),
+                nativeBalance - nativeBefore
             );
-            if (!ok) revert NativeRefundFailed();
         }
     }
 

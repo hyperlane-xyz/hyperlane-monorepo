@@ -613,7 +613,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.deal(address(caller), 1 ether);
 
         vm.expectRevert(
-            AtomicLocalRebalancingBridge.NativeRefundFailed.selector
+            "Address: unable to send value, recipient may have reverted"
         );
         caller.rebalanceWithValue{value: 1 ether}(
             bridge,
