@@ -38,6 +38,7 @@ async fn test_gas_payment_policy_none() {
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
         destination: message.destination,
+        fee_token: Default::default(),
         payment: U256::zero(),
         gas_amount: U256::zero(),
     };

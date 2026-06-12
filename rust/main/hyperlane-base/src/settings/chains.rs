@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,6 +47,47 @@ use crate::{
 };
 
 use super::ChainSigner;
+
+/// IGP contract generation configured for this chain.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum IgpVersion {
+    /// Legacy IGPs do not support offchain quoting or ERC20 fee-token payments.
+    #[default]
+    Legacy,
+    /// Latest IGPs support offchain quoting and ERC20 fee-token payments.
+    Latest,
+}
+
+impl IgpVersion {
+    /// Whether this IGP version supports ERC20 fee-token payments.
+    pub fn supports_fee_tokens(self) -> bool {
+        matches!(self, Self::Latest)
+    }
+}
+
+/// Error returned when parsing an IGP contract generation from config.
+#[derive(Debug)]
+pub struct IgpVersionParseError(String);
+
+impl Display for IgpVersionParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid IGP version `{}`", self.0)
+    }
+}
+
+impl Error for IgpVersionParseError {}
+
+impl FromStr for IgpVersion {
+    type Err = IgpVersionParseError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "legacy" => Ok(Self::Legacy),
+            "latest" => Ok(Self::Latest),
+            _ => Err(IgpVersionParseError(s.to_owned())),
+        }
+    }
+}
 
 /// A trait for converting to a type from a chain configuration with metrics
 #[async_trait]
@@ -234,6 +278,8 @@ pub struct CoreContractAddresses {
     pub validator_announce: H256,
     /// Address of the MerkleTreeHook contract
     pub merkle_tree_hook: H256,
+    /// IGP contract generation configured for this chain.
+    pub igp_version: IgpVersion,
 }
 
 /// Indexing settings

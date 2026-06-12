@@ -361,6 +361,7 @@ export {
   buildAgentConfig,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IgpVersion,
   IsmCacheConfig,
   IsmCachePolicy,
   IsmCacheSelectorType,

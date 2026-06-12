@@ -131,11 +131,32 @@ pub struct GasPaymentKey {
     pub destination: u32,
 }
 
+/// Key for a gas payment made with a specific origin fee token.
+#[derive(Debug, Copy, Clone)]
+pub struct GasPaymentTokenKey {
+    /// Id of the message
+    pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
+    /// Origin token used to pay for gas. The zero address represents native tokens.
+    pub fee_token: H160,
+}
+
 impl From<InterchainGasPayment> for GasPaymentKey {
     fn from(value: InterchainGasPayment) -> Self {
         Self {
             message_id: value.message_id,
             destination: value.destination,
+        }
+    }
+}
+
+impl From<InterchainGasPayment> for GasPaymentTokenKey {
+    fn from(value: InterchainGasPayment) -> Self {
+        Self {
+            message_id: value.message_id,
+            destination: value.destination,
+            fee_token: value.fee_token,
         }
     }
 }
@@ -147,6 +168,8 @@ pub struct InterchainGasPayment {
     pub message_id: H256,
     /// Destination domain paid for.
     pub destination: u32,
+    /// Origin token used to pay for gas. The zero address represents native tokens.
+    pub fee_token: H160,
     /// Amount of native tokens paid.
     pub payment: U256,
     /// Amount of destination gas paid for.
@@ -159,6 +182,18 @@ impl InterchainGasPayment {
         Self {
             message_id: key.message_id,
             destination: key.destination,
+            fee_token: H160::zero(),
+            payment: Default::default(),
+            gas_amount: Default::default(),
+        }
+    }
+
+    /// Create a new InterchainGasPayment from a GasPaymentTokenKey
+    pub fn from_gas_payment_token_key(key: GasPaymentTokenKey) -> Self {
+        Self {
+            message_id: key.message_id,
+            destination: key.destination,
+            fee_token: key.fee_token,
             payment: Default::default(),
             gas_amount: Default::default(),
         }
@@ -188,9 +223,14 @@ impl Add for InterchainGasPayment {
             self.destination, rhs.destination,
             "Cannot add interchain gas payments for different destinations"
         );
+        assert_eq!(
+            self.fee_token, rhs.fee_token,
+            "Cannot add interchain gas payments for different fee tokens"
+        );
         Self {
             message_id: self.message_id,
             destination: self.destination,
+            fee_token: self.fee_token,
             payment: self.payment.saturating_add(rhs.payment),
             gas_amount: self.gas_amount.saturating_add(rhs.gas_amount),
         }
