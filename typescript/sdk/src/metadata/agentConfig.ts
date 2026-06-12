@@ -199,6 +199,13 @@ export type AgentSealevelPriorityFeeOracle =
 export type AgentSealevelTransactionSubmitter =
   AgentSealevelChainMetadata['transactionSubmitter'];
 
+// Mirrors the Rust `IgpVersion` enum (hyperlane-base settings). Only `latest`
+// IGPs support ERC20 fee-token payments; missing/`legacy` is treated as legacy.
+export enum IgpVersion {
+  Legacy = 'legacy',
+  Latest = 'latest',
+}
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -232,6 +239,12 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           ),
       })
       .optional(),
+    igpVersion: z
+      .nativeEnum(IgpVersion)
+      .optional()
+      .describe(
+        'The IGP contract generation for this chain. Must be `latest` to enable ERC20 fee-token gas payment enforcement; defaults to `legacy` if unset.',
+      ),
   })
   .merge(AgentCosmosChainMetadataSchema.partial())
   .merge(AgentSealevelChainMetadataSchema.partial())
@@ -346,6 +359,9 @@ export enum GasPaymentEnforcementPolicyType {
 const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
+  ),
+  feeToken: ZHash.optional().describe(
+    'The origin fee token that must have paid the IGP. The zero address, or unset, represents native tokens.',
   ),
 });
 const GasPaymentEnforcementSchema = z.union([

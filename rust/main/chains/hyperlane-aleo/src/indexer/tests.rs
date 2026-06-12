@@ -252,6 +252,7 @@ async fn test_igp_indexer_fetch_logs() {
         )
         .unwrap(),
         destination: 11155111,
+        fee_token: Default::default(),
         payment: 0.into(),
         gas_amount: 50000.into(),
     };

@@ -5,10 +5,11 @@ use eyre::{bail, Result};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, GasPaymentTokenKey,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H160, H256,
+    H512,
 };
 
 use crate::db::{
@@ -29,6 +30,7 @@ const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
 const GAS_PAYMENT_BLOCK_BY_SEQUENCE: &str = "gas_payment_block_by_sequence_";
 const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
+const GAS_PAYMENT_FOR_MESSAGE_ID_AND_TOKEN: &str = "gas_payment_sequence_for_message_id_v3_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const STATUS_BY_MESSAGE_ID: &str = "status_by_message_id_";
@@ -253,16 +255,48 @@ impl HyperlaneRocksDB {
 
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
-        let gas_payment_key = event.into();
-        let existing_payment =
-            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
-                Some(payment) => payment,
-                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+        if event.fee_token == H160::zero() {
+            let gas_payment_key = GasPaymentKey::from(event);
+            let existing_payment = self
+                .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?
+                .unwrap_or_else(|| InterchainGasPayment::from_gas_payment_key(gas_payment_key));
+            let total = InterchainGasPayment {
+                message_id: existing_payment.message_id,
+                destination: existing_payment.destination,
+                fee_token: H160::zero(),
+                payment: existing_payment.payment.saturating_add(event.payment),
+                gas_amount: existing_payment.gas_amount.saturating_add(event.gas_amount),
             };
-        let total = existing_payment.add(event);
 
-        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key, &total.into())?;
+            debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
+            self.store_interchain_gas_payment_data_by_gas_payment_key(
+                &gas_payment_key,
+                &total.into(),
+            )?;
+        } else {
+            let gas_payment_token_key = GasPaymentTokenKey::from(event);
+            let existing_token_payment = self
+                .retrieve_interchain_gas_payment_data_by_gas_payment_token_key(
+                    &gas_payment_token_key,
+                )?
+                .map(|payment| {
+                    payment.complete_with_fee_token(
+                        gas_payment_token_key.message_id,
+                        gas_payment_token_key.destination,
+                        gas_payment_token_key.fee_token,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    InterchainGasPayment::from_gas_payment_token_key(gas_payment_token_key)
+                });
+            let token_total = existing_token_payment.add(event);
+
+            debug!(?event, new_total_gas_payment=?token_total, "Storing token gas payment");
+            self.store_interchain_gas_payment_data_by_gas_payment_token_key(
+                &gas_payment_token_key,
+                &token_total.into(),
+            )?;
+        }
 
         Ok(())
     }
@@ -296,6 +330,31 @@ impl HyperlaneRocksDB {
             .map(|payment| {
                 payment.complete(gas_payment_key.message_id, gas_payment_key.destination)
             }))
+    }
+
+    /// Retrieve the total gas payment for a message and fee token.
+    pub fn retrieve_gas_payment_by_gas_payment_token_key(
+        &self,
+        gas_payment_token_key: GasPaymentTokenKey,
+    ) -> DbResult<Option<InterchainGasPayment>> {
+        let token_payment = self
+            .retrieve_interchain_gas_payment_data_by_gas_payment_token_key(&gas_payment_token_key)?
+            .map(|payment| {
+                payment.complete_with_fee_token(
+                    gas_payment_token_key.message_id,
+                    gas_payment_token_key.destination,
+                    gas_payment_token_key.fee_token,
+                )
+            });
+
+        if token_payment.is_some() || gas_payment_token_key.fee_token != H160::zero() {
+            return Ok(token_payment);
+        }
+
+        self.retrieve_gas_payment_by_gas_payment_key(GasPaymentKey {
+            message_id: gas_payment_token_key.message_id,
+            destination: gas_payment_token_key.destination,
+        })
     }
 
     /// Retrieve the total gas payment for a message
@@ -581,6 +640,21 @@ impl HyperlaneDb for HyperlaneRocksDB {
         key: &GasPaymentKey,
     ) -> DbResult<Option<InterchainGasPaymentData>> {
         self.retrieve_value_by_key(GAS_PAYMENT_FOR_MESSAGE_ID, key)
+    }
+
+    fn store_interchain_gas_payment_data_by_gas_payment_token_key(
+        &self,
+        key: &GasPaymentTokenKey,
+        data: &InterchainGasPaymentData,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_PAYMENT_FOR_MESSAGE_ID_AND_TOKEN, key, data)
+    }
+
+    fn retrieve_interchain_gas_payment_data_by_gas_payment_token_key(
+        &self,
+        key: &GasPaymentTokenKey,
+    ) -> DbResult<Option<InterchainGasPaymentData>> {
+        self.retrieve_value_by_key(GAS_PAYMENT_FOR_MESSAGE_ID_AND_TOKEN, key)
     }
 
     fn store_gas_payment_by_sequence(

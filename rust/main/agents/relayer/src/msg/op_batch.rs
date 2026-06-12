@@ -411,6 +411,7 @@ mod tests {
             origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
+                    fee_token: Default::default(),
                     matching_list: MatchingList::default(),
                 }],
                 base_db.clone(),

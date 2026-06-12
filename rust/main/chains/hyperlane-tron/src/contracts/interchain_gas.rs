@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -6,11 +7,12 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, H512,
+    SequenceAwareIndexer, H160, H256, H512,
 };
 
 use crate::interfaces::i_interchain_gas_paymaster::{
-    GasPaymentFilter, IInterchainGasPaymaster as TronInterchainGasPaymasterInternal,
+    GasPaymentFilter, GasPaymentWithFeeTokenFilter,
+    IInterchainGasPaymaster as TronInterchainGasPaymasterInternal,
 };
 use crate::{fetch_raw_logs_and_meta, TronProvider};
 
@@ -35,6 +37,26 @@ impl TronInterchainGasPaymaster {
             domain: locator.domain.clone(),
         }
     }
+
+    fn legacy_payment(log: GasPaymentFilter) -> InterchainGasPayment {
+        InterchainGasPayment {
+            message_id: H256::from(log.message_id),
+            destination: log.destination_domain,
+            fee_token: H160::zero(),
+            payment: log.payment.into(),
+            gas_amount: log.gas_amount.into(),
+        }
+    }
+
+    fn token_payment(log: GasPaymentWithFeeTokenFilter) -> InterchainGasPayment {
+        InterchainGasPayment {
+            message_id: H256::from(log.message_id),
+            destination: log.destination_domain,
+            fee_token: H160::from(log.fee_token),
+            payment: log.payment.into(),
+            gas_amount: log.gas_amount.into(),
+        }
+    }
 }
 
 #[async_trait]
@@ -44,27 +66,40 @@ impl Indexer<InterchainGasPayment> for TronInterchainGasPaymaster {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let events = self
+        let legacy_events = self
             .contract
             .gas_payment_filter()
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()
             .await?;
+        let token_events = self
+            .contract
+            .gas_payment_with_fee_token_filter()
+            .from_block(*range.start())
+            .to_block(*range.end())
+            .query_with_meta()
+            .await?;
 
-        Ok(events
+        let token_event_txs = token_events
+            .iter()
+            .map(|(_, log_meta)| LogMeta::from(log_meta.clone()).transaction_id)
+            .collect::<HashSet<_>>();
+
+        // New IGP emits `GasPaymentWithFeeToken` alongside legacy
+        // `GasPayment`, so token-aware logs supersede legacy logs from the
+        // same transaction.
+        Ok(legacy_events
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    Indexed::new(InterchainGasPayment {
-                        message_id: H256::from(log.message_id),
-                        destination: log.destination_domain,
-                        payment: log.payment.into(),
-                        gas_amount: log.gas_amount.into(),
-                    }),
-                    log_meta.into(),
-                )
+            .filter(|(_, log_meta)| {
+                !token_event_txs.contains(&LogMeta::from(log_meta.clone()).transaction_id)
             })
+            .map(|(log, log_meta)| (Indexed::new(Self::legacy_payment(log)), log_meta.into()))
+            .chain(
+                token_events.into_iter().map(|(log, log_meta)| {
+                    (Indexed::new(Self::token_payment(log)), log_meta.into())
+                }),
+            )
             .collect())
     }
 
@@ -76,6 +111,25 @@ impl Indexer<InterchainGasPayment> for TronInterchainGasPaymaster {
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        let token_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<GasPaymentWithFeeTokenFilter, _>(
+                    tx_hash, provider, contract,
+                )
+                .await
+            })
+        })
+        .await;
+
+        if !token_logs_and_meta.is_empty() {
+            return Ok(token_logs_and_meta
+                .into_iter()
+                .map(|(log, log_meta)| (Indexed::new(Self::token_payment(log)), log_meta))
+                .collect());
+        }
+
         let raw_logs_and_meta = call_and_retry_indefinitely(|| {
             let provider = self.provider.clone();
             let contract = self.contract.address();
@@ -87,17 +141,7 @@ impl Indexer<InterchainGasPayment> for TronInterchainGasPaymaster {
 
         let logs = raw_logs_and_meta
             .into_iter()
-            .map(|(log, log_meta)| {
-                (
-                    Indexed::new(InterchainGasPayment {
-                        message_id: H256::from(log.message_id),
-                        destination: log.destination_domain,
-                        payment: log.payment.into(),
-                        gas_amount: log.gas_amount.into(),
-                    }),
-                    log_meta,
-                )
-            })
+            .map(|(log, log_meta)| (Indexed::new(Self::legacy_payment(log)), log_meta))
             .collect();
         Ok(logs)
     }
