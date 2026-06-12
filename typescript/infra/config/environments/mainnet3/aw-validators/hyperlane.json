@@ -272,6 +272,9 @@
   "reactive": {
     "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
   },
+  "robinhood": {
+    "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
+  },
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
   },
@@ -364,8 +367,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "robinhood": {
-    "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
   }
 }
