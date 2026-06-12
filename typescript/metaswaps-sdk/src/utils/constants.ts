@@ -1,6 +1,21 @@
 import { chainMetadata } from '@hyperlane-xyz/registry';
 import { ethers } from 'ethers';
 
+// @hyperlane-xyz/registry declares chainMetadata as ChainMap<ChainMetadata> where
+// ChainMetadata comes from @hyperlane-xyz/sdk, which is not a dep of this package.
+// Define only the fields we actually use so TypeScript can check our code.
+type ChainMetaEntry = {
+  protocol?: string;
+  isTestnet?: boolean;
+  chainId?: number;
+  name: string;
+  rpcUrls?: Array<{ http?: string }>;
+};
+
+function isChainMetaEntry(v: unknown): v is ChainMetaEntry {
+  return typeof v === 'object' && v !== null && 'name' in v;
+}
+
 // ── API endpoints ────────────────────────────────────────────────────────────
 
 export const DEFAULT_ROUTING_URL = 'https://router.services.hyperlane.xyz';
@@ -27,6 +42,7 @@ export const DEFAULT_DEADLINE_SECONDS = 300;
 // Only includes EVM mainnet chains.
 export const REGISTRY_CHAIN_NAMES: Record<number, string> = Object.fromEntries(
   Object.values(chainMetadata)
+    .filter(isChainMetaEntry)
     .filter(
       (meta) =>
         meta.protocol === 'ethereum' && !meta.isTestnet && meta.chainId != null,
@@ -74,6 +90,7 @@ export const CCTP_MESSAGE_TRANSMITTER_ADDRESSES = new Set([
 // Users can override any entry via MetaswapsSDKConfig.chainRpcUrls.
 export const REGISTRY_RPC_URLS: Record<number, string> = Object.fromEntries(
   Object.values(chainMetadata)
+    .filter(isChainMetaEntry)
     .filter(
       (meta) =>
         meta.protocol === 'ethereum' &&
