@@ -139,7 +139,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    it('should set the allowed bridges and the related token approvals', async function () {
+    it('should set the allowed bridges without creating token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
