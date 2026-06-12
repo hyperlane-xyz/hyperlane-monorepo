@@ -241,8 +241,8 @@ export async function getUSDTCitreaMoonpayWarpConfig(
   _abacusWorksEnvOwnerConfig: ChainMap<{ owner: string }>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const oftRebalancingConfigByChain = getRebalancingBridgesConfigFor(
-    EVM_CHAINS,
-    [WarpRouteIds.USDTOft],
+    [...EVM_CHAINS, 'bsc'],
+    [WarpRouteIds.USDTOft, WarpRouteIds.EclipseUSDT],
   );
 
   const {
@@ -297,6 +297,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       token: tokens.bsc.USDT,
       mailbox: routerConfig.bsc.mailbox,
       owner: bscOwner,
+      ...oftRebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),

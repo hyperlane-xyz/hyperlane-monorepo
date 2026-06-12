@@ -364,6 +364,23 @@ export function getFixedRoutingFeeConfig(
  * Creates a file submitter strategy config for the given chains.
  * 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion.
  */
+/**
+ * Merges multiple allowedRebalancingBridges maps by concatenating bridge arrays
+ * for overlapping domain IDs. Undefined inputs are skipped.
+ */
+export function mergeAllowedBridges(
+  ...configs: (Record<string, { bridge: string }[]> | undefined)[]
+): Record<string, { bridge: string }[]> {
+  const result: Record<string, { bridge: string }[]> = {};
+  for (const config of configs) {
+    if (!config) continue;
+    for (const [domain, bridges] of Object.entries(config)) {
+      result[domain] = [...(result[domain] ?? []), ...bridges];
+    }
+  }
+  return result;
+}
+
 export function getFileSubmitterStrategyConfig(
   chains: readonly string[],
   filepath: string,
