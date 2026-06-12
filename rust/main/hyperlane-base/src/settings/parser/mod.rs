@@ -30,7 +30,7 @@ use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, CoreContractAddresses, IgpVersion, Settings, SignerConf,
+    ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -238,11 +238,6 @@ fn parse_chain(
         .get_key("merkleTreeHook")
         .parse_address_hash()
         .end();
-    let igp_version = chain
-        .chain(&mut err)
-        .get_opt_key("igpVersion")
-        .parse_from_str::<IgpVersion>("Invalid IGP version")
-        .unwrap_or_default();
 
     let batch_contract_address = chain
         .chain(&mut err)
@@ -361,7 +356,6 @@ fn parse_chain(
             interchain_gas_paymaster,
             validator_announce,
             merkle_tree_hook,
-            igp_version,
         },
         connection,
         metrics_conf: Default::default(),

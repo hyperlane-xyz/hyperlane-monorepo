@@ -199,13 +199,6 @@ export type AgentSealevelPriorityFeeOracle =
 export type AgentSealevelTransactionSubmitter =
   AgentSealevelChainMetadata['transactionSubmitter'];
 
-// Mirrors the Rust `IgpVersion` enum (hyperlane-base settings). Only `latest`
-// IGPs support ERC20 fee-token payments; missing/`legacy` is treated as legacy.
-export enum IgpVersion {
-  Legacy = 'legacy',
-  Latest = 'latest',
-}
-
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -239,12 +232,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           ),
       })
       .optional(),
-    igpVersion: z
-      .nativeEnum(IgpVersion)
-      .optional()
-      .describe(
-        'The IGP contract generation for this chain. Must be `latest` to enable ERC20 fee-token gas payment enforcement; defaults to `legacy` if unset.',
-      ),
   })
   .merge(AgentCosmosChainMetadataSchema.partial())
   .merge(AgentSealevelChainMetadataSchema.partial())
@@ -381,6 +368,10 @@ const GasPaymentEnforcementSchema = z.union([
   }),
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+
+function feeTokenIsNonZero(feeToken?: string): boolean {
+  return feeToken != null && /[1-9a-f]/i.test(feeToken.replace(/^0x/i, ''));
+}
 
 const MetricAppContextSchema = z.object({
   name: z.string().min(1),
@@ -536,6 +527,24 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
+}).superRefine((config, ctx) => {
+  // Mirror the Rust relayer gate: the current IGP event does not expose the
+  // token address, so exact non-native `feeToken` enforcement is rejected.
+  const { gasPaymentEnforcement } = config;
+  if (!Array.isArray(gasPaymentEnforcement)) {
+    return;
+  }
+  gasPaymentEnforcement.forEach((policy, policyIndex) => {
+    if (!feeTokenIsNonZero(policy.feeToken)) {
+      return;
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement', policyIndex, 'feeToken'],
+      message:
+        '`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; leave it unset and use onChainFeeQuoting for ERC20 IGP gas-amount sufficiency.',
+    });
+  });
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

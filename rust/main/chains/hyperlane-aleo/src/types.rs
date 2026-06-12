@@ -7,7 +7,7 @@ use snarkvm_console_account::{Address, Itertools, ToBytes};
 use aleo_serialize_macro::aleo_serialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, HyperlaneMessage, InterchainGasPayment,
-    MerkleTreeInsertion, H160, H256, U256,
+    MerkleTreeInsertion, H256, U256,
 };
 
 use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
@@ -106,7 +106,6 @@ impl From<GasPaymentEvent> for InterchainGasPayment {
         InterchainGasPayment {
             message_id,
             destination: val.destination_domain,
-            fee_token: H160::zero(),
             payment: U256::from(val.payment),
             gas_amount: U256::from(val.gas_amount),
         }

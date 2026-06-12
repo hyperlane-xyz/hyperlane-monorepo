@@ -2,9 +2,9 @@ use std::fmt::Debug;
 
 use crate::db::{DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData};
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, GasPaymentKey, GasPaymentTokenKey, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainGasPayment, InterchainGasPaymentMeta,
-    MerkleTreeInsertion, PendingOperationStatus, H256, H512,
+    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
+    PendingOperationStatus, H256, H512,
 };
 
 mockall::mock! {
@@ -70,15 +70,6 @@ mockall::mock! {
         fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
             &self,
             key: &GasPaymentKey,
-        ) -> DbResult<Option<InterchainGasPaymentData>>;
-        fn store_interchain_gas_payment_data_by_gas_payment_token_key(
-            &self,
-            key: &GasPaymentTokenKey,
-            data: &InterchainGasPaymentData,
-        ) -> DbResult<()>;
-        fn retrieve_interchain_gas_payment_data_by_gas_payment_token_key(
-            &self,
-            key: &GasPaymentTokenKey,
         ) -> DbResult<Option<InterchainGasPaymentData>>;
         fn store_gas_payment_by_sequence(
             &self,

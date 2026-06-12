@@ -88,7 +88,6 @@ mod test {
         InterchainGasPayment {
             message_id: H256::zero(),
             destination: 0,
-            fee_token: Default::default(),
             payment: U256::zero(),
             gas_amount: gas_amount.into(),
         }

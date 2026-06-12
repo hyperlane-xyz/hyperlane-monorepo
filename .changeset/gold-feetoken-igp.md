@@ -1,6 +1,5 @@
 ---
 '@hyperlane-xyz/sdk': patch
-'@hyperlane-xyz/core': minor
 ---
 
-The agent config schema and InterchainGasPaymaster events were updated to support origin fee-token IGP payments. Rust relayer fee-token enforcement required origin chains to explicitly configure `igpVersion: latest`; missing versions were treated as legacy.
+The relayer agent config schema was updated to recognize `feeToken` gas payment enforcement config and reject non-native exact-token enforcement until token-aware IGP indexing is available. ERC20 IGP payments can still satisfy token-agnostic `onChainFeeQuoting` checks through the indexed destination gas amount.

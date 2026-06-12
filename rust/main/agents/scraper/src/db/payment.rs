@@ -3,7 +3,7 @@ use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 use tracing::{debug, instrument};
 
-use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H160, H256};
+use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
 use migration::OnConflict;
 
 use crate::conversions::{decimal_to_u256, u256_to_decimal};
@@ -43,7 +43,6 @@ impl ScraperDb {
             let payment = InterchainGasPayment {
                 message_id: H256::from_slice(&payment.msg_id),
                 destination: payment.destination as u32,
-                fee_token: H160::from_slice(&payment.fee_token),
                 payment: decimal_to_u256(payment.payment),
                 gas_amount: decimal_to_u256(payment.gas_amount),
             };
@@ -98,7 +97,6 @@ impl ScraperDb {
                 msg_id: Unchanged(h256_to_bytes(&storable.payment.message_id)),
                 payment: Set(u256_to_decimal(storable.payment.payment)),
                 gas_amount: Set(u256_to_decimal(storable.payment.gas_amount)),
-                fee_token: Set(storable.payment.fee_token.as_bytes().to_vec()),
                 tx_id: Unchanged(storable.txn_id),
                 log_index: Unchanged(storable.meta.log_index.as_u64() as i64),
                 origin: Set(domain as i32),
@@ -127,7 +125,6 @@ impl ScraperDb {
                     gas_payment::Column::TimeCreated,
                     gas_payment::Column::Payment,
                     gas_payment::Column::GasAmount,
-                    gas_payment::Column::FeeToken,
                     gas_payment::Column::Origin,
                     gas_payment::Column::Destination,
                     gas_payment::Column::InterchainGasPaymaster,

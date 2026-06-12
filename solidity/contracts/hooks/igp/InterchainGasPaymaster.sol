@@ -490,21 +490,7 @@ contract InterchainGasPaymaster is
             );
         }
 
-        if (_feeToken == address(0)) {
-            emit GasPayment(
-                _messageId,
-                _destinationDomain,
-                _gasLimit,
-                _payment
-            );
-        }
-        emit GasPaymentWithFeeToken(
-            _messageId,
-            _destinationDomain,
-            _feeToken,
-            _gasLimit,
-            _payment
-        );
+        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

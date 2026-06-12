@@ -11,8 +11,8 @@ use hyperlane_base::{
     db::{test_utils, HyperlaneRocksDB},
 };
 use hyperlane_core::{
-    ChainResult, GasPaymentKey, GasPaymentTokenKey, HyperlaneDomain, HyperlaneMessage, Indexed,
-    Indexer, InterchainGasPayment, LogMeta, QueueOperation, H160, H256, H512, U256,
+    ChainResult, GasPaymentKey, HyperlaneDomain, HyperlaneMessage, Indexed, Indexer,
+    InterchainGasPayment, LogMeta, QueueOperation, H256, H512, U256,
 };
 use hyperlane_test::mocks::MockMailboxContract;
 use parking_lot::Mutex;
@@ -583,7 +583,6 @@ async fn test_igp_payments_stored_before_enqueue() {
     let payment = InterchainGasPayment {
         message_id,
         destination: DEST_ID,
-        fee_token: Default::default(),
         payment: U256::from(100u64),
         gas_amount: U256::from(200u64),
     };
@@ -662,102 +661,6 @@ async fn test_igp_payments_stored_before_enqueue() {
         "IGP payment should have been stored by the relay handler before enqueue"
     );
     let stored = stored.unwrap();
-    assert_eq!(
-        stored.payment,
-        U256::from(100u64),
-        "payment amount mismatch"
-    );
-    assert_eq!(stored.gas_amount, U256::from(200u64), "gas amount mismatch");
-}
-
-#[tokio::test]
-async fn test_igp_payments_with_fee_token_stored_before_enqueue() {
-    // Compute the message ID so we can create a matching IGP payment.
-    let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
-    let message_id = msg.id();
-
-    // Non-native fee token: the payment must be stored under its token-aware key.
-    let fee_token = H160::from_low_u64_be(0xfee);
-    let payment = InterchainGasPayment {
-        message_id,
-        destination: DEST_ID,
-        fee_token,
-        payment: U256::from(100u64),
-        gas_amount: U256::from(200u64),
-    };
-    let igp_indexer = Arc::new(MockIgpIndexer::with_payments(vec![(
-        Indexed::new(payment),
-        LogMeta::default(),
-    )]));
-
-    // Build state manually so we can (a) inject the IGP indexer and (b) retain a
-    // clone of the DB to verify storage after the request.
-    let tempdir = TempDir::new().unwrap();
-    let db = test_utils::setup_db(tempdir.path().to_str().unwrap().to_owned());
-    let domain = HyperlaneDomain::new_test_domain("relay_api_igp_fee_token_test");
-    let rocks_db = HyperlaneRocksDB::new(&domain, db);
-    let rocks_db_ref = rocks_db.clone(); // kept for post-request verification
-
-    let mock_builder = build_mock_base_builder(domain.clone(), domain.clone());
-    let msg_ctx = Arc::new(MessageContext {
-        destination_mailbox: Arc::new(mock_mailbox()),
-        origin_db: Arc::new(rocks_db.clone()),
-        cache: OptionalCache::new(None),
-        metadata_builder: Arc::new(mock_builder),
-        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
-            [],
-            rocks_db.clone(),
-        ))),
-        transaction_gas_limit: None,
-        metrics: dummy_submission_metrics(),
-        application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
-    });
-
-    let mut indexers = HashMap::new();
-    indexers.insert(
-        "ethereum".to_string(),
-        Arc::new(MockIndexer::cctp(msg)) as Arc<dyn Indexer<HyperlaneMessage>>,
-    );
-    let mut igp_indexers = HashMap::new();
-    igp_indexers.insert(
-        ORIGIN_ID,
-        igp_indexer as Arc<dyn Indexer<InterchainGasPayment>>,
-    );
-    let mut dbs = HashMap::new();
-    dbs.insert(ORIGIN_ID, rocks_db);
-    let (tx, mut rx) = mpsc::unbounded_channel::<QueueOperation>();
-    let mut send_channels = HashMap::new();
-    send_channels.insert(DEST_ID, tx);
-    let mut msg_ctxs = HashMap::new();
-    msg_ctxs.insert((ORIGIN_ID, DEST_ID), msg_ctx);
-
-    let metrics = RelayApiMetrics::new(&Registry::new()).unwrap();
-    let state = ServerState::new(
-        indexers,
-        igp_indexers,
-        dbs,
-        send_channels,
-        msg_ctxs,
-        metrics,
-    );
-
-    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
-    let status = send_relay(state.with_tx_hash_cache(cache).router(), TX_HASH).await;
-
-    assert_eq!(status, StatusCode::OK);
-    assert!(rx.try_recv().is_ok(), "message should have been enqueued");
-
-    // The fee-token payment must be retrievable under its token-aware key.
-    let key = GasPaymentTokenKey {
-        message_id,
-        destination: DEST_ID,
-        fee_token,
-    };
-    let stored = rocks_db_ref
-        .retrieve_gas_payment_by_gas_payment_token_key(key)
-        .expect("DB lookup should not fail")
-        .expect("fee-token IGP payment should have been stored before enqueue");
-    assert_eq!(stored.fee_token, fee_token, "fee token mismatch");
     assert_eq!(
         stored.payment,
         U256::from(100u64),

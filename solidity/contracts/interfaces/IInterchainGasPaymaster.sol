@@ -24,22 +24,6 @@ interface IInterchainGasPaymaster {
     );
 
     /**
-     * @notice Emitted when a payment is made for a message's gas costs.
-     * @param messageId The ID of the message to pay for.
-     * @param destinationDomain The domain of the destination chain.
-     * @param feeToken The token used to pay gas fees, or address(0) for native token payments.
-     * @param gasAmount The amount of destination gas paid for.
-     * @param payment The amount of tokens paid.
-     */
-    event GasPaymentWithFeeToken(
-        bytes32 indexed messageId,
-        uint32 indexed destinationDomain,
-        address indexed feeToken,
-        uint256 gasAmount,
-        uint256 payment
-    );
-
-    /**
      * @notice Emitted when a token gas oracle is set.
      * @param feeToken The fee token address.
      * @param remoteDomain The remote domain.

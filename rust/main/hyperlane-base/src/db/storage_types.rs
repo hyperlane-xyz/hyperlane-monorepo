@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 
 use hyperlane_core::{
-    Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment, H160,
-    H256, U256,
+    Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment, H256,
+    U256,
 };
 
 /// Subset of `InterchainGasPayment` excluding the message id which is stored in
@@ -34,34 +34,11 @@ impl Default for InterchainGasPaymentData {
 }
 
 impl InterchainGasPaymentData {
-    /// Complete the data with the message id and destination, reconstructing a
-    /// native-token payment.
-    ///
-    /// This is the native-only reconstructor: `fee_token` now lives in the key,
-    /// so calling `complete()` on token-backed data reconstructs a native
-    /// payment (zero fee token). Callers that need token-backed reconstruction
-    /// must use [`InterchainGasPaymentData::complete_with_fee_token`] instead.
+    /// Complete the data with the message id and destination.
     pub fn complete(self, message_id: H256, destination: u32) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id,
             destination,
-            fee_token: H160::zero(),
-            payment: self.payment,
-            gas_amount: self.gas_amount,
-        }
-    }
-
-    /// Complete the data with the message id, destination, and fee token.
-    pub fn complete_with_fee_token(
-        self,
-        message_id: H256,
-        destination: u32,
-        fee_token: H160,
-    ) -> InterchainGasPayment {
-        InterchainGasPayment {
-            message_id,
-            destination,
-            fee_token,
             payment: self.payment,
             gas_amount: self.gas_amount,
         }

@@ -364,18 +364,6 @@ impl MatchingList {
             default
         }
     }
-
-    /// Check if any rule can match a message from the given origin domain.
-    /// - `default`: What to return if the matching list is empty.
-    pub fn origin_domain_matches(&self, origin_domain: u32, default: bool) -> bool {
-        if let Some(rules) = &self.0 {
-            rules
-                .iter()
-                .any(|rule| rule.origin_domain.matches(&origin_domain))
-        } else {
-            default
-        }
-    }
 }
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {

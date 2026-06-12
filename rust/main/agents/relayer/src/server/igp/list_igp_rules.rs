@@ -10,7 +10,6 @@ use crate::{server::igp::ServerState, settings::GasPaymentEnforcementPolicy};
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct GasEnforcementResponse {
     pub policy: GasPaymentEnforcementPolicy,
-    pub fee_token: String,
     pub matching_list: Vec<String>,
 }
 
@@ -29,19 +28,16 @@ pub async fn handler(
         let policies_resp: Vec<_> = lock
             .get_policies()
             .iter()
-            .map(
-                |(policy, matching_list, fee_token)| GasEnforcementResponse {
-                    policy: policy.enforcement_type(),
-                    fee_token: format!("{fee_token:?}"),
-                    matching_list: match matching_list.0.as_ref() {
-                        Some(list_elements) => list_elements
-                            .iter()
-                            .map(|element| format!("{element:?}"))
-                            .collect(),
-                        None => Vec::new(),
-                    },
+            .map(|(policy, matching_list)| GasEnforcementResponse {
+                policy: policy.enforcement_type(),
+                matching_list: match matching_list.0.as_ref() {
+                    Some(list_elements) => list_elements
+                        .iter()
+                        .map(|element| format!("{element:?}"))
+                        .collect(),
+                    None => Vec::new(),
                 },
-            )
+            })
             .collect();
         map.insert(domain.name().to_string(), policies_resp);
     }
@@ -62,7 +58,7 @@ mod tests {
     use tower::ServiceExt;
 
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
-    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H160, U256};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, U256};
 
     use super::*;
     use crate::{
@@ -165,7 +161,6 @@ mod tests {
         let expected_policies = vec![
             GasEnforcementResponse {
                 policy: GasPaymentEnforcementPolicy::None,
-                fee_token: format!("{:?}", H160::zero()),
                 matching_list: vec![format!(
                     "{:?}",
                     ListElement::new(
@@ -182,7 +177,6 @@ mod tests {
                 policy: GasPaymentEnforcementPolicy::Minimum {
                     payment: U256::from(100),
                 },
-                fee_token: format!("{:?}", H160::zero()),
                 matching_list: vec![format!(
                     "{:?}",
                     ListElement::new(

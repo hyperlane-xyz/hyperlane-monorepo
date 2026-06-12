@@ -12,8 +12,7 @@ use tracing::{info, instrument};
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
-    U256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -172,7 +171,6 @@ impl SealevelInterchainGasPaymasterIndexer {
         let igp_payment = InterchainGasPayment {
             message_id: gas_payment_account.message_id,
             destination: gas_payment_account.destination_domain,
-            fee_token: H160::zero(),
             payment: gas_payment_account.payment.into(),
             gas_amount: gas_payment_account.gas_amount.into(),
         };

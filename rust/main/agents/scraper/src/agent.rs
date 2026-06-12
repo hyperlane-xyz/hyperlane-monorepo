@@ -598,7 +598,6 @@ mod test {
                         .unwrap()
                         .as_slice(),
                     ),
-                    igp_version: Default::default(),
                 },
                 connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
                     rpc_connection: h_eth::RpcConnectionConf::Http {

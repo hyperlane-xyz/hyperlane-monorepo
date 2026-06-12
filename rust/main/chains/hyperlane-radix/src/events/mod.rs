@@ -149,7 +149,6 @@ impl From<GasPayment> for InterchainGasPayment {
         Self {
             message_id: value.message_id.into(),
             destination: value.destination_domain,
-            fee_token: H160::zero(),
             payment: decimal_to_u256(value.payment),
             gas_amount,
         }

@@ -104,8 +104,6 @@ pub struct RelayerSettings {
 pub struct GasPaymentEnforcementConf {
     /// The gas payment enforcement policy
     pub policy: GasPaymentEnforcementPolicy,
-    /// Origin fee token that must have paid the IGP. The zero address represents native tokens.
-    pub fee_token: H160,
     /// An optional matching list, any message that matches will use this
     /// policy. By default all messages will match.
     pub matching_list: MatchingList,
@@ -229,6 +227,14 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     .parse_from_str::<H160>("Expected feeToken to be an EVM address")
                     .end()
                     .unwrap_or_else(H160::zero);
+                if fee_token != H160::zero() {
+                    err.push(
+                        (&policy.cwp).add("fee_token"),
+                        eyre!(
+                            "`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; use onChainFeeQuoting with the native token field unset"
+                        ),
+                    );
+                }
 
                 let parse_minimum = |p| GasPaymentEnforcementPolicy::Minimum { payment: p };
                 match policy_type {
@@ -272,7 +278,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                         .take_err(&mut err, || cwp.add("type")),
                 }.map(|policy| GasPaymentEnforcementConf {
                     policy,
-                    fee_token,
                     matching_list,
                 })
             }).collect_vec()
@@ -343,41 +348,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     .take_config_err(&mut err)
             })
             .collect();
-
-        for gas_payment_policy in &gas_payment_enforcement {
-            if gas_payment_policy.fee_token == H160::zero() {
-                continue;
-            }
-
-            // `relayChains` is the relayer's only chain set. Fee-token policies with wildcard
-            // or destination-only matching lists apply to every configured relay chain as a
-            // possible origin. Mixed legacy/latest deployments must scope fee-token policies
-            // with `matchingList[].origindomain`.
-            for domain in &relay_chains {
-                if !gas_payment_policy
-                    .matching_list
-                    .origin_domain_matches(domain.id(), true)
-                {
-                    continue;
-                }
-
-                let chain_setup = match base.chain_setup(domain) {
-                    Ok(chain_setup) => chain_setup,
-                    Err(e) => {
-                        err.push((&p.cwp).add("gas_payment_enforcement"), e);
-                        continue;
-                    }
-                };
-                if !chain_setup.addresses.igp_version.supports_fee_tokens() {
-                    err.push(
-                        (&p.cwp).add("gas_payment_enforcement"),
-                        eyre!(
-                            "`feeToken` gas payment enforcement requires `{domain}` chain to use a non-legacy IGP"
-                        ),
-                    );
-                }
-            }
-        }
 
         let (raw_metric_app_contexts_path, raw_metric_app_contexts) = p
             .get_opt_key("metricAppContexts")
@@ -556,12 +526,11 @@ fn parse_address_list(
 #[cfg(test)]
 mod test {
     use super::*;
-    use hyperlane_base::settings::IgpVersion;
     use hyperlane_core::H160;
     use serde_json::json;
 
-    fn chain_config(name: &str, domain_id: u32, igp_version: Option<&str>) -> Value {
-        let mut chain = json!({
+    fn chain_config(name: &str, domain_id: u32) -> Value {
+        json!({
             "name": name,
             "domainid": domain_id,
             "chainid": domain_id,
@@ -571,14 +540,7 @@ mod test {
             "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
             "validatorannounce": "0x0000000000000000000000000000000000000003",
             "merkletreehook": "0x0000000000000000000000000000000000000004",
-        });
-        if let Some(version) = igp_version {
-            chain
-                .as_object_mut()
-                .expect("chain config must be an object")
-                .insert("igpversion".to_owned(), Value::String(version.to_owned()));
-        }
-        chain
+        })
     }
 
     fn parse_settings(raw: Value) -> ConfigResult<RelayerSettings> {
@@ -590,15 +552,11 @@ mod test {
         )
     }
 
-    fn assert_fee_token_igp_error(error: ConfigParsingError, chain_name: &str) {
+    fn assert_fee_token_error(error: ConfigParsingError) {
         let error = error.to_string();
         assert!(
-            error.contains("non-legacy IGP"),
+            error.contains("`feeToken` gas payment enforcement is not supported"),
             "unexpected error: {error}",
-        );
-        assert!(
-            error.contains(chain_name),
-            "expected error to name `{chain_name}`: {error}",
         );
     }
 
@@ -661,11 +619,11 @@ mod test {
     }
 
     #[test]
-    fn fee_token_policy_rejects_missing_igp_version() {
+    fn fee_token_policy_rejects_non_zero_fee_token() {
         let settings = parse_settings(json!({
             "relaychains": "legacy",
             "chains": {
-                "legacy": chain_config("legacy", 1000, None),
+                "legacy": chain_config("legacy", 1000),
             },
             "gaspaymentenforcement": [{
                 "type": "minimum",
@@ -674,152 +632,35 @@ mod test {
             }],
         }));
 
-        assert_fee_token_igp_error(
-            settings.expect_err("missing IGP version must reject feeToken policy"),
-            "legacy",
-        );
+        assert_fee_token_error(settings.expect_err("non-zero feeToken policy must reject"));
     }
 
     #[test]
-    fn fee_token_policy_rejects_legacy_igp_version() {
-        let settings = parse_settings(json!({
+    fn fee_token_policy_allows_unset_fee_token() {
+        parse_settings(json!({
             "relaychains": "legacy",
             "chains": {
-                "legacy": chain_config("legacy", 1000, Some("legacy")),
+                "legacy": chain_config("legacy", 1000),
             },
             "gaspaymentenforcement": [{
-                "type": "minimum",
-                "payment": "1",
-                "feetoken": "0x0000000000000000000000000000000000000005",
-            }],
-        }));
-
-        assert_fee_token_igp_error(
-            settings.expect_err("legacy IGP must reject feeToken policy"),
-            "legacy",
-        );
-    }
-
-    #[test]
-    fn fee_token_policy_rejects_matching_legacy_origin() {
-        let settings = parse_settings(json!({
-            "relaychains": "oldorigin,latest",
-            "chains": {
-                "oldorigin": chain_config("oldorigin", 1000, Some("legacy")),
-                "latest": chain_config("latest", 2000, Some("latest")),
-            },
-            "gaspaymentenforcement": [{
-                "type": "minimum",
-                "payment": "1",
-                "feetoken": "0x0000000000000000000000000000000000000005",
-                "matchinglist": [{ "origindomain": 1000 }],
-            }],
-        }));
-
-        let error = settings
-            .expect_err("matched legacy origin must reject feeToken policy")
-            .to_string();
-        assert!(
-            error.contains("non-legacy IGP"),
-            "unexpected error: {error}",
-        );
-        assert!(
-            error.contains("oldorigin"),
-            "expected error to name rejected origin: {error}",
-        );
-        assert!(
-            !error.contains("latest"),
-            "error should not name unmatched latest origin: {error}",
-        );
-    }
-
-    #[test]
-    fn wildcard_fee_token_policy_rejects_each_legacy_relay_chain() {
-        let settings = parse_settings(json!({
-            "relaychains": "legacy1,legacy2",
-            "chains": {
-                "legacy1": chain_config("legacy1", 1000, Some("legacy")),
-                "legacy2": chain_config("legacy2", 2000, None),
-            },
-            "gaspaymentenforcement": [{
-                "type": "minimum",
-                "payment": "1",
-                "feetoken": "0x0000000000000000000000000000000000000005",
-            }],
-        }));
-
-        let error = settings.expect_err("wildcard feeToken policy must reject all legacy origins");
-        let error = error.to_string();
-        assert!(
-            error.contains("legacy1") && error.contains("legacy2"),
-            "expected error to name both legacy origins: {error}",
-        );
-    }
-
-    #[test]
-    fn fee_token_policy_allows_explicit_latest_igp_version() {
-        let settings = parse_settings(json!({
-            "relaychains": "latest",
-            "chains": {
-                "latest": chain_config("latest", 2000, Some("latest")),
-            },
-            "gaspaymentenforcement": [{
-                "type": "minimum",
-                "payment": "1",
-                "feetoken": "0x0000000000000000000000000000000000000005",
+                "type": "onChainFeeQuoting",
             }],
         }))
-        .expect("latest IGP version should allow feeToken policy");
-
-        let domain = settings
-            .base
-            .lookup_domain("latest")
-            .expect("latest domain should parse");
-        let chain_setup = settings
-            .base
-            .chain_setup(&domain)
-            .expect("latest chain should parse");
-
-        assert_eq!(chain_setup.addresses.igp_version, IgpVersion::Latest);
-        assert_eq!(
-            settings.gas_payment_enforcement[0].fee_token,
-            H160::from_low_u64_be(5),
-        );
+        .expect("unset feeToken should parse");
     }
 
     #[test]
-    fn fee_token_policy_ignores_unmatched_legacy_origins() {
-        let settings = parse_settings(json!({
-            "relaychains": "legacy,latest",
+    fn fee_token_policy_allows_zero_fee_token() {
+        parse_settings(json!({
+            "relaychains": "legacy",
             "chains": {
-                "legacy": chain_config("legacy", 1000, Some("legacy")),
-                "latest": chain_config("latest", 2000, Some("latest")),
+                "legacy": chain_config("legacy", 1000),
             },
             "gaspaymentenforcement": [{
-                "type": "minimum",
-                "payment": "1",
-                "feetoken": "0x0000000000000000000000000000000000000005",
-                "matchinglist": [{ "origindomain": 2000 }],
+                "type": "onChainFeeQuoting",
+                "feetoken": "0x0000000000000000000000000000000000000000",
             }],
         }))
-        .expect("unmatched legacy origin should not block feeToken policy");
-
-        assert_eq!(settings.gas_payment_enforcement.len(), 1);
-    }
-
-    #[test]
-    fn rejects_invalid_igp_version() {
-        let settings = parse_settings(json!({
-            "relaychains": "chain",
-            "chains": {
-                "chain": chain_config("chain", 3000, Some("newfangled")),
-            },
-        }));
-
-        let error = settings.expect_err("invalid IGP version must reject config");
-        assert!(
-            error.to_string().contains("Invalid IGP version"),
-            "unexpected error: {error:?}",
-        );
+        .expect("zero feeToken should parse");
     }
 }

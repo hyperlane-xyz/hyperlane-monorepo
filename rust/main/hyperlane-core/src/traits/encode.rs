@@ -3,8 +3,8 @@ use std::io::{Error, ErrorKind};
 use uuid::Uuid;
 
 use crate::{
-    identifiers::UniqueIdentifier, GasPaymentKey, GasPaymentTokenKey, HyperlaneProtocolError,
-    Indexed, InterchainGasPayment, H160, H256, H512, U256,
+    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneProtocolError, Indexed,
+    InterchainGasPayment, H160, H256, H512, U256,
 };
 
 /// Simple trait for types with a canonical encoding
@@ -233,33 +233,6 @@ impl Decode for GasPaymentKey {
     }
 }
 
-impl Encode for GasPaymentTokenKey {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written: usize = 0;
-        written = written.saturating_add(self.message_id.write_to(writer)?);
-        written = written.saturating_add(self.destination.write_to(writer)?);
-        written = written.saturating_add(self.fee_token.write_to(writer)?);
-        Ok(written)
-    }
-}
-
-impl Decode for GasPaymentTokenKey {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        Ok(Self {
-            message_id: H256::read_from(reader)?,
-            destination: u32::read_from(reader)?,
-            fee_token: H160::read_from(reader)?,
-        })
-    }
-}
-
 impl Encode for InterchainGasPayment {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -270,7 +243,6 @@ impl Encode for InterchainGasPayment {
         written = written.saturating_add(self.destination.write_to(writer)?);
         written = written.saturating_add(self.payment.write_to(writer)?);
         written = written.saturating_add(self.gas_amount.write_to(writer)?);
-        written = written.saturating_add(self.fee_token.write_to(writer)?);
         Ok(written)
     }
 }
@@ -286,15 +258,6 @@ impl Decode for InterchainGasPayment {
             destination: u32::read_from(reader)?,
             payment: U256::read_from(reader)?,
             gas_amount: U256::read_from(reader)?,
-            fee_token: match H160::read_from(reader) {
-                Ok(fee_token) => fee_token,
-                Err(HyperlaneProtocolError::IoError(err))
-                    if err.kind() == ErrorKind::UnexpectedEof =>
-                {
-                    H160::zero()
-                }
-                Err(err) => return Err(err),
-            },
         })
     }
 }
@@ -379,7 +342,7 @@ impl<T: Decode> Decode for Vec<T> {
 mod test {
     use std::io::Cursor;
 
-    use crate::{Decode, Encode, Indexed, H160, H256, U256};
+    use crate::{Decode, Encode, Indexed, H256};
 
     #[test]
     fn test_encoding_indexed() {
@@ -394,46 +357,12 @@ mod test {
         let payment = super::InterchainGasPayment {
             message_id: Default::default(),
             destination: 42,
-            fee_token: Default::default(),
             payment: 100.into(),
             gas_amount: 200.into(),
         };
         let encoded = payment.to_vec();
         let decoded = super::InterchainGasPayment::read_from(&mut &encoded[..]).unwrap();
         assert_eq!(payment, decoded);
-    }
-
-    #[test]
-    fn test_decoding_legacy_interchain_gas_payment_defaults_native_fee_token() {
-        let mut encoded = vec![];
-        let message_id = H256::random();
-        let destination = 42u32;
-        let payment = U256::from(100);
-        let gas_amount = U256::from(200);
-
-        message_id.write_to(&mut encoded).unwrap();
-        destination.write_to(&mut encoded).unwrap();
-        payment.write_to(&mut encoded).unwrap();
-        gas_amount.write_to(&mut encoded).unwrap();
-
-        let decoded = super::InterchainGasPayment::read_from(&mut &encoded[..]).unwrap();
-        assert_eq!(decoded.message_id, message_id);
-        assert_eq!(decoded.destination, destination);
-        assert_eq!(decoded.fee_token, H160::zero());
-        assert_eq!(decoded.payment, payment);
-        assert_eq!(decoded.gas_amount, gas_amount);
-    }
-
-    #[test]
-    fn test_decoding_truncated_interchain_gas_payment_errors() {
-        let mut encoded = vec![];
-        H256::random().write_to(&mut encoded).unwrap();
-        42u32.write_to(&mut encoded).unwrap();
-        U256::from(100).write_to(&mut encoded).unwrap();
-        encoded.extend_from_slice(&[1, 2, 3]);
-
-        let result = super::InterchainGasPayment::read_from(&mut &encoded[..]);
-        assert!(result.is_err());
     }
 
     #[test]

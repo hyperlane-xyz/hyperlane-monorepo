@@ -10,7 +10,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512, U256,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::indexer::{CosmosEventIndexer, ParsedEvent};
@@ -274,7 +274,6 @@ impl TryInto<InterchainGasPayment> for IncompleteInterchainGasPayment {
             payment,
             gas_amount,
             destination,
-            fee_token: H160::zero(),
         })
     }
 }
@@ -307,7 +306,6 @@ mod tests {
                 payment: U256::from(2),
                 gas_amount: U256::from(25000),
                 destination: 169,
-                fee_token: H160::zero(),
             },
         );
 
