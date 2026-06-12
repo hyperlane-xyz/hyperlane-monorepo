@@ -34,7 +34,13 @@ impl Default for InterchainGasPaymentData {
 }
 
 impl InterchainGasPaymentData {
-    /// Complete the data with the message id and destination.
+    /// Complete the data with the message id and destination, reconstructing a
+    /// native-token payment.
+    ///
+    /// This is the native-only reconstructor: `fee_token` now lives in the key,
+    /// so calling `complete()` on token-backed data reconstructs a native
+    /// payment (zero fee token). Callers that need token-backed reconstruction
+    /// must use [`InterchainGasPaymentData::complete_with_fee_token`] instead.
     pub fn complete(self, message_id: H256, destination: u32) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id,

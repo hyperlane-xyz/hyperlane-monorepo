@@ -1,4 +1,4 @@
-use sea_orm::ConnectionTrait;
+use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
 
 use crate::l20230309_types::*;
@@ -84,6 +84,37 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Dropping `GasPayment::FeeToken` and recreating `TotalGasPayment`
+        // grouped only by `MsgId` would sum payments across distinct fee
+        // tokens, silently corrupting aggregates. Fail closed if any
+        // non-native fee-token rows exist so the rollback cannot lose data.
+        let conn = manager.get_connection();
+        let non_native = conn
+            .query_one(Statement::from_string(
+                conn.get_database_backend(),
+                format!(
+                    r#"SELECT EXISTS (SELECT 1 FROM "{gp_table}" WHERE "{gp_fee_token}" <> {native}) AS "exists""#,
+                    gp_table = GasPayment::Table.to_string(),
+                    gp_fee_token = GasPayment::FeeToken.to_string(),
+                    native = NATIVE_FEE_TOKEN,
+                ),
+            ))
+            .await?
+            .map(|row| row.try_get::<bool>("", "exists"))
+            .transpose()?
+            .unwrap_or(false);
+        if non_native {
+            return Err(DbErr::Migration(format!(
+                "Cannot run down() for m20260611_000008_add_gas_payment_fee_token: \
+                 non-native `{}` rows exist; dropping the column and recreating the \
+                 `{}` view grouped only by `{}` would mix amounts across fee tokens \
+                 and corrupt aggregates.",
+                GasPayment::FeeToken.to_string(),
+                TotalGasPayment::Table.to_string(),
+                GasPayment::MsgId.to_string(),
+            )));
+        }
+
         manager
             .get_connection()
             .execute_unprepared(&format!(
