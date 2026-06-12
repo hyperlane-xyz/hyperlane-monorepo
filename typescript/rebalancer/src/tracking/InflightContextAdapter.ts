@@ -6,6 +6,7 @@ import type {
 } from '../interfaces/IStrategy.js';
 
 import type { IActionTracker } from './IActionTracker.js';
+import type { RebalanceAction } from './types.js';
 
 /**
  * Adapter that converts ActionTracker data to strategy-consumable InflightContext.
@@ -24,6 +25,13 @@ export class InflightContextAdapter {
   async getInflightContext(): Promise<InflightContext> {
     const intents = await this.actionTracker.getActiveRebalanceIntents();
     const transfers = await this.actionTracker.getInProgressTransfers();
+    const inventoryIntentIds = intents
+      .filter((intent) => intent.executionMethod === 'inventory')
+      .map((intent) => intent.id);
+    const actionsByIntent =
+      inventoryIntentIds.length > 0
+        ? await this.getActionsForIntents(inventoryIntentIds)
+        : new Map<string, RebalanceAction[]>();
 
     const pendingRebalances: RouteWithContext[] = await Promise.all(
       intents.map(async (intent) => {
@@ -32,9 +40,7 @@ export class InflightContextAdapter {
 
         // For inventory intents, compute delivered and awaiting amounts from actions
         if (intent.executionMethod === 'inventory') {
-          const actions = await this.actionTracker.getActionsForIntent(
-            intent.id,
-          );
+          const actions = actionsByIntent.get(intent.id) ?? [];
 
           // Sum of complete inventory_deposit actions (message delivered)
           deliveredAmount = actions
@@ -71,5 +77,25 @@ export class InflightContextAdapter {
     }));
 
     return { pendingRebalances, pendingTransfers };
+  }
+
+  private async getActionsForIntents(
+    intentIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction[]>> {
+    if (this.actionTracker.getActionsForIntents) {
+      return this.actionTracker.getActionsForIntents(intentIds);
+    }
+
+    const actionsByIntent = new Map<string, RebalanceAction[]>();
+    await Promise.all(
+      intentIds.map(async (intentId) => {
+        actionsByIntent.set(
+          intentId,
+          await this.actionTracker.getActionsForIntent(intentId),
+        );
+      }),
+    );
+
+    return actionsByIntent;
   }
 }

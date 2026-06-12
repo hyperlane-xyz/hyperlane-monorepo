@@ -83,8 +83,8 @@ describe('ActionTracker', () => {
       transferStore,
       rebalanceIntentStore,
       rebalanceActionStore,
-      explorerClient as any,
-      core as any,
+      explorerClient,
+      core,
       config,
       testLogger,
     );

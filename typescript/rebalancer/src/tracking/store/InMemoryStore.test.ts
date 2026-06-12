@@ -273,6 +273,31 @@ describe('InMemoryStore', () => {
       expect(complete).to.have.lengthOf(1);
       expect(complete).to.deep.include(transfer2);
     });
+
+    it('should update status indexes when entities change', async () => {
+      const transfer: Transfer = {
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: 'msg-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender',
+        recipient: '0xrecipient',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await store.save(transfer);
+      expect(await store.getByStatus('in_progress')).to.have.lengthOf(1);
+
+      await store.update('transfer-1', { status: 'complete' });
+
+      expect(await store.getByStatus('in_progress')).to.be.empty;
+      const complete = await store.getByStatus('complete');
+      expect(complete).to.have.lengthOf(1);
+      expect(complete[0].id).to.equal('transfer-1');
+    });
   });
 
   describe('getByDestination', () => {
@@ -333,6 +358,90 @@ describe('InMemoryStore', () => {
       const toDomain3 = await store.getByDestination(3);
       expect(toDomain3).to.have.lengthOf(1);
       expect(toDomain3).to.deep.include(transfer2);
+    });
+
+    it('should remove deleted entities from indexes', async () => {
+      const transfer: Transfer = {
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: 'msg-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender',
+        recipient: '0xrecipient',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await store.save(transfer);
+      expect(await store.getByDestination(2)).to.have.lengthOf(1);
+
+      await store.delete('transfer-1');
+
+      expect(await store.getByDestination(2)).to.be.empty;
+    });
+  });
+
+  describe('getByFieldValues', () => {
+    it('should return entities for any requested field value', async () => {
+      const transfer1: Transfer = {
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: 'msg-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const transfer2: Transfer = {
+        id: 'transfer-2',
+        status: 'complete',
+        messageId: 'msg-2',
+        origin: 2,
+        destination: 3,
+        amount: 200n,
+        sender: '0xsender2',
+        recipient: '0xrecipient2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await store.save(transfer1);
+      await store.save(transfer2);
+
+      const result = await store.getByFieldValues('messageId', [
+        'msg-2',
+        'missing',
+      ]);
+
+      expect(result).to.deep.equal([transfer2]);
+    });
+
+    it('should return one entity by field', async () => {
+      const transfer: Transfer = {
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: 'msg-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender',
+        recipient: '0xrecipient',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await store.save(transfer);
+
+      expect(await store.getOneByField('messageId', 'msg-1')).to.deep.equal(
+        transfer,
+      );
+      expect(await store.getOneByField('messageId', 'missing')).to.be.undefined;
     });
   });
 });

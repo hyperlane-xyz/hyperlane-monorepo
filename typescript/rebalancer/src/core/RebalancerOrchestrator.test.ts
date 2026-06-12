@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { pino } from 'pino';
+import { type Logger, pino } from 'pino';
 import Sinon from 'sinon';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -26,6 +26,24 @@ import {
 chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
+
+function createMockLogger(): Logger & {
+  info: Sinon.SinonStub;
+  warn: Sinon.SinonStub;
+  error: Sinon.SinonStub;
+} {
+  return {
+    info: Sinon.stub(),
+    warn: Sinon.stub(),
+    error: Sinon.stub(),
+    debug: Sinon.stub(),
+    child: Sinon.stub().returnsThis(),
+  } as unknown as Logger & {
+    info: Sinon.SinonStub;
+    warn: Sinon.SinonStub;
+    error: Sinon.SinonStub;
+  };
+}
 
 function createMockRebalancerConfig(): RebalancerConfig {
   return {
@@ -99,6 +117,9 @@ function createMockActionTracker(): IActionTracker {
     getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
     getActionsByType: Sinon.stub().resolves([]),
     getActionsForIntent: Sinon.stub().resolves([]),
+    getActionsForIntents: Sinon.stub().resolves(new Map()),
+    getActionByMessageId: Sinon.stub().resolves(undefined),
+    getActionsByMessageIds: Sinon.stub().resolves(new Map()),
     getInflightInventoryMovements: Sinon.stub().resolves(0n),
   };
 }
@@ -352,6 +373,46 @@ describe('RebalancerOrchestrator', () => {
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(1);
+    });
+
+    it('should count thrown movable collateral executor errors as route failures', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+      ]);
+
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.rejects(new Error('Executor failed'));
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+      const metrics = createMockMetrics();
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        rebalancers: [rebalancer],
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        metrics,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+      const event = createMonitorEvent();
+
+      const result = await orchestrator.executeCycle(event);
+
+      expect(result.executedCount).to.equal(0);
+      expect(result.failedCount).to.equal(1);
+      expect((metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce).to
+        .be.true;
     });
   });
 
@@ -667,6 +728,8 @@ describe('RebalancerOrchestrator', () => {
 
       // Verifies executeCycle completes without error when rebalancers is empty
       await orchestrator.executeCycle(event);
+
+      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
     });
   });
 
@@ -698,6 +761,57 @@ describe('RebalancerOrchestrator', () => {
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
       expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+    });
+
+    it('should sync remaining tracker sources and log freshness when one source fails', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([]);
+
+      const actionTracker = createMockActionTracker();
+      (actionTracker.syncTransfers as Sinon.SinonStub).rejects(
+        new Error('Transfer sync failed'),
+      );
+      const inflightAdapter = createMockInflightContextAdapter();
+      const bridge = createMockBridge();
+      const logger = createMockLogger();
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger,
+        rebalancers: [],
+        externalBridgeRegistry: { lifi: bridge },
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+      const event = createMonitorEvent();
+
+      await orchestrator.executeCycle(event);
+
+      expect((actionTracker.syncRebalanceIntents as Sinon.SinonStub).calledOnce)
+        .to.be.true;
+      expect((actionTracker.syncRebalanceActions as Sinon.SinonStub).calledOnce)
+        .to.be.true;
+      expect(
+        (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
+          .calledOnce,
+      ).to.be.true;
+      expect(
+        logger.warn.calledWithMatch(
+          Sinon.match.has('source', 'transfers'),
+          'ActionTracker sync source failed, using stale data',
+        ),
+      ).to.be.true;
+      expect(
+        logger.info.calledWithMatch(
+          Sinon.match({
+            staleSources: ['transfers'],
+          }),
+          'ActionTracker sync freshness',
+        ),
+      ).to.be.true;
     });
 
     it('should sync inventory movement actions when bridge is provided', async () => {
@@ -865,6 +979,36 @@ describe('RebalancerOrchestrator', () => {
       await orchestrator.executeCycle(event);
 
       expect((metrics.processToken as Sinon.SinonStub).calledTwice).to.be.true;
+    });
+
+    it('should not gate cycle completion on token metrics processing', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+      const metrics = createMockMetrics();
+      (metrics.processToken as Sinon.SinonStub).returns(
+        new Promise(() => undefined),
+      );
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+        metrics,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+      const event = createMonitorEvent();
+
+      const result = await orchestrator.executeCycle(event);
+
+      expect(result.proposedRoutes).to.have.lengthOf(0);
+      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
     });
   });
 });
