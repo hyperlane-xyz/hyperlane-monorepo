@@ -4,7 +4,7 @@ Date: 2026-06-12
 
 Scope: `typescript/rebalancer` package. Findings are from local code inspection plus three read-only subagent slices covering core runtime, strategy/config, and bridges/tracking/tests.
 
-Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice landed in PR #8880. The stacked follow-up PR implemented cycle context, shared planning/projection, and LiFi SDK isolation. The remaining work is deeper executor and test-fixture decomposition.
+Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice landed in PR #8880. The stacked follow-up PR implemented cycle context, shared planning/projection, and LiFi SDK isolation. The third stacked PR moved strategy finalization and movable execution into dedicated modules. The remaining work is inventory executor and test-fixture decomposition.
 
 ## Bottom Line
 
@@ -64,6 +64,24 @@ These slices improve modularity and remove performance blockers from hidden muta
 - Tests now use deterministic runner fakes for quote/status/execution behavior instead of mutating global fetch or relying on SDK internals.
 - Benefit: SDK global state is isolated behind a narrow seam, default execution avoids provider clobbering races, scoped runners can unlock safe source-chain concurrency, and bridge tests are faster and less brittle.
 
+## Implemented In PR3
+
+These slices finish the strategy planning boundary and split movable collateral execution into smaller execution modules.
+
+### Slice 7: StrategyPlanner Finalization
+
+- Added `StrategyPlanner` to own route filtering against actual balances and `bridgeMinAcceptedAmount`.
+- Moved intent-created metrics emission out of `BaseStrategy`.
+- `BaseStrategy` and `CollateralDeficitStrategy` now generate candidate routes, then delegate finalization to the planner.
+- Benefit: strategy evaluation no longer owns final side effects, making route filtering and metrics behavior unit-testable and reusable across strategy implementations.
+
+### Slice 8: Movable Collateral Execution Modules
+
+- Split movable collateral execution into `MovableRouteValidator`, `MovableTransactionPreparer`, `MovableChainTransactionExecutor`, and `MovableResultRecorder`.
+- Kept `Rebalancer` as the orchestration layer for intent creation, preparation, execution, result recording, metrics, and summary logging.
+- Added focused tests for the extracted modules while preserving existing `Rebalancer` behavior tests.
+- Benefit: validation, transaction preparation, chain execution, and action recording can now be tested and optimized independently without mocking the entire rebalancer monolith.
+
 ## Remaining Follow-Up TODOs
 
 Keep the north star performance, but use the larger module split to make future performance work safer.
@@ -73,8 +91,8 @@ Keep the north star performance, but use the larger module split to make future 
 - [x] Normalize config into a resolved route execution matrix so strategies do not perform bridge/execution config lookups.
 - [x] Move pending-transfer, pending-rebalance, and proposed-route projection into a shared `BalanceProjector`.
 - [x] Introduce shared route planning and centralize route materialization after strategy evaluation.
-- [ ] Move route filtering and metrics emission out of `BaseStrategy` into a dedicated `StrategyPlanner`.
-- [ ] Split movable collateral execution into route validation, transaction preparation, chain transaction execution, and result recording modules.
+- [x] Move route filtering and metrics emission out of `BaseStrategy` into a dedicated `StrategyPlanner`.
+- [x] Split movable collateral execution into route validation, transaction preparation, chain transaction execution, and result recording modules.
 - [ ] Split inventory execution into intent resolution, inventory planning, bridge capacity estimation, movement execution, and `transferRemote` execution modules.
 - [x] Wrap LiFi SDK/global state behind an injected client/runner and make execution locking follow the runner's provider-state scope.
 - [ ] Replace route-specific e2e deployment managers with a declarative fixture builder and shared deploy/enroll/seed helpers.
@@ -85,8 +103,8 @@ Keep the north star performance, but use the larger module split to make future 
 - `RebalancerService` owns lifecycle/setup and delegates daemon events to `RebalancerOrchestrator`.
 - `Monitor` polls confirmed block tags, bridged supply, and inventory balances into `MonitorEvent`.
 - `RebalancerOrchestrator` syncs tracking state, builds raw balances, asks a strategy for routes, and dispatches routes to rebalancers.
-- `BaseStrategy` handles balance reservation, pending/proposed rebalance simulation, surplus/deficit matching, route materialization, filtering, and metrics.
-- `Rebalancer` executes movable-collateral routes end to end.
+- `BaseStrategy` handles balance reservation, pending/proposed rebalance simulation, surplus/deficit matching, and route materialization, then delegates route finalization to `StrategyPlanner`.
+- `Rebalancer` orchestrates movable-collateral execution through route validation, transaction preparation, chain transaction execution, and result recording modules.
 - `InventoryRebalancer` executes inventory routes end to end, including active-intent continuation, bridge planning, external bridge execution, and `transferRemote`.
 - `ActionTracker` owns explorer recovery, delivery checks, TTL/staleness, external bridge status, stores, and projection into inflight context.
 

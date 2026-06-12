@@ -11,7 +11,11 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
-import { BalanceProjector, planRoutes } from '../planning/index.js';
+import {
+  BalanceProjector,
+  planRoutes,
+  StrategyPlanner,
+} from '../planning/index.js';
 import type { BalanceDelta } from '../planning/types.js';
 import {
   type BridgeConfig,
@@ -20,7 +24,6 @@ import {
   normalizeRouteExecutionMatrix,
   type RouteExecutionMatrix,
 } from '../utils/bridgeUtils.js';
-import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 export type Delta = BalanceDelta;
 
@@ -33,6 +36,7 @@ export abstract class BaseStrategy implements IStrategy {
   protected readonly metrics?: Metrics;
   protected readonly logger: Logger;
   protected readonly routeExecutionMatrix: RouteExecutionMatrix;
+  protected readonly strategyPlanner: StrategyPlanner;
   protected readonly tokensByChainName?: ChainMap<Token>;
 
   constructor(
@@ -52,6 +56,12 @@ export abstract class BaseStrategy implements IStrategy {
       normalizeRouteExecutionMatrix(routeExecutionConfig);
     this.metrics = metrics;
     this.tokensByChainName = tokensByChainName;
+    this.strategyPlanner = new StrategyPlanner(
+      this.routeExecutionMatrix,
+      this.logger,
+      metrics,
+      tokensByChainName,
+    );
   }
 
   protected getBridgeConfigForRoute(
@@ -201,23 +211,12 @@ export abstract class BaseStrategy implements IStrategy {
       'Found rebalancing routes',
     );
 
-    const filteredRoutes = this.filterRoutes(routes, actualBalances);
-
-    this.logger.debug(
-      {
-        context: this.constructor.name,
-        filteredRoutesCount: filteredRoutes.length,
-        droppedCount: routes.length - filteredRoutes.length,
-      },
-      'Filtered rebalancing routes',
+    return this.strategyPlanner.finalizeRoutes(
+      routes,
+      actualBalances,
+      this.name,
+      this.constructor.name,
     );
-
-    // Record metrics for each intent that passed filtering
-    for (const route of filteredRoutes) {
-      this.metrics?.recordIntentCreated(route, this.name);
-    }
-
-    return filteredRoutes;
   }
 
   /**
@@ -333,58 +332,5 @@ export abstract class BaseStrategy implements IStrategy {
       this.logger,
       this.constructor.name,
     );
-  }
-
-  protected filterRoutes(
-    routes: StrategyRoute[],
-    actualBalances: RawBalances,
-  ): StrategyRoute[] {
-    return routes.filter((route) => {
-      const balance = actualBalances[route.origin] ?? 0n;
-      if (balance < route.amount) {
-        this.logger.warn(
-          {
-            context: this.constructor.name,
-            origin: route.origin,
-            destination: route.destination,
-            required: route.amount.toString(),
-            available: balance.toString(),
-          },
-          'Dropping route due to insufficient balance',
-        );
-        return false;
-      }
-
-      if (this.tokensByChainName) {
-        const token = this.tokensByChainName[route.origin];
-        if (token) {
-          const bridgeConfig = this.getBridgeConfigForRoute(
-            route.origin,
-            route.destination,
-          );
-          if (bridgeConfig.bridgeMinAcceptedAmount != null) {
-            const minAmount = normalizeConfiguredAmount(
-              bridgeConfig.bridgeMinAcceptedAmount,
-              token,
-            );
-            if (route.amount < minAmount) {
-              this.logger.info(
-                {
-                  context: this.constructor.name,
-                  origin: route.origin,
-                  destination: route.destination,
-                  amount: route.amount.toString(),
-                  minAmount: minAmount.toString(),
-                },
-                'Dropping route below bridgeMinAcceptedAmount',
-              );
-              return false;
-            }
-          }
-        }
-      }
-
-      return true;
-    });
   }
 }
