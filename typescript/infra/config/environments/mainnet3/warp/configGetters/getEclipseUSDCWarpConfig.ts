@@ -361,6 +361,13 @@ const awProxyAdmins: ChainMap<{ address: string; owner: string }> = objMap(
   },
 );
 
+// Reuse the CROSS/moonpay quote signers so the stableswap-moonpay rebalancer
+// can be exempted from the eclipse FPWR fee via standing zero-quotes.
+const QUOTE_SIGNERS = [
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
+];
+
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
@@ -372,6 +379,7 @@ export const getEclipseUSDCWarpConfig = async (
       name: 'USD Coin',
       symbol: 'USDC',
     },
+    quoteSigners: QUOTE_SIGNERS,
   });
 
 // Strategies
