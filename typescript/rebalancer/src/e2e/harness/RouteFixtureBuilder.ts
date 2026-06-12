@@ -15,6 +15,18 @@ export type ChainInfra = Record<
 
 export type RouteGroupMap = Record<TestChain, ethers.Contract>;
 export type TokenMap = Record<TestChain, ethers.Contract>;
+type RouteAddressMap = Record<TestChain, { address: string }>;
+type RebalancerRouteWithMethod = {
+  addRebalancer: (rebalancer: string) => Promise<unknown>;
+};
+type BridgeRouteWithMethod = {
+  address: string;
+  addBridge: (destinationDomain: number, bridge: string) => Promise<unknown>;
+};
+type RebalancerRoute = ethers.Contract | RebalancerRouteWithMethod;
+type BridgeRoute = ethers.Contract | BridgeRouteWithMethod;
+type RebalancerRouteMap = Record<TestChain, RebalancerRoute>;
+type BridgeRouteMap = Record<TestChain, BridgeRoute>;
 
 export interface DeployedRouteFixture {
   routeGroups: Record<string, RouteGroupMap>;
@@ -199,7 +211,7 @@ export class RouteFixtureBuilder {
 }
 
 export function buildRemoteRouterEnrollment(
-  routeMap: Record<TestChain, { address: string }>,
+  routeMap: RouteAddressMap,
   localChain: TestChain,
 ): { remoteDomains: number[]; remoteRouters: string[] } {
   const remoteDomains: number[] = [];
@@ -234,27 +246,28 @@ export async function enrollRouteGroups(
 }
 
 export async function addRebalancersToRouteGroups(
-  routeGroups: readonly RouteGroupMap[],
+  routeGroups: readonly RebalancerRouteMap[],
   rebalancersForChain: (chain: TestChain) => readonly string[],
 ): Promise<void> {
   for (const routeGroup of routeGroups) {
     for (const chain of TEST_CHAIN_CONFIGS) {
       for (const rebalancer of rebalancersForChain(chain.name)) {
-        await routeGroup[chain.name].addRebalancer(rebalancer);
+        await addRebalancer(routeGroup[chain.name], rebalancer);
       }
     }
   }
 }
 
 export async function addBridgesToMonitoredRoutes(
-  monitoredRouters: RouteGroupMap,
-  bridgeRouteGroups: readonly RouteGroupMap[],
+  monitoredRouters: BridgeRouteMap,
+  bridgeRouteGroups: readonly RouteAddressMap[],
 ): Promise<void> {
   for (const chain of TEST_CHAIN_CONFIGS) {
     for (const destination of TEST_CHAIN_CONFIGS) {
       if (destination.name === chain.name) continue;
       for (const bridgeRouteGroup of bridgeRouteGroups) {
-        await monitoredRouters[chain.name].addBridge(
+        await addBridge(
+          monitoredRouters[chain.name],
           destination.domainId,
           bridgeRouteGroup[chain.name].address,
         );
@@ -318,14 +331,30 @@ export async function seedNativeRouteGroup(params: {
 }
 
 export function routeAddresses(
-  routeGroup: Record<TestChain, { address: string }>,
+  routeGroup: RouteAddressMap,
 ): Record<TestChain, string> {
-  return Object.fromEntries(
-    TEST_CHAIN_CONFIGS.map((chain) => [
-      chain.name,
-      routeGroup[chain.name].address,
-    ]),
-  ) as Record<TestChain, string>;
+  return {
+    anvil1: routeGroup.anvil1.address,
+    anvil2: routeGroup.anvil2.address,
+    anvil3: routeGroup.anvil3.address,
+  };
+}
+
+function addRebalancer(
+  route: RebalancerRoute,
+  rebalancer: string,
+): Promise<unknown> {
+  const withMethod = route as RebalancerRouteWithMethod;
+  return withMethod.addRebalancer(rebalancer);
+}
+
+function addBridge(
+  route: BridgeRoute,
+  destinationDomain: number,
+  bridge: string,
+): Promise<unknown> {
+  const withMethod = route as BridgeRouteWithMethod;
+  return withMethod.addBridge(destinationDomain, bridge);
 }
 
 function erc20TokenForChain(

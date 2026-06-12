@@ -81,6 +81,28 @@ describe('InventoryPlanner', () => {
     ]);
   });
 
+  it('includes transfer costs before applying the bridge buffer', () => {
+    const { bridgePlans, shortfall, targetWithBuffer, totalPlanned } =
+      planner.buildBridgePlans(
+        [{ chain: arbitrum, maxSourceInput: 200n, maxTargetOutput: 200n }],
+        100n,
+        40n,
+        20n,
+      );
+
+    expect(shortfall).to.equal(60n);
+    expect(targetWithBuffer).to.equal(84n);
+    expect(totalPlanned).to.equal(84n);
+    expect(bridgePlans).to.deep.equal([
+      {
+        chain: arbitrum,
+        maxSourceInput: 200n,
+        targetOutput: 84n,
+        quoteMode: 'reverse',
+      },
+    ]);
+  });
+
   it('aligns local inventory amounts to canonical progress', () => {
     const token = {
       scale: { numerator: 1n, denominator: 1_000n },

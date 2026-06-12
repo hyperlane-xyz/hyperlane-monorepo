@@ -7,13 +7,37 @@ import {
   buildRemoteRouterEnrollment,
   routeAddresses,
 } from './RouteFixtureBuilder.js';
+import type { TestChain } from '../fixtures/routes.js';
+
+type TestRouteGroup = Record<TestChain, { address: string }>;
+
+type TestRebalancerRouteGroup = Record<
+  TestChain,
+  { address: string; addRebalancer: (rebalancer: string) => Promise<void> }
+>;
+
+type TestBridgeRouteGroup = Record<
+  TestChain,
+  {
+    address: string;
+    addBridge: (destinationDomain: number, bridge: string) => Promise<void>;
+  }
+>;
+
+const routeGroupEntries = <T extends TestRouteGroup>(
+  group: T,
+): Array<[TestChain, T[TestChain]]> => [
+  ['anvil1', group.anvil1],
+  ['anvil2', group.anvil2],
+  ['anvil3', group.anvil3],
+];
 
 describe('RouteFixtureBuilder helpers', () => {
   const routeGroup = {
     anvil1: { address: '0x0000000000000000000000000000000000000001' },
     anvil2: { address: '0x0000000000000000000000000000000000000002' },
     anvil3: { address: '0x0000000000000000000000000000000000000003' },
-  };
+  } satisfies TestRouteGroup;
 
   it('builds remote enrollment domains and padded routers', () => {
     const enrollment = buildRemoteRouterEnrollment(routeGroup, 'anvil1');
@@ -26,35 +50,43 @@ describe('RouteFixtureBuilder helpers', () => {
   });
 
   it('builds chain address maps from route groups', () => {
-    expect(routeAddresses(routeGroup)).to.deep.equal({
-      anvil1: routeGroup.anvil1.address,
-      anvil2: routeGroup.anvil2.address,
-      anvil3: routeGroup.anvil3.address,
-    });
+    expect(routeAddresses(routeGroup)).to.deep.equal(
+      Object.fromEntries(
+        routeGroupEntries(routeGroup).map(([chain, route]) => [
+          chain,
+          route.address,
+        ]),
+      ),
+    );
   });
 
   it('adds per-chain rebalancers to every route group', async () => {
     const calls: Array<{ chain: string; rebalancer: string }> = [];
-    const routeGroups = [
-      Object.fromEntries(
-        Object.keys(routeGroup).map((chain) => [
-          chain,
-          {
-            address: routeGroup[chain as keyof typeof routeGroup].address,
-            addRebalancer: async (rebalancer: string) => {
-              calls.push({ chain, rebalancer });
-            },
+    const routeGroups: TestRebalancerRouteGroup[] = [
+      {
+        anvil1: {
+          address: routeGroup.anvil1.address,
+          addRebalancer: async (rebalancer) => {
+            calls.push({ chain: 'anvil1', rebalancer });
           },
-        ]),
-      ),
+        },
+        anvil2: {
+          address: routeGroup.anvil2.address,
+          addRebalancer: async (rebalancer) => {
+            calls.push({ chain: 'anvil2', rebalancer });
+          },
+        },
+        anvil3: {
+          address: routeGroup.anvil3.address,
+          addRebalancer: async (rebalancer) => {
+            calls.push({ chain: 'anvil3', rebalancer });
+          },
+        },
+      },
     ];
 
-    await addRebalancersToRouteGroups(
-      routeGroups as unknown as Parameters<
-        typeof addRebalancersToRouteGroups
-      >[0],
-      (chain) =>
-        chain === 'anvil3' ? ['deployer', 'inventory'] : ['deployer'],
+    await addRebalancersToRouteGroups(routeGroups, (chain) =>
+      chain === 'anvil3' ? ['deployer', 'inventory'] : ['deployer'],
     );
 
     expect(calls).to.deep.equal([
@@ -71,17 +103,26 @@ describe('RouteFixtureBuilder helpers', () => {
       destinationDomain: number;
       bridge: string;
     }> = [];
-    const monitoredRouters = Object.fromEntries(
-      Object.keys(routeGroup).map((chain) => [
-        chain,
-        {
-          address: routeGroup[chain as keyof typeof routeGroup].address,
-          addBridge: async (destinationDomain: number, bridge: string) => {
-            calls.push({ chain, destinationDomain, bridge });
-          },
+    const monitoredRouters: TestBridgeRouteGroup = {
+      anvil1: {
+        address: routeGroup.anvil1.address,
+        addBridge: async (destinationDomain, bridge) => {
+          calls.push({ chain: 'anvil1', destinationDomain, bridge });
         },
-      ]),
-    );
+      },
+      anvil2: {
+        address: routeGroup.anvil2.address,
+        addBridge: async (destinationDomain, bridge) => {
+          calls.push({ chain: 'anvil2', destinationDomain, bridge });
+        },
+      },
+      anvil3: {
+        address: routeGroup.anvil3.address,
+        addBridge: async (destinationDomain, bridge) => {
+          calls.push({ chain: 'anvil3', destinationDomain, bridge });
+        },
+      },
+    };
     const bridgeRouteGroups = [
       {
         anvil1: { address: '0x0000000000000000000000000000000000000011' },
@@ -93,16 +134,9 @@ describe('RouteFixtureBuilder helpers', () => {
         anvil2: { address: '0x0000000000000000000000000000000000000022' },
         anvil3: { address: '0x0000000000000000000000000000000000000023' },
       },
-    ];
+    ] satisfies TestRouteGroup[];
 
-    await addBridgesToMonitoredRoutes(
-      monitoredRouters as unknown as Parameters<
-        typeof addBridgesToMonitoredRoutes
-      >[0],
-      bridgeRouteGroups as unknown as Parameters<
-        typeof addBridgesToMonitoredRoutes
-      >[1],
-    );
+    await addBridgesToMonitoredRoutes(monitoredRouters, bridgeRouteGroups);
 
     expect(calls).to.deep.equal([
       {
