@@ -701,6 +701,29 @@ mod test {
     }
 
     #[test]
+    fn fee_token_policy_rejects_malformed_fee_token() {
+        let settings = parse_settings(json!({
+            "relaychains": "latest",
+            "chains": {
+                "latest": chain_config("latest", 2000, Some("latest")),
+            },
+            "gaspaymentenforcement": [{
+                "type": "minimum",
+                "payment": "1",
+                "feetoken": "not-an-address",
+            }],
+        }));
+
+        let error = settings
+            .expect_err("malformed feeToken must reject config")
+            .to_string();
+        assert!(
+            error.contains("Expected feeToken to be an EVM address"),
+            "unexpected error: {error}",
+        );
+    }
+
+    #[test]
     fn fee_token_policy_rejects_matching_legacy_origin() {
         let settings = parse_settings(json!({
             "relaychains": "oldorigin,latest",

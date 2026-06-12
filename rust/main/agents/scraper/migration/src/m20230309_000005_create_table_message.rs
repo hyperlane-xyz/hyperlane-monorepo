@@ -101,8 +101,33 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-        let sql = format!(
-            r#"
+        let sql = create_message_view_sql(None);
+
+        // eprintln!("{sql}");
+        manager.get_connection().execute_unprepared(&sql).await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"DROP VIEW IF EXISTS "{}_view""#,
+                Message::Table.to_string()
+            ))
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(Message::Table).to_owned())
+            .await
+    }
+}
+
+pub fn create_message_view_sql(gas_payment_filter: Option<&str>) -> String {
+    let gas_payment_filter = gas_payment_filter.unwrap_or_default();
+    format!(
+        r#"
             CREATE VIEW "{msg_table}_view" AS
             SELECT
                 "msg"."{msg_id}" AS "id",
@@ -192,6 +217,7 @@ impl MigrationTrait for Migration {
                         SUM(gp.{gas_payment_gas_amount}) AS {tgp_gas_amount}
                     FROM {gas_payment_table} gp
                     WHERE "gp"."{gas_payment_mid}" = "msg"."{msg_mid}"
+                        {gas_payment_filter}
                 ) tgp ON true
                 LEFT JOIN "{dmsg_table}"
                     AS "dmsg"
@@ -203,75 +229,56 @@ impl MigrationTrait for Migration {
                     AS "dest_block"
                     ON "dest_block"."{block_id}" = "dest_tx"."{tx_block_id}"
             "#,
-            msg_table = Message::Table.to_string(),
-            msg_id = Message::Id.to_string(),
-            msg_time_created = Message::TimeCreated.to_string(),
-            msg_mid = Message::MsgId.to_string(),
-            msg_origin = Message::Origin.to_string(),
-            msg_dest = Message::Destination.to_string(),
-            msg_nonce = Message::Nonce.to_string(),
-            msg_sender = Message::Sender.to_string(),
-            msg_recipient = Message::Recipient.to_string(),
-            msg_body = Message::MsgBody.to_string(),
-            msg_origin_mb = Message::OriginMailbox.to_string(),
-            msg_oti = Message::OriginTxId.to_string(),
-            domain_table = Domain::Table.to_string(),
-            domain_id = Domain::Id.to_string(),
-            domain_name = Domain::Name.to_string(),
-            domain_chain_id = Domain::ChainId.to_string(),
-            tx_table = Transaction::Table.to_string(),
-            tx_id = Transaction::Id.to_string(),
-            tx_hash = Transaction::Hash.to_string(),
-            tx_block_id = Transaction::BlockId.to_string(),
-            tx_gas_limit = Transaction::GasLimit.to_string(),
-            tx_mpfpg = Transaction::MaxPriorityFeePerGas.to_string(),
-            tx_mfpg = Transaction::MaxFeePerGas.to_string(),
-            tx_gas_price = Transaction::GasPrice.to_string(),
-            tx_egp = Transaction::EffectiveGasPrice.to_string(),
-            tx_nonce = Transaction::Nonce.to_string(),
-            tx_sender = Transaction::Sender.to_string(),
-            tx_receipient = Transaction::Recipient.to_string(),
-            tx_gas_used = Transaction::GasUsed.to_string(),
-            tx_cgu = Transaction::CumulativeGasUsed.to_string(),
-            block_table = Block::Table.to_string(),
-            block_id = Block::Id.to_string(),
-            block_hash = Block::Hash.to_string(),
-            block_height = Block::Height.to_string(),
-            block_timestamp = Block::Timestamp.to_string(),
-            gas_payment_table = GasPayment::Table.to_string(),
-            gas_payment_mid = GasPayment::MsgId.to_string(),
-            gas_payment_payment = GasPayment::Payment.to_string(),
-            gas_payment_gas_amount = GasPayment::GasAmount.to_string(),
-            tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
-            tgp_payment = TotalGasPayment::TotalPayment.to_string(),
-            tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
-            dmsg_table = DeliveredMessage::Table.to_string(),
-            dmsg_id = DeliveredMessage::Id.to_string(),
-            dmsg_mid = DeliveredMessage::MsgId.to_string(),
-            dmsg_dest_mb = DeliveredMessage::DestinationMailbox.to_string(),
-            dmsg_dti = DeliveredMessage::DestinationTxId.to_string(),
-            dmsg_time_created = DeliveredMessage::TimeCreated.to_string(),
-        );
-
-        // eprintln!("{sql}");
-        manager.get_connection().execute_unprepared(&sql).await?;
-
-        Ok(())
-    }
-
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
-            .execute_unprepared(&format!(
-                r#"DROP VIEW IF EXISTS "{}_view""#,
-                Message::Table.to_string()
-            ))
-            .await?;
-
-        manager
-            .drop_table(Table::drop().table(Message::Table).to_owned())
-            .await
-    }
+        msg_table = Message::Table.to_string(),
+        msg_id = Message::Id.to_string(),
+        msg_time_created = Message::TimeCreated.to_string(),
+        msg_mid = Message::MsgId.to_string(),
+        msg_origin = Message::Origin.to_string(),
+        msg_dest = Message::Destination.to_string(),
+        msg_nonce = Message::Nonce.to_string(),
+        msg_sender = Message::Sender.to_string(),
+        msg_recipient = Message::Recipient.to_string(),
+        msg_body = Message::MsgBody.to_string(),
+        msg_origin_mb = Message::OriginMailbox.to_string(),
+        msg_oti = Message::OriginTxId.to_string(),
+        domain_table = Domain::Table.to_string(),
+        domain_id = Domain::Id.to_string(),
+        domain_name = Domain::Name.to_string(),
+        domain_chain_id = Domain::ChainId.to_string(),
+        tx_table = Transaction::Table.to_string(),
+        tx_id = Transaction::Id.to_string(),
+        tx_hash = Transaction::Hash.to_string(),
+        tx_block_id = Transaction::BlockId.to_string(),
+        tx_gas_limit = Transaction::GasLimit.to_string(),
+        tx_mpfpg = Transaction::MaxPriorityFeePerGas.to_string(),
+        tx_mfpg = Transaction::MaxFeePerGas.to_string(),
+        tx_gas_price = Transaction::GasPrice.to_string(),
+        tx_egp = Transaction::EffectiveGasPrice.to_string(),
+        tx_nonce = Transaction::Nonce.to_string(),
+        tx_sender = Transaction::Sender.to_string(),
+        tx_receipient = Transaction::Recipient.to_string(),
+        tx_gas_used = Transaction::GasUsed.to_string(),
+        tx_cgu = Transaction::CumulativeGasUsed.to_string(),
+        block_table = Block::Table.to_string(),
+        block_id = Block::Id.to_string(),
+        block_hash = Block::Hash.to_string(),
+        block_height = Block::Height.to_string(),
+        block_timestamp = Block::Timestamp.to_string(),
+        gas_payment_table = GasPayment::Table.to_string(),
+        gas_payment_mid = GasPayment::MsgId.to_string(),
+        gas_payment_payment = GasPayment::Payment.to_string(),
+        gas_payment_gas_amount = GasPayment::GasAmount.to_string(),
+        tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
+        tgp_payment = TotalGasPayment::TotalPayment.to_string(),
+        tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
+        dmsg_table = DeliveredMessage::Table.to_string(),
+        dmsg_id = DeliveredMessage::Id.to_string(),
+        dmsg_mid = DeliveredMessage::MsgId.to_string(),
+        dmsg_dest_mb = DeliveredMessage::DestinationMailbox.to_string(),
+        dmsg_dti = DeliveredMessage::DestinationTxId.to_string(),
+        dmsg_time_created = DeliveredMessage::TimeCreated.to_string(),
+        gas_payment_filter = gas_payment_filter,
+    )
 }
 
 /// Learn more at https://docs.rs/sea-query#iden

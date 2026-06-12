@@ -2,6 +2,7 @@ use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
 
 use crate::l20230309_types::*;
+use crate::m20230309_000005_create_table_message::{create_message_view_sql, Message};
 
 const NATIVE_FEE_TOKEN: &str = "'\\x0000000000000000000000000000000000000000'::bytea";
 
@@ -24,14 +25,12 @@ impl MigrationTrait for Migration {
             )
             .await?;
         manager
-            .alter_table(
-                Table::alter()
-                    .table(GasPayment::Table)
-                    .modify_column(
-                        ColumnDef::new_with_type(GasPayment::FeeToken, Address).not_null(),
-                    )
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"ALTER TABLE "{}" ALTER COLUMN "{}" DROP DEFAULT"#,
+                GasPayment::Table.to_string(),
+                GasPayment::FeeToken.to_string()
+            ))
             .await?;
         manager
             .create_index(
@@ -80,6 +79,22 @@ impl MigrationTrait for Migration {
             ))
             .await?;
 
+        manager
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"DROP VIEW IF EXISTS "{}_view""#,
+                Message::Table.to_string()
+            ))
+            .await?;
+        manager
+            .get_connection()
+            .execute_unprepared(&create_message_view_sql(Some(&format!(
+                r#"AND "gp"."{}" = {}"#,
+                GasPayment::FeeToken.to_string(),
+                NATIVE_FEE_TOKEN,
+            ))))
+            .await?;
+
         Ok(())
     }
 
@@ -115,6 +130,13 @@ impl MigrationTrait for Migration {
             )));
         }
 
+        manager
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"DROP VIEW IF EXISTS "{}_view""#,
+                Message::Table.to_string()
+            ))
+            .await?;
         manager
             .get_connection()
             .execute_unprepared(&format!(
@@ -161,6 +183,10 @@ impl MigrationTrait for Migration {
                 tgp_payment = TotalGasPayment::TotalPayment.to_string(),
                 tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
             ))
+            .await?;
+        manager
+            .get_connection()
+            .execute_unprepared(&create_message_view_sql(None))
             .await?;
 
         Ok(())
