@@ -4,7 +4,7 @@ Date: 2026-06-12
 
 Scope: `typescript/rebalancer` package. Findings are from local code inspection plus three read-only subagent slices covering core runtime, strategy/config, and bridges/tracking/tests.
 
-Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice landed in PR #8880. The stacked follow-up PR implemented cycle context, shared planning/projection, and LiFi SDK isolation. The third stacked PR moved strategy finalization and movable execution into dedicated modules. The remaining work is inventory executor and test-fixture decomposition.
+Status: this document now doubles as the refactor plan and implementation log. The first performance-oriented implementation slice landed in PR #8880. The stacked follow-up PR implemented cycle context, shared planning/projection, and LiFi SDK isolation. The third stacked PR moved strategy finalization and movable execution into dedicated modules. The final stacked PR split inventory execution and consolidated the e2e route fixture harness.
 
 ## Bottom Line
 
@@ -82,20 +82,38 @@ These slices finish the strategy planning boundary and split movable collateral 
 - Added focused tests for the extracted modules while preserving existing `Rebalancer` behavior tests.
 - Benefit: validation, transaction preparation, chain execution, and action recording can now be tested and optimized independently without mocking the entire rebalancer monolith.
 
+## Implemented In PR4
+
+These slices finish the requested executor and e2e harness decomposition while preserving runtime behavior.
+
+### Slice 9: Inventory Execution Modules
+
+- Split inventory execution into `InventoryIntentResolver`, `InventoryPlanner`, `BridgeCapacityEstimator`, `InventoryMovementExecutor`, and `TransferRemoteExecutor`.
+- Kept `InventoryRebalancer` as the orchestration and protocol-adapter layer for token lookup, signer construction, typed transaction sending, and message-id extraction.
+- Added focused planner tests while preserving the existing `InventoryRebalancer` behavior suite.
+- Benefit: active-intent continuation, transfer planning, bridge capacity checks, external bridge execution, and `transferRemote` recording can now be reasoned about and tested independently.
+
+### Slice 10: Declarative E2E Route Fixtures
+
+- Added `RouteFixtureBuilder` for declarative ERC20/native route deployment across local chains.
+- Centralized remote-router enrollment, rebalancer enrollment, monitored-route bridge registration, ERC20/native route seeding, recipient seeding, and route address-map construction.
+- Refactored the ERC20, native, inventory, and mixed deployment managers to declare fixture shape instead of each manager hand-rolling deploy/enroll/seed loops.
+- Benefit: e2e fixture changes now have one deploy/enroll/seed implementation to test, reducing route-specific drift and making new fixture topologies cheaper to add.
+
 ## Remaining Follow-Up TODOs
 
-Keep the north star performance, but use the larger module split to make future performance work safer.
+The requested stacked implementation slices are complete. Keep the north star performance, but use the larger module split to make future performance work safer.
 
 - [x] Add explicit `RebalanceCycleContext`, `ExecutionSummary`, and `CycleResult.status`.
-- [x] Remove inventory state injection through `InventoryRebalancer.setInventoryBalances()` by passing cycle context into executors.
+- [x] Remove runtime inventory state injection through `InventoryRebalancer.setInventoryBalances()` by passing cycle context into executors.
 - [x] Normalize config into a resolved route execution matrix so strategies do not perform bridge/execution config lookups.
 - [x] Move pending-transfer, pending-rebalance, and proposed-route projection into a shared `BalanceProjector`.
 - [x] Introduce shared route planning and centralize route materialization after strategy evaluation.
 - [x] Move route filtering and metrics emission out of `BaseStrategy` into a dedicated `StrategyPlanner`.
 - [x] Split movable collateral execution into route validation, transaction preparation, chain transaction execution, and result recording modules.
-- [ ] Split inventory execution into intent resolution, inventory planning, bridge capacity estimation, movement execution, and `transferRemote` execution modules.
+- [x] Split inventory execution into intent resolution, inventory planning, bridge capacity estimation, movement execution, and `transferRemote` execution modules.
 - [x] Wrap LiFi SDK/global state behind an injected client/runner and make execution locking follow the runner's provider-state scope.
-- [ ] Replace route-specific e2e deployment managers with a declarative fixture builder and shared deploy/enroll/seed helpers.
+- [x] Replace route-specific e2e deployment managers with a declarative fixture builder and shared deploy/enroll/seed helpers.
 - [x] Add deterministic unit fakes for LiFi execution/status behavior separate from local integration bridge adapters.
 
 ## Current Shape
@@ -105,7 +123,8 @@ Keep the north star performance, but use the larger module split to make future 
 - `RebalancerOrchestrator` syncs tracking state, builds raw balances, asks a strategy for routes, and dispatches routes to rebalancers.
 - `BaseStrategy` handles balance reservation, pending/proposed rebalance simulation, surplus/deficit matching, and route materialization, then delegates route finalization to `StrategyPlanner`.
 - `Rebalancer` orchestrates movable-collateral execution through route validation, transaction preparation, chain transaction execution, and result recording modules.
-- `InventoryRebalancer` executes inventory routes end to end, including active-intent continuation, bridge planning, external bridge execution, and `transferRemote`.
+- `InventoryRebalancer` orchestrates inventory execution through intent resolution, inventory planning, bridge capacity estimation, external bridge movement execution, and `transferRemote` execution modules.
+- E2E local deployment managers declare route fixture shape through `RouteFixtureBuilder`, then reuse shared deploy/enroll/seed helpers.
 - `ActionTracker` owns explorer recovery, delivery checks, TTL/staleness, external bridge status, stores, and projection into inflight context.
 
 ## Highest Priority Problems

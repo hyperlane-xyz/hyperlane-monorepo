@@ -1,10 +1,5 @@
 import { ethers, providers } from 'ethers';
 
-import {
-  ERC20Test__factory,
-  HypERC20Collateral__factory,
-} from '@hyperlane-xyz/core';
-
 import { ExecutionType, ExternalBridgeType } from '../../config/types.js';
 import {
   type Erc20InventoryChainDeployment,
@@ -14,6 +9,15 @@ import {
 } from '../fixtures/routes.js';
 
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
+import {
+  addBridgesToMonitoredRoutes,
+  addRebalancersToRouteGroups,
+  enrollRouteGroups,
+  routeAddresses,
+  RouteFixtureBuilder,
+  seedErc20Recipient,
+  seedErc20RouteGroups,
+} from './RouteFixtureBuilder.js';
 
 const TOKEN_SCALE = ethers.BigNumber.from(1);
 const USDC_INITIAL_SUPPLY = '100000000000000';
@@ -48,147 +52,83 @@ export class MixedLocalDeploymentManager extends BaseLocalDeploymentManager<Erc2
       TestChain,
       Erc20InventoryChainDeployment
     >;
-    const monitoredRouters = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters = {} as Record<TestChain, ethers.Contract>;
-    const tokens = {} as Record<TestChain, ethers.Contract>;
+    const fixture = await new RouteFixtureBuilder({
+      deployerWallet,
+      providersByChain,
+      chainInfra,
+      ownerAddress: deployerAddress,
+    })
+      .withNativeBalance(
+        this.inventorySignerAddress,
+        ethers.BigNumber.from(INVENTORY_INITIAL_ETH_BALANCE),
+      )
+      .withErc20Token({
+        id: 'usdc',
+        name: 'USDC',
+        symbol: 'USDC',
+        initialSupply: USDC_INITIAL_SUPPLY,
+        decimals: USDC_DECIMALS,
+      })
+      .withErc20CollateralRouteGroup({
+        id: 'monitored',
+        tokenId: 'usdc',
+        scaleNumerator: TOKEN_SCALE,
+        scaleDenominator: TOKEN_SCALE,
+      })
+      .withErc20CollateralRouteGroup({
+        id: 'bridge',
+        tokenId: 'usdc',
+        scaleNumerator: TOKEN_SCALE,
+        scaleDenominator: TOKEN_SCALE,
+      })
+      .deploy();
+
+    const tokens = fixture.tokens.usdc;
+    const monitoredRouters = fixture.routeGroups.monitored;
+    const bridgeRouters = fixture.routeGroups.bridge;
 
     for (const config of TEST_CHAIN_CONFIGS) {
-      const provider = providersByChain.get(config.name)!;
-      await provider.send('anvil_setBalance', [
-        this.inventorySignerAddress,
-        ethers.utils.hexValue(
-          ethers.BigNumber.from(INVENTORY_INITIAL_ETH_BALANCE),
-        ),
-      ]);
-
-      const deployer = deployerWallet.connect(provider);
-
-      const token = await new ERC20Test__factory(deployer).deploy(
-        'USDC',
-        'USDC',
-        USDC_INITIAL_SUPPLY,
-        USDC_DECIMALS,
-      );
-      await token.deployed();
-
-      const monitoredRoute = await new HypERC20Collateral__factory(
-        deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
-      await monitoredRoute.deployed();
-      await monitoredRoute.initialize(
-        ethers.constants.AddressZero,
-        chainInfra[config.name].ism,
-        deployerAddress,
-      );
-
-      const bridgeRoute = await new HypERC20Collateral__factory(
-        deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
-      await bridgeRoute.deployed();
-      await bridgeRoute.initialize(
-        ethers.constants.AddressZero,
-        chainInfra[config.name].ism,
-        deployerAddress,
-      );
-
       chainDeployments[config.name] = {
         mailbox: chainInfra[config.name].mailbox,
         ism: chainInfra[config.name].ism,
-        monitoredRouter: monitoredRoute.address,
-        bridgeRouter: bridgeRoute.address,
-        token: token.address,
+        monitoredRouter: monitoredRouters[config.name].address,
+        bridgeRouter: bridgeRouters[config.name].address,
+        token: tokens[config.name].address,
       };
-
-      tokens[config.name] = token;
-      monitoredRouters[config.name] = monitoredRoute;
-      bridgeRouters[config.name] = bridgeRoute;
     }
 
-    const routeGroups = [monitoredRouters, bridgeRouters];
-    for (const routeMap of routeGroups) {
-      for (const chain of TEST_CHAIN_CONFIGS) {
-        const localRoute = routeMap[chain.name];
-        const remoteDomains: number[] = [];
-        const remoteRouters: string[] = [];
-
-        for (const remote of TEST_CHAIN_CONFIGS) {
-          if (remote.name === chain.name) continue;
-          remoteDomains.push(remote.domainId);
-          remoteRouters.push(
-            ethers.utils.hexZeroPad(routeMap[remote.name].address, 32),
-          );
-        }
-
-        await localRoute.enrollRemoteRouters(remoteDomains, remoteRouters);
-      }
-    }
-
-    for (const chain of TEST_CHAIN_CONFIGS) {
-      const monitoredRoute = monitoredRouters[chain.name];
-      await monitoredRoute.addRebalancer(deployerAddress);
-      if (chain.name === MIXED_INVENTORY_CHAIN) {
-        await monitoredRoute.addRebalancer(this.inventorySignerAddress);
-      }
-
-      for (const destination of TEST_CHAIN_CONFIGS) {
-        if (destination.name === chain.name) continue;
-        await monitoredRoute.addBridge(
-          destination.domainId,
-          bridgeRouters[chain.name].address,
-        );
-      }
-    }
+    await enrollRouteGroups([monitoredRouters, bridgeRouters]);
+    await addRebalancersToRouteGroups([monitoredRouters], (chain) =>
+      chain === MIXED_INVENTORY_CHAIN
+        ? [deployerAddress, this.inventorySignerAddress]
+        : [deployerAddress],
+    );
+    await addBridgesToMonitoredRoutes(monitoredRouters, [bridgeRouters]);
 
     const bridgeSeedAmount = ethers.BigNumber.from(INVENTORY_ERC20_BRIDGE_SEED);
     const signerErc20Amount = ethers.BigNumber.from(
       INVENTORY_INITIAL_ERC20_BALANCE,
     );
-    for (const chain of TEST_CHAIN_CONFIGS) {
-      const provider = providersByChain.get(chain.name)!;
-      const deployer = deployerWallet.connect(provider);
-      const token = ERC20Test__factory.connect(
-        tokens[chain.name].address,
-        deployer,
-      );
-      const tx1 = await token.transfer(
-        bridgeRouters[chain.name].address,
-        bridgeSeedAmount,
-      );
-      await tx1.wait();
-      const tx2 = await token.transfer(
-        this.inventorySignerAddress,
-        signerErc20Amount,
-      );
-      await tx2.wait();
-    }
+    await seedErc20RouteGroups({
+      deployerWallet,
+      providersByChain,
+      tokens,
+      routeGroups: [bridgeRouters],
+      amount: bridgeSeedAmount,
+    });
+    await seedErc20Recipient({
+      deployerWallet,
+      providersByChain,
+      tokens,
+      recipient: this.inventorySignerAddress,
+      amount: signerErc20Amount,
+    });
 
     return {
       chains: chainDeployments,
-      monitoredRoute: {
-        anvil1: monitoredRouters.anvil1.address,
-        anvil2: monitoredRouters.anvil2.address,
-        anvil3: monitoredRouters.anvil3.address,
-      },
-      bridgeRoute: {
-        anvil1: bridgeRouters.anvil1.address,
-        anvil2: bridgeRouters.anvil2.address,
-        anvil3: bridgeRouters.anvil3.address,
-      },
-      tokens: {
-        anvil1: tokens.anvil1.address,
-        anvil2: tokens.anvil2.address,
-        anvil3: tokens.anvil3.address,
-      },
+      monitoredRoute: routeAddresses(monitoredRouters),
+      bridgeRoute: routeAddresses(bridgeRouters),
+      tokens: routeAddresses(tokens),
     };
   }
 }
