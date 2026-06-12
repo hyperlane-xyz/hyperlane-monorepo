@@ -16,7 +16,10 @@ import { MovableChainTransactionExecutor } from './ChainTransactionExecutor.js';
 import { MovableResultRecorder } from './ResultRecorder.js';
 import { MovableRouteValidator } from './RouteValidator.js';
 import { MovableTransactionPreparer } from './TransactionPreparer.js';
-import type { MovableInternalRoute } from './types.js';
+import type {
+  MovableInternalExecutionResult,
+  MovableInternalRoute,
+} from './types.js';
 
 const testLogger = pino({ level: 'silent' });
 
@@ -226,5 +229,68 @@ describe('movable collateral execution modules', () => {
     });
     expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to.be
       .false;
+  });
+
+  it('records route amount when successful results do not include canonical amount', async () => {
+    const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+    const actionTracker = createActionTrackerStub();
+    const resultRecorder = new MovableResultRecorder(
+      ctx.multiProvider as unknown as MultiProvider,
+      actionTracker,
+      testLogger,
+    );
+    const route = buildInternalRoute({ amount: 123n });
+    const result: MovableInternalExecutionResult = {
+      route,
+      intentId: route.intentId,
+      success: true,
+      messageId: 'test-message-id-success',
+      txHash: 'test-tx-hash-success',
+    };
+
+    await resultRecorder.recordResults([result]);
+
+    expect(
+      (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
+    ).to.equal(true);
+    expect(
+      (actionTracker.createRebalanceAction as Sinon.SinonStub).firstCall
+        .args[0],
+    ).to.include({
+      amount: 123n,
+      intentId: route.intentId,
+      messageId: 'test-message-id-success',
+    });
+    expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to.be
+      .false;
+  });
+
+  it('fails intents when confirmed transactions do not dispatch messages', async () => {
+    const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+    const actionTracker = createActionTrackerStub();
+    const resultRecorder = new MovableResultRecorder(
+      ctx.multiProvider as unknown as MultiProvider,
+      actionTracker,
+      testLogger,
+    );
+    sandbox
+      .stub(HyperlaneCore, 'getDispatchedMessages')
+      .returns([] as ReturnType<typeof HyperlaneCore.getDispatchedMessages>);
+
+    const result = resultRecorder.buildResult(buildTestPreparedTransaction(), {
+      transactionHash: 'test-tx-hash-no-dispatch',
+    } as providers.TransactionReceipt);
+    await resultRecorder.recordResults([result]);
+
+    expect(result.success).to.equal(false);
+    expect(result.messageId).to.equal('');
+    expect(result.error).to.include('no Dispatch event');
+    expect((actionTracker.createRebalanceAction as Sinon.SinonStub).called).to
+      .be.false;
+    expect(
+      (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnceWith(
+        'test-intent',
+      ),
+    ).to.equal(true);
   });
 });

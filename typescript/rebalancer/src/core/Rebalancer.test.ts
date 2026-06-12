@@ -225,6 +225,10 @@ describe('Rebalancer', () => {
       const failureResults = results.filter((r) => !r.success);
       expect(successResults).to.have.lengthOf(1);
       expect(failureResults).to.have.lengthOf(1);
+      expect(successResults[0].route.origin).to.equal('ethereum');
+      expect(successResults[0].route.destination).to.equal('arbitrum');
+      expect(failureResults[0].route.origin).to.equal('optimism');
+      expect(failureResults[0].route.destination).to.equal('arbitrum');
     });
   });
 
