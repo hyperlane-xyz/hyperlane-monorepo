@@ -219,6 +219,7 @@ async fn test_full_pending_message_persistence_flow() {
                     *expected_retries,
                     DEFAULT_MAX_MESSAGE_RETRIES,
                     None,
+                    None,
                 )
                 .map(|b| b.as_secs_f32().round());
                 let actual_backoff = pm
