@@ -35,6 +35,7 @@ contract MockRebalanceRouter {
     bool public quoteOnly;
     bool public reenter;
     bool public doubleCallback;
+    uint256 public postCallbackApproval;
 
     constructor(
         ERC20Test _token,
@@ -93,6 +94,10 @@ contract MockRebalanceRouter {
         doubleCallback = _doubleCallback;
     }
 
+    function setPostCallbackApproval(uint256 _postCallbackApproval) external {
+        postCallbackApproval = _postCallbackApproval;
+    }
+
     function addRebalancer(address rebalancer) external {
         if (!isAllowedRebalancer[rebalancer]) {
             _allowedRebalancers.push(rebalancer);
@@ -141,6 +146,9 @@ contract MockRebalanceRouter {
                     callbackRecipient,
                     collateralAmount
                 );
+            }
+            if (postCallbackApproval > 0) {
+                wrappedToken.approve(address(bridge), postCallbackApproval);
             }
         } else {
             MockRebalanceRouter(callbackSender).callbackTransfer(
@@ -768,6 +776,32 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert("ERC20: insufficient allowance");
+        bridge.localRebalance(100e6, calls);
+    }
+
+    function test_transferRemote_revertsWhenCallsDrainSourceWithLeakedApproval()
+        public
+    {
+        swapTarget.setOutputAmount(100e6);
+        sourceRouter.setPostCallbackApproval(1e6);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        calls[2] = CallLib.build(
+            address(inputToken),
+            0,
+            abi.encodeCall(
+                IERC20.transferFrom,
+                (address(sourceRouter), other, 1e6)
+            )
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InvalidInputDelta.selector
+        );
         bridge.localRebalance(100e6, calls);
     }
 
