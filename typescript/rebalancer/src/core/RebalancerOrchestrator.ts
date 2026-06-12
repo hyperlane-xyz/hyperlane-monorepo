@@ -68,6 +68,7 @@ export class RebalancerOrchestrator {
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
   private readonly externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private readonly metrics?: Metrics;
+  private readonly inFlightMetricTokens = new Set<string>();
 
   constructor(deps: RebalancerOrchestratorDeps) {
     this.strategy = deps.strategy;
@@ -158,11 +159,30 @@ export class RebalancerOrchestrator {
     const { metrics } = this;
     if (!metrics) return;
 
+    const tokenInfosToProcess = event.tokensInfo.filter((tokenInfo) => {
+      const metricKey = this.metricTokenKey(tokenInfo.token);
+      if (this.inFlightMetricTokens.has(metricKey)) {
+        this.logger.debug(
+          { metricKey },
+          'Skipping token metrics processing already in flight',
+        );
+        return false;
+      }
+      this.inFlightMetricTokens.add(metricKey);
+      return true;
+    });
+
+    // Best-effort metrics are intentionally detached from the polling cycle.
+    // They may be dropped on process shutdown, but they cannot gate rebalancing.
     void Promise.allSettled(
-      event.tokensInfo.map((tokenInfo) =>
+      tokenInfosToProcess.map((tokenInfo) =>
         this.processTokenMetricsWithTimeout(() =>
           metrics.processToken(tokenInfo),
-        ),
+        ).finally(() => {
+          this.inFlightMetricTokens.delete(
+            this.metricTokenKey(tokenInfo.token),
+          );
+        }),
       ),
     ).then((results) => {
       const failed = results.filter((result) => result.status === 'rejected');
@@ -203,6 +223,10 @@ export class RebalancerOrchestrator {
         clearTimeout(timeout);
       }
     }
+  }
+
+  private metricTokenKey(token: MonitorEvent['tokensInfo'][number]['token']) {
+    return `${token.chainName}:${token.addressOrDenom}`;
   }
 
   /**

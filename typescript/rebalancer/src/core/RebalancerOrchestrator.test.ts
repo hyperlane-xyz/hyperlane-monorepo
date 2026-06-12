@@ -32,17 +32,12 @@ function createMockLogger(): Logger & {
   warn: Sinon.SinonStub;
   error: Sinon.SinonStub;
 } {
-  return {
-    info: Sinon.stub(),
-    warn: Sinon.stub(),
-    error: Sinon.stub(),
-    debug: Sinon.stub(),
-    child: Sinon.stub().returnsThis(),
-  } as unknown as Logger & {
-    info: Sinon.SinonStub;
-    warn: Sinon.SinonStub;
-    error: Sinon.SinonStub;
-  };
+  const logger = pino({ level: 'silent' });
+  return Object.assign(logger, {
+    info: Sinon.stub(logger, 'info'),
+    warn: Sinon.stub(logger, 'warn'),
+    error: Sinon.stub(logger, 'error'),
+  });
 }
 
 function createMockRebalancerConfig(): RebalancerConfig {
@@ -1011,6 +1006,36 @@ describe('RebalancerOrchestrator', () => {
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
       expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+    });
+
+    it('should skip token metrics already in flight from a prior cycle', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+      const metrics = createMockMetrics();
+      (metrics.processToken as Sinon.SinonStub).returns(
+        new Promise(() => undefined),
+      );
+
+      const deps: RebalancerOrchestratorDeps = {
+        strategy,
+        actionTracker,
+        inflightContextAdapter: inflightAdapter,
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+        metrics,
+      };
+
+      const orchestrator = new RebalancerOrchestrator(deps);
+      const event = createMonitorEvent();
+
+      await orchestrator.executeCycle(event);
+      await orchestrator.executeCycle(event);
+
+      expect((metrics.processToken as Sinon.SinonStub).calledTwice).to.be.true;
     });
 
     it('should warn when detached token metrics processing fails', async () => {

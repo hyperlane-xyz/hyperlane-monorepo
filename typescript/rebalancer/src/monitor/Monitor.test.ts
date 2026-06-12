@@ -24,6 +24,7 @@ function createToken(chainName: ChainName, symbol: string): TestToken {
     isHypToken: () => true,
     getHypAdapter: () => ({ getBridgedSupply }),
     bridgedSupplyStub: getBridgedSupply,
+    // CAST: Monitor only touches this Token subset in this unit test.
   } as unknown as TestToken;
 }
 
@@ -52,6 +53,7 @@ describe('Monitor', () => {
     const warpCore = {
       tokens: [ethereumToken, arbitrumToken, secondEthereumToken],
       multiProvider,
+      // CAST: Monitor only reads tokens and multiProvider in this unit test.
     } as unknown as WarpCore;
     const monitor = new Monitor(0, warpCore, logger);
 

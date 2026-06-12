@@ -76,6 +76,10 @@ export class InMemoryStore<
     return this.getEntities(index.get(value));
   }
 
+  /**
+   * Index-backed queries return index bucket order, not global insertion order.
+   * Updating an entity can move it to the end of its indexed value bucket.
+   */
   async getByFieldValues<K extends keyof T>(
     field: K,
     values: readonly T[K][],

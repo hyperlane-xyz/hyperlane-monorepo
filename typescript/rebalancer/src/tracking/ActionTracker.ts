@@ -740,7 +740,7 @@ export class ActionTracker implements IActionTracker {
     const actionsByMessageId = new Map<string, RebalanceAction>();
 
     for (const action of actions) {
-      if (action.messageId) {
+      if (action.messageId && !actionsByMessageId.has(action.messageId)) {
         actionsByMessageId.set(action.messageId, action);
       }
     }

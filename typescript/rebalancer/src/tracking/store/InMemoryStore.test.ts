@@ -422,6 +422,31 @@ describe('InMemoryStore', () => {
       expect(result).to.deep.equal([transfer2]);
     });
 
+    it('should update a lazily-created non-status index after later saves', async () => {
+      expect(
+        await store.getByFieldValues('messageId', ['msg-1']),
+      ).to.deep.equal([]);
+
+      const transfer: Transfer = {
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: 'msg-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender',
+        recipient: '0xrecipient',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await store.save(transfer);
+
+      expect(
+        await store.getByFieldValues('messageId', ['msg-1']),
+      ).to.deep.equal([transfer]);
+    });
+
     it('should return one entity by field', async () => {
       const transfer: Transfer = {
         id: 'transfer-1',

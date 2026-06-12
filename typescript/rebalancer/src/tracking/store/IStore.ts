@@ -48,11 +48,13 @@ export interface IStore<T extends TrackedActionBase, Status extends string> {
 
   /**
    * Query entities by an indexed field.
+   * Result ordering is implementation-defined for index-backed queries.
    */
   getByField<K extends keyof T>(field: K, value: T[K]): Promise<T[]>;
 
   /**
    * Query entities matching any value for an indexed field.
+   * Result ordering is implementation-defined for index-backed queries.
    */
   getByFieldValues<K extends keyof T>(
     field: K,
