@@ -322,6 +322,13 @@ async fn provable_mainnet_block_deserialization() {
         println!("HTTP {status}, received {} bytes of JSON", body.len());
         assert!(status.is_success(), "unexpected HTTP status {status}");
 
+        // 1b. Persist the exact bytes the client received, before any parsing.
+        //     This is the authoritative artifact for the Aleo team to inspect:
+        //     the raw block JSON as handed to the deserializer.
+        let dump_path = std::env::temp_dir().join(format!("aleo_block_{height}.json"));
+        std::fs::write(&dump_path, &body).expect("failed to write block JSON dump");
+        println!("wrote raw block JSON to {}", dump_path.display());
+
         // 2. Deserialize the body straight into snarkVM's `Block`. This is the
         //    step that fails for block 19154507.
         match serde_json::from_str::<Block<MainnetV0>>(&body) {
