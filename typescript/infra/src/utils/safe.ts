@@ -5,7 +5,7 @@ import {
   MetaTransactionData,
   OperationType,
   SafeTransaction,
-} from '@safe-global/safe-core-sdk-types';
+} from '@safe-global/types-kit';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
