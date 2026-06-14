@@ -20,6 +20,7 @@ export const awSvmSigners: Address[] = [
   '8GjwFNTn2giBwEGo3qMrfNydEjXiQHUNf79rwAkTNmDy', // 5
   'E7cD9kcNXUC6f7CFDUoqjWaWaPxY9WNpNxjhbh5HwMiE', // 6
   '8U1cahSHqugrpPmEUm4ZNokJhoCDVGVjCB33EP1k2eFT', // 7
+  'AHWkCm6fuLCBqkSt5ZDNYWc8PTbWDLjrZDcLpcGQnSui', // 8
 ];
 
 export const awSvmThreshold = 3;
