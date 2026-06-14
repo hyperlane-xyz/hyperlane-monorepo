@@ -14,11 +14,7 @@ import { AnnotatedCallData } from '../../../src/govern/types.js';
 import { withGovernanceType } from '../../../src/governance.js';
 import { GovernanceType } from '../../../src/governanceTypes.js';
 import { Role } from '../../../src/roles.js';
-import {
-  getOwnerChanges,
-  getSafeAndService,
-  updateSafeOwner,
-} from '../../../src/utils/safe.js';
+import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
 import { withChainsRequired, withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -73,29 +69,14 @@ async function main() {
       continue;
     }
 
-    // Check if owner changes are valid (1-to-1 swaps only)
-    const currentOwners = await safeSdk.getOwners();
-    const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
-      currentOwners,
-      signers,
-    );
-
-    if (ownersToRemove.length !== ownersToAdd.length) {
-      rootLogger.error(
-        `[${chain}] Asymmetric owner changes are not supported. ` +
-          `This script only supports 1-to-1 owner swaps. ` +
-          `Got ${ownersToRemove.length} removes and ${ownersToAdd.length} adds. ` +
-          `Please ensure the number of signers remains constant.`,
-      );
-      continue;
-    }
-
     let transactions: AnnotatedCallData[];
     try {
+      const proposer = await multiProvider.getSignerAddress(chain as ChainName);
       transactions = await updateSafeOwner({
         safeSdk,
         owners: signers,
         threshold,
+        proposer,
       });
     } catch (error) {
       rootLogger.error(`[${chain}] could not update safe owner: ${error}`);
