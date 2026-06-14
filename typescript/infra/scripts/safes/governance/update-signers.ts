@@ -83,18 +83,19 @@ async function main() {
     governanceType,
     new Date().toISOString().replace(/[:.]/g, '-'),
   );
-  const results: ChainResult[] = [];
 
-  for (const chain of chains) {
+  // Process a single chain end-to-end and return its outcome. Chains are
+  // processed concurrently (see Promise.all below); per-chain logging is
+  // emitted as single messages so it stays readable when interleaved.
+  const processChain = async (chain: string): Promise<ChainResult> => {
     const safeAddress = safes[chain];
     if (!safeAddress) {
       rootLogger.error(`[${chain}] safe not found`);
-      results.push({
+      return {
         chain,
         outcome: ChainOutcome.Error,
         detail: 'safe address not found',
-      });
-      continue;
+      };
     }
 
     // Build a read-only Safe instance via RPC (no tx service or signer required),
@@ -104,12 +105,11 @@ async function main() {
       safeSdk = await getSafe(chain, multiProvider, safeAddress);
     } catch (error) {
       rootLogger.error(`[${chain}] could not load safe: ${error}`);
-      results.push({
+      return {
         chain,
         outcome: ChainOutcome.Error,
         detail: 'could not load safe',
-      });
-      continue;
+      };
     }
 
     let transactions: AnnotatedCallData[];
@@ -124,22 +124,20 @@ async function main() {
       });
     } catch (error) {
       rootLogger.error(`[${chain}] could not build owner update: ${error}`);
-      results.push({
+      return {
         chain,
         outcome: ChainOutcome.Error,
         detail: 'could not build owner update',
-      });
-      continue;
+      };
     }
 
     if (transactions.length === 0) {
       rootLogger.info(`[${chain}] already up to date, no transactions`);
-      results.push({
+      return {
         chain,
         outcome: ChainOutcome.NoChange,
         detail: 'owners already match',
-      });
-      continue;
+      };
     }
 
     // Log the human-readable intent of each transaction as a single message (so
@@ -150,7 +148,6 @@ async function main() {
         transactions.map((tx) => `  - ${tx.description}`).join('\n'),
     );
 
-    let proposed = false;
     if (propose) {
       try {
         const safeMultiSend = await SafeMultiSend.initialize(
@@ -166,21 +163,16 @@ async function main() {
           })),
         );
         rootLogger.info(`[${chain}] proposed via Safe transaction service`);
-        results.push({
+        return {
           chain,
           outcome: ChainOutcome.Proposed,
           detail: `${transactions.length} tx via Safe service`,
-        });
-        proposed = true;
+        };
       } catch (error) {
         rootLogger.warn(
           `[${chain}] could not propose, writing batch file instead: ${error}`,
         );
       }
-    }
-
-    if (proposed) {
-      continue;
     }
 
     // Persist a Safe-UI-importable batch for anything not proposed (dry run or
@@ -216,12 +208,11 @@ async function main() {
         })),
       });
       rootLogger.info(`[${chain}] wrote raw owner-update payload`);
-      results.push({
+      return {
         chain,
         outcome: ChainOutcome.FileRaw,
         detail: basename(filepath),
-      });
-      continue;
+      };
     }
 
     const chainId = multiProvider.getEvmChainId(chain);
@@ -237,12 +228,28 @@ async function main() {
     mkdirSync(dirname(filepath), { recursive: true });
     await writeAndFormatJsonAtPath(filepath, batch);
     rootLogger.info(`[${chain}] wrote Safe Transaction Builder batch`);
-    results.push({
+    return {
       chain,
       outcome: ChainOutcome.File,
       detail: basename(filepath),
-    });
-  }
+    };
+  };
+
+  // Process all chains concurrently; each chain is independent. Use allSettled
+  // so an unexpected throw on one chain can't abort the whole run (or lose the
+  // summary) — any rejection is surfaced as an error row instead.
+  const settled = await Promise.allSettled(chains.map(processChain));
+  const results: ChainResult[] = settled.map((result, i) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    rootLogger.error(`[${chains[i]}] unexpected error: ${result.reason}`);
+    return {
+      chain: chains[i],
+      outcome: ChainOutcome.Error,
+      detail: 'unexpected error',
+    };
+  });
 
   // End-of-run summary: at a glance, what was proposed vs. what needs manual
   // submission (and which of those files are NOT Safe-UI-importable, marked *).
