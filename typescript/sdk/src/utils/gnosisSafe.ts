@@ -176,16 +176,25 @@ export async function getSafe(
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
-  // Get the safe version
-  const safeService = getSafeService(chain, multiProvider);
-
-  const { version: rawSafeVersion } = await retryAsync(
-    () => safeService.getSafeInfo(safeAddress),
-    SAFE_API_RETRIES,
-    SAFE_API_BASE_RETRY_MS,
-  );
-  // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
-  const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+  // Get the safe version from the transaction service if one is available.
+  // Fall back gracefully when the service is missing/unreachable so the Safe
+  // instance can still be built for read-only/offline use (e.g. generating a
+  // Safe Transaction Builder batch for chains without a usable tx service).
+  let safeVersion: string | undefined;
+  try {
+    const safeService = getSafeService(chain, multiProvider);
+    const { version: rawSafeVersion } = await retryAsync(
+      () => safeService.getSafeInfo(safeAddress),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
+    // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
+    safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+  } catch (error) {
+    rootLogger.warn(
+      `Could not fetch Safe version for ${chain} (transaction service unavailable); falling back to default multiSend resolution: ${error}`,
+    );
+  }
 
   // Get the multiSend and multiSendCallOnly deployments for the given chain
   let multiSend, multiSendCallOnly;
@@ -198,7 +207,7 @@ export async function getSafe(
         [chainId]: chainOverrides[chainId].multiSendCallOnly,
       },
     };
-  } else if (safeDeploymentsVersions[safeVersion]) {
+  } else if (safeVersion && safeDeploymentsVersions[safeVersion]) {
     const { multiSendVersion, multiSendCallOnlyVersion } =
       safeDeploymentsVersions[safeVersion];
     multiSend = getMultiSendDeployment({
