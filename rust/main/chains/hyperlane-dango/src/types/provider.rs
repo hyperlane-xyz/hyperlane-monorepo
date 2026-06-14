@@ -5,6 +5,7 @@ use {
     },
     anyhow::anyhow,
     async_trait::async_trait,
+    dango_sdk::HttpClient,
     dango_types::{account, auth::Metadata},
     futures_util::future::try_join_all,
     grug::{
@@ -13,11 +14,12 @@ use {
         MsgExecute, NonEmpty, Query, QueryClient, QueryClientExt, QueryRequest, QueryResponse,
         SearchTxClient, SearchTxOutcome, Signer, Tx, TxOutcome, UnsignedTx,
     },
-    grug_indexer_client::HttpClient,
     hyperlane_core::{
-        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, H256, H512, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, ReorgPeriod, TxnInfo, U256, rpc_clients::{BlockNumberGetter, FallbackProvider}
+        rpc_clients::{BlockNumberGetter, FallbackProvider},
+        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+        HyperlaneDomain, HyperlaneProvider, ReorgPeriod, TxnInfo, H256, H512, U256,
     },
-    serde::{Serialize, de::DeserializeOwned},
+    serde::{de::DeserializeOwned, Serialize},
     std::{
         ops::{Deref, DerefMut, RangeInclusive},
         str::FromStr,

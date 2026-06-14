@@ -8,7 +8,8 @@ use {
     dango_hyperlane_types::va::{
         ExecuteMsg, QueryAnnounceFeePerByteRequest, QueryAnnouncedStorageLocationsRequest,
     },
-    grug::{Coin, Inner, Message, Number, QueryClientExt, Uint128},
+    grug::{Coin, Inner, Message, QueryClientExt},
+    grug_math::{Number, Uint128},
     hyperlane_core::{
         Announcement, ChainResult, ContractLocator, SignedType, TxOutcome, ValidatorAnnounce, H256,
         U256,

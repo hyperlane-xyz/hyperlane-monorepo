@@ -1,12 +1,13 @@
 use {
-    dango_client::{Secp256k1, Secret, SingleSigner},
     dango_hyperlane_types::{
         domain_hash, eip191_hash,
         isms::{multisig::Metadata, HYPERLANE_DOMAIN_KEY},
         mailbox::Message,
         multisig_hash, Addr32,
     },
-    dango_testing::constants::user4,
+    dango_sdk::HttpClient,
+    dango_sdk::{Secp256k1, Secret, SingleSigner},
+    dango_testing::user4,
     dango_types::{config::AppConfig, warp::TokenMessage},
     ethers::{
         contract::abigen,
@@ -19,7 +20,6 @@ use {
         HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, QueryClientExt,
         __private::hex_literal::hex, addr, btree_set,
     },
-    grug_indexer_client::HttpClient,
     serde::{Deserialize, Serialize},
     std::{
         collections::BTreeSet,
@@ -237,7 +237,10 @@ async fn get_validator_locations<I: IntoIterator<Item = H160>>(
         .collect::<Result<Vec<String>, anyhow::Error>>()
 }
 
-pub async fn get_checkpoint_from_s3(s3: &str, index_msg: &str) -> anyhow::Result<CheckpointResponse> {
+pub async fn get_checkpoint_from_s3(
+    s3: &str,
+    index_msg: &str,
+) -> anyhow::Result<CheckpointResponse> {
     let without_scheme = s3
         .strip_prefix("s3://")
         .ok_or(anyhow::anyhow!("Invalid S3 URL"))?;

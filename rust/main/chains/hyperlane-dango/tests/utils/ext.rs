@@ -1,6 +1,6 @@
 use {
     async_trait::async_trait,
-    dango_client::{Secret, SingleSigner},
+    dango_sdk::{Secret, SingleSigner},
     dango_types::{
         account_factory::{self, UserIndex, UserIndexOrName},
         auth::Nonce,

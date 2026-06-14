@@ -1,13 +1,14 @@
 use {
     crate::utils::{try_for, DangoBuilder, SingleSignerExt},
-    dango_client::{Secp256k1, Secret, SingleSigner},
     dango_genesis::{GatewayOption, GenesisOption, HyperlaneOption},
     dango_hyperlane_types::{
         domain_hash, eip191_hash,
         isms::{multisig::ValidatorSet, HYPERLANE_DOMAIN_KEY},
         mailbox, multisig_hash, Addr32,
     },
-    dango_testing::{constants::user5, Preset},
+    dango_sdk::HttpClient,
+    dango_sdk::{Secp256k1, Secret, SingleSigner},
+    dango_testing::{user5, Preset},
     dango_types::{
         config::AppConfig,
         constants::dango,
@@ -18,7 +19,6 @@ use {
         EventName, FlatCommitmentStatus, GasOption, Hash256, Inner, JsonDeExt, MockApi,
         QueryClientExt, ResultExt, SearchEvent, SearchTxClient, __private::hex_literal::hex,
     },
-    grug_indexer_client::HttpClient,
     manual_relay::get_checkpoint_from_s3,
     std::time::Duration,
     tracing::Level,
@@ -71,7 +71,7 @@ async fn run_dango() -> anyhow::Result<()> {
     ism_valset.extend(ism_validator_sets);
 
     DangoBuilder::new("localdango", local_domain)
-        .with_block_creation(grug::BlockCreation::Timed)
+        .with_block_creation(dango_testing::BlockCreation::Timed)
         .with_block_time(grug::Duration::from_seconds(1))
         .with_port(PORT)
         .with_genesis_option(GenesisOption {

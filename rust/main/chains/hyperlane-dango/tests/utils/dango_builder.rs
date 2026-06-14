@@ -1,8 +1,9 @@
 use {
     crate::utils::{dango_helper::ChainHelper, get_free_port, try_for},
-    dango_mock_httpd::{GenesisOption, Preset, TestOption},
-    grug::{BlockCreation, ClientWrapper, QueryClientExt},
-    grug_indexer_client::HttpClient,
+    dango_genesis::GenesisOption,
+    dango_sdk::HttpClient,
+    dango_testing::{BlockCreation, Preset, TestOption},
+    grug::{ClientWrapper, QueryClientExt},
     std::{
         sync::{Arc, Mutex},
         thread,
@@ -71,7 +72,7 @@ impl DangoBuilder {
             let rt = tokio::runtime::Runtime::new().unwrap();
 
             rt.block_on(async move {
-                dango_mock_httpd::run_with_callback(
+                dango_testing::mock_httpd_run_with_callback(
                     port,
                     self.block_creation,
                     None,

@@ -21,10 +21,10 @@ pub async fn startup_tests(
 ) -> anyhow::Result<(ChainHelper, ChainHelper)> {
     let (mut ch1, mut ch2) = try_join!(
         DangoBuilder::new("localdango1", 88888867)
-            .with_block_creation(grug::BlockCreation::OnBroadcast)
+            .with_block_creation(dango_testing::BlockCreation::OnBroadcast)
             .run(),
         DangoBuilder::new("localdango2", 88888877)
-            .with_block_creation(grug::BlockCreation::OnBroadcast)
+            .with_block_creation(dango_testing::BlockCreation::OnBroadcast)
             .run()
     )?;
 

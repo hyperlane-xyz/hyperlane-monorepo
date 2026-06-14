@@ -1,6 +1,6 @@
 use {
     crate::DangoResult,
-    dango_client::{Secp256k1, Secret, SingleSigner},
+    dango_sdk::{Secp256k1, Secret, SingleSigner},
     dango_types::auth::Nonce,
     grug::{Addr, Defined, QueryClient},
     std::sync::Arc,

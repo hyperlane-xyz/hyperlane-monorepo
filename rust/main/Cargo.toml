@@ -164,7 +164,10 @@ solana-client = "3.0"
 solana-rpc-client = "3.0"
 solana-commitment-config = "3.0"
 solana-compute-budget-interface = { version = "3.0", features = ["borsh"] }
-solana-loader-v3-interface = { version = "3.0", features = ["serde", "bincode"] }
+solana-loader-v3-interface = { version = "3.0", features = [
+  "serde",
+  "bincode",
+] }
 solana-program = "3.0"
 solana-pubsub-client = "3.0"
 solana-sdk = "3.0"
@@ -220,17 +223,19 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 hyperlane-cosmos-rs = "0.1.4"
 
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+# The `grug` meta-crate was removed upstream (left-curve #2088); `grug-types` is
+# now the umbrella crate (types + client + testing + macros), so we alias it as `grug`.
+grug = { git = "https://github.com/left-curve/left-curve.git", package = "grug-types", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+grug-math = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+# `dango-client` + `indexer-client` were consolidated into `dango-sdk` (left-curve #1939).
+dango-sdk = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+# `dango-mock-httpd` was collapsed into `dango-testing` (left-curve #2089).
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
@@ -325,4 +330,3 @@ version = "=0.12.1"
 branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
-
