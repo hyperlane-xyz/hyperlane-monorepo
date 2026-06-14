@@ -1,5 +1,5 @@
 import { mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { basename, dirname, join } from 'path';
 import yargs from 'yargs';
 
 import {
@@ -20,6 +20,7 @@ import { AnnotatedCallData } from '../../../src/govern/types.js';
 import { withGovernanceType } from '../../../src/governance.js';
 import { GovernanceType } from '../../../src/governanceTypes.js';
 import { Role } from '../../../src/roles.js';
+import { logTable } from '../../../src/utils/log.js';
 import { updateSafeOwner } from '../../../src/utils/safe.js';
 import { writeAndFormatJsonAtPath } from '../../../src/utils/utils.js';
 import { withChains, withPropose } from '../../agent-utils.js';
@@ -28,6 +29,30 @@ import { getEnvironmentConfig } from '../../core-utils.js';
 // Root directory for Safe Transaction Builder batch files. Each run gets its own
 // subfolder, with one file per chain that could not be proposed automatically.
 const OUTPUT_ROOT = 'safe-tx-output';
+
+// Per-chain outcome, surfaced in the end-of-run summary table.
+enum ChainOutcome {
+  Proposed = 'proposed', // submitted to the Safe transaction service
+  File = 'file', // wrote a Safe-UI-importable Transaction Builder batch
+  FileRaw = 'file *', // wrote raw calldata (NOT Safe-UI-importable)
+  NoChange = 'no change', // owners already match, nothing to do
+  Error = 'error', // could not load safe / build update
+}
+
+// Sort order for the summary table so like outcomes group together.
+const OUTCOME_ORDER = [
+  ChainOutcome.Proposed,
+  ChainOutcome.File,
+  ChainOutcome.FileRaw,
+  ChainOutcome.NoChange,
+  ChainOutcome.Error,
+];
+
+interface ChainResult {
+  chain: string;
+  outcome: ChainOutcome;
+  detail: string;
+}
 
 async function main() {
   const {
@@ -58,12 +83,17 @@ async function main() {
     governanceType,
     new Date().toISOString().replace(/[:.]/g, '-'),
   );
-  const writtenFiles: string[] = [];
+  const results: ChainResult[] = [];
 
   for (const chain of chains) {
     const safeAddress = safes[chain];
     if (!safeAddress) {
       rootLogger.error(`[${chain}] safe not found`);
+      results.push({
+        chain,
+        outcome: ChainOutcome.Error,
+        detail: 'safe address not found',
+      });
       continue;
     }
 
@@ -74,6 +104,11 @@ async function main() {
       safeSdk = await getSafe(chain, multiProvider, safeAddress);
     } catch (error) {
       rootLogger.error(`[${chain}] could not load safe: ${error}`);
+      results.push({
+        chain,
+        outcome: ChainOutcome.Error,
+        detail: 'could not load safe',
+      });
       continue;
     }
 
@@ -89,11 +124,21 @@ async function main() {
       });
     } catch (error) {
       rootLogger.error(`[${chain}] could not build owner update: ${error}`);
+      results.push({
+        chain,
+        outcome: ChainOutcome.Error,
+        detail: 'could not build owner update',
+      });
       continue;
     }
 
     if (transactions.length === 0) {
       rootLogger.info(`[${chain}] already up to date, no transactions`);
+      results.push({
+        chain,
+        outcome: ChainOutcome.NoChange,
+        detail: 'owners already match',
+      });
       continue;
     }
 
@@ -121,6 +166,11 @@ async function main() {
           })),
         );
         rootLogger.info(`[${chain}] proposed via Safe transaction service`);
+        results.push({
+          chain,
+          outcome: ChainOutcome.Proposed,
+          detail: `${transactions.length} tx via Safe service`,
+        });
         proposed = true;
       } catch (error) {
         rootLogger.warn(
@@ -129,66 +179,91 @@ async function main() {
       }
     }
 
+    if (proposed) {
+      continue;
+    }
+
     // Persist a Safe-UI-importable batch for anything not proposed (dry run or
     // propose failure) using the SDK's GNOSIS_TX_BUILDER submitter, so it can be
     // submitted manually via the Safe Transaction Builder app.
-    if (!proposed) {
-      let builder: EV5GnosisSafeTxBuilder;
-      try {
-        builder = await EV5GnosisSafeTxBuilder.create(multiProvider, {
-          version: '1.0',
-          chain: chain as ChainName,
-          safeAddress,
-        });
-      } catch (error) {
-        // No usable tx service for this chain, so we can't produce a Safe
-        // Transaction Builder (UI-importable) file. Persist the raw owner-update
-        // payload instead so it isn't silently dropped and can be submitted
-        // manually / via scripting.
-        rootLogger.warn(
-          `[${chain}] no usable tx service; writing raw payload (NOT Safe-UI-importable): ${error}`,
-        );
-        const filepath = join(runDir, `${chain}.raw.json`);
-        mkdirSync(dirname(filepath), { recursive: true });
-        await writeAndFormatJsonAtPath(filepath, {
-          chain,
-          chainId: multiProvider.getEvmChainId(chain),
-          safeAddress,
-          note: 'Raw owner-update calldata. NOT a Safe Transaction Builder file (no tx service for this chain); submit manually.',
-          transactions: transactions.map((call) => ({
-            to: call.to,
-            value: (call.value ?? 0).toString(),
-            data: call.data,
-            description: call.description,
-          })),
-        });
-        writtenFiles.push(filepath);
-        rootLogger.info(`[${chain}] wrote raw owner-update payload`);
-        continue;
-      }
-
-      const chainId = multiProvider.getEvmChainId(chain);
-      const ev5Txs: AnnotatedEV5Transaction[] = transactions.map((call) => ({
-        to: call.to,
-        data: call.data,
-        value: call.value,
-        chainId,
-      }));
-      const batch = await builder.submit(...ev5Txs);
-
-      const filepath = join(runDir, `${chain}.json`);
+    let builder: EV5GnosisSafeTxBuilder;
+    try {
+      builder = await EV5GnosisSafeTxBuilder.create(multiProvider, {
+        version: '1.0',
+        chain: chain as ChainName,
+        safeAddress,
+      });
+    } catch (error) {
+      // No usable tx service for this chain, so we can't produce a Safe
+      // Transaction Builder (UI-importable) file. Persist the raw owner-update
+      // payload instead so it isn't silently dropped and can be submitted
+      // manually / via scripting.
+      rootLogger.warn(
+        `[${chain}] no usable tx service; writing raw payload (NOT Safe-UI-importable): ${error}`,
+      );
+      const filepath = join(runDir, `${chain}.raw.json`);
       mkdirSync(dirname(filepath), { recursive: true });
-      await writeAndFormatJsonAtPath(filepath, batch);
-      writtenFiles.push(filepath);
-      rootLogger.info(`[${chain}] wrote Safe Transaction Builder batch`);
+      await writeAndFormatJsonAtPath(filepath, {
+        chain,
+        chainId: multiProvider.getEvmChainId(chain),
+        safeAddress,
+        note: 'Raw owner-update calldata. NOT a Safe Transaction Builder file (no tx service for this chain); submit manually.',
+        transactions: transactions.map((call) => ({
+          to: call.to,
+          value: (call.value ?? 0).toString(),
+          data: call.data,
+          description: call.description,
+        })),
+      });
+      rootLogger.info(`[${chain}] wrote raw owner-update payload`);
+      results.push({
+        chain,
+        outcome: ChainOutcome.FileRaw,
+        detail: basename(filepath),
+      });
+      continue;
     }
+
+    const chainId = multiProvider.getEvmChainId(chain);
+    const ev5Txs: AnnotatedEV5Transaction[] = transactions.map((call) => ({
+      to: call.to,
+      data: call.data,
+      value: call.value,
+      chainId,
+    }));
+    const batch = await builder.submit(...ev5Txs);
+
+    const filepath = join(runDir, `${chain}.json`);
+    mkdirSync(dirname(filepath), { recursive: true });
+    await writeAndFormatJsonAtPath(filepath, batch);
+    rootLogger.info(`[${chain}] wrote Safe Transaction Builder batch`);
+    results.push({
+      chain,
+      outcome: ChainOutcome.File,
+      detail: basename(filepath),
+    });
   }
 
-  if (writtenFiles.length > 0) {
-    rootLogger.info(
-      `Wrote ${writtenFiles.length} batch file(s) to ${runDir} for manual submission ` +
-        `(*.json are Safe Transaction Builder-importable; *.raw.json are raw calldata for chains without a tx service).`,
-    );
+  // End-of-run summary: at a glance, what was proposed vs. what needs manual
+  // submission (and which of those files are NOT Safe-UI-importable, marked *).
+  results.sort(
+    (a, b) =>
+      OUTCOME_ORDER.indexOf(a.outcome) - OUTCOME_ORDER.indexOf(b.outcome) ||
+      a.chain.localeCompare(b.chain),
+  );
+  const fileCount = results.filter(
+    (r) =>
+      r.outcome === ChainOutcome.File || r.outcome === ChainOutcome.FileRaw,
+  ).length;
+
+  rootLogger.info(
+    `\nSummary — ${governanceType} (${results.length} chains). ` +
+      `"file" = manual submission required; "*" = NOT Safe-UI-importable (raw calldata).`,
+  );
+  logTable(results, ['chain', 'outcome', 'detail']);
+
+  if (fileCount > 0) {
+    rootLogger.info(`Batch files written under ${runDir}`);
   }
   if (!propose) {
     rootLogger.info(
