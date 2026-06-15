@@ -15,6 +15,7 @@ members = [
     "libraries/test-utils",
     "programs/hyperlane-sealevel-igp",
     "programs/hyperlane-sealevel-igp-test",
+    "programs/universal-router",
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-collateral",
     "programs/hyperlane-sealevel-token-cross-collateral",
@@ -226,6 +227,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-validator-announce]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-universal-router]
 overflow-checks = true
 
 
