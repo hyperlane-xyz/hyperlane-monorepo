@@ -228,18 +228,32 @@ async function createIcaCallsForProposal() {
 }
 \\\
 
-### Option B: Using the CLI
+### Option B: Direct Contract Interaction
 
-\\\ash
-cd typescript/cli
+```typescript
+import { ethers } from 'ethers';
 
-# Generate calldata for transferring ETH from the ICA on Optimism
-pnpm hyperlane ica call-remote \\
-  --origin ethereum \\
-  --destination optimism \\
-  --owner <DAO_GOVERNOR_ADDRESS> \\
-  --calls '[{\"to\":\"0x_RECIPIENT\",\"value\":\"50000000000000000\",\"data\":\"0x\"}]'
-\\\
+const icaRouterAbi = [
+  'function callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes) payable'
+];
+
+const router = new ethers.Contract(
+  '0x_ICA_ROUTER_ON_ORIGIN_CHAIN',
+  icaRouterAbi,
+  signer
+);
+
+const tx = await router.callRemoteWithOverrides(
+  destinationDomain,
+  remoteRouter,
+  ismAddress,
+  calls,
+  hookMetadata,
+  { value: quote }
+);
+```
+
+> **Note:** The recommended approach is Option A (SDK), as it handles encoding and fee quoting automatically.
 
 ### Creating the Tally Proposal
 
