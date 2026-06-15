@@ -22,7 +22,6 @@
 //!           [4] system_program
 //!           [5..] swap command accounts
 
-use borsh::BorshSerialize;
 use hyperlane_sealevel_mailbox::mailbox_process_authority_pda_seeds;
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -124,9 +123,6 @@ fn handle_commit<'info>(
     let commitment: [u8; 32] = handle.message[0..32]
         .try_into()
         .map_err(|_| RouterError::InvalidInputs)?;
-    let salt: [u8; 32] = handle.message[32..64]
-        .try_into()
-        .map_err(|_| RouterError::InvalidInputs)?;
     let recipient =
         Pubkey::try_from(&handle.message[64..96]).map_err(|_| RouterError::InvalidInputs)?;
 
@@ -137,56 +133,48 @@ fn handle_commit<'info>(
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Derive and verify pending_swap PDA
+    // Derive PDA from commitment — each unique commitment gets its own PDA,
+    // so multiple in-flight swaps from the same sender can coexist.
     let origin_bytes = handle.origin.to_le_bytes();
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, swap_bump) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
         program_id,
     );
     if *swap_info.key != swap_key {
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Create the pending_swap account if it doesn't exist yet
-    if swap_info.data.borrow().is_empty() {
-        let lamports = Rent::get()?.minimum_balance(PendingSwap::LEN);
-        invoke_signed(
-            &system_instruction::create_account(
-                fee_payer.key,
-                swap_info.key,
-                lamports,
-                PendingSwap::LEN as u64,
-                program_id,
-            ),
-            &[fee_payer.clone(), swap_info.clone(), system_prog.clone()],
-            &[
-                &[FEE_PAYER_SEED, &[fee_payer_bump]],
-                &[
-                    PENDING_SWAP_SEED,
-                    &origin_bytes,
-                    sender_bytes,
-                    &salt,
-                    &[swap_bump],
-                ],
-            ],
-        )?;
-    }
-
-    // Guard against double-commit
-    let existing = {
-        let data = swap_info.data.borrow();
-        PendingSwap::from_bytes(&data)?
-    };
-    if existing.commitment != [0u8; 32] {
+    // Reject duplicate commits for the same commitment hash
+    if !swap_info.data.borrow().is_empty() {
         return Err(RouterError::CommitmentAlreadySet.into());
     }
 
-    // Write commitment data
+    // Create the pending_swap account
+    let lamports = Rent::get()?.minimum_balance(PendingSwap::LEN);
+    invoke_signed(
+        &system_instruction::create_account(
+            fee_payer.key,
+            swap_info.key,
+            lamports,
+            PendingSwap::LEN as u64,
+            program_id,
+        ),
+        &[fee_payer.clone(), swap_info.clone(), system_prog.clone()],
+        &[
+            &[FEE_PAYER_SEED, &[fee_payer_bump]],
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                sender_bytes,
+                &commitment,
+                &[swap_bump],
+            ],
+        ],
+    )?;
+
     let swap = PendingSwap {
         recipient,
-        salt,
-        commitment,
         origin_domain: handle.origin,
         bump: swap_bump,
     };
@@ -240,11 +228,19 @@ pub fn handle_reveal<'info>(
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Verify pending_swap PDA
+    // Compute commitment from reveal body — keccak256(borsh(cmds, inputs) || salt).
+    // cmd_bytes is already the borsh encoding, so no round-trip needed.
+    let commitment = {
+        let mut preimage = cmd_bytes.to_vec();
+        preimage.extend_from_slice(&salt);
+        solana_program::keccak::hash(&preimage).to_bytes()
+    };
+
+    // Verify pending_swap PDA — PDA address is the commitment proof
     let origin_bytes = handle.origin.to_le_bytes();
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
         program_id,
     );
     if *swap_info.key != swap_key {
@@ -256,7 +252,7 @@ pub fn handle_reveal<'info>(
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Load and validate pending_swap state
+    // Load pending_swap state
     let swap = {
         let data = swap_info.data.borrow();
         if data.is_empty() {
@@ -264,9 +260,6 @@ pub fn handle_reveal<'info>(
         }
         PendingSwap::from_bytes(&data)?
     };
-    if swap.commitment == [0u8; 32] {
-        return Err(RouterError::CommitmentMissing.into());
-    }
 
     // Validate ATA ownership and non-zero balance
     {
@@ -282,21 +275,8 @@ pub fn handle_reveal<'info>(
         }
     }
 
-    // Decode and verify commitment: keccak256(borsh(cmds, inputs) || salt)
     let (swap_commands, swap_inputs): (Vec<u8>, Vec<Vec<u8>>) =
         borsh::from_slice(cmd_bytes).map_err(|_| RouterError::InvalidInputs)?;
-
-    {
-        let mut preimage: Vec<u8> = Vec::new();
-        (swap_commands.clone(), swap_inputs.clone())
-            .serialize(&mut preimage)
-            .map_err(|_| RouterError::InvalidInputs)?;
-        preimage.extend_from_slice(&salt);
-        let digest = solana_program::keccak::hash(&preimage);
-        if digest.to_bytes() != swap.commitment {
-            return Err(RouterError::CommitmentMismatch.into());
-        }
-    }
 
     // Execute swap with pending_swap PDA as the signing authority
     let bump = swap.bump;
@@ -304,7 +284,7 @@ pub fn handle_reveal<'info>(
         PENDING_SWAP_SEED,
         &origin_bytes,
         sender_bytes,
-        &salt,
+        &commitment,
         &[bump],
     ];
     let result = dispatcher::execute_commands(
@@ -345,12 +325,12 @@ fn handle_account_metas_dispatch(program_id: &Pubkey, handle: &HandleInstruction
 fn handle_account_metas_commit(program_id: &Pubkey, handle: &HandleInstruction) -> ProgramResult {
     let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], program_id);
     let origin_bytes = handle.origin.to_le_bytes();
-    let salt: [u8; 32] = handle.message[32..64]
+    let commitment: [u8; 32] = handle.message[0..32]
         .try_into()
         .map_err(|_| RouterError::InvalidInputs)?;
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
         program_id,
     );
     let metas: Vec<SerializableAccountMeta> = vec![
@@ -390,9 +370,15 @@ pub fn handle_account_metas_reveal(
         .map_err(|_| RouterError::InvalidInputs)?;
     let pda_token_ata =
         Pubkey::try_from(&handle.message[32..64]).map_err(|_| RouterError::InvalidInputs)?;
+    // Compute commitment from reveal body — mirrors handle_reveal's derivation
+    let commitment = {
+        let mut preimage = handle.message[64..].to_vec();
+        preimage.extend_from_slice(&salt);
+        solana_program::keccak::hash(&preimage).to_bytes()
+    };
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
         program_id,
     );
     let metas: Vec<SerializableAccountMeta> = vec![

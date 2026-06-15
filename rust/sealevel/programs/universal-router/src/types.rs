@@ -110,20 +110,21 @@ pub struct ExecuteCrossChainInput {
 // PendingSwap — on-chain state for in-flight EVM→Solana destination swaps
 // ---------------------------------------------------------------------------
 //
-// PDA seeds: [b"pending_swap", &origin_domain.to_le_bytes(), sender, salt]
-// where sender = EVM router address (bytes32), salt = bytes32(msgSender()).
+// PDA seeds: [b"pending_swap", &origin_domain.to_le_bytes(), sender, commitment]
+// where sender = EVM router address (bytes32),
+//       commitment = keccak256(borsh(swap_commands, swap_inputs) || salt).
 //
-// Stored as raw Borsh (no discriminator prefix). Uninitialized accounts have
-// all-zero data; commitment == [0u8;32] signals "commit not yet received".
+// Each unique commitment gets its own PDA, so multiple in-flight swaps from
+// the same sender can coexist simultaneously — mirroring the EVM mapping
+// behaviour (OwnableMulticall.commitments keyed by commitment hash).
+//
+// Stored as raw Borsh (no discriminator prefix). The PDA address itself is
+// the commitment proof — no need to store the commitment hash in the account.
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Default, Debug)]
 pub struct PendingSwap {
     /// Solana wallet that receives output tokens (or input tokens on fallback)
     pub recipient: Pubkey,
-    /// Salt used to derive this PDA and compute the commitment
-    pub salt: [u8; 32],
-    /// keccak256(borsh(swap_commands, swap_inputs) || salt) — zero until handle() called
-    pub commitment: [u8; 32],
     /// Origin Hyperlane domain that sent the commitment message
     pub origin_domain: u32,
     /// PDA bump used for signing CPIs on behalf of the PDA
@@ -132,7 +133,7 @@ pub struct PendingSwap {
 
 impl PendingSwap {
     /// Serialized size — no discriminator prefix
-    pub const LEN: usize = 32 + 32 + 32 + 4 + 1; // = 101
+    pub const LEN: usize = 32 + 4 + 1; // = 37
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, ProgramError> {
         Self::try_from_slice(data).map_err(|_| ProgramError::InvalidAccountData)

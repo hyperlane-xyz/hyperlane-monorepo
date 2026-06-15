@@ -76,5 +76,5 @@ pub struct RevealIxn {
 pub struct ClosePendingSwapIxn {
     pub origin: u32,
     pub sender: [u8; 32],
-    pub salt: [u8; 32],
+    pub commitment: [u8; 32],
 }

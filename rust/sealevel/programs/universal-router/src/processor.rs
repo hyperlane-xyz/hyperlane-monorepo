@@ -1,6 +1,5 @@
 //! Top-level instruction router.
 
-use borsh::BorshSerialize;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, keccak, msg,
@@ -104,10 +103,15 @@ pub fn reveal<'info>(
     let fee_payer_pda = &accounts[3];
     let swap_accounts = &accounts[5..];
 
-    // Verify pending_swap PDA address
+    // Compute commitment and verify pending_swap PDA address
     let origin_bytes = ix.origin.to_le_bytes();
+    let commitment = {
+        let mut preimage = ix.message.clone();
+        preimage.extend_from_slice(&ix.salt);
+        keccak::hash(&preimage).to_bytes()
+    };
     let (swap_key, swap_bump) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, &ix.sender, &ix.salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, &ix.sender, &commitment],
         program_id,
     );
     if *swap_info.key != swap_key {
@@ -120,15 +124,7 @@ pub fn reveal<'info>(
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Load pending swap state
-    let swap = {
-        let data = swap_info.data.borrow();
-        if data.is_empty() {
-            return Err(RouterError::CommitmentMissing.into());
-        }
-        PendingSwap::from_bytes(&data)?
-    };
-    if swap.commitment == [0u8; 32] {
+    if swap_info.data.borrow().is_empty() {
         return Err(RouterError::CommitmentMissing.into());
     }
 
@@ -150,26 +146,14 @@ pub fn reveal<'info>(
     let (swap_commands, swap_inputs): (Vec<u8>, Vec<Vec<u8>>) =
         borsh::from_slice(&ix.message).map_err(|_| RouterError::InvalidInputs)?;
 
-    // Verify commitment: keccak256(borsh(cmds, inputs) || salt)
-    {
-        let mut preimage: Vec<u8> = Vec::new();
-        (swap_commands.clone(), swap_inputs.clone())
-            .serialize(&mut preimage)
-            .map_err(|_| RouterError::InvalidInputs)?;
-        preimage.extend_from_slice(&ix.salt);
-        let digest = keccak::hash(&preimage);
-        if digest.to_bytes() != swap.commitment {
-            return Err(RouterError::CommitmentMismatch.into());
-        }
-    }
-
     // Execute with pending_swap PDA as signing authority
+    // PDA address already proves the commitment — no separate hash check needed
     let bump_bytes = [swap_bump];
     let signer_seeds: &[&[u8]] = &[
         PENDING_SWAP_SEED,
         &origin_bytes,
         ix.sender.as_ref(),
-        ix.salt.as_ref(),
+        &commitment,
         &bump_bytes,
     ];
     let result = dispatcher::execute_commands(
@@ -220,7 +204,7 @@ fn close_pending_swap<'info>(
     // Verify PDA
     let origin_bytes = ix.origin.to_le_bytes();
     let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, &ix.sender, &ix.salt],
+        &[PENDING_SWAP_SEED, &origin_bytes, &ix.sender, &ix.commitment],
         program_id,
     );
     if *swap_info.key != swap_key {
@@ -228,15 +212,15 @@ fn close_pending_swap<'info>(
     }
 
     // Verify stored recipient matches signer
-    let swap = {
+    {
         let data = swap_info.data.borrow();
         if data.is_empty() {
             return Err(RouterError::InvalidInputs.into());
         }
-        PendingSwap::from_bytes(&data)?
-    };
-    if swap.recipient != *recipient.key {
-        return Err(RouterError::InvalidRecipient.into());
+        let swap = PendingSwap::from_bytes(&data)?;
+        if swap.recipient != *recipient.key {
+            return Err(RouterError::InvalidRecipient.into());
+        }
     }
 
     // Transfer lamports from pending_swap to recipient
