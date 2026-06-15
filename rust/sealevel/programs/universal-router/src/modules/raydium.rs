@@ -31,12 +31,12 @@ use crate::{
 //   [4]  output_token_account      writable
 //   [5]  input_vault               writable
 //   [6]  output_vault              writable
-//   [7]  input_token_mint          readonly
-//   [8]  output_token_mint         readonly
-//   [9]  input_token_program       readonly
-//   [10] output_token_program      readonly
-//   [11] observation_state         writable
-//   [12] tick_array_bitmap_ext     writable
+//   [7]  observation_state         writable
+//   [8]  token_program             readonly (SPL Token)
+//   [9]  token_program_2022        readonly (Token-2022)
+//   [10] memo_program              readonly
+//   [11] input_vault_mint          readonly
+//   [12] output_vault_mint         readonly
 //   [13] tick_array_0              writable
 //   [14] tick_array_1              writable
 //   [15] tick_array_2              writable
@@ -89,12 +89,12 @@ pub fn execute_raydium_clmm_swap_exact_in<'info>(
         AccountMeta::new(*accounts[4].key, false), // [4]  output_token_account
         AccountMeta::new(*accounts[5].key, false), // [5]  input_vault
         AccountMeta::new(*accounts[6].key, false), // [6]  output_vault
-        AccountMeta::new_readonly(*accounts[7].key, false), // [7]  input_token_mint
-        AccountMeta::new_readonly(*accounts[8].key, false), // [8]  output_token_mint
-        AccountMeta::new_readonly(*accounts[9].key, false), // [9]  input_token_program
-        AccountMeta::new_readonly(*accounts[10].key, false), // [10] output_token_program
-        AccountMeta::new(*accounts[11].key, false), // [11] observation_state
-        AccountMeta::new(*accounts[12].key, false), // [12] tick_array_bitmap_ext
+        AccountMeta::new(*accounts[7].key, false), // [7]  observation_state
+        AccountMeta::new_readonly(*accounts[8].key, false), // [8]  token_program (SPL Token)
+        AccountMeta::new_readonly(*accounts[9].key, false), // [9]  token_program_2022
+        AccountMeta::new_readonly(*accounts[10].key, false), // [10] memo_program
+        AccountMeta::new_readonly(*accounts[11].key, false), // [11] input_vault_mint
+        AccountMeta::new_readonly(*accounts[12].key, false), // [12] output_vault_mint
         AccountMeta::new(*accounts[13].key, false), // [13] tick_array_0
         AccountMeta::new(*accounts[14].key, false), // [14] tick_array_1
         AccountMeta::new(*accounts[15].key, false), // [15] tick_array_2
