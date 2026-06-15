@@ -308,6 +308,88 @@ describe('DeBridgeBridge.quote()', function () {
     expect(quote.toAmount).to.equal(4990000000000000000n);
   });
 
+  it('does not trip the fee guard on cross-decimal routes (BSC 18dp -> Tron 6dp)', async () => {
+    // Real BSC USDT is 18dp and Tron USDT is 6dp. A naive raw subtraction of the two
+    // amounts reports a ~100% fee and trips the default 10% guard; the quote must normalize
+    // decimals first and see the true ~0.4% fee.
+    const mockData = createMockQuoteResponse({
+      estimation: {
+        srcChainTokenIn: {
+          chainId: 56,
+          address: '0x55d398326f99059fF775485246999027B3197955',
+          name: 'Tether USD',
+          symbol: 'USDT',
+          decimals: 18,
+          amount: '10000000000000000000000', // 10,000 USDT @ 18dp
+        },
+        dstChainTokenOut: {
+          chainId: 100000026,
+          address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+          name: 'Tether USD',
+          symbol: 'USDT',
+          decimals: 6,
+          amount: '9960000000', // 9,960 USDT @ 6dp -> ~0.4% fee
+        },
+      },
+    });
+    sinon.stub(globalThis, 'fetch').resolves(makeResponse(mockData));
+
+    const quote = await bridge.quote({
+      fromChain: 56,
+      toChain: 728126428,
+      fromToken: '0x55d398326f99059fF775485246999027B3197955',
+      toToken: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+      fromAddress: '0x1234567890123456789012345678901234567890',
+      fromAmount: 10000000000000000000000n,
+    });
+
+    // Amounts are returned in their native per-side decimals (no normalization applied here).
+    expect(quote.fromAmount).to.equal(10000000000000000000000n); // 18dp
+    expect(quote.toAmount).to.equal(9960000000n); // 6dp
+    expect(quote.toAmountMin).to.equal(9960000000n);
+  });
+
+  it('throws when the decimal-normalized fee exceeds maxFeePercent', async () => {
+    // 10,000 USDT in (18dp) but only 5,000 USDT out (6dp) -> 50% normalized fee, over the 10% default.
+    const mockData = createMockQuoteResponse({
+      estimation: {
+        srcChainTokenIn: {
+          chainId: 56,
+          address: '0x55d398326f99059fF775485246999027B3197955',
+          name: 'Tether USD',
+          symbol: 'USDT',
+          decimals: 18,
+          amount: '10000000000000000000000',
+        },
+        dstChainTokenOut: {
+          chainId: 100000026,
+          address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+          name: 'Tether USD',
+          symbol: 'USDT',
+          decimals: 6,
+          amount: '5000000000', // 5,000 USDT @ 6dp
+        },
+      },
+    });
+    sinon.stub(globalThis, 'fetch').resolves(makeResponse(mockData));
+
+    let threw = false;
+    try {
+      await bridge.quote({
+        fromChain: 56,
+        toChain: 728126428,
+        fromToken: '0x55d398326f99059fF775485246999027B3197955',
+        toToken: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        fromAmount: 10000000000000000000000n,
+      });
+    } catch (error) {
+      threw = true;
+      expect((error as Error).message).to.include('fee too high');
+    }
+    expect(threw).to.equal(true);
+  });
+
   it('throws when API returns error response (no estimation)', async () => {
     const errorResponse: DeBridgeQuoteResponse = {
       errorCode: 1001,

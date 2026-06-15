@@ -115,23 +115,39 @@ export class DeBridgeBridge implements IExternalBridge {
     const srcAmount = BigInt(data.estimation.srcChainTokenIn.amount);
     const receivedAmount = BigInt(data.estimation.dstChainTokenOut.amount);
 
-    // Fee guard: reject uneconomical bridges
-    const feeAmount = srcAmount - receivedAmount;
+    // Fee guard: reject uneconomical bridges.
+    // Source and destination tokens can have different decimals (e.g. BSC USDT 18dp ->
+    // Tron USDT 6dp), so normalize both to a common 18-decimal scale before comparing —
+    // otherwise the raw subtraction reports a ~100% fee and trips the guard. Assumes ~1:1
+    // token value, which holds for the stable-to-stable routes deBridge is used for here.
+    const scaleTo18 = (amount: bigint, decimals: number): bigint =>
+      decimals <= 18
+        ? amount * 10n ** BigInt(18 - decimals)
+        : amount / 10n ** BigInt(decimals - 18);
+    const srcAmount18 = scaleTo18(
+      srcAmount,
+      data.estimation.srcChainTokenIn.decimals,
+    );
+    const receivedAmount18 = scaleTo18(
+      receivedAmount,
+      data.estimation.dstChainTokenOut.decimals,
+    );
+    const feeAmount = srcAmount18 - receivedAmount18;
     const feePercent =
-      srcAmount > 0n ? Number((feeAmount * 10000n) / srcAmount) / 100 : 0;
+      srcAmount18 > 0n ? Number((feeAmount * 10000n) / srcAmount18) / 100 : 0;
     this.logger.info(
       {
         fromChain,
         toChain,
         feePercent: feePercent.toFixed(1),
         feeAmount: feeAmount.toString(),
-        srcAmount: srcAmount.toString(),
+        srcAmount: srcAmount18.toString(),
       },
       'deBridge fee breakdown',
     );
     if (feePercent > this.maxFeePercent) {
       throw new Error(
-        `deBridge fee too high: ${feePercent.toFixed(1)}% (${feeAmount} of ${srcAmount}). Max allowed: ${this.maxFeePercent}%`,
+        `deBridge fee too high: ${feePercent.toFixed(1)}% (normalized ${feeAmount} of ${srcAmount18}). Max allowed: ${this.maxFeePercent}%`,
       );
     }
 
