@@ -142,7 +142,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("interval")
             .parse_u64()
             .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(5));
+            .unwrap_or(Duration::from_secs(2));
 
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 

@@ -33,6 +33,9 @@ pub enum MetadataBuildError {
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
+    /// Validator quorum not yet reached — signatures are still being collected
+    #[error("Awaiting validator signatures")]
+    AwaitingValidatorSignatures,
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
