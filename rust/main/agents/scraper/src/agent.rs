@@ -12,6 +12,7 @@ use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
 };
+use prometheus::IntGaugeVec;
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
@@ -21,7 +22,11 @@ use hyperlane_base::{
     CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
-use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+use crate::{
+    db::ScraperDb,
+    settings::ScraperSettings,
+    store::{HyperlaneDbStore, RawDispatchRetryBackoff},
+};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
@@ -41,6 +46,7 @@ pub struct Scraper {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
+    raw_dispatch_unenriched_max_age: IntGaugeVec,
 }
 
 #[derive(Debug)]
@@ -72,6 +78,13 @@ impl BaseAgent for Scraper {
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let raw_dispatch_unenriched_max_age = metrics
+            .new_int_gauge(
+                "raw_message_dispatch_unenriched_max_age_seconds",
+                "Maximum age in seconds of raw message dispatches pending reconciliation",
+                &["chain"],
+            )
+            .expect("failed to register raw dispatch reconciliation age metric");
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -93,6 +106,7 @@ impl BaseAgent for Scraper {
             agent_metrics,
             chain_metrics,
             runtime_metrics,
+            raw_dispatch_unenriched_max_age,
         })
     }
 
@@ -235,6 +249,7 @@ impl Scraper {
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
             self.contract_sync_metrics.clone(),
+            self.raw_dispatch_unenriched_max_age.clone(),
             store.clone(),
         ));
 
@@ -372,6 +387,7 @@ impl Scraper {
         &self,
         domain: HyperlaneDomain,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
+        raw_dispatch_unenriched_max_age: IntGaugeVec,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
         let domain_name = domain.name().to_owned();
@@ -386,7 +402,11 @@ impl Scraper {
                     &domain_name,
                     "reconcile_task",
                 ]);
+                let max_age_metric =
+                    raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
                 let mut next_after_id = 0;
+                let mut retry_backoff = RawDispatchRetryBackoff::default();
+                let mut max_age_seen_this_scan = 0_u64;
 
                 loop {
                     liveness_metric.set(
@@ -399,6 +419,7 @@ impl Scraper {
                     let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
                         next_after_id,
                         RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                        &mut retry_backoff,
                     ))
                     .catch_unwind()
                     .await;
@@ -406,18 +427,28 @@ impl Scraper {
                     match result {
                         Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
                             next_after_id = 0;
+                            max_age_seen_this_scan = 0;
                             sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
                         }
                         Ok(Ok(result)) if result.candidate_count == 0 => {
+                            max_age_metric.set(0);
+                            max_age_seen_this_scan = 0;
                             sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
                         }
                         Ok(Ok(result)) => {
                             next_after_id = result.next_after_id;
+                            max_age_seen_this_scan =
+                                max_age_seen_this_scan.max(result.max_unenriched_age_seconds);
+                            max_age_metric
+                                .set(max_age_seen_this_scan.try_into().unwrap_or(i64::MAX));
                             stored_events_metric.inc_by(result.stored_count.into());
                             info!(
                                 candidates = result.candidate_count,
+                                attempted = result.attempted_count,
+                                skipped_backoff = result.skipped_backoff_count,
                                 stored = result.stored_count,
                                 next_after_id,
+                                max_unenriched_age_seconds = max_age_seen_this_scan,
                                 domain = domain_name,
                                 "Reconciled raw message dispatches"
                             );

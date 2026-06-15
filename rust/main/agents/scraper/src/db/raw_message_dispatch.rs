@@ -27,6 +27,7 @@ pub struct StorableRawMessageDispatch<'a> {
 #[derive(Debug, Clone)]
 pub struct RawDispatchForEnrichment {
     pub raw_id: i64,
+    pub time_created: TimeDateTime,
     pub msg_id: H256,
     pub msg: HyperlaneMessage,
     pub meta: LogMeta,
@@ -240,6 +241,7 @@ fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDisp
 
     Ok(RawDispatchForEnrichment {
         raw_id: raw.id,
+        time_created: raw.time_created,
         msg_id: H256::from_slice(&raw.msg_id),
         msg: HyperlaneMessage {
             version: 3,

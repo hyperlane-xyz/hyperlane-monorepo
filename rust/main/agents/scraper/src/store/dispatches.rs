@@ -6,6 +6,7 @@ use hyperlane_core::{
     unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
+use time::OffsetDateTime;
 use tracing::warn;
 
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
@@ -13,12 +14,56 @@ use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 /// Label for raw message dispatch metrics
 const RAW_MESSAGE_DISPATCH_LABEL: &str = "raw_message_dispatch";
+const RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS: i64 = 60;
+const RAW_DISPATCH_RETRY_MAX_BACKOFF_SECONDS: i64 = 15 * 60;
 
 #[derive(Debug, Default)]
 pub(crate) struct RawDispatchReconciliationResult {
     pub candidate_count: usize,
+    pub attempted_count: usize,
+    pub skipped_backoff_count: usize,
     pub stored_count: u32,
     pub next_after_id: i64,
+    pub max_unenriched_age_seconds: u64,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct RawDispatchRetryBackoff {
+    rows: HashMap<i64, RawDispatchRetry>,
+}
+
+#[derive(Debug)]
+struct RawDispatchRetry {
+    attempts: u32,
+    next_retry_at: OffsetDateTime,
+}
+
+impl RawDispatchRetryBackoff {
+    fn should_attempt(&self, raw_id: i64, now: OffsetDateTime) -> bool {
+        match self.rows.get(&raw_id) {
+            Some(retry) => retry.next_retry_at <= now,
+            None => true,
+        }
+    }
+
+    fn record_missing(&mut self, raw_id: i64, now: OffsetDateTime) -> u32 {
+        let retry = self.rows.entry(raw_id).or_insert(RawDispatchRetry {
+            attempts: 0,
+            next_retry_at: now,
+        });
+        retry.attempts = retry.attempts.saturating_add(1);
+
+        let multiplier = 2_i64.pow(retry.attempts.saturating_sub(1).min(4));
+        let backoff_seconds = RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS
+            .saturating_mul(multiplier)
+            .min(RAW_DISPATCH_RETRY_MAX_BACKOFF_SECONDS);
+        retry.next_retry_at = offset_by_seconds(now, backoff_seconds);
+        retry.attempts
+    }
+
+    fn record_success(&mut self, raw_id: i64) {
+        self.rows.remove(&raw_id);
+    }
 }
 
 #[async_trait]
@@ -103,6 +148,7 @@ impl HyperlaneDbStore {
         &self,
         after_id: i64,
         limit: u64,
+        retry_backoff: &mut RawDispatchRetryBackoff,
     ) -> Result<RawDispatchReconciliationResult> {
         let raw_dispatches = self
             .db
@@ -113,9 +159,16 @@ impl HyperlaneDbStore {
                 limit,
             )
             .await?;
+        let now = OffsetDateTime::now_utc();
+        let max_unenriched_age_seconds = raw_dispatches
+            .iter()
+            .map(|raw_dispatch| raw_dispatch_age_seconds(raw_dispatch.time_created, now))
+            .max()
+            .unwrap_or_default();
         if raw_dispatches.is_empty() {
             return Ok(RawDispatchReconciliationResult {
                 next_after_id: after_id,
+                max_unenriched_age_seconds,
                 ..Default::default()
             });
         }
@@ -124,24 +177,52 @@ impl HyperlaneDbStore {
             .map(|raw_dispatch| raw_dispatch.raw_id)
             .max()
             .unwrap_or(after_id);
+        let skipped_backoff_count = raw_dispatches
+            .iter()
+            .filter(|raw_dispatch| !retry_backoff.should_attempt(raw_dispatch.raw_id, now))
+            .count();
+        let raw_dispatches_to_attempt = raw_dispatches
+            .iter()
+            .filter(|raw_dispatch| retry_backoff.should_attempt(raw_dispatch.raw_id, now))
+            .collect::<Vec<_>>();
+
+        if raw_dispatches_to_attempt.is_empty() {
+            return Ok(RawDispatchReconciliationResult {
+                candidate_count: raw_dispatches.len(),
+                skipped_backoff_count,
+                next_after_id,
+                max_unenriched_age_seconds,
+                ..Default::default()
+            });
+        }
 
         let txns: HashMap<H512, TxnWithId> = self
-            .ensure_blocks_and_txns(raw_dispatches.iter().map(|r| &r.meta))
+            .ensure_blocks_and_txns(raw_dispatches_to_attempt.iter().map(|r| &r.meta))
             .await?
             .map(|t| (t.hash, t))
             .collect();
 
         let mut missing_tx_hashes = Vec::new();
         let mut unique_missing_tx_hashes = HashSet::new();
-        let storable = raw_dispatches
+        let mut stored_raw_ids = Vec::new();
+        let storable = raw_dispatches_to_attempt
             .iter()
             .filter_map(
                 |raw_dispatch| match txns.get(&raw_dispatch.meta.transaction_id) {
-                    Some(txn) => Some(raw_dispatch.storable_message(txn.id)),
+                    Some(txn) => {
+                        stored_raw_ids.push(raw_dispatch.raw_id);
+                        Some(raw_dispatch.storable_message(txn.id))
+                    }
                     None => {
+                        let attempts = retry_backoff.record_missing(raw_dispatch.raw_id, now);
                         if unique_missing_tx_hashes.insert(raw_dispatch.meta.transaction_id) {
                             missing_tx_hashes.push(raw_dispatch.meta.transaction_id);
                         }
+                        warn!(
+                            raw_id = raw_dispatch.raw_id,
+                            attempts,
+                            "Raw message dispatch transaction remains unavailable; backing off reconciliation"
+                        );
                         None
                     }
                 },
@@ -156,10 +237,15 @@ impl HyperlaneDbStore {
                 storable.into_iter(),
             )
             .await?;
+        for raw_id in stored_raw_ids {
+            retry_backoff.record_success(raw_id);
+        }
 
         if !missing_tx_hashes.is_empty() {
             warn!(
                 candidate_count = raw_dispatches.len(),
+                attempted = raw_dispatches_to_attempt.len(),
+                skipped_backoff = skipped_backoff_count,
                 stored,
                 missing_tx_hashes = ?missing_tx_hashes,
                 "Raw message dispatch reconciliation skipped rows whose transactions are not enriched yet"
@@ -168,10 +254,27 @@ impl HyperlaneDbStore {
 
         Ok(RawDispatchReconciliationResult {
             candidate_count: raw_dispatches.len(),
+            attempted_count: raw_dispatches_to_attempt.len(),
+            skipped_backoff_count,
             stored_count: stored as u32,
             next_after_id,
+            max_unenriched_age_seconds,
         })
     }
+}
+
+fn raw_dispatch_age_seconds(
+    time_created: sea_orm::prelude::TimeDateTime,
+    now: OffsetDateTime,
+) -> u64 {
+    now.unix_timestamp()
+        .saturating_sub(time_created.assume_utc().unix_timestamp())
+        .max(0) as u64
+}
+
+fn offset_by_seconds(now: OffsetDateTime, seconds: i64) -> OffsetDateTime {
+    now.checked_add(time::Duration::seconds(seconds))
+        .unwrap_or(now)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -349,5 +452,40 @@ mod tests {
 
         assert!(storable.is_empty());
         assert!(missing_txns.is_none());
+    }
+
+    #[test]
+    fn raw_dispatch_retry_backoff_delays_repeated_attempts() {
+        let now = OffsetDateTime::now_utc();
+        let raw_id = 7;
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        assert!(backoff.should_attempt(raw_id, now));
+        assert_eq!(backoff.record_missing(raw_id, now), 1);
+        assert!(!backoff.should_attempt(raw_id, now));
+        assert!(!backoff.should_attempt(
+            raw_id,
+            offset_by_seconds(
+                now,
+                RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS.saturating_sub(1)
+            )
+        ));
+        assert!(backoff.should_attempt(
+            raw_id,
+            offset_by_seconds(now, RAW_DISPATCH_RETRY_INITIAL_BACKOFF_SECONDS)
+        ));
+    }
+
+    #[test]
+    fn raw_dispatch_retry_backoff_clears_after_success() {
+        let now = OffsetDateTime::now_utc();
+        let raw_id = 7;
+        let mut backoff = RawDispatchRetryBackoff::default();
+
+        backoff.record_missing(raw_id, now);
+        assert!(!backoff.should_attempt(raw_id, now));
+
+        backoff.record_success(raw_id);
+        assert!(backoff.should_attempt(raw_id, now));
     }
 }
