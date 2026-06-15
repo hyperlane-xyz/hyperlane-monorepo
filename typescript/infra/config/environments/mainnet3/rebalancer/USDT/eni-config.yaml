@@ -1,0 +1,35 @@
+warpRouteId: USDT/eni
+
+# Single mainnet3 inventory rebalancer key (same EOA used by the staging routes).
+# Keyed by ProtocolType: `ethereum` covers all EVM legs (incl. BSC); `tron` covers Tron.
+# Tron signs with the same 0x hex key, so both entries are the same address.
+inventorySigners:
+  ethereum:
+    address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+  tron:
+    address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+
+externalBridges:
+  debridge:
+    maxFeePercent: 10
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    bsc:
+      weighted:
+        weight: 50
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
+      # deBridge charges a ~$9-17 fixed Tron operating expense per order; keep moves large
+      # enough to amortize it (<0.2% at >=$10k).
+      bridgeMinAcceptedAmount: 10000
+
+    tron:
+      weighted:
+        weight: 50
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
+      bridgeMinAcceptedAmount: 10000
