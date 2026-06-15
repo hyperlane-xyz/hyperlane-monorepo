@@ -7,7 +7,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
-import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
+import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 
 interface IUniswapV3Router {
@@ -48,8 +49,9 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
     using SafeERC20 for IERC20;
 
     AtomicLocalRebalancingBridge internal bridge;
-    HypERC20Collateral internal sourceRouter;
-    HypERC20Collateral internal destinationRouter;
+    CrossCollateralRouter internal sourceRouter;
+    CrossCollateralRouter internal destinationRouter;
+    uint32 internal localDomain;
     address internal rebalancer = makeAddr("rebalancer");
 
     function _setUpFork(
@@ -57,14 +59,15 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
         uint256 blockNumber,
         IERC20 sourceToken,
         IERC20 destinationToken,
-        uint32 localDomain
+        uint32 localDomain_
     ) internal {
         vm.createSelectFork(vm.rpcUrl(rpcAlias), blockNumber);
+        localDomain = localDomain_;
 
-        // Use the canonical MovableCollateralRouter rebalance flow rather than a
-        // mock so the fork test exercises real quote/approval/transferRemote
-        // semantics against a live DEX.
-        sourceRouter = new HypERC20Collateral(
+        // Use a real CrossCollateralRouter rebalance flow rather than a mock so
+        // the fork test exercises real quote/approval/transferRemote semantics
+        // against a live DEX (and the bridge's IRebalanceTargets validation).
+        sourceRouter = new CrossCollateralRouter(
             address(sourceToken),
             1,
             1,
@@ -74,7 +77,7 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
             localDomain,
             address(sourceRouter)
         );
-        destinationRouter = new HypERC20Collateral(
+        destinationRouter = new CrossCollateralRouter(
             address(destinationToken),
             1,
             1,
@@ -148,6 +151,19 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
         assertLe(destinationToken.balanceOf(rebalancer), rebalancerBefore);
         assertEq(destinationToken.balanceOf(address(bridge)), 0);
     }
+
+    function _localRebalance(
+        uint256 amountIn,
+        CallLib.Call[] memory calls
+    ) internal {
+        bridge.rebalance(
+            localDomain,
+            amountIn,
+            ITokenBridge(address(sourceRouter)),
+            bytes32(uint256(uint160(address(destinationRouter)))),
+            abi.encode(calls)
+        );
+    }
 }
 
 contract AtomicLocalRebalancingBridgeEthereumForkTest is
@@ -184,7 +200,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(amountIn, _uniswapCalls(amountIn, 5e6));
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 5e6));
 
         _assertExactFunding(
             IERC20(USDT),
@@ -204,7 +220,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(amountIn, _uniswapCalls(amountIn, 20e6));
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 20e6));
 
         assertEq(
             IERC20(USDT).balanceOf(address(destinationRouter)) -
@@ -224,7 +240,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(amountIn, _uniswapCalls(amountIn, 20e6));
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 20e6));
 
         assertEq(
             IERC20(USDT).balanceOf(address(destinationRouter)) -
@@ -243,7 +259,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(amountIn, _uniswapCalls(amountIn, 0));
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 0));
     }
 
     function _uniswapCalls(
@@ -335,7 +351,7 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
         calls[2] = _topUpCall(IERC20(USDT), 20e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(amountIn, calls);
+        _localRebalance(amountIn, calls);
 
         _assertExactFunding(
             IERC20(USDT),

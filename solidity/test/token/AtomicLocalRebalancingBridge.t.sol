@@ -8,6 +8,7 @@ import {TestSwapTarget} from "contracts/test/TestSwapTarget.sol";
 import {CallLib} from "contracts/middleware/libs/Call.sol";
 import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {ReentrancyGuardTransient} from "contracts/libs/ReentrancyGuardTransient.sol";
 import {Quotes} from "contracts/token/libs/Quotes.sol";
@@ -70,6 +71,16 @@ contract MockRebalanceRouter {
         crossCollateralRouters[domain][_toBytes32(router)] = enrolled;
     }
 
+    /// @notice Mirrors CrossCollateralRouter: the enrolled primary router or any
+    /// cross-collateral router is a valid rebalance target.
+    function isRebalanceTarget(
+        uint32 domain,
+        bytes32 target
+    ) external view returns (bool) {
+        return
+            target == routers[domain] || crossCollateralRouters[domain][target];
+    }
+
     function setCallbackRecipient(address recipient) external {
         callbackRecipient = _toBytes32(recipient);
     }
@@ -121,10 +132,12 @@ contract MockRebalanceRouter {
             collateralAmount
         );
         if (reenter) {
-            CallLib.Call[] memory calls = new CallLib.Call[](0);
-            AtomicLocalRebalancingBridge(address(bridge)).localRebalance(
+            AtomicLocalRebalancingBridge(address(bridge)).rebalance(
+                localDomain,
                 collateralAmount,
-                calls
+                ITokenBridge(address(this)),
+                callbackRecipient,
+                ""
             );
         }
         if (quoteOnly) return;
@@ -182,18 +195,33 @@ contract ReentrantCallTarget {
     }
 
     function reenter() external {
-        CallLib.Call[] memory empty = new CallLib.Call[](0);
-        bridge.localRebalance(1, empty);
+        // nonReentrant reverts before any argument is validated, so the source
+        // and recipient values are immaterial here.
+        bridge.rebalance(
+            bridge.localDomain(),
+            1,
+            ITokenBridge(bridge.sourceRouter()),
+            bytes32(0),
+            ""
+        );
     }
 }
 
 contract NonReceivingRebalancer {
     function rebalanceWithValue(
         AtomicLocalRebalancingBridge target,
+        ITokenBridge source,
+        bytes32 destinationRecipient,
         uint256 amountIn,
         CallLib.Call[] calldata calls
     ) external payable {
-        target.localRebalance{value: msg.value}(amountIn, calls);
+        target.rebalance{value: msg.value}(
+            target.localDomain(),
+            amountIn,
+            source,
+            destinationRecipient,
+            abi.encode(calls)
+        );
     }
 }
 
@@ -256,27 +284,77 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter.addRebalancer(address(bridge));
     }
 
-    function test_localRebalance_revertsIfCallerNotSourceRebalancer() public {
+    function test_rebalance_revertsIfCallerNotSourceRebalancer() public {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(other);
         vm.expectRevert(
             AtomicLocalRebalancingBridge.UnauthorizedRebalancer.selector
         );
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_allowsCallerWhitelistedOnSourceRouter()
-        public
-    {
+    function test_rebalance_revertsForInvalidSource() public {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidSource.selector);
+        bridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(destinationRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
+    }
+
+    function test_rebalance_revertsForNonLocalDomain() public {
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
+        bridge.rebalance(
+            LOCAL_DOMAIN + 1,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
+    }
+
+    function test_rebalance_revertsForUnregisteredRecipient() public {
+        swapTarget.setOutputAmount(100e6);
+
+        vm.prank(rebalancer);
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidRecipient.selector);
+        bridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(0xdead)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
+    }
+
+    function test_constructor_revertsForNonRebalanceTargetsSource() public {
+        HypERC20Collateral plainSource = new HypERC20Collateral(
+            address(inputToken),
+            1,
+            1,
+            address(new MockMailbox(LOCAL_DOMAIN))
+        );
+
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidSource.selector);
+        new AtomicLocalRebalancingBridge(LOCAL_DOMAIN, address(plainSource));
+    }
+
+    function test_rebalance_allowsCallerWhitelistedOnSourceRouter() public {
+        swapTarget.setOutputAmount(100e6);
+
+        vm.prank(rebalancer);
+        _localRebalance(100e6, _rebalancerCalls(100e6));
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
-    function test_localRebalance_emitsLocalRebalanceExecuted() public {
+    function test_rebalance_emitsLocalRebalanceExecuted() public {
         swapTarget.setOutputAmount(100e6);
 
         vm.expectEmit(true, true, true, true, address(bridge));
@@ -287,19 +365,19 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_integrationUsesRealSourceRouterRebalanceFlow()
+    function test_rebalance_integrationUsesRealSourceRouterRebalanceFlow()
         public
     {
-        HypERC20Collateral source = new HypERC20Collateral(
+        CrossCollateralRouter source = new CrossCollateralRouter(
             address(inputToken),
             1,
             1,
             address(new MockMailbox(LOCAL_DOMAIN))
         );
-        HypERC20Collateral destination = new HypERC20Collateral(
+        CrossCollateralRouter destination = new CrossCollateralRouter(
             address(outputToken),
             1,
             1,
@@ -325,55 +403,61 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        localBridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        localBridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(source)),
+            _toBytes32(address(destination)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
 
         assertEq(inputToken.balanceOf(address(source)), 0);
         assertEq(inputToken.balanceOf(address(localBridge)), 0);
         assertEq(outputToken.balanceOf(address(destination)), 100e6);
     }
 
-    function test_localRebalance_usesSourceRecipient() public {
-        MockRebalanceRouter unlisted = new MockRebalanceRouter(
-            outputToken,
-            LOCAL_DOMAIN,
-            1,
-            1
-        );
-        sourceRouter.setRecipient(LOCAL_DOMAIN, address(unlisted));
-        sourceRouter.setCallbackRecipient(address(unlisted));
+    function test_rebalance_paysParamRecipientNotCallbackRecipient() public {
         swapTarget.setOutputAmount(100e6);
+        // The source's own configured recipient differs from the param: the
+        // bridge ignores the callback recipient and funds the validated param.
+        sourceRouter.setCallbackRecipient(address(altDestinationRouter));
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
-        assertEq(outputToken.balanceOf(address(unlisted)), 100e6);
+        assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
+        assertEq(outputToken.balanceOf(address(altDestinationRouter)), 0);
     }
 
-    function test_localRebalance_revertsIfRouterDoesNotCallback() public {
+    function test_rebalance_revertsIfRouterDoesNotCallback() public {
         sourceRouter.setQuoteOnly(true);
         vm.prank(rebalancer);
         vm.expectRevert(AtomicLocalRebalancingBridge.MissingCallback.selector);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_revertsIfRouterCallbacksTwice() public {
+    function test_rebalance_revertsIfRouterCallbacksTwice() public {
         sourceRouter.setDoubleCallback(true);
         vm.prank(rebalancer);
-        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        // The first callback consumes the active slot; the second sees no active
+        // rebalance.
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.NoActiveRebalance.selector
+        );
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_revertsIfAlreadyActive() public {
+    function test_rebalance_revertsIfAlreadyActive() public {
         sourceRouter.setReenter(true);
 
         vm.prank(rebalancer);
         vm.expectRevert(
             ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
         );
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_revertsOnReentrancyDuringCalls() public {
+    function test_rebalance_revertsOnReentrancyDuringCalls() public {
         ReentrantCallTarget target = new ReentrantCallTarget(bridge);
 
         CallLib.Call[] memory calls = new CallLib.Call[](1);
@@ -387,7 +471,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
         );
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
     }
 
     function test_quoteTransferRemote_revertsForNonLocalDomain() public {
@@ -407,7 +491,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
     function test_transferRemote_revertsForUnexpectedSourceRouter() public {
@@ -415,14 +499,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert(AtomicLocalRebalancingBridge.InvalidCallback.selector);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
     function test_transferRemote_ignoresRecipientAndPaysExactNominal() public {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
         assertEq(outputToken.balanceOf(rebalancer), 0);
@@ -436,20 +520,20 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         outputToken.approve(address(bridge), type(uint256).max);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 3e6));
+        _localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 3e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
         assertEq(outputToken.balanceOf(rebalancer), 7e6);
     }
 
-    function test_localRebalance_rebalancerCoversSwapCostInCalls() public {
+    function test_rebalance_rebalancerCoversSwapCostInCalls() public {
         swapTarget.setOutputAmount(95e6);
         outputToken.mintTo(rebalancer, 5e6);
         vm.prank(rebalancer);
         outputToken.approve(address(bridge), 5e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 5e6));
+        _localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 5e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
         assertEq(outputToken.balanceOf(rebalancer), 0);
@@ -460,7 +544,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(103e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
         assertEq(outputToken.balanceOf(rebalancer), 3e6);
@@ -470,7 +554,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(103e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
         assertEq(outputToken.balanceOf(rebalancer), 3e6);
@@ -484,7 +568,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(103e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         // Destination gets requiredDelta, only the produced surplus is refunded,
         // and the donation stays on the bridge.
@@ -509,7 +593,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
 
         assertEq(inputToken.balanceOf(rebalancer), 100e6);
         assertEq(inputToken.balanceOf(address(bridge)), 0);
@@ -523,6 +607,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         inputToken.mintTo(rebalancer, 100e6);
         vm.prank(rebalancer);
@@ -539,7 +624,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
 
         assertEq(inputToken.balanceOf(rebalancer), 100e6);
         assertEq(inputToken.balanceOf(address(bridge)), 0);
@@ -553,12 +638,10 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_revertsWhenDestinationFundedByDonation()
-        public
-    {
+    function test_rebalance_revertsWhenDestinationFundedByDonation() public {
         // A prior donation of the output token sits on the bridge.
         outputToken.mintTo(address(bridge), 100e6);
 
@@ -570,10 +653,10 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(100e6, noCalls);
+        _localRebalance(100e6, noCalls);
     }
 
-    function test_localRebalance_revertsWhenCallsSpendInputDonation() public {
+    function test_rebalance_revertsWhenCallsSpendInputDonation() public {
         // A prior donation of the input token sits on the bridge.
         inputToken.mintTo(address(bridge), 50e6);
         // Swap the escrow AND the donation, so the surplus output would be
@@ -596,10 +679,10 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InvalidInputDelta.selector
         );
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
     }
 
-    function test_localRebalance_sharedTokenFundsFromEscrowAndKeepsDonation()
+    function test_rebalance_sharedTokenFundsFromEscrowAndKeepsDonation()
         public
     {
         // input == output: destination holds the same token as the source, so
@@ -610,6 +693,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setCrossRouter(LOCAL_DOMAIN, address(sameTokenDest), true);
         sourceRouter.setCallbackRecipient(address(sameTokenDest));
 
         // A prior donation of the shared token sits on the bridge.
@@ -618,7 +702,13 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, noCalls);
+        bridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(sameTokenDest)),
+            abi.encode(noCalls)
+        );
 
         // Escrow funds the destination; the donation is preserved, not swept.
         assertEq(inputToken.balanceOf(address(sameTokenDest)), 100e6);
@@ -626,32 +716,44 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(inputToken.balanceOf(rebalancer), 0);
     }
 
-    function test_localRebalance_refundsUnspentNative() public {
+    function test_rebalance_refundsUnspentNative() public {
         swapTarget.setOutputAmount(100e6);
         vm.deal(rebalancer, 1 ether);
         uint256 balanceBefore = rebalancer.balance;
 
         vm.prank(rebalancer);
-        bridge.localRebalance{value: 1 ether}(100e6, _rebalancerCalls(100e6));
+        bridge.rebalance{value: 1 ether}(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
 
         assertEq(rebalancer.balance, balanceBefore);
         assertEq(address(bridge).balance, 0);
     }
 
-    function test_localRebalance_doesNotRefundPreExistingNative() public {
+    function test_rebalance_doesNotRefundPreExistingNative() public {
         swapTarget.setOutputAmount(100e6);
         vm.deal(address(bridge), 5 ether);
         vm.deal(rebalancer, 1 ether);
         uint256 balanceBefore = rebalancer.balance;
 
         vm.prank(rebalancer);
-        bridge.localRebalance{value: 1 ether}(100e6, _rebalancerCalls(100e6));
+        bridge.rebalance{value: 1 ether}(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
 
         assertEq(rebalancer.balance, balanceBefore);
         assertEq(address(bridge).balance, 5 ether);
     }
 
-    function test_localRebalance_revertsIfCallsSpendPreExistingNative() public {
+    function test_rebalance_revertsIfCallsSpendPreExistingNative() public {
         swapTarget.setOutputAmount(100e6);
         NativeSink sink = new NativeSink();
         vm.deal(address(bridge), 5 ether);
@@ -671,10 +773,16 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InvalidNativeDelta.selector
         );
-        bridge.localRebalance{value: 1 ether}(100e6, calls);
+        bridge.rebalance{value: 1 ether}(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(calls)
+        );
     }
 
-    function test_localRebalance_revertsWhenNativeRefundFails() public {
+    function test_rebalance_revertsWhenNativeRefundFails() public {
         swapTarget.setOutputAmount(100e6);
         NonReceivingRebalancer caller = new NonReceivingRebalancer();
         sourceRouter.addRebalancer(address(caller));
@@ -685,12 +793,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         caller.rebalanceWithValue{value: 1 ether}(
             bridge,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
             100e6,
             _rebalancerCalls(100e6)
         );
     }
 
-    function test_transferRemote_revertsIfCallsBridgeOutThroughDestinationRouter()
+    function test_rebalance_revertsIfCallsBridgeOutThroughDestinationRouter()
         public
     {
         MockMailbox localMailbox = new MockMailbox(LOCAL_DOMAIN);
@@ -699,7 +809,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             new MockMailbox(LOCAL_DOMAIN + 1)
         );
 
-        HypERC20Collateral source = new HypERC20Collateral(
+        CrossCollateralRouter source = new CrossCollateralRouter(
             address(inputToken),
             1,
             1,
@@ -753,7 +863,13 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        localBridge.localRebalance(100e6, calls);
+        localBridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(source)),
+            _toBytes32(address(destination)),
+            abi.encode(calls)
+        );
     }
 
     function test_transferRemote_revertsWhenCallsDrainSourceCollateral()
@@ -776,7 +892,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert("ERC20: insufficient allowance");
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
     }
 
     function test_transferRemote_revertsWhenCallsDrainSourceWithLeakedApproval()
@@ -802,7 +918,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InvalidInputDelta.selector
         );
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
     }
 
     function test_transferRemote_revertsWhenCallsDrainUnrelatedRoute() public {
@@ -829,7 +945,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert("ERC20: insufficient allowance");
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
     }
 
     function test_transferRemote_allowsCallsToTopUpSourceCollateral() public {
@@ -852,14 +968,14 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, calls);
+        _localRebalance(100e6, calls);
 
         assertEq(inputToken.balanceOf(address(sourceRouter)), 999_901e6);
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
     /// forge-config: default.fuzz.runs = 1000
-    function testFuzz_localRebalance_doesNotDecreaseRouterTokenSum(
+    function testFuzz_rebalance_doesNotDecreaseRouterTokenSum(
         bytes32 actions,
         uint256 rawAmountIn
     ) public {
@@ -885,6 +1001,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 LOCAL_DOMAIN,
                 address(sourceRouter)
             );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         sourceRouter.addRebalancer(rebalancer);
         sourceRouter.addRebalancer(address(localBridge));
@@ -913,7 +1030,15 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             sharedToken.balanceOf(address(unrelatedRouter));
 
         vm.prank(rebalancer);
-        try localBridge.localRebalance(amountIn, calls) {
+        try
+            localBridge.rebalance(
+                LOCAL_DOMAIN,
+                amountIn,
+                ITokenBridge(address(sourceRouter)),
+                _toBytes32(address(destinationRouter)),
+                abi.encode(calls)
+            )
+        {
             assertGe(
                 sharedToken.balanceOf(address(sourceRouter)) +
                     sharedToken.balanceOf(address(destinationRouter)) +
@@ -924,7 +1049,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     }
 
     /// forge-config: default.fuzz.runs = 1000
-    function testFuzz_localRebalance_crossDecimalPreservesValue(
+    function testFuzz_rebalance_crossDecimalPreservesValue(
         uint256 rawAmountIn,
         uint8 inDecRaw,
         uint8 outDecRaw,
@@ -951,6 +1076,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
                 LOCAL_DOMAIN,
                 address(src)
             );
+        src.setPrimaryRouter(LOCAL_DOMAIN, address(dst));
         src.setCallbackRecipient(address(dst));
         src.addRebalancer(rebalancer);
         src.addRebalancer(address(localBridge));
@@ -998,7 +1124,13 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             (10 ** (36 - outDec));
 
         vm.prank(rebalancer);
-        localBridge.localRebalance(amountIn, calls);
+        localBridge.rebalance(
+            LOCAL_DOMAIN,
+            amountIn,
+            ITokenBridge(address(src)),
+            _toBytes32(address(dst)),
+            abi.encode(calls)
+        );
 
         uint256 valueAfter = inTok.balanceOf(address(src)) *
             (10 ** (36 - inDec)) +
@@ -1011,7 +1143,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertLt(valueAfter - valueBefore, 10 ** (36 - outDec));
     }
 
-    function test_localRebalance_usesDecimalNormalizedRequiredDelta() public {
+    function test_rebalance_usesDecimalNormalizedRequiredDelta() public {
         outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
         destinationRouter = new MockRebalanceRouter(
             outputToken,
@@ -1019,6 +1151,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         swapTarget = new TestSwapTarget(
             address(inputToken),
@@ -1028,12 +1161,12 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(100e18);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e18);
     }
 
-    function test_localRebalance_revertsWhenBelowDecimalNormalizedRequiredDelta()
+    function test_rebalance_revertsWhenBelowDecimalNormalizedRequiredDelta()
         public
     {
         outputToken = new ERC20Test("Output18", "OUT18", 0, 18);
@@ -1043,6 +1176,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         swapTarget = new TestSwapTarget(
             address(inputToken),
@@ -1055,23 +1189,24 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_localRebalance_revertsForInvalidOutputToken() public {
+    function test_rebalance_revertsForInvalidOutputToken() public {
         destinationRouter = new MockRebalanceRouter(
             ERC20Test(address(0)),
             LOCAL_DOMAIN,
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
 
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
 
         vm.prank(rebalancer);
         vm.expectRevert(AtomicLocalRebalancingBridge.InvalidToken.selector);
-        bridge.localRebalance(100e6, noCalls);
+        _localRebalance(100e6, noCalls);
     }
 
     function test_constructor_revertsForNativeSource() public {
@@ -1099,9 +1234,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         bridge.quoteTransferRemote(LOCAL_DOMAIN, bytes32(0), 100e6);
     }
 
-    function test_localRebalance_allowsDecimalNormalizedRequiredDeltaDown()
-        public
-    {
+    function test_rebalance_allowsDecimalNormalizedRequiredDeltaDown() public {
         inputToken = new ERC20Test("Input18", "IN18", 0, 18);
         sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
@@ -1114,6 +1247,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         inputToken.mintTo(address(sourceRouter), 1_000_000e18);
         sourceRouter.addRebalancer(rebalancer);
@@ -1123,16 +1257,21 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             address(outputToken)
         );
         outputToken.mintTo(address(swapTarget), type(uint128).max);
-        sourceRouter.setCallbackRecipient(address(destinationRouter));
         swapTarget.setOutputAmount(90e6);
 
         vm.prank(rebalancer);
-        localBridge.localRebalance(90e18, _rebalancerCalls(90e18));
+        localBridge.rebalance(
+            LOCAL_DOMAIN,
+            90e18,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(90e18))
+        );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 90e6);
     }
 
-    function test_localRebalance_roundsRequiredDeltaUp() public {
+    function test_rebalance_roundsRequiredDeltaUp() public {
         inputToken = new ERC20Test("Input18", "IN18", 0, 18);
         sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
@@ -1145,6 +1284,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             1,
             1
         );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
         inputToken.mintTo(address(sourceRouter), 1_000_000e18);
         sourceRouter.addRebalancer(rebalancer);
@@ -1157,7 +1297,13 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(2);
 
         vm.prank(rebalancer);
-        localBridge.localRebalance(1e12 + 1, _rebalancerCalls(1e12 + 1));
+        localBridge.rebalance(
+            LOCAL_DOMAIN,
+            1e12 + 1,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(1e12 + 1))
+        );
 
         assertEq(outputToken.balanceOf(address(destinationRouter)), 2);
     }
@@ -1166,7 +1312,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setShouldRevert(true);
         vm.prank(rebalancer);
         vm.expectRevert("TestSwapTarget: revert");
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
     function test_transferRemote_revertsIfOutputNotApproved() public {
@@ -1175,7 +1321,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.prank(rebalancer);
         vm.expectRevert("ERC20: insufficient allowance");
-        bridge.localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 1e6));
+        _localRebalance(100e6, _rebalancerCallsWithTopUp(100e6, 1e6));
     }
 
     function test_transferRemote_revertsIfNoOutput() public {
@@ -1187,28 +1333,48 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.expectRevert(
             AtomicLocalRebalancingBridge.InsufficientOutput.selector
         );
-        bridge.localRebalance(100e6, noCalls);
+        _localRebalance(100e6, noCalls);
     }
 
     function test_transferRemote_keepsBridgeBalancesFlat() public {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        _localRebalance(100e6, _rebalancerCalls(100e6));
 
         assertEq(inputToken.balanceOf(address(bridge)), 0);
         assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
-    function test_localRebalance_usesCrossCollateralEnrollmentPath() public {
+    function test_rebalance_usesCrossCollateralEnrollmentPath() public {
         swapTarget.setOutputAmount(100e6);
-        sourceRouter.setRecipient(LOCAL_DOMAIN, address(altDestinationRouter));
+        // altDestinationRouter is enrolled as a cross-collateral target (not the
+        // primary router), exercising the non-canonical isRebalanceTarget path.
         sourceRouter.setCallbackRecipient(address(altDestinationRouter));
 
         vm.prank(rebalancer);
-        bridge.localRebalance(100e6, _rebalancerCalls(100e6));
+        bridge.rebalance(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(altDestinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
 
         assertEq(outputToken.balanceOf(address(altDestinationRouter)), 100e6);
+    }
+
+    function _localRebalance(
+        uint256 amountIn,
+        CallLib.Call[] memory calls
+    ) internal {
+        bridge.rebalance(
+            LOCAL_DOMAIN,
+            amountIn,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(calls)
+        );
     }
 
     function _rebalancerCalls(
