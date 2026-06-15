@@ -8,7 +8,7 @@ import {
   EV5GnosisSafeTxBuilder,
   getSafe,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
 import {
@@ -54,20 +54,40 @@ interface ChainResult {
   detail: string;
 }
 
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function main() {
   const {
     propose,
     governanceType = GovernanceType.Regular,
     chains: chainsArg,
+    all,
   } = await withChains(
-    withGovernanceType(withPropose(yargs(process.argv.slice(2)))),
+    withGovernanceType(
+      withPropose(
+        yargs(process.argv.slice(2)).option('all', {
+          type: 'boolean',
+          default: false,
+          describe:
+            'Confirm applying to all governance Safe chains when --chains is omitted.',
+        }),
+      ),
+    ),
   ).argv;
 
   const { signers, threshold } = getGovernanceSigners(governanceType);
   const safes = getGovernanceSafes(governanceType);
 
   // Default to the full set of chains for the governance type when --chains is omitted.
-  const chains =
+  const allChainsSelected = !chainsArg || chainsArg.length === 0;
+  assert(
+    !propose || !allChainsSelected || all,
+    'Refusing to propose owner updates for all governance Safes without --chains. Pass --all to confirm full-fleet proposal.',
+  );
+
+  const chains: ChainName[] =
     chainsArg && chainsArg.length > 0 ? chainsArg : Object.keys(safes);
 
   const envConfig = getEnvironmentConfig('mainnet3');
@@ -87,7 +107,7 @@ async function main() {
   // Process a single chain end-to-end and return its outcome. Chains are
   // processed concurrently (see Promise.all below); per-chain logging is
   // emitted as single messages so it stays readable when interleaved.
-  const processChain = async (chain: string): Promise<ChainResult> => {
+  const processChain = async (chain: ChainName): Promise<ChainResult> => {
     const safeAddress = safes[chain];
     if (!safeAddress) {
       rootLogger.error(`[${chain}] safe not found`);
@@ -102,9 +122,11 @@ async function main() {
     // so we can generate the owner-update calldata even for chains we can't propose to.
     let safeSdk;
     try {
-      safeSdk = await getSafe(chain, multiProvider, safeAddress);
+      safeSdk = await getSafe(chain, multiProvider, safeAddress, undefined, {
+        allowUnresolvedSafeVersion: true,
+      });
     } catch (error) {
-      rootLogger.error(`[${chain}] could not load safe: ${error}`);
+      rootLogger.error(`[${chain}] could not load safe: ${formatError(error)}`);
       return {
         chain,
         outcome: ChainOutcome.Error,
@@ -123,7 +145,9 @@ async function main() {
         proposer,
       });
     } catch (error) {
-      rootLogger.error(`[${chain}] could not build owner update: ${error}`);
+      rootLogger.error(
+        `[${chain}] could not build owner update: ${formatError(error)}`,
+      );
       return {
         chain,
         outcome: ChainOutcome.Error,
@@ -152,7 +176,7 @@ async function main() {
       try {
         const safeMultiSend = await SafeMultiSend.initialize(
           multiProvider,
-          chain as ChainName,
+          chain,
           safeAddress,
         );
         await safeMultiSend.sendTransactions(
@@ -170,7 +194,7 @@ async function main() {
         };
       } catch (error) {
         rootLogger.warn(
-          `[${chain}] could not propose, writing batch file instead: ${error}`,
+          `[${chain}] could not propose, writing batch file instead: ${formatError(error)}`,
         );
       }
     }
@@ -182,7 +206,7 @@ async function main() {
     try {
       builder = await EV5GnosisSafeTxBuilder.create(multiProvider, {
         version: '1.0',
-        chain: chain as ChainName,
+        chain,
         safeAddress,
       });
     } catch (error) {
@@ -191,7 +215,7 @@ async function main() {
       // payload instead so it isn't silently dropped and can be submitted
       // manually / via scripting.
       rootLogger.warn(
-        `[${chain}] no usable tx service; writing raw payload (NOT Safe-UI-importable): ${error}`,
+        `[${chain}] no usable tx service; writing raw payload (NOT Safe-UI-importable): ${formatError(error)}`,
       );
       const filepath = join(runDir, `${chain}.raw.json`);
       mkdirSync(dirname(filepath), { recursive: true });
@@ -271,6 +295,9 @@ async function main() {
 
   if (fileCount > 0) {
     rootLogger.info(`Batch files written under ${runDir}`);
+  }
+  if (results.some((result) => result.outcome === ChainOutcome.Error)) {
+    process.exitCode = 1;
   }
   if (!propose) {
     rootLogger.info(

@@ -21,7 +21,7 @@ import {
 
 // Safe nonce overrides to ensure transactions are proposed at the correct nonce.
 // Remove entries once the transactions have been executed.
-const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
+export const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<string[] | void>;

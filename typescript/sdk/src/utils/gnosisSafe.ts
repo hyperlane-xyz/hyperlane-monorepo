@@ -15,6 +15,10 @@ export const SAFE_API_BASE_RETRY_MS = 1000;
 
 type SafeApiKitInstance = SafeApiKit.default;
 
+type GetSafeOptions = {
+  allowUnresolvedSafeVersion?: boolean;
+};
+
 function isSafeApiKitConstructor(
   value: unknown,
 ): value is typeof SafeApiKit.default {
@@ -172,6 +176,7 @@ export async function getSafe(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
+  options: GetSafeOptions = {},
 ): Promise<Safe.default> {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
@@ -191,8 +196,12 @@ export async function getSafe(
     // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
     safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
   } catch (error) {
+    if (!options.allowUnresolvedSafeVersion) {
+      throw error;
+    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
     rootLogger.warn(
-      `Could not fetch Safe version for ${chain} (transaction service unavailable); falling back to default multiSend resolution: ${error}`,
+      `Could not fetch Safe version for ${chain} (transaction service unavailable); falling back to default multiSend resolution: ${errorMessage}`,
     );
   }
 

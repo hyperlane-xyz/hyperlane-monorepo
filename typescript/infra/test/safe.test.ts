@@ -17,6 +17,8 @@ const ownerB = '0x00000000000000000000000000000000000000b2';
 const ownerC = '0x00000000000000000000000000000000000000c3';
 const ownerD = '0x00000000000000000000000000000000000000d4';
 const ownerE = '0x00000000000000000000000000000000000000e5';
+const ownerF = '0x00000000000000000000000000000000000000f6';
+const zeroAddress = '0x0000000000000000000000000000000000000000';
 
 function ownerFixture(index: number) {
   return `0x${(0xa0 + index).toString(16).padStart(40, '0')}`;
@@ -58,13 +60,44 @@ function expectSameAddress(actual: string, expected: string) {
   expect(actual.toLowerCase()).to.equal(expected.toLowerCase());
 }
 
-async function expectUpdateSafeOwnerRejection(
-  promise: Promise<unknown>,
-  message: string,
+type ExpectedSafeCall = {
+  name:
+    | 'swapOwner'
+    | 'removeOwner'
+    | 'addOwnerWithThreshold'
+    | 'changeThreshold';
+  args: (string | number)[];
+};
+
+function expectSafeCall(data: string, expected: ExpectedSafeCall) {
+  const call = decodeSafeCall(data);
+  expect(call.name).to.equal(expected.name);
+  expect(call.args).to.have.lengthOf(expected.args.length);
+
+  for (let i = 0; i < expected.args.length; i++) {
+    const expectedArg = expected.args[i];
+    if (typeof expectedArg === 'string') {
+      expectSameAddress(call.args[i], expectedArg);
+    } else {
+      expect(call.args[i].toNumber()).to.equal(expectedArg);
+    }
+  }
+}
+
+function expectSafeCalls(
+  transactions: { data: string }[],
+  expectedCalls: ExpectedSafeCall[],
 ) {
+  expect(transactions).to.have.lengthOf(expectedCalls.length);
+  for (let i = 0; i < expectedCalls.length; i++) {
+    expectSafeCall(transactions[i].data, expectedCalls[i]);
+  }
+}
+
+async function expectRejection(promise: Promise<unknown>, message: string) {
   try {
     await promise;
-    throw new Error('Expected updateSafeOwner to reject');
+    throw new Error('Expected promise to reject');
   } catch (error) {
     expect((error as Error).message).to.include(message);
   }
@@ -175,253 +208,245 @@ describe('Safe Utils', () => {
   });
 
   describe('updateSafeOwner', () => {
-    it('should swap overlapping owners and remove surplus owners with final threshold', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA, ownerB, ownerC],
-        threshold: 3,
-      });
+    const productionOwners = Array.from({ length: 9 }, (_, i) =>
+      ownerFixture(i),
+    );
+    const productionNewOwner = ownerFixture(9);
 
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerD],
-        threshold: 1,
-      });
+    const updateCases: {
+      name: string;
+      currentOwners: string[];
+      currentThreshold: number;
+      expectedOwners: string[];
+      newThreshold: number;
+      proposer?: string;
+      expectedCalls: ExpectedSafeCall[];
+    }[] = [
+      {
+        name: 'swap overlapping owners and remove surplus owners with final threshold',
+        currentOwners: [ownerA, ownerB, ownerC],
+        currentThreshold: 3,
+        expectedOwners: [ownerD],
+        newThreshold: 1,
+        expectedCalls: [
+          { name: 'swapOwner', args: [sentinelOwners, ownerA, ownerD] },
+          { name: 'removeOwner', args: [ownerD, ownerB, 1] },
+          { name: 'removeOwner', args: [ownerD, ownerC, 1] },
+        ],
+      },
+      {
+        name: 'support the production 9-to-7 signer rotation shape',
+        currentOwners: productionOwners,
+        currentThreshold: 4,
+        expectedOwners: [...productionOwners.slice(3), productionNewOwner],
+        newThreshold: 3,
+        proposer: productionOwners[3],
+        expectedCalls: [
+          {
+            name: 'swapOwner',
+            args: [sentinelOwners, productionOwners[0], productionNewOwner],
+          },
+          {
+            name: 'removeOwner',
+            args: [productionNewOwner, productionOwners[1], 3],
+          },
+          {
+            name: 'removeOwner',
+            args: [productionNewOwner, productionOwners[2], 3],
+          },
+        ],
+      },
+      {
+        name: 'use each Safe owner order for linked-list prevOwner values',
+        currentOwners: [ownerB, ownerA, ownerC],
+        currentThreshold: 3,
+        expectedOwners: [ownerD],
+        newThreshold: 1,
+        expectedCalls: [
+          { name: 'swapOwner', args: [sentinelOwners, ownerB, ownerD] },
+          { name: 'removeOwner', args: [ownerD, ownerA, 1] },
+          { name: 'removeOwner', args: [ownerD, ownerC, 1] },
+        ],
+      },
+      {
+        name: 'treat expected owner order as set membership',
+        currentOwners: [ownerB, ownerA, ownerC],
+        currentThreshold: 2,
+        expectedOwners: [ownerC, ownerB, ownerA],
+        newThreshold: 2,
+        expectedCalls: [],
+      },
+      {
+        name: 'remove the head owner with sentinel prevOwner',
+        currentOwners: [ownerA, ownerB, ownerC],
+        currentThreshold: 2,
+        expectedOwners: [ownerB, ownerC],
+        newThreshold: 2,
+        expectedCalls: [
+          { name: 'removeOwner', args: [sentinelOwners, ownerA, 2] },
+        ],
+      },
+      {
+        name: 'add surplus owners and set final threshold on the last add',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [ownerA, ownerB, ownerC],
+        newThreshold: 2,
+        expectedCalls: [
+          { name: 'addOwnerWithThreshold', args: [ownerB, 1] },
+          { name: 'addOwnerWithThreshold', args: [ownerC, 2] },
+        ],
+      },
+      {
+        name: 'keep threshold change separate for symmetric swaps',
+        currentOwners: [ownerA, ownerB],
+        currentThreshold: 1,
+        expectedOwners: [ownerA, ownerC],
+        newThreshold: 2,
+        expectedCalls: [
+          { name: 'swapOwner', args: [ownerA, ownerB, ownerC] },
+          { name: 'changeThreshold', args: [2] },
+        ],
+      },
+      {
+        name: 'use post-swap owners as prevOwner for consecutive swaps',
+        currentOwners: [ownerA, ownerB, ownerC],
+        currentThreshold: 2,
+        expectedOwners: [ownerD, ownerE, ownerC],
+        newThreshold: 2,
+        expectedCalls: [
+          { name: 'swapOwner', args: [sentinelOwners, ownerA, ownerD] },
+          { name: 'swapOwner', args: [ownerD, ownerB, ownerE] },
+        ],
+      },
+      {
+        name: 'pin asymmetric multi-swap pairing and trailing removeOwner',
+        currentOwners: [ownerA, ownerB, ownerC, ownerD],
+        currentThreshold: 3,
+        expectedOwners: [ownerD, ownerF, ownerE],
+        newThreshold: 2,
+        expectedCalls: [
+          { name: 'swapOwner', args: [sentinelOwners, ownerA, ownerE] },
+          { name: 'swapOwner', args: [ownerE, ownerB, ownerF] },
+          { name: 'removeOwner', args: [ownerF, ownerC, 2] },
+        ],
+      },
+    ];
 
-      expect(transactions).to.have.lengthOf(3);
+    for (const testCase of updateCases) {
+      // eslint-disable-next-line jest/expect-expect -- expectSafeCalls asserts decoded calldata
+      it(`should ${testCase.name}`, async () => {
+        const safeSdk = createMockSafeSdk({
+          owners: testCase.currentOwners,
+          threshold: testCase.currentThreshold,
+        });
 
-      const swap = decodeSafeCall(transactions[0].data);
-      expect(swap.name).to.equal('swapOwner');
-      expectSameAddress(swap.args[0], sentinelOwners);
-      expectSameAddress(swap.args[1], ownerA);
-      expectSameAddress(swap.args[2], ownerD);
-
-      const firstRemove = decodeSafeCall(transactions[1].data);
-      expect(firstRemove.name).to.equal('removeOwner');
-      expectSameAddress(firstRemove.args[0], ownerD);
-      expectSameAddress(firstRemove.args[1], ownerB);
-      expect(firstRemove.args[2].toNumber()).to.equal(1);
-
-      const secondRemove = decodeSafeCall(transactions[2].data);
-      expect(secondRemove.name).to.equal('removeOwner');
-      expectSameAddress(secondRemove.args[0], ownerD);
-      expectSameAddress(secondRemove.args[1], ownerC);
-      expect(secondRemove.args[2].toNumber()).to.equal(1);
-    });
-
-    it('should support the production 9-to-7 signer rotation shape', async () => {
-      const currentOwners = Array.from({ length: 9 }, (_, i) =>
-        ownerFixture(i),
-      );
-      const newOwner = ownerFixture(9);
-      const safeSdk = createMockSafeSdk({
-        owners: currentOwners,
-        threshold: 4,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [...currentOwners.slice(3), newOwner],
-        threshold: 3,
-        proposer: currentOwners[3],
-      });
-
-      expect(transactions).to.have.lengthOf(3);
-
-      const swap = decodeSafeCall(transactions[0].data);
-      expect(swap.name).to.equal('swapOwner');
-      expectSameAddress(swap.args[0], sentinelOwners);
-      expectSameAddress(swap.args[1], currentOwners[0]);
-      expectSameAddress(swap.args[2], newOwner);
-
-      const firstRemove = decodeSafeCall(transactions[1].data);
-      expect(firstRemove.name).to.equal('removeOwner');
-      expectSameAddress(firstRemove.args[0], newOwner);
-      expectSameAddress(firstRemove.args[1], currentOwners[1]);
-      expect(firstRemove.args[2].toNumber()).to.equal(3);
-
-      const secondRemove = decodeSafeCall(transactions[2].data);
-      expect(secondRemove.name).to.equal('removeOwner');
-      expectSameAddress(secondRemove.args[0], newOwner);
-      expectSameAddress(secondRemove.args[1], currentOwners[2]);
-      expect(secondRemove.args[2].toNumber()).to.equal(3);
-    });
-
-    it('should use each Safe owner order for linked-list prevOwner values', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerB, ownerA, ownerC],
-        threshold: 3,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerD],
-        threshold: 1,
-      });
-
-      expect(transactions).to.have.lengthOf(3);
-
-      const swap = decodeSafeCall(transactions[0].data);
-      expect(swap.name).to.equal('swapOwner');
-      expectSameAddress(swap.args[0], sentinelOwners);
-      expectSameAddress(swap.args[1], ownerB);
-      expectSameAddress(swap.args[2], ownerD);
-
-      const firstRemove = decodeSafeCall(transactions[1].data);
-      expect(firstRemove.name).to.equal('removeOwner');
-      expectSameAddress(firstRemove.args[0], ownerD);
-      expectSameAddress(firstRemove.args[1], ownerA);
-      expect(firstRemove.args[2].toNumber()).to.equal(1);
-
-      const secondRemove = decodeSafeCall(transactions[2].data);
-      expect(secondRemove.name).to.equal('removeOwner');
-      expectSameAddress(secondRemove.args[0], ownerD);
-      expectSameAddress(secondRemove.args[1], ownerC);
-      expect(secondRemove.args[2].toNumber()).to.equal(1);
-    });
-
-    it('should treat expected owner order as set membership', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerB, ownerA, ownerC],
-        threshold: 2,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerC, ownerB, ownerA],
-        threshold: 2,
-      });
-
-      expect(transactions).to.deep.equal([]);
-    });
-
-    it('should remove the head owner with sentinel prevOwner', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA, ownerB, ownerC],
-        threshold: 2,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerB, ownerC],
-        threshold: 2,
-      });
-
-      expect(transactions).to.have.lengthOf(1);
-
-      const remove = decodeSafeCall(transactions[0].data);
-      expect(remove.name).to.equal('removeOwner');
-      expectSameAddress(remove.args[0], sentinelOwners);
-      expectSameAddress(remove.args[1], ownerA);
-      expect(remove.args[2].toNumber()).to.equal(2);
-    });
-
-    it('should add surplus owners and set final threshold on the last add', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA],
-        threshold: 1,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerA, ownerB, ownerC],
-        threshold: 2,
-      });
-
-      expect(transactions).to.have.lengthOf(2);
-
-      const firstAdd = decodeSafeCall(transactions[0].data);
-      expect(firstAdd.name).to.equal('addOwnerWithThreshold');
-      expectSameAddress(firstAdd.args[0], ownerB);
-      expect(firstAdd.args[1].toNumber()).to.equal(1);
-
-      const secondAdd = decodeSafeCall(transactions[1].data);
-      expect(secondAdd.name).to.equal('addOwnerWithThreshold');
-      expectSameAddress(secondAdd.args[0], ownerC);
-      expect(secondAdd.args[1].toNumber()).to.equal(2);
-    });
-
-    it('should keep threshold change separate for symmetric swaps', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA, ownerB],
-        threshold: 1,
-      });
-
-      const transactions = await updateSafeOwner({
-        safeSdk,
-        owners: [ownerA, ownerC],
-        threshold: 2,
-      });
-
-      expect(transactions).to.have.lengthOf(2);
-
-      const swap = decodeSafeCall(transactions[0].data);
-      expect(swap.name).to.equal('swapOwner');
-      expectSameAddress(swap.args[0], ownerA);
-      expectSameAddress(swap.args[1], ownerB);
-      expectSameAddress(swap.args[2], ownerC);
-
-      const thresholdChange = decodeSafeCall(transactions[1].data);
-      expect(thresholdChange.name).to.equal('changeThreshold');
-      expect(thresholdChange.args[0].toNumber()).to.equal(2);
-    });
-
-    it('should reject thresholds above the final owner count', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA, ownerB],
-        threshold: 1,
-      });
-
-      await expectUpdateSafeOwnerRejection(
-        updateSafeOwner({
+        const transactions = await updateSafeOwner({
           safeSdk,
-          owners: [ownerC],
-          threshold: 2,
-        }),
-        'Safe threshold 2 exceeds owner count 1',
-      );
-    });
+          owners: testCase.expectedOwners,
+          threshold: testCase.newThreshold,
+          proposer: testCase.proposer,
+        });
 
-    it('should reject zero thresholds and empty owner configs', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA],
-        threshold: 1,
+        expectSafeCalls(transactions, testCase.expectedCalls);
       });
+    }
 
-      await expectUpdateSafeOwnerRejection(
-        updateSafeOwner({
-          safeSdk,
-          owners: [ownerA],
-          threshold: 0,
-        }),
-        'Safe threshold 0 must be at least 1',
-      );
+    const rejectionCases: {
+      name: string;
+      currentOwners: string[];
+      currentThreshold: number;
+      expectedOwners: string[];
+      newThreshold: number;
+      proposer?: string;
+      expectedMessage: string;
+    }[] = [
+      {
+        name: 'thresholds above the final owner count',
+        currentOwners: [ownerA, ownerB],
+        currentThreshold: 1,
+        expectedOwners: [ownerC],
+        newThreshold: 2,
+        expectedMessage: 'Safe threshold 2 exceeds owner count 1',
+      },
+      {
+        name: 'zero thresholds',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [ownerA],
+        newThreshold: 0,
+        expectedMessage: 'Safe threshold 0 must be at least 1',
+      },
+      {
+        name: 'empty owner configs',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [],
+        newThreshold: 1,
+        expectedMessage: 'Safe must have at least one owner',
+      },
+      {
+        name: 'removing the proposer from the final owner set',
+        currentOwners: [ownerA, ownerB, ownerC],
+        currentThreshold: 2,
+        expectedOwners: [ownerB, ownerC, ownerE],
+        newThreshold: 2,
+        proposer: ownerA,
+        expectedMessage: `Proposer ${ownerA} must remain a Safe owner`,
+      },
+      {
+        name: 'duplicate expected owners',
+        currentOwners: [ownerA, ownerB],
+        currentThreshold: 1,
+        expectedOwners: [ownerA, ownerA],
+        newThreshold: 1,
+        expectedMessage: `Duplicate Safe owner ${ownerA}`,
+      },
+      {
+        name: 'zero address expected owners',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [zeroAddress],
+        newThreshold: 1,
+        expectedMessage: 'Safe owner cannot be the zero address',
+      },
+      {
+        name: 'sentinel expected owners',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [sentinelOwners],
+        newThreshold: 1,
+        expectedMessage: `Safe owner cannot be sentinel owner ${sentinelOwners}`,
+      },
+      {
+        name: 'Safe self-ownership',
+        currentOwners: [ownerA],
+        currentThreshold: 1,
+        expectedOwners: [safeAddress],
+        newThreshold: 1,
+        expectedMessage: `Safe owner cannot be the Safe itself ${safeAddress}`,
+      },
+    ];
 
-      await expectUpdateSafeOwnerRejection(
-        updateSafeOwner({
-          safeSdk,
-          owners: [],
-          threshold: 1,
-        }),
-        'Safe must have at least one owner',
-      );
-    });
+    for (const testCase of rejectionCases) {
+      // eslint-disable-next-line jest/expect-expect -- expectRejection asserts the thrown message
+      it(`should reject ${testCase.name}`, async () => {
+        const safeSdk = createMockSafeSdk({
+          owners: testCase.currentOwners,
+          threshold: testCase.currentThreshold,
+        });
 
-    it('should reject removing the proposer from the final owner set', async () => {
-      const safeSdk = createMockSafeSdk({
-        owners: [ownerA, ownerB, ownerC],
-        threshold: 2,
+        await expectRejection(
+          updateSafeOwner({
+            safeSdk,
+            owners: testCase.expectedOwners,
+            threshold: testCase.newThreshold,
+            proposer: testCase.proposer,
+          }),
+          testCase.expectedMessage,
+        );
       });
-
-      await expectUpdateSafeOwnerRejection(
-        updateSafeOwner({
-          safeSdk,
-          owners: [ownerB, ownerC, ownerE],
-          threshold: 2,
-          proposer: ownerA,
-        }),
-        `Proposer ${ownerA} must remain a Safe owner`,
-      );
-    });
+    }
   });
 
   describe('parseSafeTx', () => {
@@ -503,18 +528,4 @@ describe('Safe Utils', () => {
       expect(decoded.args[0].toNumber()).to.equal(newThreshold);
     });
   });
-
-  // Note: Testing createSwapOwnerTransactions and findPrevOwner would require
-  // mocking the Safe SDK, which is complex. These functions should be tested
-  // in integration tests or by running the script in dry-run mode against
-  // actual Safe contracts on testnets.
-  //
-  // Key scenarios to test manually:
-  // 1. Single owner swap
-  // 2. Multiple consecutive owner swaps (to verify prevOwner calculation)
-  // 3. Multiple non-consecutive owner swaps
-  // 4. Swap first owner (prevOwner should be SENTINEL_OWNERS)
-  // 5. Swap last owner
-  // 6. Threshold change with swaps
-  // 7. Threshold change without swaps
 });
