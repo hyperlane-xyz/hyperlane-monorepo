@@ -9,3 +9,4 @@ test/outputs
 config/environments/test/core/
 config/environments/test/igp/
 config/environments/test/ism/
+safe-tx-output/
