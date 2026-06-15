@@ -12,3 +12,5 @@ The core Solidity package adds `AtomicLocalRebalancingBridge` for same-chain loc
 The `approveTokenForBridge(address,address)` helper is deprecated and clears legacy standing approval instead of setting max approval. The selector is retained for upgrade and governance-tooling compatibility.
 
 The SDK no longer emits bridge-approval transactions from `allowedRebalancingBridges[].approvedTokens`. The config field is still accepted for compatibility but is ignored. During `warp apply`, the SDK revokes legacy standing rebalancing-bridge allowances when a route is upgraded in place from a pre-revoke contract version, so an upgraded route does not retain the old max approval.
+
+The Solidity optimizer `runs` setting was lowered from 10,000 to 9,990 in both the Foundry and Hardhat configs. At 10,000 runs the optimizer crossed a discrete cost-model threshold that inflated `CrossCollateralRouter` to 24,607 bytes, 31 over the EIP-170 contract size limit. The output is byte-identical across the 9,900–9,990 range and only jumps at 10,000, so 9,990 brings `CrossCollateralRouter` to 24,457 bytes (119 under the limit) with a negligible runtime gas trade-off.
