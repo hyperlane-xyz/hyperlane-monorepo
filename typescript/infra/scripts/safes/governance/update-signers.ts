@@ -87,8 +87,11 @@ async function main() {
     'Refusing to propose owner updates for all governance Safes without --chains. Pass --all to confirm full-fleet proposal.',
   );
 
-  const chains: ChainName[] =
-    chainsArg && chainsArg.length > 0 ? chainsArg : Object.keys(safes);
+  const chains: ChainName[] = [
+    ...new Set(
+      chainsArg && chainsArg.length > 0 ? chainsArg : Object.keys(safes),
+    ),
+  ];
 
   const envConfig = getEnvironmentConfig('mainnet3');
   const multiProvider = await envConfig.getMultiProvider(
@@ -286,6 +289,9 @@ async function main() {
     (r) =>
       r.outcome === ChainOutcome.File || r.outcome === ChainOutcome.FileRaw,
   ).length;
+  const proposedCount = results.filter(
+    (r) => r.outcome === ChainOutcome.Proposed,
+  ).length;
 
   rootLogger.info(
     `\nSummary — ${governanceType} (${results.length} chains). ` +
@@ -297,6 +303,14 @@ async function main() {
     rootLogger.info(`Batch files written under ${runDir}`);
   }
   if (results.some((result) => result.outcome === ChainOutcome.Error)) {
+    process.exitCode = 1;
+  }
+  // A --propose run that proposed nothing on-chain but fell back to batch files
+  // (e.g. a tx-service outage) should not look green.
+  if (propose && proposedCount === 0 && fileCount > 0) {
+    rootLogger.error(
+      'Requested --propose but nothing was proposed on-chain (all targeted Safes degraded to batch files). Exiting non-zero.',
+    );
     process.exitCode = 1;
   }
   if (!propose) {

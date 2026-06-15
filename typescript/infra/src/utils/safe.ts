@@ -516,9 +516,13 @@ function findOwnerPosition(owners: Address[], targetOwner: Address): number {
 }
 
 function sortAddressesByValue(owners: Address[]): Address[] {
-  return deepCopy(owners).sort((a: Address, b: Address) =>
-    getAddress(a).localeCompare(getAddress(b)),
-  );
+  return deepCopy(owners).sort((a: Address, b: Address) => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    if (aLower < bLower) return -1;
+    if (aLower > bLower) return 1;
+    return 0;
+  });
 }
 
 /**
