@@ -704,9 +704,10 @@ export async function updateSafeOwner({
     `Proposer ${proposer} must remain a Safe owner`,
   );
 
-  // Sort ownersToRemove by their position in the currentOwners array.
-  // Safe owners are stored in a linked list, and each update changes the prevOwner
-  // needed for later updates in the same multisend.
+  // Sort ownersToRemove by their position in the currentOwners array. Safe owners
+  // are stored in a linked list, and each update changes the prevOwner needed for
+  // later updates in the same multisend. ownersToAdd is sorted independently (by
+  // address) so swap pairing and surplus-add ordering are deterministic.
   const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
     (a: Address, b: Address) => {
       return (
