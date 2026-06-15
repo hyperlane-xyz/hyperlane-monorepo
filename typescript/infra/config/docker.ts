@@ -24,6 +24,7 @@ interface AgentDockerTags {
   relayerFastPath: string;
   validator: string;
   validatorRC: string;
+  validatorFastPath: string;
   scraper: string;
 }
 
@@ -45,6 +46,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayerFastPath: '9502df3-20260612-173246',
   validator: '9502df3-20260612-173246',
   validatorRC: '9502df3-20260612-173246',
+  validatorFastPath: '9502df3-20260612-173246',
   scraper: '9502df3-20260612-173246',
   // monorepo services
   checkWarpDeploy: 'main',
@@ -62,6 +64,7 @@ export const testnetDockerTags: BaseDockerTags = {
   relayerFastPath: '8b6fdf8-20260605-090142',
   validator: '8b6fdf8-20260605-090142',
   validatorRC: '8b6fdf8-20260605-090142',
+  validatorFastPath: '8b6fdf8-20260605-090142',
   scraper: '8b6fdf8-20260605-090142',
   // standalone services
   keyFunder: '87f0933-20260605-085727',
