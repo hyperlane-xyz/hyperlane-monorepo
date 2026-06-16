@@ -5,7 +5,7 @@ import hre from 'hardhat';
 
 import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -24,6 +24,7 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  AmountRoutingIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
@@ -531,9 +532,7 @@ describe('EvmIsmModule', async () => {
         threshold: 2,
       };
 
-      const { ism, initialIsmAddress } = await createIsm(
-        config as AggregationIsmConfig,
-      );
+      const { ism, initialIsmAddress } = await createIsm(config);
 
       const updatedConfig: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
@@ -579,6 +578,152 @@ describe('EvmIsmModule', async () => {
       await expectTxsAndUpdate(ism, updatedConfig, 0);
 
       // expect the ISM address to be the same
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('updates uniquely typed aggregation sub-modules in-place', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const multisigConfig = randomMultisigIsmConfig(3, 5);
+      const routingConfig: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [multisigConfig, routingConfig],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const updatedConfig: AggregationIsmConfig = {
+        ...config,
+        modules: [
+          multisigConfig,
+          {
+            ...routingConfig,
+            domains: {
+              ...routingConfig.domains,
+              test2: randomMultisigIsmConfig(3, 5),
+            },
+          },
+        ],
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('redeploys aggregation when duplicate sub-module types make matching ambiguous', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.ROUTING,
+            owner,
+            domains: {
+              test1: randomMultisigIsmConfig(3, 5),
+            },
+          },
+          {
+            type: IsmType.ROUTING,
+            owner,
+            domains: {
+              test2: randomMultisigIsmConfig(3, 5),
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const currentConfig = (await ism.read()) as AggregationIsmConfig;
+      const [firstModule, secondModule] =
+        currentConfig.modules as DomainRoutingIsmConfig[];
+      assert(firstModule.type === IsmType.ROUTING);
+      assert(secondModule.type === IsmType.ROUTING);
+
+      const updatedSecondModule: DomainRoutingIsmConfig = {
+        ...secondModule,
+        domains: {
+          ...secondModule.domains,
+          test3: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const updatedConfig: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [updatedSecondModule, firstModule],
+        threshold: currentConfig.threshold,
+      };
+
+      const txs = await ism.update(updatedConfig);
+      expect(txs.length).to.equal(0);
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      // Duplicate aggregation modules have no canonical config order after
+      // factory address sorting, so keep the generic afterEach check aligned to
+      // the deployed order after asserting semantic config equivalence above.
+      const actualConfig = normalizeConfig(
+        await ism.read(),
+      ) as AggregationIsmConfig;
+      const actualModules = actualConfig.modules as DomainRoutingIsmConfig[];
+      const firstDomains = normalizeConfig(firstModule.domains);
+      const updatedSecondDomains = normalizeConfig(updatedSecondModule.domains);
+      expect(actualModules).to.have.length(2);
+      expect(
+        actualModules.some((module) =>
+          deepEquals(normalizeConfig(module.domains), firstDomains),
+        ),
+      ).to.be.true;
+      expect(
+        actualModules.some((module) =>
+          deepEquals(normalizeConfig(module.domains), updatedSecondDomains),
+        ),
+      ).to.be.true;
+      testConfig = actualConfig;
+    });
+
+    it(`updates ${IsmType.AMOUNT_ROUTING} sub-modules by fixed slot`, async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const lowerIsm: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const config: AmountRoutingIsmConfig = {
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm,
+        upperIsm: randomMultisigIsmConfig(3, 5),
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const updatedConfig: AmountRoutingIsmConfig = {
+        ...config,
+        lowerIsm: {
+          ...lowerIsm,
+          domains: {
+            ...lowerIsm.domains,
+            test2: randomMultisigIsmConfig(3, 5),
+          },
+        },
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
     });
