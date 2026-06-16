@@ -19,6 +19,7 @@ num-traits.workspace = true
 solana-program.workspace = true
 solana-system-interface.workspace = true
 spl-token.workspace = true
+spl-token-2022.workspace = true
 thiserror.workspace = true
 
 account-utils = { path = "../../libraries/account-utils" }

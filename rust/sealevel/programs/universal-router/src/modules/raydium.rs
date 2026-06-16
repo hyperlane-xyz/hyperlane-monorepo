@@ -12,11 +12,10 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     program::{invoke, invoke_signed},
-    program_pack::Pack,
 };
 
 use crate::{
-    constants::RAYDIUM_CLMM_PROGRAM_ID, error::RouterError,
+    constants::RAYDIUM_CLMM_PROGRAM_ID, error::RouterError, modules::utils::read_token_amount,
     types::amount_sentinels::CONTRACT_BALANCE,
 };
 
@@ -63,9 +62,7 @@ pub fn execute_raydium_clmm_swap_exact_in<'info>(
 
     let resolved_amount_in = if amount_in == CONTRACT_BALANCE {
         let data = input_token_account.data.borrow();
-        spl_token::state::Account::unpack(&data)
-            .map_err(|_| RouterError::InvalidInputs)?
-            .amount
+        read_token_amount(&data).map_err(|_| RouterError::InvalidInputs)?
     } else {
         amount_in
     };
@@ -179,9 +176,7 @@ pub fn execute_raydium_amm_swap_exact_in<'info>(
 
     let resolved_amount_in = if amount_in == CONTRACT_BALANCE {
         let data = user_source.data.borrow();
-        spl_token::state::Account::unpack(&data)
-            .map_err(|_| RouterError::InvalidInputs)?
-            .amount
+        read_token_amount(&data).map_err(|_| RouterError::InvalidInputs)?
     } else {
         amount_in
     };

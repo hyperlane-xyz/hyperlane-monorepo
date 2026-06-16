@@ -45,8 +45,8 @@ pub mod account_counts {
     pub const WRAP_SOL: usize = 3;
     /// wsol_ata, recipient, token_program
     pub const UNWRAP_WSOL: usize = 3;
-    /// src_ata, dst_ata, token_program
-    pub const SWEEP: usize = 3;
+    /// src_ata, dst_ata, mint, token_program
+    pub const SWEEP: usize = 4;
     /// src_ata, dst_ata, token_program
     pub const TRANSFER: usize = 3;
     /// See raydium.rs — 17 accounts

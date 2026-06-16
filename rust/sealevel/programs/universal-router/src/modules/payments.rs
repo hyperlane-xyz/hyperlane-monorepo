@@ -4,13 +4,16 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     program::{invoke, invoke_signed},
-    program_pack::Pack,
     rent::Rent,
     sysvar::Sysvar,
 };
 use solana_system_interface::instruction as system_instruction;
 
-use crate::{error::RouterError, types::amount_sentinels::CONTRACT_BALANCE};
+use crate::{
+    error::RouterError,
+    modules::utils::{build_token_transfer_checked_ix, read_mint_decimals, read_token_amount},
+    types::amount_sentinels::CONTRACT_BALANCE,
+};
 
 // ---------------------------------------------------------------------------
 // WRAP_SOL (0x08)
@@ -96,10 +99,11 @@ pub fn execute_unwrap_wsol<'info>(
 //
 // Transfers the entire balance of a token ATA to the recipient.
 //
-// remaining_accounts (3):
+// remaining_accounts (4):
 //   [0] src_ata          writable
 //   [1] dst_ata          writable
-//   [2] token_program
+//   [2] mint             readonly
+//   [3] token_program
 // ---------------------------------------------------------------------------
 pub fn execute_sweep<'info>(
     amount_min: u64,
@@ -107,18 +111,17 @@ pub fn execute_sweep<'info>(
     accounts: &'info [AccountInfo<'info>],
     signer_seeds: &[&[&[u8]]],
 ) -> ProgramResult {
-    if accounts.len() < 3 {
+    if accounts.len() < 4 {
         return Err(RouterError::InsufficientAccounts.into());
     }
     let src_ata = &accounts[0];
     let dst_ata = &accounts[1];
-    let token_program = &accounts[2];
+    let mint = &accounts[2];
+    let token_program = &accounts[3];
 
     let balance = {
         let data = src_ata.data.borrow();
-        spl_token::state::Account::unpack(&data)
-            .map_err(|_| RouterError::InvalidInputs)?
-            .amount
+        read_token_amount(&data).map_err(|_| RouterError::InvalidInputs)?
     };
 
     if balance < amount_min {
@@ -128,16 +131,23 @@ pub fn execute_sweep<'info>(
         return Ok(());
     }
 
-    let transfer_ix = spl_token::instruction::transfer(
+    let decimals = {
+        let data = mint.data.borrow();
+        read_mint_decimals(&data).map_err(|_| RouterError::InvalidInputs)?
+    };
+
+    let transfer_ix = build_token_transfer_checked_ix(
         token_program.key,
         src_ata.key,
+        mint.key,
         dst_ata.key,
         authority.key,
-        &[],
         balance,
+        decimals,
     )?;
     let infos = [
         src_ata.clone(),
+        mint.clone(),
         dst_ata.clone(),
         authority.clone(),
         token_program.clone(),
@@ -176,9 +186,7 @@ pub fn execute_transfer<'info>(
 
     let resolved = if amount == CONTRACT_BALANCE {
         let data = src_ata.data.borrow();
-        spl_token::state::Account::unpack(&data)
-            .map_err(|_| RouterError::InvalidInputs)?
-            .amount
+        read_token_amount(&data).map_err(|_| RouterError::InvalidInputs)?
     } else {
         amount
     };
@@ -187,6 +195,7 @@ pub fn execute_transfer<'info>(
         return Ok(());
     }
 
+    // TRANSFER is only used with SPL Token assets (USDC/USDT bridge tokens).
     let transfer_ix = spl_token::instruction::transfer(
         token_program.key,
         src_ata.key,
