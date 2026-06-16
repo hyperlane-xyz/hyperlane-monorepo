@@ -1,9 +1,6 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
-import {
-  MetaTransactionData,
-  SafeTransaction,
-} from '@safe-global/safe-core-sdk-types';
+import { MetaTransactionData, SafeTransaction } from '@safe-global/types-kit';
 import { Logger } from 'pino';
 
 import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
