@@ -147,12 +147,16 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
   base: awSafes.base,
   ethereum: awSafes.ethereum,
   optimism: awSafes.optimism,
-  polygon: awSafes.polygon,
-  unichain: awSafes.unichain,
+  // polygon/unichain/linea/monad/ink AW safes were commented out of awSafes in
+  // #8874 (inactive elsewhere) but still own these EclipseUSDC proxyAdmins
+  // on-chain. Pin the literal addresses so the declared owner keeps matching
+  // on-chain state instead of silently falling through to the regular ICA.
+  polygon: '0xf9cFD440CfBCfAB8473cc156485B7eE753b2913E',
+  unichain: '0x028C71E99e23fD393DE4207486D1aF7FA2b26b33',
   avalanche: awSafes.avalanche,
-  linea: awSafes.linea,
-  monad: awSafes.monad,
-  ink: awSafes.ink,
+  linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+  ink: '0x8DEe31BF7da558ee3224D22E224e172783CA8d70',
   worldchain: awSafes.worldchain,
   hyperevm: awSafes.hyperevm,
   bsc: awSafes.bsc,
