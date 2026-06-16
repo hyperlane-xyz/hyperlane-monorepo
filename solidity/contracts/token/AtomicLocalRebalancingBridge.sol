@@ -172,6 +172,7 @@ contract AtomicLocalRebalancingBridge is
         ) {
             revert InvalidSourceTokenBalance();
         }
+
         // Calls may consume at most the escrowed amount, not any sourceToken the
         // wrapper held before escrow.
         if (
@@ -180,6 +181,7 @@ contract AtomicLocalRebalancingBridge is
         ) {
             revert InvalidSourceTokenBalance();
         }
+
         // Calls must produce at least requiredOutputAmount of new output; balances
         // already on the wrapper cannot fund the destination.
         if (
@@ -189,7 +191,7 @@ contract AtomicLocalRebalancingBridge is
             revert InsufficientOutput();
         }
 
-        // Fund the destination, then refund the rebalancer's surplus.
+        // Fund the destination.
         IERC20(destinationToken).safeTransfer(
             destinationRouter,
             requiredOutputAmount
@@ -200,6 +202,7 @@ contract AtomicLocalRebalancingBridge is
         ) {
             revert InsufficientOutput();
         }
+
         // Refund only balances accrued during this call; never sweep pre-existing
         // balances.
         _refundTokenBalance(sourceToken, selfBefore.sourceToken, msg.sender);
@@ -210,7 +213,8 @@ contract AtomicLocalRebalancingBridge is
                 msg.sender
             );
         }
-        // Refund this call's unspent native.
+
+        // Refund this call's unspent native balance.
         uint256 nativeBalance = address(this).balance;
         if (nativeBalance > 0) {
             Address.sendValue(payable(msg.sender), nativeBalance);
@@ -273,6 +277,7 @@ contract AtomicLocalRebalancingBridge is
         if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
             revert InvalidCallback();
         }
+
         // Consume the callback before the external transfer (checks-effects-
         // interactions): enforces exactly one escrow and ensures any reentry
         // triggered by the transfer sees no active callback.

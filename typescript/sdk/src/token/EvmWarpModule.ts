@@ -38,6 +38,7 @@ import {
   objFilter,
   objKeys,
   objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -629,6 +630,94 @@ export class EvmWarpModule extends HyperlaneModule<
     return lower;
   }
 
+  /**
+   * Grants standing ERC20 allowances declared in `allowedRebalancingBridges[].approvedTokens`.
+   *
+   * Only legacy (pre-atomic-rebalancing) routers need explicit grants: their
+   * `approveTokenForBridge` sets max allowance. New impls grant an exact temporary
+   * allowance per rebalance and the same selector REVOKES, so emitting grants there
+   * would be wrong. Gated on the on-chain version being legacy, mirroring
+   * `createRevokeStaleBridgeAllowancesTxs`.
+   */
+  async getAllowedBridgesApprovalTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    // Only routers on a legacy impl grant max via `approveTokenForBridge`; on a new
+    // impl the same selector revokes, so there is nothing to grant ahead of time.
+    if (
+      !actualConfig.contractVersion ||
+      compareVersions(
+        actualConfig.contractVersion,
+        MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
+      ) > 0
+    ) {
+      return [];
+    }
+
+    const tokensToApproveByAllowedBridge = Object.values(
+      expectedConfig.allowedRebalancingBridges,
+    ).reduce(
+      (acc, allowedBridgesConfigs) => {
+        allowedBridgesConfigs.forEach((bridgeConfig) => {
+          acc[bridgeConfig.bridge] ??= [];
+          acc[bridgeConfig.bridge].push(...(bridgeConfig.approvedTokens ?? []));
+        });
+
+        return acc;
+      },
+      // allowed bridge -> tokens to approve
+      {} as Record<Address, Address[]>,
+    );
+
+    const filteredTokensToApproveByAllowedBridge = await promiseObjAll(
+      objMap(tokensToApproveByAllowedBridge, async (bridge, tokens) => {
+        const filteredApprovals = [];
+        for (const token of tokens) {
+          const instance = IERC20__factory.connect(
+            token,
+            this.multiProvider.getProvider(this.chainId),
+          );
+
+          const allowance = await instance.allowance(
+            this.args.addresses.deployedTokenRoute,
+            bridge,
+          );
+
+          if (!allowance.eq(constants.MaxUint256)) {
+            filteredApprovals.push(token);
+          }
+        }
+
+        return filteredApprovals;
+      }),
+    );
+
+    return Object.entries(filteredTokensToApproveByAllowedBridge).flatMap(
+      ([bridge, tokensToApprove]) =>
+        tokensToApprove.map((tokenToApprove) => ({
+          chainId: this.chainId,
+          annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'approveTokenForBridge(address,address)',
+            [tokenToApprove, bridge],
+          ),
+        })),
+    );
+  }
+
   async createAddAllowedBridgesUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -682,7 +771,11 @@ export class EvmWarpModule extends HyperlaneModule<
       });
     });
 
-    return bridgesToAllow;
+    const approvalTxs = await this.getAllowedBridgesApprovalTxs(
+      actualConfig,
+      expectedConfig,
+    );
+    return [...bridgesToAllow, ...approvalTxs];
   }
 
   createRemoveBridgesTxs(

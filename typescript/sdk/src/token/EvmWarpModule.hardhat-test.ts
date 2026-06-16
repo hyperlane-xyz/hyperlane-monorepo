@@ -1327,6 +1327,12 @@ describe('EvmWarpModule', async () => {
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
+        // Spoof a new (post-legacy) impl so `approvedTokens` are ignored: the new
+        // router grants allowances per rebalance, so only the addBridge tx is emitted.
+        const versionStub = sinon
+          .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+          .resolves('12.0.0');
+
         const txs = await evmERC20WarpModule.update(
           HypTokenRouterConfigSchema.parse({
             ...config,
@@ -1340,6 +1346,8 @@ describe('EvmWarpModule', async () => {
             },
           }),
         );
+
+        versionStub.restore();
 
         expect(txs.length).to.equal(1);
         await sendTxs(txs);
@@ -1693,6 +1701,69 @@ describe('EvmWarpModule', async () => {
               true,
             );
           expect(revokeTxs).to.be.empty;
+        });
+
+        it(`should emit an approval tx for approvedTokens on a legacy router for a route of type "${tokenType}"`, async () => {
+          const allowedBridge = normalizeAddressEvm(randomAddress());
+          const config = HypTokenRouterConfigSchema.parse({
+            ...getMovableTokenConfig()[tokenType],
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridge,
+                  approvedTokens: [feeToken.address],
+                },
+              ],
+            },
+          });
+
+          const evmERC20WarpModule = await EvmWarpModule.create({
+            chain,
+            config,
+            multiProvider,
+            proxyFactoryFactories: ismFactoryAddresses,
+          });
+
+          // Spoof a legacy impl so `approveTokenForBridge` still grants max. The
+          // emitted tx isn't executed here: the real (new-semantics) impl would
+          // revoke instead of grant, so we assert on the SDK's intent — the grant
+          // selector targeting the configured token and bridge.
+          const versionStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+            .resolves('11.3.0');
+          const scaleStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchScale')
+            .resolves(undefined);
+
+          const actualConfig = await evmERC20WarpModule.read();
+
+          versionStub.restore();
+          scaleStub.restore();
+
+          const approvalTxs =
+            await evmERC20WarpModule.getAllowedBridgesApprovalTxs(
+              actualConfig,
+              config,
+            );
+
+          expect(approvalTxs.length).to.equal(1);
+          expect(approvalTxs[0].to).to.equal(
+            evmERC20WarpModule.serialize().deployedTokenRoute,
+          );
+
+          assert(approvalTxs[0].data, 'expected approval calldata');
+          const [token, bridge] =
+            MovableCollateralRouter__factory.createInterface().decodeFunctionData(
+              'approveTokenForBridge(address,address)',
+              approvalTxs[0].data,
+            );
+          expect(eqAddress(token, feeToken.address)).to.be.true;
+          expect(eqAddress(bridge, allowedBridge)).to.be.true;
         });
       }
 
