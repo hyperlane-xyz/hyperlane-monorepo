@@ -10,6 +10,7 @@ import {
 // Fee quote the IGP computes for a message, in the local (fee-token) base unit:
 //   quote = gasAmount * gasPrice * tokenExchangeRate / 1e10
 const EXCHANGE_RATE_SCALE = 1e10;
+const MAX_REBALANCED_QUOTE_ROUNDING_ERROR = 1 / 1000;
 function quote(
   config: { gasPrice: string; tokenExchangeRate: string },
   gasAmount: number,
@@ -69,40 +70,39 @@ describe('getLocalStorageGasOracleConfig', () => {
       exchangeRateMarginPct: 0,
     }).remote;
 
-    // Exchange rate must stay well above the floor (not collapse to 1).
-    expect(Number(config.tokenExchangeRate)).to.be.greaterThan(1);
+    // Exchange rate must be representable before integer rounding.
+    expect(Number(config.tokenExchangeRate)).to.be.at.least(1);
 
     // The quote (gasPrice * exchangeRate product) must match the intended value:
     // intended per-gas = 5e10 * 0.1 / 1e10 = 0.5 base units per unit gas.
     const gasAmount = 200_000;
     expect(quote(config, gasAmount)).to.be.approximately(
       0.5 * gasAmount,
-      0.5 * gasAmount * 0.001, // within 0.1% (ceil rounding on the gas price)
+      0.5 * gasAmount * MAX_REBALANCED_QUOTE_ROUNDING_ERROR,
     );
   });
 
-  it('falls back to the floor when the gas price is too small to rebalance', () => {
-    // gasPrice in wei (100) is below MIN_REBALANCED_GAS_PRICE, so there is no
-    // magnitude to shift; the exchange rate floors to 1 rather than throwing.
+  it('throws when a sub-unit exchange rate has no gas price headroom to rebalance', () => {
+    // gasPrice in wei (5) is below MIN_REBALANCED_GAS_PRICE, so shifting any
+    // magnitude into the exchange rate would exceed the rounding-error bound.
     const gasOracleParams: Record<string, ChainGasOracleParams> = {
       feeToken: {
         gasPrice: { amount: '1', decimals: 9 },
         nativeToken: { price: '1', decimals: 6 },
       },
       remote: {
-        gasPrice: { amount: '100', decimals: 0 }, // 100 wei
+        gasPrice: { amount: '5', decimals: 0 }, // <10 wei
         nativeToken: { price: '10', decimals: 18 },
       },
     };
 
-    const config = getLocalStorageGasOracleConfig({
-      local: 'feeToken',
-      localProtocolType: ProtocolType.Ethereum,
-      gasOracleParams,
-      exchangeRateMarginPct: 0,
-    }).remote;
-
-    expect(config.tokenExchangeRate).to.equal('1');
-    expect(config.gasPrice).to.equal('100');
+    expect(() =>
+      getLocalStorageGasOracleConfig({
+        local: 'feeToken',
+        localProtocolType: ProtocolType.Ethereum,
+        gasOracleParams,
+        exchangeRateMarginPct: 0,
+      }),
+    ).to.throw('Token exchange rate must be at least 1');
   });
 });

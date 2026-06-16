@@ -282,10 +282,15 @@ export function getLocalStorageGasOracleConfig({
   }, {} as ChainMap<ProtocolAgnositicGasOracleConfig>);
 }
 
-// Floor for the gas price after rebalancing a sub-unit exchange rate. The gas
-// price is divided when shifting magnitude into the exchange rate; keeping it
-// above this bound caps the rounding error from the final ceil.
+// Floor for the gas price after rebalancing a sub-unit exchange rate. Because
+// the final gas price is ceiled, keeping the rebalanced value at least 1000
+// bounds the relative quote error from that ceil to < 1 / 1000 = 0.1%.
 const MIN_REBALANCED_GAS_PRICE = 1000;
+
+function decimalMagnitude(value: InstanceType<typeof BigNumberJs>): number {
+  if (value.lt(1)) return 0;
+  return value.integerValue(BigNumberJs.ROUND_FLOOR).toFixed(0).length - 1;
+}
 
 function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
@@ -303,21 +308,37 @@ function adjustForPrecisionLoss(
   // the exchange rate by a power of ten: the product (and thus the quote) is
   // preserved while the on-chain exchange rate keeps its precision. No-op for
   // same-decimal native pairs, where the scaled rate is already >> 1.
-  if (newExchangeRate.lt(1) && newGasPrice.gt(MIN_REBALANCED_GAS_PRICE)) {
-    const headroom = Math.floor(
-      Math.log10(newGasPrice.div(MIN_REBALANCED_GAS_PRICE).toNumber()),
+  if (newExchangeRate.lt(1)) {
+    const headroom = decimalMagnitude(
+      newGasPrice.div(MIN_REBALANCED_GAS_PRICE),
     );
-    if (headroom >= 1) {
-      const factor = new BigNumberJs(10).pow(headroom);
+    let digitsNeeded = 0;
+    while (
+      digitsNeeded < headroom &&
+      newExchangeRate.times(new BigNumberJs(10).pow(digitsNeeded)).lt(1)
+    ) {
+      digitsNeeded += 1;
+    }
+
+    const shiftMagnitude = Math.min(headroom, digitsNeeded);
+    if (shiftMagnitude > 0) {
+      const factor = new BigNumberJs(10).pow(shiftMagnitude);
       newExchangeRate = newExchangeRate.times(factor);
       newGasPrice = newGasPrice.div(factor);
     }
+
+    assert(
+      newExchangeRate.gte(1),
+      `Token exchange rate must be at least 1 after precision rebalance. Original gas price: ${new BigNumberJs(
+        gasPrice,
+      ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
+    );
   }
 
   // We may have very little precision, and ultimately need an integer value for
   // the gas price that will be set on-chain. If this is the case, we scale up the
   // gas price and scale down the exchange rate by the same factor.
-  if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
+  if (newGasPrice.lt(10) && !newGasPrice.mod(1).isZero()) {
     // Scale up the gas price by 1e4 (arbitrary choice)
     const gasPriceScalingFactor = 1e4;
 
