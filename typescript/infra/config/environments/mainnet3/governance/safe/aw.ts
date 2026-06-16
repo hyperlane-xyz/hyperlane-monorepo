@@ -15,7 +15,7 @@ export const awSafes: ChainMap<Address> = {
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
   ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
   hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
-  mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
+  mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have safe API > 5.18.0
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   optimism: '0xbd7db3821806bc72D223F0AE521Bf82FcBd6Ef4d',
   plasma: '0xCcf5e9862D486e71aA47B87Cb3a7eEB1e1f2F624',

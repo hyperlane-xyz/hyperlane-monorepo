@@ -51,7 +51,10 @@ import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
@@ -1035,19 +1038,27 @@ const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
   contextChainNames: {
-    validator: [],
+    validator: [
+      'arbitrum',
+      'base',
+      'bsc',
+      'citrea',
+      'ethereum',
+      'katana',
+      'polygon',
+    ],
     relayer: [
       'arbitrum',
       'base',
+      'bsc',
       'citrea',
       'ethereum',
-      'polygon',
-      'bsc',
       'katana',
+      'polygon',
     ],
     scraper: [],
   },
-  rolesWithKeys: [Role.Relayer],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -1061,17 +1072,21 @@ const fastPath: RootAgentConfig = {
     ],
     blacklist,
     gasPaymentEnforcement,
-    reorgPeriodOverrides: {
-      ethereum: 1,
-      arbitrum: 1,
-      base: 1,
-      citrea: 1,
-    },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,
     cache: {
       enabled: true,
     },
     resources: fastPathRelayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validatorFastPath,
+    },
+    chains: validatorChainConfig(Contexts.FastPath),
+    resources: validatorResources,
   },
 };
 

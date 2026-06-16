@@ -5,6 +5,14 @@ import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
 
+const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
+
+export const fastPathReorgPeriodOverrides: Record<string, number> = {
+  arbitrumsepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  basesepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+};
+
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
