@@ -74,10 +74,15 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error('No chains configured');
     }
 
-    // Store chains for helm values (used for private RPC secrets)
-    // Warp core config includes all strategy chains
+    // Store chains for helm values (used for private RPC secrets).
+    // Merge warp token chains and strategy chains — some strategy chains
+    // (e.g. solanamainnet used as a LiFi bridge target) are not warp tokens
+    // and would otherwise fall back to the public registry RPC.
     this.rebalancerChains = [
-      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
+      ...new Set([
+        ...warpCoreConfig.tokens.map((t) => t.chainName),
+        ...chainNames,
+      ]),
     ];
 
     // Store the config file content for helm values
