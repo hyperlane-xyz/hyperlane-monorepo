@@ -5,9 +5,9 @@ import {
   EvmHookModule,
   HookType,
   IgpConfig,
-  IgpVersion,
   extractIsmAndHookFactoryAddresses,
 } from '@hyperlane-xyz/sdk';
+import type { IgpVersion } from '@hyperlane-xyz/sdk';
 import { assert, deepCopy } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -21,6 +21,8 @@ import {
   withOutputFile,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+
+const LEGACY_IGP_VERSION = 'legacy' as IgpVersion;
 
 function serializeTx(tx: Awaited<ReturnType<EvmHookModule['update']>>[number]) {
   return {
@@ -50,7 +52,7 @@ async function main() {
   const configuredLegacyChains = legacyIgpChains.filter(
     (chain) =>
       envConfig.supportedChainNames.includes(chain) &&
-      igpConfigs[chain]?.igpVersion === IgpVersion.Legacy,
+      igpConfigs[chain]?.igpVersion === LEGACY_IGP_VERSION,
   );
   const targetChains =
     requestedChains && requestedChains.length > 0
@@ -60,7 +62,7 @@ async function main() {
   assert(targetChains.length > 0, 'No legacy IGP chains selected');
 
   const nonLegacyChains = targetChains.filter(
-    (chain) => igpConfigs[chain]?.igpVersion !== IgpVersion.Legacy,
+    (chain) => igpConfigs[chain]?.igpVersion !== LEGACY_IGP_VERSION,
   );
   assert(
     nonLegacyChains.length === 0,

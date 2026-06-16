@@ -1,10 +1,5 @@
-import {
-  ChainMap,
-  ChainName,
-  HookType,
-  IgpConfig,
-  IgpVersion,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import type { IgpVersion } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
@@ -23,6 +18,7 @@ import { tokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
+const LEGACY_IGP_VERSION = 'legacy' as IgpVersion;
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
@@ -59,18 +55,25 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
 export const igp: ChainMap<IgpConfig> = objMap(
   chainOwners,
   (local, owner): IgpConfig => {
+    const tokenOracleConfig = tokenGasOracleConfigs[local];
     if (local === 'eden') {
-      return getEdenIgpConfig(owner, storageGasOracleConfig);
+      return {
+        ...getEdenIgpConfig(owner, storageGasOracleConfig),
+        ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
+      };
     }
 
     if (local === 'tron') {
-      return getTronIgpConfig(owner, storageGasOracleConfig);
+      return {
+        ...getTronIgpConfig(owner, storageGasOracleConfig),
+        ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
+      };
     }
 
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       ...(legacyIgpChains.includes(local)
-        ? { igpVersion: IgpVersion.Legacy }
+        ? { igpVersion: LEGACY_IGP_VERSION }
         : {}),
       ...owner,
       ownerOverrides: {
@@ -89,9 +92,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       oracleConfig: getOracleConfigWithOverrides(local),
       // Per-fee-token gas oracles for token-denominated IGP fees; configured in
       // tokenGasOracles.ts (empty by default).
-      ...(tokenGasOracleConfigs[local]
-        ? { tokenOracleConfig: tokenGasOracleConfigs[local] }
-        : {}),
+      ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
     };
   },
 );

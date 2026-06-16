@@ -208,11 +208,14 @@ async function main() {
       }
 
       // ---- Fee-token claims ----
-      // Fee tokens are enumerated from the IGP's tokenOracleConfig (the same set
-      // configured via setTokenGasOracles). Empty on legacy IGPs / chains with no
-      // token-denominated fees, so this is a no-op there. The manual script claims
-      // any non-zero configured fee-token balance; gas is paid by the signer in the
-      // native token, so the native 2x-gas guard above does not apply here.
+      // Fee tokens are enumerated from the append-only IGP tokenOracleConfig.
+      // The on-chain tokenGasOracles mapping is not enumerable, so tokens removed
+      // from config are not discoverable here. Keep token entries in config until
+      // any stranded IGP balance has been reclaimed. Empty on legacy IGPs / chains
+      // with no token-denominated fees, so this is a no-op there. The manual
+      // script claims any non-zero configured fee-token balance; gas is paid by
+      // the signer in the native token, so the native 2x-gas guard above does not
+      // apply here.
       const feeTokens = Object.keys(igpConfigs[chain]?.tokenOracleConfig ?? {});
       for (const tokenAddr of feeTokens) {
         let label = tokenAddr;
@@ -236,6 +239,8 @@ async function main() {
             });
             continue;
           }
+
+          await paymaster.estimateGas.claimToken(tokenAddr);
 
           if (dryRun) {
             rootLogger.info(

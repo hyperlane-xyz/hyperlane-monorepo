@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 import { ModuleType } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -370,7 +370,28 @@ const GasPaymentEnforcementSchema = z.union([
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
 function feeTokenIsNonZero(feeToken?: string): boolean {
-  return feeToken != null && /[1-9a-f]/i.test(feeToken.replace(/^0x/i, ''));
+  return !isEmptyAddress(feeToken);
+}
+
+function gasPaymentEnforcementPolicies(
+  gasPaymentEnforcement: unknown,
+): GasPaymentEnforcement[] | undefined {
+  if (Array.isArray(gasPaymentEnforcement)) {
+    return gasPaymentEnforcement;
+  }
+
+  if (typeof gasPaymentEnforcement !== 'string') {
+    return undefined;
+  }
+
+  try {
+    const result = z
+      .array(GasPaymentEnforcementSchema)
+      .safeParse(JSON.parse(gasPaymentEnforcement));
+    return result.success ? result.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const MetricAppContextSchema = z.object({
@@ -530,11 +551,11 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
 }).superRefine((config, ctx) => {
   // Mirror the Rust relayer gate: the current IGP event does not expose the
   // token address, so exact non-native `feeToken` enforcement is rejected.
-  const { gasPaymentEnforcement } = config;
-  if (!Array.isArray(gasPaymentEnforcement)) {
+  const policies = gasPaymentEnforcementPolicies(config.gasPaymentEnforcement);
+  if (!policies) {
     return;
   }
-  gasPaymentEnforcement.forEach((policy, policyIndex) => {
+  policies.forEach((policy, policyIndex) => {
     if (!feeTokenIsNonZero(policy.feeToken)) {
       return;
     }

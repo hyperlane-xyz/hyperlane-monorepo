@@ -42,6 +42,17 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
     }
   });
 
+  it('rejects non-zero feeToken policy in stringified config', () => {
+    const result = RelayerAgentConfigSchema.safeParse(
+      config({
+        gasPaymentEnforcement: JSON.stringify([
+          { type: 'minimum', payment: '1', feeToken: FEE_TOKEN },
+        ]),
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
   it('allows unset feeToken', () => {
     const result = RelayerAgentConfigSchema.safeParse(
       config({

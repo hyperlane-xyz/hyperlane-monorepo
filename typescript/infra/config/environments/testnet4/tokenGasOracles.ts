@@ -43,7 +43,9 @@ const SEISMIC: ChainName = 'seismictestnet';
 const SEISMIC_SUSDC = '0x790701048922e265105fd6a4467a2901c2201c43';
 const SEISMIC_SUSDC_DECIMALS = 6;
 // sUSDC is USD-pegged, so priced at $1: quotes then land at the same USD value
-// as the native SIZE quote, just denominated in sUSDC.
+// as the native SIZE quote, just denominated in sUSDC. This testnet-only
+// constant has no depeg or staleness guard; replace it with a live/staleness-
+// checked price source before any mainnet reuse.
 const SEISMIC_SUSDC_PRICE = '1';
 
 /**
