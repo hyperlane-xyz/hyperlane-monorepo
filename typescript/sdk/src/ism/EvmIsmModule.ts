@@ -40,8 +40,6 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
-  AmountRoutingIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -59,6 +57,8 @@ type IsmModuleAddresses = {
   deployedIsm: Address;
   mailbox: Address;
 };
+
+type ContainerSubModuleEntry = { address: Address; targetConfig: IsmConfig };
 
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -82,7 +82,7 @@ export class EvmIsmModule extends HyperlaneModule<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
-    ccipContractCache?: CCIPContractCache,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
@@ -525,74 +525,17 @@ export class EvmIsmModule extends HyperlaneModule<
     current: DerivedIsmConfig,
     target: DerivedIsmConfig,
   ): Promise<AnnotatedEV5Transaction[] | null> {
-    type SubModuleEntry = { address: Address; targetConfig: IsmConfig };
-    let subModules: SubModuleEntry[];
-    const provider = this.multiProvider.getProvider(this.chain);
+    const subModules = await this.containerSubModules(
+      this.args.addresses.deployedIsm,
+      current,
+      target,
+    );
+    if (subModules === null) return null;
 
-    if (
-      current.type === IsmType.AGGREGATION &&
-      target.type === IsmType.AGGREGATION
-    ) {
-      const currentAgg = current as AggregationIsmConfig;
-      const targetAgg = target as AggregationIsmConfig;
-      if (
-        currentAgg.threshold !== targetAgg.threshold ||
-        currentAgg.modules.length !== targetAgg.modules.length
-      ) {
+    for (const { address: origAddress, targetConfig } of subModules) {
+      if (!(await this.canUpdateSubModuleInPlace(origAddress, targetConfig))) {
         return null;
       }
-      const aggregationIsm = StaticAggregationIsm__factory.connect(
-        this.args.addresses.deployedIsm,
-        provider,
-      );
-      const [onChainAddresses] = await aggregationIsm.modulesAndThreshold(
-        ethers.constants.AddressZero,
-      );
-      if (onChainAddresses.length !== targetAgg.modules.length) return null;
-
-      // Derive each sub-module's type so we can sort addresses to match the
-      // normalizeConfig sort order (modules sorted by IsmType string value).
-      const onChainTyped = await Promise.all(
-        onChainAddresses.map(async (addr) => {
-          const cfg = await this.reader.deriveIsmConfig(addr);
-          return { addr, type: typeof cfg === 'string' ? cfg : cfg.type };
-        }),
-      );
-      onChainTyped.sort((a, b) =>
-        a.type < b.type ? -1 : a.type > b.type ? 1 : 0,
-      );
-      const sortedTargetModules = [...targetAgg.modules].sort((a, b) => {
-        const aType =
-          typeof a === 'object' && a !== null ? (a as any).type : String(a);
-        const bType =
-          typeof b === 'object' && b !== null ? (b as any).type : String(b);
-        return aType < bType ? -1 : aType > bType ? 1 : 0;
-      });
-      subModules = onChainTyped.map(({ addr }, i) => ({
-        address: addr,
-        targetConfig: sortedTargetModules[i],
-      }));
-    } else if (
-      current.type === IsmType.AMOUNT_ROUTING &&
-      target.type === IsmType.AMOUNT_ROUTING
-    ) {
-      const currentAR = current as AmountRoutingIsmConfig;
-      const targetAR = target as AmountRoutingIsmConfig;
-      if (currentAR.threshold !== targetAR.threshold) return null;
-      const amountRoutingIsm = AmountRoutingIsm__factory.connect(
-        this.args.addresses.deployedIsm,
-        provider,
-      );
-      const [lowerAddr, upperAddr] = await Promise.all([
-        amountRoutingIsm.lower(),
-        amountRoutingIsm.upper(),
-      ]);
-      subModules = [
-        { address: lowerAddr, targetConfig: targetAR.lowerIsm },
-        { address: upperAddr, targetConfig: targetAR.upperIsm },
-      ];
-    } else {
-      return null;
     }
 
     const allUpdateTxs: AnnotatedEV5Transaction[] = [];
@@ -604,7 +547,7 @@ export class EvmIsmModule extends HyperlaneModule<
           config: targetConfig,
           addresses: { ...this.args.addresses, deployedIsm: origAddress },
         },
-        undefined,
+        this.ccipContractCache,
         this.contractVerifier,
       );
       allUpdateTxs.push(...(await subModule.update(targetConfig)));
@@ -613,5 +556,177 @@ export class EvmIsmModule extends HyperlaneModule<
       }
     }
     return allUpdateTxs;
+  }
+
+  private async containerSubModules(
+    containerAddress: Address,
+    current: DerivedIsmConfig,
+    target: DerivedIsmConfig,
+  ): Promise<ContainerSubModuleEntry[] | null> {
+    const provider = this.multiProvider.getProvider(this.chain);
+
+    if (
+      current.type === IsmType.AGGREGATION &&
+      target.type === IsmType.AGGREGATION
+    ) {
+      if (
+        current.threshold !== target.threshold ||
+        current.modules.length !== target.modules.length
+      ) {
+        return null;
+      }
+      const aggregationIsm = StaticAggregationIsm__factory.connect(
+        containerAddress,
+        provider,
+      );
+      const [onChainAddresses] = await aggregationIsm.modulesAndThreshold(
+        ethers.constants.AddressZero,
+      );
+      if (onChainAddresses.length !== target.modules.length) return null;
+
+      const onChainTyped = await Promise.all(
+        onChainAddresses.map(async (addr) => {
+          const cfg = await this.reader.deriveIsmConfig(addr);
+          return { address: addr, key: this.ismConfigSortKey(cfg) };
+        }),
+      );
+
+      const targetTyped = target.modules.map((targetConfig) => ({
+        targetConfig,
+        key: this.ismConfigSortKey(targetConfig),
+      }));
+
+      if (
+        this.hasDuplicateSortKeys(onChainTyped.map(({ key }) => key)) ||
+        this.hasDuplicateSortKeys(targetTyped.map(({ key }) => key))
+      ) {
+        return null;
+      }
+
+      // These only need to match each other; duplicate keys are rejected above.
+      onChainTyped.sort((a, b) => a.key.localeCompare(b.key));
+      targetTyped.sort((a, b) => a.key.localeCompare(b.key));
+
+      const subModules: ContainerSubModuleEntry[] = [];
+      for (const [i, { address, key }] of onChainTyped.entries()) {
+        if (key !== targetTyped[i].key) return null;
+        subModules.push({
+          address,
+          targetConfig: targetTyped[i].targetConfig,
+        });
+      }
+      return subModules;
+    } else if (
+      current.type === IsmType.AMOUNT_ROUTING &&
+      target.type === IsmType.AMOUNT_ROUTING
+    ) {
+      if (current.threshold !== target.threshold) return null;
+      const amountRoutingIsm = AmountRoutingIsm__factory.connect(
+        containerAddress,
+        provider,
+      );
+      const [lowerAddr, upperAddr] = await Promise.all([
+        amountRoutingIsm.lower(),
+        amountRoutingIsm.upper(),
+      ]);
+      return [
+        { address: lowerAddr, targetConfig: target.lowerIsm },
+        { address: upperAddr, targetConfig: target.upperIsm },
+      ];
+    } else {
+      return null;
+    }
+  }
+
+  private async canUpdateSubModuleInPlace(
+    address: Address,
+    targetConfig: IsmConfig,
+  ): Promise<boolean> {
+    const normalizedCurrentConfig = normalizeConfig(
+      await this.reader.deriveIsmConfig(address),
+    );
+    const normalizedTargetConfig = normalizeConfig(
+      await this.reader.deriveIsmConfig(targetConfig),
+    );
+
+    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
+      return true;
+    }
+
+    if (typeof normalizedTargetConfig === 'string') {
+      return eqAddress(address, normalizedTargetConfig);
+    }
+
+    if (
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedCurrentConfig.type !== normalizedTargetConfig.type
+    ) {
+      return false;
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.AGGREGATION ||
+      normalizedCurrentConfig.type === IsmType.AMOUNT_ROUTING
+    ) {
+      const subModules = await this.containerSubModules(
+        address,
+        normalizedCurrentConfig,
+        normalizedTargetConfig,
+      );
+      if (subModules === null) return false;
+
+      for (const {
+        address: subModuleAddress,
+        targetConfig: subModuleTarget,
+      } of subModules) {
+        if (
+          !(await this.canUpdateSubModuleInPlace(
+            subModuleAddress,
+            subModuleTarget,
+          ))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (!MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)) {
+      return false;
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.INCREMENTAL_ROUTING &&
+      normalizedTargetConfig.type === IsmType.INCREMENTAL_ROUTING
+    ) {
+      return (
+        calculateDomainRoutingDelta(
+          normalizedCurrentConfig,
+          normalizedTargetConfig,
+        ).domainsToUpdate.length === 0
+      );
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.recipient !== undefined
+    ) {
+      const onChainRecipient = await RateLimitedIsm__factory.connect(
+        address,
+        this.multiProvider.getProvider(this.chain),
+      ).recipient();
+      return eqAddress(onChainRecipient, normalizedTargetConfig.recipient);
+    }
+
+    return true;
+  }
+
+  private ismConfigSortKey(config: IsmConfig): string {
+    return typeof config === 'string' ? config : config.type;
+  }
+
+  private hasDuplicateSortKeys(keys: string[]): boolean {
+    return new Set(keys).size !== keys.length;
   }
 }

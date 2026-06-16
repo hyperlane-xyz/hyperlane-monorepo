@@ -3,9 +3,12 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+import {
+  RateLimitedIsm__factory,
+  StaticAggregationIsm__factory,
+} from '@hyperlane-xyz/core';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -24,6 +27,7 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  AmountRoutingIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
@@ -118,6 +122,93 @@ describe('EvmIsmModule', async () => {
     }
   }
 
+  async function readIsmAt(
+    deployedIsm: Address,
+    config: Exclude<IsmConfig, string>,
+  ): Promise<IsmConfig> {
+    return new EvmIsmModule(multiProvider, {
+      chain,
+      config,
+      addresses: {
+        ...factoryAddresses,
+        mailbox: mailboxAddress,
+        deployedIsm,
+      },
+    }).read();
+  }
+
+  async function aggregationModuleAddresses(
+    deployedIsm: Address,
+  ): Promise<Address[]> {
+    const aggregationIsm = StaticAggregationIsm__factory.connect(
+      deployedIsm,
+      multiProvider.getProvider(chain),
+    );
+    const [moduleAddresses] = await aggregationIsm.modulesAndThreshold(
+      hre.ethers.constants.AddressZero,
+    );
+    return moduleAddresses;
+  }
+
+  async function findAggregationModuleAddress(
+    deployedIsm: Address,
+    type: IsmType,
+    config: Exclude<IsmConfig, string>,
+  ): Promise<Address> {
+    for (const moduleAddress of await aggregationModuleAddresses(deployedIsm)) {
+      const moduleConfig = await readIsmAt(moduleAddress, config);
+      if (typeof moduleConfig !== 'string' && moduleConfig.type === type) {
+        return moduleAddress;
+      }
+    }
+    throw new Error(`No ${type} module found`);
+  }
+
+  function removeRateLimitedRecipients(config: IsmConfig): IsmConfig {
+    const normalizedConfig = normalizeConfig(config);
+    if (typeof normalizedConfig === 'string') return normalizedConfig;
+
+    if (normalizedConfig.type === IsmType.RATE_LIMITED) {
+      const { recipient: _recipient, ...configWithoutRecipient } =
+        normalizedConfig;
+      return configWithoutRecipient;
+    }
+
+    if (normalizedConfig.type === IsmType.AGGREGATION) {
+      return {
+        ...normalizedConfig,
+        modules: normalizedConfig.modules.map(removeRateLimitedRecipients),
+      };
+    }
+
+    if (normalizedConfig.type === IsmType.AMOUNT_ROUTING) {
+      return {
+        ...normalizedConfig,
+        lowerIsm: removeRateLimitedRecipients(normalizedConfig.lowerIsm),
+        upperIsm: removeRateLimitedRecipients(normalizedConfig.upperIsm),
+      };
+    }
+
+    if (
+      normalizedConfig.type === IsmType.ROUTING ||
+      normalizedConfig.type === IsmType.FALLBACK_ROUTING ||
+      normalizedConfig.type === IsmType.INCREMENTAL_ROUTING
+    ) {
+      return {
+        ...normalizedConfig,
+        domains: Object.fromEntries(
+          Object.keys(normalizedConfig.domains).map((origin) => {
+            const ismConfig = normalizedConfig.domains[origin];
+            assert(ismConfig);
+            return [origin, removeRateLimitedRecipients(ismConfig)];
+          }),
+        ),
+      };
+    }
+
+    return normalizedConfig;
+  }
+
   // ism module and config for testing
   let testIsm: EvmIsmModule;
   let testConfig: IsmConfig;
@@ -126,13 +217,8 @@ describe('EvmIsmModule', async () => {
   afterEach(async () => {
     const derivedConfiig = await testIsm.read();
 
-    const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
-    const normalizedConfig = normalizeConfig(testConfig);
-
-    // recipient is a deploy-time constructor arg not returned by read()
-    if (normalizedConfig.type === IsmType.RATE_LIMITED) {
-      delete normalizedConfig.recipient;
-    }
+    const normalizedDerivedConfig = removeRateLimitedRecipients(derivedConfiig);
+    const normalizedConfig = removeRateLimitedRecipients(testConfig);
 
     assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
@@ -531,9 +617,7 @@ describe('EvmIsmModule', async () => {
         threshold: 2,
       };
 
-      const { ism, initialIsmAddress } = await createIsm(
-        config as AggregationIsmConfig,
-      );
+      const { ism, initialIsmAddress } = await createIsm(config);
 
       const updatedConfig: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
@@ -581,6 +665,356 @@ describe('EvmIsmModule', async () => {
       // expect the ISM address to be the same
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
+    });
+
+    it('updates uniquely typed aggregation sub-modules in-place', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const multisigConfig = randomMultisigIsmConfig(3, 5);
+      const routingConfig: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [multisigConfig, routingConfig],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const updatedConfig: AggregationIsmConfig = {
+        ...config,
+        modules: [
+          multisigConfig,
+          {
+            ...routingConfig,
+            domains: {
+              ...routingConfig.domains,
+              test2: randomMultisigIsmConfig(3, 5),
+            },
+          },
+        ],
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('redeploys aggregation when duplicate sub-module types make matching ambiguous', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.ROUTING,
+            owner,
+            domains: {
+              test1: randomMultisigIsmConfig(3, 5),
+            },
+          },
+          {
+            type: IsmType.ROUTING,
+            owner,
+            domains: {
+              test2: randomMultisigIsmConfig(3, 5),
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const currentConfig = (await ism.read()) as AggregationIsmConfig;
+      const originalModuleAddresses =
+        await aggregationModuleAddresses(initialIsmAddress);
+      const [firstModule, secondModule] =
+        currentConfig.modules as DomainRoutingIsmConfig[];
+      assert(firstModule.type === IsmType.ROUTING);
+      assert(secondModule.type === IsmType.ROUTING);
+      const originalFirstConfig = normalizeConfig(
+        await readIsmAt(originalModuleAddresses[0], firstModule),
+      );
+      const originalSecondConfig = normalizeConfig(
+        await readIsmAt(originalModuleAddresses[1], secondModule),
+      );
+
+      const updatedSecondModule: DomainRoutingIsmConfig = {
+        ...secondModule,
+        domains: {
+          ...secondModule.domains,
+          test3: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const updatedConfig: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [updatedSecondModule, firstModule],
+        threshold: currentConfig.threshold,
+      };
+
+      const txs = await ism.update(updatedConfig);
+      expect(txs.length).to.equal(0);
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+      expect(
+        originalModuleAddresses.some((address) =>
+          eqAddress(address, ism.serialize().deployedIsm),
+        ),
+      ).to.be.false;
+      expect(
+        deepEquals(
+          normalizeConfig(
+            await readIsmAt(originalModuleAddresses[0], firstModule),
+          ),
+          originalFirstConfig,
+        ),
+      ).to.be.true;
+      expect(
+        deepEquals(
+          normalizeConfig(
+            await readIsmAt(originalModuleAddresses[1], secondModule),
+          ),
+          originalSecondConfig,
+        ),
+      ).to.be.true;
+
+      // Duplicate aggregation modules have no canonical config order after
+      // factory address sorting, so keep the generic afterEach check aligned to
+      // the deployed order after asserting semantic config equivalence above.
+      const actualConfig = normalizeConfig(
+        await ism.read(),
+      ) as AggregationIsmConfig;
+      const actualModules = actualConfig.modules as DomainRoutingIsmConfig[];
+      const firstDomains = normalizeConfig(firstModule.domains);
+      const updatedSecondDomains = normalizeConfig(updatedSecondModule.domains);
+      expect(actualModules).to.have.length(2);
+      expect(
+        actualModules.some((module) =>
+          deepEquals(normalizeConfig(module.domains), firstDomains),
+        ),
+      ).to.be.true;
+      expect(
+        actualModules.some((module) =>
+          deepEquals(normalizeConfig(module.domains), updatedSecondDomains),
+        ),
+      ).to.be.true;
+      testConfig = actualConfig;
+    });
+
+    it('updates nested container sub-modules in-place after recursive preflight', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const lowerIsm: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const amountRoutingConfig: AmountRoutingIsmConfig = {
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm,
+        upperIsm: randomMultisigIsmConfig(3, 5),
+        threshold: 2,
+      };
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [amountRoutingConfig, randomMultisigIsmConfig(3, 5)],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const initialAmountRoutingAddress = await findAggregationModuleAddress(
+        initialIsmAddress,
+        IsmType.AMOUNT_ROUTING,
+        amountRoutingConfig,
+      );
+
+      const updatedConfig: AggregationIsmConfig = {
+        ...config,
+        modules: [
+          {
+            ...amountRoutingConfig,
+            lowerIsm: {
+              ...lowerIsm,
+              domains: {
+                ...lowerIsm.domains,
+                test2: randomMultisigIsmConfig(3, 5),
+              },
+            },
+          },
+          config.modules[1],
+        ],
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+      expect(
+        eqAddress(
+          initialAmountRoutingAddress,
+          await findAggregationModuleAddress(
+            ism.serialize().deployedIsm,
+            IsmType.AMOUNT_ROUTING,
+            amountRoutingConfig,
+          ),
+        ),
+      ).to.be.true;
+    });
+
+    it('falls back before mutating earlier container sub-modules when preflight fails', async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const routingConfig: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const multisigConfig = randomMultisigIsmConfig(3, 5);
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [routingConfig, multisigConfig],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const originalRoutingAddress = await findAggregationModuleAddress(
+        initialIsmAddress,
+        IsmType.ROUTING,
+        routingConfig,
+      );
+      const originalRoutingConfig = normalizeConfig(
+        await readIsmAt(originalRoutingAddress, routingConfig),
+      );
+
+      const updatedConfig: AggregationIsmConfig = {
+        ...config,
+        modules: [
+          {
+            ...routingConfig,
+            domains: {
+              ...routingConfig.domains,
+              test2: randomMultisigIsmConfig(3, 5),
+            },
+          },
+          {
+            ...multisigConfig,
+            threshold: multisigConfig.threshold + 1,
+          },
+        ],
+      };
+      testConfig = updatedConfig;
+
+      const txs = await ism.update(updatedConfig);
+      expect(txs.length).to.equal(0);
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+      expect(
+        deepEquals(
+          normalizeConfig(
+            await readIsmAt(originalRoutingAddress, routingConfig),
+          ),
+          originalRoutingConfig,
+        ),
+      ).to.be.true;
+    });
+
+    it(`updates ${IsmType.AMOUNT_ROUTING} sub-modules by fixed slot`, async () => {
+      const owner = (await multiProvider.getSignerAddress(chain)).toLowerCase();
+      const lowerIsm: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner,
+        domains: {
+          test1: randomMultisigIsmConfig(3, 5),
+        },
+      };
+      const config: AmountRoutingIsmConfig = {
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm,
+        upperIsm: randomMultisigIsmConfig(3, 5),
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      const updatedConfig: AmountRoutingIsmConfig = {
+        ...config,
+        lowerIsm: {
+          ...lowerIsm,
+          domains: {
+            ...lowerIsm.domains,
+            test2: randomMultisigIsmConfig(3, 5),
+          },
+        },
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it(`updates nested ${IsmType.RATE_LIMITED} sub-modules with unchanged recipients`, async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const recipient = randomAddress();
+      const rateLimitedConfig: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        recipient,
+        owner: signerAddress,
+      };
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [rateLimitedConfig, randomMultisigIsmConfig(3, 5)],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const updatedRateLimitedConfig: RateLimitedIsmConfig = {
+        ...rateLimitedConfig,
+        owner: randomAddress(),
+      };
+      const updatedConfig: AggregationIsmConfig = {
+        ...config,
+        modules: [updatedRateLimitedConfig, config.modules[1]],
+      };
+      testConfig = updatedConfig;
+
+      await expectTxsAndUpdate(ism, updatedConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it(`redeploys ${IsmType.AMOUNT_ROUTING} when container fields change`, async () => {
+      const lowerIsm = randomMultisigIsmConfig(3, 5);
+      const upperIsm = randomMultisigIsmConfig(3, 5);
+      const config: AmountRoutingIsmConfig = {
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm,
+        upperIsm,
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+      const updatedConfig: AmountRoutingIsmConfig = {
+        ...config,
+        threshold: 1,
+      };
+      testConfig = updatedConfig;
+
+      const txs = await ism.update(updatedConfig);
+      expect(txs.length).to.equal(0);
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
     });
 
     it('transfers ownership in-place on ownership change', async () => {
