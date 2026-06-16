@@ -315,22 +315,44 @@ export class CallCommitmentsService extends BaseService {
       data.destinationDomain,
     );
 
-    const accountConfig: AccountConfig = {
-      origin: originChain,
-      owner: data.owner,
-      ismOverride: data.ismOverride,
-      userSalt: data.userSalt,
-    };
-
     logger.debug(
       {
         originChain,
         destinationChain,
         owner: data.owner,
         userSalt: data.userSalt,
+        localRouter: data.localRouter,
       },
       'Deriving ICA from config',
     );
+
+    // Non-EVM origins (e.g. Solana) supply localRouter as a full bytes32 —
+    // the Mailbox _sender from the origin chain. There is no separate ICA
+    // router; the dispatch authority PDA acts as both _owner and _router.
+    // We must call the contract directly to avoid the SDK's address
+    // truncation (bytes32 → 20-byte address → re-pad), which would corrupt
+    // any key whose upper 12 bytes are non-zero.
+    if (data.localRouter) {
+      const destinationRouter = this.icaApp.router(
+        this.icaApp.contractsMap[destinationChain],
+      );
+      const originDomain = this.multiProvider.getDomainId(originChain);
+      const ismAddress = data.ismOverride
+        ? bytes32ToAddress(data.ismOverride)
+        : '0x0000000000000000000000000000000000000000';
+      const userSalt = data.userSalt ?? InterchainAccount.EMPTY_SALT;
+
+      return destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](originDomain, data.localRouter, data.localRouter, ismAddress, userSalt);
+    }
+
+    const accountConfig: AccountConfig = {
+      origin: originChain,
+      owner: data.owner,
+      ismOverride: data.ismOverride,
+      userSalt: data.userSalt,
+    };
 
     return this.icaApp.getAccount(destinationChain, accountConfig);
   }
