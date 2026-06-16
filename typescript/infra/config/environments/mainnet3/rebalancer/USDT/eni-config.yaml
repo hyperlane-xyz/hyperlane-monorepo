@@ -14,22 +14,20 @@ externalBridges:
     maxFeePercent: 10
 
 strategy:
-  rebalanceStrategy: weighted
+  rebalanceStrategy: minAmount
   chains:
     bsc:
-      weighted:
-        weight: 50
-        tolerance: 5
+      minAmount:
+        min: 8000
+        target: 12000
+        type: 'absolute'
       executionType: inventory
       externalBridge: debridge
-      # deBridge charges a ~$9-17 fixed Tron operating expense per order; keep moves large
-      # enough to amortize it (<0.2% at >=$10k).
-      bridgeMinAcceptedAmount: 10000
 
     tron:
-      weighted:
-        weight: 50
-        tolerance: 5
+      minAmount:
+        min: 8000
+        target: 12000
+        type: 'absolute'
       executionType: inventory
       externalBridge: debridge
-      bridgeMinAcceptedAmount: 10000
