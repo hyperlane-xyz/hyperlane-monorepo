@@ -20,6 +20,8 @@ import {Quote} from "../../interfaces/ITokenBridge.sol";
 import {LinearFee} from "./LinearFee.sol";
 import {FeeType} from "./BaseFee.sol";
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 /**
  * @dev Fee quote context layout (packed, 68 bytes):
  *
@@ -95,6 +97,8 @@ library FeeQuoteData {
  */
 contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
     using TransientStorage for bytes32;
+    using EnumerableSet for EnumerableSet.UintSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // ============ Constants ============
 
@@ -124,10 +128,26 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
         uint48 expiry;
     }
 
+    /// @dev A standing quote together with its recipient key, as returned by
+    /// `getQuotesForDomain(domainId)` for offchain enumeration within a domain.
+    struct QuoteEntry {
+        bytes32 recipient;
+        StoredQuote quote;
+    }
+
     // ============ Storage ============
 
     mapping(uint32 destination => mapping(bytes32 recipient => StoredQuote))
         public quotes;
+
+    /// @dev Enumerable key set for `quotes`: the domain ids with at least one
+    /// standing quote, and the recipients stored under each. Tracks keys only;
+    /// the quote data stays in `quotes`. Entries are never removed (standing
+    /// quotes expire logically but are never deleted), so enumeration may
+    /// include expired quotes.
+    EnumerableSet.UintSet private _domainIds;
+    mapping(uint32 domainId => EnumerableSet.Bytes32Set recipients)
+        private _recipients;
 
     // ============ Constructor ============
 
@@ -283,6 +303,46 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
             sq.issuedAt,
             sq.expiry
         );
+        // Track the key for offchain enumeration (idempotent on overwrite).
+        _domainIds.add(dest);
+        _recipients[dest].add(recipient);
         return true;
+    }
+
+    /// @notice Returns the domain ids that have at least one standing quote, for
+    /// use with `getQuotesForDomain`. Includes `WILDCARD_DEST` when recipient-only quotes
+    /// exist. Unbounded and never pruned; order is unspecified.
+    function quoteDomains() external view returns (uint32[] memory domainIds) {
+        uint256 len = _domainIds.length();
+        domainIds = new uint32[](len);
+        for (uint256 i = 0; i < len; i++) {
+            domainIds[i] = uint32(_domainIds.at(i));
+        }
+    }
+
+    /// @notice Returns every standing quote stored under the exact `domainId`
+    /// key, each with its recipient key, for offchain enumeration of the raw
+    /// `quotes` mapping. Use `quoteDomains()` to discover domain ids.
+    /// @dev Returns raw exact-key storage, NOT the effective quotes for a
+    /// destination: recipient-only quotes live under the `WILDCARD_DEST`
+    /// (`type(uint32).max`) key and apply to every destination, so also query
+    /// `getQuotesForDomain(WILDCARD_DEST)` when computing effective fees. Likewise
+    /// includes the wildcard recipient and logically-expired entries (never
+    /// removed) — filter by `quote.expiry`. Returned order is unspecified and is
+    /// not resolution priority. Unbounded: a domain with many signed quotes may
+    /// exceed RPC gas/return limits.
+    function getQuotesForDomain(
+        uint32 domainId
+    ) external view returns (QuoteEntry[] memory entries) {
+        EnumerableSet.Bytes32Set storage recipients = _recipients[domainId];
+        uint256 recipientLen = recipients.length();
+        entries = new QuoteEntry[](recipientLen);
+        for (uint256 i = 0; i < recipientLen; i++) {
+            bytes32 recipient = recipients.at(i);
+            entries[i] = QuoteEntry({
+                recipient: recipient,
+                quote: quotes[domainId][recipient]
+            });
+        }
     }
 }
