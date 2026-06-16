@@ -1,6 +1,7 @@
 use std::{env, time::Duration};
 
 use migration::sea_orm::{Database, DatabaseConnection};
+#[allow(unused_imports)]
 pub use migration::{DbErr, Migrator, MigratorTrait as _};
 use sea_orm::ConnectOptions;
 

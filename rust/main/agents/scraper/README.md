@@ -25,6 +25,16 @@ references newly-added columns. The raw message dispatch reconciler depends on
 raw dispatch inserts fail closed and stalls the message cursor until the column
 exists.
 
+After running migrations and before deploying the scraper binary, create the
+reconciliation index concurrently:
+
+```
+cargo run --package migration --bin create-raw-dispatch-reconciliation-index
+```
+
+Then run `EXPLAIN` on the reconciliation query and confirm it uses
+`raw_message_dispatch_reconciliation_idx`.
+
 For rollback, stop or roll back scraper binaries that reference a new column
 before dropping that column.
 
