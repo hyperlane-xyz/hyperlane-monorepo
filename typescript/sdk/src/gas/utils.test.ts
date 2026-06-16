@@ -82,7 +82,7 @@ describe('getLocalStorageGasOracleConfig', () => {
     );
   });
 
-  it('throws when a sub-unit exchange rate has no gas price headroom to rebalance', () => {
+  it('falls back to the floor when there is no gas price headroom to rebalance', () => {
     // gasPrice in wei (5) is below MIN_REBALANCED_GAS_PRICE, so shifting any
     // magnitude into the exchange rate would exceed the rounding-error bound.
     const gasOracleParams: Record<string, ChainGasOracleParams> = {
@@ -96,13 +96,14 @@ describe('getLocalStorageGasOracleConfig', () => {
       },
     };
 
-    expect(() =>
-      getLocalStorageGasOracleConfig({
-        local: 'feeToken',
-        localProtocolType: ProtocolType.Ethereum,
-        gasOracleParams,
-        exchangeRateMarginPct: 0,
-      }),
-    ).to.throw('Token exchange rate must be at least 1');
+    const config = getLocalStorageGasOracleConfig({
+      local: 'feeToken',
+      localProtocolType: ProtocolType.Ethereum,
+      gasOracleParams,
+      exchangeRateMarginPct: 0,
+    }).remote;
+
+    expect(config.tokenExchangeRate).to.equal('1');
+    expect(config.gasPrice).to.equal('5');
   });
 });
