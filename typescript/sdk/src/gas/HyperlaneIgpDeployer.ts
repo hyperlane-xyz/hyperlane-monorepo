@@ -49,7 +49,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     assert(
       !config.quoteSigners?.length,
-      'Legacy IGP on ' + chain + ' does not support quoteSigners',
+      `Legacy IGP on ${chain} does not support quoteSigners`,
     );
 
     const cachedAddresses = this.cachedAddresses[chain] ?? {};
@@ -64,10 +64,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     assert(
       missing.length === 0,
-      'Legacy IGP on ' +
-        chain +
-        ' requires existing cached addresses for ' +
-        missing.join(', '),
+      `Legacy IGP on ${chain} requires existing cached addresses for ${missing.join(
+        ', ',
+      )}`,
     );
   }
 
