@@ -11,7 +11,7 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::invoke,
+    program::{invoke, invoke_signed},
     program_pack::Pack,
 };
 
@@ -53,6 +53,7 @@ pub fn execute_raydium_clmm_swap_exact_in<'info>(
     is_base_input: bool,
     authority: &AccountInfo<'info>,
     accounts: &'info [AccountInfo<'info>],
+    signer_seeds: &[&[&[u8]]],
 ) -> ProgramResult {
     if accounts.len() < 17 {
         return Err(RouterError::InsufficientAccounts.into());
@@ -126,7 +127,11 @@ pub fn execute_raydium_clmm_swap_exact_in<'info>(
         accounts[16].clone(), // raydium_clmm_program
     ];
 
-    invoke(&ix, &account_infos)?;
+    if signer_seeds.is_empty() {
+        invoke(&ix, &account_infos)?;
+    } else {
+        invoke_signed(&ix, &account_infos, signer_seeds)?;
+    }
 
     Ok(())
 }

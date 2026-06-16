@@ -94,6 +94,7 @@ fn dispatch_one<'info>(
                 inp.is_base_input,
                 authority,
                 accs,
+                signer_seeds,
             )
         }
 
