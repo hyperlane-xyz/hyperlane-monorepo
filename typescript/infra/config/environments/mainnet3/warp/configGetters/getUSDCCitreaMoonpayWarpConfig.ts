@@ -56,7 +56,7 @@ const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
-  bsc: awSafes.bsc,
+  bsc: awIcas.bsc,
   citrea: awIcas.citrea,
   ethereum: awSafes.ethereum,
   katana: awIcas.katana,

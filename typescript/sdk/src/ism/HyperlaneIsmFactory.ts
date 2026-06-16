@@ -54,6 +54,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { isInitialized } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -640,16 +641,29 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           await getZKSyncArtifactByContractName(config.type),
         );
         // TODO: Should verify contract here
-        logger.debug('Initialising fallback routing ISM ...');
-        receipt = await this.multiProvider.handleTx(
-          destination,
-          routingIsm['initialize(address,uint32[],address[])'](
-            config.owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
-          ),
-        );
+        // Guard against re-initialization when a previous run deployed this
+        // contract but failed before completing subsequent steps.
+        if (
+          !(await isInitialized(
+            this.multiProvider.getProvider(destination),
+            routingIsm.address,
+          ))
+        ) {
+          logger.debug('Initialising fallback routing ISM ...');
+          receipt = await this.multiProvider.handleTx(
+            destination,
+            routingIsm['initialize(address,uint32[],address[])'](
+              config.owner,
+              safeConfigDomains,
+              submoduleAddresses,
+              overrides,
+            ),
+          );
+        } else {
+          logger.debug(
+            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized`,
+          );
+        }
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
@@ -673,12 +687,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             config.type,
             [],
           );
-          await routingIsm['initialize(address,uint32[],address[])'](
-            owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
-          );
+          if (
+            !(await isInitialized(
+              this.multiProvider.getProvider(destination),
+              routingIsm.address,
+            ))
+          ) {
+            await routingIsm['initialize(address,uint32[],address[])'](
+              owner,
+              safeConfigDomains,
+              submoduleAddresses,
+              overrides,
+            );
+          }
           return routingIsm;
         }
 
