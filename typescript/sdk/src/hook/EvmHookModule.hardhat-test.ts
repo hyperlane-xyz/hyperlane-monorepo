@@ -797,7 +797,7 @@ describe('EvmHookModule', async () => {
       }
     });
 
-    const randomTokenOracleConfig = () =>
+    const randomTokenOracleConfig = (withTypicalCost = false) =>
       Object.fromEntries(
         testChains.map((c) => [
           c,
@@ -805,6 +805,15 @@ describe('EvmHookModule', async () => {
             tokenExchangeRate: randomInt(1234567891234).toString(),
             gasPrice: randomInt(1234567891234).toString(),
             tokenDecimals: DEFAULT_TOKEN_DECIMALS,
+            ...(withTypicalCost
+              ? {
+                  typicalCost: {
+                    handleGasAmount: 50_000,
+                    totalGasAmount: 200_000,
+                    totalUsdCost: 1,
+                  },
+                }
+              : {}),
           },
         ]),
       );
@@ -842,7 +851,7 @@ describe('EvmHookModule', async () => {
       // add a token oracle config; oracle is deployed eagerly, leaving a single
       // setTokenGasOracles tx to wire the mapping.
       config.tokenOracleConfig = {
-        [randomAddress()]: randomTokenOracleConfig(),
+        [randomAddress()]: randomTokenOracleConfig(true),
       };
       await expectTxsAndUpdate(hook, config, 1);
 

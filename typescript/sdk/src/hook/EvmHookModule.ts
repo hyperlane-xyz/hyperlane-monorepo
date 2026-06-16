@@ -855,7 +855,12 @@ export class EvmHookModule extends HyperlaneModule<
       }
 
       // only update if the oracle config has changed
-      if (!current || !deepEquals(current, target)) {
+      const comparableTarget = {
+        gasPrice: target.gasPrice,
+        tokenExchangeRate: target.tokenExchangeRate,
+        tokenDecimals: target.tokenDecimals,
+      };
+      if (!current || !deepEquals(current, comparableTarget)) {
         configsToSet.push({ remoteDomain, ...target });
 
         // Log an example remote gas cost
