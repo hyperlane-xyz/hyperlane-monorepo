@@ -185,14 +185,16 @@ contract CrossCollateralRouter is
     /// @dev The enrolled remote router is always a valid target; additional
     /// targets are opt-in via `addRebalanceTarget`. Cross-collateral routers
     /// (enrolled via `enrollCrossCollateralRouters`) are NOT automatically valid
-    /// targets and must be added explicitly with `addRebalanceTarget`.
+    /// targets and must be added explicitly with `addRebalanceTarget`. The zero
+    /// address is never a valid target, even when `_domain` has no enrolled router.
     function isRebalanceTarget(
         uint32 _domain,
         bytes32 _target
     ) external view override returns (bool) {
         return
-            _target == routers(_domain) ||
-            _rebalanceTargets[_domain].contains(_target);
+            _target != bytes32(0) &&
+            (_target == routers(_domain) ||
+                _rebalanceTargets[_domain].contains(_target));
     }
 
     // ============ Destination Gas Override ============

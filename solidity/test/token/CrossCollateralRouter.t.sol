@@ -781,6 +781,12 @@ contract CrossCollateralRouterTest is Test {
         );
     }
 
+    function test_isRebalanceTarget_zeroTargetRejected() public view {
+        // The zero address must not be a valid target, even on a domain with no
+        // enrolled router (where routers(_domain) is itself bytes32(0)).
+        assertFalse(usdcRouterA.isRebalanceTarget(ORIGIN, bytes32(0)));
+    }
+
     function test_addRebalanceTarget_allowsExplicitTarget() public {
         bytes32 target = address(usdtRouterA).addressToBytes32();
         assertFalse(usdcRouterA.isRebalanceTarget(ORIGIN, target));
