@@ -26,8 +26,8 @@ strategy:
 
     tron:
       minAmount:
-        min: 8000
-        target: 12000
+        min: 2000
+        target: 4000
         type: 'absolute'
       executionType: inventory
       externalBridge: debridge
