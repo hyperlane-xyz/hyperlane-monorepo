@@ -1,0 +1,35 @@
+warpRouteId: USDT/eni
+
+# Production inventory rebalancer key, shared with USDT/eclipsemainnet so this route reuses
+# the existing BSC/Tron USDT float. Keyed by ProtocolType: `ethereum` covers all EVM legs
+# (incl. BSC); `tron` covers Tron. Tron signs with the same 0x hex key, so both are the same address.
+inventorySigners:
+  ethereum:
+    address: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+  tron:
+    address: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+
+externalBridges:
+  debridge:
+    maxFeePercent: 10
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    bsc:
+      weighted:
+        weight: 50
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
+      # deBridge charges a ~$9-17 fixed Tron operating expense per order; keep moves large
+      # enough to amortize it (<0.2% at >=$10k).
+      bridgeMinAcceptedAmount: 10000
+
+    tron:
+      weighted:
+        weight: 50
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
+      bridgeMinAcceptedAmount: 10000
