@@ -55,6 +55,6 @@ pub mod account_counts {
     pub const RAYDIUM_AMM_SWAP_EXACT_IN: usize = 18;
     /// See bridge.rs — 18 accounts
     pub const BRIDGE_TOKEN: usize = 18;
-    /// See cross_chain.rs — 11 accounts
-    pub const EXECUTE_CROSS_CHAIN: usize = 11;
+    /// See cross_chain.rs — 15 accounts (9 shared + 3 commit + 3 reveal)
+    pub const EXECUTE_CROSS_CHAIN: usize = 15;
 }

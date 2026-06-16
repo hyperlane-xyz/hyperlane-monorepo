@@ -17,20 +17,30 @@
 //!     [1:33]  ism    = zero bytes32 → CCIP_READ_ISM default
 //!     [33:65] commitment
 //!
-//! remaining_accounts (11):
+//! remaining_accounts (15):
+//!   Shared (9):
 //!   [0]  mailbox_program           — Hyperlane mailbox
 //!   [1]  mailbox_outbox  writable
 //!   [2]  dispatch_auth_pda         — this program's Hyperlane dispatch authority PDA
 //!   [3]  system_program
 //!   [4]  spl_noop
-//!   [5]  unique_msg_commit  signer (readonly)
-//!   [6]  dispatched_commit  writable
-//!   [7]  gas_payment_commit writable
-//!   [8]  unique_msg_reveal  signer (readonly)
-//!   [9]  dispatched_reveal  writable
-//!   [10] gas_payment_reveal writable
+//!   [5]  igp_program               — Hyperlane IGP executable (for payForGas CPI)
+//!   [6]  igp_program_data writable — IGP program data PDA
+//!   [7]  igp_account      writable — plain IGP account
+//!   [8]  overhead_igp              — overhead IGP account (readonly)
+//!   Commit-specific (3):
+//!   [9]  unique_msg_commit  signer
+//!   [10] dispatched_commit  writable
+//!   [11] gas_payment_commit writable
+//!   Reveal-specific (3):
+//!   [12] unique_msg_reveal  signer
+//!   [13] dispatched_reveal  writable
+//!   [14] gas_payment_reveal writable
 
 use hyperlane_core::H256;
+use hyperlane_sealevel_igp::instruction::{
+    Instruction as IgpInstruction, PayForGas as IgpPayForGas,
+};
 use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds,
@@ -39,9 +49,8 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::{invoke, invoke_signed},
+    program::{get_return_data, invoke, invoke_signed},
 };
-use solana_system_interface::instruction as system_instruction;
 
 use crate::error::RouterError;
 
@@ -55,7 +64,7 @@ pub fn execute_cross_chain<'info>(
     authority: &AccountInfo<'info>,
     accounts: &'info [AccountInfo<'info>],
 ) -> ProgramResult {
-    if accounts.len() < 11 {
+    if accounts.len() < 15 {
         return Err(RouterError::InsufficientAccounts.into());
     }
 
@@ -85,6 +94,12 @@ pub fn execute_cross_chain<'info>(
     );
     let signer_seeds: &[&[u8]] = mailbox_message_dispatch_authority_pda_seeds!(dispatch_auth_bump);
 
+    // Shared IGP accounts
+    let igp_program = &accounts[5];
+    let igp_program_data = &accounts[6];
+    let igp_account = &accounts[7];
+    let overhead_igp = &accounts[8];
+
     dispatch_one(
         destination_domain,
         ica_router,
@@ -97,9 +112,13 @@ pub fn execute_cross_chain<'info>(
         &accounts[2], // dispatch_auth_pda
         &accounts[3], // system_program
         &accounts[4], // spl_noop
-        &accounts[5], // unique_msg_commit
-        &accounts[6], // dispatched_commit
-        &accounts[7], // gas_payment_commit
+        igp_program,
+        igp_program_data,
+        igp_account,
+        overhead_igp,
+        &accounts[9],  // unique_msg_commit
+        &accounts[10], // dispatched_commit
+        &accounts[11], // gas_payment_commit
     )?;
 
     dispatch_one(
@@ -109,29 +128,29 @@ pub fn execute_cross_chain<'info>(
         reveal_msg_fee,
         authority,
         signer_seeds,
-        &accounts[0],  // mailbox_program
-        &accounts[1],  // mailbox_outbox
-        &accounts[2],  // dispatch_auth_pda
-        &accounts[3],  // system_program
-        &accounts[4],  // spl_noop
-        &accounts[8],  // unique_msg_reveal
-        &accounts[9],  // dispatched_reveal
-        &accounts[10], // gas_payment_reveal
+        &accounts[0], // mailbox_program
+        &accounts[1], // mailbox_outbox
+        &accounts[2], // dispatch_auth_pda
+        &accounts[3], // system_program
+        &accounts[4], // spl_noop
+        igp_program,
+        igp_program_data,
+        igp_account,
+        overhead_igp,
+        &accounts[12], // unique_msg_reveal
+        &accounts[13], // dispatched_reveal
+        &accounts[14], // gas_payment_reveal
     )?;
 
     Ok(())
 }
 
-/// CPI into the Hyperlane mailbox to dispatch a single message.
+/// CPI into the Hyperlane mailbox to dispatch a single message, then pays the IGP.
 ///
-/// Account ordering (matches mailbox processor.rs OutboxDispatch):
-///   [0] outbox (writable)
-///   [1] dispatch_authority (readonly+signer — signs via invoke_signed PDA seeds)
-///   [2] system_program
-///   [3] spl_noop
-///   [4] payer (writable+signer)
-///   [5] unique_message (readonly+signer)
-///   [6] dispatched_message (writable)
+/// Steps:
+///   1. invoke_signed → mailbox OutboxDispatch (creates dispatched_message PDA)
+///   2. Read message ID from mailbox return data
+///   3. invoke → IGP PayForGas (creates gas_payment PDA the relayer can find)
 #[allow(clippy::too_many_arguments)]
 fn dispatch_one<'info>(
     destination_domain: u32,
@@ -145,18 +164,15 @@ fn dispatch_one<'info>(
     dispatch_auth_pda: &AccountInfo<'info>,
     system_program: &AccountInfo<'info>,
     spl_noop: &AccountInfo<'info>,
+    igp_program: &AccountInfo<'info>,
+    igp_program_data: &AccountInfo<'info>,
+    igp_account: &AccountInfo<'info>,
+    overhead_igp: &AccountInfo<'info>,
     unique_message: &AccountInfo<'info>,
     dispatched_message: &AccountInfo<'info>,
     gas_payment: &AccountInfo<'info>,
 ) -> ProgramResult {
-    // Pre-fund gas payment PDA
-    if msg_fee > 0 {
-        invoke(
-            &system_instruction::transfer(authority.key, gas_payment.key, msg_fee),
-            &[authority.clone(), gas_payment.clone()],
-        )?;
-    }
-
+    // ── Step 1: Dispatch the Hyperlane message ──────────────────────────────
     let ix_data = MailboxInstruction::OutboxDispatch(OutboxDispatch {
         sender: *dispatch_auth_pda.key,
         destination_domain,
@@ -166,7 +182,7 @@ fn dispatch_one<'info>(
     .into_instruction_data()?;
 
     let account_metas = vec![
-        AccountMeta::new(*mailbox_outbox.key, false), // [0] outbox
+        AccountMeta::new(*mailbox_outbox.key, false), // [0] outbox (writable)
         AccountMeta::new_readonly(*dispatch_auth_pda.key, true), // [1] dispatch_auth (readonly+signer)
         AccountMeta::new_readonly(*system_program.key, false),   // [2] system_program
         AccountMeta::new_readonly(*spl_noop.key, false),         // [3] spl_noop
@@ -181,18 +197,75 @@ fn dispatch_one<'info>(
         data: ix_data,
     };
 
-    let account_infos = [
-        mailbox_outbox.clone(),
-        dispatch_auth_pda.clone(),
-        system_program.clone(),
-        spl_noop.clone(),
-        authority.clone(),
-        unique_message.clone(),
-        dispatched_message.clone(),
-    ];
+    invoke_signed(
+        &ix,
+        &[
+            mailbox_outbox.clone(),
+            dispatch_auth_pda.clone(),
+            system_program.clone(),
+            spl_noop.clone(),
+            authority.clone(),
+            unique_message.clone(),
+            dispatched_message.clone(),
+        ],
+        &[signer_seeds],
+    )?;
 
-    // dispatch_auth_pda is a PDA of this program — sign on its behalf
-    invoke_signed(&ix, &account_infos, &[signer_seeds])?;
+    // ── Step 2: Read message ID from mailbox return data ───────────────────
+    if msg_fee > 0 {
+        let (returning_program_id, returned_data) =
+            get_return_data().ok_or(RouterError::InvalidInputs)?;
+        if returning_program_id != *mailbox_program.key {
+            return Err(RouterError::InvalidInputs.into());
+        }
+        let message_id = H256::from_slice(&returned_data);
+
+        // ── Step 3: Pay the IGP ─────────────────────────────────────────────
+        //
+        // Account layout (matches hyperlane-sealevel-igp pay_for_gas_instruction):
+        //   [0] system_program (readonly)
+        //   [1] payer (writable signer)
+        //   [2] igp_program_data (writable)
+        //   [3] unique_gas_payment_account (readonly signer) — reuses unique_message keypair
+        //   [4] gas_payment_pda (writable)
+        //   [5] igp_account (writable)
+        //   [6] overhead_igp (readonly, optional — always included)
+        let igp_ix_data = IgpInstruction::PayForGas(IgpPayForGas {
+            message_id,
+            destination_domain,
+            gas_amount: msg_fee,
+        })
+        .into_instruction_data()?;
+
+        let igp_account_metas = vec![
+            AccountMeta::new_readonly(*system_program.key, false), // [0]
+            AccountMeta::new(*authority.key, true),                // [1] payer (writable signer)
+            AccountMeta::new(*igp_program_data.key, false),        // [2] writable
+            AccountMeta::new_readonly(*unique_message.key, true),  // [3] readonly signer
+            AccountMeta::new(*gas_payment.key, false),             // [4] writable
+            AccountMeta::new(*igp_account.key, false),             // [5] writable
+            AccountMeta::new_readonly(*overhead_igp.key, false),   // [6] readonly
+        ];
+
+        let igp_ix = Instruction {
+            program_id: *igp_program.key,
+            accounts: igp_account_metas,
+            data: igp_ix_data,
+        };
+
+        invoke(
+            &igp_ix,
+            &[
+                system_program.clone(),
+                authority.clone(),
+                igp_program_data.clone(),
+                unique_message.clone(),
+                gas_payment.clone(),
+                igp_account.clone(),
+                overhead_igp.clone(),
+            ],
+        )?;
+    }
 
     Ok(())
 }
