@@ -342,12 +342,15 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       // Transfer the token oracle to the configured oracle key, matching the
       // native oracle's ownership.
+      assert(
+        gasOracle,
+        `Expected token gas oracle for ${feeToken} on ${chain}`,
+      );
       await this.runIfOwner(chain, gasOracle, async () => {
-        const oracle = gasOracle!;
-        if (!eqAddress(await oracle.owner(), config.oracleKey)) {
+        if (!eqAddress(await gasOracle.owner(), config.oracleKey)) {
           await this.multiProvider.handleTx(
             chain,
-            oracle.transferOwnership(
+            gasOracle.transferOwnership(
               config.oracleKey,
               this.multiProvider.getTransactionOverrides(chain),
             ),

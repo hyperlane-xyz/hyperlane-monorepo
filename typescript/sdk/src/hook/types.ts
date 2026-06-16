@@ -3,12 +3,14 @@ import { z } from 'zod';
 import {
   Address,
   WithAddress,
+  isAddressEvm,
   isNullish,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -147,6 +149,15 @@ export enum IgpVersion {
 
 export const OFFCHAIN_QUOTED_IGP_VERSION = '11.3.0';
 
+const FeeTokenAddressSchema = z
+  .string()
+  .refine((feeToken) => isAddressEvm(feeToken), {
+    message: 'fee token must be an EVM address',
+  })
+  .refine((feeToken) => !isZeroishAddress(feeToken), {
+    message: 'fee token must not be the zero address',
+  });
+
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -224,7 +235,13 @@ export const IgpSchema = OwnableSchema.extend({
   // Optional and off by default; only wired when present and the IGP supports
   // tokenGasOracles (>= OFFCHAIN_QUOTED_IGP_VERSION, non-legacy).
   tokenOracleConfig: z
-    .record(z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema))
+    .record(
+      FeeTokenAddressSchema,
+      z.record(
+        ZChainName,
+        ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+      ),
+    )
     .optional(),
 });
 
