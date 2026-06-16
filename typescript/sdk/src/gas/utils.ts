@@ -7,6 +7,7 @@ import {
   assert,
   convertDecimals,
   objMap,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
@@ -327,12 +328,13 @@ function adjustForPrecisionLoss(
       newGasPrice = newGasPrice.div(factor);
     }
 
-    assert(
-      newExchangeRate.gte(1),
-      `Token exchange rate must be at least 1 after precision rebalance. Original gas price: ${new BigNumberJs(
-        gasPrice,
-      ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
-    );
+    if (newExchangeRate.lt(1)) {
+      rootLogger.warn(
+        `Token exchange rate remains below 1 after precision rebalance; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
+          gasPrice,
+        ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
+      );
+    }
   }
 
   // We may have very little precision, and ultimately need an integer value for
