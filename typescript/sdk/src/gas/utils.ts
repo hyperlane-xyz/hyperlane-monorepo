@@ -329,6 +329,11 @@ function adjustForPrecisionLoss(
     }
 
     if (newExchangeRate.lt(1)) {
+      // Known limitation: gas prices below 10 * MIN_REBALANCED_GAS_PRICE do
+      // not have a full decimal digit of headroom to shift while preserving the
+      // final ceil rounding-error bound. In that no-headroom band, keep the
+      // original gas price and fall back to the minimum representable exchange
+      // rate instead of introducing a larger ceil error.
       rootLogger.warn(
         `Token exchange rate remains below 1 after precision rebalance; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
           gasPrice,
