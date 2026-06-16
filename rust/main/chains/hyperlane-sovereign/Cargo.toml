@@ -33,7 +33,7 @@ bs58 = { version = "0.5.1", default-features = false, features = [
   "std",
   "alloc",
 ] }
-sov-universal-wallet = { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", rev = "481c472c6c98fcad8e983f12ae9786b55534fe83", features = [
+sov-universal-wallet = { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", rev = "32ea32c8cc5d1f65120c78045a96a0390da4b19f", features = [
   "serde",
 ] }
 tokio-retry = "0.3.0"

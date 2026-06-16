@@ -76,8 +76,8 @@ impl SovereignClient {
         } else {
             let chain_hash = self
                 .schema
-                .cached_chain_hash()
-                .ok_or_else(|| custom_err!("Chain hash not precomputed"))?;
+                .chain_hash()
+                .map_err(|e| custom_err!("Failed to compute chain hash: {e}"))?;
             utx_bytes.extend_from_slice(&chain_hash);
         }
 
