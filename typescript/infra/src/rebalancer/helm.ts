@@ -69,6 +69,9 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
+    this.inventorySignerProtocols = Object.keys(
+      validationResult.data.inventorySigners ?? {},
+    );
     const chainNames = getStrategyChainNames(validationResult.data.strategy);
     if (chainNames.length === 0) {
       throw new Error('No chains configured');
@@ -84,9 +87,6 @@ export class RebalancerHelmManager extends HelmManager {
     this.rebalancerConfigContent = fs.readFileSync(
       rebalancerConfigFile,
       'utf8',
-    );
-    this.inventorySignerProtocols = Object.keys(
-      validationResult.data.inventorySigners ?? {},
     );
   }
 
@@ -113,6 +113,7 @@ export class RebalancerHelmManager extends HelmManager {
         withMetrics: this.withMetrics,
         // Used for fetching private RPC secrets
         chains: this.rebalancerChains,
+        // Used for fetching protocol-specific inventory signer keys
         inventorySignerProtocols: this.inventorySignerProtocols,
       },
     };
