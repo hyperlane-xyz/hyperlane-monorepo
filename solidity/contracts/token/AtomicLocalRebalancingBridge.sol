@@ -9,6 +9,7 @@ import {PackageVersioned} from "../PackageVersioned.sol";
 import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
+import {IRebalancingBridge} from "./interfaces/IRebalancingBridge.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -17,16 +18,15 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @dev Balances held by the wrapper itself, snapshotted before escrow so
-/// balances already present (donations or prior escrow) cannot fund the
-/// destination or be swept as a refund. Used to avoid stack too deep.
+/// balances already present cannot fund the destination or be swept as a refund.
+/// Used to avoid stack too deep.
 struct SelfBalanceSnapshot {
-    uint256 nativeToken;
-    uint256 inputToken;
-    uint256 outputToken;
+    uint256 sourceToken;
+    uint256 destinationToken;
 }
 
-/// @dev Input/output token balances held by the source and destination routers,
-/// snapshotted before escrow to bound how much the calls may move. Used to avoid stack too deep.
+/// @dev Token balances held by the source and destination routers, snapshotted
+/// before escrow to bound how much the calls may move. Used to avoid stack too deep.
 struct CollateralRoutersBalanceSnapshot {
     uint256 sourceRouter;
     uint256 destinationRouter;
@@ -35,9 +35,8 @@ struct CollateralRoutersBalanceSnapshot {
 /// @title AtomicLocalRebalancingBridge
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
 /// @dev The wrapper is bound to a single immutable source router and must be
-/// configured as an allowed rebalancer/bridge on it. The source MUST be a
-/// `CrossCollateralRouter` (the only `IRebalanceTargets` implementer); this is
-/// asserted in the constructor.
+/// configured as an allowed rebalancer/bridge on it. The source MUST implement
+/// `IRebalanceTargets`, used to authorize destinations.
 /// @dev The destination is supplied per call and validated against the source's
 /// rebalance targets (`isRebalanceTarget`). It MUST hold a token economically at
 /// par with the source collateral: output is converted from input by decimals
@@ -48,6 +47,7 @@ struct CollateralRoutersBalanceSnapshot {
 /// recipient for its `CollateralMoved` event/quote, but this wrapper ignores the
 /// callback recipient and funds the validated `destinationRecipient` argument.
 contract AtomicLocalRebalancingBridge is
+    IRebalancingBridge,
     ITokenBridge,
     PackageVersioned,
     ReentrancyGuardTransient
@@ -62,53 +62,36 @@ contract AtomicLocalRebalancingBridge is
 
     uint32 public immutable localDomain;
 
-    /// @notice The source router this bridge rebalances from.
-    address public immutable sourceRouter;
+    /// @notice The source router this bridge is allowed to rebalance from.
+    address public immutable allowedSourceRouter;
 
     /// @notice Emitted on a successful local rebalance.
     event LocalRebalanceExecuted(
         address indexed destinationRouter,
         uint256 amountIn,
-        uint256 requiredDelta
+        uint256 requiredOutputAmount
     );
 
     error NoActiveRebalance();
     error InvalidCallback();
     error MissingCallback();
     error InsufficientOutput();
-    error InvalidInputDelta();
+    error InvalidSourceTokenBalance();
     error UnauthorizedRebalancer();
     error InvalidToken();
-    error InvalidNativeDelta();
     error InvalidSource();
     error InvalidRecipient();
 
     constructor(uint32 _localDomain, address _sourceRouter) {
-        // Native-collateral sources are unsupported (decimal conversion needs an
-        // ERC20); reject them up front since the source is bound here.
-        if (MovableCollateralRouter(_sourceRouter).token() == address(0)) {
-            revert InvalidToken();
-        }
-        // The source must expose IRebalanceTargets so destinations can be
-        // validated. A high-level call enforces valid bool returndata, rejecting
-        // contracts that don't implement it (CrossCollateralRouter only).
-        try
-            IRebalanceTargets(_sourceRouter).isRebalanceTarget(
-                _localDomain,
-                bytes32(0)
-            )
-        returns (bool) {} catch {
-            revert InvalidSource();
-        }
-
+        if (!Address.isContract(_sourceRouter)) revert InvalidSource();
         localDomain = _localDomain;
-        sourceRouter = _sourceRouter;
+        allowedSourceRouter = _sourceRouter;
     }
 
     /// @notice Executes a same-chain rebalance into a validated destination
     /// router.
-    /// @param sourceRouter_ Must equal the immutable `sourceRouter` (checked echo
-    /// kept for signature compatibility with the canonical rebalance flow).
+    /// @param sourceRouter Must equal `allowedSourceRouter` (checked echo kept for
+    /// signature compatibility with the canonical rebalance flow).
     /// @param destinationRecipient EVM-address-encoded `bytes32` (upper 96 bits
     /// zero) of an allowed rebalance target; funded via `bytes32ToAddress`.
     /// @param data ABI-encoded `CallLib.Call[]` run after escrow (token approvals
@@ -116,21 +99,24 @@ contract AtomicLocalRebalancingBridge is
     /// the destination router.
     function rebalance(
         uint32 domain,
-        uint256 collateralAmount,
-        ITokenBridge sourceRouter_,
+        uint256 amount,
+        ITokenBridge sourceRouter,
         bytes32 destinationRecipient,
         bytes calldata data
-    ) external payable nonReentrant {
+    ) external payable override nonReentrant {
         if (domain != localDomain) revert InvalidCallback();
-        if (address(sourceRouter_) != sourceRouter) revert InvalidSource();
+        if (address(sourceRouter) != allowedSourceRouter)
+            revert InvalidSource();
 
-        MovableCollateralRouter source = MovableCollateralRouter(sourceRouter);
+        MovableCollateralRouter source = MovableCollateralRouter(
+            allowedSourceRouter
+        );
         if (!source.isAllowedRebalancer(msg.sender)) {
             revert UnauthorizedRebalancer();
         }
 
         if (
-            !IRebalanceTargets(sourceRouter).isRebalanceTarget(
+            !IRebalanceTargets(allowedSourceRouter).isRebalanceTarget(
                 localDomain,
                 destinationRecipient
             )
@@ -141,109 +127,116 @@ contract AtomicLocalRebalancingBridge is
             destinationRecipient
         );
 
-        address inputToken = source.token();
-        if (inputToken == address(0)) revert InvalidToken();
-        address outputToken = MovableCollateralRouter(destinationRouter)
+        address sourceToken = source.token();
+        if (sourceToken == address(0)) revert InvalidToken();
+        address destinationToken = MovableCollateralRouter(destinationRouter)
             .token();
-        if (outputToken == address(0)) revert InvalidToken();
-        uint256 requiredDelta = _requiredDelta(
-            inputToken,
-            outputToken,
-            collateralAmount
+        if (destinationToken == address(0)) revert InvalidToken();
+        uint256 requiredOutputAmount = _requiredOutputAmount(
+            sourceToken,
+            destinationToken,
+            amount
         );
 
-        uint256 wrapperInputBefore = IERC20(inputToken).balanceOf(
+        uint256 wrapperSourceBalanceBefore = IERC20(sourceToken).balanceOf(
             address(this)
         );
         SelfBalanceSnapshot memory selfBefore = SelfBalanceSnapshot({
-            // Excludes pre-existing native from the refund.
-            nativeToken: address(this).balance - msg.value,
-            inputToken: wrapperInputBefore,
-            // Shared input/output token reuses the input snapshot; otherwise
-            // exclude any output-token donation.
-            outputToken: outputToken == inputToken
-                ? wrapperInputBefore
-                : IERC20(outputToken).balanceOf(address(this))
+            sourceToken: wrapperSourceBalanceBefore,
+            // Shared source/destination token reuses the source snapshot;
+            // otherwise exclude any pre-existing destination-token balance.
+            destinationToken: destinationToken == sourceToken
+                ? wrapperSourceBalanceBefore
+                : IERC20(destinationToken).balanceOf(address(this))
         });
 
         CollateralRoutersBalanceSnapshot
             memory routersBefore = CollateralRoutersBalanceSnapshot({
-                sourceRouter: IERC20(inputToken).balanceOf(sourceRouter),
-                destinationRouter: IERC20(outputToken).balanceOf(
+                sourceRouter: IERC20(sourceToken).balanceOf(
+                    allowedSourceRouter
+                ),
+                destinationRouter: IERC20(destinationToken).balanceOf(
                     destinationRouter
                 )
             });
 
-        _pullSourceCollateral(source, collateralAmount);
-
+        // Escrow the source collateral, then run the rebalancer's calls.
+        _pullSourceCollateral(source, amount);
         CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
-        if (address(this).balance < selfBefore.nativeToken) {
-            revert InvalidNativeDelta();
-        }
+        // Post-call invariants.
         // Source may be topped up, but calls must not drain more than the amount.
         if (
-            IERC20(inputToken).balanceOf(sourceRouter) <
-            routersBefore.sourceRouter - collateralAmount
+            IERC20(sourceToken).balanceOf(allowedSourceRouter) <
+            routersBefore.sourceRouter - amount
         ) {
-            revert InvalidInputDelta();
+            revert InvalidSourceTokenBalance();
         }
-        // Calls must not spend the wrapper's pre-call input donation.
+        // Calls may consume at most the escrowed amount, not any sourceToken the
+        // wrapper held before escrow.
         if (
-            IERC20(inputToken).balanceOf(address(this)) < selfBefore.inputToken
+            IERC20(sourceToken).balanceOf(address(this)) <
+            selfBefore.sourceToken
         ) {
-            revert InvalidInputDelta();
+            revert InvalidSourceTokenBalance();
         }
-        // Calls must produce at least requiredDelta of new output; donations
-        // and escrow already on the wrapper cannot fund the destination.
+        // Calls must produce at least requiredOutputAmount of new output; balances
+        // already on the wrapper cannot fund the destination.
         if (
-            IERC20(outputToken).balanceOf(address(this)) <
-            selfBefore.outputToken + requiredDelta
+            IERC20(destinationToken).balanceOf(address(this)) <
+            selfBefore.destinationToken + requiredOutputAmount
         ) {
             revert InsufficientOutput();
         }
-        IERC20(outputToken).safeTransfer(destinationRouter, requiredDelta);
+
+        // Fund the destination, then refund the rebalancer's surplus.
+        IERC20(destinationToken).safeTransfer(
+            destinationRouter,
+            requiredOutputAmount
+        );
         if (
-            IERC20(outputToken).balanceOf(destinationRouter) <
-            routersBefore.destinationRouter + requiredDelta
+            IERC20(destinationToken).balanceOf(destinationRouter) <
+            routersBefore.destinationRouter + requiredOutputAmount
         ) {
             revert InsufficientOutput();
         }
-        // Refund only balances accrued during this call; never sweep donations.
-        _refundDelta(inputToken, selfBefore.inputToken, msg.sender);
-        if (outputToken != inputToken) {
-            _refundDelta(outputToken, selfBefore.outputToken, msg.sender);
+        // Refund only balances accrued during this call; never sweep pre-existing
+        // balances.
+        _refundTokenBalance(sourceToken, selfBefore.sourceToken, msg.sender);
+        if (destinationToken != sourceToken) {
+            _refundTokenBalance(
+                destinationToken,
+                selfBefore.destinationToken,
+                msg.sender
+            );
         }
         // Refund this call's unspent native.
         uint256 nativeBalance = address(this).balance;
-        if (nativeBalance > selfBefore.nativeToken) {
-            Address.sendValue(
-                payable(msg.sender),
-                nativeBalance - selfBefore.nativeToken
-            );
+        if (nativeBalance > 0) {
+            Address.sendValue(payable(msg.sender), nativeBalance);
         }
 
         emit LocalRebalanceExecuted(
             destinationRouter,
-            collateralAmount,
-            requiredDelta
+            amount,
+            requiredOutputAmount
         );
     }
 
-    /// @dev Pulls `collateralAmount` of source collateral into this wrapper via
+    /// @dev Pulls `amount` of source collateral into this wrapper via
     /// the source's canonical rebalance flow, which calls back into
     /// `transferRemote`. The callback slot authenticates and is consumed by that
     /// single callback; this enforces exactly one pull and blocks any further
     /// callback during the arbitrary calls or refunds below.
     function _pullSourceCollateral(
         MovableCollateralRouter source,
-        uint256 collateralAmount
+        uint256 amount
     ) internal {
         _CALLBACK_ACTIVE_SLOT.store(
             TypeCasts.addressToBytes32(address(source))
         );
 
-        source.rebalance(localDomain, collateralAmount, this);
+        source.rebalance(localDomain, amount, this);
         if (_CALLBACK_ACTIVE_SLOT.loadBytes32() != bytes32(0)) {
             revert MissingCallback();
         }
@@ -256,14 +249,14 @@ contract AtomicLocalRebalancingBridge is
         uint256 amount
     ) external view override(ITokenFee) returns (Quote[] memory quotes) {
         if (destination != localDomain) revert InvalidCallback();
-        address inputToken = MovableCollateralRouter(msg.sender).token();
-        if (inputToken == address(0)) revert InvalidToken();
+        address sourceToken = MovableCollateralRouter(msg.sender).token();
+        if (sourceToken == address(0)) revert InvalidToken();
 
         // Match router rebalance quote semantics: no native fee, exact source
         // token amount pulled by transferRemote.
         quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: 0});
-        quotes[1] = Quote({token: inputToken, amount: amount});
+        quotes[1] = Quote({token: sourceToken, amount: amount});
     }
 
     /// @notice Router callback. Pulls input into escrow for the active local
@@ -293,23 +286,29 @@ contract AtomicLocalRebalancingBridge is
         return bytes32(0);
     }
 
-    /// @dev Converts `amountIn` from input-token units to output-token units by
-    /// decimals only. Input and output MUST be economically at par (1:1 value
-    /// per whole unit); a non-par pair reverts or demands absurd top-ups.
+    /// @dev Converts `amountIn` from source-token units to destination-token
+    /// units by decimals only. Source and destination MUST be economically at par
+    /// (1:1 value per whole unit); a non-par pair reverts or demands absurd top-ups.
     /// Both tokens must implement `decimals()`, and the invariant assumes
     /// standard balance-stable ERC20 behavior: no fee-on-transfer, reflection,
     /// rebasing, or balance-altering hooks. Incompatible assets should be
     /// wrapped or adapted before using this bridge.
-    function _requiredDelta(
-        address inputToken,
-        address outputToken,
+    function _requiredOutputAmount(
+        address sourceToken,
+        address destinationToken,
         uint256 amountIn
-    ) internal view returns (uint256 requiredDelta) {
-        uint256 inputScale = _decimalScale(inputToken);
-        uint256 outputScale = _decimalScale(outputToken);
-        if (inputScale == outputScale) return amountIn;
+    ) internal view returns (uint256 requiredOutputAmount) {
+        uint256 sourceScale = _decimalScale(sourceToken);
+        uint256 destinationScale = _decimalScale(destinationToken);
+        if (sourceScale == destinationScale) return amountIn;
         // Round up so decimal conversion never underfunds the destination.
-        return Math.mulDiv(amountIn, outputScale, inputScale, Math.Rounding.Up);
+        return
+            Math.mulDiv(
+                amountIn,
+                destinationScale,
+                sourceScale,
+                Math.Rounding.Up
+            );
     }
 
     /// @dev Reverts if `token` does not implement `IERC20Metadata.decimals()`.
@@ -317,7 +316,7 @@ contract AtomicLocalRebalancingBridge is
         return 10 ** uint256(IERC20Metadata(token).decimals());
     }
 
-    function _refundDelta(
+    function _refundTokenBalance(
         address token,
         uint256 balanceBefore,
         address recipient
