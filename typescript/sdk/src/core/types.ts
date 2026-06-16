@@ -6,11 +6,8 @@ import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 import type { UpgradeConfig } from '../deploy/proxy.js';
 import type { CheckerViolation } from '../deploy/types.js';
 import { ProxyFactoryFactoriesSchema } from '../deploy/types.js';
-import {
-  DerivedHookConfig,
-  HookConfig,
-  HookConfigSchema,
-} from '../hook/types.js';
+import type { DerivedHookConfig, HookConfig } from '../hook/types.js';
+import { HookConfigSchema } from '../hook/types.js';
 import { hookTreeContainsLegacyIgp } from '../hook/utils.js';
 import {
   DerivedIcaRouterConfigSchema,
@@ -55,16 +52,16 @@ const rejectRateLimitedDefaultIsm = (
 // deploy (deployQuotedCalls !== false).
 const rejectQuotedCallsWithLegacyIgp = (
   val: {
-    defaultHook: unknown;
-    requiredHook: unknown;
+    defaultHook: HookConfig;
+    requiredHook: HookConfig;
     deployQuotedCalls?: boolean;
   },
   ctx: z.RefinementCtx,
 ) => {
   if (val.deployQuotedCalls === false) return;
   if (
-    hookTreeContainsLegacyIgp(val.defaultHook as HookConfig) ||
-    hookTreeContainsLegacyIgp(val.requiredHook as HookConfig)
+    hookTreeContainsLegacyIgp(val.defaultHook) ||
+    hookTreeContainsLegacyIgp(val.requiredHook)
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

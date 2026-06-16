@@ -52,6 +52,7 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
@@ -473,19 +474,26 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     );
 
     // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary, quoteSigners] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      hook.beneficiary(),
-      // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch((error) => {
-        throwIfNotMissingSelector(error);
-        this.logger.debug(
-          'quoteSigners() not available on this IGP version, skipping',
-        );
-        return [] as string[];
-      }),
-    ]);
+    const [hookType, owner, beneficiary, quoteSignersResult] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.beneficiary(),
+        // quoteSigners() not available on IGP versions before offchain fee quoting
+        hook
+          .quoteSigners()
+          .then((quoteSigners) => ({ quoteSigners, igpVersion: undefined }))
+          .catch((error) => {
+            throwIfNotMissingSelector(error);
+            this.logger.debug(
+              'quoteSigners() not available on this IGP version, skipping',
+            );
+            return {
+              quoteSigners: [] as string[],
+              igpVersion: IgpVersion.Legacy,
+            };
+          }),
+      ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
 
@@ -550,7 +558,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
-      ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
+      ...(quoteSignersResult.igpVersion
+        ? { igpVersion: quoteSignersResult.igpVersion }
+        : {}),
+      ...(quoteSignersResult.quoteSigners.length > 0
+        ? { quoteSigners: [...quoteSignersResult.quoteSigners] }
+        : {}),
     };
 
     this._cache.set(address, config);

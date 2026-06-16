@@ -103,7 +103,13 @@ export type IgpHookConfig = z.infer<typeof IgpSchema>;
 export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
-export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
+export type ArbL2ToL1HookConfig = {
+  type: typeof HookType.ARB_L2_TO_L1;
+  arbSys: string;
+  bridge?: string;
+  destinationChain: string;
+  childHook: HookConfig;
+};
 export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 export type RateLimitedHookConfig = z.infer<typeof RateLimitedHookSchema>;
 
@@ -182,22 +188,25 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
-export const ArbL2ToL1HookSchema = z.object({
-  type: z.literal(HookType.ARB_L2_TO_L1),
-  arbSys: z
-    .string()
-    .describe(
-      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-    ),
-  bridge: z
-    .string()
-    .optional()
-    .describe(
-      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-    ),
-  destinationChain: z.string(),
-  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
-});
+export const ArbL2ToL1HookSchema: z.ZodSchema<ArbL2ToL1HookConfig> = z.lazy(
+  () =>
+    z.object({
+      type: z.literal(HookType.ARB_L2_TO_L1),
+      arbSys: z
+        .string()
+        .describe(
+          'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+        ),
+      bridge: z
+        .string()
+        .optional()
+        .describe(
+          'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+        ),
+      destinationChain: z.string(),
+      childHook: HookConfigSchema,
+    }),
+);
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),

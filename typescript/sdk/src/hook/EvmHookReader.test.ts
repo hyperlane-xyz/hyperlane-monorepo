@@ -34,6 +34,7 @@ import { EvmHookReader } from './EvmHookReader.js';
 import {
   CCIPHookConfig,
   HookType,
+  IgpVersion,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   OnchainHookType,
@@ -328,6 +329,7 @@ describe('EvmHookReader', () => {
       address: mockAddress,
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       beneficiary,
+      igpVersion: IgpVersion.Legacy,
       oracleKey: owner,
       overhead: {},
       oracleConfig: {},
