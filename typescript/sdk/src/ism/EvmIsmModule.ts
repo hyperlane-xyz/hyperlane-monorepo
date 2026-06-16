@@ -1011,6 +1011,7 @@ export class EvmIsmModule extends HyperlaneModule<
         return null;
       }
 
+      // These only need to match each other; duplicate keys are rejected above.
       onChainTyped.sort((a, b) => a.key.localeCompare(b.key));
       targetTyped.sort((a, b) => a.key.localeCompare(b.key));
 
