@@ -9,6 +9,7 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {MinimalInterchainGasPaymaster, GasParam, DomainGasConfig, TokenGasOracleConfig} from "../../contracts/hooks/igp/MinimalInterchainGasPaymaster.sol";
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
@@ -178,16 +179,9 @@ contract InterchainGasPaymasterTest is Test {
         vm.assume(_domain1 != _domain2);
         StorageGasOracle oracle1 = new StorageGasOracle();
         StorageGasOracle oracle2 = new StorageGasOracle();
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](2);
-        params[0] = InterchainGasPaymaster.GasParam(
-            _domain1,
-            InterchainGasPaymaster.DomainGasConfig(oracle1, _gasOverhead1)
-        );
-        params[1] = InterchainGasPaymaster.GasParam(
-            _domain2,
-            InterchainGasPaymaster.DomainGasConfig(oracle2, _gasOverhead2)
-        );
+        GasParam[] memory params = new GasParam[](2);
+        params[0] = GasParam(_domain1, DomainGasConfig(oracle1, _gasOverhead1));
+        params[1] = GasParam(_domain2, DomainGasConfig(oracle2, _gasOverhead2));
 
         // Data = remoteDomain, gasOracle, gasOverhead
         vm.expectEmit(false, false, false, true, address(igp));
@@ -222,15 +216,14 @@ contract InterchainGasPaymasterTest is Test {
         uint96 _gasOverhead1,
         uint96 _gasOverhead2
     ) public {
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](2);
-        params[0] = InterchainGasPaymaster.GasParam(
+        GasParam[] memory params = new GasParam[](2);
+        params[0] = GasParam(
             _domain1,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, _gasOverhead1)
+            DomainGasConfig(testOracle, _gasOverhead1)
         );
-        params[1] = InterchainGasPaymaster.GasParam(
+        params[1] = GasParam(
             _domain2,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, _gasOverhead2)
+            DomainGasConfig(testOracle, _gasOverhead2)
         );
 
         vm.expectRevert("Ownable: caller is not the owner");
@@ -594,11 +587,10 @@ contract InterchainGasPaymasterTest is Test {
         StorageGasOracle newOracle = new StorageGasOracle();
 
         // First configure domain with native token oracle
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory nativeParams = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        nativeParams[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory nativeParams = new TokenGasOracleConfig[](
+            1
+        );
+        nativeParams[0] = TokenGasOracleConfig(
             address(0), // NATIVE_TOKEN
             newDomain,
             newOracle
@@ -606,15 +598,8 @@ contract InterchainGasPaymasterTest is Test {
         igp.setTokenGasOracles(nativeParams);
 
         // Now set non-native token oracle
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
-            newFeeToken,
-            newDomain,
-            newOracle
-        );
+        TokenGasOracleConfig[] memory params = new TokenGasOracleConfig[](1);
+        params[0] = TokenGasOracleConfig(newFeeToken, newDomain, newOracle);
 
         vm.expectEmit(true, false, false, true, address(igp));
         emit TokenGasOracleSet(newFeeToken, newDomain, address(newOracle));
@@ -626,11 +611,8 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     function testSetTokenGasOracles_reverts_notOwner() public {
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory params = new TokenGasOracleConfig[](1);
+        params[0] = TokenGasOracleConfig(
             address(feeToken),
             testDestinationDomain,
             tokenOracle
@@ -879,11 +861,10 @@ contract InterchainGasPaymasterTest is Test {
         uint96 _gasOverhead
     ) internal {
         // Set native gas oracle via tokenGasOracles with address(0)
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory oracleParams = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        oracleParams[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory oracleParams = new TokenGasOracleConfig[](
+            1
+        );
+        oracleParams[0] = TokenGasOracleConfig(
             address(0), // NATIVE_TOKEN
             _remoteDomain,
             _gasOracle
@@ -926,16 +907,9 @@ contract InterchainGasPaymasterTest is Test {
         uint32 _remoteDomain,
         IGasOracle _gasOracle
     ) internal {
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
+        TokenGasOracleConfig[] memory params = new TokenGasOracleConfig[](1);
 
-        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
-            _feeToken,
-            _remoteDomain,
-            _gasOracle
-        );
+        params[0] = TokenGasOracleConfig(_feeToken, _remoteDomain, _gasOracle);
         igp.setTokenGasOracles(params);
     }
 
@@ -969,20 +943,10 @@ contract InterchainGasPaymasterTest is Test {
         uint32 domain2 = 2;
         uint32 domain3 = 3;
 
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](3);
-        params[0] = InterchainGasPaymaster.GasParam(
-            domain1,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, 100)
-        );
-        params[1] = InterchainGasPaymaster.GasParam(
-            domain2,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, 200)
-        );
-        params[2] = InterchainGasPaymaster.GasParam(
-            domain3,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, 300)
-        );
+        GasParam[] memory params = new GasParam[](3);
+        params[0] = GasParam(domain1, DomainGasConfig(testOracle, 100));
+        params[1] = GasParam(domain2, DomainGasConfig(testOracle, 200));
+        params[2] = GasParam(domain3, DomainGasConfig(testOracle, 300));
 
         igp.setDestinationGasConfigs(params);
 
@@ -1021,11 +985,10 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(domainsBefore[0], testDestinationDomain);
 
         // Set gas oracle to zero address to remove domain
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](1);
-        params[0] = InterchainGasPaymaster.GasParam(
+        GasParam[] memory params = new GasParam[](1);
+        params[0] = GasParam(
             testDestinationDomain,
-            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+            DomainGasConfig(IGasOracle(address(0)), 0)
         );
         igp.setDestinationGasConfigs(params);
 
@@ -1039,12 +1002,8 @@ contract InterchainGasPaymasterTest is Test {
         newIgp.initialize(address(this), beneficiary);
 
         // Remove non-existent domain should not revert
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](1);
-        params[0] = InterchainGasPaymaster.GasParam(
-            999,
-            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
-        );
+        GasParam[] memory params = new GasParam[](1);
+        params[0] = GasParam(999, DomainGasConfig(IGasOracle(address(0)), 0));
         newIgp.setDestinationGasConfigs(params);
 
         uint32[] memory domains = newIgp.domains();
@@ -1053,21 +1012,19 @@ contract InterchainGasPaymasterTest is Test {
 
     function testDomains_readdAfterRemoval() public {
         // Remove domain
-        InterchainGasPaymaster.GasParam[]
-            memory removeParams = new InterchainGasPaymaster.GasParam[](1);
-        removeParams[0] = InterchainGasPaymaster.GasParam(
+        GasParam[] memory removeParams = new GasParam[](1);
+        removeParams[0] = GasParam(
             testDestinationDomain,
-            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+            DomainGasConfig(IGasOracle(address(0)), 0)
         );
         igp.setDestinationGasConfigs(removeParams);
         assertEq(igp.domains().length, 0);
 
         // Re-add domain
-        InterchainGasPaymaster.GasParam[]
-            memory addParams = new InterchainGasPaymaster.GasParam[](1);
-        addParams[0] = InterchainGasPaymaster.GasParam(
+        GasParam[] memory addParams = new GasParam[](1);
+        addParams[0] = GasParam(
             testDestinationDomain,
-            InterchainGasPaymaster.DomainGasConfig(testOracle, testGasOverhead)
+            DomainGasConfig(testOracle, testGasOverhead)
         );
         igp.setDestinationGasConfigs(addParams);
 
@@ -1095,11 +1052,8 @@ contract InterchainGasPaymasterTest is Test {
 
         // Try to set non-native token oracle without native token configured first
         address nonNativeToken = address(1);
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory configs = new TokenGasOracleConfig[](1);
+        configs[0] = TokenGasOracleConfig(
             nonNativeToken,
             testDestinationDomain,
             testOracle
@@ -1117,11 +1071,8 @@ contract InterchainGasPaymasterTest is Test {
 
         // Setting non-native token oracle should succeed
         address nonNativeToken = address(1);
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory configs = new TokenGasOracleConfig[](1);
+        configs[0] = TokenGasOracleConfig(
             nonNativeToken,
             testDestinationDomain,
             testOracle
@@ -1146,11 +1097,10 @@ contract InterchainGasPaymasterTest is Test {
 
         // Add a non-native token oracle for the same domain
         address nonNativeToken = address(1);
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory addConfigs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        addConfigs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory addConfigs = new TokenGasOracleConfig[](
+            1
+        );
+        addConfigs[0] = TokenGasOracleConfig(
             nonNativeToken,
             testDestinationDomain,
             testOracle
@@ -1158,11 +1108,10 @@ contract InterchainGasPaymasterTest is Test {
         igp.setTokenGasOracles(addConfigs);
 
         // Clear the non-native token oracle
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory clearConfigs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        clearConfigs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory clearConfigs = new TokenGasOracleConfig[](
+            1
+        );
+        clearConfigs[0] = TokenGasOracleConfig(
             nonNativeToken,
             testDestinationDomain,
             IGasOracle(address(0))

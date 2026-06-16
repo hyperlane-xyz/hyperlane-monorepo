@@ -14,6 +14,7 @@ import {
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
   IPostDispatchHook__factory,
+  GasParamStruct,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   OPStackHook,
@@ -61,6 +62,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
+import { supportsOffchainQuoting } from '../metadata/chainMetadataTypes.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
@@ -599,7 +601,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentOverheads?: IgpConfig['overhead'];
     targetOverheads: IgpConfig['overhead'];
   }): Promise<AnnotatedEV5Transaction[]> {
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: GasParamStruct[] = [];
     for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -1276,6 +1278,12 @@ export class EvmHookModule extends HyperlaneModule<
 
     // Add quote signers if configured
     if (config.quoteSigners?.length) {
+      assert(
+        supportsOffchainQuoting(
+          this.multiProvider.getChainMetadata(this.chain),
+        ),
+        `Cannot configure quoteSigners on ${this.chain}: legacy evmTarget deploys MinimalInterchainGasPaymaster, which has no addQuoteSigner function. Drop quoteSigners from the IGP config or remove evmTarget from chain metadata.`,
+      );
       for (const signer of config.quoteSigners) {
         await this.multiProvider.handleTx(
           this.chain,

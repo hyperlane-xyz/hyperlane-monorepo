@@ -32,6 +32,7 @@ import {
   ChainMetadata,
   ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
+  EvmTarget,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
@@ -433,7 +434,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       const resolved =
         protocol === ProtocolType.Tron
           ? await this.resolveTronFactory(factory)
-          : factory;
+          : await this.resolveEvmTargetFactory(factory, metadata.evmTarget);
       const contractFactory = resolved.connect(signer);
 
       const deployTx = contractFactory.getDeployTransaction(...params);
@@ -479,6 +480,86 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       );
     }
     return new TronSdk.TronContractFactory(new TronFactory()) as unknown as F;
+  }
+
+  /**
+   * Matrix of non-default EVM compile targets we publish bundles for.
+   * Each entry pairs a thunk that dynamically imports a `@hyperlane-xyz/core`
+   * subpath compiled for the named target with optional factory-name aliases
+   * for cancun-only contracts that exist in the cancun bundle under a
+   * different name in the legacy bundle (e.g. `OffchainQuotedInterchainGasPaymaster`
+   * collapses to slim `MinimalInterchainGasPaymaster` on paris).
+   *
+   * Literal-string imports give bundlers (webpack/Turbopack/Rollup) named,
+   * statically-analyzable code-split points so the chunk only loads when
+   * a chain with the matching evmTarget is deployed against.
+   *
+   * Cancun / Unknown / undefined → no entry; default bundle is used.
+   * Add a new target here when a new compile profile is released.
+   */
+  private static readonly EVM_TARGET_BUNDLES: Partial<
+    Record<
+      EvmTarget,
+      {
+        // CAST: dynamic import resolves factory classes by runtime name lookup;
+        // no static type can represent an arbitrary bundle of ContractFactory subclasses.
+        load: () => Promise<Record<string, any>>;
+        factoryAliases?: Record<string, string>;
+      }
+    >
+  > = {
+    [EvmTarget.Paris]: {
+      load: () => import('@hyperlane-xyz/core/paris'),
+      factoryAliases: {
+        // Legacy bundle excludes the offchain-quoting tree; the slim
+        // MinimalInterchainGasPaymaster is the deployable IGP variant.
+        InterchainGasPaymaster__factory:
+          'MinimalInterchainGasPaymaster__factory',
+      },
+    },
+  };
+
+  /**
+   * Resolve a core typechain factory to its target-compiled equivalent
+   * for chains whose EVM does not run the default (cancun) bytecode.
+   *
+   * Looks up the override bundle in `EVM_TARGET_BUNDLES`, imports it, and
+   * resolves the factory class — applying any registered name alias for
+   * cancun-only classes that map to a slimmer legacy contract. Returns the
+   * unmodified factory when the chain has no target set or the target has
+   * no registered override (cancun, unknown).
+   * @throws if a registered override bundle is missing the resolved factory
+   */
+  async resolveEvmTargetFactory<F extends ContractFactory>(
+    factory: F,
+    target: EvmTarget | undefined,
+  ): Promise<F> {
+    if (!target) return factory;
+    const entry = MultiProvider.EVM_TARGET_BUNDLES[target];
+    if (!entry) {
+      // Target is set but we have no bundle for it. Cancun is the default
+      // (no override needed); anything else (Unknown, forward-compat-normalized
+      // values) is a likely misconfig that would otherwise only surface as a
+      // runtime revert at the destination.
+      if (target !== EvmTarget.Cancun) {
+        this.logger.warn(
+          `evmTarget=${target} has no published @hyperlane-xyz/core bundle; deploying default cancun bytecode for ${factory.constructor.name}. If the chain truly requires a legacy target, this deployment will revert at runtime.`,
+        );
+      }
+      return factory;
+    }
+    const bundle = await entry.load();
+    const sourceName = factory.constructor.name;
+    const lookupName = entry.factoryAliases?.[sourceName] ?? sourceName;
+    const TargetFactory = bundle[lookupName];
+    if (!TargetFactory) {
+      throw new Error(
+        `No ${target}-compiled factory found for ${sourceName} (looked up as ${lookupName})`,
+      );
+    }
+    // CAST: factory loaded by runtime name lookup from a target-specific bundle;
+    // TypeScript cannot statically verify the loaded class matches F.
+    return new TargetFactory() as unknown as F;
   }
 
   /**

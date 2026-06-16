@@ -18,6 +18,7 @@ import { HypTokenConfigSchema } from '../token/types.js';
 import {
   ChainMetadataSchema,
   ChainTechnicalStack,
+  EvmTarget,
   ExplorerFamily,
 } from './chainMetadataTypes.js';
 import { forwardCompatibleEnum } from './customZodTypes.js';
@@ -137,6 +138,119 @@ describe('forwardCompatibleEnum', () => {
         );
       }
     });
+  });
+
+  describe('EvmTarget normalization', () => {
+    const baseMetadata = {
+      chainId: 1,
+      domainId: 1,
+      name: 'testchain',
+      protocol: ProtocolType.Ethereum,
+      rpcUrls: [{ http: 'https://rpc.example.com' }],
+    };
+
+    it('should parse known evm targets correctly', () => {
+      for (const target of [EvmTarget.Paris, EvmTarget.Cancun]) {
+        const result = ChainMetadataSchema.safeParse({
+          ...baseMetadata,
+          evmTarget: target,
+        });
+        expect(result.success).to.be.true;
+        if (result.success) {
+          expect(result.data.evmTarget).to.equal(target);
+        }
+      }
+    });
+
+    it('should normalize shanghai (no published bundle) to EvmTarget.Unknown', () => {
+      const result = ChainMetadataSchema.safeParse({
+        ...baseMetadata,
+        evmTarget: 'shanghai',
+      });
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.equal(EvmTarget.Unknown);
+      }
+    });
+
+    it('should normalize arbitrary unknown targets to EvmTarget.Unknown', () => {
+      const result = ChainMetadataSchema.safeParse({
+        ...baseMetadata,
+        evmTarget: 'futurefork',
+      });
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.equal(EvmTarget.Unknown);
+      }
+    });
+
+    it('should accept absent evmTarget (defaults to cancun behavior)', () => {
+      const result = ChainMetadataSchema.safeParse(baseMetadata);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.be.undefined;
+      }
+    });
+
+    // Solidity EVM compile-target routing is meaningful only for EVM chains.
+    // Schema must reject `evmTarget` on every non-Ethereum protocol. Each
+    // protocol has its own minimum-required field set, so build per-protocol
+    // base metadata before attaching evmTarget.
+    const nonEthereumCases: {
+      protocol: ProtocolType;
+      extra: Record<string, unknown>;
+    }[] = [
+      {
+        protocol: ProtocolType.Cosmos,
+        extra: {
+          chainId: 'cosmoshub-4',
+          domainId: 1234,
+          bech32Prefix: 'cosmos',
+          slip44: 118,
+          restUrls: [{ http: 'https://rest.example.com' }],
+          grpcUrls: [{ http: 'https://grpc.example.com' }],
+        },
+      },
+      {
+        protocol: ProtocolType.CosmosNative,
+        extra: {
+          chainId: 'osmosis-1',
+          domainId: 5678,
+          bech32Prefix: 'osmo',
+          slip44: 118,
+          restUrls: [{ http: 'https://rest.example.com' }],
+          grpcUrls: [{ http: 'https://grpc.example.com' }],
+        },
+      },
+      {
+        protocol: ProtocolType.Sealevel,
+        extra: { chainId: 1399811149, domainId: 1399811149 },
+      },
+      {
+        protocol: ProtocolType.Starknet,
+        extra: { chainId: 'SN_MAIN', domainId: 23448594 },
+      },
+      {
+        protocol: ProtocolType.Tron,
+        extra: { chainId: 728126428, domainId: 728126428 },
+      },
+    ];
+
+    for (const { protocol, extra } of nonEthereumCases) {
+      it(`should reject evmTarget set on protocol=${protocol}`, () => {
+        const result = ChainMetadataSchema.safeParse({
+          ...baseMetadata,
+          ...extra,
+          protocol,
+          evmTarget: EvmTarget.Paris,
+        });
+        expect(result.success).to.be.false;
+        if (!result.success) {
+          expect(result.error.issues.some((i) => i.path.includes('evmTarget')))
+            .to.be.true;
+        }
+      });
+    }
   });
 
   describe('TokenType normalization', () => {

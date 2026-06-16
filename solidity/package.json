@@ -40,6 +40,7 @@
     "test": "test"
   },
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./dist/index.js",
     "./mailbox": "./dist/typechain/contracts/Mailbox.js",
@@ -49,6 +50,9 @@
     "./tron/abi/*": "./artifacts-tron/*",
     "./tron/typechain": "./dist/tron/typechain/index.js",
     "./tron/typechain/*": "./dist/tron/typechain/*",
+    "./paris": "./dist/paris/typechain/index.js",
+    "./paris/typechain/*": "./dist/paris/typechain/*",
+    "./paris/abi/*": "./artifacts-paris/*",
     "./contracts": "./contracts"
   },
   "types": "./dist/index.d.ts",
@@ -56,6 +60,7 @@
     "/dist",
     "/contracts",
     "/artifacts-tron",
+    "/artifacts-paris",
     "/dependencies"
   ],
   "engines": {
@@ -73,14 +78,16 @@
     "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && ./exportBuildArtifact.sh",
     "build:zk": "pnpm hardhat-zk compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
     "build:tron": "./build-tron.sh",
+    "build:paris": "pnpm hardhat-paris compile && tsc --project tsconfig.paris-typechain.json && node fix-typechain-ethers.mjs ./dist/paris/typechain/factories",
     "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract 'Tron(Create2|SafeERC20)Test' -vvv && bash test/tron/check-SafeERC20-diff.sh",
-    "prepack": "[ -d dist ] || (echo 'Error: dist/ not found. Run pnpm build first.' && exit 1)",
+    "prepack": "[ -f dist/index.js ] && [ -f dist/paris/typechain/index.js ] && [ -d artifacts-paris ] || (echo 'Error: build outputs missing. Run pnpm build && pnpm build:paris first.' && exit 1)",
     "lint": "solhint contracts/**/*.sol",
-    "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./out-tron ./forge-cache-tron ./types ./coverage ./out ./forge-cache ./fixtures",
+    "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./cache-paris ./artifacts-tron ./artifacts-paris ./out-tron ./out-paris ./forge-cache-tron ./forge-cache-paris ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "pnpm fixtures && ./coverage.sh",
     "docs": "forge doc",
     "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
+    "hardhat-paris": "NODE_OPTIONS='--import tsx/esm' hardhat --config paris-hardhat.config.cts",
     "hardhat-tron": "NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts",
     "hardhat-zk": "NODE_OPTIONS='--import tsx/esm' hardhat --config zk-hardhat.config.cts",
     "format": "prettier --write ./contracts ./test",

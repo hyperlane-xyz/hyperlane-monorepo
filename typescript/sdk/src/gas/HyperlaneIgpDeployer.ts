@@ -1,15 +1,19 @@
 import { ethers } from 'ethers';
 
 import {
+  GasParamStruct,
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import {
   addBufferToGasLimit,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+
+import { supportsOffchainQuoting } from '../metadata/chainMetadataTypes.js';
 
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
@@ -57,7 +61,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -110,6 +114,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     }
 
     if (config.quoteSigners?.length) {
+      assert(
+        supportsOffchainQuoting(this.multiProvider.getChainMetadata(chain)),
+        `Cannot configure quoteSigners on ${chain}: legacy evmTarget deploys MinimalInterchainGasPaymaster, which has no addQuoteSigner function. Drop quoteSigners from the IGP config or remove evmTarget from chain metadata.`,
+      );
       for (const signer of config.quoteSigners) {
         this.logger.debug(`Adding quote signer ${signer} to IGP on ${chain}`);
         await this.multiProvider.handleTx(

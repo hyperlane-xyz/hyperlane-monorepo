@@ -272,6 +272,9 @@ jobs:
         if: inputs.include_zksync
         run: pnpm run build:zk
 
+      - name: Build paris artifacts
+        run: pnpm run build:paris
+
       - name: Create snapshot versions
         run: pnpm exec changeset version --snapshot ${{ inputs.snapshot_tag }}
 

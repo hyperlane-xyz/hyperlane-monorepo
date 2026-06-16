@@ -8,6 +8,7 @@ import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {MinimalInterchainGasPaymaster, GasParam, DomainGasConfig, TokenGasOracleConfig} from "../../contracts/hooks/igp/MinimalInterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
@@ -98,11 +99,10 @@ contract ScaledFeeConsistencyTest is Test {
             })
         );
 
-        InterchainGasPaymaster.GasParam[]
-            memory gasParams = new InterchainGasPaymaster.GasParam[](1);
-        gasParams[0] = InterchainGasPaymaster.GasParam({
+        GasParam[] memory gasParams = new GasParam[](1);
+        gasParams[0] = GasParam({
             remoteDomain: DESTINATION,
-            config: InterchainGasPaymaster.DomainGasConfig({
+            config: DomainGasConfig({
                 gasOracle: gasOracle,
                 gasOverhead: GAS_OVERHEAD
             })
@@ -474,11 +474,8 @@ contract ScaledFeeConsistencyTest is Test {
         uint32 _domain,
         StorageGasOracle _oracle
     ) internal {
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory params = new TokenGasOracleConfig[](1);
+        params[0] = TokenGasOracleConfig(
             _token,
             _domain,
             IGasOracle(address(_oracle))
