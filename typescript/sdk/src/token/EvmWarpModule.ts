@@ -113,7 +113,20 @@ type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
 // instead of revoking it. Hardcoded (not CONTRACTS_PACKAGE_VERSION) because the
 // package version moves to the next major at release and would wrongly match the
 // new revoke-semantics implementations.
-const MAX_LEGACY_BRIDGE_APPROVAL_VERSION = '11.3.1';
+export const MAX_LEGACY_BRIDGE_APPROVAL_VERSION = '11.3.1';
+
+/**
+ * Whether `approveTokenForBridge` GRANTS a standing max allowance on the given
+ * contract version (legacy impls) rather than REVOKING it (new impls). The
+ * selector is overloaded by implementation version.
+ */
+export function bridgeApprovalGrantsMaxAllowance(
+  contractVersion: string,
+): boolean {
+  return (
+    compareVersions(contractVersion, MAX_LEGACY_BRIDGE_APPROVAL_VERSION) <= 0
+  );
+}
 
 const getAllowedRebalancingBridgesByDomain = (
   allowedRebalancingBridgesByDomain: NonNullable<
@@ -658,10 +671,7 @@ export class EvmWarpModule extends HyperlaneModule<
     // impl the same selector revokes, so there is nothing to grant ahead of time.
     if (
       !actualConfig.contractVersion ||
-      compareVersions(
-        actualConfig.contractVersion,
-        MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
-      ) > 0
+      !bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion)
     ) {
       return [];
     }
@@ -836,12 +846,14 @@ export class EvmWarpModule extends HyperlaneModule<
    * after an in-place upgrade.
    *
    * Pre-atomic-rebalancing routers granted `type(uint256).max` to every enrolled
-   * bridge in `_addBridge`. After upgrading, bridges that are removed have their
-   * allowance revoked on-chain by `_removeBridge`, and newly-added bridges never
-   * received a legacy allowance. Bridges that REMAIN allowlisted, however, keep the
-   * stale max allowance until the next rebalance. This method emits txs that set
-   * those allowances back to zero so an allowlisted bridge has no out-of-band
-   * transferFrom power over the router balance.
+   * bridge in `_addBridge` (the collateral token) and, via the legacy
+   * `approvedTokens` grant path, to arbitrary tokens. After upgrading, bridges that
+   * are removed have their allowance revoked on-chain by `_removeBridge`, and
+   * newly-added bridges never received a legacy allowance. Bridges that REMAIN
+   * allowlisted, however, keep those stale max allowances until the next rebalance.
+   * This method emits txs that set the collateral token AND any configured
+   * `approvedTokens` allowances back to zero so an allowlisted bridge has no
+   * out-of-band transferFrom power over the router balance.
    *
    * `approveTokenForBridge` only has revoke semantics on the new implementation;
    * on legacy impls the same selector GRANTS max. Revoke txs are therefore only
@@ -875,25 +887,46 @@ export class EvmWarpModule extends HyperlaneModule<
     // already revokes, so there is nothing stale to clear.
     if (
       !actualConfig.contractVersion ||
-      compareVersions(
-        actualConfig.contractVersion,
-        MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
-      ) > 0
+      !bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion)
     ) {
       return [];
     }
 
     const provider = this.multiProvider.getProvider(this.chainId);
 
-    // The collateral token backing the router. Native routes (address(0)) never
-    // held ERC20 approvals, so there is nothing to revoke.
+    // The collateral token backing the router. Native routes (address(0)) have no
+    // ERC20 collateral, but may still carry stale `approvedTokens` grants.
     const collateralToken = await MovableCollateralRouter__factory.connect(
       this.args.addresses.deployedTokenRoute,
       provider,
     ).token();
-    if (isZeroishAddress(collateralToken)) {
-      return [];
-    }
+
+    // bridge -> tokens the legacy `approvedTokens` grant path could have approved.
+    // `actualConfig` does not derive approvedTokens, so the expected config is the
+    // signal of what was granted; collecting from both is a harmless superset since
+    // each candidate is gated on a non-zero on-chain allowance below.
+    const approvedTokensByBridge = new Map<Address, Set<Address>>();
+    const collectApprovedTokens = (
+      bridgesByDomain: NonNullable<
+        MovableTokenConfig['allowedRebalancingBridges']
+      >,
+    ): void => {
+      for (const bridgeConfigs of Object.values(
+        resolveRouterMapConfig(this.multiProvider, bridgesByDomain),
+      )) {
+        for (const { bridge, approvedTokens } of bridgeConfigs) {
+          const normalizedBridge = normalizeAddressEvm(bridge);
+          const tokens =
+            approvedTokensByBridge.get(normalizedBridge) ?? new Set<Address>();
+          for (const token of approvedTokens ?? []) {
+            tokens.add(normalizeAddressEvm(token));
+          }
+          approvedTokensByBridge.set(normalizedBridge, tokens);
+        }
+      }
+    };
+    collectApprovedTokens(actualConfig.allowedRebalancingBridges ?? {});
+    collectApprovedTokens(expectedConfig.allowedRebalancingBridges);
 
     const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
       resolveRouterMapConfig(
@@ -918,24 +951,33 @@ export class EvmWarpModule extends HyperlaneModule<
 
     const revokeTxs: AnnotatedEV5Transaction[] = [];
     for (const bridge of remainingBridges) {
-      const allowance = await IERC20__factory.connect(
-        collateralToken,
-        provider,
-      ).allowance(this.args.addresses.deployedTokenRoute, bridge);
-
-      if (allowance.isZero()) {
-        continue;
+      const tokensToRevoke = new Set<Address>(
+        approvedTokensByBridge.get(bridge) ?? [],
+      );
+      if (!isZeroishAddress(collateralToken)) {
+        tokensToRevoke.add(normalizeAddressEvm(collateralToken));
       }
 
-      revokeTxs.push({
-        chainId: this.chainId,
-        annotation: `Revoking legacy bridge allowance for token "${collateralToken}" and bridge "${bridge}" on "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
-        to: this.args.addresses.deployedTokenRoute,
-        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-          'approveTokenForBridge(address,address)',
-          [collateralToken, bridge],
-        ),
-      });
+      for (const token of tokensToRevoke) {
+        const allowance = await IERC20__factory.connect(
+          token,
+          provider,
+        ).allowance(this.args.addresses.deployedTokenRoute, bridge);
+
+        if (allowance.isZero()) {
+          continue;
+        }
+
+        revokeTxs.push({
+          chainId: this.chainId,
+          annotation: `Revoking legacy bridge allowance for token "${token}" and bridge "${bridge}" on "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'approveTokenForBridge(address,address)',
+            [token, bridge],
+          ),
+        });
+      }
     }
 
     return revokeTxs;

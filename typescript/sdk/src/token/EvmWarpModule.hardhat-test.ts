@@ -1419,10 +1419,12 @@ describe('EvmWarpModule', async () => {
       // legacy standing allowance; native routes never had approvals.
       if (tokenType === TokenType.collateral) {
         // Plants a legacy type(uint256).max standing allowance from the router to
-        // `bridge`, mimicking the pre-upgrade on-chain state left by `_addBridge`.
+        // `bridge`, mimicking the pre-upgrade on-chain state left by `_addBridge`
+        // (collateral token) or the legacy approvedTokens grant path (any token).
         const plantLegacyAllowance = async (
           router: Address,
           bridge: Address,
+          erc20: ERC20Test = token,
         ): Promise<void> => {
           await hre.network.provider.request({
             method: 'hardhat_impersonateAccount',
@@ -1433,7 +1435,7 @@ describe('EvmWarpModule', async () => {
             params: [router, '0xDE0B6B3A7640000'],
           });
           const routerSigner = hre.ethers.provider.getSigner(router);
-          await token
+          await erc20
             .connect(routerSigner)
             .approve(bridge, ethers.constants.MaxUint256);
           await hre.network.provider.request({
@@ -1499,6 +1501,69 @@ describe('EvmWarpModule', async () => {
           expect(
             (
               await token.callStatic.allowance(router, allowedBridge)
+            ).toBigInt(),
+          ).to.equal(0n);
+        });
+
+        it(`should revoke a legacy approvedTokens allowance during an in-place upgrade for a route of type "${tokenType}"`, async () => {
+          const allowedBridge = normalizeAddressEvm(randomAddress());
+          const config = HypTokenRouterConfigSchema.parse({
+            ...getMovableTokenConfig()[tokenType],
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridge,
+                  approvedTokens: [feeToken.address],
+                },
+              ],
+            },
+          });
+
+          const evmERC20WarpModule = await EvmWarpModule.create({
+            chain,
+            config,
+            multiProvider,
+            proxyFactoryFactories: ismFactoryAddresses,
+          });
+
+          const router = evmERC20WarpModule.serialize().deployedTokenRoute;
+
+          // Plant legacy max allowances on BOTH the collateral token and the
+          // approvedToken, mimicking the pre-upgrade grants for a remaining bridge.
+          await plantLegacyAllowance(router, allowedBridge);
+          await plantLegacyAllowance(router, allowedBridge, feeToken);
+
+          // Spoof an old impl so update() generates an upgrade and the revoke gate opens.
+          const versionStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+            .resolves('11.3.0');
+          const scaleStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchScale')
+            .resolves(undefined);
+
+          const txs = await evmERC20WarpModule.update({
+            ...config,
+            contractVersion: CONTRACTS_PACKAGE_VERSION,
+          });
+          await sendTxs(txs);
+
+          versionStub.restore();
+          scaleStub.restore();
+
+          // Both the collateral and the approvedToken allowance are cleared post-upgrade.
+          expect(
+            (
+              await token.callStatic.allowance(router, allowedBridge)
+            ).toBigInt(),
+          ).to.equal(0n);
+          expect(
+            (
+              await feeToken.callStatic.allowance(router, allowedBridge)
             ).toBigInt(),
           ).to.equal(0n);
         });
