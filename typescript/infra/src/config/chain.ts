@@ -62,6 +62,8 @@ export function getDisabledChains(): ChainName[] {
 
 // Chains that should keep the legacy IGP path. Deploy flows should recover
 // existing IGP deployments and skip latest-only contracts on these chains.
+// Disabled chains are included so operations never try to auto-heal them from
+// legacy recover-only deployments to latest IGP deployments while disabled.
 export const legacyIgpChains: ChainName[] = Array.from(
   new Set([
     'chilizmainnet',

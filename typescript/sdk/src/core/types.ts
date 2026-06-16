@@ -8,10 +8,10 @@ import type { CheckerViolation } from '../deploy/types.js';
 import { ProxyFactoryFactoriesSchema } from '../deploy/types.js';
 import {
   DerivedHookConfig,
+  HookConfig,
   HookConfigSchema,
-  HookType,
-  IgpVersion,
 } from '../hook/types.js';
+import { hookTreeContainsLegacyIgp } from '../hook/utils.js';
 import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
@@ -49,36 +49,6 @@ const rejectRateLimitedDefaultIsm = (
   }
 };
 
-// Recursively checks a hook config tree for a legacy IGP (igpVersion: legacy).
-function hookTreeContainsLegacyIgp(hook: unknown): boolean {
-  if (typeof hook !== 'object' || hook === null) return false;
-  const node = hook as Record<string, unknown>;
-  if (
-    node.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
-    node.igpVersion === IgpVersion.Legacy
-  ) {
-    return true;
-  }
-  if (Array.isArray(node.hooks) && node.hooks.some(hookTreeContainsLegacyIgp)) {
-    return true;
-  }
-  if (
-    node.domains !== null &&
-    typeof node.domains === 'object' &&
-    Object.values(node.domains as Record<string, unknown>).some(
-      hookTreeContainsLegacyIgp,
-    )
-  ) {
-    return true;
-  }
-  return (
-    hookTreeContainsLegacyIgp(node.fallback) ||
-    hookTreeContainsLegacyIgp(node.lowerHook) ||
-    hookTreeContainsLegacyIgp(node.upperHook) ||
-    hookTreeContainsLegacyIgp(node.childHook)
-  );
-}
-
 // QuotedCalls and the offchain-quoting IGP both require EIP-1153 transient
 // storage, so they ship together on the same (non-legacy) chains. Reject the
 // mismatch where a legacy IGP is configured but QuotedCalls is still set to
@@ -93,8 +63,8 @@ const rejectQuotedCallsWithLegacyIgp = (
 ) => {
   if (val.deployQuotedCalls === false) return;
   if (
-    hookTreeContainsLegacyIgp(val.defaultHook) ||
-    hookTreeContainsLegacyIgp(val.requiredHook)
+    hookTreeContainsLegacyIgp(val.defaultHook as HookConfig) ||
+    hookTreeContainsLegacyIgp(val.requiredHook as HookConfig)
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

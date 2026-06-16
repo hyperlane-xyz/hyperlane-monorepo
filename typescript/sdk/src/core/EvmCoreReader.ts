@@ -11,6 +11,7 @@ import {
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { proxyAdmin } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { hookTreeContainsLegacyIgp } from '../hook/utils.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -95,7 +96,15 @@ export class EvmCoreReader implements CoreReader {
       ),
     );
 
-    return results as DerivedCoreConfig;
+    const derivedConfig = results as DerivedCoreConfig;
+    const hasLegacyIgp =
+      hookTreeContainsLegacyIgp(derivedConfig.defaultHook) ||
+      hookTreeContainsLegacyIgp(derivedConfig.requiredHook);
+
+    return {
+      ...derivedConfig,
+      ...(hasLegacyIgp ? { deployQuotedCalls: false } : {}),
+    };
   }
 
   private async getProxyAdminConfig(
