@@ -82,7 +82,7 @@ export class EvmIsmModule extends HyperlaneModule<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
-    ccipContractCache?: CCIPContractCache,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
@@ -547,7 +547,7 @@ export class EvmIsmModule extends HyperlaneModule<
           config: targetConfig,
           addresses: { ...this.args.addresses, deployedIsm: origAddress },
         },
-        undefined,
+        this.ccipContractCache,
         this.contractVerifier,
       );
       allUpdateTxs.push(...(await subModule.update(targetConfig)));
@@ -603,6 +603,7 @@ export class EvmIsmModule extends HyperlaneModule<
         return null;
       }
 
+      // These only need to match each other; duplicate keys are rejected above.
       onChainTyped.sort((a, b) => a.key.localeCompare(b.key));
       targetTyped.sort((a, b) => a.key.localeCompare(b.key));
 
@@ -706,12 +707,19 @@ export class EvmIsmModule extends HyperlaneModule<
       );
     }
 
-    // `recipient` is immutable for RATE_LIMITED and read() omits it, so a
-    // container update cannot safely prove address preservation for that field.
-    return !(
+    if (
+      normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
       normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
       normalizedTargetConfig.recipient !== undefined
-    );
+    ) {
+      const onChainRecipient = await RateLimitedIsm__factory.connect(
+        address,
+        this.multiProvider.getProvider(this.chain),
+      ).recipient();
+      return eqAddress(onChainRecipient, normalizedTargetConfig.recipient);
+    }
+
+    return true;
   }
 
   private ismConfigSortKey(config: IsmConfig): string {
