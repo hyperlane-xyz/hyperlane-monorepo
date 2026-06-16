@@ -25,25 +25,93 @@ project to native Rust using the existing Hyperlane sealevel infrastructure type
 Bit 7 of each command byte is `FLAG_ALLOW_REVERT` — set it to allow that command
 to fail without reverting the entire transaction.
 
-### Hyperlane Message-Recipient Interface
+### EVM→Solana Destination Swap Flow
 
-The program implements the Hyperlane message-recipient interface for EVM→Solana
-destination swaps using a commit/reveal pattern:
+The program implements the Hyperlane message-recipient interface to support
+EVM→Solana cross-chain swaps using a commit/reveal pattern:
 
-1. **Warp bridge** — EVM side bridges tokens to Solana via Hyperlane warp route
-2. **Commit message** — EVM side dispatches a 96-byte commit body:
-   `commitment(32) || salt(32) || recipient(32)`
-   - Creates a `PendingSwap` PDA funded by the program's `fee_payer_pda`
-3. **Reveal message** — EVM side dispatches the swap instructions:
-   `salt(32) || pda_token_ata(32) || borsh(commands, inputs)(N)`
-   - Verifies commitment, executes swap, closes PDA
+```
+EVM                                    Solana
+────────────────────────────           ──────────────────────────────────
+1. bridge tokens ──────────────────►  warp-route ATA (owned by pending_swap PDA)
+2. dispatch Commit message ────────►  handle_commit → creates pending_swap PDA
+3. dispatch Reveal message ────────►  handle_reveal → executes swap, closes PDA
+```
 
-### Key PDAs
+The two-message design separates the commitment (created before token arrival
+is confirmed) from the execution (triggered once tokens are bridged). The
+`pending_swap` PDA address itself serves as the commitment proof — no extra
+hash verification is needed at execution time.
+
+### PDAs
 
 | PDA | Seeds | Purpose |
 |-----|-------|---------|
-| `fee_payer_pda` | `[b"hyperlane_fee_payer"]` | Pre-funded, pays rent for PendingSwap creation |
-| `pending_swap` | `[b"pending_swap", origin_domain_le, sender_bytes32, salt]` | Stores in-flight swap state |
+| `fee_payer_pda` | `[b"hyperlane_fee_payer"]` | Pre-funded; pays rent when `pending_swap` is created |
+| `pending_swap` | `[b"pending_swap", origin_domain_le_bytes(4), sender_bytes32(32), commitment(32)]` | Stores in-flight swap state (37 bytes); one per unique commitment |
+
+`commitment = keccak256(borsh(commands, inputs) ‖ salt)`
+
+The commitment is keyed by origin domain + sender + commitment hash, so multiple
+in-flight swaps from the same EVM sender coexist without collision.
+
+### Commit Message (`handle_commit`)
+
+**Trigger**: body length == 96 bytes
+
+**Body layout**:
+```
+commitment (bytes 0..32)  — keccak256(borsh(swap commands, inputs) || salt)
+salt       (bytes 32..64) — caller-chosen nonce (unused on-chain; already hashed into commitment)
+recipient  (bytes 64..96) — Solana wallet that receives output tokens on success
+```
+
+**Account layout** (after mailbox process authority):
+```
+[0] process_authority  signer    — mailbox process authority PDA (verified)
+[1] fee_payer_pda      writable  — program PDA that funds PendingSwap creation
+[2] pending_swap       writable  — PDA created here; must not already exist
+[3] system_program
+```
+
+**Behaviour**:
+1. Verifies `accounts[0]` is the expected mailbox process authority PDA.
+2. Parses `commitment` (bytes 0..32) and `recipient` (bytes 64..96) from body.
+3. Derives `pending_swap` PDA from `[PENDING_SWAP_SEED, origin_le, sender, commitment]`.
+4. Rejects with `CommitmentAlreadySet` if the PDA account is non-empty.
+5. Creates the 37-byte `pending_swap` account via CPI to system program, funded by `fee_payer_pda`.
+6. Writes `PendingSwap { recipient, origin_domain, bump }` (raw Borsh, no discriminator).
+
+### Reveal Message (`handle_reveal`)
+
+**Trigger**: body length >= 64 bytes (and not exactly 96)
+
+**Body layout**:
+```
+salt          (bytes 0..32)  — nonce used to derive commitment
+pda_token_ata (bytes 32..64) — token ATA owned by the pending_swap PDA
+borsh_payload (bytes 64..)   — borsh(Vec<u8>, Vec<Vec<u8>>) = (commands, inputs)
+```
+
+**Account layout** (after mailbox process authority):
+```
+[0] process_authority  signer    — mailbox process authority PDA (verified)
+[1] fee_payer_pda      writable  — receives rent when pending_swap is closed
+[2] pending_swap       writable  — closed at end (always, even if swap fails)
+[3] pda_token_ata      writable  — ATA holding bridged tokens; must be owned by pending_swap PDA
+[4] system_program
+[5..] swap command accounts      — accounts consumed by dispatcher::execute_commands
+```
+
+**Behaviour**:
+1. Verifies `accounts[0]` is the expected mailbox process authority PDA.
+2. Parses `salt` (bytes 0..32), `pda_token_ata` (bytes 32..64), and `cmd_bytes` (bytes 64..) from body.
+3. Recomputes `commitment = keccak256(cmd_bytes ‖ salt)` — `cmd_bytes` is already the Borsh encoding.
+4. Derives `pending_swap` PDA and verifies `accounts[2]` matches.
+5. Verifies `pda_token_ata` matches the address in the body and is owned by the `pending_swap` PDA with non-zero balance.
+6. Loads `PendingSwap` state (recipient, origin_domain, bump) from the PDA account.
+7. Calls `dispatcher::execute_commands(commands, inputs, swap_accounts, swap_info, 0, &[signer_seeds])` with the `pending_swap` PDA as the signing authority.
+8. **Always** closes `pending_swap` and returns its rent to `fee_payer_pda` — even if the swap fails. On failure, tokens remain in the `pda_token_ata` for the recipient to claim via `ClosePendingSwap`.
 
 ## Prerequisites
 
@@ -132,7 +200,7 @@ solana program deploy \
 ### 4. Fund the Fee Payer PDA
 
 The `fee_payer_pda` must be pre-funded to cover rent for PendingSwap accounts
-(101 bytes ≈ 0.0016 SOL each). Fund it once during deployment:
+(37 bytes, minimum rent-exempt balance ≈ 0.0011 SOL each). Fund it once during deployment:
 
 ```bash
 # Derive the fee_payer_pda address
@@ -192,19 +260,3 @@ const inputs = [
   ),
 ];
 ```
-
-## Relationship to universal-router-sealevel
-
-This is a native-Rust port of the Anchor program at
-`universal-router-sealevel/programs/universal-router`. Key differences:
-
-| Anchor version | Native version |
-|---------------|----------------|
-| `#[derive(Accounts)]` | Manual account validation |
-| `CpiContext` | `invoke` / `invoke_signed` |
-| `#[account]` (8-byte discriminator) | Raw Borsh, no discriminator |
-| `AnchorDeserialize` | `borsh::BorshDeserialize` |
-| `#[error_code]` | `#[repr(u32)]` + `num_derive` |
-| Anchor ISM/handle macros | `MessageRecipientInstruction::decode()` |
-
-`PendingSwap` size: 101 bytes (vs 109 in Anchor due to 8-byte discriminator removal).
