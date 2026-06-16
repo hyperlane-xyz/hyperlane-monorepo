@@ -60,7 +60,7 @@ function hookTreeContains(
     );
   }
   if (hook.type === HookType.ARB_L2_TO_L1) {
-    return hookTreeContains(hook.childHook as HookConfig, predicate);
+    return hookTreeContains(hook.childHook, predicate);
   }
   return false;
 }
