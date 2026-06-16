@@ -85,6 +85,8 @@ describe('getLocalStorageGasOracleConfig', () => {
   it('falls back to the floor when there is no gas price headroom to rebalance', () => {
     // gasPrice in wei (5) is below MIN_REBALANCED_GAS_PRICE, so shifting any
     // magnitude into the exchange rate would exceed the rounding-error bound.
+    // This documents the known fallback limitation: the quote is overpriced by
+    // the sub-1 exchange rate factor rather than preserving precision.
     const gasOracleParams: Record<string, ChainGasOracleParams> = {
       feeToken: {
         gasPrice: { amount: '1', decimals: 9 },
