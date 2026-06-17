@@ -859,6 +859,29 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 0);
     });
 
+    it('should reject token gas oracle remotes without native gas config', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+      const { hook } = await createHook(config);
+
+      const target = deepCopy(config);
+      const [remoteWithoutNativeConfig] = testChains;
+      delete target.overhead[remoteWithoutNativeConfig];
+      target.tokenOracleConfig = {
+        [randomAddress()]: randomTokenOracleConfig(),
+      };
+
+      try {
+        await hook.update(target);
+        throw new Error('Expected token oracle remote validation to fail');
+      } catch (error: unknown) {
+        assert(error instanceof Error, 'Expected Error');
+        expect(error.message).to.include(
+          `includes remotes without native gas oracle config: ${remoteWithoutNativeConfig}`,
+        );
+      }
+    });
+
     it('should reject token gas oracles for legacy IGP configs', async () => {
       const config = await createDeployerOwnedIgpHookConfig();
       const { hook } = await createHook(config);
