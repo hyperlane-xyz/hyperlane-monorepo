@@ -478,43 +478,41 @@ export class CallCommitmentsService extends BaseService {
       // CCIP-Read endpoint keeps working. Only EVM-destination routes carry
       // ABI-encoded ICA calls — borsh (Solana) data will fail to decode and
       // skip the dual-write automatically.
-      {
-        try {
-          const icaAddress = bytes32ToAddress(destinationAccount);
-          const [decodedCalls] = utils.defaultAbiCoder.decode(
-            ['tuple(bytes32 to, uint256 value, bytes data)[]'],
-            data,
-          ) as [
-            Array<{ to: string; value: { toString(): string }; data: string }>,
-          ];
-          const calls = decodedCalls.map((c) => ({
-            to: c.to,
-            value: c.value.toString(),
-            data: c.data,
-          }));
-          await prisma.commitment.upsert({
-            where: { commitment },
-            update: {},
-            create: {
-              commitment,
-              calls,
-              relayers,
-              salt,
-              ica: icaAddress,
-              originDomain,
-            },
-          });
-          logger.info(
-            { commitment, icaAddress, originDomain },
-            'Dual-wrote to Commitment table',
-          );
-        } catch (dualWriteError: any) {
-          // Solana-destination routes carry borsh data that fails ABI decode — not an error.
-          logger.debug(
-            { commitment, error: dualWriteError.message },
-            'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
-          );
-        }
+      try {
+        const icaAddress = bytes32ToAddress(destinationAccount);
+        const [decodedCalls] = utils.defaultAbiCoder.decode(
+          ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+          data,
+        ) as [
+          Array<{ to: string; value: { toString(): string }; data: string }>,
+        ];
+        const calls = decodedCalls.map((c) => ({
+          to: c.to,
+          value: c.value.toString(),
+          data: c.data,
+        }));
+        await prisma.commitment.upsert({
+          where: { commitment },
+          update: {},
+          create: {
+            commitment,
+            calls,
+            relayers,
+            salt,
+            ica: icaAddress,
+            originDomain,
+          },
+        });
+        logger.info(
+          { commitment, icaAddress, originDomain },
+          'Dual-wrote to Commitment table',
+        );
+      } catch (dualWriteError: any) {
+        // Solana-destination routes carry borsh data that fails ABI decode — not an error.
+        logger.debug(
+          { commitment, error: dualWriteError.message },
+          'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
+        );
       }
     } catch (error: any) {
       logger.error(
