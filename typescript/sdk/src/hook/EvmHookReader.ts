@@ -40,6 +40,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
+  throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
 
 import {
@@ -484,7 +485,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           .quoteSigners()
           .then((quoteSigners) => ({ quoteSigners, igpVersion: undefined }))
           .catch((error) => {
-            throwIfNotMissingSelector(error);
+            throwIfNotMissingSelectorRevert(error);
             this.logger.debug(
               'quoteSigners() not available on this IGP version, skipping',
             );
