@@ -85,8 +85,7 @@ pub struct BridgeTokenInput {
     /// bytes32 recipient on destination chain
     pub recipient: [u8; 32],
     pub amount: u64,
-    /// Lamports for Hyperlane IGP gas payment
-    pub msg_fee: u64,
+    // msg_fee removed: the token router CPI handles IGP payment internally
 }
 
 /// EXECUTE_CROSS_CHAIN input (0x13)
@@ -110,13 +109,15 @@ pub struct ExecuteCrossChainInput {
 // PendingSwap — on-chain state for in-flight EVM→Solana destination swaps
 // ---------------------------------------------------------------------------
 //
-// PDA seeds: [b"pending_swap", &origin_domain.to_le_bytes(), sender, commitment]
-// where sender = EVM router address (bytes32),
-//       commitment = keccak256(borsh(swap_commands, swap_inputs) || salt).
+// PDA seeds: [b"pending_swap", &origin_domain.to_le_bytes(), sender, userSalt, commitment]
+// where sender     = EVM UR address (bytes32),
+//       userSalt   = TypeCasts.addressToBytes32(msgSender()) — EVM caller, mirrors ICA userSalt,
+//       commitment = keccak256(borsh(swap_commands, swap_inputs) || random_salt).
+// Body layout: commitment(0..32) || userSalt(32..64) || recipient(64..96) — matches EVM Dispatcher.
 //
-// Each unique commitment gets its own PDA, so multiple in-flight swaps from
-// the same sender can coexist simultaneously — mirroring the EVM mapping
-// behaviour (OwnableMulticall.commitments keyed by commitment hash).
+// Including userSalt as an explicit seed ensures different EVM callers get
+// distinct PDAs, mirroring the ICA derivation pattern. Each unique commitment
+// gets its own PDA, so multiple in-flight swaps from the same caller coexist.
 //
 // Stored as raw Borsh (no discriminator prefix). The PDA address itself is
 // the commitment proof — no need to store the commitment hash in the account.
@@ -129,6 +130,11 @@ pub struct PendingSwap {
     pub origin_domain: u32,
     /// PDA bump used for signing CPIs on behalf of the PDA
     pub bump: u8,
+    // Design note: PendingSwap PDAs have no on-chain expiry. A recipient who never
+    // calls ClosePendingSwap leaves the account (and its ATA tokens + rent) locked
+    // indefinitely. This is an accepted trade-off: expiry would require a crank or
+    // clock-based check, adding complexity. Off-chain monitoring should alert on
+    // long-lived PDAs so recipients can recover funds via ClosePendingSwap.
 }
 
 impl PendingSwap {
@@ -157,7 +163,7 @@ impl PendingSwap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use borsh::{BorshDeserialize, BorshSerialize};
+    use borsh::BorshDeserialize;
 
     // -----------------------------------------------------------------------
     // Command byte constants
@@ -366,7 +372,6 @@ mod tests {
             destination_domain: 1,
             recipient: [0xABu8; 32],
             amount: 1_000_000,
-            msg_fee: 5_000,
         };
         let bytes = borsh::to_vec(&input).unwrap();
         let decoded = BridgeTokenInput::try_from_slice(&bytes).unwrap();
@@ -374,7 +379,6 @@ mod tests {
         assert_eq!(decoded.destination_domain, input.destination_domain);
         assert_eq!(decoded.recipient, input.recipient);
         assert_eq!(decoded.amount, input.amount);
-        assert_eq!(decoded.msg_fee, input.msg_fee);
     }
 
     #[test]

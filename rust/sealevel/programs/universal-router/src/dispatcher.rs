@@ -144,7 +144,6 @@ fn dispatch_one<'info>(
                 inp.destination_domain,
                 inp.recipient,
                 inp.amount,
-                inp.msg_fee,
                 authority,
                 accs,
             )
@@ -215,7 +214,7 @@ mod tests {
         constants::MAX_SUB_PLAN_DEPTH,
         error::RouterError,
         types::{
-            commands::{EXECUTE_SUB_PLAN, FLAG_ALLOW_REVERT, WRAP_SOL},
+            commands::{EXECUTE_SUB_PLAN, WRAP_SOL},
             WrapSolInput,
         },
     };

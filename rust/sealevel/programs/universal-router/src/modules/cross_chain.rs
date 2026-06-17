@@ -52,7 +52,10 @@ use solana_program::{
     program::{get_return_data, invoke, invoke_signed},
 };
 
-use crate::error::RouterError;
+use crate::{
+    constants::{HYPERLANE_IGP_PROGRAM_ID, HYPERLANE_MAILBOX_PROGRAM_ID},
+    error::RouterError,
+};
 
 pub fn execute_cross_chain<'info>(
     destination_domain: u32,
@@ -66,6 +69,20 @@ pub fn execute_cross_chain<'info>(
 ) -> ProgramResult {
     if accounts.len() < 15 {
         return Err(RouterError::InsufficientAccounts.into());
+    }
+
+    // Validate accounts[0] is the known Hyperlane mailbox — prevents a caller
+    // from passing a malicious program that would receive the user's authority
+    // as a writable signer via invoke_signed.
+    if *accounts[0].key != HYPERLANE_MAILBOX_PROGRAM_ID {
+        return Err(RouterError::InvalidInputs.into());
+    }
+
+    // Validate accounts[5] is the known Hyperlane IGP program — prevents a caller
+    // from substituting a malicious program that receives user authority as a writable
+    // signer via invoke() during the PayForGas CPI (triggered when msg_fee > 0).
+    if *accounts[5].key != HYPERLANE_IGP_PROGRAM_ID {
+        return Err(RouterError::InvalidInputs.into());
     }
 
     // dispatch_auth_pda is the Hyperlane message sender (= ICA owner on EVM)
@@ -268,4 +285,269 @@ fn dispatch_one<'info>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        constants::{HYPERLANE_IGP_PROGRAM_ID, HYPERLANE_MAILBOX_PROGRAM_ID},
+        error::RouterError,
+    };
+    use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
+
+    fn make_account<'a>(
+        key: &'a Pubkey,
+        lamports: &'a mut u64,
+        data: &'a mut Vec<u8>,
+        owner: &'a Pubkey,
+    ) -> AccountInfo<'a> {
+        AccountInfo::new(
+            key,
+            false,
+            false,
+            lamports,
+            data.as_mut_slice(),
+            owner,
+            false,
+        )
+    }
+
+    /// HIGH-3 regression: execute_cross_chain must reject unknown mailbox programs.
+    /// BEFORE FIX: any program_id could be passed at accounts[0]; it would be used as
+    ///   the CPI target, letting a malicious program receive user authority as signer.
+    /// AFTER FIX: InvalidInputs if accounts[0].key != HYPERLANE_MAILBOX_PROGRAM_ID.
+    #[test]
+    fn test_execute_cross_chain_rejects_unknown_mailbox_program() {
+        let wrong_mailbox = Pubkey::new_unique(); // NOT HYPERLANE_MAILBOX_PROGRAM_ID
+        let k1 = Pubkey::new_unique();
+        let k2 = Pubkey::new_unique();
+        let k3 = Pubkey::new_unique();
+        let k4 = Pubkey::new_unique();
+        let k5 = Pubkey::new_unique();
+        let k6 = Pubkey::new_unique();
+        let k7 = Pubkey::new_unique();
+        let k8 = Pubkey::new_unique();
+        let k9 = Pubkey::new_unique();
+        let k10 = Pubkey::new_unique();
+        let k11 = Pubkey::new_unique();
+        let k12 = Pubkey::new_unique();
+        let k13 = Pubkey::new_unique();
+        let k14 = Pubkey::new_unique();
+        let authority_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mut l0 = 0u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut l7 = 0u64;
+        let mut l8 = 0u64;
+        let mut l9 = 0u64;
+        let mut l10 = 0u64;
+        let mut l11 = 0u64;
+        let mut l12 = 0u64;
+        let mut l13 = 0u64;
+        let mut l14 = 0u64;
+        let mut la = 0u64;
+        let mut d0 = vec![];
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+        let mut d4 = vec![];
+        let mut d5 = vec![];
+        let mut d6 = vec![];
+        let mut d7 = vec![];
+        let mut d8 = vec![];
+        let mut d9 = vec![];
+        let mut d10 = vec![];
+        let mut d11 = vec![];
+        let mut d12 = vec![];
+        let mut d13 = vec![];
+        let mut d14 = vec![];
+        let mut da = vec![];
+        let accounts = vec![
+            make_account(&wrong_mailbox, &mut l0, &mut d0, &owner),
+            make_account(&k1, &mut l1, &mut d1, &owner),
+            make_account(&k2, &mut l2, &mut d2, &owner),
+            make_account(&k3, &mut l3, &mut d3, &owner),
+            make_account(&k4, &mut l4, &mut d4, &owner),
+            make_account(&k5, &mut l5, &mut d5, &owner),
+            make_account(&k6, &mut l6, &mut d6, &owner),
+            make_account(&k7, &mut l7, &mut d7, &owner),
+            make_account(&k8, &mut l8, &mut d8, &owner),
+            make_account(&k9, &mut l9, &mut d9, &owner),
+            make_account(&k10, &mut l10, &mut d10, &owner),
+            make_account(&k11, &mut l11, &mut d11, &owner),
+            make_account(&k12, &mut l12, &mut d12, &owner),
+            make_account(&k13, &mut l13, &mut d13, &owner),
+            make_account(&k14, &mut l14, &mut d14, &owner),
+        ];
+        let authority = make_account(&authority_key, &mut la, &mut da, &owner);
+        let result = execute_cross_chain(
+            1, [0u8; 32], [0u8; 32], [0u8; 32], 0, 0, &authority, &accounts,
+        );
+        // AFTER FIX: InvalidInputs — wrong mailbox rejected before any CPI
+        // BEFORE FIX: would proceed to invoke_signed and use wrong_mailbox as CPI target
+        assert_eq!(result, Err(RouterError::InvalidInputs.into()));
+    }
+
+    /// MEDIUM regression: unknown IGP at accounts[5] must be rejected.
+    /// BEFORE FIX: any program could be passed; on msg_fee > 0 it receives user authority
+    ///   as a writable signer via invoke(), enabling fund theft.
+    /// AFTER FIX: InvalidInputs if accounts[5].key != HYPERLANE_IGP_PROGRAM_ID.
+    #[test]
+    fn test_execute_cross_chain_rejects_unknown_igp_program() {
+        let wrong_igp = Pubkey::new_unique(); // NOT HYPERLANE_IGP_PROGRAM_ID
+        let k1 = Pubkey::new_unique();
+        let k2 = Pubkey::new_unique();
+        let k3 = Pubkey::new_unique();
+        let k4 = Pubkey::new_unique();
+        let k6 = Pubkey::new_unique();
+        let k7 = Pubkey::new_unique();
+        let k8 = Pubkey::new_unique();
+        let k9 = Pubkey::new_unique();
+        let k10 = Pubkey::new_unique();
+        let k11 = Pubkey::new_unique();
+        let k12 = Pubkey::new_unique();
+        let k13 = Pubkey::new_unique();
+        let k14 = Pubkey::new_unique();
+        let authority_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mut l0 = 0u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut l7 = 0u64;
+        let mut l8 = 0u64;
+        let mut l9 = 0u64;
+        let mut l10 = 0u64;
+        let mut l11 = 0u64;
+        let mut l12 = 0u64;
+        let mut l13 = 0u64;
+        let mut l14 = 0u64;
+        let mut la = 0u64;
+        let mut d0 = vec![];
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+        let mut d4 = vec![];
+        let mut d5 = vec![];
+        let mut d6 = vec![];
+        let mut d7 = vec![];
+        let mut d8 = vec![];
+        let mut d9 = vec![];
+        let mut d10 = vec![];
+        let mut d11 = vec![];
+        let mut d12 = vec![];
+        let mut d13 = vec![];
+        let mut d14 = vec![];
+        let mut da = vec![];
+        let accounts = vec![
+            make_account(&HYPERLANE_MAILBOX_PROGRAM_ID, &mut l0, &mut d0, &owner),
+            make_account(&k1, &mut l1, &mut d1, &owner),
+            make_account(&k2, &mut l2, &mut d2, &owner),
+            make_account(&k3, &mut l3, &mut d3, &owner),
+            make_account(&k4, &mut l4, &mut d4, &owner),
+            make_account(&wrong_igp, &mut l5, &mut d5, &owner), // [5] wrong IGP program
+            make_account(&k6, &mut l6, &mut d6, &owner),
+            make_account(&k7, &mut l7, &mut d7, &owner),
+            make_account(&k8, &mut l8, &mut d8, &owner),
+            make_account(&k9, &mut l9, &mut d9, &owner),
+            make_account(&k10, &mut l10, &mut d10, &owner),
+            make_account(&k11, &mut l11, &mut d11, &owner),
+            make_account(&k12, &mut l12, &mut d12, &owner),
+            make_account(&k13, &mut l13, &mut d13, &owner),
+            make_account(&k14, &mut l14, &mut d14, &owner),
+        ];
+        let authority = make_account(&authority_key, &mut la, &mut da, &owner);
+        let result = execute_cross_chain(
+            1, [0u8; 32], [0u8; 32], [0u8; 32], 0, 0, &authority, &accounts,
+        );
+        assert_eq!(result, Err(RouterError::InvalidInputs.into()));
+    }
+
+    /// Correct mailbox at [0] and correct IGP at [5] — both validations pass, fails later at CPI.
+    #[test]
+    fn test_execute_cross_chain_accepts_correct_mailbox_and_igp() {
+        let k1 = Pubkey::new_unique();
+        let k2 = Pubkey::new_unique();
+        let k3 = Pubkey::new_unique();
+        let k4 = Pubkey::new_unique();
+        let k6 = Pubkey::new_unique();
+        let k7 = Pubkey::new_unique();
+        let k8 = Pubkey::new_unique();
+        let k9 = Pubkey::new_unique();
+        let k10 = Pubkey::new_unique();
+        let k11 = Pubkey::new_unique();
+        let k12 = Pubkey::new_unique();
+        let k13 = Pubkey::new_unique();
+        let k14 = Pubkey::new_unique();
+        let authority_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mut l0 = 0u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut l7 = 0u64;
+        let mut l8 = 0u64;
+        let mut l9 = 0u64;
+        let mut l10 = 0u64;
+        let mut l11 = 0u64;
+        let mut l12 = 0u64;
+        let mut l13 = 0u64;
+        let mut l14 = 0u64;
+        let mut la = 0u64;
+        let mut d0 = vec![];
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+        let mut d4 = vec![];
+        let mut d5 = vec![];
+        let mut d6 = vec![];
+        let mut d7 = vec![];
+        let mut d8 = vec![];
+        let mut d9 = vec![];
+        let mut d10 = vec![];
+        let mut d11 = vec![];
+        let mut d12 = vec![];
+        let mut d13 = vec![];
+        let mut d14 = vec![];
+        let mut da = vec![];
+        let accounts = vec![
+            make_account(&HYPERLANE_MAILBOX_PROGRAM_ID, &mut l0, &mut d0, &owner), // [0] correct mailbox
+            make_account(&k1, &mut l1, &mut d1, &owner),
+            make_account(&k2, &mut l2, &mut d2, &owner),
+            make_account(&k3, &mut l3, &mut d3, &owner),
+            make_account(&k4, &mut l4, &mut d4, &owner),
+            make_account(&HYPERLANE_IGP_PROGRAM_ID, &mut l5, &mut d5, &owner), // [5] correct IGP
+            make_account(&k6, &mut l6, &mut d6, &owner),
+            make_account(&k7, &mut l7, &mut d7, &owner),
+            make_account(&k8, &mut l8, &mut d8, &owner),
+            make_account(&k9, &mut l9, &mut d9, &owner),
+            make_account(&k10, &mut l10, &mut d10, &owner),
+            make_account(&k11, &mut l11, &mut d11, &owner),
+            make_account(&k12, &mut l12, &mut d12, &owner),
+            make_account(&k13, &mut l13, &mut d13, &owner),
+            make_account(&k14, &mut l14, &mut d14, &owner),
+        ];
+        let authority = make_account(&authority_key, &mut la, &mut da, &owner);
+        let result = execute_cross_chain(
+            1, [0u8; 32], [0u8; 32], [0u8; 32], 0, 0, &authority, &accounts,
+        );
+        // Both program checks pass; fails later at invoke_signed — NOT InvalidInputs
+        assert_ne!(
+            result,
+            Err(RouterError::InvalidInputs.into()),
+            "correct mailbox and IGP must pass both validations"
+        );
+    }
 }

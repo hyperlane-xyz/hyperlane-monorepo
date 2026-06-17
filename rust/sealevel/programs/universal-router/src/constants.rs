@@ -15,6 +15,11 @@ pub const RAYDIUM_AMM_V4_PROGRAM_ID: Pubkey =
 pub const HYPERLANE_MAILBOX_PROGRAM_ID: Pubkey =
     pubkey!("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi");
 
+/// Hyperlane IGP program — Solana mainnet
+/// Source: rust/sealevel/environments/mainnet3/solanamainnet/core/program-ids.json igp_program_id
+pub const HYPERLANE_IGP_PROGRAM_ID: Pubkey =
+    pubkey!("BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv");
+
 /// Hyperlane USDC warp route token router — Eclipse mainnet (USDC/eclipsemainnet)
 pub const HYPERLANE_USDC_TOKEN_ROUTER: Pubkey =
     pubkey!("3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm");

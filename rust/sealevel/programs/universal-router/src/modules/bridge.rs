@@ -72,7 +72,6 @@ pub fn execute_bridge_token<'info>(
     destination_domain: u32,
     recipient: [u8; 32],
     amount: u64,
-    _msg_fee: u64,
     authority: &AccountInfo<'info>,
     accounts: &'info [AccountInfo<'info>],
 ) -> ProgramResult {

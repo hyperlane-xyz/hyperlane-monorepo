@@ -24,32 +24,26 @@ pub enum RouterError {
     #[error("Unsupported bridge type")]
     UnsupportedBridgeType = 7,
 
-    #[error("Bridge fee exceeds maximum")]
-    BridgeFeeTooHigh = 8,
-
     #[error("Invalid recipient address")]
-    InvalidRecipient = 9,
-
-    #[error("Commitment mismatch — swap instructions do not match stored commitment")]
-    CommitmentMismatch = 10,
+    InvalidRecipient = 8,
 
     #[error("Commitment has not arrived yet")]
-    CommitmentMissing = 11,
+    CommitmentMissing = 9,
 
     #[error("Commitment already set for this pending swap")]
-    CommitmentAlreadySet = 12,
+    CommitmentAlreadySet = 10,
 
     #[error("No tokens in PDA ATA — token bridge delivery has not arrived yet")]
-    InsufficientTokenBalance = 13,
+    InsufficientTokenBalance = 11,
 
     #[error("Sub-plan recursion depth exceeded")]
-    SubPlanDepthExceeded = 14,
+    SubPlanDepthExceeded = 12,
 
     #[error("Arithmetic overflow")]
-    Overflow = 15,
+    Overflow = 13,
 
     #[error("Caller is not the authorised Hyperlane mailbox process authority")]
-    UnauthorizedMailbox = 16,
+    UnauthorizedMailbox = 14,
 }
 
 impl From<RouterError> for ProgramError {

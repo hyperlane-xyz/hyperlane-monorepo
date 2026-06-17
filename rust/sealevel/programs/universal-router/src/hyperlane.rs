@@ -1,26 +1,18 @@
 //! Hyperlane mailbox message-recipient interface.
 //!
 //! The mailbox calls four discriminated instructions on recipient programs.
-//! Both commit and reveal messages arrive via the single `Handle` discriminator —
-//! we disambiguate by message body length (commit = exactly 96 bytes).
+//! Only commit messages arrive via the Handle path — reveal is always called
+//! directly by the relayer (RouterInstruction::Reveal), never via the mailbox.
 //!
 //! Uses `MessageRecipientInstruction` from `hyperlane-sealevel-message-recipient-interface`
 //! for decoding and uses `SimulationReturnData<Vec<SerializableAccountMeta>>` from
 //! `serializable-account-meta` for the HandleAccountMetas return value.
 //!
-//! Mailbox CPI account layouts:
-//!
-//!   Commit  [0] process_authority  signer
-//!           [1] fee_payer_pda      writable
-//!           [2] pending_swap       writable  (created here if absent)
-//!           [3] system_program
-//!
-//!   Reveal  [0] process_authority  signer
-//!           [1] fee_payer_pda      writable  (receives rent when PDA is closed)
-//!           [2] pending_swap       writable  (closed on success)
-//!           [3] pda_token_ata      writable
-//!           [4] system_program
-//!           [5..] swap command accounts
+//! Mailbox Handle account layout (commit only):
+//!   [0] process_authority  signer
+//!   [1] fee_payer_pda      writable
+//!   [2] pending_swap       writable  (created here)
+//!   [3] system_program
 
 use hyperlane_sealevel_mailbox::mailbox_process_authority_pda_seeds;
 use hyperlane_sealevel_message_recipient_interface::{
@@ -41,13 +33,14 @@ use solana_system_interface::instruction as system_instruction;
 
 use crate::{
     constants::{FEE_PAYER_SEED, HYPERLANE_MAILBOX_PROGRAM_ID, PENDING_SWAP_SEED},
-    dispatcher,
     error::RouterError,
     types::PendingSwap,
 };
 
+/// Commit message body: commitment(32) || userSalt(32) || recipient(32) = 96 bytes.
+/// userSalt = TypeCasts.addressToBytes32(msgSender()) on EVM — mirrors the ICA userSalt.
+/// No discriminant needed — only commit messages arrive via the mailbox.
 const COMMIT_BODY_LEN: usize = 96;
-const REVEAL_BODY_MIN_LEN: usize = 64;
 
 // ---------------------------------------------------------------------------
 // Entry point from processor.rs
@@ -83,7 +76,7 @@ pub fn process_message_recipient<'info>(
 }
 
 // ---------------------------------------------------------------------------
-// Handle — route by message body length
+// Handle — route by discriminant byte then length
 // ---------------------------------------------------------------------------
 
 fn handle_dispatch<'info>(
@@ -91,17 +84,18 @@ fn handle_dispatch<'info>(
     accounts: &'info [AccountInfo<'info>],
     handle: HandleInstruction,
 ) -> ProgramResult {
-    match handle.message.len() {
-        COMMIT_BODY_LEN => handle_commit(program_id, accounts, handle),
-        n if n >= REVEAL_BODY_MIN_LEN => handle_reveal(program_id, accounts, handle),
-        _ => Err(RouterError::InvalidInputs.into()),
+    if handle.message.len() == COMMIT_BODY_LEN {
+        handle_commit(program_id, accounts, handle)
+    } else {
+        Err(RouterError::InvalidInputs.into())
     }
 }
 
 // ---------------------------------------------------------------------------
 // Commit handler
 //
-// Body (96 bytes): commitment(0..32) || salt(32..64) || recipient(64..96)
+// Body (96 bytes): commitment(0..32) || userSalt(32..64) || recipient(64..96)
+// userSalt = TypeCasts.addressToBytes32(msgSender()) — EVM caller, mirrors ICA userSalt.
 // ---------------------------------------------------------------------------
 
 fn handle_commit<'info>(
@@ -123,6 +117,9 @@ fn handle_commit<'info>(
     let commitment: [u8; 32] = handle.message[0..32]
         .try_into()
         .map_err(|_| RouterError::InvalidInputs)?;
+    let user_salt: [u8; 32] = handle.message[32..64]
+        .try_into()
+        .map_err(|_| RouterError::InvalidInputs)?;
     let recipient =
         Pubkey::try_from(&handle.message[64..96]).map_err(|_| RouterError::InvalidInputs)?;
 
@@ -133,12 +130,18 @@ fn handle_commit<'info>(
         return Err(RouterError::InvalidInputs.into());
     }
 
-    // Derive PDA from commitment — each unique commitment gets its own PDA,
-    // so multiple in-flight swaps from the same sender can coexist.
+    // Derive PDA — seeds include userSalt so different EVM callers get different PDAs
+    // even for identical swap payloads, mirroring the ICA derivation pattern.
     let origin_bytes = handle.origin.to_le_bytes();
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, swap_bump) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
+        &[
+            PENDING_SWAP_SEED,
+            &origin_bytes,
+            sender_bytes,
+            &user_salt,
+            &commitment,
+        ],
         program_id,
     );
     if *swap_info.key != swap_key {
@@ -167,6 +170,7 @@ fn handle_commit<'info>(
                 PENDING_SWAP_SEED,
                 &origin_bytes,
                 sender_bytes,
+                &user_salt,
                 &commitment,
                 &[swap_bump],
             ],
@@ -190,133 +194,12 @@ fn handle_commit<'info>(
 }
 
 // ---------------------------------------------------------------------------
-// Reveal handler
-//
-// Body: salt(0..32) || pda_token_ata(32..64) || borsh(cmds, inputs)(64..)
-// ---------------------------------------------------------------------------
-
-pub fn handle_reveal<'info>(
-    program_id: &Pubkey,
-    accounts: &'info [AccountInfo<'info>],
-    handle: HandleInstruction,
-) -> ProgramResult {
-    if accounts.len() < 5 {
-        return Err(RouterError::InsufficientAccounts.into());
-    }
-    let process_authority = &accounts[0];
-    let fee_payer = &accounts[1];
-    let swap_info = &accounts[2];
-    let pda_ata_info = &accounts[3];
-    let _system_prog = &accounts[4];
-    let swap_accounts = &accounts[5..];
-
-    require_mailbox_process_authority(program_id, process_authority)?;
-
-    if handle.message.len() < REVEAL_BODY_MIN_LEN {
-        return Err(RouterError::InvalidInputs.into());
-    }
-    let salt: [u8; 32] = handle.message[0..32]
-        .try_into()
-        .map_err(|_| RouterError::InvalidInputs)?;
-    let ata_in_body =
-        Pubkey::try_from(&handle.message[32..64]).map_err(|_| RouterError::InvalidInputs)?;
-    let cmd_bytes = &handle.message[64..];
-
-    // Verify fee_payer PDA
-    let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], program_id);
-    if *fee_payer.key != fee_payer_key {
-        return Err(RouterError::InvalidInputs.into());
-    }
-
-    // Compute commitment from reveal body — keccak256(borsh(cmds, inputs) || salt).
-    // cmd_bytes is already the borsh encoding, so no round-trip needed.
-    let commitment = {
-        let mut preimage = cmd_bytes.to_vec();
-        preimage.extend_from_slice(&salt);
-        solana_program::keccak::hash(&preimage).to_bytes()
-    };
-
-    // Verify pending_swap PDA — PDA address is the commitment proof
-    let origin_bytes = handle.origin.to_le_bytes();
-    let sender_bytes = handle.sender.as_bytes();
-    let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
-        program_id,
-    );
-    if *swap_info.key != swap_key {
-        return Err(RouterError::InvalidInputs.into());
-    }
-
-    // Verify pda_token_ata matches what was declared in the reveal body
-    if *pda_ata_info.key != ata_in_body {
-        return Err(RouterError::InvalidInputs.into());
-    }
-
-    // Load pending_swap state
-    let swap = {
-        let data = swap_info.data.borrow();
-        if data.is_empty() {
-            return Err(RouterError::CommitmentMissing.into());
-        }
-        PendingSwap::from_bytes(&data)?
-    };
-
-    // Validate ATA ownership and non-zero balance
-    {
-        use solana_program::program_pack::Pack;
-        let ata_data = pda_ata_info.data.borrow();
-        let ata =
-            spl_token::state::Account::unpack(&ata_data).map_err(|_| RouterError::InvalidInputs)?;
-        if ata.owner != *swap_info.key {
-            return Err(RouterError::InvalidRecipient.into());
-        }
-        if ata.amount == 0 {
-            return Err(RouterError::InsufficientTokenBalance.into());
-        }
-    }
-
-    let (swap_commands, swap_inputs): (Vec<u8>, Vec<Vec<u8>>) =
-        borsh::from_slice(cmd_bytes).map_err(|_| RouterError::InvalidInputs)?;
-
-    // Execute swap with pending_swap PDA as the signing authority
-    let bump = swap.bump;
-    let signer_seeds: &[&[u8]] = &[
-        PENDING_SWAP_SEED,
-        &origin_bytes,
-        sender_bytes,
-        &commitment,
-        &[bump],
-    ];
-    let result = dispatcher::execute_commands(
-        &swap_commands,
-        &swap_inputs,
-        swap_accounts,
-        swap_info,
-        0,
-        &[signer_seeds],
-    );
-    if result.is_err() {
-        msg!("Swap failed; tokens remain in PDA ATA — recipient calls ClosePendingSwap");
-    }
-
-    // Always close the pending_swap and return rent to fee_payer_pda
-    let swap_lamports = swap_info.lamports();
-    **swap_info.try_borrow_mut_lamports()? = 0;
-    **fee_payer.try_borrow_mut_lamports()? += swap_lamports;
-    swap_info.try_borrow_mut_data()?.fill(0);
-
-    result.or(Ok(()))
-}
-
-// ---------------------------------------------------------------------------
 // HandleAccountMetas
 // ---------------------------------------------------------------------------
 
 fn handle_account_metas_dispatch(program_id: &Pubkey, handle: &HandleInstruction) -> ProgramResult {
     if handle.message.len() == COMMIT_BODY_LEN {
         handle_account_metas_commit(program_id, handle)
-    } else if handle.message.len() >= REVEAL_BODY_MIN_LEN {
-        handle_account_metas_reveal(program_id, handle)
     } else {
         Err(RouterError::InvalidInputs.into())
     }
@@ -328,57 +211,18 @@ fn handle_account_metas_commit(program_id: &Pubkey, handle: &HandleInstruction) 
     let commitment: [u8; 32] = handle.message[0..32]
         .try_into()
         .map_err(|_| RouterError::InvalidInputs)?;
-    let sender_bytes = handle.sender.as_bytes();
-    let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
-        program_id,
-    );
-    let metas: Vec<SerializableAccountMeta> = vec![
-        SerializableAccountMeta {
-            pubkey: fee_payer_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        SerializableAccountMeta {
-            pubkey: swap_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        SerializableAccountMeta {
-            pubkey: solana_system_interface::program::id(),
-            is_signer: false,
-            is_writable: false,
-        },
-    ];
-    let encoded =
-        borsh::to_vec(&SimulationReturnData::new(metas)).map_err(|_| ProgramError::BorshIoError)?;
-    set_return_data(&encoded);
-    Ok(())
-}
-
-pub fn handle_account_metas_reveal(
-    program_id: &Pubkey,
-    handle: &HandleInstruction,
-) -> ProgramResult {
-    if handle.message.len() < REVEAL_BODY_MIN_LEN {
-        return Err(RouterError::InvalidInputs.into());
-    }
-    let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], program_id);
-    let origin_bytes = handle.origin.to_le_bytes();
-    let salt: [u8; 32] = handle.message[0..32]
+    let user_salt: [u8; 32] = handle.message[32..64]
         .try_into()
         .map_err(|_| RouterError::InvalidInputs)?;
-    let pda_token_ata =
-        Pubkey::try_from(&handle.message[32..64]).map_err(|_| RouterError::InvalidInputs)?;
-    // Compute commitment from reveal body — mirrors handle_reveal's derivation
-    let commitment = {
-        let mut preimage = handle.message[64..].to_vec();
-        preimage.extend_from_slice(&salt);
-        solana_program::keccak::hash(&preimage).to_bytes()
-    };
     let sender_bytes = handle.sender.as_bytes();
     let (swap_key, _) = Pubkey::find_program_address(
-        &[PENDING_SWAP_SEED, &origin_bytes, sender_bytes, &commitment],
+        &[
+            PENDING_SWAP_SEED,
+            &origin_bytes,
+            sender_bytes,
+            &user_salt,
+            &commitment,
+        ],
         program_id,
     );
     let metas: Vec<SerializableAccountMeta> = vec![
@@ -389,11 +233,6 @@ pub fn handle_account_metas_reveal(
         },
         SerializableAccountMeta {
             pubkey: swap_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        SerializableAccountMeta {
-            pubkey: pda_token_ata,
             is_signer: false,
             is_writable: true,
         },
@@ -467,14 +306,14 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // handle_dispatch: routing by message body length
+    // handle_dispatch: routing by length only
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_handle_dispatch_invalid_body_too_short() {
+    fn test_handle_dispatch_invalid_body_wrong_length() {
         let prog = Pubkey::new_unique();
-        // Any length < REVEAL_BODY_MIN_LEN (64) → InvalidInputs
-        for len in [0, 1, 32, 63] {
+        // Only 96-byte bodies are valid; all other lengths return InvalidInputs
+        for len in [0usize, 1, 32, 63, 64, 65, 95, 97] {
             let handle = make_handle(1, [0u8; 32], vec![0u8; len]);
             let result = handle_dispatch(&prog, &[], handle);
             assert_eq!(
@@ -487,30 +326,10 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_dispatch_commit_body_gets_insufficient_accounts() {
+    fn test_handle_dispatch_commit_body_routes_to_commit() {
         let prog = Pubkey::new_unique();
-        // Exactly COMMIT_BODY_LEN (96 bytes) → routes to handle_commit
-        // handle_commit checks accounts.len() < 4 first → InsufficientAccounts with 0 accounts
-        let handle = make_handle(1, [0u8; 32], vec![0u8; COMMIT_BODY_LEN]);
-        let result = handle_dispatch(&prog, &[], handle);
-        assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
-    }
-
-    #[test]
-    fn test_handle_dispatch_reveal_body_gets_insufficient_accounts() {
-        let prog = Pubkey::new_unique();
-        // REVEAL_BODY_MIN_LEN (64) bytes but not 96 → routes to handle_reveal
-        // handle_reveal checks accounts.len() < 5 first → InsufficientAccounts with 0 accounts
-        let handle = make_handle(1, [0u8; 32], vec![0u8; REVEAL_BODY_MIN_LEN]);
-        let result = handle_dispatch(&prog, &[], handle);
-        assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
-    }
-
-    #[test]
-    fn test_handle_dispatch_reveal_body_larger_also_routes_correctly() {
-        let prog = Pubkey::new_unique();
-        // 200 bytes (> 96, >= 64, != 96) → reveal handler → InsufficientAccounts
-        let handle = make_handle(1, [0u8; 32], vec![0u8; 200]);
+        // 96-byte body routes to handle_commit → InsufficientAccounts (0 accounts passed)
+        let handle = make_handle(1, [0u8; 32], vec![0u8; 96]);
         let result = handle_dispatch(&prog, &[], handle);
         assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
     }
@@ -580,45 +399,9 @@ mod tests {
             make_account(&key2, false, &mut l2, &mut d2, &owner),
             make_account(&key3, false, &mut l3, &mut d3, &owner),
         ];
-        let handle = make_handle(1, [0u8; 32], vec![0u8; COMMIT_BODY_LEN]);
+        // Build correctly-formatted commit body (96 bytes: commitment || recipient || userSalt)
+        let handle = make_handle(1, [0u8; 32], vec![0u8; 96]);
         let result = handle_commit(&prog, &accounts, handle);
-        assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
-    }
-
-    // -----------------------------------------------------------------------
-    // handle_reveal: unauthorized process authority
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_handle_reveal_unauthorized_when_not_signer() {
-        let prog = Pubkey::new_unique();
-        let owner = Pubkey::new_unique();
-        let k0 = Pubkey::new_unique();
-        let k1 = Pubkey::new_unique();
-        let k2 = Pubkey::new_unique();
-        let k3 = Pubkey::new_unique();
-        let k4 = Pubkey::new_unique();
-        let mut l0 = 0u64;
-        let mut l1 = 0u64;
-        let mut l2 = 0u64;
-        let mut l3 = 0u64;
-        let mut l4 = 0u64;
-        let mut d0 = vec![];
-        let mut d1 = vec![];
-        let mut d2 = vec![];
-        let mut d3 = vec![];
-        let mut d4 = vec![];
-        let accounts = vec![
-            make_account(&k0, false, &mut l0, &mut d0, &owner),
-            make_account(&k1, false, &mut l1, &mut d1, &owner),
-            make_account(&k2, false, &mut l2, &mut d2, &owner),
-            make_account(&k3, false, &mut l3, &mut d3, &owner),
-            make_account(&k4, false, &mut l4, &mut d4, &owner),
-        ];
-
-        let body = vec![0u8; REVEAL_BODY_MIN_LEN + 10];
-        let handle = make_handle(1, [0u8; 32], body);
-        let result = handle_reveal(&prog, &accounts, handle);
         assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
     }
 
@@ -677,15 +460,28 @@ mod tests {
         let program_id = Pubkey::new_unique();
         let origin: u32 = 42;
         let sender = [0xABu8; 32];
+        let user_salt = [0xEEu8; 32];
         let commitment = [0xCDu8; 32];
         let origin_bytes = origin.to_le_bytes();
 
         let (key1, bump1) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &commitment],
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &user_salt,
+                &commitment,
+            ],
             &program_id,
         );
         let (key2, bump2) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &commitment],
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &user_salt,
+                &commitment,
+            ],
             &program_id,
         );
         assert_eq!(key1, key2);
@@ -696,17 +492,60 @@ mod tests {
     fn test_pending_swap_pda_differs_by_origin() {
         let program_id = Pubkey::new_unique();
         let sender = [0x11u8; 32];
+        let user_salt = [0xFFu8; 32];
         let commitment = [0x22u8; 32];
 
         let (key1, _) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &1u32.to_le_bytes(), &sender, &commitment],
+            &[
+                PENDING_SWAP_SEED,
+                &1u32.to_le_bytes(),
+                &sender,
+                &user_salt,
+                &commitment,
+            ],
             &program_id,
         );
         let (key2, _) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &2u32.to_le_bytes(), &sender, &commitment],
+            &[
+                PENDING_SWAP_SEED,
+                &2u32.to_le_bytes(),
+                &sender,
+                &user_salt,
+                &commitment,
+            ],
             &program_id,
         );
         assert_ne!(key1, key2, "different origins produce different PDAs");
+    }
+
+    #[test]
+    fn test_pending_swap_pda_differs_by_user_salt() {
+        let program_id = Pubkey::new_unique();
+        let origin_bytes = 1u32.to_le_bytes();
+        let sender = [0x11u8; 32];
+        let commitment = [0x22u8; 32];
+
+        let (key1, _) = Pubkey::find_program_address(
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &[0xAAu8; 32],
+                &commitment,
+            ],
+            &program_id,
+        );
+        let (key2, _) = Pubkey::find_program_address(
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &[0xBBu8; 32],
+                &commitment,
+            ],
+            &program_id,
+        );
+        assert_ne!(key1, key2, "different userSalts produce different PDAs");
     }
 
     #[test]
@@ -714,13 +553,26 @@ mod tests {
         let program_id = Pubkey::new_unique();
         let origin_bytes = 1u32.to_le_bytes();
         let sender = [0x11u8; 32];
+        let user_salt = [0xFFu8; 32];
 
         let (key1, _) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &[0xAAu8; 32]],
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &user_salt,
+                &[0xAAu8; 32],
+            ],
             &program_id,
         );
         let (key2, _) = Pubkey::find_program_address(
-            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &[0xBBu8; 32]],
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                &sender,
+                &user_salt,
+                &[0xBBu8; 32],
+            ],
             &program_id,
         );
         assert_ne!(key1, key2, "different commitments produce different PDAs");
@@ -736,13 +588,14 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // handle_account_metas_dispatch: invalid body returns error
+    // handle_account_metas_dispatch: routing and invalid body handling
     // -----------------------------------------------------------------------
 
     #[test]
     fn test_handle_account_metas_dispatch_too_short_returns_invalid_inputs() {
         let prog = Pubkey::new_unique();
-        for len in [0usize, 1, 32, 63] {
+        // Only 96-byte bodies are accepted; all others return InvalidInputs
+        for len in [0usize, 1, 32, 63, 64, 65, 95, 97] {
             let handle = make_handle(1, [0u8; 32], vec![0u8; len]);
             let result = handle_account_metas_dispatch(&prog, &handle);
             assert_eq!(
@@ -750,6 +603,31 @@ mod tests {
                 Err(RouterError::InvalidInputs.into()),
                 "body len {} should give InvalidInputs",
                 len
+            );
+        }
+    }
+
+    #[test]
+    fn test_handle_account_metas_dispatch_commit_body_succeeds() {
+        let prog = Pubkey::new_unique();
+        let handle = make_handle(1, [0u8; 32], vec![0u8; 96]);
+        let result = handle_account_metas_dispatch(&prog, &handle);
+        assert!(
+            result.is_ok(),
+            "valid 96-byte commit body should return Ok and set return data"
+        );
+    }
+
+    #[test]
+    fn test_handle_account_metas_dispatch_wrong_length_rejected() {
+        let prog = Pubkey::new_unique();
+        for len in [0usize, 64, 95, 97] {
+            let handle = make_handle(1, [0u8; 32], vec![0u8; len]);
+            let result = handle_account_metas_dispatch(&prog, &handle);
+            assert_eq!(
+                result,
+                Err(RouterError::InvalidInputs.into()),
+                "len {len} should be rejected"
             );
         }
     }

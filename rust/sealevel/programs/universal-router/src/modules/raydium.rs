@@ -191,24 +191,24 @@ pub fn execute_raydium_amm_swap_exact_in<'info>(
     ix_data.extend_from_slice(&resolved_amount_in.to_le_bytes());
     ix_data.extend_from_slice(&amount_out_minimum.to_le_bytes());
 
-    let account_metas = accounts[..18]
+    // Positions 0-16 come from accounts; position 17 (user_owner / signer) is always
+    // authority — NOT accounts[17] — because account_infos[17] = authority.clone().
+    // Using accounts[17].key for the meta when account_infos[17] = authority would
+    // declare a signer whose key doesn't match the actual account, causing CPI failure.
+    let mut account_metas = accounts[..17]
         .iter()
         .enumerate()
         .map(|(i, acc)| {
-            let is_signer = i == 17;
-            let is_writable = matches!(
-                i,
-                1 | 3 | 4 | 5 | 6 | 8 | 9 | 10 | 11 | 12 | 13 | 15 | 16 | 17
-            );
-            if is_signer {
-                AccountMeta::new(*acc.key, true)
-            } else if is_writable {
+            let is_writable = matches!(i, 1 | 3 | 4 | 5 | 6 | 8 | 9 | 10 | 11 | 12 | 13 | 15 | 16);
+            if is_writable {
                 AccountMeta::new(*acc.key, false)
             } else {
                 AccountMeta::new_readonly(*acc.key, false)
             }
         })
         .collect::<Vec<_>>();
+    // Position 17: user_owner — writable signer, key must match authority
+    account_metas.push(AccountMeta::new(*authority.key, true));
 
     let ix = Instruction {
         program_id: crate::constants::RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -216,7 +216,6 @@ pub fn execute_raydium_amm_swap_exact_in<'info>(
         data: ix_data,
     };
 
-    // accounts[17] is the user_owner slot, but authority is the actual signer
     let mut account_infos: Vec<AccountInfo> = accounts[..17].to_vec();
     account_infos.push(authority.clone());
 
