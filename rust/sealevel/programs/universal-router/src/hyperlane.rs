@@ -428,3 +428,329 @@ fn require_mailbox_process_authority(program_id: &Pubkey, account: &AccountInfo)
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        constants::{FEE_PAYER_SEED, PENDING_SWAP_SEED},
+        error::RouterError,
+    };
+    use hyperlane_core::H256;
+    use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
+    use solana_program::{account_info::AccountInfo, keccak, pubkey::Pubkey};
+
+    fn make_account<'a>(
+        key: &'a Pubkey,
+        is_signer: bool,
+        lamports: &'a mut u64,
+        data: &'a mut Vec<u8>,
+        owner: &'a Pubkey,
+    ) -> AccountInfo<'a> {
+        AccountInfo::new(
+            key,
+            is_signer,
+            false,
+            lamports,
+            data.as_mut_slice(),
+            owner,
+            false,
+        )
+    }
+
+    fn make_handle(origin: u32, sender: [u8; 32], message: Vec<u8>) -> HandleInstruction {
+        HandleInstruction {
+            origin,
+            sender: H256::from(sender),
+            message,
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // handle_dispatch: routing by message body length
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_handle_dispatch_invalid_body_too_short() {
+        let prog = Pubkey::new_unique();
+        // Any length < REVEAL_BODY_MIN_LEN (64) → InvalidInputs
+        for len in [0, 1, 32, 63] {
+            let handle = make_handle(1, [0u8; 32], vec![0u8; len]);
+            let result = handle_dispatch(&prog, &[], handle);
+            assert_eq!(
+                result,
+                Err(RouterError::InvalidInputs.into()),
+                "body len {} should be InvalidInputs",
+                len
+            );
+        }
+    }
+
+    #[test]
+    fn test_handle_dispatch_commit_body_gets_insufficient_accounts() {
+        let prog = Pubkey::new_unique();
+        // Exactly COMMIT_BODY_LEN (96 bytes) → routes to handle_commit
+        // handle_commit checks accounts.len() < 4 first → InsufficientAccounts with 0 accounts
+        let handle = make_handle(1, [0u8; 32], vec![0u8; COMMIT_BODY_LEN]);
+        let result = handle_dispatch(&prog, &[], handle);
+        assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
+    }
+
+    #[test]
+    fn test_handle_dispatch_reveal_body_gets_insufficient_accounts() {
+        let prog = Pubkey::new_unique();
+        // REVEAL_BODY_MIN_LEN (64) bytes but not 96 → routes to handle_reveal
+        // handle_reveal checks accounts.len() < 5 first → InsufficientAccounts with 0 accounts
+        let handle = make_handle(1, [0u8; 32], vec![0u8; REVEAL_BODY_MIN_LEN]);
+        let result = handle_dispatch(&prog, &[], handle);
+        assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
+    }
+
+    #[test]
+    fn test_handle_dispatch_reveal_body_larger_also_routes_correctly() {
+        let prog = Pubkey::new_unique();
+        // 200 bytes (> 96, >= 64, != 96) → reveal handler → InsufficientAccounts
+        let handle = make_handle(1, [0u8; 32], vec![0u8; 200]);
+        let result = handle_dispatch(&prog, &[], handle);
+        assert_eq!(result, Err(RouterError::InsufficientAccounts.into()));
+    }
+
+    // -----------------------------------------------------------------------
+    // require_mailbox_process_authority: non-signer is rejected
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_require_mailbox_process_authority_not_signer() {
+        let prog = Pubkey::new_unique();
+        let key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        let account = make_account(
+            &key,
+            false, /* not signer */
+            &mut lamports,
+            &mut data,
+            &owner,
+        );
+
+        let result = require_mailbox_process_authority(&prog, &account);
+        assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
+    }
+
+    #[test]
+    fn test_require_mailbox_process_authority_wrong_key() {
+        let prog = Pubkey::new_unique();
+        let wrong_key = Pubkey::new_unique(); // not the real PDA
+        let owner = Pubkey::new_unique();
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        // is_signer = true but wrong key
+        let account = make_account(&wrong_key, true, &mut lamports, &mut data, &owner);
+
+        let result = require_mailbox_process_authority(&prog, &account);
+        assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
+    }
+
+    // -----------------------------------------------------------------------
+    // handle_commit: unauthorized process authority
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_handle_commit_unauthorized_when_not_signer() {
+        let prog = Pubkey::new_unique();
+        let key0 = Pubkey::new_unique();
+        let key1 = Pubkey::new_unique();
+        let key2 = Pubkey::new_unique();
+        let key3 = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mut l0 = 0u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut d0 = vec![];
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+
+        // accounts[0] is not a signer → UnauthorizedMailbox (before any PDA check)
+        let accounts = vec![
+            make_account(&key0, false, &mut l0, &mut d0, &owner), // process_authority, not signer
+            make_account(&key1, false, &mut l1, &mut d1, &owner),
+            make_account(&key2, false, &mut l2, &mut d2, &owner),
+            make_account(&key3, false, &mut l3, &mut d3, &owner),
+        ];
+        let handle = make_handle(1, [0u8; 32], vec![0u8; COMMIT_BODY_LEN]);
+        let result = handle_commit(&prog, &accounts, handle);
+        assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
+    }
+
+    // -----------------------------------------------------------------------
+    // handle_reveal: unauthorized process authority
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_handle_reveal_unauthorized_when_not_signer() {
+        let prog = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let k0 = Pubkey::new_unique();
+        let k1 = Pubkey::new_unique();
+        let k2 = Pubkey::new_unique();
+        let k3 = Pubkey::new_unique();
+        let k4 = Pubkey::new_unique();
+        let mut l0 = 0u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut d0 = vec![];
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+        let mut d4 = vec![];
+        let accounts = vec![
+            make_account(&k0, false, &mut l0, &mut d0, &owner),
+            make_account(&k1, false, &mut l1, &mut d1, &owner),
+            make_account(&k2, false, &mut l2, &mut d2, &owner),
+            make_account(&k3, false, &mut l3, &mut d3, &owner),
+            make_account(&k4, false, &mut l4, &mut d4, &owner),
+        ];
+
+        let body = vec![0u8; REVEAL_BODY_MIN_LEN + 10];
+        let handle = make_handle(1, [0u8; 32], body);
+        let result = handle_reveal(&prog, &accounts, handle);
+        assert_eq!(result, Err(RouterError::UnauthorizedMailbox.into()));
+    }
+
+    // -----------------------------------------------------------------------
+    // Commitment derivation: keccak256(cmd_bytes || salt)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_commitment_derivation_is_keccak_of_cmds_then_salt() {
+        let cmd_bytes = b"borsh_encoded_commands";
+        let salt = [0x42u8; 32];
+
+        let mut preimage = cmd_bytes.to_vec();
+        preimage.extend_from_slice(&salt);
+        let commitment = keccak::hash(&preimage).to_bytes();
+
+        // Changing the salt produces a different commitment
+        let mut preimage2 = cmd_bytes.to_vec();
+        preimage2.extend_from_slice(&[0x00u8; 32]);
+        let commitment2 = keccak::hash(&preimage2).to_bytes();
+
+        assert_ne!(
+            commitment, commitment2,
+            "different salts must produce different commitments"
+        );
+
+        // Changing cmd_bytes produces a different commitment
+        let mut preimage3 = b"different_commands".to_vec();
+        preimage3.extend_from_slice(&salt);
+        let commitment3 = keccak::hash(&preimage3).to_bytes();
+
+        assert_ne!(
+            commitment, commitment3,
+            "different payloads must produce different commitments"
+        );
+    }
+
+    #[test]
+    fn test_commitment_derivation_is_deterministic() {
+        let cmd_bytes = b"some_payload";
+        let salt = [0xFFu8; 32];
+        let mut preimage = cmd_bytes.to_vec();
+        preimage.extend_from_slice(&salt);
+
+        let c1 = keccak::hash(&preimage).to_bytes();
+        let c2 = keccak::hash(&preimage).to_bytes();
+        assert_eq!(c1, c2);
+    }
+
+    // -----------------------------------------------------------------------
+    // PDA derivation: pending_swap seeds are consistent
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_pending_swap_pda_seeds_are_deterministic() {
+        let program_id = Pubkey::new_unique();
+        let origin: u32 = 42;
+        let sender = [0xABu8; 32];
+        let commitment = [0xCDu8; 32];
+        let origin_bytes = origin.to_le_bytes();
+
+        let (key1, bump1) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &commitment],
+            &program_id,
+        );
+        let (key2, bump2) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &commitment],
+            &program_id,
+        );
+        assert_eq!(key1, key2);
+        assert_eq!(bump1, bump2);
+    }
+
+    #[test]
+    fn test_pending_swap_pda_differs_by_origin() {
+        let program_id = Pubkey::new_unique();
+        let sender = [0x11u8; 32];
+        let commitment = [0x22u8; 32];
+
+        let (key1, _) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &1u32.to_le_bytes(), &sender, &commitment],
+            &program_id,
+        );
+        let (key2, _) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &2u32.to_le_bytes(), &sender, &commitment],
+            &program_id,
+        );
+        assert_ne!(key1, key2, "different origins produce different PDAs");
+    }
+
+    #[test]
+    fn test_pending_swap_pda_differs_by_commitment() {
+        let program_id = Pubkey::new_unique();
+        let origin_bytes = 1u32.to_le_bytes();
+        let sender = [0x11u8; 32];
+
+        let (key1, _) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &[0xAAu8; 32]],
+            &program_id,
+        );
+        let (key2, _) = Pubkey::find_program_address(
+            &[PENDING_SWAP_SEED, &origin_bytes, &sender, &[0xBBu8; 32]],
+            &program_id,
+        );
+        assert_ne!(key1, key2, "different commitments produce different PDAs");
+    }
+
+    #[test]
+    fn test_fee_payer_pda_is_deterministic() {
+        let program_id = Pubkey::new_unique();
+        let (key1, bump1) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &program_id);
+        let (key2, bump2) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &program_id);
+        assert_eq!(key1, key2);
+        assert_eq!(bump1, bump2);
+    }
+
+    // -----------------------------------------------------------------------
+    // handle_account_metas_dispatch: invalid body returns error
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_handle_account_metas_dispatch_too_short_returns_invalid_inputs() {
+        let prog = Pubkey::new_unique();
+        for len in [0usize, 1, 32, 63] {
+            let handle = make_handle(1, [0u8; 32], vec![0u8; len]);
+            let result = handle_account_metas_dispatch(&prog, &handle);
+            assert_eq!(
+                result,
+                Err(RouterError::InvalidInputs.into()),
+                "body len {} should give InvalidInputs",
+                len
+            );
+        }
+    }
+}

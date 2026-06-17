@@ -60,3 +60,163 @@ pub fn build_token_transfer_checked_ix(
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solana_program::pubkey::Pubkey;
+
+    // -----------------------------------------------------------------------
+    // read_token_amount
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_read_token_amount_ok() {
+        let mut data = vec![0u8; 72];
+        let amount: u64 = 123_456_789;
+        data[64..72].copy_from_slice(&amount.to_le_bytes());
+        assert_eq!(read_token_amount(&data).unwrap(), amount);
+    }
+
+    #[test]
+    fn test_read_token_amount_exactly_72_bytes() {
+        let mut data = vec![0u8; 72];
+        let amount: u64 = u64::MAX;
+        data[64..72].copy_from_slice(&amount.to_le_bytes());
+        assert_eq!(read_token_amount(&data).unwrap(), amount);
+    }
+
+    #[test]
+    fn test_read_token_amount_longer_data_token_2022() {
+        // Token-2022 accounts have extensions beyond the base 165 bytes
+        let mut data = vec![0u8; 300];
+        let amount: u64 = 999_000;
+        data[64..72].copy_from_slice(&amount.to_le_bytes());
+        assert_eq!(read_token_amount(&data).unwrap(), amount);
+    }
+
+    #[test]
+    fn test_read_token_amount_too_short() {
+        assert!(read_token_amount(&[0u8; 71]).is_err());
+        assert!(read_token_amount(&[0u8; 0]).is_err());
+        assert!(read_token_amount(&[0u8; 64]).is_err());
+    }
+
+    #[test]
+    fn test_read_token_amount_zero() {
+        let data = vec![0u8; 72];
+        assert_eq!(read_token_amount(&data).unwrap(), 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // read_mint_decimals
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_read_mint_decimals_ok() {
+        let mut data = vec![0u8; 82]; // standard SPL Token mint = 82 bytes
+        data[44] = 6;
+        assert_eq!(read_mint_decimals(&data).unwrap(), 6);
+    }
+
+    #[test]
+    fn test_read_mint_decimals_exactly_45_bytes() {
+        let mut data = vec![0u8; 45];
+        data[44] = 9;
+        assert_eq!(read_mint_decimals(&data).unwrap(), 9);
+    }
+
+    #[test]
+    fn test_read_mint_decimals_too_short() {
+        assert!(read_mint_decimals(&[0u8; 44]).is_err());
+        assert!(read_mint_decimals(&[0u8; 0]).is_err());
+    }
+
+    #[test]
+    fn test_read_mint_decimals_max_value() {
+        let mut data = vec![0u8; 82];
+        data[44] = u8::MAX;
+        assert_eq!(read_mint_decimals(&data).unwrap(), u8::MAX);
+    }
+
+    // -----------------------------------------------------------------------
+    // build_token_transfer_checked_ix
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_token_transfer_checked_ix_spl_token() {
+        let source = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let dest = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+
+        let ix = build_token_transfer_checked_ix(
+            &spl_token::ID,
+            &source,
+            &mint,
+            &dest,
+            &authority,
+            1_000_000,
+            6,
+        );
+        assert!(ix.is_ok(), "SPL Token transfer_checked should succeed");
+        let ix = ix.unwrap();
+        assert_eq!(ix.program_id, spl_token::ID);
+    }
+
+    #[test]
+    fn test_build_token_transfer_checked_ix_spl_token_2022() {
+        let source = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let dest = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+
+        let ix = build_token_transfer_checked_ix(
+            &spl_token_2022::ID,
+            &source,
+            &mint,
+            &dest,
+            &authority,
+            500_000,
+            9,
+        );
+        assert!(ix.is_ok(), "Token-2022 transfer_checked should succeed");
+        let ix = ix.unwrap();
+        assert_eq!(ix.program_id, spl_token_2022::ID);
+    }
+
+    #[test]
+    fn test_build_token_transfer_checked_ix_different_program_ids_produce_different_program_ids_in_ix(
+    ) {
+        let source = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let dest = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+
+        let spl = build_token_transfer_checked_ix(
+            &spl_token::ID,
+            &source,
+            &mint,
+            &dest,
+            &authority,
+            100,
+            6,
+        )
+        .unwrap();
+
+        let spl2022 = build_token_transfer_checked_ix(
+            &spl_token_2022::ID,
+            &source,
+            &mint,
+            &dest,
+            &authority,
+            100,
+            6,
+        )
+        .unwrap();
+
+        assert_ne!(spl.program_id, spl2022.program_id);
+        assert_eq!(spl.program_id, spl_token::ID);
+        assert_eq!(spl2022.program_id, spl_token_2022::ID);
+    }
+}

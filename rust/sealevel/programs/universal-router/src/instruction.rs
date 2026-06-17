@@ -78,3 +78,166 @@ pub struct ClosePendingSwapIxn {
     pub sender: [u8; 32],
     pub commitment: [u8; 32],
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use borsh::{BorshDeserialize, BorshSerialize};
+
+    fn roundtrip<T: BorshSerialize + BorshDeserialize>(value: &T) -> T {
+        let bytes = borsh::to_vec(value).unwrap();
+        T::try_from_slice(&bytes).unwrap()
+    }
+
+    #[test]
+    fn test_execute_ixn_roundtrip() {
+        let ixn = ExecuteIxn {
+            commands: vec![0x08, 0x09, 0x0a],
+            inputs: vec![vec![1, 2, 3], vec![], vec![4, 5]],
+        };
+        let decoded = roundtrip(&ixn);
+        assert_eq!(decoded.commands, ixn.commands);
+        assert_eq!(decoded.inputs, ixn.inputs);
+    }
+
+    #[test]
+    fn test_execute_ixn_empty() {
+        let ixn = ExecuteIxn {
+            commands: vec![],
+            inputs: vec![],
+        };
+        let decoded = roundtrip(&ixn);
+        assert!(decoded.commands.is_empty());
+        assert!(decoded.inputs.is_empty());
+    }
+
+    #[test]
+    fn test_execute_with_deadline_ixn_roundtrip() {
+        let ixn = ExecuteWithDeadlineIxn {
+            commands: vec![0x12],
+            inputs: vec![vec![9, 8, 7]],
+            deadline: 9_999_999_999i64,
+        };
+        let decoded = roundtrip(&ixn);
+        assert_eq!(decoded.commands, ixn.commands);
+        assert_eq!(decoded.inputs, ixn.inputs);
+        assert_eq!(decoded.deadline, ixn.deadline);
+    }
+
+    #[test]
+    fn test_execute_with_deadline_negative_deadline() {
+        // Deadline can be negative (already-passed timestamp, checked at runtime)
+        let ixn = ExecuteWithDeadlineIxn {
+            commands: vec![],
+            inputs: vec![],
+            deadline: -1i64,
+        };
+        let decoded = roundtrip(&ixn);
+        assert_eq!(decoded.deadline, -1i64);
+    }
+
+    #[test]
+    fn test_reveal_ixn_roundtrip() {
+        let ixn = RevealIxn {
+            origin: 1234,
+            sender: [0xAAu8; 32],
+            message: vec![1, 2, 3, 4, 5],
+            salt: [0xBBu8; 32],
+        };
+        let decoded = roundtrip(&ixn);
+        assert_eq!(decoded.origin, ixn.origin);
+        assert_eq!(decoded.sender, ixn.sender);
+        assert_eq!(decoded.message, ixn.message);
+        assert_eq!(decoded.salt, ixn.salt);
+    }
+
+    #[test]
+    fn test_close_pending_swap_ixn_roundtrip() {
+        let ixn = ClosePendingSwapIxn {
+            origin: 99,
+            sender: [0xCCu8; 32],
+            commitment: [0xDDu8; 32],
+        };
+        let decoded = roundtrip(&ixn);
+        assert_eq!(decoded.origin, ixn.origin);
+        assert_eq!(decoded.sender, ixn.sender);
+        assert_eq!(decoded.commitment, ixn.commitment);
+    }
+
+    #[test]
+    fn test_router_instruction_execute_roundtrip() {
+        let ixn = RouterInstruction::Execute(ExecuteIxn {
+            commands: vec![0x00, 0x01],
+            inputs: vec![vec![10], vec![20]],
+        });
+        let bytes = borsh::to_vec(&ixn).unwrap();
+        let decoded = RouterInstruction::from_instruction_data(&bytes).unwrap();
+        match decoded {
+            RouterInstruction::Execute(e) => {
+                assert_eq!(e.commands, vec![0x00, 0x01]);
+                assert_eq!(e.inputs, vec![vec![10], vec![20]]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_router_instruction_execute_with_deadline_roundtrip() {
+        let ixn = RouterInstruction::ExecuteWithDeadline(ExecuteWithDeadlineIxn {
+            commands: vec![0x08],
+            inputs: vec![vec![1, 2, 3, 4, 5, 6, 7, 8]],
+            deadline: 1_700_000_000i64,
+        });
+        let bytes = borsh::to_vec(&ixn).unwrap();
+        let decoded = RouterInstruction::from_instruction_data(&bytes).unwrap();
+        match decoded {
+            RouterInstruction::ExecuteWithDeadline(e) => {
+                assert_eq!(e.deadline, 1_700_000_000i64);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_router_instruction_reveal_roundtrip() {
+        let ixn = RouterInstruction::Reveal(RevealIxn {
+            origin: 7,
+            sender: [0x01u8; 32],
+            message: b"borsh_encoded_payload".to_vec(),
+            salt: [0x02u8; 32],
+        });
+        let bytes = borsh::to_vec(&ixn).unwrap();
+        let decoded = RouterInstruction::from_instruction_data(&bytes).unwrap();
+        match decoded {
+            RouterInstruction::Reveal(r) => {
+                assert_eq!(r.origin, 7);
+                assert_eq!(r.salt, [0x02u8; 32]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_router_instruction_close_pending_swap_roundtrip() {
+        let ixn = RouterInstruction::ClosePendingSwap(ClosePendingSwapIxn {
+            origin: 3,
+            sender: [0x11u8; 32],
+            commitment: [0x22u8; 32],
+        });
+        let bytes = borsh::to_vec(&ixn).unwrap();
+        let decoded = RouterInstruction::from_instruction_data(&bytes).unwrap();
+        match decoded {
+            RouterInstruction::ClosePendingSwap(c) => {
+                assert_eq!(c.origin, 3);
+                assert_eq!(c.commitment, [0x22u8; 32]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_router_instruction_from_invalid_data() {
+        assert!(RouterInstruction::from_instruction_data(&[]).is_err());
+        assert!(RouterInstruction::from_instruction_data(&[0xFF, 0xFF, 0xFF]).is_err());
+    }
+}

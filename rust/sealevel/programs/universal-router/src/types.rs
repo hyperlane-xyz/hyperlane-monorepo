@@ -28,7 +28,7 @@ pub mod amount_sentinels {
 }
 
 /// Supported Hyperlane bridge asset types
-#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[borsh(use_discriminant = true)]
 pub enum BridgeType {
     HypXerc20 = 0x01,
@@ -151,5 +151,249 @@ impl PendingSwap {
         }
         data[..serialized.len()].copy_from_slice(&serialized);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use borsh::{BorshDeserialize, BorshSerialize};
+
+    // -----------------------------------------------------------------------
+    // Command byte constants
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_flag_allow_revert_is_bit7() {
+        assert_eq!(commands::FLAG_ALLOW_REVERT, 0x80);
+        // Applying mask strips the flag
+        assert_eq!(commands::FLAG_ALLOW_REVERT & commands::COMMAND_TYPE_MASK, 0);
+    }
+
+    #[test]
+    fn test_command_type_mask_strips_flag() {
+        let cmd_with_flag = commands::WRAP_SOL | commands::FLAG_ALLOW_REVERT;
+        assert_eq!(
+            cmd_with_flag & commands::COMMAND_TYPE_MASK,
+            commands::WRAP_SOL
+        );
+    }
+
+    #[test]
+    fn test_command_bytes_no_overlap_with_flag() {
+        let all_cmds = [
+            commands::RAYDIUM_CLMM_SWAP_EXACT_IN,
+            commands::RAYDIUM_AMM_SWAP_EXACT_IN,
+            commands::WRAP_SOL,
+            commands::UNWRAP_WSOL,
+            commands::SWEEP,
+            commands::TRANSFER,
+            commands::BRIDGE_TOKEN,
+            commands::EXECUTE_CROSS_CHAIN,
+            commands::EXECUTE_SUB_PLAN,
+        ];
+        for cmd in all_cmds {
+            // No command byte should have bit 7 set (that's the flag)
+            assert_eq!(
+                cmd & commands::FLAG_ALLOW_REVERT,
+                0,
+                "cmd 0x{:02x} overlaps with FLAG_ALLOW_REVERT",
+                cmd
+            );
+        }
+    }
+
+    #[test]
+    fn test_contract_balance_sentinel_is_u64_max() {
+        assert_eq!(amount_sentinels::CONTRACT_BALANCE, u64::MAX);
+    }
+
+    // -----------------------------------------------------------------------
+    // BridgeType
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_bridge_type_from_u8_valid() {
+        assert_eq!(BridgeType::from_u8(0x01), Some(BridgeType::HypXerc20));
+        assert_eq!(
+            BridgeType::from_u8(0x03),
+            Some(BridgeType::HypErc20Collateral)
+        );
+    }
+
+    #[test]
+    fn test_bridge_type_from_u8_invalid() {
+        assert_eq!(BridgeType::from_u8(0x00), None);
+        assert_eq!(BridgeType::from_u8(0x02), None);
+        assert_eq!(BridgeType::from_u8(0xFF), None);
+    }
+
+    #[test]
+    fn test_bridge_type_borsh_roundtrip() {
+        for bt in [BridgeType::HypXerc20, BridgeType::HypErc20Collateral] {
+            let encoded = borsh::to_vec(&bt).unwrap();
+            let decoded = BridgeType::try_from_slice(&encoded).unwrap();
+            assert_eq!(bt, decoded);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // PendingSwap
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_pending_swap_len_matches_serialized() {
+        let swap = PendingSwap {
+            recipient: Pubkey::new_unique(),
+            origin_domain: 1,
+            bump: 255,
+        };
+        let serialized = swap.to_bytes().unwrap();
+        assert_eq!(serialized.len(), PendingSwap::LEN);
+        assert_eq!(PendingSwap::LEN, 37);
+    }
+
+    #[test]
+    fn test_pending_swap_borsh_roundtrip() {
+        let original = PendingSwap {
+            recipient: Pubkey::new_unique(),
+            origin_domain: 42,
+            bump: 200,
+        };
+        let bytes = original.to_bytes().unwrap();
+        let decoded = PendingSwap::from_bytes(&bytes).unwrap();
+        assert_eq!(decoded.recipient, original.recipient);
+        assert_eq!(decoded.origin_domain, original.origin_domain);
+        assert_eq!(decoded.bump, original.bump);
+    }
+
+    #[test]
+    fn test_pending_swap_from_bytes_too_short() {
+        assert!(PendingSwap::from_bytes(&[0u8; 10]).is_err());
+    }
+
+    #[test]
+    fn test_pending_swap_from_bytes_empty() {
+        assert!(PendingSwap::from_bytes(&[]).is_err());
+    }
+
+    #[test]
+    fn test_pending_swap_write_into() {
+        let swap = PendingSwap {
+            recipient: Pubkey::new_unique(),
+            origin_domain: 99,
+            bump: 1,
+        };
+        let mut buf = vec![0u8; PendingSwap::LEN];
+        swap.write_into(&mut buf).unwrap();
+        let decoded = PendingSwap::from_bytes(&buf).unwrap();
+        assert_eq!(decoded.recipient, swap.recipient);
+        assert_eq!(decoded.origin_domain, swap.origin_domain);
+        assert_eq!(decoded.bump, swap.bump);
+    }
+
+    #[test]
+    fn test_pending_swap_write_into_buffer_too_small() {
+        let swap = PendingSwap {
+            recipient: Pubkey::new_unique(),
+            origin_domain: 1,
+            bump: 0,
+        };
+        let mut buf = vec![0u8; 5]; // smaller than PendingSwap::LEN
+        assert!(swap.write_into(&mut buf).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Input struct Borsh roundtrips
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_raydium_clmm_swap_input_roundtrip() {
+        let input = RaydiumClmmSwapInput {
+            amount_in: 1_000_000,
+            amount_out_minimum: 900_000,
+            sqrt_price_limit_x64: 12345678901234567890,
+            is_base_input: true,
+        };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = RaydiumClmmSwapInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.amount_in, input.amount_in);
+        assert_eq!(decoded.amount_out_minimum, input.amount_out_minimum);
+        assert_eq!(decoded.sqrt_price_limit_x64, input.sqrt_price_limit_x64);
+        assert_eq!(decoded.is_base_input, input.is_base_input);
+    }
+
+    #[test]
+    fn test_raydium_amm_swap_input_roundtrip() {
+        let input = RaydiumAmmSwapInput {
+            amount_in: 500_000,
+            amount_out_minimum: 490_000,
+        };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = RaydiumAmmSwapInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.amount_in, input.amount_in);
+        assert_eq!(decoded.amount_out_minimum, input.amount_out_minimum);
+    }
+
+    #[test]
+    fn test_wrap_sol_input_roundtrip() {
+        let input = WrapSolInput { amount: u64::MAX };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = WrapSolInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.amount, input.amount);
+    }
+
+    #[test]
+    fn test_sweep_input_roundtrip() {
+        let input = SweepInput { amount_min: 0 };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = SweepInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.amount_min, input.amount_min);
+    }
+
+    #[test]
+    fn test_transfer_input_roundtrip() {
+        let input = TransferInput { amount: 999_999 };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = TransferInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.amount, input.amount);
+    }
+
+    #[test]
+    fn test_bridge_token_input_roundtrip() {
+        let input = BridgeTokenInput {
+            bridge_type: BridgeType::HypXerc20 as u8,
+            destination_domain: 1,
+            recipient: [0xABu8; 32],
+            amount: 1_000_000,
+            msg_fee: 5_000,
+        };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = BridgeTokenInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.bridge_type, input.bridge_type);
+        assert_eq!(decoded.destination_domain, input.destination_domain);
+        assert_eq!(decoded.recipient, input.recipient);
+        assert_eq!(decoded.amount, input.amount);
+        assert_eq!(decoded.msg_fee, input.msg_fee);
+    }
+
+    #[test]
+    fn test_execute_cross_chain_input_roundtrip() {
+        let input = ExecuteCrossChainInput {
+            destination_domain: 1337,
+            ica_router: [0x11u8; 32],
+            ism: [0x22u8; 32],
+            commitment: [0x33u8; 32],
+            commit_msg_fee: 10_000,
+            reveal_msg_fee: 20_000,
+        };
+        let bytes = borsh::to_vec(&input).unwrap();
+        let decoded = ExecuteCrossChainInput::try_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.destination_domain, input.destination_domain);
+        assert_eq!(decoded.ica_router, input.ica_router);
+        assert_eq!(decoded.ism, input.ism);
+        assert_eq!(decoded.commitment, input.commitment);
+        assert_eq!(decoded.commit_msg_fee, input.commit_msg_fee);
+        assert_eq!(decoded.reveal_msg_fee, input.reveal_msg_fee);
     }
 }
