@@ -60,7 +60,11 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { IgpConfig } from '../gas/types.js';
+import {
+  IgpConfig,
+  assertTokenOracleConfigHasNativeRemotes,
+  igpSupportsOffchainFeeQuoting,
+} from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
@@ -568,17 +572,16 @@ export class EvmHookModule extends HyperlaneModule<
 
     // update quote signers only if explicitly specified in target config
     // and IGP supports them (detected from on-chain read or version upgrade)
-    const quoteSignerVersion =
+    const offchainFeeQuotingVersion =
       targetConfig.contractVersion ?? currentVersion ?? undefined;
-    const supportsQuoteSigners =
-      targetConfig.igpVersion !== IgpVersion.Legacy &&
-      (currentConfig.quoteSigners !== undefined ||
-        (quoteSignerVersion !== undefined &&
-          compareVersions(quoteSignerVersion, OFFCHAIN_QUOTED_IGP_VERSION) >=
-            0));
+    const supportsOffchainFeeQuoting = igpSupportsOffchainFeeQuoting({
+      igpVersion: targetConfig.igpVersion,
+      contractVersion: offchainFeeQuotingVersion,
+      quoteSigners: currentConfig.quoteSigners,
+    });
     if (targetConfig.quoteSigners !== undefined) {
       assert(
-        supportsQuoteSigners,
+        supportsOffchainFeeQuoting,
         `IGP quoteSigners require contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
       );
       updateTxs.push(
@@ -594,7 +597,7 @@ export class EvmHookModule extends HyperlaneModule<
     // mapping and setTokenGasOracles only exist on the new (non-legacy) IGP.
     if (targetConfig.tokenOracleConfig !== undefined) {
       assert(
-        supportsQuoteSigners,
+        supportsOffchainFeeQuoting,
         `IGP tokenOracleConfig requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
       );
       updateTxs.push(
@@ -612,8 +615,11 @@ export class EvmHookModule extends HyperlaneModule<
   /**
    * Diffs and applies per-fee-token gas oracles on the IGP. Target-driven: the
    * configured fee tokens are the only enumeration source (the on-chain
-   * tokenGasOracles mapping is not enumerable), and each token's current oracle
-   * is read back from chain, so no off-chain address bookkeeping is needed.
+   * tokenGasOracles mapping is not enumerable), so removals are intentionally
+   * unsupported and old fee-token mappings remain live until cleared by a
+   * dedicated teardown flow. Each configured token's current oracle is read back
+   * from chain, so no off-chain address bookkeeping is needed for additions and
+   * updates.
    *
    * For each fee token: resolve the oracle already wired on chain (reused across
    * that token's destinations), or deploy a fresh StorageGasOracle if none is
@@ -635,6 +641,7 @@ export class EvmHookModule extends HyperlaneModule<
       interchainGasPaymaster,
       this.multiProvider.getProvider(this.domainId),
     );
+    assertTokenOracleConfigHasNativeRemotes(this.chain, config);
 
     for (const [feeToken, oracleConfig] of Object.entries(
       targetTokenOracleConfig,

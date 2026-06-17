@@ -18,7 +18,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { IgpVersion } from '../hook/types.js';
+import { IgpVersion, OFFCHAIN_QUOTED_IGP_VERSION } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -27,7 +27,11 @@ import {
   oracleConfigToOracleData,
   serializeDifference,
 } from './oracle/types.js';
-import { IgpConfig } from './types.js';
+import {
+  IgpConfig,
+  assertTokenOracleConfigHasNativeRemotes,
+  igpSupportsOffchainFeeQuoting,
+} from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -56,7 +60,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     assert(
       !config.tokenOracleConfig ||
         Object.keys(config.tokenOracleConfig).length === 0,
-      'Legacy IGP on ' + chain + ' does not support tokenOracleConfig',
+      `Legacy IGP on ${chain} does not support tokenOracleConfig`,
     );
 
     const cachedAddresses = this.cachedAddresses[chain] ?? {};
@@ -285,6 +289,24 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   ): Promise<void> {
     if (!config.tokenOracleConfig) return;
     this.assertLegacyIgpConfig(chain, config);
+    assertTokenOracleConfigHasNativeRemotes(chain, config);
+
+    let contractVersion: string;
+    try {
+      contractVersion = await igp.PACKAGE_VERSION();
+    } catch (error) {
+      throw new Error(
+        `IGP tokenOracleConfig on ${chain} requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+        { cause: error },
+      );
+    }
+    assert(
+      igpSupportsOffchainFeeQuoting({
+        igpVersion: config.igpVersion,
+        contractVersion,
+      }),
+      `IGP tokenOracleConfig on ${chain} requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+    );
 
     for (const [feeToken, oracleConfig] of Object.entries(
       config.tokenOracleConfig,
