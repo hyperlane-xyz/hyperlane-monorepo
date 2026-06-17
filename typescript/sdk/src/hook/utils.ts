@@ -5,6 +5,7 @@ import {
   DerivedHookConfig,
   HookConfig,
   HookType,
+  IgpVersion,
 } from './types.js';
 
 /**
@@ -31,33 +32,54 @@ export function stripPredicateSubHook(
   return hook;
 }
 
-export function hookTreeContainsRateLimited(
+function hookTreeContains(
   hook: HookConfig | undefined,
+  predicate: (hook: Exclude<HookConfig, string>) => boolean,
 ): boolean {
   if (!hook || typeof hook === 'string') return false;
-  if (hook.type === HookType.RATE_LIMITED) return true;
+  if (predicate(hook)) return true;
   if (hook.type === HookType.AGGREGATION) {
-    return hook.hooks.some(hookTreeContainsRateLimited);
+    return hook.hooks.some((child) => hookTreeContains(child, predicate));
   }
   if (hook.type === HookType.ROUTING) {
-    return Object.values(hook.domains).some(hookTreeContainsRateLimited);
+    return Object.values(hook.domains).some((child) =>
+      hookTreeContains(child, predicate),
+    );
   }
   if (hook.type === HookType.FALLBACK_ROUTING) {
     return (
-      Object.values(hook.domains).some(hookTreeContainsRateLimited) ||
-      hookTreeContainsRateLimited(hook.fallback)
+      Object.values(hook.domains).some((child) =>
+        hookTreeContains(child, predicate),
+      ) || hookTreeContains(hook.fallback, predicate)
     );
   }
   if (hook.type === HookType.AMOUNT_ROUTING) {
     return (
-      hookTreeContainsRateLimited(hook.lowerHook) ||
-      hookTreeContainsRateLimited(hook.upperHook)
+      hookTreeContains(hook.lowerHook, predicate) ||
+      hookTreeContains(hook.upperHook, predicate)
     );
   }
   if (hook.type === HookType.ARB_L2_TO_L1) {
-    return hookTreeContainsRateLimited(hook.childHook as HookConfig);
+    return hookTreeContains(hook.childHook, predicate);
   }
   return false;
+}
+
+export function hookTreeContainsRateLimited(
+  hook: HookConfig | undefined,
+): boolean {
+  return hookTreeContains(hook, (node) => node.type === HookType.RATE_LIMITED);
+}
+
+export function hookTreeContainsLegacyIgp(
+  hook: HookConfig | undefined,
+): boolean {
+  return hookTreeContains(
+    hook,
+    (node) =>
+      node.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      node.igpVersion === IgpVersion.Legacy,
+  );
 }
 
 export const isHookCompatible = ({
