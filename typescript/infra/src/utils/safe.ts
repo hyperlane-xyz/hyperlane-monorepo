@@ -1,6 +1,6 @@
-import { JsonRpcSigner } from '@ethersproject/providers';
+import type { TypedDataSigner } from '@ethersproject/abstract-signer';
 import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
+import Safe, { generateTypedData } from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
   OperationType,
@@ -41,6 +41,19 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+
+/**
+ * Runtime type guard narrowing an ethers v5 Signer to one that supports
+ * EIP-712 typed-data signing. `JsonRpcSigner`, `Wallet`, and our
+ * `TurnkeyEvmSigner` all expose `_signTypedData` on their prototypes.
+ */
+export function isTypedDataSigner(
+  signer: ethers.Signer,
+): signer is ethers.Signer & TypedDataSigner {
+  return (
+    '_signTypedData' in signer && typeof signer._signTypedData === 'function'
+  );
+}
 
 type SafeService = ReturnType<typeof getSafeService>;
 type SafeMultisigTransactionResponse = Awaited<
@@ -212,11 +225,30 @@ export async function proposeSafeTransaction(
   safeService: SafeService,
   safeTransaction: SafeTransaction,
   safeAddress: Address,
-  signer: ethers.Signer,
+  signer: ethers.Signer & TypedDataSigner,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
+
+  const safeVersion = safeSdk.getContractVersion();
+  const chainId = await safeSdk.getChainId();
+  const typedData = generateTypedData({
+    safeAddress,
+    safeVersion,
+    chainId,
+    data: safeTransaction.data,
+  });
+  // generateTypedData returns Tx | Message; the SafeTx primaryType corresponds
+  // to the SafeTransactionData input shape we pass.
+  assert(
+    typedData.primaryType === 'SafeTx',
+    `Expected SafeTx typed data, got primaryType=${typedData.primaryType}`,
+  );
+  const senderSignature = await signer._signTypedData(
+    typedData.domain,
+    { SafeTx: typedData.types.SafeTx },
+    typedData.message,
+  );
 
   await retrySafeApi(() =>
     safeService.proposeTransaction({
@@ -224,7 +256,7 @@ export async function proposeSafeTransaction(
       safeTransactionData: safeTransaction.data,
       safeTxHash,
       senderAddress,
-      senderSignature: senderSignature.data,
+      senderSignature,
     }),
   );
 
@@ -303,6 +335,10 @@ export async function deleteSafeTx(
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
+  assert(
+    isTypedDataSigner(signer),
+    `Signer for chain ${chain} does not support EIP-712 typed-data signing`,
+  );
   const chainId = multiProvider.getEvmChainId(chain);
   const safeService = getSafeService(chain, multiProvider);
   const { gnosisSafeTransactionServiceUrl } =
@@ -379,7 +415,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (signer as JsonRpcSigner)._signTypedData(
+    const signature = await signer._signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,

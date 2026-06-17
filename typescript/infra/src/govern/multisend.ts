@@ -8,6 +8,7 @@ import {
   Address,
   CallData,
   addBufferToGasLimit,
+  assert,
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -15,6 +16,7 @@ import {
   createSafeTransaction,
   createSafeTransactionData,
   getSafeAndService,
+  isTypedDataSigner,
   proposeSafeTransaction,
   retrySafeApi,
 } from '../utils/safe.js';
@@ -149,6 +151,10 @@ export class SafeMultiSend extends MultiSend {
     safeTransaction: SafeTransaction,
   ) {
     const signer = this.multiProvider.getSigner(this.chain);
+    assert(
+      isTypedDataSigner(signer),
+      `Signer for chain ${this.chain} does not support EIP-712 typed-data signing`,
+    );
     await proposeSafeTransaction(
       this.chain,
       safeSdk,
