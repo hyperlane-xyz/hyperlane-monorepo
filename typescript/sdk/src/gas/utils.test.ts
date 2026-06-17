@@ -82,6 +82,36 @@ describe('getLocalStorageGasOracleConfig', () => {
     );
   });
 
+  it('preserves precision for non-power-of-ten exchange rates', () => {
+    // 6-decimal fee token paying for an 18-decimal remote, remote worth 15x.
+    // Naively the scaled exchange rate is 0.15. Shifting only one digit makes
+    // this 1.5, which floors to 1 and underquotes by 33%; using all safe
+    // gas-price headroom keeps the floor rounding error negligible.
+    const gasOracleParams: Record<string, ChainGasOracleParams> = {
+      feeToken: {
+        gasPrice: { amount: '1', decimals: 9 },
+        nativeToken: { price: '1', decimals: 6 },
+      },
+      remote: {
+        gasPrice: { amount: '50', decimals: 9 }, // 50 gwei = 5e10 wei
+        nativeToken: { price: '15', decimals: 18 },
+      },
+    };
+
+    const config = getLocalStorageGasOracleConfig({
+      local: 'feeToken',
+      localProtocolType: ProtocolType.Ethereum,
+      gasOracleParams,
+      exchangeRateMarginPct: 0,
+    }).remote;
+
+    const gasAmount = 200_000;
+    expect(quote(config, gasAmount)).to.be.approximately(
+      0.75 * gasAmount,
+      0.75 * gasAmount * MAX_REBALANCED_QUOTE_ROUNDING_ERROR,
+    );
+  });
+
   it('falls back to the floor when there is no gas price headroom to rebalance', () => {
     // gasPrice in wei (5) is below MIN_REBALANCED_GAS_PRICE, so shifting any
     // magnitude into the exchange rate would exceed the rounding-error bound.
