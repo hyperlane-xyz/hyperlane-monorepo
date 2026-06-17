@@ -1,4 +1,5 @@
 import type { Log } from '@ethersproject/providers';
+import { utils } from 'ethers';
 import { Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Logger } from 'pino';
@@ -426,7 +427,7 @@ export class CallCommitmentsService extends BaseService {
         /^0x[0-9a-fA-F]{64}$/,
         'commitment must be a 32-byte 0x hex string',
       ),
-    chainId: z.number().int().positive(),
+    originDomain: z.number().int().positive(),
     data: z
       .string()
       .regex(/^0x[0-9a-fA-F]+$/, 'data must be a non-empty 0x hex string'),
@@ -434,6 +435,12 @@ export class CallCommitmentsService extends BaseService {
       .string()
       .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
     relayers: z.array(z.string().regex(/^0x[0-9a-fA-F]{64}$/)).default([]),
+    destinationAccount: z
+      .string()
+      .regex(
+        /^0x[0-9a-fA-F]{64}$/,
+        'destinationAccount must be a 32-byte 0x hex string',
+      ),
   });
 
   public async handleCalldataPost(req: Request, res: Response) {
@@ -444,14 +451,62 @@ export class CallCommitmentsService extends BaseService {
     if (!result.success) {
       return res.status(400).json({ errors: result.error.format() });
     }
-    const { commitment, chainId, data, salt, relayers } = result.data;
-    logger.info({ chainId, commitment }, 'Storing calldata');
+    const {
+      commitment,
+      originDomain,
+      data,
+      salt,
+      relayers,
+      destinationAccount,
+    } = result.data;
+    logger.info({ originDomain, commitment }, 'Storing calldata');
     try {
       await prisma.calldata.upsert({
         where: { commitment },
         update: {},
-        create: { commitment, chainId, data, salt, relayers },
+        create: {
+          commitment,
+          originDomain,
+          data,
+          salt,
+          relayers,
+          destinationAccount,
+        },
       });
+
+      // Dual-write to Commitment table for EVM destinations so the existing
+      // getCallsFromRevealMessage CCIP-Read endpoint keeps working.
+      // destinationAccount is bytes32; if upper 12 bytes are zero, it's a padded EVM address.
+      if (/^0x0{24}[0-9a-fA-F]{40}$/.test(destinationAccount)) {
+        const icaAddress = bytes32ToAddress(destinationAccount);
+        const [decodedCalls] = utils.defaultAbiCoder.decode(
+          ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+          data,
+        ) as [
+          Array<{ to: string; value: { toString(): string }; data: string }>,
+        ];
+        const calls = decodedCalls.map((c) => ({
+          to: c.to,
+          value: c.value.toString(),
+          data: c.data,
+        }));
+        await prisma.commitment.upsert({
+          where: { commitment },
+          update: {},
+          create: {
+            commitment,
+            calls,
+            relayers,
+            salt,
+            ica: icaAddress,
+            originDomain,
+          },
+        });
+        logger.info(
+          { commitment, icaAddress, originDomain },
+          'Dual-wrote to Commitment table',
+        );
+      }
     } catch (error: any) {
       logger.error(
         {
@@ -474,10 +529,11 @@ export class CallCommitmentsService extends BaseService {
     const { commitment } = req.params;
 
     let record: {
-      chainId: number;
+      originDomain: number;
       data: string;
       salt: string;
       relayers: unknown;
+      destinationAccount: string | null;
     } | null;
     try {
       record = await prisma.calldata.findUnique({ where: { commitment } });
@@ -491,9 +547,12 @@ export class CallCommitmentsService extends BaseService {
     if (!record) return res.status(404).json({ error: 'Not found' });
 
     return res.status(200).json({
-      chainId: record.chainId,
+      originDomain: record.originDomain,
       data: record.data,
       salt: record.salt,
+      ...(record.destinationAccount != null && {
+        destinationAccount: record.destinationAccount,
+      }),
     });
   }
 
