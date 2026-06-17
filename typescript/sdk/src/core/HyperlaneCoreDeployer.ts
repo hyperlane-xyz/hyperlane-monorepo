@@ -332,7 +332,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     return {
       ...ownableContracts,
-      ...(quotedCalls ? { quotedCalls } : {}),
+      quotedCalls,
     };
   }
 }

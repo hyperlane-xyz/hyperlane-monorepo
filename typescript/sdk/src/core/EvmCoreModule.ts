@@ -493,7 +493,7 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox: mailbox.address,
       interchainAccountRouter,
       validatorAnnounce,
-      ...(quotedCalls ? { quotedCalls } : {}),
+      quotedCalls,
       timelockController,
       testRecipient,
       merkleTreeHook,
