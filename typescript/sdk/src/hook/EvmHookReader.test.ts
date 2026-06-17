@@ -301,6 +301,29 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
+  it('should not stamp IGP as legacy on empty provider responses', async () => {
+    const mockAddress = randomAddress();
+    const emptyProviderResponse = new Error('Invalid response from provider');
+
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(randomAddress()),
+      beneficiary: sandbox.stub().resolves(randomAddress()),
+      quoteSigners: sandbox.stub().rejects(emptyProviderResponse),
+    } as unknown as InterchainGasPaymaster);
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveIgpConfig(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.equal(emptyProviderResponse);
+  });
+
   it('should still derive IGP config when a domain is unsupported', async () => {
     const mockAddress = randomAddress();
     const owner = randomAddress();
