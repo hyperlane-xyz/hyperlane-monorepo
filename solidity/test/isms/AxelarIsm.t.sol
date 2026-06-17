@@ -363,7 +363,7 @@ contract AxelarIsmTest is ExternalBridgeTest {
             axelarIsm.authorizedHook(),
             TypeCasts.addressToBytes32(address(hook))
         );
-        assertEq(uint256(axelarIsm.moduleType()), 0); // Types.NULL
+        assertEq(uint256(axelarIsm.moduleType()), 6); // Types.NULL
     }
 
     function test_ism_constructor_revertWhen_zeroGateway() public {
@@ -485,6 +485,16 @@ contract AxelarIsmTest is ExternalBridgeTest {
         // 42 chars, 0x-prefixed, but contains a non-hex character ('z' = 122)
         vm.expectRevert(StringToAddress.InvalidAddressString.selector);
         addrLib.toAddress("0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+    }
+
+    function test_stringToAddress_acceptsUppercaseHex() public view {
+        // Axelar peers may emit checksummed/uppercase hex; parsing must be
+        // case-insensitive so source authorization is robust to casing.
+        address expected = 0xabCDeF0123456789AbcdEf0123456789aBCDEF01;
+        assertEq(
+            addrLib.toAddress("0xABCDEF0123456789ABCDEF0123456789ABCDEF01"),
+            expected
+        );
     }
 }
 

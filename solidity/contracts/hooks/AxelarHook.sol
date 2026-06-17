@@ -99,7 +99,6 @@ contract AxelarHook is AbstractMessageIdAuthHook {
 
     // ============ Internal functions ============
 
-    /// @inheritdoc AbstractPostDispatchHook
     /// @dev Returns 0: Axelar gas cannot be quoted on-chain. The caller attaches
     /// native value, which the hook over-pays to the Axelar Gas Service.
     function _quoteDispatch(
