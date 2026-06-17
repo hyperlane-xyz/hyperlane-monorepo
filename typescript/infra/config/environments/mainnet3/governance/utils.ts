@@ -136,6 +136,20 @@ export function getAllSafesForChain(chain: ChainName): string[] {
     .filter((safe) => safe !== undefined);
 }
 
+export function getSafesByGovernanceForChain(
+  chain: ChainName,
+): Array<{ governanceType: GovernanceType; safe: Address }> {
+  return Object.values(GovernanceType)
+    .map((governanceType) => ({
+      governanceType,
+      safe: getGovernanceSafes(governanceType)[chain],
+    }))
+    .filter(
+      (entry): entry is { governanceType: GovernanceType; safe: Address } =>
+        entry.safe !== undefined,
+    );
+}
+
 /**
  * Get the owner address for warp fee contracts on a given chain.
  * - Ethereum: Uses Safe from warpFeesSafes
