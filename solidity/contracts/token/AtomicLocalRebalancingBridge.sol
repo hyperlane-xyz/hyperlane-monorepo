@@ -17,9 +17,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-/// @dev Balances held by the wrapper itself, snapshotted before escrow so
-/// balances already present cannot fund the destination or be swept as a refund.
-/// Used to avoid stack too deep.
+/// @dev Token balances held by this contract, snapshotted before escrow so the
+/// post-call invariants can require new output rather than counting balances that
+/// were already present. Used to avoid stack too deep.
 struct SelfBalanceSnapshot {
     uint256 sourceToken;
     uint256 destinationToken;
@@ -213,18 +213,13 @@ contract AtomicLocalRebalancingBridge is
             ERR_DESTINATION_UNDERFUNDED
         );
 
-        // Refund only balances accrued during this call; never sweep pre-existing
-        // balances.
-        _refundTokenBalance(sourceToken, selfBefore.sourceToken, msg.sender);
+        // Sweep all remaining token and native balances to the rebalancer; this
+        // contract holds nothing between calls.
+        _refundTokenBalance(sourceToken, msg.sender);
         if (destinationToken != sourceToken) {
-            _refundTokenBalance(
-                destinationToken,
-                selfBefore.destinationToken,
-                msg.sender
-            );
+            _refundTokenBalance(destinationToken, msg.sender);
         }
 
-        // Refund this call's unspent native balance.
         uint256 nativeBalance = address(this).balance;
         if (nativeBalance > 0) {
             Address.sendValue(payable(msg.sender), nativeBalance);
@@ -331,14 +326,10 @@ contract AtomicLocalRebalancingBridge is
         return 10 ** uint256(IERC20Metadata(token).decimals());
     }
 
-    function _refundTokenBalance(
-        address token,
-        uint256 balanceBefore,
-        address recipient
-    ) internal {
+    function _refundTokenBalance(address token, address recipient) internal {
         uint256 balance = IERC20(token).balanceOf(address(this));
-        if (balance > balanceBefore) {
-            IERC20(token).safeTransfer(recipient, balance - balanceBefore);
+        if (balance > 0) {
+            IERC20(token).safeTransfer(recipient, balance);
         }
     }
 }

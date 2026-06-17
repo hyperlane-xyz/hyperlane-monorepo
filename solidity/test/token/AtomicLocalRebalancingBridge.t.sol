@@ -555,8 +555,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
-    function test_transferRemote_refundsSurplusButKeepsDonation() public {
-        // A prior donation of the output token sits on the bridge.
+    function test_transferRemote_sweepsSurplusAndPreexistingBalance() public {
+        // A pre-existing output-token balance sits on the bridge.
         outputToken.mintTo(address(bridge), 50e6);
         // Calls produce 3e6 more output than requiredOutputAmount.
         swapTarget.setOutputAmount(103e6);
@@ -564,11 +564,12 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.prank(rebalancer);
         _localRebalance(100e6, _rebalancerCalls(100e6));
 
-        // Destination gets requiredOutputAmount, only the produced surplus is refunded,
-        // and the donation stays on the bridge.
+        // Destination gets requiredOutputAmount; the produced surplus and the
+        // pre-existing balance are both swept to the rebalancer, leaving nothing
+        // on the bridge.
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
-        assertEq(outputToken.balanceOf(rebalancer), 3e6);
-        assertEq(outputToken.balanceOf(address(bridge)), 50e6);
+        assertEq(outputToken.balanceOf(rebalancer), 53e6);
+        assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
     function test_transferRemote_sweepsSurplusInputToRebalancer() public {
@@ -633,12 +634,15 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
-    function test_rebalance_revertsWhenDestinationFundedByDonation() public {
-        // A prior donation of the output token sits on the bridge.
+    function test_rebalance_revertsWhenDestinationFundedByPreexistingBalance()
+        public
+    {
+        // A pre-existing output-token balance sits on the bridge.
         outputToken.mintTo(address(bridge), 100e6);
 
         // Calls produce no new output: the rebalancer tries to satisfy the
-        // destination from the donation while pocketing the escrowed input.
+        // destination from the pre-existing balance while pocketing the escrowed
+        // input.
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
 
         vm.prank(rebalancer);
@@ -646,11 +650,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         _localRebalance(100e6, noCalls);
     }
 
-    function test_rebalance_revertsWhenCallsSpendInputDonation() public {
-        // A prior donation of the input token sits on the bridge.
+    function test_rebalance_revertsWhenCallsSpendPreexistingInput() public {
+        // A pre-existing input-token balance sits on the bridge.
         inputToken.mintTo(address(bridge), 50e6);
-        // Swap the escrow AND the donation, so the surplus output would be
-        // refunded to the rebalancer if the input donation were spendable.
+        // Swap the escrow AND the pre-existing balance, so the surplus output would
+        // be refunded to the rebalancer if the pre-existing input were spendable.
         swapTarget.setOutputAmount(150e6);
 
         CallLib.Call[] memory calls = new CallLib.Call[](2);
@@ -670,7 +674,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         _localRebalance(100e6, calls);
     }
 
-    function test_rebalance_sharedTokenFundsFromEscrowAndKeepsDonation()
+    function test_rebalance_sharedTokenFundsFromEscrowAndSweepsBalance()
         public
     {
         // input == output: destination holds the same token as the source, so
@@ -684,7 +688,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter.setCrossRouter(LOCAL_DOMAIN, address(sameTokenDest), true);
         sourceRouter.setCallbackRecipient(address(sameTokenDest));
 
-        // A prior donation of the shared token sits on the bridge.
+        // A pre-existing balance of the shared token sits on the bridge.
         inputToken.mintTo(address(bridge), 50e6);
 
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
@@ -698,10 +702,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             abi.encode(noCalls)
         );
 
-        // Escrow funds the destination; the donation is preserved, not swept.
+        // Escrow funds the destination; the pre-existing balance is swept to the
+        // rebalancer, leaving nothing on the bridge.
         assertEq(inputToken.balanceOf(address(sameTokenDest)), 100e6);
-        assertEq(inputToken.balanceOf(address(bridge)), 50e6);
-        assertEq(inputToken.balanceOf(rebalancer), 0);
+        assertEq(inputToken.balanceOf(address(bridge)), 0);
+        assertEq(inputToken.balanceOf(rebalancer), 50e6);
     }
 
     function test_rebalance_refundsUnspentNative() public {
