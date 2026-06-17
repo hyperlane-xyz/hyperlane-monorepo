@@ -11,6 +11,9 @@ import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
 import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 
+// Mirror of the bridge's post-call invariant revert reasons.
+bytes constant ERR_INSUFFICIENT_OUTPUT = "ALRB: insufficient output produced";
+
 interface IUniswapV3Router {
     struct ExactInputSingleParams {
         address tokenIn;
@@ -256,9 +259,7 @@ contract AtomicLocalRebalancingBridgeEthereumForkTest is
         uint256 amountIn = 100e6;
 
         vm.prank(rebalancer);
-        vm.expectRevert(
-            AtomicLocalRebalancingBridge.InsufficientOutput.selector
-        );
+        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
         _localRebalance(amountIn, _uniswapCalls(amountIn, 0));
     }
 

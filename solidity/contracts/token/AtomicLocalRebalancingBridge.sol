@@ -75,12 +75,20 @@ contract AtomicLocalRebalancingBridge is
     error NoActiveRebalance();
     error InvalidCallback();
     error MissingCallback();
-    error InsufficientOutput();
-    error InvalidSourceTokenBalance();
     error UnauthorizedRebalancer();
     error InvalidToken();
     error InvalidSource();
     error InvalidRecipient();
+
+    // Post-call invariant revert reasons.
+    string internal constant ERR_SOURCE_ROUTER_OVERDRAWN =
+        "ALRB: source router overdrawn";
+    string internal constant ERR_PREEXISTING_SOURCE_SPENT =
+        "ALRB: pre-existing source spent";
+    string internal constant ERR_INSUFFICIENT_OUTPUT =
+        "ALRB: insufficient output produced";
+    string internal constant ERR_DESTINATION_UNDERFUNDED =
+        "ALRB: destination underfunded";
 
     constructor(uint32 _localDomain, address _sourceRouter) {
         if (!Address.isContract(_sourceRouter)) revert InvalidSource();
@@ -104,6 +112,7 @@ contract AtomicLocalRebalancingBridge is
         bytes32 destinationRecipient,
         bytes calldata data
     ) external payable override nonReentrant {
+        // Validate inputs
         if (domain != localDomain) revert InvalidCallback();
         if (address(sourceRouter) != allowedSourceRouter)
             revert InvalidSource();
@@ -127,6 +136,8 @@ contract AtomicLocalRebalancingBridge is
             destinationRecipient
         );
 
+        // Resolve the source and destination collateral tokens; both must be a
+        // non-native ERC20 (token() != address(0)).
         address sourceToken = source.token();
         if (sourceToken == address(0)) revert InvalidToken();
         address destinationToken = MovableCollateralRouter(destinationRouter)
@@ -138,15 +149,17 @@ contract AtomicLocalRebalancingBridge is
             amount
         );
 
-        uint256 wrapperSourceBalanceBefore = IERC20(sourceToken).balanceOf(
+        // Snapshot balances before escrow so the post-call invariants can bound
+        // what the rebalancer's calls moved.
+        uint256 sourceBalanceBefore = IERC20(sourceToken).balanceOf(
             address(this)
         );
         SelfBalanceSnapshot memory selfBefore = SelfBalanceSnapshot({
-            sourceToken: wrapperSourceBalanceBefore,
+            sourceToken: sourceBalanceBefore,
             // Shared source/destination token reuses the source snapshot;
             // otherwise exclude any pre-existing destination-token balance.
             destinationToken: destinationToken == sourceToken
-                ? wrapperSourceBalanceBefore
+                ? sourceBalanceBefore
                 : IERC20(destinationToken).balanceOf(address(this))
         });
 
@@ -165,43 +178,40 @@ contract AtomicLocalRebalancingBridge is
         CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
         // Post-call invariants.
-        // Source may be topped up, but calls must not drain more than the amount.
-        if (
-            IERC20(sourceToken).balanceOf(allowedSourceRouter) <
-            routersBefore.sourceRouter - amount
-        ) {
-            revert InvalidSourceTokenBalance();
-        }
+        // The source router may be topped up, but the calls must not drain more
+        // than the escrowed amount from it.
+        require(
+            IERC20(sourceToken).balanceOf(allowedSourceRouter) >=
+                routersBefore.sourceRouter - amount,
+            ERR_SOURCE_ROUTER_OVERDRAWN
+        );
 
-        // Calls may consume at most the escrowed amount, not any sourceToken the
-        // wrapper held before escrow.
-        if (
-            IERC20(sourceToken).balanceOf(address(this)) <
-            selfBefore.sourceToken
-        ) {
-            revert InvalidSourceTokenBalance();
-        }
+        // Calls may consume at most the escrowed amount, never source collateral
+        // this contract already held before escrow.
+        require(
+            IERC20(sourceToken).balanceOf(address(this)) >=
+                selfBefore.sourceToken,
+            ERR_PREEXISTING_SOURCE_SPENT
+        );
 
         // Calls must produce at least requiredOutputAmount of new output; balances
-        // already on the wrapper cannot fund the destination.
-        if (
-            IERC20(destinationToken).balanceOf(address(this)) <
-            selfBefore.destinationToken + requiredOutputAmount
-        ) {
-            revert InsufficientOutput();
-        }
+        // already held cannot fund the destination.
+        require(
+            IERC20(destinationToken).balanceOf(address(this)) >=
+                selfBefore.destinationToken + requiredOutputAmount,
+            ERR_INSUFFICIENT_OUTPUT
+        );
 
         // Fund the destination.
         IERC20(destinationToken).safeTransfer(
             destinationRouter,
             requiredOutputAmount
         );
-        if (
-            IERC20(destinationToken).balanceOf(destinationRouter) <
-            routersBefore.destinationRouter + requiredOutputAmount
-        ) {
-            revert InsufficientOutput();
-        }
+        require(
+            IERC20(destinationToken).balanceOf(destinationRouter) >=
+                routersBefore.destinationRouter + requiredOutputAmount,
+            ERR_DESTINATION_UNDERFUNDED
+        );
 
         // Refund only balances accrued during this call; never sweep pre-existing
         // balances.
