@@ -177,9 +177,9 @@ contract AtomicLocalRebalancingBridge is
         _pullSourceCollateral(source, amount);
         CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
-        // Post-call invariants.
-        // The source router may be topped up, but the calls must not drain more
-        // than the escrowed amount from it.
+        // Verify the calls preserved the invariants and produced enough output to
+        // settle. The source router may be topped up, but the calls must not drain
+        // more than the escrowed amount from it.
         require(
             IERC20(sourceToken).balanceOf(allowedSourceRouter) >=
                 routersBefore.sourceRouter - amount,
@@ -195,35 +195,35 @@ contract AtomicLocalRebalancingBridge is
         );
 
         // Calls must produce at least requiredOutputAmount of new output; balances
-        // already held cannot fund the destination.
+        // already held cannot fund the destination. This gates the transfer below.
         require(
             IERC20(destinationToken).balanceOf(address(this)) >=
                 selfBefore.destinationToken + requiredOutputAmount,
             ERR_INSUFFICIENT_OUTPUT
         );
 
-        // Fund the destination.
+        // Settle: fund the destination, then sweep all remaining token and native
+        // balances to the rebalancer so this contract holds nothing between calls.
         IERC20(destinationToken).safeTransfer(
             destinationRouter,
             requiredOutputAmount
         );
+
+        _refundTokenBalance(sourceToken, msg.sender);
+        if (destinationToken != sourceToken) {
+            _refundTokenBalance(destinationToken, msg.sender);
+        }
+        uint256 nativeBalance = address(this).balance;
+        if (nativeBalance > 0) {
+            Address.sendValue(payable(msg.sender), nativeBalance);
+        }
+
+        // Verify the settlement funded the destination router.
         require(
             IERC20(destinationToken).balanceOf(destinationRouter) >=
                 routersBefore.destinationRouter + requiredOutputAmount,
             ERR_DESTINATION_UNDERFUNDED
         );
-
-        // Sweep all remaining token and native balances to the rebalancer; this
-        // contract holds nothing between calls.
-        _refundTokenBalance(sourceToken, msg.sender);
-        if (destinationToken != sourceToken) {
-            _refundTokenBalance(destinationToken, msg.sender);
-        }
-
-        uint256 nativeBalance = address(this).balance;
-        if (nativeBalance > 0) {
-            Address.sendValue(payable(msg.sender), nativeBalance);
-        }
 
         emit LocalRebalanceExecuted(
             destinationRouter,
