@@ -17,12 +17,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-/// @dev Token balances held by this contract, snapshotted before escrow so the
-/// post-call invariants can require new output rather than counting balances that
-/// were already present. Used to avoid stack too deep.
+/// @dev Balances held by this contract, snapshotted before escrow: the post-call
+/// invariants require new output (not pre-existing balances) to fund the
+/// destination, and the refund returns only balances accrued during the call.
+/// `native` excludes this call's `msg.value`. Used to avoid stack too deep.
 struct SelfBalanceSnapshot {
     uint256 sourceToken;
     uint256 destinationToken;
+    uint256 native;
 }
 
 /// @title AtomicLocalRebalancingBridge
@@ -78,6 +80,8 @@ contract AtomicLocalRebalancingBridge is
         "ALRB: source router overdrawn";
     string internal constant ERR_PREEXISTING_SOURCE_SPENT =
         "ALRB: pre-existing source spent";
+    string internal constant ERR_PREEXISTING_NATIVE_SPENT =
+        "ALRB: pre-existing native spent";
     string internal constant ERR_INSUFFICIENT_OUTPUT =
         "ALRB: insufficient output produced";
 
@@ -151,7 +155,9 @@ contract AtomicLocalRebalancingBridge is
             // otherwise exclude any pre-existing destination-token balance.
             destinationToken: destinationToken == sourceToken
                 ? sourceBalanceBefore
-                : IERC20(destinationToken).balanceOf(address(this))
+                : IERC20(destinationToken).balanceOf(address(this)),
+            // Native the wrapper already held, excluding this call's `msg.value`.
+            native: address(this).balance - msg.value
         });
 
         uint256 sourceRouterBalanceBefore = IERC20(sourceToken).balanceOf(
@@ -179,6 +185,13 @@ contract AtomicLocalRebalancingBridge is
             ERR_PREEXISTING_SOURCE_SPENT
         );
 
+        // Calls may spend this call's `msg.value`, never native the wrapper already
+        // held before escrow.
+        require(
+            address(this).balance >= selfBefore.native,
+            ERR_PREEXISTING_NATIVE_SPENT
+        );
+
         // Calls must produce at least requiredOutputAmount of new output; balances
         // already held cannot fund the destination. This gates the transfer below.
         require(
@@ -187,20 +200,30 @@ contract AtomicLocalRebalancingBridge is
             ERR_INSUFFICIENT_OUTPUT
         );
 
-        // Settle: fund the destination, then sweep all remaining token and native
-        // balances to the rebalancer so this contract holds nothing between calls.
+        // Settle: fund the destination, then refund only the balances accrued during
+        // this call to the rebalancer; balances the wrapper held before escrow are
+        // left untouched.
         IERC20(destinationToken).safeTransfer(
             destinationRouter,
             requiredOutputAmount
         );
 
-        _refundTokenBalance(sourceToken, msg.sender);
+        _refundTokenBalance(sourceToken, selfBefore.sourceToken, msg.sender);
         if (destinationToken != sourceToken) {
-            _refundTokenBalance(destinationToken, msg.sender);
+            _refundTokenBalance(
+                destinationToken,
+                selfBefore.destinationToken,
+                msg.sender
+            );
         }
+
+        // Refund this call's unspent native; native held before escrow is untouched.
         uint256 nativeBalance = address(this).balance;
-        if (nativeBalance > 0) {
-            Address.sendValue(payable(msg.sender), nativeBalance);
+        if (nativeBalance > selfBefore.native) {
+            Address.sendValue(
+                payable(msg.sender),
+                nativeBalance - selfBefore.native
+            );
         }
 
         emit LocalRebalanceExecuted(
@@ -304,10 +327,14 @@ contract AtomicLocalRebalancingBridge is
         return 10 ** uint256(IERC20Metadata(token).decimals());
     }
 
-    function _refundTokenBalance(address token, address recipient) internal {
+    function _refundTokenBalance(
+        address token,
+        uint256 balanceBefore,
+        address recipient
+    ) internal {
         uint256 balance = IERC20(token).balanceOf(address(this));
-        if (balance > 0) {
-            IERC20(token).safeTransfer(recipient, balance);
+        if (balance > balanceBefore) {
+            IERC20(token).safeTransfer(recipient, balance - balanceBefore);
         }
     }
 }

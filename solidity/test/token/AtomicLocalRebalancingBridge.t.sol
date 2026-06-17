@@ -19,6 +19,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 // Mirror of the bridge's post-call invariant revert reasons.
 bytes constant ERR_SOURCE_ROUTER_OVERDRAWN = "ALRB: source router overdrawn";
 bytes constant ERR_PREEXISTING_SOURCE_SPENT = "ALRB: pre-existing source spent";
+bytes constant ERR_PREEXISTING_NATIVE_SPENT = "ALRB: pre-existing native spent";
 bytes constant ERR_INSUFFICIENT_OUTPUT = "ALRB: insufficient output produced";
 
 contract MockRebalanceRouter {
@@ -210,6 +211,10 @@ contract ReentrantCallTarget {
             ""
         );
     }
+}
+
+contract NativeSink {
+    receive() external payable {}
 }
 
 contract NonReceivingRebalancer {
@@ -555,7 +560,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(bridge)), 0);
     }
 
-    function test_transferRemote_sweepsSurplusAndPreexistingBalance() public {
+    function test_transferRemote_refundsSurplusKeepsPreexistingBalance()
+        public
+    {
         // A pre-existing output-token balance sits on the bridge.
         outputToken.mintTo(address(bridge), 50e6);
         // Calls produce 3e6 more output than requiredOutputAmount.
@@ -564,12 +571,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         vm.prank(rebalancer);
         _localRebalance(100e6, _rebalancerCalls(100e6));
 
-        // Destination gets requiredOutputAmount; the produced surplus and the
-        // pre-existing balance are both swept to the rebalancer, leaving nothing
-        // on the bridge.
+        // Destination gets requiredOutputAmount, only the produced surplus is
+        // refunded, and the pre-existing balance is left untouched on the bridge.
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
-        assertEq(outputToken.balanceOf(rebalancer), 53e6);
-        assertEq(outputToken.balanceOf(address(bridge)), 0);
+        assertEq(outputToken.balanceOf(rebalancer), 3e6);
+        assertEq(outputToken.balanceOf(address(bridge)), 50e6);
     }
 
     function test_transferRemote_sweepsSurplusInputToRebalancer() public {
@@ -674,7 +680,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         _localRebalance(100e6, calls);
     }
 
-    function test_rebalance_sharedTokenFundsFromEscrowAndSweepsBalance()
+    function test_rebalance_sharedTokenFundsFromEscrowKeepsPreexistingBalance()
         public
     {
         // input == output: destination holds the same token as the source, so
@@ -702,11 +708,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             abi.encode(noCalls)
         );
 
-        // Escrow funds the destination; the pre-existing balance is swept to the
-        // rebalancer, leaving nothing on the bridge.
+        // Escrow funds the destination; the pre-existing balance is left untouched
+        // on the bridge and nothing is refunded to the rebalancer.
         assertEq(inputToken.balanceOf(address(sameTokenDest)), 100e6);
-        assertEq(inputToken.balanceOf(address(bridge)), 0);
-        assertEq(inputToken.balanceOf(rebalancer), 50e6);
+        assertEq(inputToken.balanceOf(address(bridge)), 50e6);
+        assertEq(inputToken.balanceOf(rebalancer), 0);
     }
 
     function test_rebalance_refundsUnspentNative() public {
@@ -725,6 +731,57 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         assertEq(rebalancer.balance, balanceBefore);
         assertEq(address(bridge).balance, 0);
+    }
+
+    function test_rebalance_doesNotRefundPreExistingNative() public {
+        swapTarget.setOutputAmount(100e6);
+        // Native already on the bridge before the call.
+        vm.deal(address(bridge), 5 ether);
+        vm.deal(rebalancer, 1 ether);
+        uint256 balanceBefore = rebalancer.balance;
+
+        vm.prank(rebalancer);
+        bridge.rebalance{value: 1 ether}(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(_rebalancerCalls(100e6))
+        );
+
+        // Unspent msg.value is refunded; the pre-existing 5 ether is left untouched.
+        assertEq(rebalancer.balance, balanceBefore);
+        assertEq(address(bridge).balance, 5 ether);
+    }
+
+    function test_rebalance_revertsIfCallsSpendPreExistingNative() public {
+        swapTarget.setOutputAmount(100e6);
+        NativeSink sink = new NativeSink();
+        // Native already on the bridge before the call.
+        vm.deal(address(bridge), 5 ether);
+
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
+        CallLib.Call[] memory rebalanceCalls = _rebalancerCalls(100e6);
+        calls[0] = rebalanceCalls[0];
+        calls[1] = rebalanceCalls[1];
+        // Drains the bridge's entire native balance, dipping into the pre-existing
+        // balance beyond this call's msg.value.
+        calls[2] = CallLib.build(
+            address(sink),
+            CallLib.NATIVE_BALANCE_SENTINEL,
+            ""
+        );
+
+        vm.deal(rebalancer, 1 ether);
+        vm.prank(rebalancer);
+        vm.expectRevert(ERR_PREEXISTING_NATIVE_SPENT);
+        bridge.rebalance{value: 1 ether}(
+            LOCAL_DOMAIN,
+            100e6,
+            ITokenBridge(address(sourceRouter)),
+            _toBytes32(address(destinationRouter)),
+            abi.encode(calls)
+        );
     }
 
     function test_rebalance_revertsWhenNativeRefundFails() public {
