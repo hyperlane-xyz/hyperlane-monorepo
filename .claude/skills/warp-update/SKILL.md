@@ -63,6 +63,25 @@ For the target field, **read the current deploy.yaml first (Step 2) and identify
 
 The same logic applies to hook updates: find the relevant node (lower/upper hook, a specific domain's routing entry, a fallback hook) and update it surgically. See the nested-tree walk pattern documented in `/warp-update-resolve-artifacts` Step 3.
 
+**Before committing to a new ISM or hook structure, research the semantics yourself.** It is **extremely easy** to brick a warp route by misconfiguring an ISM or a hook — a deploy.yaml typo that survives `warp apply` and lands on chain costs everyone hours of recovery. The skill intentionally does not enumerate every safe composition; the right shape depends on what the ticket wants. Do the work:
+
+For any new ISM module or hook component you are about to add, remove, or recompose:
+
+1. **Read the source.** `solidity/contracts/isms/<Name>.sol` or `solidity/contracts/hooks/<Name>.sol`. Walk `verify()` (ISM) or `postDispatch()` / `quoteDispatch()` (hook) line-by-line under the new config.
+2. **Trace both paths.** Normal path: is the security / cost / gas-payment guarantee you expect actually enforced? Emergency path (paused, rate-limited, threshold crossed): is the failure mode what the ticket wants (revert / reroute / drop)?
+3. **Aggregation math.** `staticAggregationIsm` with `threshold = modules.length` is AND across modules; `threshold: 1` is OR. Pick deliberately and confirm it matches the ticket's intent.
+4. **Preserve removed guarantees.** Replacing `0x0` (mailbox default) means removing whatever the mailbox default was enforcing — validator set, IGP gas payment, merkle-tree insertion. Compose so the guarantee survives — commonly via `defaultFallbackRoutingIsm` inside aggregation for ISMs, or `aggregationHook` / `fallbackRoutingHook` retaining the default hook for hooks.
+
+Brick modes to specifically check against (non-exhaustive — there are more):
+
+- **No-op ISM standalone.** Some ISMs (e.g. `pausableIsm`) have `verify()` that returns `true` unconditionally when their gate is open — they do no actual verification. Used alone, every message delivers. They MUST be composed with a real verifying ISM via aggregation.
+- **Always-reverting ISM standalone.** Some ISMs have preconditions (e.g. `rateLimitedIsm` requires the message to already be `_isDelivered`) that are false during normal verify-time. Used alone, no message can be delivered.
+- **Threshold-1 with a guard module.** `staticAggregationIsm({ pausableIsm, defaultFallbackRoutingIsm }, threshold: 1)` is broken — the pause never gates anything because the default still passes. Threshold must equal the count of modules you want to AND together.
+- **Hook that swallows IGP payment.** Replacing the mailbox-default hook (which typically includes the InterchainGasPaymaster) with a single-purpose hook means gas is not paid and the relayer never picks up the message. Compose new hooks via `aggregationHook` / `fallbackRoutingHook` so IGP payment stays on the success path.
+- **Amount-routing threshold misconfigured.** `amountRoutingHook` with an unrealistic `threshold` silently misroutes every dispatch (too high → all transfers go to `upperHook`; too low → all go to `lowerHook`).
+
+When uncertain about a composition you have not used before, surface the question to the user with the relevant contract excerpt rather than guessing.
+
 ### 1b: Show the Parsed Changes to the User
 
 Surface the requested-changes summary as a table:
