@@ -417,6 +417,86 @@ export class CallCommitmentsService extends BaseService {
     }
   }
 
+  // ── /calldata endpoints ─────────────────────────────────────────────────────
+
+  private static readonly CalldataPostSchema = z.object({
+    commitment: z
+      .string()
+      .regex(
+        /^0x[0-9a-fA-F]{64}$/,
+        'commitment must be a 32-byte 0x hex string',
+      ),
+    chainId: z.number().int().positive(),
+    data: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]+$/, 'data must be a non-empty 0x hex string'),
+    salt: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
+    relayers: z.array(z.string().regex(/^0x[0-9a-fA-F]{64}$/)).default([]),
+  });
+
+  public async handleCalldataPost(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
+    const result = CallCommitmentsService.CalldataPostSchema.safeParse(
+      req.body,
+    );
+    if (!result.success) {
+      return res.status(400).json({ errors: result.error.format() });
+    }
+    const { commitment, chainId, data, salt, relayers } = result.data;
+    logger.info({ chainId, commitment }, 'Storing calldata');
+    try {
+      await prisma.calldata.upsert({
+        where: { commitment },
+        update: {},
+        create: { commitment, chainId, data, salt, relayers },
+      });
+    } catch (error: any) {
+      logger.error(
+        {
+          error: error.message,
+          error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+        },
+        'Database error storing calldata',
+      );
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+    return res.status(200).json({ commitment });
+  }
+
+  public async handleCalldataGet(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
+    const { commitment } = req.params;
+
+    let record: {
+      chainId: number;
+      data: string;
+      salt: string;
+      relayers: unknown;
+    } | null;
+    try {
+      record = await prisma.calldata.findUnique({ where: { commitment } });
+    } catch (error: any) {
+      logger.error(
+        { commitment, error: error.message },
+        'Database error fetching calldata',
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+    if (!record) return res.status(404).json({ error: 'Not found' });
+
+    return res.status(200).json({
+      chainId: record.chainId,
+      data: record.data,
+      salt: record.salt,
+    });
+  }
+
   /**
    * Register routes onto an Express Router or app.
    */
@@ -442,6 +522,12 @@ export class CallCommitmentsService extends BaseService {
       commitmentRateLimit,
       this.handleCheckCommitment.bind(this),
     );
+    router.post(
+      '/calldata',
+      commitmentRateLimit,
+      this.handleCalldataPost.bind(this),
+    );
+    router.get('/calldata/:commitment', this.handleCalldataGet.bind(this));
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
