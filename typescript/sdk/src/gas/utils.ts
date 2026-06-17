@@ -310,18 +310,10 @@ function adjustForPrecisionLoss(
   // preserved while the on-chain exchange rate keeps its precision. No-op for
   // same-decimal native pairs, where the scaled rate is already >> 1.
   if (newExchangeRate.lt(1)) {
-    const headroom = decimalMagnitude(
+    const shiftMagnitude = decimalMagnitude(
       newGasPrice.div(MIN_REBALANCED_GAS_PRICE),
     );
-    let digitsNeeded = 0;
-    while (
-      digitsNeeded < headroom &&
-      newExchangeRate.times(new BigNumberJs(10).pow(digitsNeeded)).lt(1)
-    ) {
-      digitsNeeded += 1;
-    }
 
-    const shiftMagnitude = Math.min(headroom, digitsNeeded);
     if (shiftMagnitude > 0) {
       const factor = new BigNumberJs(10).pow(shiftMagnitude);
       newExchangeRate = newExchangeRate.times(factor);
