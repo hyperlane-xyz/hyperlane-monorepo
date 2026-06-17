@@ -1,3 +1,4 @@
+import type { TActivity } from '@turnkey/sdk-server';
 import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -154,7 +155,6 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           : message;
       const messageHash = ethers.utils.hashMessage(messageBytes);
 
-      // Sign raw payload using Turnkey
       const { activity, r, s, v } = await this.manager
         .getClient()
         .signRawPayload({
@@ -164,29 +164,92 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           hashFunction: 'HASH_FUNCTION_NO_OP',
         });
 
-      validateTurnkeyActivityCompleted(activity, 'Message signing');
-
-      // Validate signature components
-      if (!r || !s || !v) {
-        throw new Error('Missing signature components from Turnkey');
-      }
-
-      const hexPattern = /^0x[0-9a-fA-F]+$/;
-      if (!hexPattern.test(r) || !hexPattern.test(s)) {
-        throw new Error('Invalid signature format from Turnkey');
-      }
-
-      const vNum = parseInt(v, 16);
-      if (isNaN(vNum)) {
-        throw new Error(`Invalid v value from Turnkey: ${v}`);
-      }
-
-      // Reconstruct the signature from r, s, v
-      return ethers.utils.joinSignature({ r, s, v: vNum });
+      return this.assembleSignature(activity, r, s, v, 'Message signing');
     } catch (error) {
       logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
+  }
+
+  /**
+   * EIP-712 typed-data signing per the ethers v5 Signer interface. Computes
+   * the typed-data hash via `_TypedDataEncoder.hash()`, then delegates to
+   * `signRawHash()` which signs via Turnkey's `signRawPayload` with
+   * HASH_FUNCTION_NO_OP. Returns the canonical joined ECDSA signature;
+   * downstream consumers like Safe Transaction Service expect this exact
+   * shape for typed-data sender signatures.
+   */
+  async _signTypedData(
+    domain: ethers.TypedDataDomain,
+    types: Record<string, Array<ethers.TypedDataField>>,
+    value: Record<string, unknown>,
+  ): Promise<string> {
+    const hash = ethers.utils._TypedDataEncoder.hash(domain, types, value);
+    return this.signRawHash(hash);
+  }
+
+  /**
+   * Sign a pre-computed 32-byte hash directly via Turnkey's `signRawPayload`
+   * API. No EIP-191 prefix is applied and no additional hashing happens — the
+   * caller is responsible for producing the hash they want signed.
+   *
+   * Motivating use case: Safe Transaction Service requires an EIP-712
+   * typed-data signature from the proposer. Given the `safeTxHash`
+   * (which is already the final EIP-712 hash), this method returns the
+   * canonical `0x{r}{s}{v}` ECDSA signature (v = 27/28) accepted by the API.
+   *
+   * @param hash hex-encoded 32-byte hash, with or without the `0x` prefix.
+   */
+  async signRawHash(hash: string): Promise<string> {
+    logger.debug('Signing raw hash with Turnkey');
+
+    try {
+      const payload = hash.startsWith('0x') ? hash.slice(2) : hash;
+
+      const { activity, r, s, v } = await this.manager
+        .getClient()
+        .signRawPayload({
+          signWith: this.address,
+          payload,
+          encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
+          hashFunction: 'HASH_FUNCTION_NO_OP',
+        });
+
+      return this.assembleSignature(activity, r, s, v, 'Raw hash signing');
+    } catch (error) {
+      logTurnkeyError('Failed to sign raw hash with Turnkey', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate the Turnkey activity completed, ensure r/s/v are well-formed,
+   * and join them into ethers' canonical `0x{r}{s}{v}` ECDSA signature.
+   */
+  private assembleSignature(
+    activity: TActivity,
+    r: string | undefined,
+    s: string | undefined,
+    v: string | undefined,
+    operationType: string,
+  ): string {
+    validateTurnkeyActivityCompleted(activity, operationType);
+
+    if (!r || !s || !v) {
+      throw new Error('Missing signature components from Turnkey');
+    }
+
+    const hexPattern = /^0x[0-9a-fA-F]+$/;
+    if (!hexPattern.test(r) || !hexPattern.test(s)) {
+      throw new Error('Invalid signature format from Turnkey');
+    }
+
+    const vNum = parseInt(v, 16);
+    if (isNaN(vNum)) {
+      throw new Error(`Invalid v value from Turnkey: ${v}`);
+    }
+
+    return ethers.utils.joinSignature({ r, s, v: vNum });
   }
 
   /**
