@@ -25,13 +25,6 @@ struct SelfBalanceSnapshot {
     uint256 destinationToken;
 }
 
-/// @dev Token balances held by the source and destination routers, snapshotted
-/// before escrow to bound how much the calls may move. Used to avoid stack too deep.
-struct CollateralRoutersBalanceSnapshot {
-    uint256 sourceRouter;
-    uint256 destinationRouter;
-}
-
 /// @title AtomicLocalRebalancingBridge
 /// @notice Same-chain `ITokenBridge` rebalancer wrapper for atomic local rebalances.
 /// @dev The wrapper is bound to a single immutable source router and must be
@@ -87,8 +80,6 @@ contract AtomicLocalRebalancingBridge is
         "ALRB: pre-existing source spent";
     string internal constant ERR_INSUFFICIENT_OUTPUT =
         "ALRB: insufficient output produced";
-    string internal constant ERR_DESTINATION_UNDERFUNDED =
-        "ALRB: destination underfunded";
 
     constructor(uint32 _localDomain, address _sourceRouter) {
         if (!Address.isContract(_sourceRouter)) revert InvalidSource();
@@ -163,15 +154,9 @@ contract AtomicLocalRebalancingBridge is
                 : IERC20(destinationToken).balanceOf(address(this))
         });
 
-        CollateralRoutersBalanceSnapshot
-            memory routersBefore = CollateralRoutersBalanceSnapshot({
-                sourceRouter: IERC20(sourceToken).balanceOf(
-                    allowedSourceRouter
-                ),
-                destinationRouter: IERC20(destinationToken).balanceOf(
-                    destinationRouter
-                )
-            });
+        uint256 sourceRouterBalanceBefore = IERC20(sourceToken).balanceOf(
+            allowedSourceRouter
+        );
 
         // Escrow the source collateral, then run the rebalancer's calls.
         _pullSourceCollateral(source, amount);
@@ -182,7 +167,7 @@ contract AtomicLocalRebalancingBridge is
         // more than the escrowed amount from it.
         require(
             IERC20(sourceToken).balanceOf(allowedSourceRouter) >=
-                routersBefore.sourceRouter - amount,
+                sourceRouterBalanceBefore - amount,
             ERR_SOURCE_ROUTER_OVERDRAWN
         );
 
@@ -217,13 +202,6 @@ contract AtomicLocalRebalancingBridge is
         if (nativeBalance > 0) {
             Address.sendValue(payable(msg.sender), nativeBalance);
         }
-
-        // Verify the settlement funded the destination router.
-        require(
-            IERC20(destinationToken).balanceOf(destinationRouter) >=
-                routersBefore.destinationRouter + requiredOutputAmount,
-            ERR_DESTINATION_UNDERFUNDED
-        );
 
         emit LocalRebalanceExecuted(
             destinationRouter,
