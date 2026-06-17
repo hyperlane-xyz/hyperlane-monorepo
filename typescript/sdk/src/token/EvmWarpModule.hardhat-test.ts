@@ -1768,6 +1768,85 @@ describe('EvmWarpModule', async () => {
           expect(revokeTxs).to.be.empty;
         });
 
+        it(`should revoke a stale allowance for a bridge moved between domains for a route of type "${tokenType}"`, async () => {
+          const movedBridge = normalizeAddressEvm(randomAddress());
+          const config = HypTokenRouterConfigSchema.parse({
+            ...getMovableTokenConfig()[tokenType],
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: movedBridge,
+                  approvedTokens: [feeToken.address],
+                },
+              ],
+            },
+          });
+
+          const evmERC20WarpModule = await EvmWarpModule.create({
+            chain,
+            config,
+            multiProvider,
+            proxyFactoryFactories: ismFactoryAddresses,
+          });
+
+          const router = evmERC20WarpModule.serialize().deployedTokenRoute;
+
+          // Legacy allowances on both the collateral and the approvedToken.
+          await plantLegacyAllowance(router, movedBridge);
+          await plantLegacyAllowance(router, movedBridge, feeToken);
+
+          // Expected config keeps the same bridge but on a different domain. ERC20
+          // allowances are (router, bridge) and domain-agnostic, so the stale
+          // allowance must still be revoked despite the move.
+          const otherChain = TestChainName.test2;
+          const expectedConfig = HypTokenRouterConfigSchema.parse({
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+              [otherChain]: {
+                address: randomAddress(),
+              },
+            },
+            allowedRebalancingBridges: {
+              [otherChain]: [
+                {
+                  bridge: movedBridge,
+                  approvedTokens: [feeToken.address],
+                },
+              ],
+            },
+          });
+
+          const actualConfig = await evmERC20WarpModule.read();
+          const revokeTxs =
+            await evmERC20WarpModule.createRevokeStaleBridgeAllowancesTxs(
+              actualConfig,
+              expectedConfig,
+              true,
+            );
+
+          const revokedTokens = revokeTxs.map((tx) => {
+            assert(tx.data, 'expected revoke calldata');
+            const [revokedToken] =
+              MovableCollateralRouter__factory.createInterface().decodeFunctionData(
+                'approveTokenForBridge(address,address)',
+                tx.data,
+              );
+            return normalizeAddressEvm(revokedToken);
+          });
+          expect(revokedTokens).to.have.members([
+            normalizeAddressEvm(token.address),
+            normalizeAddressEvm(feeToken.address),
+          ]);
+        });
+
         it(`should emit an approval tx for approvedTokens on a legacy router for a route of type "${tokenType}"`, async () => {
           const allowedBridge = normalizeAddressEvm(randomAddress());
           const config = HypTokenRouterConfigSchema.parse({

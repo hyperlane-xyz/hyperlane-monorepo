@@ -28,7 +28,6 @@ import {
   deepEquals,
   difference,
   eqAddress,
-  intersection,
   isAddressEvm,
   isNullish,
   isObjEmpty,
@@ -901,63 +900,57 @@ export class EvmWarpModule extends HyperlaneModule<
       provider,
     ).token();
 
-    // bridge -> tokens the legacy `approvedTokens` grant path could have approved.
-    // `actualConfig` does not derive approvedTokens, so the expected config is the
-    // signal of what was granted; collecting from both is a harmless superset since
-    // each candidate is gated on a non-zero on-chain allowance below.
-    const approvedTokensByBridge = new Map<Address, Set<Address>>();
-    const collectApprovedTokens = (
-      bridgesByDomain: NonNullable<
-        MovableTokenConfig['allowedRebalancingBridges']
-      >,
-    ): void => {
-      for (const bridgeConfigs of Object.values(
-        resolveRouterMapConfig(this.multiProvider, bridgesByDomain),
-      )) {
-        for (const { bridge, approvedTokens } of bridgeConfigs) {
-          const normalizedBridge = normalizeAddressEvm(bridge);
-          const tokens =
-            approvedTokensByBridge.get(normalizedBridge) ?? new Set<Address>();
-          for (const token of approvedTokens ?? []) {
-            tokens.add(normalizeAddressEvm(token));
-          }
-          approvedTokensByBridge.set(normalizedBridge, tokens);
-        }
-      }
-    };
-    collectApprovedTokens(actualConfig.allowedRebalancingBridges ?? {});
-    collectApprovedTokens(expectedConfig.allowedRebalancingBridges);
-
-    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      resolveRouterMapConfig(
-        this.multiProvider,
-        actualConfig.allowedRebalancingBridges ?? {},
+    // Bridge addresses currently allowlisted on-chain (across all domains).
+    // Allowances are keyed by (router, bridge) and are domain-agnostic, so we match
+    // bridges by address rather than per domain — this catches a bridge moved between
+    // domains, whose stale allowance a per-domain comparison would miss.
+    const actualBridges = new Set<Address>();
+    for (const bridges of Object.values(
+      getAllowedRebalancingBridgesByDomain(
+        resolveRouterMapConfig(
+          this.multiProvider,
+          actualConfig.allowedRebalancingBridges ?? {},
+        ),
       ),
-    );
-    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
+    )) {
+      for (const bridge of bridges) {
+        actualBridges.add(bridge);
+      }
+    }
+
+    // For each bridge that remains allowlisted (present in both configs by address),
+    // the tokens whose stale legacy allowance must be revoked: the collateral token
+    // plus any `approvedTokens` the legacy grant path could have approved. Removed
+    // bridges are revoked on-chain by `_removeBridge`; newly added bridges never held
+    // a legacy allowance. `actualConfig` does not derive approvedTokens, so the
+    // expected config is the signal of what was granted; each candidate is gated on a
+    // non-zero on-chain allowance below.
+    const tokensByBridge = new Map<Address, Set<Address>>();
+    for (const bridgeConfigs of Object.values(
       resolveRouterMapConfig(
         this.multiProvider,
         expectedConfig.allowedRebalancingBridges,
       ),
-    );
-
-    const remainingBridges = new Set<Address>();
-    for (const [domain, bridges] of Object.entries(actualAllowedBridges)) {
-      const expectedBridges = expectedAllowedBridges[domain] ?? new Set();
-      for (const bridge of intersection(bridges, expectedBridges)) {
-        remainingBridges.add(bridge);
+    )) {
+      for (const { bridge, approvedTokens } of bridgeConfigs) {
+        const normalizedBridge = normalizeAddressEvm(bridge);
+        if (!actualBridges.has(normalizedBridge)) {
+          continue;
+        }
+        const tokens =
+          tokensByBridge.get(normalizedBridge) ?? new Set<Address>();
+        if (!isZeroishAddress(collateralToken)) {
+          tokens.add(normalizeAddressEvm(collateralToken));
+        }
+        for (const token of approvedTokens ?? []) {
+          tokens.add(normalizeAddressEvm(token));
+        }
+        tokensByBridge.set(normalizedBridge, tokens);
       }
     }
 
     const revokeTxs: AnnotatedEV5Transaction[] = [];
-    for (const bridge of remainingBridges) {
-      const tokensToRevoke = new Set<Address>(
-        approvedTokensByBridge.get(bridge) ?? [],
-      );
-      if (!isZeroishAddress(collateralToken)) {
-        tokensToRevoke.add(normalizeAddressEvm(collateralToken));
-      }
-
+    for (const [bridge, tokensToRevoke] of tokensByBridge) {
       for (const token of tokensToRevoke) {
         const allowance = await IERC20__factory.connect(
           token,
