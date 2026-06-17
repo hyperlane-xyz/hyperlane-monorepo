@@ -855,9 +855,11 @@ export class EvmWarpModule extends HyperlaneModule<
    * out-of-band transferFrom power over the router balance.
    *
    * `approveTokenForBridge` only has revoke semantics on the new implementation;
-   * on legacy impls the same selector GRANTS max. Revoke txs are therefore only
-   * emitted when the router is currently on a legacy impl AND this run upgrades it
-   * in place, so the revoke txs execute against the new revoke-semantics impl.
+   * on legacy impls the same selector GRANTS max. Revoke txs are therefore emitted
+   * unless the router is on a legacy impl that is not being upgraded this run, so
+   * they always execute against the new revoke-semantics impl — whether this run
+   * upgrades it in place or it was already upgraded (which keeps cleanup retryable
+   * if an earlier run upgraded but its revoke txs never executed).
    */
   async createRevokeStaleBridgeAllowancesTxs(
     actualConfig: DerivedTokenRouterConfig,
@@ -875,18 +877,18 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    // Only emit revoke txs when this run upgrades the router in place, so the
-    // revoke executes against the new (revoke-semantics) implementation.
-    if (!upgradeScheduled) {
-      return [];
-    }
-
-    // Only routers currently on a legacy impl still hold the `type(uint256).max`
-    // allowance from the removed `_addBridge`. On a new impl `approveTokenForBridge`
-    // already revokes, so there is nothing stale to clear.
+    // `approveTokenForBridge` only revokes on the new implementation; on a legacy
+    // impl the same selector GRANTS max. Skip only when the router is on a legacy
+    // impl and is NOT being upgraded this run — emitting there would re-create the
+    // allowance. Otherwise the revoke executes against the new impl: either because
+    // this run upgrades it in place, or because it is already upgraded. The latter
+    // keeps cleanup retryable if a prior run upgraded but its revoke txs never
+    // executed; the non-zero on-chain allowance check below filters out routers
+    // with nothing stale left to clear.
     if (
       !actualConfig.contractVersion ||
-      !bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion)
+      (bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion) &&
+        !upgradeScheduled)
     ) {
       return [];
     }

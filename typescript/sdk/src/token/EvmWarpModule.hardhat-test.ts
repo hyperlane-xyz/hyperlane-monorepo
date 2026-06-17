@@ -1611,7 +1611,7 @@ describe('EvmWarpModule', async () => {
           ).to.equal(ethers.constants.MaxUint256.toBigInt());
         });
 
-        it(`should not emit a revoke tx when the router is already on a new impl for a route of type "${tokenType}"`, async () => {
+        it(`should revoke a stale allowance on an already-upgraded impl with no scheduled upgrade for a route of type "${tokenType}"`, async () => {
           const allowedBridge = normalizeAddressEvm(randomAddress());
           const config = HypTokenRouterConfigSchema.parse({
             ...getMovableTokenConfig()[tokenType],
@@ -1638,12 +1638,11 @@ describe('EvmWarpModule', async () => {
 
           const router = evmERC20WarpModule.serialize().deployedTokenRoute;
 
+          // A stale legacy allowance left by a prior run that upgraded the impl but
+          // whose revoke txs never executed.
           await plantLegacyAllowance(router, allowedBridge);
 
-          // Spoof the on-chain version above the legacy bound. update() can't be used
-          // here because upgrading to CONTRACTS_PACKAGE_VERSION (11.3.1) from a higher
-          // version would be a downgrade; instead drive the gate directly with
-          // upgradeScheduled=true so only the version check decides the outcome.
+          // Spoof the on-chain version above the legacy bound (already upgraded).
           const versionStub = sinon
             .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
             .resolves('12.0.0');
@@ -1656,22 +1655,71 @@ describe('EvmWarpModule', async () => {
           versionStub.restore();
           scaleStub.restore();
 
-          // Actual version exceeds the legacy bound, so the gate emits no revoke tx
-          // even though an upgrade is (hypothetically) scheduled.
+          // No upgrade scheduled this run, but the stale allowance must still be
+          // cleaned up — the revoke runs against the already-new impl. This keeps
+          // cleanup retryable after a partially-executed upgrade.
           const revokeTxs =
             await evmERC20WarpModule.createRevokeStaleBridgeAllowancesTxs(
               actualConfig,
               config,
-              true,
+              false,
             );
-          expect(revokeTxs).to.be.empty;
+          expect(revokeTxs.length).to.equal(1);
+          await sendTxs(revokeTxs);
 
-          // The new impl already revokes on its own; the legacy allowance is untouched.
           expect(
             (
               await token.callStatic.allowance(router, allowedBridge)
             ).toBigInt(),
-          ).to.equal(ethers.constants.MaxUint256.toBigInt());
+          ).to.equal(0n);
+        });
+
+        it(`should not emit a revoke tx on an already-upgraded impl with no stale allowance for a route of type "${tokenType}"`, async () => {
+          const allowedBridge = normalizeAddressEvm(randomAddress());
+          const config = HypTokenRouterConfigSchema.parse({
+            ...getMovableTokenConfig()[tokenType],
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridge,
+                },
+              ],
+            },
+          });
+
+          const evmERC20WarpModule = await EvmWarpModule.create({
+            chain,
+            config,
+            multiProvider,
+            proxyFactoryFactories: ismFactoryAddresses,
+          });
+
+          // No allowance is planted: a clean already-upgraded router has nothing
+          // stale, so the non-zero allowance filter emits no revoke tx.
+          const versionStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+            .resolves('12.0.0');
+          const scaleStub = sinon
+            .stub(evmERC20WarpModule.reader, 'fetchScale')
+            .resolves(undefined);
+
+          const actualConfig = await evmERC20WarpModule.read();
+
+          versionStub.restore();
+          scaleStub.restore();
+
+          const revokeTxs =
+            await evmERC20WarpModule.createRevokeStaleBridgeAllowancesTxs(
+              actualConfig,
+              config,
+              false,
+            );
+          expect(revokeTxs).to.be.empty;
         });
 
         it(`should not emit a revoke tx for a removed bridge (handled on-chain by _removeBridge) for a route of type "${tokenType}"`, async () => {
