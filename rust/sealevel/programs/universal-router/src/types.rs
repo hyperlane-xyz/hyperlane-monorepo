@@ -86,6 +86,9 @@ pub struct BridgeTokenInput {
     pub recipient: [u8; 32],
     pub amount: u64,
     // msg_fee removed: the token router CPI handles IGP payment internally
+    /// Random nonce used to derive the unique-message PDA. The encoder generates 8 random bytes
+    /// so that repeated bridges to the same recipient produce distinct dispatched-message accounts.
+    pub nonce: [u8; 8],
 }
 
 /// EXECUTE_CROSS_CHAIN input (0x13)
@@ -372,6 +375,7 @@ mod tests {
             destination_domain: 1,
             recipient: [0xABu8; 32],
             amount: 1_000_000,
+            nonce: [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04],
         };
         let bytes = borsh::to_vec(&input).unwrap();
         let decoded = BridgeTokenInput::try_from_slice(&bytes).unwrap();
@@ -379,6 +383,7 @@ mod tests {
         assert_eq!(decoded.destination_domain, input.destination_domain);
         assert_eq!(decoded.recipient, input.recipient);
         assert_eq!(decoded.amount, input.amount);
+        assert_eq!(decoded.nonce, input.nonce);
     }
 
     #[test]

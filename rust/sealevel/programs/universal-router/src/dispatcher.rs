@@ -144,6 +144,7 @@ fn dispatch_one<'info>(
                 inp.destination_domain,
                 inp.recipient,
                 inp.amount,
+                inp.nonce,
                 authority,
                 accs,
             )

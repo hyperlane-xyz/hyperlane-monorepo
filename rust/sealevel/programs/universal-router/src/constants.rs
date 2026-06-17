@@ -44,6 +44,12 @@ pub const PENDING_SWAP_SEED: &[u8] = b"pending_swap";
 /// Must be pre-funded with SOL before the first Handle (commit) call.
 pub const FEE_PAYER_SEED: &[u8] = b"hyperlane_fee_payer";
 
+/// PDA seed for UR-derived unique message accounts.
+/// Replaces ephemeral external signers for Hyperlane dispatch CPIs, saving one 64-byte signature
+/// per dispatch. The UR signs for these PDAs via invoke_signed instead of the outer tx signer.
+/// Seeds: [UNIQUE_MSG_SEED, authority_key, nonce_or_commitment, bump]
+pub const UNIQUE_MSG_SEED: &[u8] = b"unique_msg";
+
 /// Number of accounts consumed from remaining_accounts per command type.
 pub mod account_counts {
     /// payer_wsol_ata, token_program, system_program

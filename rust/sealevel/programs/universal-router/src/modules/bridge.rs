@@ -52,12 +52,16 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::invoke,
+    program::invoke_signed,
     program_pack::Pack,
+    pubkey::Pubkey,
 };
 
 use crate::{
-    constants::{HYPERLANE_USDC_TOKEN_ROUTER, HYPERLANE_USDT_TOKEN_ROUTER, USDC_MINT, USDT_MINT},
+    constants::{
+        HYPERLANE_USDC_TOKEN_ROUTER, HYPERLANE_USDT_TOKEN_ROUTER, UNIQUE_MSG_SEED, USDC_MINT,
+        USDT_MINT,
+    },
     error::RouterError,
     types::{amount_sentinels::CONTRACT_BALANCE, BridgeType},
 };
@@ -72,12 +76,26 @@ pub fn execute_bridge_token<'info>(
     destination_domain: u32,
     recipient: [u8; 32],
     amount: u64,
+    nonce: [u8; 8],
     authority: &AccountInfo<'info>,
     accounts: &'info [AccountInfo<'info>],
 ) -> ProgramResult {
     if accounts.len() != ACCOUNTS_REGULAR_IGP && accounts.len() != ACCOUNTS_OVERHEAD_IGP {
         return Err(RouterError::InsufficientAccounts.into());
     }
+
+    // Derive the unique-message PDA for this dispatch and verify accounts[7] matches.
+    // The UR signs for it via invoke_signed, removing the need for an external ephemeral signer.
+    let (unique_msg_pda, unique_msg_bump) = Pubkey::find_program_address(
+        &[UNIQUE_MSG_SEED, authority.key.as_ref(), &nonce],
+        &crate::ID,
+    );
+    if *accounts[7].key != unique_msg_pda {
+        return Err(RouterError::InvalidInputs.into());
+    }
+    let bump_bytes = [unique_msg_bump];
+    let unique_msg_seeds: &[&[u8]] =
+        &[UNIQUE_MSG_SEED, authority.key.as_ref(), &nonce, &bump_bytes];
 
     // Validate bridge type
     BridgeType::from_u8(bridge_type).ok_or(RouterError::UnsupportedBridgeType)?;
@@ -214,5 +232,5 @@ pub fn execute_bridge_token<'info>(
         account_infos.push(accounts[16].clone()); // escrow
     }
 
-    invoke(&ix, &account_infos)
+    invoke_signed(&ix, &account_infos, &[unique_msg_seeds])
 }
