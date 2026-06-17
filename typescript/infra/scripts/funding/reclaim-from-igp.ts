@@ -310,7 +310,9 @@ async function main() {
   ).length;
 
   rootLogger.info(
-    chalk.green(`\nSuccessfully executed ${successCount} claim(s)`),
+    chalk.green(
+      `\n${dryRun ? 'Would have executed' : 'Successfully executed'} ${successCount} claim(s)`,
+    ),
   );
   if (errorCount > 0) {
     rootLogger.error(

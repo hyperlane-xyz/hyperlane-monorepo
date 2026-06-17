@@ -46,7 +46,17 @@ async function main() {
 
   const envConfig = getEnvironmentConfig(environment);
   const igpConfigs = envConfig.igp;
-  const requestedChains = chains as ChainName[] | undefined;
+  const supportedChains = new Set<string>(envConfig.supportedChainNames);
+  const requestedChains =
+    chains && chains.length > 0
+      ? chains.filter((chain): chain is ChainName => supportedChains.has(chain))
+      : undefined;
+  assert(
+    !chains || requestedChains?.length === chains.length,
+    `Unknown chain(s) requested: ${chains
+      ?.filter((chain) => !supportedChains.has(chain))
+      .join(', ')}`,
+  );
   const configuredLegacyChains = legacyIgpChains.filter(
     (chain) =>
       envConfig.supportedChainNames.includes(chain) &&

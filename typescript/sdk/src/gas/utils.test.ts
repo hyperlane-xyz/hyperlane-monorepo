@@ -138,4 +138,27 @@ describe('getLocalStorageGasOracleConfig', () => {
     expect(config.tokenExchangeRate).to.equal('1');
     expect(config.gasPrice).to.equal('5');
   });
+
+  it('uses a smaller gas price scale when the exchange rate would floor to zero', () => {
+    const gasOracleParams: Record<string, ChainGasOracleParams> = {
+      local: {
+        gasPrice: { amount: '1', decimals: 0 },
+        nativeToken: { price: '1', decimals: 18 },
+      },
+      remote: {
+        gasPrice: { amount: '0.5', decimals: 0 },
+        nativeToken: { price: '0.0000001', decimals: 18 },
+      },
+    };
+
+    const config = getLocalStorageGasOracleConfig({
+      local: 'local',
+      localProtocolType: ProtocolType.Ethereum,
+      gasOracleParams,
+      exchangeRateMarginPct: 0,
+    }).remote;
+
+    expect(config.tokenExchangeRate).to.equal('1');
+    expect(config.gasPrice).to.equal('500');
+  });
 });

@@ -338,19 +338,29 @@ function adjustForPrecisionLoss(
   // the gas price that will be set on-chain. If this is the case, we scale up the
   // gas price and scale down the exchange rate by the same factor.
   if (newGasPrice.lt(10) && !newGasPrice.mod(1).isZero()) {
-    // Scale up the gas price by 1e4 (arbitrary choice)
-    const gasPriceScalingFactor = 1e4;
+    // Use the largest decimal scale that preserves the integer exchange rate
+    // that will actually be set on-chain.
+    for (let scalingMagnitude = 4; scalingMagnitude > 0; scalingMagnitude--) {
+      const gasPriceScalingFactor = new BigNumberJs(10).pow(scalingMagnitude);
+      const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
+      const adjustedExchangeRateInteger = adjustedExchangeRate.integerValue(
+        BigNumberJs.ROUND_FLOOR,
+      );
+      const recoveredExchangeRate = adjustedExchangeRateInteger.times(
+        gasPriceScalingFactor,
+      );
 
-    // Check that there's no significant underflow when applying
-    // this to the exchange rate:
-    const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
-    const recoveredExchangeRate = adjustedExchangeRate.times(
-      gasPriceScalingFactor,
-    );
-    // Ensure we recover at least 99% of the original exchange rate
-    if (recoveredExchangeRate.times(100).div(newExchangeRate).gte(99)) {
-      newGasPrice = newGasPrice.times(gasPriceScalingFactor);
-      newExchangeRate = adjustedExchangeRate;
+      // Ensure the integer value recovers at least 99% of the original
+      // exchange rate. If it floors to zero, the final floor-to-one clamp would
+      // overquote, so try a smaller scale.
+      if (
+        adjustedExchangeRateInteger.gt(0) &&
+        recoveredExchangeRate.times(100).div(newExchangeRate).gte(99)
+      ) {
+        newGasPrice = newGasPrice.times(gasPriceScalingFactor);
+        newExchangeRate = adjustedExchangeRate;
+        break;
+      }
     }
   }
 

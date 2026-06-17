@@ -53,6 +53,21 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
     expect(result.success).to.be.false;
   });
 
+  it('rejects malformed stringified gas payment enforcement', () => {
+    const result = RelayerAgentConfigSchema.safeParse(
+      config({
+        gasPaymentEnforcement: '[{"type":"minimum"',
+      }),
+    );
+
+    expect(result.success).to.be.false;
+    if (!result.success) {
+      expect(result.error.issues[0].message).to.equal(
+        'Invalid gasPaymentEnforcement JSON payload',
+      );
+    }
+  });
+
   it('allows unset feeToken', () => {
     const result = RelayerAgentConfigSchema.safeParse(
       config({

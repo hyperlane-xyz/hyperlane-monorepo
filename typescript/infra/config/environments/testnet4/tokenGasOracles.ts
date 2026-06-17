@@ -57,8 +57,9 @@ const SEISMIC_SUSDC_PRICE = '1';
 function seismicSusdcOracleConfigs(): ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost> {
   const remotes = supportedChainNames.filter((chain) => chain !== SEISMIC);
 
-  const gasOracleParams = [SEISMIC, ...remotes].reduce((agg, chain) => {
-    agg[chain] = {
+  const gasOracleParams: ChainMap<ChainGasOracleParams> = {};
+  for (const chain of [SEISMIC, ...remotes]) {
+    gasOracleParams[chain] = {
       gasPrice: gasPrices[chain],
       nativeToken: {
         price: chain === SEISMIC ? SEISMIC_SUSDC_PRICE : tokenPrices[chain],
@@ -68,8 +69,7 @@ function seismicSusdcOracleConfigs(): ChainMap<ProtocolAgnositicGasOracleConfigW
             : mustGetChainNativeToken(chain).decimals,
       },
     };
-    return agg;
-  }, {} as ChainMap<ChainGasOracleParams>);
+  }
 
   return getLocalStorageGasOracleConfig({
     local: SEISMIC,

@@ -287,7 +287,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     igp: InterchainGasPaymaster,
     config: IgpConfig,
   ): Promise<void> {
-    if (!config.tokenOracleConfig) return;
+    if (
+      !config.tokenOracleConfig ||
+      Object.keys(config.tokenOracleConfig).length === 0
+    ) {
+      return;
+    }
     this.assertLegacyIgpConfig(chain, config);
     assertTokenOracleConfigHasNativeRemotes(chain, config);
 

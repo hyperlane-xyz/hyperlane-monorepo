@@ -373,24 +373,30 @@ function feeTokenIsNonZero(feeToken?: string): boolean {
   return !isEmptyAddress(feeToken);
 }
 
+type GasPaymentEnforcementParseResult =
+  | { policies: GasPaymentEnforcement[] | undefined; parseError: false }
+  | { policies: undefined; parseError: true };
+
 function gasPaymentEnforcementPolicies(
   gasPaymentEnforcement: unknown,
-): GasPaymentEnforcement[] | undefined {
+): GasPaymentEnforcementParseResult {
   if (Array.isArray(gasPaymentEnforcement)) {
-    return gasPaymentEnforcement;
+    return { policies: gasPaymentEnforcement, parseError: false };
   }
 
   if (typeof gasPaymentEnforcement !== 'string') {
-    return undefined;
+    return { policies: undefined, parseError: false };
   }
 
   try {
     const result = z
       .array(GasPaymentEnforcementSchema)
       .safeParse(JSON.parse(gasPaymentEnforcement));
-    return result.success ? result.data : undefined;
+    return result.success
+      ? { policies: result.data, parseError: false }
+      : { policies: undefined, parseError: true };
   } catch {
-    return undefined;
+    return { policies: undefined, parseError: true };
   }
 }
 
@@ -551,7 +557,17 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
 }).superRefine((config, ctx) => {
   // Mirror the Rust relayer gate: the current IGP event does not expose the
   // token address, so exact non-native `feeToken` enforcement is rejected.
-  const policies = gasPaymentEnforcementPolicies(config.gasPaymentEnforcement);
+  const { policies, parseError } = gasPaymentEnforcementPolicies(
+    config.gasPaymentEnforcement,
+  );
+  if (parseError) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement'],
+      message: 'Invalid gasPaymentEnforcement JSON payload',
+    });
+    return;
+  }
   if (!policies) {
     return;
   }

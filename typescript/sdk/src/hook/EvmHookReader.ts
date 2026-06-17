@@ -474,26 +474,28 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.provider,
     );
 
+    const getQuoteSignersResult = async (): Promise<{
+      quoteSigners: string[];
+      igpVersion?: IgpVersion;
+    }> => {
+      try {
+        return { quoteSigners: await hook.quoteSigners() };
+      } catch (error) {
+        throwIfNotMissingSelectorRevert(error);
+        this.logger.debug(
+          'quoteSigners() not available on this IGP version, skipping',
+        );
+        return { quoteSigners: [], igpVersion: IgpVersion.Legacy };
+      }
+    };
+
     // Parallelize initial RPC calls
     const [hookType, owner, beneficiary, quoteSignersResult] =
       await Promise.all([
         hook.hookType(),
         hook.owner(),
         hook.beneficiary(),
-        // quoteSigners() not available on IGP versions before offchain fee quoting
-        hook
-          .quoteSigners()
-          .then((quoteSigners) => ({ quoteSigners, igpVersion: undefined }))
-          .catch((error) => {
-            throwIfNotMissingSelectorRevert(error);
-            this.logger.debug(
-              'quoteSigners() not available on this IGP version, skipping',
-            );
-            return {
-              quoteSigners: [] as string[],
-              igpVersion: IgpVersion.Legacy,
-            };
-          }),
+        getQuoteSignersResult(),
       ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);

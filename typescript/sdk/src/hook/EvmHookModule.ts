@@ -72,6 +72,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
+import { isMissingSelectorRevert } from '../utils/contract.js';
 
 import {
   VERSION_ERROR_MESSAGE,
@@ -471,12 +472,20 @@ export class EvmHookModule extends HyperlaneModule<
     const igpAddress = this.args.addresses.deployedHook;
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
     const provider = this.multiProvider.getProvider(this.domainId);
-    const currentVersion = await PackageVersioned__factory.connect(
-      igpAddress,
-      provider,
-    )
-      .PACKAGE_VERSION()
-      .catch(() => undefined);
+    let currentVersion: string | undefined;
+    try {
+      currentVersion = await PackageVersioned__factory.connect(
+        igpAddress,
+        provider,
+      ).PACKAGE_VERSION();
+    } catch (error) {
+      if (!isMissingSelectorRevert(error)) {
+        throw error;
+      }
+      this.logger.debug(
+        `IGP ${igpAddress} on ${this.chain} does not expose PACKAGE_VERSION`,
+      );
+    }
 
     // Upgrade IGP proxy implementation only if contractVersion is specified in config
     if (targetConfig.contractVersion && (await isProxy(provider, igpAddress))) {
@@ -595,7 +604,11 @@ export class EvmHookModule extends HyperlaneModule<
     // update token gas oracles only if explicitly specified in target config.
     // Gated behind the same support check as quoteSigners: the tokenGasOracles
     // mapping and setTokenGasOracles only exist on the new (non-legacy) IGP.
-    if (targetConfig.tokenOracleConfig !== undefined) {
+    const targetTokenOracleConfig = targetConfig.tokenOracleConfig;
+    if (
+      targetTokenOracleConfig &&
+      Object.keys(targetTokenOracleConfig).length > 0
+    ) {
       assert(
         supportsOffchainFeeQuoting,
         `IGP tokenOracleConfig requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
@@ -603,7 +616,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push(
         ...(await this.updateIgpTokenGasOracles({
           interchainGasPaymaster: this.args.addresses.deployedHook,
-          targetTokenOracleConfig: targetConfig.tokenOracleConfig,
+          targetTokenOracleConfig,
           config: targetConfig,
         })),
       );
