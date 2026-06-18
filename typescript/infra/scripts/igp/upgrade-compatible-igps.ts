@@ -35,13 +35,10 @@ import { Contexts } from '../../config/contexts.js';
 import {
   getGovernanceIcas,
   getGovernanceSafes,
+  getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import { getEnvAddresses } from '../../config/registry.js';
-import {
-  chainsToSkip,
-  legacyIcaChains,
-  legacyIgpChains,
-} from '../../src/config/chain.js';
+import { chainsToSkip, legacyIgpChains } from '../../src/config/chain.js';
 import type { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { determineGovernanceType, Owner } from '../../src/governance.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
@@ -883,7 +880,8 @@ async function main() {
           detail = `queued ${governanceType} Safe proposal`;
           break;
         case Owner.ICA:
-          if (legacyIcaChains.includes(chain)) {
+          const legacyIcaOwner = getLegacyGovernanceIcas(governanceType)[chain];
+          if (legacyIcaOwner && eqAddress(legacyIcaOwner, proxyAdminOwner)) {
             plans.push({
               chain,
               interchainGasPaymaster,
