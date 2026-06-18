@@ -21,7 +21,6 @@ import {
 import {
   Address,
   assert,
-  bytes32ToAddress,
   eqAddress,
   formatStandardHookMetadata,
   isEVMLike,
@@ -29,23 +28,23 @@ import {
 } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 import { BigNumber, ethers } from 'ethers';
+import { compareVersions } from 'compare-versions';
 
 import { Contexts } from '../../config/contexts.js';
 import {
   getGovernanceIcas,
   getGovernanceSafes,
-  getGovernanceTimelocks,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import { getEnvAddresses } from '../../config/registry.js';
 import {
-  legacyEthIcaRouter,
-  legacyIcaChainRouters,
+  chainsToSkip,
+  legacyIcaChains,
   legacyIgpChains,
 } from '../../src/config/chain.js';
+import type { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { determineGovernanceType, Owner } from '../../src/governance.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
-import type { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { getEnvironmentDirectory } from '../../src/paths.js';
 import { logTable } from '../../src/utils/log.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
@@ -91,6 +90,15 @@ type SafeCallGroup = {
   calls: UpgradeCall[];
 };
 
+type ProposalResult = {
+  chain: ChainName;
+  governanceType: GovernanceType;
+  safeAddress: Address;
+  status: 'proposed' | 'error' | 'skipped';
+  detail: string;
+  hashes?: string[];
+};
+
 type VerificationArtifact = {
   name: string;
   address: Address;
@@ -102,22 +110,8 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function compareSemver(a: string, b: string): number {
-  const aParts = a.split('.').map((part) => parseInt(part, 10));
-  const bParts = b.split('.').map((part) => parseInt(part, 10));
-  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-    const aPart = aParts[i] ?? 0;
-    const bPart = bParts[i] ?? 0;
-    if (aPart !== bPart) return aPart > bPart ? 1 : -1;
-  }
-  return 0;
-}
-
-function getImplementationAddress(
-  chain: ChainName,
-  implementations: ChainMap<Address>,
-): Address | undefined {
-  return implementations[chain];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function getImplementationAddressesFromVerificationArtifacts(
@@ -154,6 +148,34 @@ function getImplementationAddressesFromVerificationArtifacts(
   return implementations;
 }
 
+function getImplementationAddressOverrides(
+  filepath: string,
+  supportedChains: Set<ChainName>,
+): ChainMap<Address> {
+  const rawOverrides = readJson<unknown>(filepath);
+  assert(isRecord(rawOverrides), `${filepath} must contain a JSON object`);
+
+  const overrides: ChainMap<Address> = {};
+  for (const [chain, value] of Object.entries(rawOverrides)) {
+    assert(
+      supportedChains.has(chain),
+      `${filepath} contains unsupported chain ${chain}`,
+    );
+    assert(typeof value === 'string', `${filepath} ${chain} must be a string`);
+    assert(
+      ethers.utils.isAddress(value),
+      `${filepath} ${chain} is not an EVM address: ${value}`,
+    );
+    assert(
+      !eqAddress(value, ethers.constants.AddressZero),
+      `${filepath} ${chain} implementation is zero address`,
+    );
+    overrides[chain] = value;
+  }
+
+  return overrides;
+}
+
 async function getCurrentVersion(
   chain: ChainName,
   provider: ethers.providers.Provider,
@@ -170,6 +192,40 @@ async function getCurrentVersion(
     );
     return undefined;
   }
+}
+
+async function assertTargetImplementation({
+  chain,
+  provider,
+  targetImplementation,
+}: {
+  chain: ChainName;
+  provider: ethers.providers.Provider;
+  targetImplementation: Address;
+}): Promise<void> {
+  assert(
+    ethers.utils.isAddress(targetImplementation),
+    `[${chain}] target implementation is not an EVM address: ${targetImplementation}`,
+  );
+  assert(
+    !eqAddress(targetImplementation, ethers.constants.AddressZero),
+    `[${chain}] target implementation is zero address`,
+  );
+
+  const code = await provider.getCode(targetImplementation);
+  assert(
+    code !== '0x',
+    `[${chain}] target implementation ${targetImplementation} has no deployed code`,
+  );
+
+  const targetVersion = await PackageVersioned__factory.connect(
+    targetImplementation,
+    provider,
+  ).PACKAGE_VERSION();
+  assert(
+    targetVersion === CONTRACTS_PACKAGE_VERSION,
+    `[${chain}] target implementation ${targetImplementation} exposes PACKAGE_VERSION ${targetVersion}, expected ${CONTRACTS_PACKAGE_VERSION}`,
+  );
 }
 
 async function assertCancunCompatible(
@@ -272,13 +328,6 @@ async function addIcaSafeCall({
   const accountConfig = {
     origin: ETHEREUM_CHAIN,
     owner,
-    ...(legacyIcaChainRouters[destination]
-      ? {
-          localRouter: legacyEthIcaRouter,
-          routerOverride:
-            legacyIcaChainRouters[destination].interchainAccountRouter,
-        }
-      : {}),
   };
   const expectedIca = await ica.getAccount(destination, accountConfig);
   const ownerAddress =
@@ -305,10 +354,9 @@ async function addIcaSafeCall({
     innerCalls,
     config: accountConfig,
   });
-  const refundAddress = bytes32ToAddress(accountConfig.owner);
   const hookMetadata = formatStandardHookMetadata({
     gasLimit: gasLimit.toBigInt(),
-    refundAddress,
+    refundAddress: accountConfig.owner,
   });
   const callRemote = await ica.getCallRemote({
     chain: ETHEREUM_CHAIN,
@@ -431,7 +479,8 @@ async function writeSafeBatchFiles({
   groups: SafeCallGroup[];
   multiProvider: Parameters<typeof EV5GnosisSafeTxBuilder.create>[0];
   runDir: string;
-}) {
+}): Promise<Set<string>> {
+  const rawFallbackGroupKeys = new Set<string>();
   for (const group of groups) {
     let builder: EV5GnosisSafeTxBuilder;
     try {
@@ -441,6 +490,9 @@ async function writeSafeBatchFiles({
         safeAddress: group.safeAddress,
       });
     } catch (error) {
+      rawFallbackGroupKeys.add(
+        getSafeGroupKey(group.chain, group.governanceType),
+      );
       const filepath = join(
         runDir,
         `${group.chain}-${group.governanceType}.raw.json`,
@@ -448,6 +500,7 @@ async function writeSafeBatchFiles({
       mkdirSync(dirname(filepath), { recursive: true });
       await writeAndFormatJsonAtPath(filepath, {
         chain: group.chain,
+        chainId: multiProvider.getEvmChainId(group.chain),
         safeAddress: group.safeAddress,
         governanceType: group.governanceType,
         note: 'Raw calldata. NOT a Safe Transaction Builder file (no usable tx service for this chain); submit manually.',
@@ -483,6 +536,7 @@ async function writeSafeBatchFiles({
       `[${group.chain}] wrote ${group.governanceType} Safe batch ${filepath}`,
     );
   }
+  return rawFallbackGroupKeys;
 }
 
 async function proposeSafeGroups({
@@ -491,24 +545,48 @@ async function proposeSafeGroups({
 }: {
   groups: SafeCallGroup[];
   multiProvider: Parameters<typeof SafeMultiSend.initialize>[0];
-}) {
+}): Promise<ProposalResult[]> {
+  const results: ProposalResult[] = [];
   for (const group of groups) {
-    const safeMultiSend = await SafeMultiSend.initialize(
-      multiProvider,
-      group.chain,
-      group.safeAddress,
-    );
-    const hashes = await safeMultiSend.sendTransactions(
-      group.calls.map((call) => ({
-        to: call.to,
-        data: call.data,
-        value: call.value,
-      })),
-    );
-    rootLogger.info(
-      `[${group.chain}] proposed ${group.calls.length} ${group.governanceType} tx(s): ${hashes.join(', ')}`,
-    );
+    try {
+      const safeMultiSend = await SafeMultiSend.initialize(
+        multiProvider,
+        group.chain,
+        group.safeAddress,
+      );
+      const hashes = await safeMultiSend.sendTransactions(
+        group.calls.map((call) => ({
+          to: call.to,
+          data: call.data,
+          value: call.value,
+        })),
+      );
+      results.push({
+        chain: group.chain,
+        governanceType: group.governanceType,
+        safeAddress: group.safeAddress,
+        status: 'proposed',
+        detail: `proposed ${group.calls.length} tx(s)`,
+        hashes,
+      });
+      rootLogger.info(
+        `[${group.chain}] proposed ${group.calls.length} ${group.governanceType} tx(s): ${hashes.join(', ')}`,
+      );
+    } catch (error) {
+      const detail = formatError(error);
+      results.push({
+        chain: group.chain,
+        governanceType: group.governanceType,
+        safeAddress: group.safeAddress,
+        status: 'error',
+        detail,
+      });
+      rootLogger.error(
+        `[${group.chain}] failed to propose ${group.governanceType} Safe tx(s): ${detail}`,
+      );
+    }
   }
+  return results;
 }
 
 async function main() {
@@ -551,8 +629,13 @@ async function main() {
     !propose || chains?.length || all,
     'Refusing to propose for all compatible chains without --all. Pass --chains or --all.',
   );
+  assert(
+    environment === 'mainnet3',
+    'This script only supports mainnet3 because governance Safe, ICA, and timelock config is imported from mainnet3.',
+  );
 
   const envConfig = getEnvironmentConfig(environment);
+  const supportedChains = new Set(envConfig.supportedChainNames);
   const chainAddresses = getEnvAddresses(environment);
   const implementationAddresses = {
     ...getImplementationAddressesFromVerificationArtifacts(
@@ -560,21 +643,43 @@ async function main() {
       chainAddresses,
     ),
     ...(implementationAddressesFile
-      ? readJson<ChainMap<Address>>(implementationAddressesFile)
+      ? getImplementationAddressOverrides(
+          implementationAddressesFile,
+          supportedChains,
+        )
       : {}),
   };
   const requested = chains && chains.length > 0 ? new Set(chains) : undefined;
+
+  if (requested) {
+    for (const chain of requested) {
+      if (!supportedChains.has(chain)) {
+        rootLogger.warn(
+          `[${chain}] requested but not supported in ${environment}; skipping`,
+        );
+      } else if (legacyIgpChains.includes(chain)) {
+        rootLogger.warn(
+          `[${chain}] requested but in legacyIgpChains; skipping`,
+        );
+      } else if (chainsToSkip.includes(chain)) {
+        rootLogger.warn(`[${chain}] requested but in chainsToSkip; skipping`);
+      }
+    }
+  }
+
   const targetChains = envConfig.supportedChainNames.filter((chain) => {
     if (requested && !requested.has(chain)) return false;
     if (legacyIgpChains.includes(chain)) return false;
+    if (chainsToSkip.includes(chain)) return false;
     return true;
   });
+  const providerChains = Array.from(new Set([...targetChains, ETHEREUM_CHAIN]));
 
   const multiProvider = await envConfig.getMultiProvider(
     context,
     undefined,
     true,
-    targetChains,
+    providerChains,
   );
   const icaAddresses = Object.fromEntries(
     Object.entries(chainAddresses).filter(
@@ -610,10 +715,7 @@ async function main() {
     }
 
     const provider = multiProvider.getProvider(chain);
-    const targetImplementation = getImplementationAddress(
-      chain,
-      implementationAddresses,
-    );
+    const targetImplementation = implementationAddresses[chain];
     try {
       if (!skipEvmPreflight) {
         await assertCancunCompatible(chain, provider);
@@ -633,26 +735,8 @@ async function main() {
         interchainGasPaymaster,
       );
       if (
-        targetImplementation &&
-        eqAddress(currentImplementation, targetImplementation)
-      ) {
-        plans.push({
-          chain,
-          interchainGasPaymaster,
-          currentImplementation,
-          targetImplementation,
-          currentVersion,
-          targetVersion: CONTRACTS_PACKAGE_VERSION,
-          proxyAdmin: actualProxyAdmin,
-          status: 'no change',
-          detail: 'proxy already points at target implementation',
-        });
-        continue;
-      }
-
-      if (
         currentVersion &&
-        compareSemver(currentVersion, CONTRACTS_PACKAGE_VERSION) >= 0
+        compareVersions(currentVersion, CONTRACTS_PACKAGE_VERSION) >= 0
       ) {
         plans.push({
           chain,
@@ -682,6 +766,27 @@ async function main() {
         continue;
       }
 
+      await assertTargetImplementation({
+        chain,
+        provider,
+        targetImplementation,
+      });
+
+      if (eqAddress(currentImplementation, targetImplementation)) {
+        plans.push({
+          chain,
+          interchainGasPaymaster,
+          currentImplementation,
+          targetImplementation,
+          currentVersion,
+          targetVersion: CONTRACTS_PACKAGE_VERSION,
+          proxyAdmin: actualProxyAdmin,
+          status: 'no change',
+          detail: 'proxy already points at target implementation',
+        });
+        continue;
+      }
+
       const proxyAdminOwner = await Ownable__factory.connect(
         actualProxyAdmin,
         provider,
@@ -707,6 +812,24 @@ async function main() {
           detail = `queued ${governanceType} Safe proposal`;
           break;
         case Owner.ICA:
+          if (legacyIcaChains.includes(chain)) {
+            plans.push({
+              chain,
+              interchainGasPaymaster,
+              currentImplementation,
+              targetImplementation,
+              currentVersion,
+              targetVersion: CONTRACTS_PACKAGE_VERSION,
+              proxyAdmin: actualProxyAdmin,
+              proxyAdminOwner,
+              ownerType,
+              governanceType,
+              status: 'manual',
+              detail:
+                'ProxyAdmin is owned by a legacy V1 ICA; script only builds V2 ICA calls',
+            });
+            continue;
+          }
           await addIcaSafeCall({
             groups: safeGroups,
             ica,
@@ -803,10 +926,45 @@ async function main() {
     OUTPUT_ROOT,
     new Date().toISOString().replace(/[:.]/g, '-'),
   );
-  await writeSafeBatchFiles({ groups, multiProvider, runDir });
+  const rawFallbackGroupKeys = await writeSafeBatchFiles({
+    groups,
+    multiProvider,
+    runDir,
+  });
 
+  const proposalResults: ProposalResult[] = [];
   if (propose) {
-    await proposeSafeGroups({ groups, multiProvider });
+    for (const group of groups) {
+      if (
+        !rawFallbackGroupKeys.has(
+          getSafeGroupKey(group.chain, group.governanceType),
+        )
+      ) {
+        continue;
+      }
+      const detail =
+        'skipped propose because only raw fallback calldata was written; submit manually';
+      proposalResults.push({
+        chain: group.chain,
+        governanceType: group.governanceType,
+        safeAddress: group.safeAddress,
+        status: 'skipped',
+        detail,
+      });
+      rootLogger.warn(`[${group.chain}] ${detail}`);
+    }
+
+    proposalResults.push(
+      ...(await proposeSafeGroups({
+        groups: groups.filter(
+          (group) =>
+            !rawFallbackGroupKeys.has(
+              getSafeGroupKey(group.chain, group.governanceType),
+            ),
+        ),
+        multiProvider,
+      })),
+    );
   }
 
   const output = {
@@ -816,6 +974,7 @@ async function main() {
     mode: propose ? 'propose' : 'dry-run',
     legacyIgpChains,
     ...(postUpgradeConfigCommand ? { postUpgradeConfigCommand } : {}),
+    ...(proposalResults.length > 0 ? { proposalResults } : {}),
     safeGroups: groups.map((group) => ({
       chain: group.chain,
       governanceType: group.governanceType,
@@ -842,7 +1001,10 @@ async function main() {
       ].join('\n'),
     );
   }
-  if (plans.some((plan) => plan.status === 'error')) {
+  if (
+    plans.some((plan) => plan.status === 'error') ||
+    proposalResults.some((result) => result.status === 'error')
+  ) {
     process.exitCode = 1;
   }
 }
