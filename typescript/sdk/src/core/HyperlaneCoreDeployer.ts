@@ -348,9 +348,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         delete this.cachedAddresses[chain].testRecipient;
       }
       this.logger.warn(
-        `Skipping TestRecipient on ${chain}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        { chain, err: error },
+        'Skipping TestRecipient after core deployment finalized',
       );
     }
 

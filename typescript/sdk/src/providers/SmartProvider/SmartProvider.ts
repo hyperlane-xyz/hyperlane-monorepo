@@ -106,38 +106,68 @@ function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function getJsonRpcErrorCode(value: unknown): number | string | undefined {
+  if (!isRecord(value)) return undefined;
+  const code = value.code;
+  return typeof code === 'number' || typeof code === 'string'
+    ? code
+    : undefined;
+}
+
+function getJsonRpcErrorMessage(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  return typeof value.message === 'string' ? value.message : undefined;
+}
+
 function parseJsonRpcErrorBody(body: unknown): {
   code?: number | string;
   message?: string;
 } {
   if (typeof body !== 'string') return {};
   try {
-    const parsed = JSON.parse(body);
+    const parsed = getRecord(JSON.parse(body));
+    const error = getRecord(parsed?.error);
     return {
-      code: parsed?.error?.code,
-      message: parsed?.error?.message,
+      code: getJsonRpcErrorCode(error),
+      message: getJsonRpcErrorMessage(error),
     };
   } catch {
     return {};
   }
 }
 
-function getNestedJsonRpcError(error: any): {
+function getNestedJsonRpcError(error: unknown): {
   code?: number | string;
   message?: string;
 } {
-  const nested = error?.error;
+  const nested = getRecord(getRecord(error)?.error);
+  const nestedError = getRecord(nested?.error);
   const nestedBody = parseJsonRpcErrorBody(nested?.body);
   return {
-    code: nested?.error?.code ?? nested?.code ?? nestedBody.code,
-    message: nested?.error?.message ?? nested?.message ?? nestedBody.message,
+    code:
+      getJsonRpcErrorCode(nestedError) ??
+      getJsonRpcErrorCode(nested) ??
+      nestedBody.code,
+    message:
+      getJsonRpcErrorMessage(nestedError) ??
+      getJsonRpcErrorMessage(nested) ??
+      nestedBody.message,
   };
 }
 
-function isCallExceptionWithTransientRpcError(error: any): boolean {
-  if (error?.code !== EthersError.CALL_EXCEPTION) return false;
-  const hasRevertData = !!error.data && error.data !== '0x';
-  const nestedError = error.error;
+function isCallExceptionWithTransientRpcError(error: unknown): boolean {
+  const record = getRecord(error);
+  if (record?.code !== EthersError.CALL_EXCEPTION) return false;
+  const hasRevertData = !!record.data && record.data !== '0x';
+  const nestedError = record.error;
   const jsonRpcErrorCode = getNestedJsonRpcError(error).code;
   return !!nestedError && !hasRevertData && jsonRpcErrorCode !== 3;
 }

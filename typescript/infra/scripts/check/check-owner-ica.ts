@@ -150,6 +150,7 @@ async function main() {
 
   if (failedChains.length > 0) {
     rootLogger.error(`Failed to process chains: ${failedChains.join(', ')}`);
+    process.exit(1);
   }
 
   rootLogger.info('✅ All ICAs match the expected addresses.');
