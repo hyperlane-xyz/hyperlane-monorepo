@@ -34,7 +34,7 @@ const AMOUNT_ROUTING_THRESHOLD = 1_000_000_000;
 const ownersByChain = {
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
-  bsc: awSafes.bsc,
+  bsc: awIcas.bsc,
   ethereum: awSafes.ethereum,
   katana: awIcas.katana,
   polygon: awIcas.polygon,
