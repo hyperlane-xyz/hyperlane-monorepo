@@ -81,19 +81,6 @@ impl AggregationIsmMetadataBuilder {
         buffer
     }
 
-    fn n_cheapest_metas(
-        mut metas_and_gas: Vec<(SubModuleMetadata, U256)>,
-        n: usize,
-    ) -> Vec<SubModuleMetadata> {
-        // Sort by gas cost in ascending order
-        metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.cmp(gas_2));
-        // Take the cheapest n (the aggregation ISM threshold)
-        let mut cheapest: Vec<_> = metas_and_gas[..n].into();
-        // Sort by index in ascending order, to match the order expected by the smart contract
-        cheapest.sort_by(|(meta_1, _), (meta_2, _)| meta_1.index.cmp(&meta_2.index));
-        cheapest.into_iter().map(|(meta, _)| meta).collect()
-    }
-
     /// Returns modules and threshold from the aggregation ISM.
     /// This method will attempt to get the value from cache first. If it is a cache miss,
     /// it will request it from the ISM contract. The result will be cached for future use.
@@ -365,14 +352,11 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 ModuleBuildOutcome::Verified(meta, gas) => {
                     metas_and_gas.push((meta, gas));
                     if metas_and_gas.len() >= threshold {
-                        // Threshold met — drop remaining futures and proceed immediately.
-                        // Cancellation of in-flight futures is safe: cache writes use a
-                        // single atomic moka insert, external calls (RPC/HTTP) are
-                        // stateless reads, and params.ism_count is per-attempt only.
-                        // Trade-off: for n-of-m ISMs (m > n) gas selection is by
-                        // verification-completion order rather than cost across all m
-                        // modules. Latency wins over marginal gas savings on process(),
-                        // especially for fast-path ISMs (CCTP, trustedRelayer).
+                        // Early exit: cancellation is safe (atomic cache writes,
+                        // stateless RPCs, per-attempt ism_count). Dropped Refused(Reorg)
+                        // futures are harmless — a real reorg either prevents threshold
+                        // multisig modules from verifying, or is irrelevant to the
+                        // non-multisig path (CCTP, trustedRelayer) that did verify.
                         break;
                     }
                 }
@@ -392,7 +376,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             ));
         }
 
-        let mut valid_metas = Self::n_cheapest_metas(metas_and_gas, threshold);
+        metas_and_gas.sort_by(|(m1, _), (m2, _)| m1.index.cmp(&m2.index));
+        let mut valid_metas: Vec<SubModuleMetadata> =
+            metas_and_gas.into_iter().map(|(m, _)| m).collect();
         let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
         Ok(metadata)
     }
@@ -484,30 +470,5 @@ mod test {
             AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 1),
             expected
         );
-    }
-
-    #[test]
-    fn test_n_cheapest_metas_works() {
-        let metas_and_gas = vec![
-            (
-                SubModuleMetadata::new(3, Metadata::new(vec![])),
-                U256::from_dec_str("3").unwrap(),
-            ),
-            (
-                SubModuleMetadata::new(2, Metadata::new(vec![])),
-                U256::from_dec_str("2").unwrap(),
-            ),
-            (
-                SubModuleMetadata::new(1, Metadata::new(vec![])),
-                U256::from_dec_str("1").unwrap(),
-            ),
-        ];
-        assert_eq!(
-            AggregationIsmMetadataBuilder::n_cheapest_metas(metas_and_gas, 2),
-            vec![
-                SubModuleMetadata::new(1, Metadata::new(vec![])),
-                SubModuleMetadata::new(2, Metadata::new(vec![]))
-            ]
-        )
     }
 }
