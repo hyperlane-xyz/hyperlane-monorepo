@@ -129,4 +129,10 @@ export const awIcas: ChainMap<Address> = {
   // May 25, 2026
   // ----------------------------------------------------------
   nesa: '0x1A41fdB5908A7bb48d923cc184402ef750c57C0b',
+
+  // Jun 18, 2026
+  // ----------------------------------------------------------
+  nexus: '0x488d1a010318941bF420FfcDc7aa8312b943C21E',
+  robinhood: '0xaE3B79d7c9FBE5905fc5638Bb070dd356513d6fc',
+  tea: '0xD7CfFFE7B51B2113B959A8EbA6c40F338eD8A4d5',
 } as const;
