@@ -133,6 +133,99 @@ describe('upgrade-compatible-igps', () => {
         },
       }),
     ).to.equal(true);
+
+    expect(
+      callMatchesTimelockIdempotency({
+        call: {
+          to: proxyAdmin,
+          value: BigNumber.from(0),
+          data: iface.encodeFunctionData('upgrade', [
+            proxy,
+            firstImplementation,
+          ]),
+          description: 'upgrade',
+        },
+        scheduledTarget: '0x5555555555555555555555555555555555555555',
+        scheduledValue: BigNumber.from(0),
+        scheduledData: iface.encodeFunctionData('upgrade', [
+          proxy,
+          secondImplementation,
+        ]),
+        idempotency: {
+          type: 'proxyAdminUpgrade',
+          proxyAddress: proxy,
+        },
+      }),
+    ).to.equal(false);
+
+    expect(
+      callMatchesTimelockIdempotency({
+        call: {
+          to: proxyAdmin,
+          value: BigNumber.from(0),
+          data: iface.encodeFunctionData('upgrade', [
+            proxy,
+            firstImplementation,
+          ]),
+          description: 'upgrade',
+        },
+        scheduledTarget: proxyAdmin,
+        scheduledValue: BigNumber.from(1),
+        scheduledData: iface.encodeFunctionData('upgrade', [
+          proxy,
+          secondImplementation,
+        ]),
+        idempotency: {
+          type: 'proxyAdminUpgrade',
+          proxyAddress: proxy,
+        },
+      }),
+    ).to.equal(false);
+
+    expect(
+      callMatchesTimelockIdempotency({
+        call: {
+          to: proxyAdmin,
+          value: BigNumber.from(0),
+          data: iface.encodeFunctionData('upgrade', [
+            proxy,
+            firstImplementation,
+          ]),
+          description: 'upgrade',
+        },
+        scheduledTarget: proxyAdmin,
+        scheduledValue: BigNumber.from(0),
+        scheduledData: iface.encodeFunctionData('upgrade', [
+          '0x6666666666666666666666666666666666666666',
+          secondImplementation,
+        ]),
+        idempotency: {
+          type: 'proxyAdminUpgrade',
+          proxyAddress: proxy,
+        },
+      }),
+    ).to.equal(false);
+
+    expect(
+      callMatchesTimelockIdempotency({
+        call: {
+          to: proxyAdmin,
+          value: BigNumber.from(0),
+          data: iface.encodeFunctionData('upgrade', [
+            proxy,
+            firstImplementation,
+          ]),
+          description: 'upgrade',
+        },
+        scheduledTarget: proxyAdmin,
+        scheduledValue: BigNumber.from(0),
+        scheduledData: '0x1234',
+        idempotency: {
+          type: 'proxyAdminUpgrade',
+          proxyAddress: proxy,
+        },
+      }),
+    ).to.equal(false);
   });
 
   it('splits raw fallback Safe groups out of propose mode', () => {

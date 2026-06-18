@@ -68,6 +68,10 @@ import { getEnvironmentConfig } from '../core-utils.js';
 const ETHEREUM_CHAIN: ChainName = 'ethereum';
 const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
+// Timelock upgrade idempotency needs log scanning because CREATE deployments
+// change the implementation address in the scheduled calldata across reruns.
+// Keep chunks below common provider log limits; widen manually if an older
+// still-pending operation must be detected.
 const TIMELOCK_LOOKBACK_BLOCKS = 2_000_000;
 const TIMELOCK_LOG_CHUNK_BLOCKS = 50_000;
 
@@ -387,9 +391,6 @@ async function getExistingTimelockOperation({
         })
       ) {
         continue;
-      }
-      if (await timelock.isOperationDone(id)) {
-        return { id, status: 'done' };
       }
       if (
         (await timelock.isOperationPending(id)) ||
@@ -1296,7 +1297,7 @@ async function main() {
             proxyAddress: interchainGasPaymaster,
           },
         });
-        status = route.status === 'done' ? 'error' : route.status;
+        status = route.status === 'done' ? 'skipped' : route.status;
         ownerType = route.ownerType;
         governanceType = route.governanceType;
         routeDetails.push(route.detail);
@@ -1324,7 +1325,7 @@ async function main() {
             status,
             detail:
               route.status === 'done'
-                ? route.detail
+                ? `${route.detail}; upgrade already executed`
                 : `${route.detail}; ${transactions.length - 1} config tx(s) deferred until the timelock upgrade executes`,
             ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
           });
