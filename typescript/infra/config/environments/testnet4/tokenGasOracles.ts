@@ -7,7 +7,7 @@ import {
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
   getLocalStorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { EXCHANGE_RATE_MARGIN_PCT } from '../../../src/config/gas-oracle.js';
 import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
@@ -71,12 +71,27 @@ function seismicSusdcOracleConfigs(): ChainMap<ProtocolAgnositicGasOracleConfigW
     };
   }
 
-  return getLocalStorageGasOracleConfig({
+  // Aggregate exchange-rate underflows into one summary line rather than one
+  // warning per remote (see getAllStorageGasOracleConfigs for the same pattern).
+  const flooredPairs = new Set<string>();
+  const config = getLocalStorageGasOracleConfig({
     local: SEISMIC,
     localProtocolType: ProtocolType.Ethereum,
     gasOracleParams,
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+    onPrecisionFallback: ({ local, remote }) =>
+      flooredPairs.add(`${local} -> ${remote}`),
   });
+
+  if (flooredPairs.size > 0) {
+    rootLogger.warn(
+      `${flooredPairs.size} sUSDC token gas oracle pair(s) floored the token exchange rate to 1 after precision rebalance (expected for the 6-decimal sUSDC fee token): ${[
+        ...flooredPairs,
+      ].join(', ')}`,
+    );
+  }
+
+  return config;
 }
 
 // Built lazily (and memoized): seismicSusdcOracleConfigs runs the gas-oracle

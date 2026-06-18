@@ -190,6 +190,7 @@ export function getLocalStorageGasOracleConfig({
   exchangeRateMarginPct,
   gasPriceModifier,
   typicalCostGetter,
+  onPrecisionFallback,
 }: {
   local: ChainName;
   localProtocolType: ProtocolType;
@@ -205,6 +206,10 @@ export function getLocalStorageGasOracleConfig({
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ) => IgpCostData;
+  // Invoked (instead of a per-pair warning) whenever a remote's exchange rate
+  // underflows and falls back to the on-chain minimum. Lets callers aggregate
+  // these into a single log line across many pairs.
+  onPrecisionFallback?: (ctx: { local: ChainName; remote: ChainName }) => void;
 }): ChainMap<ProtocolAgnositicGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -260,6 +265,7 @@ export function getLocalStorageGasOracleConfig({
       adjustForPrecisionLoss(gasPrice, scaledExchangeRate, remoteDecimals, {
         local,
         remote,
+        onFallback: onPrecisionFallback,
       });
 
     // Apply the modifier if provided.
@@ -269,7 +275,7 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         new BigNumberJs(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
-        { local, remote },
+        { local, remote, onFallback: onPrecisionFallback },
       );
     }
 
@@ -301,9 +307,15 @@ function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
   exchangeRate: InstanceType<typeof BigNumberJs>,
   remoteDecimals: number,
-  // Optional chain context, used only to make the precision-rebalance warning
-  // actionable (it names the local -> remote pair that underflowed).
-  context?: { local: ChainName; remote: ChainName },
+  // Optional chain context. `local`/`remote` name the pair that underflowed so
+  // the warning is actionable. If `onFallback` is supplied, it is invoked
+  // instead of logging per-pair — letting callers aggregate the fallbacks into a
+  // single summary rather than emitting one warning per chain pair.
+  context?: {
+    local: ChainName;
+    remote: ChainName;
+    onFallback?: (ctx: { local: ChainName; remote: ChainName }) => void;
+  },
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
@@ -333,13 +345,19 @@ function adjustForPrecisionLoss(
       // final ceil rounding-error bound. In that no-headroom band, keep the
       // original gas price and fall back to the minimum representable exchange
       // rate instead of introducing a larger ceil error.
-      rootLogger.warn(
-        `Token exchange rate remains below 1 after precision rebalance${
-          context ? ` for ${context.local} -> ${context.remote}` : ''
-        }; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
-          gasPrice,
-        ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
-      );
+      // When a caller wants to aggregate these (they can be many for a full
+      // chain matrix), hand off to its callback instead of logging per-pair.
+      if (context?.onFallback) {
+        context.onFallback({ local: context.local, remote: context.remote });
+      } else {
+        rootLogger.warn(
+          `Token exchange rate remains below 1 after precision rebalance${
+            context ? ` for ${context.local} -> ${context.remote}` : ''
+          }; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
+            gasPrice,
+          ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
+        );
+      }
     }
   }
 
