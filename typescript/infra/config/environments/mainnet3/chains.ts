@@ -66,6 +66,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 export const tokenPriceOverrides: ChainMap<string> = {
   incentiv: '0.003',
   krown: '0.0015',
+  tea: '10',
+  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
