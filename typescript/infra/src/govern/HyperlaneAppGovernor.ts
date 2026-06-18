@@ -43,6 +43,8 @@ import {
 import type { AnnotatedCallData, InferredCall } from './types.js';
 import { SubmissionType } from './types.js';
 
+export const GOVERNOR_MAX_BATCH_SIZE = 120;
+
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
   Config extends OwnableConfig,
@@ -178,13 +180,15 @@ export abstract class HyperlaneAppGovernor<
           );
           try {
             // Process calls in batches up to max size of 120
-            const maxBatchSize = 120;
             for (
               let i = 0;
               i < callsForSubmissionType.length;
-              i += maxBatchSize
+              i += GOVERNOR_MAX_BATCH_SIZE
             ) {
-              const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
+              const batch = callsForSubmissionType.slice(
+                i,
+                i + GOVERNOR_MAX_BATCH_SIZE,
+              );
               const sendBatch = () =>
                 multiSend.sendTransactions(
                   batch.map((call) => ({

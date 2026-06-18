@@ -26,6 +26,10 @@ import {
   proxyImplementation,
 } from '@hyperlane-xyz/sdk';
 import {
+  isMissingSelectorCallException,
+  isValidContractVersion,
+} from '@hyperlane-xyz/sdk/utils/contract';
+import {
   Address,
   assert,
   deepCopy,
@@ -35,7 +39,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import { BigNumber, ethers } from 'ethers';
-import { compareVersions } from 'compare-versions';
 
 import { Contexts } from '../../config/contexts.js';
 import {
@@ -48,6 +51,7 @@ import { getEnvAddresses } from '../../config/registry.js';
 import { chainsToSkip, legacyIgpChains } from '../../src/config/chain.js';
 import { determineGovernanceType, Owner } from '../../src/governance.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
+import { GOVERNOR_MAX_BATCH_SIZE } from '../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { Role } from '../../src/roles.js';
 import { logTable } from '../../src/utils/log.js';
@@ -64,7 +68,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 const ETHEREUM_CHAIN: ChainName = 'ethereum';
 const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
-const MAX_SAFE_BATCH_SIZE = 120;
+const TIMELOCK_LOOKBACK_BLOCKS = 2_000_000;
+const TIMELOCK_LOG_CHUNK_BLOCKS = 50_000;
 
 type UpgradeCall = {
   to: Address;
@@ -188,29 +193,8 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function getNestedRecord(
-  value: Record<string, unknown>,
-  key: string,
-): Record<string, unknown> | undefined {
-  return isRecord(value[key]) ? value[key] : undefined;
-}
-
 export function isMissingPackageVersionError(error: unknown): boolean {
-  if (!isRecord(error)) return false;
-
-  const nestedError = getNestedRecord(error, 'error');
-  const data = typeof error.data === 'string' ? error.data : nestedError?.data;
-  if (error.code === 'CALL_EXCEPTION' && data === '0x') return true;
-
-  return (
-    error.code === 'CALL_EXCEPTION' &&
-    typeof error.message === 'string' &&
-    error.message.includes('data="0x"')
-  );
+  return isMissingSelectorCallException(error);
 }
 
 async function getCurrentVersion(
@@ -233,20 +217,11 @@ async function getCurrentVersion(
 }
 
 function isVersionAtLeastTarget({
-  chain,
   currentVersion,
 }: {
-  chain: ChainName;
   currentVersion: string;
 }): boolean {
-  try {
-    return compareVersions(currentVersion, CONTRACTS_PACKAGE_VERSION) >= 0;
-  } catch (error) {
-    throw new Error(
-      `[${chain}] current PACKAGE_VERSION ${currentVersion} is not valid semver`,
-      { cause: error },
-    );
-  }
+  return isValidContractVersion(currentVersion, CONTRACTS_PACKAGE_VERSION);
 }
 
 async function assertProxyAdmin({
@@ -309,12 +284,123 @@ async function assertCancunCompatible(
   }
 }
 
-function timelockSalt(chain: ChainName, callData: string): string {
+type TimelockOperationMatch = {
+  id: string;
+  status: 'scheduled' | 'done';
+};
+
+type TimelockIdempotency = {
+  type: 'proxyAdminUpgrade';
+  proxyAddress: Address;
+};
+
+function timelockSalt(chain: ChainName, description: string): string {
   return ethers.utils.keccak256(
     ethers.utils.toUtf8Bytes(
-      `hyperlane-igp-upgrade:${chain}:${CONTRACTS_PACKAGE_VERSION}:${callData}`,
+      `hyperlane-igp-upgrade:${chain}:${CONTRACTS_PACKAGE_VERSION}:${description}`,
     ),
   );
+}
+
+export function callMatchesTimelockIdempotency({
+  call,
+  scheduledTarget,
+  scheduledValue,
+  scheduledData,
+  idempotency,
+}: {
+  call: UpgradeCall;
+  scheduledTarget: Address;
+  scheduledValue: BigNumber;
+  scheduledData: string;
+  idempotency?: TimelockIdempotency;
+}): boolean {
+  if (!eqAddress(scheduledTarget, call.to)) return false;
+  if (!scheduledValue.eq(call.value)) return false;
+
+  if (!idempotency) {
+    return scheduledData === call.data;
+  }
+
+  if (idempotency.type === 'proxyAdminUpgrade') {
+    return (
+      getUpgradeTargetImplementation({
+        tx: {
+          to: scheduledTarget,
+          data: scheduledData,
+        },
+        proxyAdminAddress: call.to,
+        proxyAddress: idempotency.proxyAddress,
+      }) !== undefined
+    );
+  }
+
+  return false;
+}
+
+async function getExistingTimelockOperation({
+  provider,
+  timelock,
+  call,
+  idempotency,
+  currentOperationId,
+}: {
+  provider: ethers.providers.Provider;
+  timelock: ReturnType<typeof TimelockController__factory.connect>;
+  call: UpgradeCall;
+  idempotency?: TimelockIdempotency;
+  currentOperationId: string;
+}): Promise<TimelockOperationMatch | undefined> {
+  if (await timelock.isOperationDone(currentOperationId)) {
+    return { id: currentOperationId, status: 'done' };
+  }
+  if (
+    (await timelock.isOperationPending(currentOperationId)) ||
+    (await timelock.isOperationReady(currentOperationId))
+  ) {
+    return { id: currentOperationId, status: 'scheduled' };
+  }
+  if (!idempotency) return undefined;
+
+  const latestBlock = await provider.getBlockNumber();
+  const fromBlock = Math.max(0, latestBlock - TIMELOCK_LOOKBACK_BLOCKS);
+  const eventFilter = timelock.filters.CallScheduled();
+  for (
+    let startBlock = fromBlock;
+    startBlock <= latestBlock;
+    startBlock += TIMELOCK_LOG_CHUNK_BLOCKS + 1
+  ) {
+    const endBlock = Math.min(
+      latestBlock,
+      startBlock + TIMELOCK_LOG_CHUNK_BLOCKS,
+    );
+    const logs = await timelock.queryFilter(eventFilter, startBlock, endBlock);
+    for (const log of logs) {
+      const { id, target, value, data } = log.args;
+      if (
+        !callMatchesTimelockIdempotency({
+          call,
+          scheduledTarget: target,
+          scheduledValue: value,
+          scheduledData: data,
+          idempotency,
+        })
+      ) {
+        continue;
+      }
+      if (await timelock.isOperationDone(id)) {
+        return { id, status: 'done' };
+      }
+      if (
+        (await timelock.isOperationPending(id)) ||
+        (await timelock.isOperationReady(id))
+      ) {
+        return { id, status: 'scheduled' };
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function getSafeGroupKey(chain: ChainName, governanceType: GovernanceType) {
@@ -325,18 +411,18 @@ function splitSafeCallGroups(groups: SafeCallGroup[]): SafeCallGroup[] {
   const splitGroups: SafeCallGroup[] = [];
 
   for (const group of groups) {
-    if (group.calls.length <= MAX_SAFE_BATCH_SIZE) {
+    if (group.calls.length <= GOVERNOR_MAX_BATCH_SIZE) {
       splitGroups.push(group);
       continue;
     }
 
-    const batchCount = Math.ceil(group.calls.length / MAX_SAFE_BATCH_SIZE);
+    const batchCount = Math.ceil(group.calls.length / GOVERNOR_MAX_BATCH_SIZE);
     for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
       splitGroups.push({
         ...group,
         calls: group.calls.slice(
-          batchIndex * MAX_SAFE_BATCH_SIZE,
-          (batchIndex + 1) * MAX_SAFE_BATCH_SIZE,
+          batchIndex * GOVERNOR_MAX_BATCH_SIZE,
+          (batchIndex + 1) * GOVERNOR_MAX_BATCH_SIZE,
         ),
         batchIndex: batchIndex + 1,
         batchCount,
@@ -514,12 +600,14 @@ async function routeGovernedCall({
   chain,
   call,
   ownerAddress,
+  timelockIdempotency,
 }: {
   groups: Map<string, SafeCallGroup>;
   ica: InterchainAccount;
   chain: ChainName;
   call: UpgradeCall;
   ownerAddress: Address;
+  timelockIdempotency?: TimelockIdempotency;
 }): Promise<{
   status: 'queued' | 'timelock queued' | 'scheduled' | 'done' | 'manual';
   detail: string;
@@ -573,6 +661,7 @@ async function routeGovernedCall({
           governanceType,
           timelockAddress: ownerAddress,
           innerCall: call,
+          idempotency: timelockIdempotency,
         })),
         ownerType,
         governanceType,
@@ -678,6 +767,7 @@ async function routeTimelockCall({
   governanceType,
   timelockAddress,
   innerCall,
+  idempotency,
 }: {
   groups: Map<string, SafeCallGroup>;
   ica: InterchainAccount;
@@ -685,6 +775,7 @@ async function routeTimelockCall({
   governanceType: GovernanceType;
   timelockAddress: Address;
   innerCall: UpgradeCall;
+  idempotency?: TimelockIdempotency;
 }): Promise<{
   status: 'timelock queued' | 'scheduled' | 'done';
   detail: string;
@@ -695,7 +786,7 @@ async function routeTimelockCall({
     provider,
   );
   const delay = await timelock.getMinDelay();
-  const salt = timelockSalt(chain, innerCall.data);
+  const salt = timelockSalt(chain, innerCall.description);
   const predecessor = ethers.constants.HashZero;
   const targets = [innerCall.to];
   const values = [innerCall.value];
@@ -708,21 +799,23 @@ async function routeTimelockCall({
     salt,
   );
 
-  const isDone = await timelock.isOperationDone(operationId);
-  if (isDone) {
+  const existingOperation = await getExistingTimelockOperation({
+    provider,
+    timelock,
+    call: innerCall,
+    idempotency,
+    currentOperationId: operationId,
+  });
+  if (existingOperation?.status === 'done') {
     return {
       status: 'done',
-      detail: `timelock operation already executed but proxy still points at the old implementation: ${operationId}`,
+      detail: `timelock operation already executed: ${existingOperation.id}`,
     };
   }
-
-  const isScheduled =
-    (await timelock.isOperationPending(operationId)) ||
-    (await timelock.isOperationReady(operationId));
-  if (isScheduled) {
+  if (existingOperation?.status === 'scheduled') {
     return {
       status: 'scheduled',
-      detail: `timelock operation already scheduled/done: ${operationId}`,
+      detail: `timelock operation already scheduled: ${existingOperation.id}`,
     };
   }
 
@@ -1094,7 +1187,6 @@ async function main() {
       const implementationUpgradeRequired =
         !currentVersion ||
         !isVersionAtLeastTarget({
-          chain,
           currentVersion,
         });
       if (implementationUpgradeRequired) {
@@ -1105,7 +1197,7 @@ async function main() {
         const legacyIcaOwner = getLegacyGovernanceIcas(governanceType)[chain];
         if (
           ownerType === Owner.DEPLOYER ||
-          !ownerType ||
+          ownerType === Owner.UNKNOWN ||
           (ownerType === Owner.ICA &&
             legacyIcaOwner &&
             eqAddress(legacyIcaOwner, proxyAdminOwner))
@@ -1182,6 +1274,11 @@ async function main() {
       let status = 'queued';
       let ownerType: Owner | null | undefined;
       let governanceType: GovernanceType | undefined;
+      let routedTransactionCount = 0;
+      let manualTransactionCount = 0;
+      let doneTransactionCount = 0;
+      let hasTimelockQueued = false;
+      let hasScheduled = false;
 
       if (upgradeIndex >= 0) {
         const upgradeCall = toUpgradeCall(
@@ -1194,11 +1291,18 @@ async function main() {
           chain,
           call: upgradeCall,
           ownerAddress: proxyAdminOwner,
+          timelockIdempotency: {
+            type: 'proxyAdminUpgrade',
+            proxyAddress: interchainGasPaymaster,
+          },
         });
         status = route.status === 'done' ? 'error' : route.status;
         ownerType = route.ownerType;
         governanceType = route.governanceType;
         routeDetails.push(route.detail);
+        if (route.status !== 'done') {
+          routedTransactionCount += 1;
+        }
 
         if (
           route.status === 'timelock queued' ||
@@ -1216,7 +1320,7 @@ async function main() {
             proxyAdminOwner,
             ownerType,
             governanceType,
-            transactionCount: 1,
+            transactionCount: routedTransactionCount,
             status,
             detail:
               route.status === 'done'
@@ -1239,7 +1343,7 @@ async function main() {
             proxyAdminOwner,
             ownerType,
             governanceType,
-            transactionCount: 1,
+            transactionCount: routedTransactionCount,
             status,
             detail: route.detail,
             ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
@@ -1272,16 +1376,28 @@ async function main() {
         ownerType ??= route.ownerType;
         governanceType ??= route.governanceType;
         routeDetails.push(route.detail);
-        if (route.status === 'manual' || route.status === 'done') {
-          status = route.status === 'done' ? 'error' : route.status;
-          break;
+        if (route.status === 'manual') {
+          manualTransactionCount += 1;
+          continue;
         }
-        if (
-          route.status === 'timelock queued' ||
-          route.status === 'scheduled'
-        ) {
-          status = route.status;
+        if (route.status === 'done') {
+          doneTransactionCount += 1;
+          continue;
         }
+
+        routedTransactionCount += 1;
+        hasTimelockQueued ||= route.status === 'timelock queued';
+        hasScheduled ||= route.status === 'scheduled';
+      }
+
+      if (manualTransactionCount > 0) {
+        status = routedTransactionCount > 0 ? 'partial' : 'manual';
+      } else if (hasTimelockQueued) {
+        status = 'timelock queued';
+      } else if (hasScheduled) {
+        status = 'scheduled';
+      } else if (routedTransactionCount === 0 && doneTransactionCount > 0) {
+        status = 'skipped';
       }
 
       plans.push({
@@ -1295,7 +1411,7 @@ async function main() {
         proxyAdminOwner,
         ownerType,
         governanceType,
-        transactionCount: transactions.length,
+        transactionCount: routedTransactionCount,
         status,
         detail: routeDetails.join('; '),
         ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),

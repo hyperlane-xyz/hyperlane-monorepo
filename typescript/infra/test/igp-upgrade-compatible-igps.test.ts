@@ -4,6 +4,7 @@ import { BigNumber } from 'ethers';
 
 import { GovernanceType } from '../src/governanceTypes.js';
 import {
+  callMatchesTimelockIdempotency,
   getDeferredTimelockConfigChains,
   getUpgradeTargetImplementation,
   isMissingPackageVersionError,
@@ -36,6 +37,12 @@ describe('upgrade-compatible-igps', () => {
         isMissingPackageVersionError({
           code: 'SERVER_ERROR',
           message: 'Invalid response from provider',
+        }),
+      ).to.equal(true);
+      expect(
+        isMissingPackageVersionError({
+          code: 'SERVER_ERROR',
+          message: 'rate limited',
         }),
       ).to.equal(false);
       expect(
@@ -94,6 +101,38 @@ describe('upgrade-compatible-igps', () => {
         proxyAddress: proxy,
       }),
     ).to.equal(implementation);
+  });
+
+  it('matches timelock IGP upgrade operations across different implementations', () => {
+    const proxyAdmin = '0x1111111111111111111111111111111111111111';
+    const proxy = '0x2222222222222222222222222222222222222222';
+    const firstImplementation = '0x3333333333333333333333333333333333333333';
+    const secondImplementation = '0x4444444444444444444444444444444444444444';
+    const iface = ProxyAdmin__factory.createInterface();
+
+    expect(
+      callMatchesTimelockIdempotency({
+        call: {
+          to: proxyAdmin,
+          value: BigNumber.from(0),
+          data: iface.encodeFunctionData('upgrade', [
+            proxy,
+            firstImplementation,
+          ]),
+          description: 'upgrade',
+        },
+        scheduledTarget: proxyAdmin,
+        scheduledValue: BigNumber.from(0),
+        scheduledData: iface.encodeFunctionData('upgrade', [
+          proxy,
+          secondImplementation,
+        ]),
+        idempotency: {
+          type: 'proxyAdminUpgrade',
+          proxyAddress: proxy,
+        },
+      }),
+    ).to.equal(true);
   });
 
   it('splits raw fallback Safe groups out of propose mode', () => {
