@@ -386,9 +386,243 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use ethers::utils::hex::FromHex;
+    use hyperlane_core::{KnownHyperlaneDomain, U256};
+
+    use hyperlane_core::HyperlaneDomain;
+
+    use crate::{
+        msg::metadata::MessageMetadataBuildParams,
+        test_utils::{
+            mock_aggregation_ism::MockAggregationIsm,
+            mock_base_builder::{build_mock_base_builder, MockBaseMetadataBuilder},
+            mock_ism::MockInterchainSecurityModule,
+        },
+    };
 
     use super::*;
+
+    const TEST_DOMAIN: HyperlaneDomain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// Insert a Null submodule whose `dry_run_verify` returns `dry_run`.
+    fn insert_null_submodule(
+        base: &MockBaseMetadataBuilder,
+        addr: H256,
+        dry_run: hyperlane_core::ChainResult<Option<U256>>,
+    ) {
+        let mock_ism =
+            MockInterchainSecurityModule::new(addr, TEST_DOMAIN.clone(), ModuleType::Null);
+        mock_ism
+            .responses
+            .dry_run_verify
+            .lock()
+            .unwrap()
+            .push_back(dry_run);
+        base.responses
+            .push_build_ism_response(addr, Ok(Box::new(mock_ism)));
+    }
+
+    /// Insert a submodule whose `build_ism` call fails (simulates build error).
+    fn insert_failing_submodule(base: &MockBaseMetadataBuilder, addr: H256) {
+        base.responses
+            .push_build_ism_response(addr, Err(eyre::eyre!("simulated build failure")));
+    }
+
+    /// Insert an aggregation ISM at `agg_addr` with the given sub-addresses and threshold.
+    fn insert_aggregation_ism(
+        base: &MockBaseMetadataBuilder,
+        agg_addr: H256,
+        sub_addrs: Vec<H256>,
+        threshold: u8,
+    ) {
+        let agg_ism = MockAggregationIsm::new(agg_addr, TEST_DOMAIN.clone());
+        agg_ism
+            .responses
+            .modules_and_threshold
+            .lock()
+            .unwrap()
+            .push_back(Ok((sub_addrs, threshold)));
+        base.responses
+            .push_build_aggregation_ism_response(agg_addr, Ok(Box::new(agg_ism)));
+    }
+
+    /// Build an `AggregationIsmMetadataBuilder` backed by `base`.
+    async fn make_builder(base: MockBaseMetadataBuilder) -> AggregationIsmMetadataBuilder {
+        let message = HyperlaneMessage::default();
+        let inner = crate::msg::metadata::message_builder::MessageMetadataBuilder::new(
+            Arc::new(base),
+            H256::zero(),
+            &message,
+        )
+        .await
+        .expect("failed to build MessageMetadataBuilder");
+        AggregationIsmMetadataBuilder::new(inner)
+    }
+
+    // ── build tests ──────────────────────────────────────────────────────────
+
+    /// 2-of-2: both submodules build and pass dry_run → Ok.
+    #[tokio::test]
+    async fn test_all_modules_verify_returns_ok() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10);
+        let sub1 = H256::from_low_u64_be(11);
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1], 2);
+        insert_null_submodule(&base, sub0, Ok(Some(U256::from(100u64))));
+        insert_null_submodule(&base, sub1, Ok(Some(U256::from(200u64))));
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+    }
+
+    /// 2-of-3: one submodule fails to build; the other two verify → Ok.
+    #[tokio::test]
+    async fn test_one_build_failure_threshold_still_met() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10);
+        let sub1 = H256::from_low_u64_be(11);
+        let sub2 = H256::from_low_u64_be(12);
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1, sub2], 2);
+        insert_failing_submodule(&base, sub0);
+        insert_null_submodule(&base, sub1, Ok(Some(U256::from(100u64))));
+        insert_null_submodule(&base, sub2, Ok(Some(U256::from(200u64))));
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+    }
+
+    /// dry_run returning None (message already delivered) must NOT count toward
+    /// threshold — the loop must keep collecting until enough modules pass both
+    /// build and dry_run.
+    #[tokio::test]
+    async fn test_dry_run_none_does_not_count_toward_threshold() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10); // builds ok but dry_run → None
+        let sub1 = H256::from_low_u64_be(11);
+        let sub2 = H256::from_low_u64_be(12);
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1, sub2], 2);
+        insert_null_submodule(&base, sub0, Ok(None));
+        insert_null_submodule(&base, sub1, Ok(Some(U256::from(100u64))));
+        insert_null_submodule(&base, sub2, Ok(Some(U256::from(200u64))));
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert!(
+            result.is_ok(),
+            "expected Ok despite sub0 dry_run=None, got {:?}",
+            result
+        );
+    }
+
+    /// All submodules fail to build → AggregationThresholdNotMet.
+    #[tokio::test]
+    async fn test_all_build_failures_returns_threshold_not_met() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10);
+        let sub1 = H256::from_low_u64_be(11);
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1], 2);
+        insert_failing_submodule(&base, sub0);
+        insert_failing_submodule(&base, sub1);
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            MetadataBuildError::AggregationThresholdNotMet(2)
+        );
+    }
+
+    /// All submodules build ok but every dry_run returns None → AggregationThresholdNotMet.
+    #[tokio::test]
+    async fn test_all_dry_run_none_returns_threshold_not_met() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10);
+        let sub1 = H256::from_low_u64_be(11);
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1], 2);
+        insert_null_submodule(&base, sub0, Ok(None));
+        insert_null_submodule(&base, sub1, Ok(None));
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            MetadataBuildError::AggregationThresholdNotMet(2)
+        );
+    }
+
+    /// Fewer verified modules than threshold (1 ok, 1 dry_run=None, 1 build fail) → threshold not met.
+    #[tokio::test]
+    async fn test_insufficient_verified_returns_threshold_not_met() {
+        let agg_addr = H256::from_low_u64_be(1);
+        let sub0 = H256::from_low_u64_be(10); // build fails
+        let sub1 = H256::from_low_u64_be(11); // dry_run → None
+        let sub2 = H256::from_low_u64_be(12); // ok
+
+        let base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+        insert_aggregation_ism(&base, agg_addr, vec![sub0, sub1, sub2], 2);
+        insert_failing_submodule(&base, sub0);
+        insert_null_submodule(&base, sub1, Ok(None));
+        insert_null_submodule(&base, sub2, Ok(Some(U256::from(100u64))));
+
+        let builder = make_builder(base).await;
+        let result = builder
+            .build(
+                agg_addr,
+                &HyperlaneMessage::default(),
+                MessageMetadataBuildParams::default(),
+            )
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            MetadataBuildError::AggregationThresholdNotMet(2)
+        );
+    }
 
     #[test]
     fn test_format_n_of_n_metadata_works_correctly() {
