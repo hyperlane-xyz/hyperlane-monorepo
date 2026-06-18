@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use derive_more::Deref;
 use futures_util::future::join_all;
+use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use derive_new::new;
-use itertools::{Either, Itertools};
 use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
@@ -329,53 +329,62 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
         }
 
-        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
-            message_builder::build_message_metadata(
-                self.base.clone(),
-                *sub_ism_address,
-                message,
-                params.clone(),
-                None,
-            )
-        }))
-        .await;
+        // Build submodule metadatas concurrently, stopping as soon as threshold succeed.
+        let mut pending: FuturesUnordered<_> = ism_addresses
+            .iter()
+            .enumerate()
+            .map(|(index, sub_ism_address)| {
+                let base = self.base.clone();
+                let params = params.clone();
+                let addr = *sub_ism_address;
+                async move {
+                    (
+                        index,
+                        addr,
+                        message_builder::build_message_metadata(base, addr, message, params, None)
+                            .await,
+                    )
+                }
+            })
+            .collect();
 
-        // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
-        for sub_module_res in sub_modules_and_metas.iter() {
-            if let Err(MetadataBuildError::Refused(reason)) = sub_module_res {
-                return Err(MetadataBuildError::Refused(reason.clone()));
+        let mut ok_sub_modules: Vec<IsmAndMetadata> = Vec::new();
+        let mut err_sub_modules: Vec<(H256, Option<ModuleType>)> = Vec::new();
+        let mut has_any_error = false;
+        let mut all_errors_awaiting = true;
+
+        while let Some((index, ism_address, result)) = pending.next().await {
+            match result {
+                Err(MetadataBuildError::Refused(reason)) => {
+                    return Err(MetadataBuildError::Refused(reason));
+                }
+                Err(e) => {
+                    has_any_error = true;
+                    if !matches!(e, MetadataBuildError::AwaitingValidatorSignatures) {
+                        all_errors_awaiting = false;
+                    }
+                    err_sub_modules.push((ism_address, None));
+                }
+                Ok(sub_module_and_meta) => {
+                    ok_sub_modules.push(IsmAndMetadata::new(
+                        sub_module_and_meta.ism,
+                        index,
+                        sub_module_and_meta.metadata,
+                    ));
+                    if ok_sub_modules.len() >= threshold {
+                        // Threshold met — drop remaining futures and proceed immediately.
+                        break;
+                    }
+                }
             }
         }
 
         // When every sub-module failure is purely "signatures not yet collected" and we
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
         // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
-        let ok_count = sub_modules_and_metas.iter().filter(|r| r.is_ok()).count();
-        if ok_count < threshold
-            && sub_modules_and_metas.iter().any(|r| r.is_err())
-            && sub_modules_and_metas
-                .iter()
-                .filter_map(|r| r.as_ref().err())
-                .all(|e| matches!(e, MetadataBuildError::AwaitingValidatorSignatures))
-        {
+        if ok_sub_modules.len() < threshold && has_any_error && all_errors_awaiting {
             return Err(MetadataBuildError::AwaitingValidatorSignatures);
         }
-
-        // Partitions things into
-        // 1. ok_sub_modules: ISMs with valid metadata
-        // 2. err_sub_modules: ISMs with invalid metadata
-        let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = sub_modules_and_metas
-            .into_iter()
-            .zip(ism_addresses.iter())
-            .enumerate()
-            .partition_map(|(index, (result, ism_address))| match result {
-                Ok(sub_module_and_meta) => Either::Left(IsmAndMetadata::new(
-                    sub_module_and_meta.ism,
-                    index,
-                    sub_module_and_meta.metadata,
-                )),
-                Err(_) => Either::Right((*ism_address, None)),
-            });
 
         let mut valid_metas =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules).await?;
