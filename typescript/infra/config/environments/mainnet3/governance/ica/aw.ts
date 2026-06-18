@@ -11,6 +11,7 @@ export const awIcas: ChainMap<Address> = {
   // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
 
   // keep safe-owned for now
+  // bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   // optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
 
   // Jul 2, 2025 - ICA 2.0 Migration
@@ -30,7 +31,6 @@ export const awIcas: ChainMap<Address> = {
   blast: '0xc242beF1ffd95C1b3B7e8d6bB87947d3ADb335Ad',
   bob: '0xcBbB0A004177f12672fF02837AEB25d04bE74621',
   boba: '0x1301a4D0E15ca5F595a0207aD7990B864E93469A',
-  bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   bsquared: '0x304B82cca054b240a3127b34Bd1dc91772Baa630',
   celo: '0x0691c077d180ca7615911b65DE4fA0B313d75aDd',
   chilizmainnet: '0x59E97fEb19c9E023c10489426a2a2B90BEcE8e40',
