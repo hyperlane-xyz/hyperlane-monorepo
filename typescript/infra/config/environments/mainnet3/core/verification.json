@@ -2674,6 +2674,12 @@
       "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000006d",
       "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0xd6fC2707494b1157e58881eA1ECa51C7508b1365",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
     }
   ],
   "oortmainnet": [
@@ -2995,6 +3001,12 @@
       "name": "ValidatorAnnounce",
       "address": "0x61374178e45F65fF9D6252d017Cd580FC60B7654",
       "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
+      "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0xf9c5e5048bB5eeBCebDe5C6C130406E2Ec39CaC9",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
   ],
@@ -3977,6 +3989,12 @@
       "name": "ValidatorAnnounce",
       "address": "0xD743801ABB6c7664B623D8534C0f5AF8cD2F1C5e",
       "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
+      "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0x1E217DdF98085fb539F29bdD5646012598B2a068",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
   ],
@@ -7699,6 +7717,12 @@
       "name": "ValidatorAnnounce",
       "address": "0x8452363d5c78bf95538614441Dc8B465e03A89ca",
       "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
+      "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
   ],
