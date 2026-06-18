@@ -15,6 +15,7 @@ export interface EstimateHandleGasParams {
 
 export interface EstimateCallGasParams {
   provider: providers.Provider;
+  from?: Address;
   to: Address;
   data: string;
   value?: BigNumber;
@@ -52,6 +53,7 @@ export async function estimateCallGas(
   try {
     // await required for catch to handle promise rejection
     return await params.provider.estimateGas({
+      from: params.from,
       to: params.to,
       data: params.data,
       value: params.value,
