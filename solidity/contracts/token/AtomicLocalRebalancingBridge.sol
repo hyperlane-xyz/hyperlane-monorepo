@@ -32,15 +32,24 @@ struct SelfBalanceSnapshot {
 /// @dev The wrapper is bound to a single immutable source router and must be
 /// configured as an allowed rebalancer/bridge on it. The source MUST implement
 /// `IRebalanceTargets`, used to authorize destinations.
+///
 /// @dev The destination is supplied per call and validated against the source's
 /// rebalance targets (`isRebalanceTarget`). It MUST hold a token economically at
 /// par with the source collateral: output is converted from input by decimals
 /// only, so a non-par target reverts or demands absurd top-ups. Par is a
 /// configuration-only invariant, under the same trust model as cross-collateral
 /// routing.
+///
 /// @dev `source.rebalance` resolves and uses the source's own configured
 /// recipient for its `CollateralMoved` event/quote, but this wrapper ignores the
 /// callback recipient and funds the validated `destinationRecipient` argument.
+/// @dev Operating invariants the bridge is expected to hold:
+/// - Only an allowlisted rebalancer may call `rebalance`; the post-call invariants
+///   bound a compromised or buggy rebalancer, since the calls run arbitrary code.
+/// - A rebalance moves at most `amount` out of the source router and funds the
+///   destination only with output the calls produce.
+/// - The bridge keeps no value of its own: any balance present before a call is
+///   neither consumed to fund the destination nor refunded to the rebalancer.
 contract AtomicLocalRebalancingBridge is
     IRebalancingBridge,
     ITokenBridge,
@@ -107,27 +116,11 @@ contract AtomicLocalRebalancingBridge is
         bytes32 destinationRecipient,
         bytes calldata data
     ) external payable override nonReentrant {
-        // Validate inputs
-        if (domain != localDomain) revert InvalidCallback();
-        if (address(sourceRouter) != allowedSourceRouter)
-            revert InvalidSource();
-
-        MovableCollateralRouter source = MovableCollateralRouter(
-            allowedSourceRouter
+        MovableCollateralRouter source = _validateAndParseSourceRouter(
+            domain,
+            sourceRouter
         );
-        if (!source.isAllowedRebalancer(msg.sender)) {
-            revert UnauthorizedRebalancer();
-        }
-
-        if (
-            !IRebalanceTargets(allowedSourceRouter).isRebalanceTarget(
-                localDomain,
-                destinationRecipient
-            )
-        ) {
-            revert InvalidRecipient();
-        }
-        address destinationRouter = TypeCasts.bytes32ToAddress(
+        address destinationRouter = _validateAndParseDestinationAddress(
             destinationRecipient
         );
 
@@ -144,33 +137,143 @@ contract AtomicLocalRebalancingBridge is
             amount
         );
 
-        // Snapshot balances before escrow so the post-call invariants can bound
-        // what the rebalancer's calls moved.
-        uint256 sourceBalanceBefore = IERC20(sourceToken).balanceOf(
-            address(this)
+        // Snapshot balances before escrow so the post-call invariants and the
+        // refund can isolate what the rebalancer's calls moved.
+        SelfBalanceSnapshot memory selfBefore = _snapshotSelfTokenBalances(
+            sourceToken,
+            destinationToken
         );
-        SelfBalanceSnapshot memory selfBefore = SelfBalanceSnapshot({
-            sourceToken: sourceBalanceBefore,
-            // Shared source/destination token reuses the source snapshot;
-            // otherwise exclude any pre-existing destination-token balance.
-            destinationToken: destinationToken == sourceToken
-                ? sourceBalanceBefore
-                : IERC20(destinationToken).balanceOf(address(this)),
-            // Native the wrapper already held, excluding this call's `msg.value`.
-            native: address(this).balance - msg.value
-        });
-
         uint256 sourceRouterBalanceBefore = IERC20(sourceToken).balanceOf(
             allowedSourceRouter
         );
 
         // Escrow the source collateral, then run the rebalancer's calls.
-        _pullSourceCollateral(source, amount);
+        _pullSourceRouterCollateral(source, amount);
         CallLib.multicall(abi.decode(data, (CallLib.Call[])));
 
-        // Verify the calls preserved the invariants and produced enough output to
-        // settle. The source router may be topped up, but the calls must not drain
-        // more than the escrowed amount from it.
+        _validatePostCallBalances(
+            sourceToken,
+            destinationToken,
+            amount,
+            requiredOutputAmount,
+            sourceRouterBalanceBefore,
+            selfBefore
+        );
+
+        // Fund the destination with the output the calls produced.
+        IERC20(destinationToken).safeTransfer(
+            destinationRouter,
+            requiredOutputAmount
+        );
+
+        // Refund balances accrued during the call; pre-existing balances untouched.
+        _refundAccruedBalances(sourceToken, destinationToken, selfBefore);
+
+        emit LocalRebalanceExecuted(
+            destinationRouter,
+            amount,
+            requiredOutputAmount
+        );
+    }
+
+    // ============ Internal ============
+
+    /// @dev Validates the rebalance gate conditions — local domain, the source echo
+    /// matches the bound router, and the caller is an allowed rebalancer — and
+    /// returns the bound source router as a `MovableCollateralRouter`.
+    function _validateAndParseSourceRouter(
+        uint32 domain,
+        ITokenBridge sourceRouter
+    ) internal view returns (MovableCollateralRouter source) {
+        if (domain != localDomain) {
+            revert InvalidCallback();
+        }
+
+        if (address(sourceRouter) != allowedSourceRouter) {
+            revert InvalidSource();
+        }
+
+        source = MovableCollateralRouter(allowedSourceRouter);
+        if (!source.isAllowedRebalancer(msg.sender)) {
+            revert UnauthorizedRebalancer();
+        }
+    }
+
+    /// @dev Validates `destinationRecipient` against the source's rebalance targets
+    /// and returns the destination router address it encodes.
+    function _validateAndParseDestinationAddress(
+        bytes32 destinationRecipient
+    ) internal view returns (address) {
+        if (
+            !IRebalanceTargets(allowedSourceRouter).isRebalanceTarget(
+                localDomain,
+                destinationRecipient
+            )
+        ) {
+            revert InvalidRecipient();
+        }
+
+        return TypeCasts.bytes32ToAddress(destinationRecipient);
+    }
+
+    /// @dev Snapshots the balances this contract holds before escrow. The post-call
+    /// invariants require new output (not pre-existing balances) to fund the
+    /// destination, and the refund returns only balances accrued during the call.
+    /// `native` excludes this call's `msg.value`.
+    function _snapshotSelfTokenBalances(
+        address sourceToken,
+        address destinationToken
+    ) internal view returns (SelfBalanceSnapshot memory) {
+        uint256 sourceBalanceBefore = IERC20(sourceToken).balanceOf(
+            address(this)
+        );
+
+        return
+            SelfBalanceSnapshot({
+                sourceToken: sourceBalanceBefore,
+                // A shared source/destination token reuses the source snapshot (a
+                // same-asset rebalance funds the destination straight from escrow
+                // with no swap); otherwise exclude any pre-existing destination
+                // balance.
+                destinationToken: destinationToken == sourceToken
+                    ? sourceBalanceBefore
+                    : IERC20(destinationToken).balanceOf(address(this)),
+                native: address(this).balance - msg.value
+            });
+    }
+
+    /// @dev Pulls `amount` of source collateral into this wrapper via
+    /// the source's canonical rebalance flow, which calls back into
+    /// `transferRemote`. The callback slot authenticates and is consumed by that
+    /// single callback; this enforces exactly one pull and blocks any further
+    /// callback during the arbitrary calls or refunds below.
+    function _pullSourceRouterCollateral(
+        MovableCollateralRouter source,
+        uint256 amount
+    ) internal {
+        _CALLBACK_ACTIVE_SLOT.store(
+            TypeCasts.addressToBytes32(address(source))
+        );
+
+        source.rebalance(localDomain, amount, this);
+        if (_CALLBACK_ACTIVE_SLOT.loadBytes32() != bytes32(0)) {
+            revert MissingCallback();
+        }
+    }
+
+    /// @dev Post-call invariants. The calls run with this wrapper's privileges, so
+    /// these bound what they can do: the source router is not drained beyond the
+    /// escrowed `amount`, the wrapper's pre-existing source and native balances are
+    /// untouched, and enough new output is produced to fund the destination.
+    function _validatePostCallBalances(
+        address sourceToken,
+        address destinationToken,
+        uint256 amount,
+        uint256 requiredOutputAmount,
+        uint256 sourceRouterBalanceBefore,
+        SelfBalanceSnapshot memory selfBefore
+    ) internal view {
+        // The source router may be topped up, but not drained beyond `amount`.
         require(
             IERC20(sourceToken).balanceOf(allowedSourceRouter) >=
                 sourceRouterBalanceBefore - amount,
@@ -185,29 +288,28 @@ contract AtomicLocalRebalancingBridge is
             ERR_PREEXISTING_SOURCE_SPENT
         );
 
-        // Calls may spend this call's `msg.value`, never native the wrapper already
-        // held before escrow.
+        // Calls may spend this call's `msg.value`, never pre-existing native.
         require(
             address(this).balance >= selfBefore.native,
             ERR_PREEXISTING_NATIVE_SPENT
         );
 
         // Calls must produce at least requiredOutputAmount of new output; balances
-        // already held cannot fund the destination. This gates the transfer below.
+        // already held cannot fund the destination.
         require(
             IERC20(destinationToken).balanceOf(address(this)) >=
                 selfBefore.destinationToken + requiredOutputAmount,
             ERR_INSUFFICIENT_OUTPUT
         );
+    }
 
-        // Settle: fund the destination, then refund only the balances accrued during
-        // this call to the rebalancer; balances the wrapper held before escrow are
-        // left untouched.
-        IERC20(destinationToken).safeTransfer(
-            destinationRouter,
-            requiredOutputAmount
-        );
-
+    /// @dev Refunds the token and native balances accrued during the call to the
+    /// rebalancer; balances the wrapper held before escrow are left untouched.
+    function _refundAccruedBalances(
+        address sourceToken,
+        address destinationToken,
+        SelfBalanceSnapshot memory selfBefore
+    ) internal {
         _refundTokenBalance(sourceToken, selfBefore.sourceToken, msg.sender);
         if (destinationToken != sourceToken) {
             _refundTokenBalance(
@@ -217,38 +319,12 @@ contract AtomicLocalRebalancingBridge is
             );
         }
 
-        // Refund this call's unspent native; native held before escrow is untouched.
         uint256 nativeBalance = address(this).balance;
         if (nativeBalance > selfBefore.native) {
             Address.sendValue(
                 payable(msg.sender),
                 nativeBalance - selfBefore.native
             );
-        }
-
-        emit LocalRebalanceExecuted(
-            destinationRouter,
-            amount,
-            requiredOutputAmount
-        );
-    }
-
-    /// @dev Pulls `amount` of source collateral into this wrapper via
-    /// the source's canonical rebalance flow, which calls back into
-    /// `transferRemote`. The callback slot authenticates and is consumed by that
-    /// single callback; this enforces exactly one pull and blocks any further
-    /// callback during the arbitrary calls or refunds below.
-    function _pullSourceCollateral(
-        MovableCollateralRouter source,
-        uint256 amount
-    ) internal {
-        _CALLBACK_ACTIVE_SLOT.store(
-            TypeCasts.addressToBytes32(address(source))
-        );
-
-        source.rebalance(localDomain, amount, this);
-        if (_CALLBACK_ACTIVE_SLOT.loadBytes32() != bytes32(0)) {
-            revert MissingCallback();
         }
     }
 
