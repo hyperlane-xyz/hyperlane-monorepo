@@ -71,6 +71,7 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'electroneum',
     'incentiv',
     'metis',
+    'ontology',
     'prom',
     'pulsechain',
     'taiko',
