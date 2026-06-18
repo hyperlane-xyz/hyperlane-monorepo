@@ -179,7 +179,7 @@ export async function baseDeploy<
   deployer: HyperlaneDeployer<Config, Factories>,
   multiProvider: MultiProvider,
   concurrentDeploy: boolean,
-  onChainDeployed?: (chain: ChainName) => void,
+  onChainSettled?: (chain: ChainName) => void,
 ): Promise<HyperlaneContractsMap<Factories>> {
   const configChains = Object.keys(configMap);
   const ethereumConfigChains = configChains.filter((chain) =>
@@ -223,7 +223,7 @@ export async function baseDeploy<
                 } still in-flight: ${inFlightChains.join(', ')}`,
           ),
         );
-        onChainDeployed?.(chain);
+        onChainSettled?.(chain);
       })
       .catch((error) => {
         deployStatus[chain] = DeployStatus.FAILURE;
@@ -233,6 +233,7 @@ export async function baseDeploy<
         if (error?.stack) {
           console.error(chalk.gray(error.stack));
         }
+        onChainSettled?.(chain);
       });
   };
 
