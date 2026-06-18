@@ -620,8 +620,11 @@ export class HyperlaneSmartProvider
     // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
     // Also, no nested error means ethers failed to decode empty return data - also permanent
     const rpcBlockchainError = errors.find((e) => {
-      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
-      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      const errorCode = e?.code;
+      if (!errorCode || !RPC_BLOCKCHAIN_ERRORS.includes(errorCode)) {
+        return false;
+      }
+      if (errorCode !== EthersError.CALL_EXCEPTION) return true;
       // For CALL_EXCEPTION, check if it's a real revert or decode failure
       const hasRevertData = !!e.data && e.data !== '0x';
       // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
@@ -634,11 +637,11 @@ export class HyperlaneSmartProvider
     });
 
     const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+      e?.code ? RPC_SERVER_ERRORS.includes(e.code) : false,
     );
 
     const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
+      (e) => e?.status === ProviderStatus.Timeout,
     );
 
     if (rpcBlockchainError) {

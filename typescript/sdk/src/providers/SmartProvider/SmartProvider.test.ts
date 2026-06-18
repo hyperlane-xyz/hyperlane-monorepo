@@ -8,7 +8,11 @@ import {
 } from './ProviderMethods.js';
 import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
-import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
+import {
+  BlockchainError,
+  getSmartProviderErrorMessage,
+  HyperlaneSmartProvider,
+} from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 import { isMissingSelectorCallException } from '../../utils/contract.js';
 
@@ -351,6 +355,26 @@ describe('SmartProvider', () => {
       expect(e.isRecoverable).to.be.undefined;
       expect(e.cause).to.equal(error);
       expect(e.cause.code).to.equal(EthersError.SERVER_ERROR);
+    });
+
+    it('ignores malformed errors when selecting SERVER_ERROR', () => {
+      const error = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [null, error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.cause).to.equal(error);
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+      );
     });
 
     it('throws regular Error for TIMEOUT (not BlockchainError)', () => {

@@ -121,6 +121,16 @@ const domainRoutingInitializationSize = (destination: ChainName) => {
   return 300;
 };
 
+const domainRoutingSetGasBuffer = (destination: ChainName) => {
+  // MegaETH underestimates incremental routing ISM set() gas by ~2x.
+  // Use a larger buffer only for per-domain enrollments on that chain.
+  if (destination === 'megaeth') {
+    return 150;
+  }
+
+  return 15;
+};
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -757,7 +767,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             safeConfigDomains[i],
             submoduleAddresses[i],
             {
-              gasLimit: addBufferToGasLimit(estimatedGas, 15),
+              gasLimit: addBufferToGasLimit(
+                estimatedGas,
+                domainRoutingSetGasBuffer(destination),
+              ),
               ...overrides,
             },
           );
