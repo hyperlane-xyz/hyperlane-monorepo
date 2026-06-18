@@ -1,17 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
 import { GovernanceType } from '../src/governanceTypes.js';
 import {
-  getImplementationAddressOverrides,
-  getPostUpgradeConfigChains,
-  getTimelockPostExecutionConfigChains,
+  getDeferredTimelockConfigChains,
+  getUpgradeTargetImplementation,
   isMissingPackageVersionError,
-  mergeImplementationAddresses,
   splitProposableGroups,
 } from '../scripts/igp/upgrade-compatible-igps.js';
 
@@ -52,71 +47,7 @@ describe('upgrade-compatible-igps', () => {
     });
   });
 
-  describe('getImplementationAddressOverrides', () => {
-    const supportedChains = new Set(['ethereum', 'arbitrum']);
-    let dir: string;
-
-    beforeEach(() => {
-      dir = mkdtempSync(join(tmpdir(), 'igp-upgrade-test-'));
-    });
-
-    afterEach(() => {
-      rmSync(dir, { recursive: true, force: true });
-    });
-
-    function writeOverrides(value: unknown) {
-      const filepath = join(dir, 'overrides.json');
-      writeFileSync(filepath, JSON.stringify(value));
-      return filepath;
-    }
-
-    it('loads valid chain implementation overrides', () => {
-      const implementation = '0x1111111111111111111111111111111111111111';
-      const filepath = writeOverrides({ ethereum: implementation });
-
-      expect(
-        getImplementationAddressOverrides(filepath, supportedChains),
-      ).to.deep.equal({
-        ethereum: implementation,
-      });
-    });
-
-    it('rejects unsupported chains and invalid addresses', () => {
-      expect(() =>
-        getImplementationAddressOverrides(
-          writeOverrides(['0x1111111111111111111111111111111111111111']),
-          supportedChains,
-        ),
-      ).to.throw('must contain a JSON object');
-
-      expect(() =>
-        getImplementationAddressOverrides(
-          writeOverrides({
-            unknown: '0x1111111111111111111111111111111111111111',
-          }),
-          supportedChains,
-        ),
-      ).to.throw('unsupported chain unknown');
-
-      expect(() =>
-        getImplementationAddressOverrides(
-          writeOverrides({
-            ethereum: '0x0000000000000000000000000000000000000000',
-          }),
-          supportedChains,
-        ),
-      ).to.throw('implementation is zero address');
-
-      expect(() =>
-        getImplementationAddressOverrides(
-          writeOverrides({ ethereum: 'not-an-address' }),
-          supportedChains,
-        ),
-      ).to.throw('is not an EVM address');
-    });
-  });
-
-  it('splits immediate and timelock post-upgrade config chains', () => {
+  it('detects timelock chains with deferred config txs', () => {
     const plans = [
       {
         chain: 'ethereum',
@@ -128,38 +59,41 @@ describe('upgrade-compatible-igps', () => {
         chain: 'arbitrum',
         targetVersion: '1.0.0',
         status: 'timelock queued',
-        detail: 'timelock schedule proposal',
+        detail: 'timelock schedule proposal; 2 config tx(s) deferred',
       },
       {
         chain: 'optimism',
         targetVersion: '1.0.0',
         status: 'scheduled',
-        detail: 'timelock operation already scheduled',
+        detail: 'timelock operation already scheduled; 1 config tx(s) deferred',
       },
     ];
 
-    expect(getPostUpgradeConfigChains(plans)).to.deep.equal(['ethereum']);
-    expect(getTimelockPostExecutionConfigChains(plans)).to.deep.equal([
+    expect(getDeferredTimelockConfigChains(plans)).to.deep.equal([
       'arbitrum',
       'optimism',
     ]);
   });
 
-  it('prefers igp verification implementations over core fallback', () => {
+  it('extracts target implementation from ProxyAdmin upgrade calldata', () => {
+    const proxyAdmin = '0x1111111111111111111111111111111111111111';
+    const proxy = '0x2222222222222222222222222222222222222222';
+    const implementation = '0x3333333333333333333333333333333333333333';
+    const data = ProxyAdmin__factory.createInterface().encodeFunctionData(
+      'upgrade',
+      [proxy, implementation],
+    );
+
     expect(
-      mergeImplementationAddresses({
-        igpImplementations: {
-          ethereum: '0x1111111111111111111111111111111111111111',
+      getUpgradeTargetImplementation({
+        tx: {
+          to: proxyAdmin,
+          data,
         },
-        coreImplementations: {
-          ethereum: '0x2222222222222222222222222222222222222222',
-          arbitrum: '0x3333333333333333333333333333333333333333',
-        },
+        proxyAdminAddress: proxyAdmin,
+        proxyAddress: proxy,
       }),
-    ).to.deep.equal({
-      ethereum: '0x1111111111111111111111111111111111111111',
-      arbitrum: '0x3333333333333333333333333333333333333333',
-    });
+    ).to.equal(implementation);
   });
 
   it('splits raw fallback Safe groups out of propose mode', () => {
