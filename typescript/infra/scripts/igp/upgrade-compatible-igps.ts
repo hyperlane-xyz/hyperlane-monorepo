@@ -1,6 +1,5 @@
-import { mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { basename, dirname, join } from 'path';
-import yargs from 'yargs';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
@@ -46,6 +45,8 @@ import {
 import { determineGovernanceType, Owner } from '../../src/governance.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
+import type { DeployEnvironment } from '../../src/config/deploy-environment.js';
+import { getEnvironmentDirectory } from '../../src/paths.js';
 import { logTable } from '../../src/utils/log.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import {
@@ -90,6 +91,13 @@ type SafeCallGroup = {
   calls: UpgradeCall[];
 };
 
+type VerificationArtifact = {
+  name: string;
+  address: Address;
+  isProxy?: boolean;
+  expectedimplementation?: Address;
+};
+
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -110,6 +118,40 @@ function getImplementationAddress(
   implementations: ChainMap<Address>,
 ): Address | undefined {
   return implementations[chain];
+}
+
+function getImplementationAddressesFromVerificationArtifacts(
+  environment: DeployEnvironment,
+  chainAddresses: ChainMap<{ interchainGasPaymaster?: Address }>,
+): ChainMap<Address> {
+  const implementations: ChainMap<Address> = {};
+  for (const module of ['igp', 'core']) {
+    const filepath = join(
+      getEnvironmentDirectory(environment),
+      module,
+      'verification.json',
+    );
+    if (!existsSync(filepath)) continue;
+
+    const artifactsByChain =
+      readJson<ChainMap<VerificationArtifact[]>>(filepath);
+    for (const [chain, artifacts] of Object.entries(artifactsByChain)) {
+      const interchainGasPaymaster =
+        chainAddresses[chain]?.interchainGasPaymaster;
+      if (!interchainGasPaymaster) continue;
+
+      const proxyArtifact = artifacts.find(
+        (artifact) =>
+          artifact.isProxy &&
+          artifact.expectedimplementation &&
+          eqAddress(artifact.address, interchainGasPaymaster),
+      );
+      if (proxyArtifact?.expectedimplementation) {
+        implementations[chain] = proxyArtifact.expectedimplementation;
+      }
+    }
+  }
+  return implementations;
 }
 
 async function getCurrentVersion(
@@ -469,8 +511,7 @@ async function main() {
             .option('implementationAddressesFile', {
               type: 'string',
               describe:
-                'JSON map of chain name to already deployed InterchainGasPaymaster implementation address',
-              demandOption: true,
+                'Optional JSON map of chain name to already deployed InterchainGasPaymaster implementation address. Overrides verification artifacts.',
             })
             .option('all', {
               type: 'boolean',
@@ -493,10 +534,17 @@ async function main() {
     'Refusing to propose for all compatible chains without --all. Pass --chains or --all.',
   );
 
-  const implementationAddresses = readJson<ChainMap<Address>>(
-    implementationAddressesFile,
-  );
   const envConfig = getEnvironmentConfig(environment);
+  const chainAddresses = getEnvAddresses(environment);
+  const implementationAddresses = {
+    ...getImplementationAddressesFromVerificationArtifacts(
+      environment,
+      chainAddresses,
+    ),
+    ...(implementationAddressesFile
+      ? readJson<ChainMap<Address>>(implementationAddressesFile)
+      : {}),
+  };
   const requested = chains && chains.length > 0 ? new Set(chains) : undefined;
   const targetChains = envConfig.supportedChainNames.filter((chain) => {
     if (requested && !requested.has(chain)) return false;
@@ -510,7 +558,6 @@ async function main() {
     true,
     targetChains,
   );
-  const chainAddresses = getEnvAddresses(environment);
   const icaAddresses = Object.fromEntries(
     Object.entries(chainAddresses).filter(
       ([, addresses]) => !!addresses.interchainAccountRouter,
