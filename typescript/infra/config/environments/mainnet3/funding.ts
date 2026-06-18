@@ -64,7 +64,10 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: [],
+  // Confirmed-offline chains: RPCs unreachable + ~0 traffic over 30d. Skip
+  // funding so we stop topping up relayers on dead chains. Revisit if the
+  // chain comes back online or is formally deprecated in the registry.
+  chainsToSkip: ['artela', 'molten'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
