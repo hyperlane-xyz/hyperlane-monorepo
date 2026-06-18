@@ -550,8 +550,17 @@ export class EvmIsmModule extends HyperlaneModule<
       );
       if (onChainAddresses.length !== targetAgg.modules.length) return null;
 
+      // Bail out if any two modules share a type: sort-by-type pairing is
+      // ambiguous when duplicates exist, risking wrong-child mutations.
+      const targetTypes = targetAgg.modules.map((m) =>
+        typeof m === 'object' && m !== null ? (m as { type: string }).type : m,
+      );
+      if (new Set(targetTypes).size !== targetTypes.length) return null;
+
       // Derive each sub-module's type so we can sort addresses to match the
       // normalizeConfig sort order (modules sorted by IsmType string value).
+      // targetAgg.modules is already sorted by normalizeConfig, so only the
+      // on-chain side needs sorting.
       const onChainTyped = await Promise.all(
         onChainAddresses.map(async (addr) => {
           const cfg = await this.reader.deriveIsmConfig(addr);
@@ -561,16 +570,9 @@ export class EvmIsmModule extends HyperlaneModule<
       onChainTyped.sort((a, b) =>
         a.type < b.type ? -1 : a.type > b.type ? 1 : 0,
       );
-      const sortedTargetModules = [...targetAgg.modules].sort((a, b) => {
-        const aType =
-          typeof a === 'object' && a !== null ? (a as any).type : String(a);
-        const bType =
-          typeof b === 'object' && b !== null ? (b as any).type : String(b);
-        return aType < bType ? -1 : aType > bType ? 1 : 0;
-      });
       subModules = onChainTyped.map(({ addr }, i) => ({
         address: addr,
-        targetConfig: sortedTargetModules[i],
+        targetConfig: targetAgg.modules[i],
       }));
     } else if (
       current.type === IsmType.AMOUNT_ROUTING &&

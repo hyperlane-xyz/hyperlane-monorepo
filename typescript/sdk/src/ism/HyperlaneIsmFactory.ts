@@ -641,8 +641,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           await getZKSyncArtifactByContractName(config.type),
         );
         // TODO: Should verify contract here
-        // Guard against re-initialization when a previous run deployed this
-        // contract but failed before completing subsequent steps.
+        // Defensive double-init guard (fresh CREATE address, so this never
+        // fires in practice; kept for safety).
         if (
           !(await isInitialized(
             this.multiProvider.getProvider(destination),
@@ -687,6 +687,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             config.type,
             [],
           );
+          // ZkSync uses deterministic addresses, so a re-run after a
+          // mid-deploy crash can land on an already-initialized contract.
           if (
             !(await isInitialized(
               this.multiProvider.getProvider(destination),

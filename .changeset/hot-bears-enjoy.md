@@ -1,6 +1,6 @@
 ---
-"@hyperlane-xyz/infra": patch
 "@hyperlane-xyz/sdk": patch
+"@hyperlane-xyz/infra": patch
 ---
 
-Fixed bsc owner and owner updates in sdk
+Fixed ISM initialization guard on retry, added in-place ISM sub-module updates for ownership changes, and replaced static Safe nonce overrides with dynamic next-nonce fetching.
