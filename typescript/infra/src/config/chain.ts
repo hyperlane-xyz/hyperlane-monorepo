@@ -66,6 +66,7 @@ export function getDisabledChains(): ChainName[] {
 // legacy recover-only deployments to latest IGP deployments while disabled.
 export const legacyIgpChains: ChainName[] = Array.from(
   new Set([
+    'arcadia',
     'chilizmainnet',
     'coti',
     'electroneum',
