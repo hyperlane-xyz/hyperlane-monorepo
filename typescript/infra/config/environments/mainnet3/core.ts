@@ -20,7 +20,7 @@ import {
   defaultMultisigConfigs,
   multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { getChain, getChainAddresses } from '../../registry.js';
 import { legacyIgpChains } from '../../../src/config/chain.js';
@@ -194,12 +194,16 @@ export function getCore(): ChainMap<CoreConfig> {
       // Some legacy chains do not support PUSH0/Cancun bytecode. Reuse
       // existing hooks and the pausable ISM while still allowing routing/static
       // ISMs to be deployed and configured from the current validator config.
+      const recoveredPausableIsm: WithAddress<PausableIsmConfig> = {
+        ...pausableIsm,
+        address: addresses.pausableIsm,
+      };
       return {
         defaultIsm: isZksyncChain
           ? defaultIsm
           : {
               type: IsmType.AGGREGATION,
-              modules: [routingIsm, addresses.pausableIsm],
+              modules: [routingIsm, recoveredPausableIsm],
               threshold: 2,
             },
         defaultHook: addresses.fallbackRoutingHook,

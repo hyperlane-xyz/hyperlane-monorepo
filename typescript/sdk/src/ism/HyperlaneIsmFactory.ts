@@ -264,13 +264,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           config.nativeBridge,
         ]);
         break;
-      case IsmType.PAUSABLE:
-        contract = await this.deployer.deployContract(
-          destination,
-          IsmType.PAUSABLE,
-          [config.owner],
-        );
+      case IsmType.PAUSABLE: {
+        const configAddress = (config as { address?: Address }).address;
+        // Address-bearing configs represent recovered artifacts. Normal
+        // pausable configs omit address and deploy a chain/route-local ISM.
+        contract = configAddress
+          ? PausableIsm__factory.connect(
+              configAddress,
+              this.multiProvider.getSignerOrProvider(destination),
+            )
+          : await this.deployer.deployContract(destination, IsmType.PAUSABLE, [
+              config.owner,
+            ]);
         break;
+      }
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         contract = await this.deployer.deployContract(
