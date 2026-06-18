@@ -330,9 +330,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     await this.transferOwnershipOfContracts(chain, config, ownableContracts);
 
-    return {
-      ...ownableContracts,
-      quotedCalls,
-    };
+    // Optional contracts must be omitted, not returned as undefined leaves.
+    // Address artifact serialization expects every present value to be a contract.
+    return quotedCalls
+      ? {
+          ...ownableContracts,
+          quotedCalls,
+        }
+      : ownableContracts;
   }
 }

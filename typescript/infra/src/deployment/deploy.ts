@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import {
   ChainMap,
   ChainName,
+  HyperlaneAddressesMap,
   HyperlaneContractsMap,
   HyperlaneDeployer,
   HyperlaneFactories,
@@ -143,6 +144,7 @@ export async function deployWithArtifacts<Config extends object>({
       deployer,
       multiProvider,
       concurrentDeploy,
+      (chain) => writeDeploymentAddresses(deployer, cache, [chain]),
     );
   } else {
     try {
@@ -177,6 +179,7 @@ export async function baseDeploy<
   deployer: HyperlaneDeployer<Config, Factories>,
   multiProvider: MultiProvider,
   concurrentDeploy: boolean,
+  onChainDeployed?: (chain: ChainName) => void,
 ): Promise<HyperlaneContractsMap<Factories>> {
   const configChains = Object.keys(configMap);
   const ethereumConfigChains = configChains.filter((chain) =>
@@ -220,6 +223,7 @@ export async function baseDeploy<
                 } still in-flight: ${inFlightChains.join(', ')}`,
           ),
         );
+        onChainDeployed?.(chain);
       })
       .catch((error) => {
         deployStatus[chain] = DeployStatus.FAILURE;
@@ -249,12 +253,7 @@ async function postDeploy<Config extends object>(
   targetNetworks: ChainName[],
 ) {
   if (cache.write) {
-    const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
-    const cachedAddresses = deployer.cachedAddresses;
-    const addresses = objMerge(deployedAddresses, cachedAddresses);
-
-    // cache addresses of deployed contracts
-    writeAddresses(cache.environment, cache.module, addresses, targetNetworks);
+    writeDeploymentAddresses(deployer, cache, targetNetworks);
 
     let savedVerification = {};
     try {
@@ -288,4 +287,67 @@ async function postDeploy<Config extends object>(
       deduplicatedVerificationInputs,
     );
   }
+}
+
+function writeDeploymentAddresses<Config extends object>(
+  deployer: HyperlaneDeployer<Config, any>,
+  cache: DeployCache,
+  targetNetworks: ChainName[],
+) {
+  if (!cache.write) {
+    return;
+  }
+
+  const chains = getAddressWriteChains(deployer, targetNetworks);
+
+  for (const chain of chains) {
+    let deployedAddresses: HyperlaneAddressesMap<any> = {};
+    const deployedContracts = deployer.deployedContracts[chain];
+
+    if (deployedContracts) {
+      try {
+        deployedAddresses = serializeContractsMap({
+          [chain]: deployedContracts,
+        });
+      } catch (error) {
+        console.error(
+          chalk.red(
+            `Failed to serialize deployed contracts for ${chain}; writing cached addresses only`,
+          ),
+          error,
+        );
+      }
+    }
+
+    const cachedAddresses = deployer.cachedAddresses[chain]
+      ? { [chain]: deployer.cachedAddresses[chain] }
+      : {};
+    const addresses = objMerge(deployedAddresses, cachedAddresses);
+
+    if (Object.keys(addresses).length === 0) {
+      continue;
+    }
+
+    try {
+      writeAddresses(cache.environment, cache.module, addresses, [chain]);
+    } catch (error) {
+      console.error(chalk.red(`Failed to write addresses for ${chain}`), error);
+    }
+  }
+}
+
+function getAddressWriteChains<Config extends object>(
+  deployer: HyperlaneDeployer<Config, any>,
+  targetNetworks: ChainName[],
+): ChainName[] {
+  const chains = new Set([
+    ...Object.keys(deployer.deployedContracts),
+    ...Object.keys(deployer.cachedAddresses),
+  ]);
+
+  if (targetNetworks.length > 0) {
+    return targetNetworks.filter((chain) => chains.has(chain));
+  }
+
+  return Array.from(chains);
 }
