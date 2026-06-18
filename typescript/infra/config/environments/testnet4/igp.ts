@@ -26,7 +26,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 }
 
 function getOracleConfigWithOverrides(origin: ChainName) {
-  let oracleConfig = getStorageGasOracleConfig()[origin];
+  const oracleConfig = getStorageGasOracleConfig()[origin];
   return oracleConfig;
 }
 
