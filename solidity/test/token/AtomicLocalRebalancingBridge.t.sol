@@ -16,12 +16,6 @@ import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-// Mirror of the bridge's post-call invariant revert reasons.
-bytes constant ERR_SOURCE_ROUTER_OVERDRAWN = "ALRB: source router overdrawn";
-bytes constant ERR_PREEXISTING_SOURCE_SPENT = "ALRB: pre-existing source spent";
-bytes constant ERR_PREEXISTING_NATIVE_SPENT = "ALRB: pre-existing native spent";
-bytes constant ERR_INSUFFICIENT_OUTPUT = "ALRB: insufficient output produced";
-
 contract MockRebalanceRouter {
     using Quotes for Quote[];
 
@@ -636,7 +630,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(89e6);
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
         _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
@@ -652,7 +650,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
         _localRebalance(100e6, noCalls);
     }
 
@@ -676,7 +678,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_PREEXISTING_SOURCE_SPENT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.PreexistingSourceTokenSpent.selector
+        );
         _localRebalance(100e6, calls);
     }
 
@@ -774,7 +778,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         vm.deal(rebalancer, 1 ether);
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_PREEXISTING_NATIVE_SPENT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.PreexistingNativeBalanceSpent.selector
+        );
         bridge.rebalance{value: 1 ether}(
             LOCAL_DOMAIN,
             100e6,
@@ -862,7 +868,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
         localBridge.rebalance(
             LOCAL_DOMAIN,
             100e6,
@@ -915,7 +925,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_SOURCE_ROUTER_OVERDRAWN);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.SourceRouterOverdrawn.selector
+        );
         _localRebalance(100e6, calls);
     }
 
@@ -1184,7 +1196,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         swapTarget.setOutputAmount(100e6);
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
         _localRebalance(100e6, _rebalancerCalls(100e6));
     }
 
@@ -1316,7 +1332,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         CallLib.Call[] memory noCalls = new CallLib.Call[](0);
 
         vm.prank(rebalancer);
-        vm.expectRevert(ERR_INSUFFICIENT_OUTPUT);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
         _localRebalance(100e6, noCalls);
     }
 

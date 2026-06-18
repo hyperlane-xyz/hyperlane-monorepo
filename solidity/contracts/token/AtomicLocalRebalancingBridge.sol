@@ -83,16 +83,10 @@ contract AtomicLocalRebalancingBridge is
     error InvalidToken();
     error InvalidSource();
     error InvalidRecipient();
-
-    // Post-call invariant revert reasons.
-    string internal constant ERR_SOURCE_ROUTER_OVERDRAWN =
-        "ALRB: source router overdrawn";
-    string internal constant ERR_PREEXISTING_SOURCE_SPENT =
-        "ALRB: pre-existing source spent";
-    string internal constant ERR_PREEXISTING_NATIVE_SPENT =
-        "ALRB: pre-existing native spent";
-    string internal constant ERR_INSUFFICIENT_OUTPUT =
-        "ALRB: insufficient output produced";
+    error SourceRouterOverdrawn();
+    error PreexistingSourceTokenSpent();
+    error PreexistingNativeBalanceSpent();
+    error InsufficientOutputTokenProduced();
 
     constructor(uint32 _localDomain, address _sourceRouter) {
         if (!Address.isContract(_sourceRouter)) revert InvalidSource();
@@ -274,33 +268,35 @@ contract AtomicLocalRebalancingBridge is
         SelfBalanceSnapshot memory selfBefore
     ) internal view {
         // The source router may be topped up, but not drained beyond `amount`.
-        require(
-            IERC20(sourceToken).balanceOf(allowedSourceRouter) >=
-                sourceRouterBalanceBefore - amount,
-            ERR_SOURCE_ROUTER_OVERDRAWN
-        );
+        if (
+            IERC20(sourceToken).balanceOf(allowedSourceRouter) <
+            sourceRouterBalanceBefore - amount
+        ) {
+            revert SourceRouterOverdrawn();
+        }
 
         // Calls may consume at most the escrowed amount, never source collateral
         // this contract already held before escrow.
-        require(
-            IERC20(sourceToken).balanceOf(address(this)) >=
-                selfBefore.sourceToken,
-            ERR_PREEXISTING_SOURCE_SPENT
-        );
+        if (
+            IERC20(sourceToken).balanceOf(address(this)) <
+            selfBefore.sourceToken
+        ) {
+            revert PreexistingSourceTokenSpent();
+        }
 
         // Calls may spend this call's `msg.value`, never pre-existing native.
-        require(
-            address(this).balance >= selfBefore.native,
-            ERR_PREEXISTING_NATIVE_SPENT
-        );
+        if (address(this).balance < selfBefore.native) {
+            revert PreexistingNativeBalanceSpent();
+        }
 
         // Calls must produce at least requiredOutputAmount of new output; balances
         // already held cannot fund the destination.
-        require(
-            IERC20(destinationToken).balanceOf(address(this)) >=
-                selfBefore.destinationToken + requiredOutputAmount,
-            ERR_INSUFFICIENT_OUTPUT
-        );
+        if (
+            IERC20(destinationToken).balanceOf(address(this)) <
+            selfBefore.destinationToken + requiredOutputAmount
+        ) {
+            revert InsufficientOutputTokenProduced();
+        }
     }
 
     /// @dev Refunds the token and native balances accrued during the call to the
