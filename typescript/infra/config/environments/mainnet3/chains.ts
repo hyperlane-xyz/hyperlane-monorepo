@@ -66,6 +66,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 export const tokenPriceOverrides: ChainMap<string> = {
   incentiv: '0.003',
   krown: '0.0015',
+  tea: '10',
+  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -111,6 +113,16 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
+  // immutablezkevmmainnet: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
+  // xrplevm: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
   // xlayer: {
   //   blocks: {
   //     confirmations: 5,
@@ -133,12 +145,17 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
   // unichain: {
   //   blocks: {
-  //     confirmations: 8,
+  //     confirmations: 5,
   //   },
   // },
   // optimism: {
   //   blocks: {
   //     confirmations: 5,
+  //   },
+  // },
+  // prom: {
+  //   blocks: {
+  //     confirmations: 3,
   //   },
   // },
 };

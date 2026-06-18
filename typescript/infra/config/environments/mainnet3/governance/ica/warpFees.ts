@@ -122,4 +122,10 @@ export const warpFeesIcas: ChainMap<Address> = {
   // May 25, 2026
   // ----------------------------------------------------------
   nesa: '0x13517844C1F812884Bff1d6011817A7096DCa484',
+
+  // Jun 18, 2026
+  // ----------------------------------------------------------
+  nexus: '0x02A71708821D6e0bC9D4ecBF62e539157971987B',
+  robinhood: '0x41dEC5AB11f4481F78ba3a05f93369179dbc0d0f',
+  tea: '0x37a5630cF1C8DCf2F8E1F601a2Ea9700ADaAff60',
 };

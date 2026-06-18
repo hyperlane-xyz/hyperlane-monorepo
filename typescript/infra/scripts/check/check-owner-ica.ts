@@ -146,12 +146,14 @@ async function main() {
     // eslint-disable-next-line no-console
     console.table(mismatchedResults);
     process.exit(1);
-  } else if (failedChains.length > 0) {
+  }
+
+  if (failedChains.length > 0) {
     rootLogger.error(`Failed to process chains: ${failedChains.join(', ')}`);
     process.exit(1);
-  } else {
-    rootLogger.info('✅ All ICAs match the expected addresses.');
   }
+
+  rootLogger.info('✅ All ICAs match the expected addresses.');
   process.exit(0);
 }
 

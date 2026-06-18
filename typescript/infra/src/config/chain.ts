@@ -66,11 +66,13 @@ export function getDisabledChains(): ChainName[] {
 // legacy recover-only deployments to latest IGP deployments while disabled.
 export const legacyIgpChains: ChainName[] = Array.from(
   new Set([
+    'arcadia',
     'chilizmainnet',
     'coti',
     'electroneum',
     'incentiv',
     'metis',
+    'ontology',
     'prom',
     'pulsechain',
     'taiko',
@@ -86,14 +88,13 @@ export const legacyIgpChains: ChainName[] = Array.from(
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
+  'eden',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
   'abstract',
   'sophon',
-
-  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
 
   ...getDisabledChains(),
 ];

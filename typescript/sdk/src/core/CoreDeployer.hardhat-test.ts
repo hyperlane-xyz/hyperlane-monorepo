@@ -300,6 +300,21 @@ describe('core', async () => {
     });
   });
 
+  it('omits quotedCalls when disabled', async () => {
+    const deployerWithoutQuotedCalls = new HyperlaneCoreDeployer(
+      multiProvider,
+      ismFactory,
+    );
+    const [chain] = testChains;
+
+    const result = await deployerWithoutQuotedCalls.deployContracts(chain, {
+      ...coreConfig[chain],
+      deployQuotedCalls: false,
+    });
+
+    expect(result).not.to.have.property('quotedCalls');
+  });
+
   it('checks', async () => {
     const checker = new HyperlaneCoreChecker(
       multiProvider,

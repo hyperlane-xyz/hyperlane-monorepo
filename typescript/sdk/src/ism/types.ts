@@ -357,6 +357,14 @@ export const PausableIsmConfigSchema = PausableSchema.and(
     type: z.literal(IsmType.PAUSABLE),
   }),
 );
+export const DerivedPausableIsmConfigSchema = PausableIsmConfigSchema.and(
+  z.object({
+    address: ZHash,
+  }),
+);
+export type DerivedPausableIsmConfig = z.infer<
+  typeof DerivedPausableIsmConfigSchema
+>;
 
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({
@@ -464,6 +472,7 @@ export const IsmConfigSchema = z.union([
   ZHash,
   TestIsmConfigSchema,
   OpStackIsmConfigSchema,
+  DerivedPausableIsmConfigSchema,
   PausableIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
   CCIPIsmConfigSchema,
