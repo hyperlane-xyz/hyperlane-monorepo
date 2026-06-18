@@ -86,6 +86,7 @@ export const legacyIgpChains: ChainName[] = Array.from(
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
+  'eden',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
@@ -93,7 +94,10 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
-  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
+  // tmp
+  'xrplevm',
+  'viction',
+  'prom',
 
   ...getDisabledChains(),
 ];
