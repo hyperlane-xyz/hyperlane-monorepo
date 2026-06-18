@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'fs';
 import { basename, dirname, join } from 'path';
+import { pathToFileURL } from 'url';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
@@ -114,6 +115,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function getNestedRecord(
+  value: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  return isRecord(value[key]) ? value[key] : undefined;
+}
+
+export function isMissingPackageVersionError(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+
+  const nestedError = getNestedRecord(error, 'error');
+  const data = typeof error.data === 'string' ? error.data : nestedError?.data;
+  if (error.code === 'CALL_EXCEPTION' && data === '0x') return true;
+
+  return (
+    error.code === 'CALL_EXCEPTION' &&
+    typeof error.message === 'string' &&
+    error.message.includes('data="0x"')
+  );
+}
+
 function getImplementationAddressesFromVerificationArtifacts(
   environment: DeployEnvironment,
   chainAddresses: ChainMap<{ interchainGasPaymaster?: Address }>,
@@ -148,7 +170,7 @@ function getImplementationAddressesFromVerificationArtifacts(
   return implementations;
 }
 
-function getImplementationAddressOverrides(
+export function getImplementationAddressOverrides(
   filepath: string,
   supportedChains: Set<ChainName>,
 ): ChainMap<Address> {
@@ -187,6 +209,7 @@ async function getCurrentVersion(
       provider,
     ).PACKAGE_VERSION();
   } catch (error) {
+    if (!isMissingPackageVersionError(error)) throw error;
     rootLogger.info(
       `[${chain}] IGP does not expose PACKAGE_VERSION: ${formatError(error)}`,
     );
@@ -258,7 +281,7 @@ function getSafeGroupKey(chain: ChainName, governanceType: GovernanceType) {
   return `${chain}:${governanceType}`;
 }
 
-function getPostUpgradeConfigCommand({
+export function getPostUpgradeConfigCommand({
   environment,
   context,
   chains,
@@ -274,6 +297,12 @@ function getPostUpgradeConfigCommand({
     '--module igp',
     `--chains ${chains.join(' ')}`,
   ].join(' ');
+}
+
+export function getPostUpgradeConfigChains(plans: ChainPlan[]): ChainName[] {
+  return plans
+    .filter((plan) => plan.status === 'queued')
+    .map((plan) => plan.chain);
 }
 
 function addSafeCall(
@@ -393,7 +422,7 @@ async function routeTimelockCall({
   governanceType: GovernanceType;
   timelockAddress: Address;
   innerCall: UpgradeCall;
-}): Promise<string> {
+}): Promise<{ status: 'queued' | 'scheduled'; detail: string }> {
   const provider = ica.multiProvider.getProvider(chain);
   const timelock = TimelockController__factory.connect(
     timelockAddress,
@@ -418,7 +447,10 @@ async function routeTimelockCall({
     (await timelock.isOperationReady(operationId)) ||
     (await timelock.isOperationDone(operationId));
   if (isScheduled) {
-    return `timelock operation already scheduled/done: ${operationId}`;
+    return {
+      status: 'scheduled',
+      detail: `timelock operation already scheduled/done: ${operationId}`,
+    };
   }
 
   const scheduleCall: UpgradeCall = {
@@ -461,7 +493,10 @@ async function routeTimelockCall({
     });
   }
 
-  return `timelock operation queued for scheduling: ${operationId}`;
+  return {
+    status: 'queued',
+    detail: `timelock operation queued for scheduling: ${operationId}`,
+  };
 }
 
 function getGovernanceIcaAddress(
@@ -587,6 +622,42 @@ async function proposeSafeGroups({
     }
   }
   return results;
+}
+
+export function splitProposableGroups({
+  groups,
+  rawFallbackGroupKeys,
+}: {
+  groups: SafeCallGroup[];
+  rawFallbackGroupKeys: Set<string>;
+}): {
+  proposableGroups: SafeCallGroup[];
+  skippedProposalResults: ProposalResult[];
+} {
+  const proposableGroups: SafeCallGroup[] = [];
+  const skippedProposalResults: ProposalResult[] = [];
+
+  for (const group of groups) {
+    if (
+      !rawFallbackGroupKeys.has(
+        getSafeGroupKey(group.chain, group.governanceType),
+      )
+    ) {
+      proposableGroups.push(group);
+      continue;
+    }
+
+    skippedProposalResults.push({
+      chain: group.chain,
+      governanceType: group.governanceType,
+      safeAddress: group.safeAddress,
+      status: 'skipped',
+      detail:
+        'skipped propose because only raw fallback calldata was written; submit manually',
+    });
+  }
+
+  return { proposableGroups, skippedProposalResults };
 }
 
 async function main() {
@@ -840,7 +911,7 @@ async function main() {
           detail = `queued ${governanceType} ICA proposal from ethereum`;
           break;
         case Owner.TIMELOCK:
-          detail = await routeTimelockCall({
+          const timelockRoute = await routeTimelockCall({
             groups: safeGroups,
             ica,
             chain,
@@ -848,6 +919,24 @@ async function main() {
             timelockAddress: proxyAdminOwner,
             innerCall: upgradeCall,
           });
+          if (timelockRoute.status === 'scheduled') {
+            plans.push({
+              chain,
+              interchainGasPaymaster,
+              currentImplementation,
+              targetImplementation,
+              currentVersion,
+              targetVersion: CONTRACTS_PACKAGE_VERSION,
+              proxyAdmin: actualProxyAdmin,
+              proxyAdminOwner,
+              ownerType,
+              governanceType,
+              status: 'scheduled',
+              detail: timelockRoute.detail,
+            });
+            continue;
+          }
+          detail = timelockRoute.detail;
           break;
         case Owner.DEPLOYER:
           plans.push({
@@ -911,9 +1000,7 @@ async function main() {
   }
 
   const groups = [...safeGroups.values()];
-  const queuedUpgradeChains = plans
-    .filter((plan) => plan.status === 'queued')
-    .map((plan) => plan.chain);
+  const queuedUpgradeChains = getPostUpgradeConfigChains(plans);
   const postUpgradeConfigCommand =
     queuedUpgradeChains.length > 0
       ? getPostUpgradeConfigCommand({
@@ -934,34 +1021,18 @@ async function main() {
 
   const proposalResults: ProposalResult[] = [];
   if (propose) {
-    for (const group of groups) {
-      if (
-        !rawFallbackGroupKeys.has(
-          getSafeGroupKey(group.chain, group.governanceType),
-        )
-      ) {
-        continue;
-      }
-      const detail =
-        'skipped propose because only raw fallback calldata was written; submit manually';
-      proposalResults.push({
-        chain: group.chain,
-        governanceType: group.governanceType,
-        safeAddress: group.safeAddress,
-        status: 'skipped',
-        detail,
-      });
-      rootLogger.warn(`[${group.chain}] ${detail}`);
+    const { proposableGroups, skippedProposalResults } = splitProposableGroups({
+      groups,
+      rawFallbackGroupKeys,
+    });
+    proposalResults.push(...skippedProposalResults);
+    for (const result of skippedProposalResults) {
+      rootLogger.warn(`[${result.chain}] ${result.detail}`);
     }
 
     proposalResults.push(
       ...(await proposeSafeGroups({
-        groups: groups.filter(
-          (group) =>
-            !rawFallbackGroupKeys.has(
-              getSafeGroupKey(group.chain, group.governanceType),
-            ),
-        ),
+        groups: proposableGroups,
         multiProvider,
       })),
     );
@@ -1009,7 +1080,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  rootLogger.error(error);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    rootLogger.error(error);
+    process.exit(1);
+  });
+}
