@@ -79,10 +79,21 @@ function seismicSusdcOracleConfigs(): ChainMap<ProtocolAgnositicGasOracleConfigW
   });
 }
 
-export const tokenGasOracleConfigs: ChainMap<
+// Built lazily (and memoized): seismicSusdcOracleConfigs runs the gas-oracle
+// machinery and emits precision-rebalance warnings, so defer it until the IGP
+// config is actually built rather than at module import time.
+let tokenGasOracleConfigsCache:
+  | ChainMap<NonNullable<IgpConfig['tokenOracleConfig']>>
+  | undefined;
+export function getTokenGasOracleConfigs(): ChainMap<
   NonNullable<IgpConfig['tokenOracleConfig']>
-> = {
-  [SEISMIC]: {
-    [SEISMIC_SUSDC]: seismicSusdcOracleConfigs(),
-  },
-};
+> {
+  if (!tokenGasOracleConfigsCache) {
+    tokenGasOracleConfigsCache = {
+      [SEISMIC]: {
+        [SEISMIC_SUSDC]: seismicSusdcOracleConfigs(),
+      },
+    };
+  }
+  return tokenGasOracleConfigsCache;
+}

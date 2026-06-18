@@ -10,7 +10,7 @@ import {
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import { tokenGasOracleConfigs } from './tokenGasOracles.js';
+import { getTokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -56,6 +56,7 @@ export function getIgp(): ChainMap<IgpConfig> {
   if (igpCache) {
     return igpCache;
   }
+  const tokenGasOracleConfigs = getTokenGasOracleConfigs();
   igpCache = objMap(owners, (chain, ownerConfig): IgpConfig => {
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
