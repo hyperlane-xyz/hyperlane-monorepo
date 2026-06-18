@@ -316,19 +316,43 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       };
     }
 
-    const testRecipient = await this.deployTestRecipient(
-      chain,
-      this.cachedAddresses[chain].interchainSecurityModule,
-    );
-
-    const ownableContracts = {
+    const coreOwnableContracts = {
       mailbox,
       proxyAdmin,
       validatorAnnounce,
-      testRecipient,
     };
 
-    await this.transferOwnershipOfContracts(chain, config, ownableContracts);
+    await this.transferOwnershipOfContracts(
+      chain,
+      config,
+      coreOwnableContracts,
+    );
+
+    const ownableContracts = { ...coreOwnableContracts };
+
+    try {
+      // TestRecipient is diagnostic, so its ISM configuration should not block
+      // finalizing ownership for core contracts.
+      const testRecipient = await this.deployTestRecipient(
+        chain,
+        this.cachedAddresses[chain].interchainSecurityModule,
+      );
+
+      await this.transferOwnershipOfContracts(chain, config, {
+        testRecipient,
+      });
+
+      Object.assign(ownableContracts, { testRecipient });
+    } catch (error) {
+      if (this.cachedAddresses[chain]) {
+        delete this.cachedAddresses[chain].testRecipient;
+      }
+      this.logger.warn(
+        `Skipping TestRecipient on ${chain}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
 
     // Optional contracts must be omitted, not returned as undefined leaves.
     // Address artifact serialization expects every present value to be a contract.
