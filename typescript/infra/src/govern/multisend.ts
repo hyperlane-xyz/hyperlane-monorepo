@@ -1,6 +1,6 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import { SafeTransaction } from '@safe-global/types-kit';
 import chalk from 'chalk';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';

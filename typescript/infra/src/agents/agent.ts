@@ -9,6 +9,10 @@ export function isValidatorKey(role: Role) {
   return role === Role.Validator;
 }
 
+export function usesSharedValidatorKey(context: Contexts, role: Role) {
+  return context === Contexts.FastPath && role === Role.Validator;
+}
+
 function identifier(
   isKey: boolean,
   environment: string,
@@ -20,8 +24,11 @@ function identifier(
   const prefix = `${context}-${environment}-${isKey ? 'key-' : ''}`;
   switch (role) {
     case Role.Validator:
-      if (!chainName) throw Error('Expected chainName for validator key');
       if (index === undefined) throw Error('Expected index for validator key');
+      if (usesSharedValidatorKey(context, role)) {
+        return `${prefix}${role}-${index}`;
+      }
+      if (!chainName) throw Error('Expected chainName for validator key');
       return `${prefix}${chainName}-${role}-${index}`;
     // In the case of deployer keys not all the keys have the chainName included in their identifier
     case Role.Deployer:
@@ -69,7 +76,19 @@ export function parseKeyIdentifier(identifier: string): {
   const context = matches[2];
   const environment = matches[3];
 
-  if (matches[5] === undefined) {
+  if (
+    context === Contexts.FastPath &&
+    matches[4] === Role.Validator &&
+    matches[5] !== undefined &&
+    matches[6] === undefined
+  ) {
+    return {
+      context,
+      environment,
+      role: Role.Validator,
+      index: parseInt(matches[5]),
+    };
+  } else if (matches[5] === undefined) {
     // If matches[5] is undefined, this key doesn't have a chainName, and matches[4]
     // is the role name.
     return {

@@ -6,6 +6,8 @@ cache/
 deployment-plan.yaml
 deployment-plans/
 test/outputs
+safe-tx-output/
 config/environments/test/core/
 config/environments/test/igp/
 config/environments/test/ism/
+safe-tx-output/

@@ -48,5 +48,9 @@ path = "bin/recreate_db.rs"
 name = "generate-entities"
 path = "bin/generate_entities.rs"
 
+[[bin]]
+name = "create-raw-dispatch-reconciliation-index"
+path = "bin/create_raw_dispatch_reconciliation_index.rs"
+
 [features]
 default = []

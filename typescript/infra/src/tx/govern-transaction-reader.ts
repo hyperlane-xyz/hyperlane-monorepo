@@ -1,8 +1,5 @@
 import { Result } from '@ethersproject/abi';
-import {
-  MetaTransactionData,
-  OperationType,
-} from '@safe-global/safe-core-sdk-types';
+import { MetaTransactionData, OperationType } from '@safe-global/types-kit';
 import {
   getMultiSendCallOnlyDeployments,
   getMultiSendDeployments,

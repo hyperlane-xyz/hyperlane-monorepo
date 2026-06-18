@@ -51,6 +51,10 @@ export function isMissingSelectorCallException(error: unknown): boolean {
   if (!isRecord(error)) return false;
   if (isEmptyProviderResponse(error)) return true;
 
+  return isMissingSelectorRevert(error);
+}
+
+export function isMissingSelectorRevert(error: unknown): boolean {
   const callException = findCallException(error);
   if (!callException) return false;
 
@@ -73,6 +77,10 @@ export function isMissingSelectorCallException(error: unknown): boolean {
 
 export function throwIfNotMissingSelector(error: unknown): void {
   if (!isMissingSelectorCallException(error)) throw error;
+}
+
+export function throwIfNotMissingSelectorRevert(error: unknown): void {
+  if (!isMissingSelectorRevert(error)) throw error;
 }
 
 export async function contractHasString(

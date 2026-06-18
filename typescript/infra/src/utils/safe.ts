@@ -5,7 +5,7 @@ import {
   MetaTransactionData,
   OperationType,
   SafeTransaction,
-} from '@safe-global/safe-core-sdk-types';
+} from '@safe-global/types-kit';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
@@ -483,6 +483,48 @@ function findPrevOwner(owners: Address[], targetOwner: Address): Address {
   return owners[targetIndex - 1];
 }
 
+function assertValidExpectedOwners(
+  expectedOwners: Address[],
+  safeAddress: Address,
+): void {
+  const seenOwners = new Set<string>();
+  for (const owner of expectedOwners) {
+    assert(ethers.utils.isAddress(owner), `Invalid Safe owner ${owner}`);
+    assert(
+      !eqAddress(owner, ethers.constants.AddressZero),
+      'Safe owner cannot be the zero address',
+    );
+    assert(
+      !eqAddress(owner, SENTINEL_OWNERS),
+      `Safe owner cannot be sentinel owner ${SENTINEL_OWNERS}`,
+    );
+    assert(
+      !eqAddress(owner, safeAddress),
+      `Safe owner cannot be the Safe itself ${safeAddress}`,
+    );
+
+    const normalizedOwner = getAddress(owner).toLowerCase();
+    assert(!seenOwners.has(normalizedOwner), `Duplicate Safe owner ${owner}`);
+    seenOwners.add(normalizedOwner);
+  }
+}
+
+function findOwnerPosition(owners: Address[], targetOwner: Address): number {
+  const ownerIndex = owners.findIndex((owner) => eqAddress(owner, targetOwner));
+  assert(ownerIndex !== -1, `Owner ${targetOwner} not found in owners list`);
+  return ownerIndex;
+}
+
+function sortAddressesByValue(owners: Address[]): Address[] {
+  return deepCopy(owners).sort((a: Address, b: Address) => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    if (aLower < bLower) return -1;
+    if (aLower > bLower) return 1;
+    return 0;
+  });
+}
+
 /**
  * Creates swapOwner transactions for 1-to-1 owner replacements.
  * This is more efficient and succinct than remove+add operations.
@@ -497,7 +539,7 @@ function findPrevOwner(owners: Address[], targetOwner: Address): Address {
  */
 async function createSwapOwnerTransactions(
   safeSdk: Safe.default,
-  currentOwners: Address[],
+  effectiveOwners: Address[],
   ownersToRemove: Address[],
   ownersToAdd: Address[],
 ): Promise<AnnotatedCallData[]> {
@@ -507,35 +549,18 @@ async function createSwapOwnerTransactions(
     ),
   );
 
-  // Build a mapping of owners to their positions in the currentOwners array
-  const ownerPositions = new Map<Address, number>();
-  currentOwners.forEach((owner, index) => {
-    ownerPositions.set(owner, index);
-  });
-
-  // Sort ownersToRemove by their position in the currentOwners array
-  // This is important because Safe owners are stored in a linked list, and we need
-  // to swap them in the correct order to handle the prevOwner parameter correctly.
-  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
-    (a: Address, b: Address) => {
-      return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
-    },
-  );
-
-  // Track the effective owner list as we perform swaps
+  // Mutate the effective owner list as we perform swaps
   // This is crucial because when swapping consecutive owners in the linked list,
   // the prevOwner for the second swap needs to reference the NEW owner from the
   // first swap (since we just modified the linked list).
-  const effectiveOwners = deepCopy(currentOwners);
-
   const transactions: AnnotatedCallData[] = [];
 
   // Get the Safe contract address
   const safeAddress = await safeSdk.getAddress();
 
   // Pair each old owner with the corresponding new owner
-  for (let i = 0; i < sortedOwnersToRemove.length; i++) {
-    const oldOwner = sortedOwnersToRemove[i];
+  for (let i = 0; i < ownersToRemove.length; i++) {
+    const oldOwner = ownersToRemove[i];
     const newOwner = ownersToAdd[i];
 
     // Find the prevOwner based on the effective owners list
@@ -569,6 +594,55 @@ async function createSwapOwnerTransactions(
   return transactions;
 }
 
+async function createRemoveOwnerTransaction(
+  safeSdk: Safe.default,
+  effectiveOwners: Address[],
+  ownerToRemove: Address,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  const safeAddress = await safeSdk.getAddress();
+  const prevOwner = findPrevOwner(effectiveOwners, ownerToRemove);
+  const ownerIndex = effectiveOwners.findIndex((owner: Address) =>
+    eqAddress(owner, ownerToRemove),
+  );
+
+  if (ownerIndex !== -1) {
+    effectiveOwners.splice(ownerIndex, 1);
+  }
+
+  const data = ISafe__factory.createInterface().encodeFunctionData(
+    'removeOwner',
+    [prevOwner, ownerToRemove, newThreshold],
+  );
+
+  return {
+    to: safeAddress,
+    data,
+    value: BigNumber.from(0),
+    description: `Remove safe owner ${ownerToRemove} (prevOwner: ${prevOwner}, threshold: ${newThreshold})`,
+  };
+}
+
+async function createAddOwnerWithThresholdTransaction(
+  safeSdk: Safe.default,
+  ownerToAdd: Address,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  const safeAddress = await safeSdk.getAddress();
+
+  const data = ISafe__factory.createInterface().encodeFunctionData(
+    'addOwnerWithThreshold',
+    [ownerToAdd, newThreshold],
+  );
+
+  return {
+    to: safeAddress,
+    data,
+    value: BigNumber.from(0),
+    description: `Add safe owner ${ownerToAdd} (threshold: ${newThreshold})`,
+  };
+}
+
 /**
  * Creates a threshold change transaction.
  */
@@ -596,16 +670,19 @@ export async function updateSafeOwner({
   safeSdk,
   owners,
   threshold,
+  proposer,
 }: {
   safeSdk: Safe.default;
   owners?: Address[];
   threshold?: number;
+  proposer?: Address;
 }): Promise<AnnotatedCallData[]> {
   const currentThreshold = await safeSdk.getThreshold();
   const newThreshold = threshold ?? currentThreshold;
 
   const currentOwners = await safeSdk.getOwners();
   const expectedOwners = owners ?? currentOwners;
+  const safeAddress = await safeSdk.getAddress();
 
   const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
     currentOwners,
@@ -615,28 +692,83 @@ export async function updateSafeOwner({
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
   rootLogger.info(chalk.magentaBright('Owners to add:', ownersToAdd));
 
-  // Validate that we have equal numbers of adds and removes (swaps only)
-  if (ownersToRemove.length !== ownersToAdd.length) {
-    throw new Error(
-      `Owner changes must be 1-to-1 swaps. Found ${ownersToRemove.length} removals and ${ownersToAdd.length} additions.`,
-    );
-  }
+  assert(expectedOwners.length >= 1, 'Safe must have at least one owner');
+  assertValidExpectedOwners(expectedOwners, safeAddress);
+  assert(
+    newThreshold >= 1,
+    `Safe threshold ${newThreshold} must be at least 1`,
+  );
+  assert(
+    newThreshold <= expectedOwners.length,
+    `Safe threshold ${newThreshold} exceeds owner count ${expectedOwners.length}`,
+  );
+  assert(
+    !proposer ||
+      expectedOwners.some((owner: Address) => eqAddress(owner, proposer)),
+    `Proposer ${proposer} must remain a Safe owner`,
+  );
+
+  // Sort ownersToRemove by their position in the currentOwners array. Safe owners
+  // are stored in a linked list, and each update changes the prevOwner needed for
+  // later updates in the same multisend. ownersToAdd is sorted independently (by
+  // address) so swap pairing and surplus-add ordering are deterministic.
+  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
+    (a: Address, b: Address) => {
+      return (
+        findOwnerPosition(currentOwners, a) -
+        findOwnerPosition(currentOwners, b)
+      );
+    },
+  );
+  const sortedOwnersToAdd = sortAddressesByValue(ownersToAdd);
 
   const transactions: AnnotatedCallData[] = [];
+  const effectiveOwners = deepCopy(currentOwners);
+  const swapCount = Math.min(ownersToRemove.length, ownersToAdd.length);
 
-  // Use swapOwner for all owner replacements
-  if (ownersToRemove.length > 0) {
+  // Use swapOwner for the overlapping owner replacements.
+  if (swapCount > 0) {
     const swapTxs = await createSwapOwnerTransactions(
       safeSdk,
-      currentOwners,
-      ownersToRemove,
-      ownersToAdd,
+      effectiveOwners,
+      sortedOwnersToRemove.slice(0, swapCount),
+      sortedOwnersToAdd.slice(0, swapCount),
     );
     transactions.push(...swapTxs);
   }
 
-  // Handle threshold change (swapOwner doesn't take a threshold parameter)
-  if (currentThreshold !== newThreshold) {
+  const surplusOwnersToRemove = sortedOwnersToRemove.slice(swapCount);
+  for (const ownerToRemove of surplusOwnersToRemove) {
+    transactions.push(
+      await createRemoveOwnerTransaction(
+        safeSdk,
+        effectiveOwners,
+        ownerToRemove,
+        newThreshold,
+      ),
+    );
+  }
+
+  const surplusOwnersToAdd = sortedOwnersToAdd.slice(swapCount);
+  for (let i = 0; i < surplusOwnersToAdd.length; i++) {
+    const ownerToAdd = surplusOwnersToAdd[i];
+    const isLastAdd = i === surplusOwnersToAdd.length - 1;
+    const addThreshold = isLastAdd ? newThreshold : currentThreshold;
+    transactions.push(
+      await createAddOwnerWithThresholdTransaction(
+        safeSdk,
+        ownerToAdd,
+        addThreshold,
+      ),
+    );
+  }
+
+  // Handle threshold changes not already handled by removeOwner/addOwnerWithThreshold.
+  if (
+    currentThreshold !== newThreshold &&
+    surplusOwnersToRemove.length === 0 &&
+    surplusOwnersToAdd.length === 0
+  ) {
     const thresholdTx = await createThresholdTransaction(
       safeSdk,
       currentThreshold,

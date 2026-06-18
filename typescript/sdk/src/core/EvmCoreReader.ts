@@ -1,16 +1,12 @@
 import { providers } from 'ethers';
 
 import { Mailbox__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import {
-  Address,
-  objMap,
-  promiseObjAll,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { proxyAdmin } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { hookTreeContainsLegacyIgp } from '../hook/utils.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -68,34 +64,71 @@ export class EvmCoreReader implements CoreReader {
         proxyAdmin(this.provider, mailboxInstance.address),
       ]);
 
+    const readConfig = async <T>(
+      readerCall: Promise<T> | undefined,
+    ): Promise<T | undefined> => {
+      try {
+        return await readerCall;
+      } catch (e) {
+        this.logger.error(
+          `EvmCoreReader: readerCall failed for ${mailbox}:`,
+          e,
+        );
+        return;
+      }
+    };
+
     // Parallelize each configuration request
-    const results = await promiseObjAll(
-      objMap(
-        {
-          owner: mailboxInstance.owner(),
-          defaultIsm: this.evmIsmReader.deriveIsmConfig(defaultIsm),
-          defaultHook: this.evmHookReader.deriveHookConfig(defaultHook),
-          requiredHook: this.evmHookReader.deriveHookConfig(requiredHook),
-          interchainAccountRouter: interchainAccountRouter
-            ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
-            : undefined,
-          proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
-        },
-        async (_, readerCall) => {
-          try {
-            return readerCall;
-          } catch (e) {
-            this.logger.error(
-              `EvmCoreReader: readerCall failed for ${mailbox}:`,
-              e,
-            );
-            return;
-          }
-        },
+    const [
+      owner,
+      derivedDefaultIsm,
+      derivedDefaultHook,
+      derivedRequiredHook,
+      derivedIcaRouterConfig,
+      proxyAdminConfig,
+    ] = await Promise.all([
+      readConfig(mailboxInstance.owner()),
+      readConfig(this.evmIsmReader.deriveIsmConfig(defaultIsm)),
+      readConfig(this.evmHookReader.deriveHookConfig(defaultHook)),
+      readConfig(this.evmHookReader.deriveHookConfig(requiredHook)),
+      readConfig(
+        interchainAccountRouter
+          ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
+          : undefined,
       ),
+      readConfig(this.getProxyAdminConfig(mailboxProxyAdmin)),
+    ]);
+
+    assert(owner, `EvmCoreReader: owner read failed for ${mailbox}`);
+    assert(
+      derivedDefaultIsm,
+      `EvmCoreReader: defaultIsm read failed for ${mailbox}`,
+    );
+    assert(
+      derivedDefaultHook,
+      `EvmCoreReader: defaultHook read failed for ${mailbox}`,
+    );
+    assert(
+      derivedRequiredHook,
+      `EvmCoreReader: requiredHook read failed for ${mailbox}`,
     );
 
-    return results as DerivedCoreConfig;
+    const derivedConfig: DerivedCoreConfig = {
+      owner,
+      defaultIsm: derivedDefaultIsm,
+      defaultHook: derivedDefaultHook,
+      requiredHook: derivedRequiredHook,
+      interchainAccountRouter: derivedIcaRouterConfig,
+      proxyAdmin: proxyAdminConfig,
+    };
+    const hasLegacyIgp =
+      hookTreeContainsLegacyIgp(derivedConfig.defaultHook) ||
+      hookTreeContainsLegacyIgp(derivedConfig.requiredHook);
+
+    return {
+      ...derivedConfig,
+      ...(hasLegacyIgp ? { deployQuotedCalls: false } : {}),
+    };
   }
 
   private async getProxyAdminConfig(
