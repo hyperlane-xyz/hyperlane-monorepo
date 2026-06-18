@@ -257,7 +257,10 @@ export function getLocalStorageGasOracleConfig({
     // Get a prospective gasOracleConfig, adjusting the gas price and exchange rate
     // as needed to account for precision loss (e.g. if the gas price is super small).
     let gasOracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost =
-      adjustForPrecisionLoss(gasPrice, scaledExchangeRate, remoteDecimals);
+      adjustForPrecisionLoss(gasPrice, scaledExchangeRate, remoteDecimals, {
+        local,
+        remote,
+      });
 
     // Apply the modifier if provided.
     if (gasPriceModifier) {
@@ -266,6 +269,7 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         new BigNumberJs(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+        { local, remote },
       );
     }
 
@@ -297,6 +301,9 @@ function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
   exchangeRate: InstanceType<typeof BigNumberJs>,
   remoteDecimals: number,
+  // Optional chain context, used only to make the precision-rebalance warning
+  // actionable (it names the local -> remote pair that underflowed).
+  context?: { local: ChainName; remote: ChainName },
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
@@ -327,7 +334,9 @@ function adjustForPrecisionLoss(
       // original gas price and fall back to the minimum representable exchange
       // rate instead of introducing a larger ceil error.
       rootLogger.warn(
-        `Token exchange rate remains below 1 after precision rebalance; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
+        `Token exchange rate remains below 1 after precision rebalance${
+          context ? ` for ${context.local} -> ${context.remote}` : ''
+        }; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
           gasPrice,
         ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
       );
