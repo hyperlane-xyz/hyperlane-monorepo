@@ -202,6 +202,24 @@ function getSafeGroupKey(chain: ChainName, governanceType: GovernanceType) {
   return `${chain}:${governanceType}`;
 }
 
+function getPostUpgradeConfigCommand({
+  environment,
+  context,
+  chains,
+}: {
+  environment: string;
+  context: string;
+  chains: ChainName[];
+}) {
+  return [
+    'pnpm --dir typescript/infra exec tsx scripts/deploy.ts',
+    `--environment ${environment}`,
+    `--context ${context}`,
+    '--module igp',
+    `--chains ${chains.join(' ')}`,
+  ].join(' ');
+}
+
 function addSafeCall(
   groups: Map<string, SafeCallGroup>,
   chain: ChainName,
@@ -770,6 +788,17 @@ async function main() {
   }
 
   const groups = [...safeGroups.values()];
+  const queuedUpgradeChains = plans
+    .filter((plan) => plan.status === 'queued')
+    .map((plan) => plan.chain);
+  const postUpgradeConfigCommand =
+    queuedUpgradeChains.length > 0
+      ? getPostUpgradeConfigCommand({
+          environment,
+          context,
+          chains: queuedUpgradeChains,
+        })
+      : undefined;
   const runDir = join(
     OUTPUT_ROOT,
     new Date().toISOString().replace(/[:.]/g, '-'),
@@ -786,6 +815,7 @@ async function main() {
     targetVersion: CONTRACTS_PACKAGE_VERSION,
     mode: propose ? 'propose' : 'dry-run',
     legacyIgpChains,
+    ...(postUpgradeConfigCommand ? { postUpgradeConfigCommand } : {}),
     safeGroups: groups.map((group) => ({
       chain: group.chain,
       governanceType: group.governanceType,
@@ -802,6 +832,15 @@ async function main() {
 
   if (!propose) {
     rootLogger.info(`Dry run: Safe batch files written under ${runDir}`);
+  }
+  if (postUpgradeConfigCommand) {
+    rootLogger.warn(
+      [
+        'After the upgrade transactions execute and any ICA messages relay, immediately apply IGP config.',
+        'The upgraded IGP reads native gas params from new storage slots; until config is applied, native gas payments may be underquoted or zero.',
+        postUpgradeConfigCommand,
+      ].join('\n'),
+    );
   }
   if (plans.some((plan) => plan.status === 'error')) {
     process.exitCode = 1;
