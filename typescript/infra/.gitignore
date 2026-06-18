@@ -12,3 +12,4 @@ config/environments/test/igp/
 config/environments/test/ism/
 safe-tx-output/
 safe-tx-parse-results*
+squads-tx-parse-results*
