@@ -11,7 +11,10 @@ use hyperlane_core::{
     AggregationIsm, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
 
-use crate::msg::metadata::{base::MetadataBuildError, message_builder};
+use crate::msg::metadata::{
+    base::{MetadataBuildError, MetadataBuildRefused},
+    message_builder,
+};
 
 use super::{IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, MetadataBuilder};
 
@@ -32,19 +35,16 @@ struct SubModuleMetadata {
     metadata: Metadata,
 }
 
-#[derive(Debug)]
-struct IsmAndMetadata {
-    ism: Box<dyn InterchainSecurityModule>,
-    meta: SubModuleMetadata,
-}
-
-impl IsmAndMetadata {
-    fn new(ism: Box<dyn InterchainSecurityModule>, index: usize, metadata: Metadata) -> Self {
-        Self {
-            ism,
-            meta: SubModuleMetadata::new(index, metadata),
-        }
-    }
+/// Result of building and verifying a single aggregation sub-module.
+enum ModuleBuildOutcome {
+    /// Build was explicitly refused (e.g. recursion limit).
+    Refused(MetadataBuildRefused),
+    /// Build failed because validator signatures aren't collected yet.
+    AwaitingSignatures,
+    /// Build failed for another reason, or dry_run_verify returned None/Err.
+    Failed,
+    /// Built successfully and passed dry_run_verify with the given gas estimate.
+    Verified(SubModuleMetadata, U256),
 }
 
 impl AggregationIsmMetadataBuilder {
@@ -92,35 +92,6 @@ impl AggregationIsmMetadataBuilder {
         // Sort by index in ascending order, to match the order expected by the smart contract
         cheapest.sort_by(|(meta_1, _), (meta_2, _)| meta_1.index.cmp(&meta_2.index));
         cheapest.into_iter().map(|(meta, _)| meta).collect()
-    }
-
-    async fn cheapest_valid_metas(
-        sub_modules: Vec<IsmAndMetadata>,
-        message: &HyperlaneMessage,
-        threshold: usize,
-        err_isms: Vec<(H256, Option<ModuleType>)>,
-    ) -> Result<Vec<SubModuleMetadata>, MetadataBuildError> {
-        let gas_cost_results: Vec<_> = join_all(
-            sub_modules
-                .iter()
-                .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
-        )
-        .await;
-        // Filter out the ISMs with a gas cost estimate
-        let metas_and_gas: Vec<_> = sub_modules
-            .into_iter()
-            .zip(gas_cost_results.into_iter())
-            .filter_map(|(module, gas_cost)| gas_cost.ok().flatten().map(|gc| (module.meta, gc)))
-            .collect();
-
-        let metas_and_gas_count = metas_and_gas.len();
-        if metas_and_gas_count < threshold {
-            info!(?err_isms, %metas_and_gas_count, %threshold, message_id=?message.id(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
-            return Err(MetadataBuildError::AggregationThresholdNotMet(
-                threshold as u32,
-            ));
-        }
-        Ok(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
 
     /// Returns modules and threshold from the aggregation ISM.
@@ -329,7 +300,10 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
         }
 
-        // Build submodule metadatas concurrently, stopping as soon as threshold succeed.
+        // Build and dry_run_verify submodule metadatas concurrently, stopping as soon
+        // as threshold modules pass both steps. Pipelining dry_run_verify inside each
+        // future means a module that builds but fails verification doesn't count toward
+        // threshold — we keep collecting until we have enough confirmed-valid candidates.
         let mut pending: FuturesUnordered<_> = ism_addresses
             .iter()
             .enumerate()
@@ -338,41 +312,67 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 let params = params.clone();
                 let addr = *sub_ism_address;
                 async move {
-                    (
-                        index,
-                        addr,
+                    let build_result =
                         message_builder::build_message_metadata(base, addr, message, params, None)
-                            .await,
-                    )
+                            .await;
+                    let outcome = match build_result {
+                        Err(MetadataBuildError::Refused(reason)) => {
+                            ModuleBuildOutcome::Refused(reason)
+                        }
+                        Err(MetadataBuildError::AwaitingValidatorSignatures) => {
+                            ModuleBuildOutcome::AwaitingSignatures
+                        }
+                        Err(_) => ModuleBuildOutcome::Failed,
+                        Ok(sub) => {
+                            match sub.ism.dry_run_verify(message, &sub.metadata).await {
+                                Ok(Some(gas)) => ModuleBuildOutcome::Verified(
+                                    SubModuleMetadata::new(index, sub.metadata),
+                                    gas,
+                                ),
+                                // dry_run returned None (already delivered) or Err
+                                _ => ModuleBuildOutcome::Failed,
+                            }
+                        }
+                    };
+                    (addr, outcome)
                 }
             })
             .collect();
 
-        let mut ok_sub_modules: Vec<IsmAndMetadata> = Vec::new();
+        let mut metas_and_gas: Vec<(SubModuleMetadata, U256)> = Vec::new();
         let mut err_sub_modules: Vec<(H256, Option<ModuleType>)> = Vec::new();
         let mut has_any_error = false;
         let mut all_errors_awaiting = true;
 
-        while let Some((index, ism_address, result)) = pending.next().await {
-            match result {
-                Err(MetadataBuildError::Refused(reason)) => {
+        while let Some((ism_address, outcome)) = pending.next().await {
+            match outcome {
+                ModuleBuildOutcome::Refused(reason) => {
+                    // First refusal in completion order (not ism_addresses order);
+                    // nondeterministic for m > 1 but all refusals are fatal so the
+                    // specific message doesn't affect correctness.
                     return Err(MetadataBuildError::Refused(reason));
                 }
-                Err(e) => {
+                ModuleBuildOutcome::AwaitingSignatures => {
                     has_any_error = true;
-                    if !matches!(e, MetadataBuildError::AwaitingValidatorSignatures) {
-                        all_errors_awaiting = false;
-                    }
+                    err_sub_modules.push((ism_address, None));
+                    // all_errors_awaiting stays true
+                }
+                ModuleBuildOutcome::Failed => {
+                    has_any_error = true;
+                    all_errors_awaiting = false;
                     err_sub_modules.push((ism_address, None));
                 }
-                Ok(sub_module_and_meta) => {
-                    ok_sub_modules.push(IsmAndMetadata::new(
-                        sub_module_and_meta.ism,
-                        index,
-                        sub_module_and_meta.metadata,
-                    ));
-                    if ok_sub_modules.len() >= threshold {
+                ModuleBuildOutcome::Verified(meta, gas) => {
+                    metas_and_gas.push((meta, gas));
+                    if metas_and_gas.len() >= threshold {
                         // Threshold met — drop remaining futures and proceed immediately.
+                        // Cancellation of in-flight futures is safe: cache writes use a
+                        // single atomic moka insert, external calls (RPC/HTTP) are
+                        // stateless reads, and params.ism_count is per-attempt only.
+                        // Trade-off: for n-of-m ISMs (m > n) gas selection is by
+                        // verification-completion order rather than cost across all m
+                        // modules. Latency wins over marginal gas savings on process(),
+                        // especially for fast-path ISMs (CCTP, trustedRelayer).
                         break;
                     }
                 }
@@ -382,13 +382,17 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // When every sub-module failure is purely "signatures not yet collected" and we
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
         // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
-        if ok_sub_modules.len() < threshold && has_any_error && all_errors_awaiting {
-            return Err(MetadataBuildError::AwaitingValidatorSignatures);
+        if metas_and_gas.len() < threshold {
+            if has_any_error && all_errors_awaiting {
+                return Err(MetadataBuildError::AwaitingValidatorSignatures);
+            }
+            info!(?err_sub_modules, metas_and_gas_count=%metas_and_gas.len(), %threshold, message_id=?message.id(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
+            return Err(MetadataBuildError::AggregationThresholdNotMet(
+                threshold as u32,
+            ));
         }
 
-        let mut valid_metas =
-            Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules).await?;
-
+        let mut valid_metas = Self::n_cheapest_metas(metas_and_gas, threshold);
         let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
         Ok(metadata)
     }
