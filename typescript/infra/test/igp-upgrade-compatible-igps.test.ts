@@ -9,7 +9,9 @@ import { GovernanceType } from '../src/governanceTypes.js';
 import {
   getImplementationAddressOverrides,
   getPostUpgradeConfigChains,
+  getTimelockPostExecutionConfigChains,
   isMissingPackageVersionError,
+  mergeImplementationAddresses,
   splitProposableGroups,
 } from '../scripts/igp/upgrade-compatible-igps.js';
 
@@ -82,6 +84,13 @@ describe('upgrade-compatible-igps', () => {
     it('rejects unsupported chains and invalid addresses', () => {
       expect(() =>
         getImplementationAddressOverrides(
+          writeOverrides(['0x1111111111111111111111111111111111111111']),
+          supportedChains,
+        ),
+      ).to.throw('must contain a JSON object');
+
+      expect(() =>
+        getImplementationAddressOverrides(
           writeOverrides({
             unknown: '0x1111111111111111111111111111111111111111',
           }),
@@ -107,23 +116,50 @@ describe('upgrade-compatible-igps', () => {
     });
   });
 
-  it('only includes newly queued upgrades in the post-upgrade config command', () => {
+  it('splits immediate and timelock post-upgrade config chains', () => {
+    const plans = [
+      {
+        chain: 'ethereum',
+        targetVersion: '1.0.0',
+        status: 'queued',
+        detail: 'new safe proposal',
+      },
+      {
+        chain: 'arbitrum',
+        targetVersion: '1.0.0',
+        status: 'timelock queued',
+        detail: 'timelock schedule proposal',
+      },
+      {
+        chain: 'optimism',
+        targetVersion: '1.0.0',
+        status: 'scheduled',
+        detail: 'timelock operation already scheduled',
+      },
+    ];
+
+    expect(getPostUpgradeConfigChains(plans)).to.deep.equal(['ethereum']);
+    expect(getTimelockPostExecutionConfigChains(plans)).to.deep.equal([
+      'arbitrum',
+      'optimism',
+    ]);
+  });
+
+  it('prefers igp verification implementations over core fallback', () => {
     expect(
-      getPostUpgradeConfigChains([
-        {
-          chain: 'ethereum',
-          targetVersion: '1.0.0',
-          status: 'queued',
-          detail: 'new safe proposal',
+      mergeImplementationAddresses({
+        igpImplementations: {
+          ethereum: '0x1111111111111111111111111111111111111111',
         },
-        {
-          chain: 'arbitrum',
-          targetVersion: '1.0.0',
-          status: 'scheduled',
-          detail: 'timelock operation already scheduled/done',
+        coreImplementations: {
+          ethereum: '0x2222222222222222222222222222222222222222',
+          arbitrum: '0x3333333333333333333333333333333333333333',
         },
-      ]),
-    ).to.deep.equal(['ethereum']);
+      }),
+    ).to.deep.equal({
+      ethereum: '0x1111111111111111111111111111111111111111',
+      arbitrum: '0x3333333333333333333333333333333333333333',
+    });
   });
 
   it('splits raw fallback Safe groups out of propose mode', () => {

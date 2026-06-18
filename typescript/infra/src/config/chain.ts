@@ -73,6 +73,9 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'incentiv',
     'metis',
     'ontology',
+    'taiko',
+    'torus',
+
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
     'astar',
@@ -80,8 +83,6 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'prom',
     'pulsechain',
     'sei',
-    'taiko',
-    'torus',
     'viction',
     'xrplevm',
     ...getDisabledChains(),

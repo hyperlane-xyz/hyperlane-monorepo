@@ -4,6 +4,7 @@ import { pathToFileURL } from 'url';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  InterchainGasPaymaster__factory,
   Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
@@ -58,6 +59,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 const ETHEREUM_CHAIN: ChainName = 'ethereum';
 const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
+const MAX_SAFE_BATCH_SIZE = 120;
+const IGP_ARTIFACT_NAME = 'InterchainGasPaymaster';
 
 type UpgradeCall = {
   to: Address;
@@ -86,6 +89,8 @@ type SafeCallGroup = {
   governanceType: GovernanceType;
   safeAddress: Address;
   calls: UpgradeCall[];
+  batchIndex?: number;
+  batchCount?: number;
 };
 
 type ProposalResult = {
@@ -109,7 +114,7 @@ function formatError(error: unknown): string {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function getNestedRecord(
@@ -133,38 +138,101 @@ export function isMissingPackageVersionError(error: unknown): boolean {
   );
 }
 
+function getImplementationAddressesFromVerificationModule({
+  environment,
+  module,
+  chainAddresses,
+}: {
+  environment: DeployEnvironment;
+  module: 'igp' | 'core';
+  chainAddresses: ChainMap<{ interchainGasPaymaster?: Address }>;
+}): ChainMap<Address> {
+  const filepath = join(
+    getEnvironmentDirectory(environment),
+    module,
+    'verification.json',
+  );
+  if (!existsSync(filepath)) return {};
+
+  const implementations: ChainMap<Address> = {};
+  const artifactsByChain = readJson<ChainMap<VerificationArtifact[]>>(filepath);
+  for (const [chain, artifacts] of Object.entries(artifactsByChain)) {
+    const interchainGasPaymaster =
+      chainAddresses[chain]?.interchainGasPaymaster;
+    if (!interchainGasPaymaster) continue;
+
+    const proxyArtifact = artifacts.find(
+      (artifact) =>
+        artifact.isProxy &&
+        artifact.expectedimplementation &&
+        eqAddress(artifact.address, interchainGasPaymaster),
+    );
+    if (!proxyArtifact?.expectedimplementation) continue;
+    const expectedImplementation = proxyArtifact.expectedimplementation;
+
+    const implementationArtifact = artifacts.find(
+      (artifact) =>
+        artifact.name === IGP_ARTIFACT_NAME &&
+        eqAddress(artifact.address, expectedImplementation),
+    );
+    if (!implementationArtifact) {
+      rootLogger.warn(
+        `[${chain}] ${module}/verification.json proxy target ${expectedImplementation} has no ${IGP_ARTIFACT_NAME} artifact entry; ignoring`,
+      );
+      continue;
+    }
+
+    implementations[chain] = expectedImplementation;
+  }
+
+  return implementations;
+}
+
+export function mergeImplementationAddresses({
+  igpImplementations,
+  coreImplementations,
+}: {
+  igpImplementations: ChainMap<Address>;
+  coreImplementations: ChainMap<Address>;
+}): ChainMap<Address> {
+  const implementations: ChainMap<Address> = { ...igpImplementations };
+
+  for (const [chain, coreImplementation] of Object.entries(
+    coreImplementations,
+  )) {
+    const igpImplementation = igpImplementations[chain];
+    if (!igpImplementation) {
+      implementations[chain] = coreImplementation;
+      continue;
+    }
+    if (!eqAddress(igpImplementation, coreImplementation)) {
+      rootLogger.warn(
+        `[${chain}] igp/core verification implementation mismatch; using igp ${igpImplementation} over core ${coreImplementation}`,
+      );
+    }
+  }
+
+  return implementations;
+}
+
 function getImplementationAddressesFromVerificationArtifacts(
   environment: DeployEnvironment,
   chainAddresses: ChainMap<{ interchainGasPaymaster?: Address }>,
 ): ChainMap<Address> {
-  const implementations: ChainMap<Address> = {};
-  for (const module of ['igp', 'core']) {
-    const filepath = join(
-      getEnvironmentDirectory(environment),
-      module,
-      'verification.json',
-    );
-    if (!existsSync(filepath)) continue;
-
-    const artifactsByChain =
-      readJson<ChainMap<VerificationArtifact[]>>(filepath);
-    for (const [chain, artifacts] of Object.entries(artifactsByChain)) {
-      const interchainGasPaymaster =
-        chainAddresses[chain]?.interchainGasPaymaster;
-      if (!interchainGasPaymaster) continue;
-
-      const proxyArtifact = artifacts.find(
-        (artifact) =>
-          artifact.isProxy &&
-          artifact.expectedimplementation &&
-          eqAddress(artifact.address, interchainGasPaymaster),
-      );
-      if (proxyArtifact?.expectedimplementation) {
-        implementations[chain] = proxyArtifact.expectedimplementation;
-      }
-    }
-  }
-  return implementations;
+  const igpImplementations = getImplementationAddressesFromVerificationModule({
+    environment,
+    module: 'igp',
+    chainAddresses,
+  });
+  const coreImplementations = getImplementationAddressesFromVerificationModule({
+    environment,
+    module: 'core',
+    chainAddresses,
+  });
+  return mergeImplementationAddresses({
+    igpImplementations,
+    coreImplementations,
+  });
 }
 
 export function getImplementationAddressOverrides(
@@ -214,6 +282,23 @@ async function getCurrentVersion(
   }
 }
 
+function isVersionAtLeastTarget({
+  chain,
+  currentVersion,
+}: {
+  chain: ChainName;
+  currentVersion: string;
+}): boolean {
+  try {
+    return compareVersions(currentVersion, CONTRACTS_PACKAGE_VERSION) >= 0;
+  } catch (error) {
+    throw new Error(
+      `[${chain}] current PACKAGE_VERSION ${currentVersion} is not valid semver`,
+      { cause: error },
+    );
+  }
+}
+
 async function assertTargetImplementation({
   chain,
   provider,
@@ -237,6 +322,18 @@ async function assertTargetImplementation({
     code !== '0x',
     `[${chain}] target implementation ${targetImplementation} has no deployed code`,
   );
+  const igpInterface = InterchainGasPaymaster__factory.createInterface();
+  for (const signature of [
+    'quoteGasPayment(uint32,uint256)',
+    'payForGas(bytes32,uint32,uint256,address)',
+    'setDestinationGasConfigs',
+  ]) {
+    const selector = igpInterface.getSighash(signature);
+    assert(
+      code.toLowerCase().includes(selector.slice(2).toLowerCase()),
+      `[${chain}] target implementation ${targetImplementation} is missing IGP selector ${signature}`,
+    );
+  }
 
   const targetVersion = await PackageVersioned__factory.connect(
     targetImplementation,
@@ -246,6 +343,48 @@ async function assertTargetImplementation({
     targetVersion === CONTRACTS_PACKAGE_VERSION,
     `[${chain}] target implementation ${targetImplementation} exposes PACKAGE_VERSION ${targetVersion}, expected ${CONTRACTS_PACKAGE_VERSION}`,
   );
+}
+
+async function assertProxyAdmin({
+  chain,
+  provider,
+  proxyAdminAddress,
+  proxyAddress,
+  expectedImplementation,
+}: {
+  chain: ChainName;
+  provider: ethers.providers.Provider;
+  proxyAdminAddress: Address;
+  proxyAddress: Address;
+  expectedImplementation: Address;
+}): Promise<Address> {
+  const code = await provider.getCode(proxyAdminAddress);
+  assert(
+    code !== '0x',
+    `[${chain}] ProxyAdmin ${proxyAdminAddress} has no deployed code`,
+  );
+
+  const proxyAdminInterface = ProxyAdmin__factory.createInterface();
+  const implementationResult = await provider.call({
+    to: proxyAdminAddress,
+    data: proxyAdminInterface.encodeFunctionData('getProxyImplementation', [
+      proxyAddress,
+    ]),
+  });
+  const [proxyAdminImplementation] = proxyAdminInterface.decodeFunctionResult(
+    'getProxyImplementation',
+    implementationResult,
+  );
+  assert(
+    typeof proxyAdminImplementation === 'string',
+    `[${chain}] ProxyAdmin ${proxyAdminAddress} returned invalid implementation for ${proxyAddress}`,
+  );
+  assert(
+    eqAddress(proxyAdminImplementation, expectedImplementation),
+    `[${chain}] ProxyAdmin ${proxyAdminAddress} reports implementation ${proxyAdminImplementation}, expected ${expectedImplementation}`,
+  );
+
+  return Ownable__factory.connect(proxyAdminAddress, provider).owner();
 }
 
 async function assertCancunCompatible(
@@ -300,6 +439,43 @@ export function getPostUpgradeConfigChains(plans: ChainPlan[]): ChainName[] {
   return plans
     .filter((plan) => plan.status === 'queued')
     .map((plan) => plan.chain);
+}
+
+export function getTimelockPostExecutionConfigChains(
+  plans: ChainPlan[],
+): ChainName[] {
+  return plans
+    .filter(
+      (plan) =>
+        plan.status === 'timelock queued' || plan.status === 'scheduled',
+    )
+    .map((plan) => plan.chain);
+}
+
+function splitSafeCallGroups(groups: SafeCallGroup[]): SafeCallGroup[] {
+  const splitGroups: SafeCallGroup[] = [];
+
+  for (const group of groups) {
+    if (group.calls.length <= MAX_SAFE_BATCH_SIZE) {
+      splitGroups.push(group);
+      continue;
+    }
+
+    const batchCount = Math.ceil(group.calls.length / MAX_SAFE_BATCH_SIZE);
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+      splitGroups.push({
+        ...group,
+        calls: group.calls.slice(
+          batchIndex * MAX_SAFE_BATCH_SIZE,
+          (batchIndex + 1) * MAX_SAFE_BATCH_SIZE,
+        ),
+        batchIndex: batchIndex + 1,
+        batchCount,
+      });
+    }
+  }
+
+  return splitGroups;
 }
 
 function addSafeCall(
@@ -419,7 +595,10 @@ async function routeTimelockCall({
   governanceType: GovernanceType;
   timelockAddress: Address;
   innerCall: UpgradeCall;
-}): Promise<{ status: 'queued' | 'scheduled'; detail: string }> {
+}): Promise<{
+  status: 'timelock queued' | 'scheduled' | 'done';
+  detail: string;
+}> {
   const provider = ica.multiProvider.getProvider(chain);
   const timelock = TimelockController__factory.connect(
     timelockAddress,
@@ -439,10 +618,17 @@ async function routeTimelockCall({
     salt,
   );
 
+  const isDone = await timelock.isOperationDone(operationId);
+  if (isDone) {
+    return {
+      status: 'done',
+      detail: `timelock operation already executed but proxy still points at the old implementation: ${operationId}`,
+    };
+  }
+
   const isScheduled =
     (await timelock.isOperationPending(operationId)) ||
-    (await timelock.isOperationReady(operationId)) ||
-    (await timelock.isOperationDone(operationId));
+    (await timelock.isOperationReady(operationId));
   if (isScheduled) {
     return {
       status: 'scheduled',
@@ -491,7 +677,7 @@ async function routeTimelockCall({
   }
 
   return {
-    status: 'queued',
+    status: 'timelock queued',
     detail: `timelock operation queued for scheduling: ${operationId}`,
   };
 }
@@ -525,9 +711,12 @@ async function writeSafeBatchFiles({
       rawFallbackGroupKeys.add(
         getSafeGroupKey(group.chain, group.governanceType),
       );
+      const batchSuffix = group.batchCount
+        ? `-${group.batchIndex}-of-${group.batchCount}`
+        : '';
       const filepath = join(
         runDir,
-        `${group.chain}-${group.governanceType}.raw.json`,
+        `${group.chain}-${group.governanceType}${batchSuffix}.raw.json`,
       );
       mkdirSync(dirname(filepath), { recursive: true });
       await writeAndFormatJsonAtPath(filepath, {
@@ -535,6 +724,9 @@ async function writeSafeBatchFiles({
         chainId: multiProvider.getEvmChainId(group.chain),
         safeAddress: group.safeAddress,
         governanceType: group.governanceType,
+        ...(group.batchIndex && group.batchCount
+          ? { batchIndex: group.batchIndex, batchCount: group.batchCount }
+          : {}),
         note: 'Raw calldata. NOT a Safe Transaction Builder file (no usable tx service for this chain); submit manually.',
         error: formatError(error),
         transactions: group.calls.map((call) => ({
@@ -558,9 +750,12 @@ async function writeSafeBatchFiles({
       chainId,
     }));
     const batch = await builder.submit(...txs);
+    const batchSuffix = group.batchCount
+      ? `-${group.batchIndex}-of-${group.batchCount}`
+      : '';
     const filepath = join(
       runDir,
-      `${group.chain}-${group.governanceType}.json`,
+      `${group.chain}-${group.governanceType}${batchSuffix}.json`,
     );
     mkdirSync(dirname(filepath), { recursive: true });
     await writeAndFormatJsonAtPath(filepath, batch);
@@ -701,6 +896,10 @@ async function main() {
     environment === 'mainnet3',
     'This script only supports mainnet3 because governance Safe, ICA, and timelock config is imported from mainnet3.',
   );
+  assert(
+    !skipEvmPreflight,
+    'mainnet3 IGP upgrades require the Cancun/PUSH0 preflight; remove --skipEvmPreflight.',
+  );
 
   const envConfig = getEnvironmentConfig(environment);
   const supportedChains = new Set(envConfig.supportedChainNames);
@@ -741,6 +940,12 @@ async function main() {
     if (chainsToSkip.includes(chain)) return false;
     return true;
   });
+  assert(
+    targetChains.length > 0,
+    requested
+      ? 'No requested chains remain after supported/legacy/skip filtering.'
+      : 'No compatible chains remain after legacy/skip filtering.',
+  );
   const providerChains = Array.from(new Set([...targetChains, ETHEREUM_CHAIN]));
 
   const multiProvider = await envConfig.getMultiProvider(
@@ -804,7 +1009,10 @@ async function main() {
       );
       if (
         currentVersion &&
-        compareVersions(currentVersion, CONTRACTS_PACKAGE_VERSION) >= 0
+        isVersionAtLeastTarget({
+          chain,
+          currentVersion,
+        })
       ) {
         plans.push({
           chain,
@@ -855,10 +1063,13 @@ async function main() {
         continue;
       }
 
-      const proxyAdminOwner = await Ownable__factory.connect(
-        actualProxyAdmin,
+      const proxyAdminOwner = await assertProxyAdmin({
+        chain,
         provider,
-      ).owner();
+        proxyAdminAddress: actualProxyAdmin,
+        proxyAddress: interchainGasPaymaster,
+        expectedImplementation: currentImplementation,
+      });
       const { ownerType, governanceType } = await determineGovernanceType(
         chain,
         proxyAdminOwner,
@@ -874,6 +1085,7 @@ async function main() {
       };
 
       let detail: string;
+      let status = 'queued';
       switch (ownerType) {
         case Owner.SAFE:
           addSafeCall(safeGroups, chain, governanceType, upgradeCall);
@@ -934,7 +1146,25 @@ async function main() {
             });
             continue;
           }
+          if (timelockRoute.status === 'done') {
+            plans.push({
+              chain,
+              interchainGasPaymaster,
+              currentImplementation,
+              targetImplementation,
+              currentVersion,
+              targetVersion: CONTRACTS_PACKAGE_VERSION,
+              proxyAdmin: actualProxyAdmin,
+              proxyAdminOwner,
+              ownerType,
+              governanceType,
+              status: 'error',
+              detail: timelockRoute.detail,
+            });
+            continue;
+          }
           detail = timelockRoute.detail;
+          status = timelockRoute.status;
           break;
         case Owner.DEPLOYER:
           plans.push({
@@ -982,7 +1212,7 @@ async function main() {
         proxyAdminOwner,
         ownerType,
         governanceType,
-        status: 'queued',
+        status,
         detail,
       });
     } catch (error) {
@@ -997,14 +1227,24 @@ async function main() {
     }
   }
 
-  const groups = [...safeGroups.values()];
+  const groups = splitSafeCallGroups([...safeGroups.values()]);
   const queuedUpgradeChains = getPostUpgradeConfigChains(plans);
+  const timelockPostExecutionChains =
+    getTimelockPostExecutionConfigChains(plans);
   const postUpgradeConfigCommand =
     queuedUpgradeChains.length > 0
       ? getPostUpgradeConfigCommand({
           environment,
           context,
           chains: queuedUpgradeChains,
+        })
+      : undefined;
+  const timelockPostExecutionConfigCommand =
+    timelockPostExecutionChains.length > 0
+      ? getPostUpgradeConfigCommand({
+          environment,
+          context,
+          chains: timelockPostExecutionChains,
         })
       : undefined;
   const runDir = join(
@@ -1043,12 +1283,18 @@ async function main() {
     mode: propose ? 'propose' : 'dry-run',
     legacyIgpChains,
     ...(postUpgradeConfigCommand ? { postUpgradeConfigCommand } : {}),
+    ...(timelockPostExecutionConfigCommand
+      ? { timelockPostExecutionConfigCommand }
+      : {}),
     ...(proposalResults.length > 0 ? { proposalResults } : {}),
     safeGroups: groups.map((group) => ({
       chain: group.chain,
       governanceType: group.governanceType,
       safeAddress: group.safeAddress,
       transactionCount: group.calls.length,
+      ...(group.batchIndex && group.batchCount
+        ? { batchIndex: group.batchIndex, batchCount: group.batchCount }
+        : {}),
     })),
     plans,
   };
@@ -1070,9 +1316,19 @@ async function main() {
       ].join('\n'),
     );
   }
+  if (timelockPostExecutionConfigCommand) {
+    rootLogger.warn(
+      [
+        'After the timelock upgrade operation executes, immediately apply IGP config on these chains.',
+        'Do not run this command after only scheduling the timelock operation.',
+        timelockPostExecutionConfigCommand,
+      ].join('\n'),
+    );
+  }
   if (
     plans.some((plan) => plan.status === 'error') ||
-    proposalResults.some((result) => result.status === 'error')
+    proposalResults.some((result) => result.status === 'error') ||
+    (propose && rawFallbackGroupKeys.size > 0)
   ) {
     process.exitCode = 1;
   }
