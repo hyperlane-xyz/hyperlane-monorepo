@@ -54,6 +54,22 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
+/// Revert string emitted by the ICA router when the originating commit has not
+/// yet been confirmed on-chain. There is no typed error variant for this today —
+/// it is an opaque on-chain revert string — so Display-format substring matching
+/// is the only available signal. Use Display (not Debug) to avoid a dependency
+/// on the internal structure of the error type's Debug representation.
+const ICA_INVALID_REVEAL: &str = "ICA: Invalid Reveal";
+const REVEAL_POLL_FAST_INTERVAL: Duration = Duration::from_secs(1);
+const REVEAL_POLL_FAST_MAX: u32 = 30; // first 30s: poll every 1s
+const REVEAL_POLL_SLOW_INTERVAL: Duration = Duration::from_secs(5);
+const REVEAL_POLL_SLOW_COUNT: u32 = 36; // next 3min: poll every 5s
+const REVEAL_POLL_TOTAL_MAX: u32 = REVEAL_POLL_FAST_MAX + REVEAL_POLL_SLOW_COUNT;
+
+fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
+    err.to_string().contains(ICA_INVALID_REVEAL)
+}
+
 /// The outcome of a gas payment requirement check.
 enum GasPaymentRequirementOutcome {
     MeetsRequirement(U256),
@@ -115,6 +131,27 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
+    /// When true, drop the message immediately once `num_retries > max_retries`
+    /// instead of parking it in the final long backoff arm. Set by the relay API
+    /// so that small `max_retries` budgets are respected without touching the
+    /// behavior of normal relayer messages.
+    ///
+    /// Intentionally non-persistent (`skip_serializing`, no `deserialize`): the relay
+    /// API injects messages directly into the processor channel without a DB write, so
+    /// rehydration via the DB-loader path never sees these messages while fail_fast is
+    /// relevant. If a message were recovered through the DB path before the indexer
+    /// catches up, it would rehydrate with `fail_fast=false` and follow the normal
+    /// long-backoff arm — acceptable degradation, not a correctness issue.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    fail_fast: bool,
+    /// Number of consecutive times this message has been returned to the queue
+    /// due to an "ICA: Invalid Reveal" simulation failure. Tracked separately
+    /// from `num_retries` so these transient waits don't consume the fail-fast
+    /// retry budget.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    ica_reveal_attempts: u32,
 }
 
 impl Debug for PendingMessage {
@@ -276,6 +313,9 @@ impl PendingOperation for PendingMessage {
 
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
+        // Exception: ICA reveal failures are transient (commit not yet confirmed) and
+        // unrelated to metadata validity — don't clear the cache so CCIP data isn't
+        // re-fetched on every 1s poll cycle.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
                 match self
@@ -285,8 +325,15 @@ impl PendingOperation for PendingMessage {
                     .await
                 {
                     Ok(s) => {
+                        self.ica_reveal_attempts = 0;
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
+                    }
+                    Err(e)
+                        if is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX =>
+                    {
+                        return self.requeue_ica_reveal();
                     }
                     Err(_) => {
                         self.clear_metadata();
@@ -320,22 +367,51 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match tx_cost_estimate {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
-            None => match self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
-                .await
-            {
-                Ok(cost) => cost,
-                Err(err) => {
-                    let reason = self
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                        .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    self.clear_metadata();
-                    return self.on_reprepare(Some(err), reason);
+            None => {
+                debug!(
+                    message_id = ?self.message.id(),
+                    "Dry-run simulating process call before submission"
+                );
+                match self
+                    .ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, &metadata)
+                    .await
+                {
+                    Ok(cost) => {
+                        self.ica_reveal_attempts = 0;
+                        info!(
+                            message_id = ?self.message.id(),
+                            gas_limit = ?cost.gas_limit,
+                            "Dry-run simulation succeeded"
+                        );
+                        cost
+                    }
+                    Err(e) => {
+                        if is_ica_invalid_reveal(&e)
+                            && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX
+                        {
+                            return self.requeue_ica_reveal();
+                        }
+                        // Only reset on non-reveal errors; leave attempts pinned at cap so a
+                        // permanently-failing reveal doesn't re-enter the fast-poll burst.
+                        if !is_ica_invalid_reveal(&e) {
+                            self.ica_reveal_attempts = 0;
+                        }
+                        warn!(
+                            message_id = ?self.message.id(),
+                            error = %e,
+                            "Dry-run simulation failed"
+                        );
+                        let reason = self
+                            .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                            .await
+                            .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                        self.clear_metadata();
+                        return self.on_reprepare(Some(e), reason);
+                    }
                 }
-            },
+            }
         };
 
         // Get the gas_limit if the gas payment requirement has been met,
@@ -383,14 +459,24 @@ impl PendingOperation for PendingMessage {
             .expect("Pending message must be prepared before it can be submitted");
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
+        // Note: fail_fast (relay-API) messages never reach this method — they go through
+        // submit_via_lander → payload(), not submit(). This dry-run only guards the classic path.
         if let Some(metadata) = self.metadata.as_ref() {
-            if self
+            debug!(
+                message_id = ?self.message.id(),
+                "Dry-run simulating process call before submission"
+            );
+            if let Err(e) = self
                 .ctx
                 .destination_mailbox
                 .process_estimate_costs(&self.message, metadata)
                 .await
-                .is_err()
             {
+                warn!(
+                    message_id = ?self.message.id(),
+                    error = %e,
+                    "Dry-run simulation failed"
+                );
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
@@ -585,17 +671,34 @@ impl PendingMessage {
     ) -> Option<Self> {
         let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let reprepare_reason = match &message_status {
+            PendingOperationStatus::Retry(r) => Some(r.clone()),
+            _ => None,
+        };
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
+            let next_attempt_after =
+                Self::next_attempt_after(num_retries, max_retries, reprepare_reason.as_ref());
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
         Some(pending_message)
     }
 
-    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+    /// Set fail-fast mode: drop the message immediately when `num_retries` exceeds
+    /// `max_retries` rather than parking it in the final long-backoff arm.
+    /// Use this for relay API messages where a small retry budget must be enforced strictly.
+    pub fn with_fail_fast(mut self) -> Self {
+        self.fail_fast = true;
+        self
+    }
+
+    fn next_attempt_after(
+        num_retries: u32,
+        max_retries: u32,
+        reason: Option<&ReprepareReason>,
+    ) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, reason)
             .and_then(|dur| Instant::now().checked_add(dur))
     }
 
@@ -833,35 +936,74 @@ impl PendingMessage {
         GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
     }
 
+    fn requeue_ica_reveal(&mut self) -> PendingOperationResult {
+        self.ica_reveal_attempts = self.ica_reveal_attempts.saturating_add(1);
+        let (interval, phase) = if self.ica_reveal_attempts <= REVEAL_POLL_FAST_MAX {
+            (REVEAL_POLL_FAST_INTERVAL, "fast")
+        } else {
+            (REVEAL_POLL_SLOW_INTERVAL, "slow")
+        };
+        warn!(
+            message_id = ?self.message.id(),
+            attempt = self.ica_reveal_attempts,
+            max_attempts = REVEAL_POLL_TOTAL_MAX,
+            phase,
+            interval_secs = interval.as_secs(),
+            "Reveal simulation failed (ICA: Invalid Reveal) — commit not yet confirmed, re-queuing"
+        );
+        self.delay_reprepare(interval, ReprepareReason::AwaitingIcaReveal)
+    }
+
+    /// Return `Reprepare` after `delay` without consuming the fail-fast retry budget.
+    /// Used for transient waits (e.g. ICA reveal polling) so that small `max_retries`
+    /// budgets are not exhausted by infrastructure delays.
+    fn delay_reprepare(
+        &mut self,
+        delay: Duration,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
+        self.submitted = false;
+        self.last_attempted_at = Instant::now();
+        self.next_attempt_after = self.last_attempted_at.checked_add(delay);
+        PendingOperationResult::Reprepare(reason)
+    }
+
     fn on_reprepare<E: Debug>(
         &mut self,
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(Some(&reason));
         self.submitted = false;
         if let Some(e) = err {
             warn!(error = ?e, "Repreparing message: {}", reason.clone());
         } else {
             warn!("Repreparing message: {}", reason.clone());
         }
+        // For fail-fast messages (relay API), drop immediately once the retry budget is
+        // exceeded. Without this check, a small max_retries value (e.g. 3) would still
+        // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
+        // Normal relayer messages do NOT set fail_fast and continue to the long-backoff arm.
+        if self.fail_fast && self.num_retries >= self.max_retries {
+            warn!(
+                message_id = ?self.message.id(),
+                num_retries = self.num_retries,
+                max_retries = self.max_retries,
+                "Relay API message exceeded max retries, dropping"
+            );
+            return PendingOperationResult::Drop;
+        }
         PendingOperationResult::Reprepare(reason)
     }
 
     fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
-        self.inc_attempts();
+        self.inc_attempts(None);
         if let Some(e) = err {
             warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason);
         } else {
             warn!(id = ?self.id(), "Reconfirming message: {}", reason);
         }
         PendingOperationResult::NotReady
-    }
-
-    fn is_ready(&self) -> bool {
-        self.next_attempt_after
-            .map(|a| Instant::now() >= a)
-            .unwrap_or(true)
     }
 
     /// Record in HyperlaneDB and various metrics that this process has observed
@@ -885,13 +1027,14 @@ impl PendingMessage {
         self.last_attempted_at = Instant::now();
     }
 
-    fn inc_attempts(&mut self) {
+    fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
         self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
+            reason,
         )
         .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
@@ -918,7 +1061,30 @@ impl PendingMessage {
         num_retries: u32,
         max_retries: u32,
         message_id: Option<H256>,
+        reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
+        // Signatures are simply not yet available (validator hasn't signed past the reorg
+        // period yet). Use a 2s fast-path for the first ~10 retries so the relayer picks
+        // them up within ~2s of the validator writing them, rather than waiting through the
+        // normal 5s→10s→30s→60s exponential backoff. Note: num_retries is the total persisted
+        // retry counter across all reasons, not a per-reason count — messages that burned through
+        // >10 retries before reaching metadata-wait won't get this fast-path.
+        //
+        // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
+        // from the beginning rather than landing mid-table at the 3-min arm.
+        if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
+            if (1..=10).contains(&num_retries) {
+                return Some(Duration::from_secs(2));
+            }
+            // Offset retries so 11→1, 12→2, … resuming the normal ramp.
+            // Pass reason=None to avoid recursing into this branch again.
+            return Self::calculate_msg_backoff(
+                num_retries.saturating_sub(10),
+                max_retries,
+                message_id,
+                None,
+            );
+        }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             1 => 5,
@@ -1016,6 +1182,9 @@ impl PendingMessage {
             MetadataBuildError::CouldNotFetch => {
                 self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
             }
+            MetadataBuildError::AwaitingValidatorSignatures => {
+                self.on_reprepare::<String>(None, ReprepareReason::AwaitingValidatorSignatures)
+            }
             // If the metadata building is refused, we still allow it to be retried later.
             MetadataBuildError::Refused(reason) => {
                 warn!(?reason, "Metadata building refused");
@@ -1104,6 +1273,7 @@ mod test {
         let next_prepare_attempt = PendingMessage::next_attempt_after(
             DEFAULT_MAX_MESSAGE_RETRIES,
             DEFAULT_MAX_MESSAGE_RETRIES,
+            None,
         )
         .unwrap();
 
@@ -1148,7 +1318,7 @@ mod test {
 
         // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
         for i in 0..=50 {
-            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None, None)
                 .unwrap_or(Duration::from_secs(0));
             // Uncomment to show the impact of changes to the backoff duration:
 
@@ -1192,13 +1362,62 @@ mod test {
         assert_eq!(num_retries, expected_retries);
     }
 
+    #[test]
+    fn test_could_not_fetch_metadata_backoff() {
+        let reason = ReprepareReason::AwaitingValidatorSignatures;
+
+        // Fast-path: retries 1–10 always return 2s
+        for i in 1..=10 {
+            assert_eq!(
+                PendingMessage::calculate_msg_backoff(
+                    i,
+                    DEFAULT_MAX_MESSAGE_RETRIES,
+                    None,
+                    Some(&reason)
+                ),
+                Some(Duration::from_secs(2)),
+                "retry {i} should be 2s"
+            );
+        }
+
+        // After fast-path: resumes gentle ramp (retry 11 → effective 1 → 5s)
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                11,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(5)),
+            "retry 11 should resume normal ramp at 5s, not jump to 180s"
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                12,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(10)),
+        );
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                13,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&reason)
+            ),
+            Some(Duration::from_secs(30)),
+        );
+    }
+
     /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
     /// so that messages doesn't getting dropped earlier than expected
     #[test]
     fn check_default_max_message_retries() {
         let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .sum();
 
@@ -1229,7 +1448,7 @@ mod test {
     fn check_ccip_retry() {
         let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .collect();
 

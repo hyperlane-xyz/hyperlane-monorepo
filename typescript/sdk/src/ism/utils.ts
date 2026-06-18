@@ -12,6 +12,7 @@ import {
   MailboxClient__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -470,6 +471,25 @@ export async function moduleMatchesConfig(
           config.thresholdWeight,
         );
       matches = eqAddress(expectedAddress, module.address);
+      break;
+    }
+    case IsmType.RATE_LIMITED: {
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [onChainMaxCapacity, onChainRecipient] = await Promise.all([
+        rateLimitedIsm.maxCapacity(),
+        rateLimitedIsm.recipient(),
+      ]);
+      matches &&= onChainMaxCapacity.eq(config.maxCapacity);
+      if (config.recipient) {
+        matches &&= eqAddress(onChainRecipient, config.recipient);
+      }
+      if (config.owner) {
+        const onChainOwner = await rateLimitedIsm.owner();
+        matches &&= eqAddress(onChainOwner, config.owner);
+      }
       break;
     }
     default: {

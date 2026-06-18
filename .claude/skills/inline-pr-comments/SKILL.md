@@ -38,6 +38,8 @@ Use this context to:
 - **Flag unresolved issues** — if a prior review raised something that still isn't fixed, note it briefly (e.g. "Still unresolved from prior review: ...")
 - **Avoid contradictions** — don't suggest the opposite of what a human reviewer requested
 
+**Re-fetch immediately before submitting.** Other reviewers may be reviewing concurrently. Critically, the GitHub API does **not** expose a reviewer's draft/pending comments until they submit — so you can post a review seconds before a concurrent reviewer submits theirs and never have seen their notes. Re-run the fetch right before Step 4, and state the HEAD commit your review is based on in the body (e.g. "Reviewed at `<sha>`") so readers know the snapshot.
+
 ### Step 2: Collect All Findings
 
 Complete the full review. Collect:

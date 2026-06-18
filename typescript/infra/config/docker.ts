@@ -24,6 +24,7 @@ interface AgentDockerTags {
   relayerFastPath: string;
   validator: string;
   validatorRC: string;
+  validatorFastPath: string;
   scraper: string;
 }
 
@@ -40,29 +41,31 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '7eb690c-20260406-142107',
-  relayerRC: '7eb690c-20260406-142107',
-  relayerFastPath: '7eb690c-20260406-142107',
-  validator: '7eb690c-20260406-142107',
-  validatorRC: '7eb690c-20260406-142107',
-  scraper: 'caa8162-20260409-132508',
+  relayer: '557df49-20260615-165434',
+  relayerRC: '557df49-20260615-165434',
+  relayerFastPath: '557df49-20260615-165434',
+  validator: '557df49-20260615-165434',
+  validatorRC: '557df49-20260615-165434',
+  validatorFastPath: '557df49-20260615-165434',
+  scraper: '557df49-20260615-165434',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
-  warpMonitor: '3b17358-20260315-183126',
-  rebalancer: '1a19513-20260413-090011',
+  warpMonitor: '744b3bb-20260521-215958',
+  rebalancer: '9474574-20260612-104459',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '7eb690c-20260406-142107',
-  relayerRC: '7eb690c-20260406-142107',
-  relayerFastPath: '7eb690c-20260406-142107',
-  validator: '7eb690c-20260406-142107',
-  validatorRC: '7eb690c-20260406-142107',
-  scraper: 'caa8162-20260409-132508',
+  relayer: '8b6fdf8-20260605-090142',
+  relayerRC: '8b6fdf8-20260605-090142',
+  relayerFastPath: '8b6fdf8-20260605-090142',
+  validator: '8b6fdf8-20260605-090142',
+  validatorRC: '8b6fdf8-20260605-090142',
+  validatorFastPath: '8b6fdf8-20260605-090142',
+  scraper: '8b6fdf8-20260605-090142',
   // standalone services
-  keyFunder: '3b17358-20260315-183126',
+  keyFunder: '87f0933-20260605-085727',
 };

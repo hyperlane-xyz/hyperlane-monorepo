@@ -14,6 +14,7 @@ import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -111,6 +112,12 @@ export class RadixProtocolProvider implements ProtocolProvider {
     return new RadixValidatorAnnounceArtifactManager(gateway, base);
   }
 
+  createFeeArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null {
+    return null;
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
@@ -118,6 +125,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,
+      HOOK_DEPLOY_GAS: 0n,
     };
   }
 

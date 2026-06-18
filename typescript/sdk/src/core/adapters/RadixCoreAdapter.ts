@@ -30,9 +30,9 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
     assert(
       sourceTx.type === ProviderType.Radix,
       `Unsupported provider type for RadixCoreAdapter ${sourceTx.type}`,

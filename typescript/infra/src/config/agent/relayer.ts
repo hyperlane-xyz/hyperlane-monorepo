@@ -6,7 +6,6 @@ import {
   AgentConfig,
   ChainMap,
   GasPaymentEnforcement,
-  HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
   IsmCacheConfig,
@@ -86,6 +85,15 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   reorgPeriodOverrides?: ChainMap<number>;
+  relayApi?: RelayApiConfig;
+}
+
+export interface RelayApiConfig {
+  enabled: boolean;
+  port?: number;
+  rateLimitMaxRequests?: number;
+  rateLimitWindowSecs?: number;
+  corsOrigins?: string;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -121,6 +129,8 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   environmentVariableEndpointEnabled?: boolean;
   // Config for the cache
   cacheDefaultExpirationSeconds?: number;
+  // Config for the relay API
+  relayApi?: RelayApiConfig;
 }
 
 export interface RelayerDbBootstrapConfig {
@@ -185,6 +195,23 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
+    if (baseConfig.relayApi !== undefined) {
+      relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;
+      if (baseConfig.relayApi.port !== undefined) {
+        relayerConfig.relayApiPort = baseConfig.relayApi.port;
+      }
+      if (baseConfig.relayApi.rateLimitMaxRequests !== undefined) {
+        relayerConfig.relayApiRateLimitMaxRequests =
+          baseConfig.relayApi.rateLimitMaxRequests;
+      }
+      if (baseConfig.relayApi.rateLimitWindowSecs !== undefined) {
+        relayerConfig.relayApiRateLimitWindowSecs =
+          baseConfig.relayApi.rateLimitWindowSecs;
+      }
+      if (baseConfig.relayApi.corsOrigins !== undefined) {
+        relayerConfig.relayApiCorsOrigins = baseConfig.relayApi.corsOrigins;
+      }
+    }
 
     return relayerConfig;
   }
@@ -355,43 +382,47 @@ export function consistentSenderRecipientMatchingList(
 export function chainMapMatchingList(
   chainMap: ChainMap<Address>,
 ): MatchingList {
-  // Convert to a router matching list
-  const routers = objMap(chainMap, (chain, address) => ({
-    router: address,
-  }));
-  return routerMatchingList(routers);
+  return multiAddressChainMapMatchingList(
+    objMap(chainMap, (_chain, address) => [address]),
+  );
+}
+
+// Create a matching list for chains that have multiple addresses (e.g. mixed token types in one warp route).
+// Generates entries for all (source, destination) pairs where sender/recipient arrays include all addresses for that chain.
+export function multiAddressChainMapMatchingList(
+  chainAddresses: ChainMap<Address[]>,
+): MatchingList {
+  const chains = Object.keys(chainAddresses);
+  const list: MatchingList = [];
+
+  for (const source of chains) {
+    for (const destination of chains) {
+      if (source === destination) continue;
+      list.push({
+        originDomain: getDomainId(source),
+        senderAddress: Array.from(new Set(chainAddresses[source])).map((addr) =>
+          addressToBytes32(addr),
+        ),
+        destinationDomain: getDomainId(destination),
+        recipientAddress: Array.from(new Set(chainAddresses[destination])).map(
+          (addr) => addressToBytes32(addr),
+        ),
+      });
+    }
+  }
+
+  return list;
 }
 
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
 ): MatchingList {
-  const chains = Object.keys(addressesMap);
-
-  // matching list must have at least one element so bypass and check before returning
-  const matchingList: MatchingList = [];
-
-  for (const source of chains) {
-    for (const destination of chains) {
-      if (source === destination) {
-        continue;
-      }
-
-      const uniqueAddresses = (addresses: HyperlaneAddresses<F>) =>
-        Array.from(new Set(Object.values(addresses)).values()).map((s) =>
-          addressToBytes32(s),
-        );
-
-      matchingList.push({
-        originDomain: getDomainId(source),
-        senderAddress: uniqueAddresses(addressesMap[source]),
-        destinationDomain: getDomainId(destination),
-        recipientAddress: uniqueAddresses(addressesMap[destination]),
-      });
-    }
-  }
-
-  return matchingList;
+  return multiAddressChainMapMatchingList(
+    objMap(addressesMap, (_chain, addresses) =>
+      Array.from(new Set<string>(Object.values(addresses))),
+    ),
+  );
 }
 
 /**

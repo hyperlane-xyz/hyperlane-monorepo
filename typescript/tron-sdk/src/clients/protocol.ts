@@ -16,6 +16,7 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -88,11 +89,18 @@ export class TronProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
+  createFeeArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null {
+    return null;
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e9),
       WARP_DEPLOY_GAS: BigInt(1e9),
       ISM_DEPLOY_GAS: BigInt(1e9),
+      HOOK_DEPLOY_GAS: BigInt(1e9),
       TEST_SEND_GAS: BigInt(1e9),
       AVS_GAS: BigInt(1e9),
     };

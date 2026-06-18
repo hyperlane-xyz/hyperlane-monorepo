@@ -50,7 +50,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -147,6 +147,7 @@ export {
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
+  shouldDeployQuotedCalls,
   ValidatorAnnounceViolation,
 } from './core/types.js';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker.js';
@@ -250,18 +251,22 @@ export {
   HookType,
   IgpHookConfig,
   IgpSchema,
+  IgpVersion,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
   normalizeUnknownHookTypes,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  RateLimitedHookConfig,
+  RateLimitedHookSchema,
   SafeParseHookConfigSchema,
 } from './hook/types.js';
-export { isHookCompatible } from './hook/utils.js';
+export { hookTreeContainsRateLimited, isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 // Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
@@ -322,6 +327,8 @@ export {
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
   SafeParseIsmConfigSchema,
+  RateLimitedIsmConfig,
+  RateLimitedIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -409,17 +416,7 @@ export {
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
 export {
-  commitmentFromIcaCalls,
-  commitmentFromRevealMessage,
-  encodeIcaCalls,
   InterchainAccount,
-  normalizeCalls,
-  PostCallsSchema,
-  PostCallsType,
-  PostCallsLegacyType,
-  PostCallsIcaType,
-  isPostCallsIca,
-  RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
@@ -510,6 +507,10 @@ export {
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
+  SeismicSigner,
+  type SeismicSignerContext,
+} from './providers/SeismicSigner.js';
+export {
   AllProviderMethods,
   excludeProviderMethods,
   IProviderMethods,
@@ -520,6 +521,7 @@ export {
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
+export { parseCustomRpcHeaders } from './utils/provider.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
@@ -693,6 +695,7 @@ export {
   EvmHypCollateralAdapter,
   EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmHypOwnerCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
   EvmHypVSXERC20LockboxAdapter,
@@ -708,11 +711,13 @@ export {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
   Quote,
   QuoteTransferRemoteParams,
+  isPredicateCapableAdapter,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -767,7 +772,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpModule, type WarpUpdateResult } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   WARP_ROUTE_CHECK_SCALE_TYPE,
@@ -807,6 +812,7 @@ export {
 } from './token/TokenConnection.js';
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
+  ERC4626_COLLATERAL_STANDARDS,
   EVM_TOKEN_TYPE_TO_STANDARD,
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
@@ -848,6 +854,7 @@ export {
   HypTokenRouterConfigSchema,
   HypTokenRouterVirtualConfig,
   isCollateralRebaseTokenConfig,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
@@ -883,6 +890,9 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,
@@ -894,6 +904,17 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateAttestationSchema,
+} from './predicate/PredicateApiClient.js';
+export {
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/PredicateDeployer.js';
 export {
   ChainMap,
   ChainName,
@@ -913,12 +934,20 @@ export {
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
+  alignLocalAmountToMessage,
   DEFAULT_SCALE,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
   normalizeScale,
   scalesEqual,
   verifyScale,
 } from './utils/decimals.js';
-export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
+export type {
+  NormalizedScale,
+  ScaleAlignment,
+  ScaleInput,
+} from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,
@@ -940,6 +969,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
+  normalizeSafeTxServiceUrl,
   safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';

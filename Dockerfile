@@ -1,4 +1,5 @@
-FROM node:24-slim
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-slim
 
 WORKDIR /hyperlane-monorepo
 

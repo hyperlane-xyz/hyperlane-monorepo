@@ -5,6 +5,7 @@ import {
   AbstractCcipReadIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -45,6 +46,7 @@ import {
   MUTABLE_ISM_TYPE,
   OffchainLookupIsmConfig,
   PausableIsmConfig,
+  RateLimitedIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -143,7 +145,27 @@ export class EvmIsmModule extends HyperlaneModule<
     // - If it is not a mutable ISM.
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
+    //
+    // Special case: RATE_LIMITED recipient is immutable — must redeploy if it changes.
+    // read() omits recipient (immutable constructor arg), so fetch on-chain to compare.
+    let rateLimitedRecipientChanged = false;
     if (
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.recipient !== undefined
+    ) {
+      const onChainRecipient = (
+        await RateLimitedIsm__factory.connect(
+          this.args.addresses.deployedIsm,
+          this.multiProvider.getProvider(this.chain),
+        ).recipient()
+      ).toLowerCase();
+      rateLimitedRecipientChanged =
+        onChainRecipient !== normalizedTargetConfig.recipient;
+    }
+    if (
+      rateLimitedRecipientChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
@@ -241,6 +263,13 @@ export class EvmIsmModule extends HyperlaneModule<
           target,
         }),
       );
+    } else if (
+      current.type === IsmType.RATE_LIMITED &&
+      target.type === IsmType.RATE_LIMITED
+    ) {
+      // owner is optional on RateLimitedIsmConfig — handle ownership here
+      // rather than falling through to the generic transferOwnershipTransactions call
+      return this.updateRateLimitedIsm({ current, target });
     } else {
       throw new Error(
         `Unsupported update to mutable ISM of type ${target.type}`,
@@ -410,6 +439,45 @@ export class EvmIsmModule extends HyperlaneModule<
         ),
       },
     ];
+  }
+
+  protected updateRateLimitedIsm({
+    current,
+    target,
+  }: {
+    current: RateLimitedIsmConfig;
+    target: RateLimitedIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+
+    if (current.maxCapacity !== target.maxCapacity) {
+      txs.push({
+        annotation: `Setting maxCapacity on RateLimitedIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chain),
+        to: this.args.addresses.deployedIsm,
+        data: RateLimitedIsm__factory.createInterface().encodeFunctionData(
+          'setRefillRate',
+          [target.maxCapacity],
+        ),
+      });
+    }
+
+    if (current.owner != null && target.owner == null) {
+      this.logger.warn(
+        `target.owner is undefined for RateLimitedIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"; ownership transfer will be skipped`,
+      );
+    } else if (current.owner != null && target.owner != null) {
+      txs.push(
+        ...transferOwnershipTransactions(
+          this.chainId,
+          this.args.addresses.deployedIsm,
+          { owner: current.owner },
+          { owner: target.owner },
+        ),
+      );
+    }
+
+    return txs;
   }
 
   protected async deploy({

@@ -145,6 +145,7 @@ export {
   parseMessage,
   parseStandardHookMetadata,
   parseWarpRouteMessage,
+  syntheticCcrSwapMessageId,
 } from './messages.js';
 export type { StandardHookMetadataParams } from './messages.js';
 export {
@@ -193,6 +194,7 @@ export {
 } from './sets.js';
 export {
   errorToString,
+  formatError,
   fromHexString,
   sanitizeString,
   streamToString,

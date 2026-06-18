@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -16,6 +17,8 @@ import type {
 import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AleoSigner } from '../clients/signer.js';
+import { type AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { type AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { TEST_ALEO_BURN_ADDRESS } from '../testing/constants.js';
 import { type AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
@@ -26,7 +29,15 @@ export interface WarpTestSuiteContext {
   aleoSigner: AleoSigner;
   providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   artifactManager: AleoWarpArtifactManager;
+  ismArtifactManager: AleoIsmArtifactManager;
+  hookArtifactManager: AleoHookArtifactManager;
   mailboxAddress: string;
+  /**
+   * When provided, all tests reuse this pre-deployed token instead of calling
+   * `writer.create()`. Used for token types with a fixed program name (native)
+   * where multiple deployments are not possible.
+   */
+  preDeployedToken?: DeployedRawWarpArtifact;
 }
 
 export interface WarpTokenTestCase {
@@ -55,8 +66,52 @@ export function warpArtifactTestSuite(
     ctx = getContext();
   });
 
+  /**
+   * Returns a deployed token in the requested initial config state.
+   * When ctx.preDeployedToken is set, resets the shared token to match
+   * the given config via update transactions instead of deploying fresh.
+   */
+  async function getDeployedToken(
+    config: ReturnType<WarpTokenTestCase['getConfig']>,
+  ): Promise<DeployedRawWarpArtifact> {
+    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
+    if (ctx.preDeployedToken) {
+      const target: DeployedRawWarpArtifact = {
+        ...ctx.preDeployedToken,
+        config: {
+          ...ctx.preDeployedToken.config,
+          remoteRouters: config.remoteRouters ?? {},
+          destinationGas: config.destinationGas ?? {},
+          interchainSecurityModule: config.interchainSecurityModule,
+          hook: config.hook,
+        },
+      };
+      const txs = await writer.update(target);
+      for (const tx of txs) {
+        await ctx.providerSdkSigner.sendAndConfirmTransaction(tx);
+      }
+      return target;
+    }
+    const [deployed] = await writer.create({ config });
+    return deployed;
+  }
+
   it('should create and read token', async () => {
     const config = getConfig();
+
+    if (ctx.preDeployedToken) {
+      const reader = ctx.artifactManager.createReader(type);
+      const readToken = await reader.read(
+        ctx.preDeployedToken.deployed.address,
+      );
+
+      expect(readToken.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(readToken.config.type).to.equal(type);
+      expect(readToken.deployed.address).to.equal(
+        ctx.preDeployedToken.deployed.address,
+      );
+      return;
+    }
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
     const [result, receipts] = await writer.create({ config });
@@ -88,9 +143,7 @@ export function warpArtifactTestSuite(
     const initialConfig = getConfig();
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-    const [deployedToken] = await writer.create({
-      config: initialConfig,
-    });
+    const deployedToken = await getDeployedToken(initialConfig);
 
     // Update with remote routers
     const updatedConfig: DeployedRawWarpArtifact = {
@@ -153,9 +206,7 @@ export function warpArtifactTestSuite(
     };
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-    const [deployedToken] = await writer.create({
-      config: initialConfig,
-    });
+    const deployedToken = await getDeployedToken(initialConfig);
 
     // Remove DOMAIN_2
     const updatedConfig: DeployedRawWarpArtifact = {
@@ -203,9 +254,7 @@ export function warpArtifactTestSuite(
     };
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-    const [deployedToken] = await writer.create({
-      config: initialConfig,
-    });
+    const deployedToken = await getDeployedToken(initialConfig);
 
     // Verify initial gas value
     const reader = ctx.artifactManager.createReader(type);
@@ -246,6 +295,10 @@ export function warpArtifactTestSuite(
   });
 
   it('should transfer ownership via update (ownership last)', async () => {
+    if (ctx.preDeployedToken) {
+      // Ownership transfer is irreversible — skip to avoid breaking subsequent tests
+      return;
+    }
     const initialConfig = getConfig();
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
@@ -308,7 +361,7 @@ export function warpArtifactTestSuite(
     const config = getConfig();
 
     const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-    const [deployedToken] = await writer.create({ config });
+    const deployedToken = await getDeployedToken(config);
 
     const txs = await writer.update(deployedToken);
     expect(txs).to.be.an('array').with.length(0);
@@ -318,8 +371,14 @@ export function warpArtifactTestSuite(
     it('should unset ISM when changed from address to undefined', async () => {
       const initialConfig = getConfig();
 
-      const { ismAddress } = await ctx.aleoSigner.createNoopIsm({});
-      const customIsmAddress = ismAddress;
+      const ismWriter = ctx.ismArtifactManager.createWriter(
+        AltVM.IsmType.TEST_ISM,
+        ctx.aleoSigner,
+      );
+      const [deployedIsm] = await ismWriter.create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+      const customIsmAddress = deployedIsm.deployed.address;
 
       // Create with ISM set
       initialConfig.interchainSecurityModule = {
@@ -330,9 +389,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify ISM is set
       const reader = ctx.artifactManager.createReader(type);
@@ -376,9 +433,7 @@ export function warpArtifactTestSuite(
       initialConfig.interchainSecurityModule = undefined;
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify ISM is unset
       const reader = ctx.artifactManager.createReader(type);
@@ -386,8 +441,14 @@ export function warpArtifactTestSuite(
       expect(readToken1.config.interchainSecurityModule).to.be.undefined;
 
       // Update to set ISM
-      const { ismAddress } = await ctx.aleoSigner.createNoopIsm({});
-      const customIsmAddress = ismAddress;
+      const ismWriter = ctx.ismArtifactManager.createWriter(
+        AltVM.IsmType.TEST_ISM,
+        ctx.aleoSigner,
+      );
+      const [deployedIsm] = await ismWriter.create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+      const customIsmAddress = deployedIsm.deployed.address;
 
       const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
@@ -427,10 +488,18 @@ export function warpArtifactTestSuite(
     it('should change ISM when updated to different address', async () => {
       const initialConfig = getConfig();
 
-      const { ismAddress: firstIsmAddress } =
-        await ctx.aleoSigner.createNoopIsm({});
-      const { ismAddress: secondIsmAddress } =
-        await ctx.aleoSigner.createNoopIsm({});
+      const ismWriter = ctx.ismArtifactManager.createWriter(
+        AltVM.IsmType.TEST_ISM,
+        ctx.aleoSigner,
+      );
+      const [firstIsm] = await ismWriter.create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+      const firstIsmAddress = firstIsm.deployed.address;
+      const [secondIsm] = await ismWriter.create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+      const secondIsmAddress = secondIsm.deployed.address;
 
       // Create with first ISM
       initialConfig.interchainSecurityModule = {
@@ -441,9 +510,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify first ISM is set
       const reader = ctx.artifactManager.createReader(type);
@@ -509,9 +576,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Update with same ISM (no change)
       const txs = await writer.update(deployedToken);
@@ -526,9 +591,7 @@ export function warpArtifactTestSuite(
       initialConfig.interchainSecurityModule = undefined;
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Update with ISM still undefined (no change)
       const txs = await writer.update(deployedToken);
@@ -541,9 +604,7 @@ export function warpArtifactTestSuite(
       const initialConfig = getConfig();
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
@@ -570,10 +631,14 @@ export function warpArtifactTestSuite(
     it('should unset hook when changed from address to undefined', async () => {
       const initialConfig = getConfig();
 
-      const { hookAddress } = await ctx.aleoSigner.createMerkleTreeHook({
-        mailboxAddress: ctx.mailboxAddress,
+      const hookWriter = ctx.hookArtifactManager.createWriter(
+        AltVM.HookType.MERKLE_TREE,
+        ctx.aleoSigner,
+      );
+      const [deployedHook] = await hookWriter.create({
+        config: { type: AltVM.HookType.MERKLE_TREE },
       });
-      const customHookAddress = hookAddress;
+      const customHookAddress = deployedHook.deployed.address;
 
       // Create with hook set
       initialConfig.hook = {
@@ -584,9 +649,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify hook is set
       const reader = ctx.artifactManager.createReader(type);
@@ -630,9 +693,7 @@ export function warpArtifactTestSuite(
       initialConfig.hook = undefined;
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify hook is unset
       const reader = ctx.artifactManager.createReader(type);
@@ -640,10 +701,14 @@ export function warpArtifactTestSuite(
       expect(readToken1.config.hook).to.be.undefined;
 
       // Update to set hook
-      const { hookAddress } = await ctx.aleoSigner.createMerkleTreeHook({
-        mailboxAddress: ctx.mailboxAddress,
+      const hookWriter = ctx.hookArtifactManager.createWriter(
+        AltVM.HookType.MERKLE_TREE,
+        ctx.aleoSigner,
+      );
+      const [deployedHook] = await hookWriter.create({
+        config: { type: AltVM.HookType.MERKLE_TREE },
       });
-      const customHookAddress = hookAddress;
+      const customHookAddress = deployedHook.deployed.address;
 
       const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
@@ -683,14 +748,18 @@ export function warpArtifactTestSuite(
     it('should change hook when updated to different address', async () => {
       const initialConfig = getConfig();
 
-      const { hookAddress: firstHookAddress } =
-        await ctx.aleoSigner.createMerkleTreeHook({
-          mailboxAddress: ctx.mailboxAddress,
-        });
-      const { hookAddress: secondHookAddress } =
-        await ctx.aleoSigner.createMerkleTreeHook({
-          mailboxAddress: ctx.mailboxAddress,
-        });
+      const hookWriter = ctx.hookArtifactManager.createWriter(
+        AltVM.HookType.MERKLE_TREE,
+        ctx.aleoSigner,
+      );
+      const [firstHook] = await hookWriter.create({
+        config: { type: AltVM.HookType.MERKLE_TREE },
+      });
+      const firstHookAddress = firstHook.deployed.address;
+      const [secondHook] = await hookWriter.create({
+        config: { type: AltVM.HookType.MERKLE_TREE },
+      });
+      const secondHookAddress = secondHook.deployed.address;
 
       // Create with first hook
       initialConfig.hook = {
@@ -701,9 +770,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify first hook is set
       const reader = ctx.artifactManager.createReader(type);
@@ -769,9 +836,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Update with same hook (no change)
       const txs = await writer.update(deployedToken);
@@ -786,9 +851,7 @@ export function warpArtifactTestSuite(
       initialConfig.hook = undefined;
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Update with hook still undefined (no change)
       const txs = await writer.update(deployedToken);
@@ -801,10 +864,14 @@ export function warpArtifactTestSuite(
       const initialConfig = getConfig();
 
       // Create a real hook to start with
-      const { hookAddress } = await ctx.aleoSigner.createMerkleTreeHook({
-        mailboxAddress: ctx.mailboxAddress,
+      const hookWriter = ctx.hookArtifactManager.createWriter(
+        AltVM.HookType.MERKLE_TREE,
+        ctx.aleoSigner,
+      );
+      const [deployedHook] = await hookWriter.create({
+        config: { type: AltVM.HookType.MERKLE_TREE },
       });
-      const customHookAddress = hookAddress;
+      const customHookAddress = deployedHook.deployed.address;
 
       // Create with hook set
       initialConfig.hook = {
@@ -815,9 +882,7 @@ export function warpArtifactTestSuite(
       };
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       // Verify hook is set
       const reader = ctx.artifactManager.createReader(type);
@@ -865,9 +930,7 @@ export function warpArtifactTestSuite(
       const initialConfig = getConfig();
 
       const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-      const [deployedToken] = await writer.create({
-        config: initialConfig,
-      });
+      const deployedToken = await getDeployedToken(initialConfig);
 
       const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
@@ -893,8 +956,7 @@ export function warpArtifactTestSuite(
   it(`should detect and read ${testCase.name} token via readWarpToken`, async () => {
     const config = getConfig();
 
-    const writer = ctx.artifactManager.createWriter(type, ctx.aleoSigner);
-    const [deployedToken] = await writer.create({ config });
+    const deployedToken = await getDeployedToken(config);
 
     // Read via generic readWarpToken (without knowing the type)
     const readToken = await ctx.artifactManager.readWarpToken(

@@ -142,7 +142,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("interval")
             .parse_u64()
             .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(5));
+            .unwrap_or(Duration::from_secs(2));
 
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
@@ -192,8 +192,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
-        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+        // Tron and Ethereum both use secp256k1 keys, so the validator attestation
+        // signer can double as the origin chain signer (used for self-announce txs).
+        if matches!(
+            origin_chain.domain_protocol(),
+            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Tron
+        ) {
             if let Some(origin) = base.chains.get_mut(&origin_chain) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }
@@ -293,12 +297,12 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .parse_string()
                 .end()
                 .map(str::to_owned);
-            // Using rusoto_core::Region just to get some input validation
-            let region: Option<rusoto_core::Region> = syncer
+            let region: Option<String> = syncer
                 .chain(&mut err)
                 .get_key("region")
-                .parse_from_str("Expected aws region")
-                .end();
+                .parse_string()
+                .end()
+                .map(str::to_owned);
             let folder = syncer
                 .chain(&mut err)
                 .get_opt_key("folder")
@@ -309,7 +313,7 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
                 bucket,
-                region: Region::new(region.name().to_owned()),
+                region: Region::new(region),
                 folder,
             })
         }

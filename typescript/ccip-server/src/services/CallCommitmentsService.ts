@@ -12,19 +12,22 @@ import {
   AccountConfig,
   InterchainAccount,
   MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import {
   PostCallsIcaType,
   PostCallsLegacyType,
   PostCallsSchema,
   PostCallsType,
-  isPostCallsIca,
   commitmentFromIcaCalls,
   commitmentFromRevealMessage,
   encodeIcaCalls,
+  isPostCallsIca,
   normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
   addressToBytes32,
   bytes32ToAddress,
+  assert,
   eqAddress,
   parseMessage,
 } from '@hyperlane-xyz/utils';
@@ -163,7 +166,7 @@ export class CallCommitmentsService extends BaseService {
     }
 
     logger.info(data, 'Commitment processing completed successfully');
-    return res.sendStatus(200);
+    return res.status(200).json({ commitment });
   }
 
   public async handleFetchCommitment(
@@ -383,6 +386,38 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
+   * GET /calls/:commitment — returns { exists: boolean }.
+   * Used by the router status service to detect call_lost without a time threshold.
+   */
+  public async handleCheckCommitment(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
+    const { commitment } = req.params;
+    assert(commitment, 'Route parameter :commitment must be present');
+    try {
+      const record = await prisma.commitment.findUnique({
+        where: { commitment },
+        select: { commitment: true },
+      });
+      return res.json({ exists: record !== null });
+    } catch (error: any) {
+      logger.error(
+        {
+          commitment,
+          error: error.message,
+          stack: error.stack,
+          error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+        },
+        'Database error during commitment existence check',
+      );
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
@@ -401,6 +436,11 @@ export class CallCommitmentsService extends BaseService {
       '/calls',
       commitmentRateLimit,
       this.handleCommitment.bind(this),
+    );
+    router.get(
+      '/calls/:commitment',
+      commitmentRateLimit,
+      this.handleCheckCommitment.bind(this),
     );
     router.post(
       '/getCallsFromRevealMessage',

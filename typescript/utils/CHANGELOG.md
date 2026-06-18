@@ -1,5 +1,41 @@
 # @hyperlane-xyz/utils
 
+## 35.2.0
+
+## 35.1.0
+
+## 35.0.1
+
+### Patch Changes
+
+- da1cfb1: A `syntheticCcrSwapMessageId` helper was added to `@hyperlane-xyz/utils` for deterministically computing the synthetic message ID of a same-chain CCR swap given its transaction hash and log index. The scraper agent config schema in `@hyperlane-xyz/sdk` was extended with an optional `ccrRouters` field mapping domain IDs to their CCR router-to-collateral address pairs.
+
+## 35.0.0
+
+## 34.0.0
+
+## 33.1.1
+
+## 33.1.0
+
+## 33.0.2
+
+### Patch Changes
+
+- 1f918d0: Added `@hyperlane-xyz/sdk` subpath exports for `core`, `hook`, and `ism` modules. Hardened `@hyperlane-xyz/utils` pretty-mode logging with a graceful fallback when `pino-pretty` is not installed.
+
+## 33.0.1
+
+## 33.0.0
+
+## 32.0.1
+
+## 32.0.0
+
+## 31.2.1
+
+## 31.2.0
+
 ## 31.1.0
 
 ## 31.0.1

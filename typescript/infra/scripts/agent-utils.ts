@@ -1,6 +1,6 @@
 import { checkbox, select } from '@inquirer/prompts';
 import chalk from 'chalk';
-import path, { join } from 'path';
+import path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
@@ -46,17 +46,17 @@ import { RootAgentConfig } from '../src/config/agent/agent.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
-  EnvironmentConfig,
   assertEnvironment,
-} from '../src/config/environment.js';
+} from '../src/config/deploy-environment.js';
+import { EnvironmentConfig } from '../src/config/environment.js';
 import { BalanceThresholdType } from '../src/config/funding/balances.js';
 import { AlertType } from '../src/config/funding/grafanaAlerts.js';
+import { getEnvironmentDirectory } from '../src/paths.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
   filterRemoteDomainMetadata,
-  getInfraPath,
 } from '../src/utils/utils.js';
 
 const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
@@ -489,6 +489,12 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   const agentConfig = getAgentConfig(context, environment);
+  if (
+    Object.keys(newValidatorCounts).length > 0 &&
+    !agentConfig.rolesWithKeys.includes(Role.Validator)
+  ) {
+    agentConfig.rolesWithKeys.push(Role.Validator);
+  }
 
   for (const [chain, validatorCount] of Object.entries(newValidatorCounts)) {
     const baseConfig = {
@@ -631,7 +637,9 @@ export async function getMultiProviderForRole(
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
   logger.debug(`Getting multiprovider for ${role} role`);
-  const multiProvider = new MultiProvider(chainMetadata);
+  const multiProvider = new MultiProvider(chainMetadata, {
+    minConfirmationTimeoutMs: 300_000,
+  });
   if (inCIMode()) {
     logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
@@ -680,10 +688,6 @@ export async function getKeysForRole(
     getKeyForRole(environment, context, role, chain, index),
   ]);
   return Object.fromEntries(keyEntries);
-}
-
-export function getEnvironmentDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments/', environment);
 }
 
 export function getModuleDirectory(
@@ -821,16 +825,4 @@ export function getValidatorsByChain(
     });
   }
   return validators;
-}
-
-export function getAWValidatorsPath(
-  environment: DeployEnvironment,
-  context: Contexts,
-) {
-  return join(
-    getInfraPath(),
-    getEnvironmentDirectory(environment),
-    'aw-validators',
-    `${context}.json`,
-  );
 }

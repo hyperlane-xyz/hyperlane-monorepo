@@ -18,6 +18,7 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
+  RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
   WeightedMultisigIsmConfig,
@@ -133,7 +134,9 @@ export const hookTypesToFilter: HookType[] = [
   HookType.OP_STACK,
   HookType.ARB_L2_TO_L1,
   HookType.CUSTOM,
+  HookType.PREDICATE,
   HookType.CCIP,
+  HookType.CCTP,
   HookType.UNKNOWN,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
@@ -237,6 +240,9 @@ export function randomHookConfig(
         arbSys: randomAddress(),
         bridge: randomAddress(),
         destinationChain: 'testChain',
+        childHook: {
+          type: HookType.MERKLE_TREE,
+        },
       };
 
     case HookType.ROUTING:
@@ -271,6 +277,13 @@ export function randomHookConfig(
         threshold: Math.floor(Math.random() * 100),
         lowerHook: randomHookConfig(depth + 1, maxDepth),
         upperHook: randomHookConfig(depth + 1, maxDepth),
+      };
+
+    case HookType.RATE_LIMITED:
+      return {
+        owner: randomAddress(),
+        type: hookType,
+        maxCapacity: ((1 + Math.floor(Math.random() * 100)) * 86400).toString(),
       };
 
     default:
@@ -390,6 +403,15 @@ export const randomIsmConfig = (
       return config;
     }
     case ModuleType.NULL: {
+      if (providedIsmType === IsmType.RATE_LIMITED) {
+        const config: RateLimitedIsmConfig = {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '86400',
+          recipient: randomAddress(),
+          owner: randomAddress(),
+        };
+        return config;
+      }
       const config: TrustedRelayerIsmConfig = {
         type: IsmType.TRUSTED_RELAYER,
         relayer: randomAddress(),

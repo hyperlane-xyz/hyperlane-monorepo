@@ -3,6 +3,7 @@ import {
   IPostDispatchHook__factory,
   Mailbox,
   QuotedCalls,
+  QuotedCalls__factory,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -32,7 +33,7 @@ import {
   PERMIT2_ADDRESS,
   coreFactories,
 } from './contracts.js';
-import { CoreConfig } from './types.js';
+import { CoreConfig, shouldDeployQuotedCalls } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
@@ -232,6 +233,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         config.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type`,
       );
+      assert(
+        config.type !== HookType.PREDICATE,
+        'Predicate hooks cannot be deployed via HyperlaneCoreDeployer, they must be pre-deployed',
+      );
       const hookType = config.type as DeployableHookType;
       return hooks[hookType];
     }
@@ -255,9 +260,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     permit2?: Address,
   ): Promise<QuotedCalls> {
-    return this.deployContract(chain, 'quotedCalls', [
-      permit2 ?? PERMIT2_ADDRESS,
-    ]);
+    const quotedCalls = await this.deployContractFromFactory(
+      chain,
+      new QuotedCalls__factory(),
+      'quotedCalls',
+      [permit2 ?? PERMIT2_ADDRESS],
+      undefined,
+      true,
+    );
+    this.writeCache(chain, 'quotedCalls', quotedCalls.address);
+    return quotedCalls;
   }
 
   async deployTestRecipient(
@@ -289,7 +301,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const quotedCalls = await this.deployQuotedCalls(chain, config.permit2);
+    const quotedCalls = shouldDeployQuotedCalls(config)
+      ? await this.deployQuotedCalls(chain, config.permit2)
+      : undefined;
 
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(

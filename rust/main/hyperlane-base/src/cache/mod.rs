@@ -11,7 +11,7 @@ pub use metered_cache::{
     MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, MeteredCacheMetricsBuilder,
     HIT_COUNT_HELP, HIT_COUNT_LABELS, MISS_COUNT_HELP, MISS_COUNT_LABELS,
 };
-pub use moka::{CacheResult, Expiration, LocalCache};
+pub use moka::{CacheResult, Expiration, ExpirationType, LocalCache};
 pub use optional_cache::OptionalCache;
 
 /// Should be used as the `fn_params` when the function has no parameters
@@ -28,6 +28,16 @@ pub trait FunctionCallCache: Send + Sync {
         fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
+    ) -> CacheResult<()>;
+
+    /// Cache a call result with the given parameters and expiration.
+    async fn cache_call_result_with_expiration(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+        expiration: ExpirationType,
     ) -> CacheResult<()>;
 
     /// Get a cached call result with the given parameters

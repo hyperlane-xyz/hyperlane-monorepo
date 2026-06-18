@@ -21,6 +21,7 @@ import {
   runSolanaNode,
 } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
+  TokenFeeType,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -354,5 +355,76 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       evmCCRoutersB,
       `EVM Route B should have EVM Route A enrolled as CC router on domain ${evmDomainId}`,
     ).to.include(evmRouterAHex32);
+  });
+
+  it('should deploy EVM collateral + SVM synthetic with RoutingFee tokenFee without error', async function () {
+    const evmOwner = new Wallet(EVM_KEY).address;
+    const svmOwner = svmSigner.getSignerAddress();
+    const DECIMALS = 9;
+    const SYMBOL = 'RTKN';
+
+    const evmToken = await deployToken(
+      EVM_KEY,
+      EVM_CHAIN,
+      DECIMALS,
+      SYMBOL,
+      'Routing Token',
+      REGISTRY_PATH,
+    );
+
+    const warpId = createWarpRouteConfigId(SYMBOL, `${EVM_CHAIN}-${SVM_CHAIN}`);
+    const warpDeployConfig: WarpRouteDeployConfig = {
+      [EVM_CHAIN]: {
+        type: TokenType.collateral,
+        token: evmToken.address,
+        mailbox: evmCoreAddresses.mailbox,
+        owner: evmOwner,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: evmOwner,
+          feeContracts: {
+            [SVM_CHAIN]: {
+              type: TokenFeeType.LinearFee,
+              bps: 50,
+            },
+          },
+        },
+      },
+      [SVM_CHAIN]: {
+        type: TokenType.synthetic,
+        mailbox: svmCoreAddresses.mailbox,
+        owner: svmOwner,
+        name: 'Routing Token',
+        symbol: SYMBOL,
+        decimals: DECIMALS,
+        metadataUri: 'https://test.example.com/rtkn-metadata.json',
+      },
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+    // Before the fix, enrollCrossChainRouters would fail with a
+    // RoutingFeeInputConfigSchema validation error because the EVM reader
+    // returns empty feeContracts when no SVM routers are enrolled yet.
+    await warpCommands.deployRaw({
+      warpRouteId: warpId,
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      skipConfirmationPrompts: true,
+      extraArgs: [
+        `--key.${ProtocolType.Ethereum}`,
+        EVM_KEY,
+        `--key.${ProtocolType.Sealevel}`,
+        SVM_KEY,
+      ],
+    });
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
+    const deployedConfig = await warpCommands.readConfig(
+      EVM_CHAIN,
+      warpCorePath,
+    );
+    expect(deployedConfig[EVM_CHAIN].tokenFee?.type).to.equal(
+      TokenFeeType.RoutingFee,
+    );
   });
 });

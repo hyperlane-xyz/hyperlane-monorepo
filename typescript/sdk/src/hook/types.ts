@@ -1,9 +1,16 @@
 import { z } from 'zod';
 
-import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  isAddressEvm,
+  isNullish,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -28,9 +35,17 @@ export enum OnchainHookType {
   OP_L2_TO_L1,
   MAILBOX_DEFAULT_HOOK,
   AMOUNT_ROUTING,
+  CCTP,
+  TIMELOCK_ROUTING,
+  PREDICATE_ROUTER_WRAPPER,
 }
 
 export const HookType = {
+  /**
+   * Retained for backwards compatibility with pre-deployed hooks that don't fit
+   * a named type. Excluded from `DeployableHookType` — cannot be deployed via
+   * `HyperlaneHookDeployer`. New code should use a specific named hook type.
+   */
   CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
@@ -44,14 +59,29 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  /**
+   * References a pre-deployed CCTP hook by address. Excluded from
+   * `DeployableHookType` — not deployed via `HyperlaneHookDeployer`; the
+   * `EvmHookModule.deploy` path just connects to `config.address`.
+   */
+  CCTP: 'cctpHook',
+  /**
+   * Rate-limits outbound token volume on the origin chain at dispatch time.
+   * Warp-route only. Not valid for core required/default hooks.
+   */
+  RATE_LIMITED: 'rateLimitedHook',
   UNKNOWN: 'unknownHook',
+  PREDICATE: 'predicateHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export type DeployableHookType = Exclude<
   HookType,
-  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+  | typeof HookType.CUSTOM
+  | typeof HookType.PREDICATE
+  | typeof HookType.UNKNOWN
+  | typeof HookType.CCTP
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -67,6 +97,7 @@ export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.ARB_L2_TO_L1]: 'arbL2ToL1Hook',
   [HookType.MAILBOX_DEFAULT]: 'defaultHook',
   [HookType.CCIP]: 'ccipHook',
+  [HookType.RATE_LIMITED]: 'rateLimitedHook',
 };
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -74,8 +105,15 @@ export type IgpHookConfig = z.infer<typeof IgpSchema>;
 export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
-export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
+export type ArbL2ToL1HookConfig = {
+  type: typeof HookType.ARB_L2_TO_L1;
+  arbSys: string;
+  bridge?: string;
+  destinationChain: string;
+  childHook: HookConfig;
+};
 export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
+export type RateLimitedHookConfig = z.infer<typeof RateLimitedHookSchema>;
 
 export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 // explicitly typed to avoid zod circular dependency
@@ -104,6 +142,22 @@ export type HookConfig = z.infer<typeof HookConfigSchema>;
 
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
+export enum IgpVersion {
+  Legacy = 'legacy',
+  Latest = 'latest',
+}
+
+export const OFFCHAIN_QUOTED_IGP_VERSION = '11.3.0';
+
+const FeeTokenAddressSchema = z
+  .string()
+  .refine((feeToken) => isAddressEvm(feeToken), {
+    message: 'fee token must be an EVM address',
+  })
+  .refine((feeToken) => !isZeroishAddress(feeToken), {
+    message: 'fee token must not be the zero address',
+  });
+
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -111,6 +165,7 @@ export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.ROUTING,
   HookType.FALLBACK_ROUTING,
   HookType.PAUSABLE,
+  HookType.RATE_LIMITED,
 ];
 
 export const ProtocolFeeSchema = OwnableSchema.extend({
@@ -123,6 +178,12 @@ export const ProtocolFeeSchema = OwnableSchema.extend({
 export const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
 });
+
+export const PredicateHookSchema = z.object({
+  type: z.literal(HookType.PREDICATE),
+  address: z.string(),
+});
+export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
@@ -138,22 +199,25 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
-export const ArbL2ToL1HookSchema = z.object({
-  type: z.literal(HookType.ARB_L2_TO_L1),
-  arbSys: z
-    .string()
-    .describe(
-      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-    ),
-  bridge: z
-    .string()
-    .optional()
-    .describe(
-      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-    ),
-  destinationChain: z.string(),
-  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
-});
+export const ArbL2ToL1HookSchema: z.ZodSchema<ArbL2ToL1HookConfig> = z.lazy(
+  () =>
+    z.object({
+      type: z.literal(HookType.ARB_L2_TO_L1),
+      arbSys: z
+        .string()
+        .describe(
+          'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+        ),
+      bridge: z
+        .string()
+        .optional()
+        .describe(
+          'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+        ),
+      destinationChain: z.string(),
+      childHook: HookConfigSchema,
+    }),
+);
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
@@ -161,8 +225,24 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  igpVersion: z.nativeEnum(IgpVersion).optional(),
   quoteSigners: z.array(z.string()).optional(),
   contractVersion: z.string().optional(),
+  // Per-fee-token gas oracles for ERC20-denominated interchain gas payments.
+  // Keyed by fee token address -> remote chain -> oracle config. Each fee token
+  // gets its own StorageGasOracle (the IGasOracle interface is keyed only by
+  // destination, so distinct exchange rates require distinct oracle instances).
+  // Optional and off by default; only wired when present and the IGP supports
+  // tokenGasOracles (>= OFFCHAIN_QUOTED_IGP_VERSION, non-legacy).
+  tokenOracleConfig: z
+    .record(
+      FeeTokenAddressSchema,
+      z.record(
+        ZChainName,
+        ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+      ),
+    )
+    .optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
@@ -205,12 +285,40 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const CctpHookSchema = z.object({
+  type: z.literal(HookType.CCTP),
+  address: ZHash,
+});
+export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
+
 export const UnknownHookSchema = z
   .object({
     type: z.literal(HookType.UNKNOWN),
   })
   .passthrough();
 export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
+
+export const RateLimitedHookSchema = OwnableSchema.extend({
+  type: z.literal(HookType.RATE_LIMITED),
+  maxCapacity: z
+    .string()
+    .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+})
+  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
+    message: 'maxCapacity must be at least 86400',
+    path: ['maxCapacity'],
+  })
+  .transform((val) => {
+    const capacity = BigInt(val.maxCapacity);
+    if (capacity % 86400n !== 0n) {
+      const rounded = ((capacity / 86400n) * 86400n).toString();
+      rootLogger.warn(
+        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+      );
+      return { ...val, maxCapacity: rounded };
+    }
+    return val;
+  });
 
 const KnownHookTypes: string[] = Object.values(HookType).filter(
   (t) => t !== HookType.UNKNOWN,
@@ -267,7 +375,10 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  CctpHookSchema,
+  RateLimitedHookSchema,
   UnknownHookSchema,
+  PredicateHookSchema,
 ]);
 
 /**

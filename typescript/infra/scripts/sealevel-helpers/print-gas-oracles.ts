@@ -13,7 +13,7 @@ import {
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
 import { getDisabledChains } from '../../src/config/chain.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { svmGasOracleConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
@@ -111,7 +111,6 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      ['solanamainnet', 'everclear'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
@@ -127,6 +126,9 @@ function getChainConnections(
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],
       ['solanamainnet', 'tron'],
+      ['solanamainnet', 'igra'],
+      ['solanamainnet', 'fluent'],
+      ['solanamainnet', 'nesa'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],

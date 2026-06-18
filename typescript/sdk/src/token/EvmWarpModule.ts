@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants } from 'ethers';
+import { BigNumberish, constants, providers } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -10,7 +10,10 @@ import {
   IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
+  PredicateRouterWrapper__factory,
   ProxyAdmin__factory,
+  StaticAggregationHook__factory,
+  StaticAggregationHookFactory__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -56,14 +59,24 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
+import { mergeCrossCollateralRouters } from '../fee/crossCollateralUtils.js';
+import { TokenFeeType } from '../fee/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
+import { stripPredicateSubHook } from '../hook/utils.js';
+import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
-import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import { IsmType } from '../ism/types.js';
+import {
+  extractIsmAndHookFactoryAddresses,
+  ismTreeContainsRateLimited,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 
 import {
   CCTP_PPM_STORAGE_VERSION,
@@ -80,8 +93,11 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
+  derivedHookAddress,
   derivedIsmAddress,
   isCctpTokenConfig,
   isEverclearTokenBridgeConfig,
@@ -111,6 +127,12 @@ const getAllowedRebalancingBridgesByDomain = (
     },
   );
 };
+export type WarpUpdateResult = {
+  txs: AnnotatedEV5Transaction[];
+  feeTxs: AnnotatedEV5Transaction[];
+  ownershipTxs: AnnotatedEV5Transaction[];
+};
+
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -151,21 +173,48 @@ export class EvmWarpModule extends HyperlaneModule<
    * @returns A promise that resolves to the token router configuration.
    */
   async read(): Promise<DerivedTokenRouterConfig> {
-    return this.reader.deriveWarpRouteConfig(
+    const config = await this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
+    // recipient is always the token address itself — implicit in the warp
+    // context, so omit it from read() output to keep configs clean.
+    // Mutate in place to preserve the DerivedIsmConfig type (WithAddress<...>).
+    const stripRecipient = (node: unknown): void => {
+      if (typeof node !== 'object' || node === null) return;
+      const n = node as Record<string, unknown>;
+      if (n.type === IsmType.RATE_LIMITED) {
+        delete n.recipient;
+        return;
+      }
+      if (Array.isArray(n.modules)) n.modules.forEach(stripRecipient);
+      if (typeof n.domains === 'object' && n.domains !== null)
+        Object.values(n.domains as Record<string, unknown>).forEach(
+          stripRecipient,
+        );
+      if (n.lowerIsm) stripRecipient(n.lowerIsm);
+      if (n.upperIsm) stripRecipient(n.upperIsm);
+    };
+    const ism = config.interchainSecurityModule;
+    if (typeof ism !== 'string' && ismTreeContainsRateLimited(ism))
+      stripRecipient(ism);
+    return config;
   }
 
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
+   * IMPORTANT — irreversible side effects when expectedConfig includes `predicateWrapper`:
+   * The PredicateRouterWrapper contract is deployed on-chain during planning (before this
+   * method returns). If the returned transactions are never submitted, the wrapper is
+   * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
+   *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
+   * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
    */
-  async update(
+  async updateSplit(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
     const transactions = [];
@@ -181,12 +230,34 @@ export class EvmWarpModule extends HyperlaneModule<
       xerc20Txs = await module.update(config);
     }
 
+    const allFeeTxs = await this.createTokenFeeUpdateTxs(
+      actualConfig,
+      expectedConfig,
+      tokenReaderParams,
+    );
+
+    // Split feeTxs by authority: setFeeRecipient targets the token router (router
+    // owner gated) while all other fee txs target the fee contract (fee-contract
+    // owner gated).  Keeping them in the same bucket means a dedicated feeSubmitter
+    // (which owns the fee contract) would try to call setFeeRecipient — which reverts
+    // because it doesn't own the router.  Router-owner txs go into the main batch;
+    // only fee-contract-owner txs are returned as feeTxs for the feeSubmitter.
+    const routerAddress = this.args.addresses.deployedTokenRoute.toLowerCase();
+    const routerOwnerFeeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() === routerAddress,
+    );
+    const feeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() !== routerAddress,
+    );
+
     /**
      * @remark
      * The order of operations matter
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
      * 2. createEnrollRemoteRoutersUpdateTxs() must be BEFORE createSetDestinationGasUpdateTxs()
      *    because GasRouter requires routers to be enrolled before setting destination gas
+     * 3. createHookAndPredicateUpdateTxs() handles hook + predicate wrapper together so the
+     *    pending new hook address is threaded through without leaking into other method signatures
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -194,11 +265,9 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createTokenFeeUpdateTxs(
+      ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
         expectedConfig,
-        tokenReaderParams,
       )),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
@@ -231,7 +300,15 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
+      // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
+      // always execute under the router owner's authority — even when a dedicated
+      // feeSubmitter is configured for fee-contract-owner txs.
+      ...routerOwnerFeeTxs,
+    );
 
+    // Ownership/proxyAdmin must always execute last; returned separately so callers
+    // can place feeTxs between main txs and ownership (see update() below).
+    const ownershipTxs = [
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -239,9 +316,26 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-    );
+    ];
 
-    return transactions;
+    return { txs: transactions, feeTxs, ownershipTxs };
+  }
+
+  /**
+   * Backwards-compatible wrapper around `updateSplit`. Returns a flat, ordered
+   * transaction array suitable for a single submitter.
+   */
+  async update(
+    expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
+      expectedConfig,
+      tokenReaderParams,
+    );
+    // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
+    // execute before the router owner changes.
+    return [...txs, ...feeTxs, ...ownershipTxs];
   }
 
   /**
@@ -1135,36 +1229,420 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    if (!expectedConfig.hook) {
-      return [];
+    return this.createHookAndPredicateUpdateTxs(actualConfig, expectedConfig);
+  }
+
+  /**
+   * Deploys hook updates and predicate wrapper together so the post-update hook address
+   * is available to deployAndConfigure without a stale on-chain read.
+   */
+  async createHookAndPredicateUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    let hookTransactions: AnnotatedEV5Transaction[] = [];
+    let newHookAddress: Address | undefined;
+
+    // Explicit type annotation narrows away the undefined that TypeScript infers
+    // from the RouterConfig & DerivedMailboxClientConfig intersection.
+    const actualHook: DerivedHookConfig | string = actualConfig.hook;
+
+    // Predicate removal: on-chain wrapper exists but expected config omits it.
+    // When the user provides an explicit hook that differs from the underlying hook
+    // (predicate stripped), the hook-diff path generates the setHook to the new hook.
+    // Otherwise (no hook, or a stale aggregation from a warp read), the
+    // needsPredicateRemoval block below clears the hook to zero so the router uses the
+    // mailbox default — the user who removed predicateWrapper without supplying a
+    // replacement hook wants the default behavior restored, not the underlying sub-hook
+    // silently preserved.
+    const needsPredicateRemoval =
+      actualConfig.predicateWrapper != null && !expectedConfig.predicateWrapper;
+
+    // Treat a zero-address hook the same as "no explicit hook": expandWarpDeployConfig
+    // sets hook: zeroAddress as a default when the user config omits the hook field.
+    // EvmHookModule.update(zeroAddress) returns [] early without updating deployedHook,
+    // so a zero-address target produces no setHook tx and the predicate removal branch
+    // would never be reached. Exclude zero addresses so needsPredicateRemoval can fire.
+    if (
+      expectedConfig.hook &&
+      (typeof expectedConfig.hook !== 'string' ||
+        !isZeroishAddress(expectedConfig.hook))
+    ) {
+      const proxyAdminAddress =
+        expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
+      assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
+
+      // The reader leaves the PREDICATE sub-hook inside actualConfig.hook
+      // (e.g. Agg([Predicate, IGP])). When expectedConfig is derived from
+      // actualConfig (e.g. during the enrollment step after initial deploy, OR
+      // during a read→edit→apply round-trip where the operator removed predicateWrapper
+      // but kept the hook field unchanged), expectedConfig.hook carries the same
+      // aggregation. Strip the predicate from BOTH sides so the hook diff sees the bare
+      // hook (e.g. IGP) on both sides and doesn't generate a spurious setHook.
+      // The needsPredicateRemoval block below then fires to clear the hook to zero.
+      const shouldStripHookForComparison =
+        !!expectedConfig.predicateWrapper || needsPredicateRemoval;
+      const actualHookForComparison = shouldStripHookForComparison
+        ? stripPredicateSubHook(actualHook)
+        : actualHook;
+      const expectedHookForComparison =
+        shouldStripHookForComparison && expectedConfig.hook
+          ? stripPredicateSubHook(
+              expectedConfig.hook as DerivedHookConfig | string,
+            )
+          : expectedConfig.hook;
+
+      const result = await getEvmHookUpdateTransactions(
+        this.args.addresses.deployedTokenRoute,
+        {
+          actualConfig: actualHookForComparison,
+          expectedConfig: expectedHookForComparison,
+          ccipContractCache: this.ccipContractCache,
+          contractVerifier: this.contractVerifier,
+          evmChainName: this.chainName,
+          hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+            this.args.addresses,
+          ),
+          setHookFunctionCallEncoder: (addr: string) =>
+            MailboxClient__factory.createInterface().encodeFunctionData(
+              'setHook',
+              [addr],
+            ),
+          logger: this.logger,
+          mailbox: actualConfig.mailbox,
+          multiProvider: this.multiProvider,
+          proxyAdminAddress,
+          rateLimitedSender: this.args.addresses.deployedTokenRoute,
+        },
+      );
+      hookTransactions = result.transactions;
+      newHookAddress = result.newHookAddress;
+    }
+    // Predicate removal when no new hook was deployed: clear the custom hook entirely.
+    // This fires whether or not expectedConfig.hook was provided — it handles both the
+    // "no hook field" case and the round-trip hazard where the operator removed
+    // predicateWrapper but left an unchanged hook field (still containing the aggregation).
+    if (needsPredicateRemoval && !newHookAddress) {
+      const currentAddress =
+        typeof actualHook === 'string' ? actualHook : actualHook.address;
+      if (!isZeroishAddress(currentAddress)) {
+        this.logger.debug(
+          { chain: this.chainName },
+          'Removing predicate wrapper: generating setHook(zero) to clear custom hook',
+        );
+        hookTransactions.push({
+          annotation:
+            'Remove predicate wrapper: clear custom hook (router will use mailbox default)',
+          chainId: this.chainId,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MailboxClient__factory.createInterface().encodeFunctionData(
+            'setHook',
+            [constants.AddressZero],
+          ),
+        });
+      }
     }
 
-    const proxyAdminAddress =
-      expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
-    assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
+    const { transactions: predicateTransactions, deploysNewWrapper } =
+      await this.createPredicateWrapperUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        newHookAddress,
+      );
 
-    return getEvmHookUpdateTransactions(
-      this.args.addresses.deployedTokenRoute,
-      {
-        actualConfig: actualConfig.hook,
-        expectedConfig: expectedConfig.hook,
-        ccipContractCache: this.ccipContractCache,
-        contractVerifier: this.contractVerifier,
-        evmChainName: this.chainName,
-        hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
-          this.args.addresses,
-        ),
-        setHookFunctionCallEncoder: (newHookAddress: string) =>
-          MailboxClient__factory.createInterface().encodeFunctionData(
-            'setHook',
-            [newHookAddress],
-          ),
-        logger: this.logger,
-        mailbox: actualConfig.mailbox,
-        multiProvider: this.multiProvider,
-        proxyAdminAddress,
-      },
+    // When predicate wrapper is being deployed, its setHook(aggregation) sets the final
+    // router hook and already incorporates newHookAddress inside the aggregation.
+    // Drop the intermediate setHook(newHookAddress) from hookTransactions to avoid a
+    // redundant write that would be immediately overwritten.
+    //
+    // IMPORTANT: only drop when a NEW wrapper is being deployed. The ownership-only
+    // path (deploysNewWrapper=false) must not suppress the hook update even though
+    // predicateTransactions is non-empty.
+    const effectiveHookTransactions =
+      hookTransactions.length > 0 && deploysNewWrapper
+        ? hookTransactions.filter(
+            (tx) =>
+              !(
+                tx.to &&
+                eqAddress(tx.to, this.args.addresses.deployedTokenRoute) &&
+                tx.data?.startsWith(
+                  MailboxClient__factory.createInterface().getSighash(
+                    'setHook',
+                  ),
+                )
+              ),
+          )
+        : hookTransactions;
+
+    return [...effectiveHookTransactions, ...predicateTransactions];
+  }
+
+  /**
+   * Searches the current on-chain hook tree for a PredicateRouterWrapper that
+   * matches by registry and policyId. Returns the wrapper address and its current
+   * on-chain owner when found, undefined otherwise.
+   *
+   * Uses unbounded recursion into aggregation hooks (consistent with
+   * EvmTokenAdapter.findPredicateWrapperInHook and EvmWarpRouteReader.findPredicateAddressInHook).
+   */
+  private async findDeployedPredicateWrapper(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
+    const hookAddress = derivedHookAddress(actualConfig);
+    if (!hookAddress || isZeroishAddress(hookAddress)) return undefined;
+
+    try {
+      const provider = this.multiProvider.getProvider(this.domainId);
+      return await this.searchPredicateInHook(
+        hookAddress,
+        provider,
+        expectedPredicateConfig,
+      );
+    } catch (error) {
+      this.logger.debug(
+        { chain: this.chainName, error },
+        'Error checking predicate wrapper deployment',
+      );
+    }
+    return undefined;
+  }
+
+  /**
+   * Recursively searches a hook tree for a matching PredicateRouterWrapper.
+   * Descends into StaticAggregationHook sub-hooks without depth limit.
+   */
+  private async searchPredicateInHook(
+    hookAddr: Address,
+    provider: providers.Provider,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
+    const match = await this.matchPredicateWrapper(
+      hookAddr,
+      provider,
+      expectedPredicateConfig,
     );
+    if (match) return match;
+
+    let subHooks: string[];
+    try {
+      subHooks = await StaticAggregationHook__factory.connect(
+        hookAddr,
+        provider,
+      ).hooks('0x');
+    } catch {
+      // Any call failure means hookAddr is not a StaticAggregationHook.
+      // HyperlaneSmartProvider wraps CALL_EXCEPTION as "Invalid response from provider"
+      // with code: undefined, so checking error.code is insufficient.
+      return undefined;
+    }
+
+    for (const subHook of subHooks) {
+      const found = await this.searchPredicateInHook(
+        subHook,
+        provider,
+        expectedPredicateConfig,
+      );
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  /**
+   * Checks whether a single hook address is a PredicateRouterWrapper matching
+   * the warp route and expected config. Returns the match or undefined.
+   */
+  private async matchPredicateWrapper(
+    hookAddr: Address,
+    provider: providers.Provider,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
+    try {
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        hookAddr,
+        provider,
+      );
+
+      // Verify identity: warpRoute + hookType confirm it's a PredicateRouterWrapper
+      // for this route. Then compare registry + policyId so config rotations
+      // (e.g. changing compliance policy) trigger a redeploy rather than silently no-op.
+      const [
+        warpRoute,
+        hookType,
+        onchainRegistry,
+        onchainPolicyId,
+        onchainOwner,
+      ] = await Promise.all([
+        predicateWrapper.warpRoute(),
+        predicateWrapper.hookType(),
+        predicateWrapper.getRegistry(),
+        predicateWrapper.getPolicyID(),
+        predicateWrapper.owner(),
+      ]);
+
+      if (
+        eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
+        hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER &&
+        eqAddress(onchainRegistry, expectedPredicateConfig.predicateRegistry) &&
+        onchainPolicyId === expectedPredicateConfig.policyId
+      ) {
+        return { address: hookAddr, onchainOwner };
+      }
+    } catch {
+      // Any call failure means hookAddr is not a PredicateRouterWrapper.
+      // HyperlaneSmartProvider wraps CALL_EXCEPTION as "Invalid response from provider"
+      // with code: undefined, so checking error.code === 'CALL_EXCEPTION' is insufficient.
+      return undefined;
+    }
+    return undefined;
+  }
+
+  /**
+   * Check if predicate wrapper is already deployed with fully matching config
+   * (registry, policyId, and owner).
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedPredicateConfig - The expected predicate wrapper configuration.
+   * @returns True if wrapper is deployed with all fields matching, false otherwise.
+   */
+  async isPredicateWrapperDeployed(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedPredicateConfig: {
+      predicateRegistry: string;
+      policyId: string;
+      owner: string;
+    },
+  ): Promise<boolean> {
+    const found = await this.findDeployedPredicateWrapper(
+      actualConfig,
+      expectedPredicateConfig,
+    );
+    return (
+      found !== undefined &&
+      eqAddress(found.onchainOwner, expectedPredicateConfig.owner)
+    );
+  }
+
+  /**
+   * Create transactions to deploy predicate wrapper and update hook.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns transactions to execute and whether a new wrapper is being deployed.
+   *   deploysNewWrapper=true means the predicate emits its own setHook(aggregation)
+   *   that supersedes any hook update in the same batch.
+   */
+  async createPredicateWrapperUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+    pendingHookAddress?: Address,
+  ): Promise<{
+    transactions: AnnotatedEV5Transaction[];
+    deploysNewWrapper: boolean;
+  }> {
+    // Only proceed if expectedConfig has predicateWrapper
+    if (
+      !('predicateWrapper' in expectedConfig) ||
+      !expectedConfig.predicateWrapper
+    ) {
+      return { transactions: [], deploysNewWrapper: false };
+    }
+
+    const predicateWrapperConfig: PredicateWrapperConfig =
+      PredicateWrapperConfigSchema.parse(expectedConfig.predicateWrapper);
+
+    // Check if a wrapper matching by registry+policyId already exists on-chain.
+    // If so, only a transferOwnership tx is needed (not a full redeploy).
+    const existingWrapper = await this.findDeployedPredicateWrapper(
+      actualConfig,
+      predicateWrapperConfig,
+    );
+
+    if (existingWrapper) {
+      if (
+        eqAddress(existingWrapper.onchainOwner, predicateWrapperConfig.owner)
+      ) {
+        this.logger.debug(
+          { chain: this.chainName },
+          'Predicate wrapper already deployed with matching config, skipping',
+        );
+        return { transactions: [], deploysNewWrapper: false };
+      }
+
+      // Owner changed — generate a transferOwnership tx without redeploying.
+      this.logger.debug(
+        { chain: this.chainName, wrapper: existingWrapper.address },
+        'Predicate wrapper owner changed, generating transferOwnership transaction',
+      );
+      const transferOwnershipTx = await PredicateRouterWrapper__factory.connect(
+        existingWrapper.address,
+        this.multiProvider.getProvider(this.chainName),
+      ).populateTransaction.transferOwnership(predicateWrapperConfig.owner);
+      return {
+        transactions: [
+          {
+            ...transferOwnershipTx,
+            chainId: this.chainId,
+            annotation: `Transferring predicate wrapper ownership to ${predicateWrapperConfig.owner}`,
+          },
+        ],
+        deploysNewWrapper: false,
+      };
+    }
+
+    const staticAggregationHookFactory =
+      this.args.addresses.staticAggregationHookFactory;
+    if (!staticAggregationHookFactory) {
+      throw new Error(
+        `staticAggregationHookFactory not found for ${this.chainName}. Ensure proxy factories are deployed.`,
+      );
+    }
+
+    const signer = this.multiProvider.getSigner(this.chainName);
+    const factory = StaticAggregationHookFactory__factory.connect(
+      staticAggregationHookFactory,
+      signer,
+    );
+
+    const predicateDeployer = new PredicateWrapperDeployer(
+      this.multiProvider,
+      factory,
+      this.logger,
+    );
+
+    // Deploy predicate wrapper and get addresses.
+    // Pass token type to deploy the appropriate wrapper.
+    // Pass pendingHookAddress (if any) so deployAndConfigure uses the post-update hook
+    // instead of reading the stale on-chain value when hook and predicate wrapper are
+    // both being changed in the same update() call.
+    const result = await predicateDeployer.deployAndConfigure(
+      this.chainName,
+      this.args.addresses.deployedTokenRoute,
+      predicateWrapperConfig,
+      expectedConfig.type,
+      pendingHookAddress,
+    );
+
+    this.logger.info(
+      {
+        chain: this.chainName,
+        wrapper: result.wrapperAddress,
+        aggregationHook: result.aggregationHookAddress,
+      },
+      'Predicate wrapper deployed, returning setHook transaction',
+    );
+
+    return {
+      transactions: [
+        {
+          annotation:
+            'Set aggregation hook wrapping PredicateRouterWrapper on warp route',
+          chainId: this.chainId,
+          ...result.setHookTx,
+        },
+      ],
+      deploysNewWrapper: true,
+    };
   }
 
   /**
@@ -1173,6 +1651,12 @@ export class EvmWarpModule extends HyperlaneModule<
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transactions that need to be executed to update the token fee.
+   *
+   * @remarks
+   * The returned transactions may include both `setFeeRecipient` (gated by the
+   * token-router owner) and fee-contract config calls (gated by the fee-contract
+   * owner). When routing these to a dedicated `feeSubmitter`, that submitter
+   * must own both the token router and the fee contract.
    */
   async createTokenFeeUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
@@ -1180,6 +1664,19 @@ export class EvmWarpModule extends HyperlaneModule<
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     if (!expectedConfig.tokenFee) {
+      if (actualConfig.tokenFee) {
+        return [
+          {
+            annotation: 'Removing fee recipient...',
+            chainId: this.chainId,
+            to: this.args.addresses.deployedTokenRoute,
+            data: TokenRouter__factory.createInterface().encodeFunctionData(
+              'setFeeRecipient(address)',
+              [constants.AddressZero],
+            ),
+          },
+        ];
+      }
       return [];
     }
 
@@ -1254,9 +1751,33 @@ export class EvmWarpModule extends HyperlaneModule<
       },
       this.contractVerifier,
     );
+
+    // For CCR fee updates, forward the on-chain enrolled router keys as hints so the
+    // reader can observe orphan feeContracts entries not present in the target config.
+    // Without these hints, the removal loop in EvmTokenFeeModule.update() never sees
+    // stale (dest, router) entries and the on-chain pointer stays wired.
+    let effectiveTokenReaderParams = tokenReaderParams;
+    if (
+      isCrossCollateralTokenConfig(actualConfig) &&
+      actualConfig.crossCollateralRouters &&
+      resolvedTokenFee.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
+      const onchainRoutersByDomain = resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.crossCollateralRouters,
+      );
+      effectiveTokenReaderParams = {
+        ...tokenReaderParams,
+        crossCollateralRouters: mergeCrossCollateralRouters(
+          tokenReaderParams?.crossCollateralRouters,
+          onchainRoutersByDomain,
+        ),
+      };
+    }
+
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,
-      tokenReaderParams,
+      effectiveTokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
 
@@ -1319,6 +1840,35 @@ export class EvmWarpModule extends HyperlaneModule<
       };
     }
 
+    // Always override recipient for any RateLimitedIsm node — it must be the
+    // token address.  Any user-supplied value is silently wrong (it would wire
+    // the ISM to the wrong chain), so we always set it from the deployed token
+    // route.  Handles both top-level and nested (e.g. inside aggregation) nodes.
+    // Thread the owner through so that an omitted ism.owner in expectedConfig
+    // doesn't look like an owner diff to EvmIsmModule.update (which would redeploy
+    // the ISM and reset the rate-limit bucket).
+    // Primary default: the warp-route owner (matches deploy path in token/deploy.ts).
+    // Fallback: the current on-chain ISM owner (same-type, same-owner in-place update).
+    let expectedIsm = expectedConfig.interchainSecurityModule;
+    if (
+      typeof expectedIsm === 'object' &&
+      ismTreeContainsRateLimited(expectedIsm)
+    ) {
+      const actualIsm = actualConfig.interchainSecurityModule;
+      const onChainOwner =
+        typeof actualIsm === 'object' && 'owner' in actualIsm
+          ? actualIsm.owner
+          : undefined;
+      const defaultOwner =
+        expectedConfig.owner ??
+        (typeof onChainOwner === 'string' ? onChainOwner : undefined);
+      expectedIsm = setRateLimitedIsmRecipient(
+        expectedIsm,
+        this.args.addresses.deployedTokenRoute,
+        defaultOwner,
+      );
+    }
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {
@@ -1336,9 +1886,7 @@ export class EvmWarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
+    const updateTransactions = await ismModule.update(expectedIsm);
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };
@@ -1362,8 +1910,8 @@ export class EvmWarpModule extends HyperlaneModule<
       'Cannot upgrade warp route with unknown token type',
     );
 
-    // This should be impossible since we try catch the call to `PACKAGE_VERSION`
-    // in `EvmWarpRouteReader.fetchPackageVersion`
+    // Older contracts without PACKAGE_VERSION fall back to a legacy version in
+    // EvmWarpRouteReader.fetchPackageVersion.
     assert(
       actualConfig.contractVersion,
       'Actual contract version is undefined',

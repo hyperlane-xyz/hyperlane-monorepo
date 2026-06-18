@@ -315,6 +315,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 info!("Built metadata using fast path");
                 return Ok(metadata);
             }
+            Err(MetadataBuildError::Refused(reason)) => {
+                return Err(MetadataBuildError::Refused(reason));
+            }
             Err(err) => {
                 warn!(
                     ?err,
@@ -342,6 +345,20 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             if let Err(MetadataBuildError::Refused(reason)) = sub_module_res {
                 return Err(MetadataBuildError::Refused(reason.clone()));
             }
+        }
+
+        // When every sub-module failure is purely "signatures not yet collected" and we
+        // can't reach threshold without them, propagate AwaitingValidatorSignatures so
+        // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
+        let ok_count = sub_modules_and_metas.iter().filter(|r| r.is_ok()).count();
+        if ok_count < threshold
+            && sub_modules_and_metas.iter().any(|r| r.is_err())
+            && sub_modules_and_metas
+                .iter()
+                .filter_map(|r| r.as_ref().err())
+                .all(|e| matches!(e, MetadataBuildError::AwaitingValidatorSignatures))
+        {
+            return Err(MetadataBuildError::AwaitingValidatorSignatures);
         }
 
         // Partitions things into

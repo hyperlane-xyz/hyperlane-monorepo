@@ -111,6 +111,7 @@ function getLocalStorageGasOracleConfigOverride(
   gasPrices: ChainMap<GasPriceConfig>,
   getOverhead: (local: ChainName, remote: ChainName) => number,
   applyMinUsdCost: boolean,
+  onPrecisionFallback?: (ctx: { local: ChainName; remote: ChainName }) => void,
 ): ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost> {
   const localProtocolType = getChain(local).protocol;
   const localExchangeRateScale =
@@ -235,6 +236,7 @@ function getLocalStorageGasOracleConfigOverride(
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
     typicalCostGetter,
+    onPrecisionFallback,
   });
 }
 
@@ -273,6 +275,12 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
+  // Reduced min for messages to/from katana
+  const katanaRoute = local === 'katana' || remote === 'katana';
+  if (katanaRoute) {
+    minUsdCost = 0.01;
+  }
+
   // For all SVM chains, min cost is 0.50 USD to cover rent needs
   if (getChain(remote).protocol === ProtocolType.Sealevel) {
     minUsdCost = Math.max(minUsdCost, 0.5);
@@ -288,10 +296,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     ancient8: 0.5,
     blast: 0.5,
     mantapacific: 0.5,
-    polygonzkevm: 0.5,
-
-    // Scroll is more expensive than the rest due to higher L1 fees
-    scroll: 1.5,
     taiko: 0.5,
 
     // Tron uses an energy model, not gas. Delivery costs 80-110K energy
@@ -300,7 +304,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
     // skunkchain special
     solanamainnet: 0.35,
-    ethereum: 0.07,
+    ethereum: 0.12,
     arbitrum: 0.09,
     optimism: 0.05,
     base: 0.05,
@@ -308,6 +312,12 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     unichain: 0.05,
     eclipsemainnet: 0.22,
   };
+
+  // Skip per-remote overrides on katana routes so the reduced floor isn't
+  // clobbered when sending from katana to a chain with a higher override.
+  if (katanaRoute) {
+    return minUsdCost;
+  }
 
   return remoteMinCostOverrides[remote] ?? minUsdCost;
 }
@@ -380,11 +390,6 @@ export function getOverheadWithOverrides(
     overhead *= 10;
   }
 
-  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
-  if (remote === 'moonbeam' || remote === 'torus') {
-    overhead *= 4;
-  }
-
   // Somnia gas usage is higher than the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
   if (remote === 'somnia') {
@@ -432,7 +437,19 @@ export function getAllStorageGasOracleConfigs(
     }
   });
 
-  return chainNames.reduce((agg, local) => {
+  // Collect every local -> remote pair whose exchange rate underflowed and fell
+  // back to the on-chain minimum, so we can log a single summary line instead of
+  // one warning per pair (there can be dozens across the full chain matrix).
+  const flooredPairs = new Set<string>();
+  const onPrecisionFallback = ({
+    local,
+    remote,
+  }: {
+    local: ChainName;
+    remote: ChainName;
+  }) => flooredPairs.add(`${local} -> ${remote}`);
+
+  const configs = chainNames.reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,
@@ -443,9 +460,22 @@ export function getAllStorageGasOracleConfigs(
         gasPrices,
         getOverhead,
         applyMinUsdCost,
+        onPrecisionFallback,
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
+
+  if (flooredPairs.size > 0) {
+    rootLogger.warn(
+      `${flooredPairs.size} gas oracle pair(s) floored the token exchange rate to 1 after precision rebalance (expected for low-decimal fee tokens paying high-decimal remotes${
+        applyMinUsdCost
+          ? '; on-chain quote is backstopped by the min-USD-cost'
+          : ''
+      }): ${[...flooredPairs].join(', ')}`,
+    );
+  }
+
+  return configs;
 }
 
 // 5% threshold, adjust as needed

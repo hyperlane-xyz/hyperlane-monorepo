@@ -36,6 +36,9 @@ export const tokens = {
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
   },
+  citrea: {
+    ctUSD: '0x8D82c4E3c936C7B5724A382a9c5a4E6Eb7aB6d5D',
+  },
   arbitrum: {
     USDT: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
@@ -82,8 +85,19 @@ export const tokens = {
     USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
     USDC: '0x2D270e6886d130D724215A266106e6832161EAEd',
   },
+  katana: {
+    USDC: '0x203A662b0BD271A6ed5a60EdFbd04bFce608FD36',
+    USDT: '0x2DCa96907fde857dd3D816880A0df407eeB2D2F2',
+  },
   solanamainnet: {
     USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  },
+  plasma: {
+    USDT: '0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb',
+  },
+  tron: {
+    USDT: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c', // converted from TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
   },
 };
 

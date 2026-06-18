@@ -29,7 +29,10 @@ import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -50,18 +53,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: false,
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
-    radixtestnet: true,
+    radixtestnet: false,
+    seismictestnet: true,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
-    starknetsepolia: true,
+    starknetsepolia: false,
     tronshasta: true,
   },
   [Role.Relayer]: {
@@ -75,18 +78,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: false,
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
-    radixtestnet: true,
+    radixtestnet: false,
+    seismictestnet: true,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
-    starknetsepolia: true,
+    starknetsepolia: false,
     tronshasta: true,
   },
   [Role.Scraper]: {
@@ -100,18 +103,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsetestnet: false,
     fuji: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: false,
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
-    radixtestnet: true,
+    radixtestnet: false,
+    // disabled temporarily until timestamps change from ms to secs (soon)
+    seismictestnet: false,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
-    starknetsepolia: true,
+    starknetsepolia: false,
     tronshasta: true,
   },
 };
@@ -324,6 +328,13 @@ const hyperlane: RootAgentConfig = {
     cache: {
       enabled: true,
     },
+    relayApi: {
+      enabled: true,
+      port: 8900,
+      rateLimitMaxRequests: 100,
+      rateLimitWindowSecs: 60,
+      corsOrigins: 'https://nexus.hyperlane.xyz',
+    },
     resources: relayerResources,
   },
   validators: {
@@ -369,6 +380,13 @@ const releaseCandidate: RootAgentConfig = {
     },
     cache: {
       enabled: true,
+    },
+    relayApi: {
+      enabled: true,
+      port: 8900,
+      rateLimitMaxRequests: 100,
+      rateLimitWindowSecs: 60,
+      corsOrigins: 'https://nexus.hyperlane.xyz,http://localhost:3000',
     },
     resources: relayerResources,
   },
@@ -448,7 +466,7 @@ const fastPath: RootAgentConfig = {
       tag: testnetDockerTags.relayerFastPath,
     },
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { sepolia: 1 },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     blacklist: relayBlacklist,
     ismCacheConfigs,
     cache: {

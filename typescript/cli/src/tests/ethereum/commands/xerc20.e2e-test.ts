@@ -1,3 +1,5 @@
+import { readFileSync, writeFileSync } from 'fs';
+
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 import { $ } from 'zx';
@@ -9,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  type ChainMetadata,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -19,6 +22,7 @@ import { type Address } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_KEY,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -45,6 +49,7 @@ describe('xerc20 e2e tests', function () {
 
   let chain2Addresses: ChainAddresses;
   let chain3Addresses: ChainAddresses;
+  let originalChain3MetadataYaml: string | undefined;
   let ownerAddress: Address;
 
   let tokenChain2: ERC20Test;
@@ -70,6 +75,15 @@ describe('xerc20 e2e tests', function () {
   ]);
 
   before(async function () {
+    originalChain3MetadataYaml = readFileSync(CHAIN_3_METADATA_PATH, 'utf8');
+    const originalChain3Metadata: ChainMetadata = readYamlOrJson(
+      CHAIN_3_METADATA_PATH,
+    );
+    writeYamlOrJson(CHAIN_3_METADATA_PATH, {
+      ...originalChain3Metadata,
+      blockExplorers: [],
+    });
+
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(
         CHAIN_NAME_2,
@@ -104,6 +118,12 @@ describe('xerc20 e2e tests', function () {
       18,
       'XERC20VS',
     );
+  });
+
+  after(function () {
+    if (originalChain3MetadataYaml) {
+      writeFileSync(CHAIN_3_METADATA_PATH, originalChain3MetadataYaml);
+    }
   });
 
   const BRIDGE_LIMITS = {

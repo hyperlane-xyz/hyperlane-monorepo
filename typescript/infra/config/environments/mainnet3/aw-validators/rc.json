@@ -1,5 +1,5 @@
 {
-  "zoramainnet": {
+  "zksync": {
     "validators": []
   },
   "ancient8": {
@@ -55,12 +55,6 @@
   "cyber": {
     "validators": ["0x84976d5012da6b180462742f2edfae2f9d740c82"]
   },
-  "degenchain": {
-    "validators": ["0xac3734bb61e7ddda947b718b930c4067f0ccde7e"]
-  },
-  "dogechain": {
-    "validators": ["0x1e74735379a96586ec31f0a31aa4ee86016404a9"]
-  },
   "eclipsemainnet": {
     "validators": ["0x283065cb17f98386c2b3656650d8b85e05862c8e"]
   },
@@ -70,9 +64,6 @@
       "0xa5465cb5095a2e6093587e644d6121d6ed55c632",
       "0x87cf8a85465118aff9ec728ca157798201b1e368"
     ]
-  },
-  "everclear": {
-    "validators": ["0x1b4455316aa859c9b3d2b13868490b7c97a9da3e"]
   },
   "flare": {
     "validators": ["0x35c3ce34f27def61c2d878ff7c3e35fbab08e92a"]
@@ -106,24 +97,11 @@
       "0x4cfccfd66dbb702b643b56f6986a928ed1b50c7e"
     ]
   },
-  "merlin": {
-    "validators": ["0x93b08ce35b7676270b4aefda5e01c668cc61cb5c"]
-  },
   "metis": {
     "validators": ["0xa01a62b1a6663e888399788ff15e784b5d223661"]
   },
   "mode": {
     "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
-  },
-  "molten": {
-    "validators": ["0x2e433ffc514a874537ca2473af51ebba4c863409"]
-  },
-  "moonbeam": {
-    "validators": [
-      "0x75e3cd4e909089ae6c9f3a42b1468b33eec84161",
-      "0xc28418d0858a82a46a11e07db75f8bf4eed43881",
-      "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
-    ]
   },
   "oortmainnet": {
     "validators": ["0x83f406ff315e90ae9589fa7786bf700e7c7a06f1"]
@@ -142,23 +120,6 @@
       "0xe78d3681d4f59e0768be8b1171f920ed4d52409f"
     ]
   },
-  "polygonzkevm": {
-    "validators": [
-      "0x75cffb90391d7ecf58a84e9e70c67e7b306211c0",
-      "0x82c10acb56f3d7ed6738b61668111a6b5250283e",
-      "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
-    ]
-  },
-  "redstone": {
-    "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
-  },
-  "scroll": {
-    "validators": [
-      "0x11387d89856219cf685f22781bf4e85e00468d54",
-      "0x64b98b96ccae6e660ecf373b5dd61bcc34fd19ee",
-      "0x07c2f32a402543badc3141f6b98969d75ef2ac28"
-    ]
-  },
   "sei": {
     "validators": ["0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"]
   },
@@ -167,9 +128,6 @@
   },
   "solanamainnet": {
     "validators": ["0x7bd1536cb7505cf2ea1dc6744127d91fbe87a2ad"]
-  },
-  "tangle": {
-    "validators": ["0xd778d113975b2fe45eda424bf93c28f32a90b076"]
   },
   "viction": {
     "validators": [

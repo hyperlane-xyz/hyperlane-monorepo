@@ -15,8 +15,8 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, Metadata, ModuleType,
-    RawHyperlaneMessage, Signable, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt,
+    Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
 
@@ -37,6 +37,7 @@ struct OffchainLookupRequestBody {
     pub data: String,
     pub sender: String,
     pub signature: Option<String>,
+    pub origin_tx_hash: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -119,7 +120,7 @@ impl CcipReadIsmMetadataBuilder {
             .get_cached_call_result::<SerializedOffchainLookup>(ism_domain, fn_key, &call_params)
             .await
             .map_err(|err| {
-                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                warn!(error = %err, message_id = ?message.id(), "Error when caching call result for {:?}", fn_key);
             })
             .ok()
             .flatten();
@@ -133,7 +134,7 @@ impl CcipReadIsmMetadataBuilder {
 
                 match response {
                     Ok(_) => {
-                        info!("incorrectly configured getOffchainVerifyInfo, expected revert");
+                        info!(message_id = ?message.id(), "incorrectly configured getOffchainVerifyInfo, expected revert");
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
@@ -151,7 +152,7 @@ impl CcipReadIsmMetadataBuilder {
                                 MetadataBuildError::FailedToBuild(msg)
                             })?
                         } else {
-                            info!(?raw_error, "unable to parse custom error out of revert");
+                            info!(?raw_error, message_id = ?message.id(), "unable to parse custom error out of revert");
                             return Err(MetadataBuildError::CouldNotFetch);
                         }
                     }
@@ -170,7 +171,7 @@ impl CcipReadIsmMetadataBuilder {
             )
             .await
             .map_err(|err| {
-                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                warn!(error = %err, message_id = ?message.id(), "Error when caching call result for {:?}", fn_key);
             })
             .ok();
 
@@ -223,20 +224,86 @@ async fn metadata_build(
         .call_get_offchain_verify_info(ism, message)
         .await?;
 
+    let origin_tx_hash = ism_builder
+        .base
+        .base_builder()
+        .retrieve_origin_tx_hash_by_message_id(message.id())
+        .await
+        .map_err(|err| {
+            warn!(error = %err, "Error retrieving origin tx hash for message {:?}", message.id());
+        })
+        .ok()
+        .flatten()
+        .map(|h| bytes_to_hex(&h512_to_bytes(&h)));
+    tracing::debug!(
+        message_id = ?message.id(),
+        origin_tx_hash = ?origin_tx_hash,
+        found_in_db = origin_tx_hash.is_some(),
+        "Origin tx hash lookup result",
+    );
+
     let ccip_url_regex = create_ccip_url_regex();
 
     for url in info.urls.iter() {
         if ccip_url_regex.is_match(url) {
-            tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
+            tracing::warn!(?ism_address, url, message_id = ?message.id(), "Suspicious CCIP read url");
             continue;
         }
 
-        // if we fail, we want to try the other urls
-        match fetch_offchain_data(ism_builder, &info, url).await {
-            Ok(data) => return Ok(data),
-            Err(err) => {
-                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
-                continue;
+        // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
+        // Move to the next URL only on hard failures.
+        const MAX_PENDING_RETRIES: u32 = 10;
+        let mut pending_attempts = 0u32;
+        tracing::info!(?ism_address, url, message_id = ?message.id(), "Fetching CCIP read offchain data");
+        loop {
+            match fetch_offchain_data(
+                ism_builder,
+                &info,
+                url,
+                origin_tx_hash.clone(),
+                message.id(),
+            )
+            .await
+            {
+                Ok(data) => {
+                    tracing::info!(
+                        ?ism_address,
+                        url,
+                        message_id = ?message.id(),
+                        origin_tx_hash = ?origin_tx_hash,
+                        attempts = pending_attempts,
+                        "Successfully fetched offchain lookup data"
+                    );
+                    return Ok(data);
+                }
+                Err(FetchOutcome::Pending) if pending_attempts < MAX_PENDING_RETRIES => {
+                    pending_attempts = pending_attempts.saturating_add(1);
+                    tracing::debug!(
+                        ?ism_address,
+                        url,
+                        message_id = ?message.id(),
+                        origin_tx_hash = ?origin_tx_hash,
+                        attempt = pending_attempts,
+                        max = MAX_PENDING_RETRIES,
+                        "Attestation pending, retrying in 1s"
+                    );
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                Err(FetchOutcome::Pending) => {
+                    tracing::warn!(
+                        ?ism_address,
+                        url,
+                        message_id = ?message.id(),
+                        origin_tx_hash = ?origin_tx_hash,
+                        max = MAX_PENDING_RETRIES,
+                        "Attestation still pending after max retries"
+                    );
+                    break;
+                }
+                Err(FetchOutcome::Failed(err)) => {
+                    tracing::warn!(?ism_address, url, message_id = ?message.id(), origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
+                    break;
+                }
             }
         }
     }
@@ -245,12 +312,52 @@ async fn metadata_build(
     Err(MetadataBuildError::CouldNotFetch)
 }
 
+/// Private result type for [`fetch_offchain_data`].
+/// `Pending` signals a transient "not yet available" from the offchain server and
+/// is only ever produced and consumed inside this module — it never escapes to
+/// [`MetadataBuildError`].
+enum FetchOutcome {
+    Pending,
+    Failed(MetadataBuildError),
+}
+
+impl From<MetadataBuildError> for FetchOutcome {
+    fn from(e: MetadataBuildError) -> Self {
+        FetchOutcome::Failed(e)
+    }
+}
+
+/// Returns true when an offchain-lookup response body explicitly signals that
+/// an attestation is not yet available.
+///
+/// Checks two shapes:
+/// - Circle's attestation API: `{"status": "pending", ...}`
+/// - Generic CCIP-read servers: `{"error": "... pending ..."}`
+/// - ccip-server wrapping Circle 404: `{"error": "CCTP attestation not found"}`
+///   (Circle 404 = attestation not yet processed; treated as pending)
+fn body_signals_pending(body: &str) -> bool {
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(body) else {
+        return false;
+    };
+    let status_pending = val
+        .get("status")
+        .and_then(|s| s.as_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("pending"));
+    let error_pending = val.get("error").and_then(|s| s.as_str()).is_some_and(|s| {
+        let l = s.to_lowercase();
+        l.contains("pending") || l == "cctp attestation not found"
+    });
+    status_pending || error_pending
+}
+
 /// Fetch data from offchain lookup server
 async fn fetch_offchain_data(
     ism_builder: &CcipReadIsmMetadataBuilder,
     info: &OffchainLookup,
     url: &str,
-) -> Result<Metadata, MetadataBuildError> {
+    origin_tx_hash: Option<String>,
+    message_id: H256,
+) -> Result<Metadata, FetchOutcome> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
         Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
@@ -271,7 +378,14 @@ async fn fetch_offchain_data(
             sender: sender_as_bytes,
             data: data_as_bytes,
             signature: maybe_signature_hex,
+            origin_tx_hash,
         };
+        tracing::debug!(
+            url = interpolated_url,
+            ?body,
+            ?message_id,
+            "Sending POST request to offchain lookup server"
+        );
         Client::new()
             .request(Method::POST, interpolated_url)
             .header(CONTENT_TYPE, "application/json")
@@ -297,10 +411,36 @@ async fn fetch_offchain_data(
             })?
     };
 
+    let status = res.status();
+
     let response_body = res.text().await.map_err(|err| {
         let error_msg = format!("Failed to read offchain lookup server response: ({err})");
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
+    tracing::debug!(
+        response = response_body,
+        status = status.as_u16(),
+        ?message_id,
+        "Received response from offchain lookup server"
+    );
+
+    if status == reqwest::StatusCode::NOT_FOUND {
+        // A bare 404 without a pending body is an infrastructure error (misconfigured
+        // route, wrong URL) — don't burn 30s of retries on it.
+        return if body_signals_pending(&response_body) {
+            Err(FetchOutcome::Pending)
+        } else {
+            Err(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+                format!("Offchain lookup server returned 404: {response_body}"),
+            )))
+        };
+    }
+
+    // For non-404 responses, check the body for an explicit "pending" signal.
+    if body_signals_pending(&response_body) {
+        return Err(FetchOutcome::Pending);
+    }
+
     let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
         let error_msg = format!(
             "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
@@ -392,6 +532,28 @@ mod test {
                 .into(),
         };
         assert!(signer.verify(&signed).is_ok());
+    }
+
+    #[test]
+    fn test_body_signals_pending() {
+        // {"status": "pending"} -> pending
+        assert!(body_signals_pending(r#"{"status":"pending"}"#));
+        assert!(body_signals_pending(r#"{"status":"PENDING","foo":"bar"}"#));
+        // {"error": "... pending ..."} -> pending
+        assert!(body_signals_pending(
+            r#"{"error":"CCTP attestation is pending"}"#
+        ));
+        // Circle 404 wrapped by ccip-server -> pending
+        assert!(body_signals_pending(
+            r#"{"error":"CCTP attestation not found"}"#
+        ));
+        // unrelated 404 error -> not pending
+        assert!(!body_signals_pending(r#"{"error":"route not found"}"#));
+        // empty / non-json -> not pending
+        assert!(!body_signals_pending(""));
+        assert!(!body_signals_pending("not json"));
+        // success body -> not pending
+        assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
     }
 
     #[test]

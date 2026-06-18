@@ -2,6 +2,7 @@ import type { Keypair } from '@solana/web3.js';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
+import type { PredicateAttestation } from '../../predicate/PredicateApiClient.js';
 import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
@@ -17,6 +18,8 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   customHook?: Address;
+  /** Optional Predicate attestation for compliance-gated warp routes */
+  attestation?: PredicateAttestation;
   /** Optional extra signers for Sealevel transactions (e.g., randomWallet Keypair for dispatch PDA) */
   extraSigners?: Keypair[];
 }
@@ -30,6 +33,8 @@ export interface TransferRemoteToParams {
   // Required for Sealevel
   fromAccountOwner?: Address;
   extraSigners?: Keypair[];
+  /** Optional Predicate attestation for compliance-gated warp routes */
+  attestation?: PredicateAttestation;
 }
 
 export interface QuoteTransferRemoteParams {
@@ -162,6 +167,24 @@ export interface IHypCrossCollateralAdapter<Tx> extends IHypTokenAdapter<Tx> {
     sender?: Address;
   }): Promise<InterchainGasQuote>;
   populateTransferRemoteToTx(params: TransferRemoteToParams): Promise<Tx>;
+}
+
+export interface IPredicateAwareAdapter {
+  getPredicateWrapperAddress(): Promise<Address | null>;
+  supportsAttestation(): Promise<boolean>;
+}
+
+export function isPredicateCapableAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypTokenAdapter<unknown> & IPredicateAwareAdapter {
+  return (
+    'getPredicateWrapperAddress' in adapter &&
+    typeof (adapter as { getPredicateWrapperAddress?: unknown })
+      .getPredicateWrapperAddress === 'function' &&
+    'supportsAttestation' in adapter &&
+    typeof (adapter as { supportsAttestation?: unknown })
+      .supportsAttestation === 'function'
+  );
 }
 
 export function isHypCrossCollateralAdapter(

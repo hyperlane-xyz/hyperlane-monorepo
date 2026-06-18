@@ -1,5 +1,4 @@
 export enum WarpRouteIds {
-  BscMilkywayMILK = 'MILK/bsc-milkyway',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
@@ -16,7 +15,7 @@ export enum WarpRouteIds {
   EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   ETHSTAGEStage = 'ETHSTAGE/stage',
-  EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDT = 'USDT/eclipsemainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
   EclipseEthereumWeETHs = 'weETHs/eclipsemainnet-ethereum',
@@ -46,9 +45,12 @@ export enum WarpRouteIds {
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
-  ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork',
+  // Removed here: ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  // and USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork. These multi-leg
+  // routes include the deprecated scroll/zoramainnet legs, so their config generators were
+  // dropped; their warp-route monitors are retained for the remaining live legs until
+  // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
-  ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
@@ -134,6 +136,8 @@ export enum WarpRouteIds {
   EniUSDT = 'USDT/eni',
   EniBNB = 'BNB/eni',
   Eni1Piece = '1Piece/eni',
+  BscEvENI = 'evENI/bsc',
+  EniPB = 'PB/eni',
 
   ModeUSDTSTAGE = 'USDTSTAGE/mode',
 
@@ -148,16 +152,40 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
+  USDCCitreaMoonpay = 'USDC/moonpay',
+  USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
+  USDTCitreaMoonpay = 'USDT/moonpay',
+  CROSSCitreaMoonpay = 'CROSS/moonpay',
+
+  // TODO: uncomment when USDTOft warp routes are in the registry
+  // USDT OFT
+  USDTOft = 'USDT/oft',
+  USDTOftLegacy = 'USDT/oft-legacy',
+
+  // NEX routes
+  BscNEX = 'NEX/bsc',
 
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 
+  // Nesa routes
+  BscNES = 'NES/bsc',
+
   // Igra routes
   IgraUSDC = 'USDC/igra',
+  IgraUSDe = 'USDe/igra',
   IgraIKAS = 'IKAS/igra',
+  IgraSOL = 'SOL/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
   EthereumIgraUSDS = 'USDS/ethereum-igra',
   EthereumIgraWETH = 'WETH/ethereum-igra',
   EthereumIgraUSDT = 'USDT/ethereum-igra',
+  IgraTIBBIR = 'TIBBIR/igra',
+
+  // Fluent routes
+  FluentBLEND = 'BLEND/fluent',
+
+  // Kiichain routes
+  KiichainKII = 'KII/kiichain',
 }

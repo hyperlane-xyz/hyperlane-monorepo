@@ -12,6 +12,7 @@ import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -90,6 +91,12 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     return new StarknetValidatorAnnounceArtifactManager(chainMetadata);
   }
 
+  createFeeArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null {
+    return null;
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e9),
@@ -97,6 +104,7 @@ export class StarknetProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: BigInt(3e7),
       AVS_GAS: BigInt(3e8),
       ISM_DEPLOY_GAS: BigInt(5e7),
+      HOOK_DEPLOY_GAS: BigInt(5e7),
     };
   }
 }

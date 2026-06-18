@@ -6,7 +6,9 @@ import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 import type { UpgradeConfig } from '../deploy/proxy.js';
 import type { CheckerViolation } from '../deploy/types.js';
 import { ProxyFactoryFactoriesSchema } from '../deploy/types.js';
-import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import type { DerivedHookConfig, HookConfig } from '../hook/types.js';
+import { HookConfigSchema } from '../hook/types.js';
+import { hookTreeContainsLegacyIgp } from '../hook/utils.js';
 import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
@@ -15,8 +17,9 @@ import type { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { IsmConfigSchema } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
+import { ismTreeContainsRateLimited } from '../utils/ism.js';
 
-export const CoreConfigSchema = OwnableSchema.extend({
+const CoreConfigBaseSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
   defaultHook: HookConfigSchema,
   requiredHook: HookConfigSchema,
@@ -26,13 +29,62 @@ export const CoreConfigSchema = OwnableSchema.extend({
   interchainAccountRouter: IcaRouterConfigSchema.optional(),
   // Override canonical Permit2 address for QuotedCalls deployment
   permit2: z.string().optional(),
+  // Set false for chains that should keep legacy core artifacts only.
+  deployQuotedCalls: z.boolean().optional(),
 });
 
-export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
+const rejectRateLimitedDefaultIsm = (
+  val: { defaultIsm: unknown },
+  ctx: z.RefinementCtx,
+) => {
+  if (ismTreeContainsRateLimited(val.defaultIsm)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'RateLimitedIsm cannot be used as a core default ISM',
+      path: ['defaultIsm'],
+    });
+  }
+};
+
+// QuotedCalls and the offchain-quoting IGP both require EIP-1153 transient
+// storage, so they ship together on the same (non-legacy) chains. Reject the
+// mismatch where a legacy IGP is configured but QuotedCalls is still set to
+// deploy (deployQuotedCalls !== false).
+const rejectQuotedCallsWithLegacyIgp = (
+  val: {
+    defaultHook: HookConfig;
+    requiredHook: HookConfig;
+    deployQuotedCalls?: boolean;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (val.deployQuotedCalls === false) return;
+  if (
+    hookTreeContainsLegacyIgp(val.defaultHook) ||
+    hookTreeContainsLegacyIgp(val.requiredHook)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'deployQuotedCalls must be false when a legacy IGP (igpVersion: legacy) is configured: QuotedCalls requires EIP-1153 transient storage and pairs with the new offchain-quoting IGP.',
+      path: ['deployQuotedCalls'],
+    });
+  }
+};
+
+export const CoreConfigSchema = CoreConfigBaseSchema.superRefine((val, ctx) => {
+  rejectRateLimitedDefaultIsm(val, ctx);
+  rejectQuotedCallsWithLegacyIgp(val, ctx);
+});
+
+export const DerivedCoreConfigSchema = CoreConfigBaseSchema.merge(
   z.object({
     interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
   }),
-);
+).superRefine((val, ctx) => {
+  rejectRateLimitedDefaultIsm(val, ctx);
+  rejectQuotedCallsWithLegacyIgp(val, ctx);
+});
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   mailbox: z.string(),
@@ -53,6 +105,12 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };
+
+export function shouldDeployQuotedCalls(
+  config: Pick<CoreConfig, 'deployQuotedCalls'>,
+): boolean {
+  return config.deployQuotedCalls !== false;
+}
 
 export type CoreConfigHookFieldKey = keyof Pick<
   CoreConfig,

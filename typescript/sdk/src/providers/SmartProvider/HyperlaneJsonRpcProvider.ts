@@ -53,6 +53,18 @@ export class HyperlaneJsonRpcProvider
     }
 
     const result = await super.perform(method, params);
+
+    // Some RPCs return "" instead of null for the `to` field on contract creation txs,
+    // which causes ethers.js formatter to throw "invalid address". Normalize to null.
+    if (
+      result != null &&
+      result.to === '' &&
+      (method === ProviderMethod.GetTransaction ||
+        method === ProviderMethod.GetTransactionReceipt)
+    ) {
+      result.to = null;
+    }
+
     if (
       result === '0x' &&
       [

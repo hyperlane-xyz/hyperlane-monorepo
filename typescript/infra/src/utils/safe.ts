@@ -1,13 +1,11 @@
 import { JsonRpcSigner } from '@ethersproject/providers';
-import SafeApiKit, {
-  SafeMultisigTransactionListResponse,
-} from '@safe-global/api-kit';
+import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
   OperationType,
   SafeTransaction,
-} from '@safe-global/safe-core-sdk-types';
+} from '@safe-global/types-kit';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
@@ -21,10 +19,12 @@ import {
   MultiProvider,
   getSafe,
   getSafeService,
+  normalizeSafeTxServiceUrl,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
+  assert,
   deepCopy,
   eqAddress,
   rootLogger,
@@ -32,18 +32,20 @@ import {
 
 import { Contexts } from '../../config/contexts.js';
 import { getSecretDeployerKey } from '../agents/index.js';
-// eslint-disable-next-line import/no-cycle
-import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
+import { AnnotatedCallData } from '../govern/types.js';
 
-import { fetchGCPSecret } from './gcloud.js';
-
-const safeApiKeySecretName = 'gnosis-safe-api-key';
+import { getSafeApiKey } from './safeApiKey.js';
 
 const MIN_SAFE_API_VERSION = '5.18.0';
 
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+
+type SafeService = ReturnType<typeof getSafeService>;
+type SafeMultisigTransactionResponse = Awaited<
+  ReturnType<SafeService['getTransaction']>
+>;
 
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
@@ -79,33 +81,12 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
   throw new Error('Unreachable');
 }
 
-async function fetchSafeApi<T>(url: string, safeApiKey: string): Promise<T> {
-  return retrySafeApi(async () => {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'node-fetch',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-  });
-}
-
-export async function getSafeApiKey(): Promise<string> {
-  return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
-}
-
 export async function getSafeAndService(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  let safeService: SafeApiKit.default;
+  let safeService: SafeService;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch (error) {
@@ -228,11 +209,11 @@ export async function createSafeTransaction(
 export async function proposeSafeTransaction(
   chain: ChainNameOrId,
   safeSdk: Safe.default,
-  safeService: SafeApiKit.default,
+  safeService: SafeService,
   safeTransaction: SafeTransaction,
   safeAddress: Address,
   signer: ethers.Signer,
-): Promise<void> {
+): Promise<string> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
   const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
@@ -250,6 +231,8 @@ export async function proposeSafeTransaction(
   rootLogger.info(
     chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
   );
+
+  return safeTxHash;
 }
 
 export async function deleteAllPendingSafeTxs(
@@ -257,28 +240,37 @@ export async function deleteAllPendingSafeTxs(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
-  const safeApiKey = await getSafeApiKey();
+  const safeService = getSafeService(chain, multiProvider);
+  const pendingTxs: SafeMultisigTransactionListResponse['results'] = [];
+  const limit = 100;
+  let offset = 0;
 
   // Fetch all pending transactions
-  const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
-  let pendingTxs;
-  try {
-    pendingTxs = await fetchSafeApi<{ results: { safeTxHash: string }[] }>(
-      pendingTxsUrl,
-      safeApiKey,
-    );
-  } catch (error) {
-    rootLogger.error(
-      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
-      error,
-    );
-    return;
+  while (true) {
+    let page: SafeMultisigTransactionListResponse;
+    try {
+      page = await retrySafeApi(() =>
+        safeService.getMultisigTransactions(safeAddress, {
+          executed: false,
+          limit,
+          offset,
+        }),
+      );
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+        error,
+      );
+      return;
+    }
+
+    pendingTxs.push(...page.results);
+    if (page.results.length < limit) break;
+    offset += limit;
   }
 
   // Delete each pending transaction
-  for (const tx of pendingTxs.results) {
+  for (const tx of pendingTxs) {
     await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
   }
 
@@ -291,15 +283,11 @@ export async function getSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeTxHash: string,
-): Promise<any> {
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
-  const safeApiKey = await getSafeApiKey();
-
-  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
+): Promise<SafeMultisigTransactionResponse | undefined> {
+  const safeService = getSafeService(chain, multiProvider);
 
   try {
-    return await fetchSafeApi(txDetailsUrl, safeApiKey);
+    return await retrySafeApi(() => safeService.getTransaction(safeTxHash));
   } catch (error) {
     rootLogger.error(
       chalk.red(
@@ -318,17 +306,23 @@ export async function deleteSafeTx(
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
   const chainId = multiProvider.getEvmChainId(chain);
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeService = getSafeService(chain, multiProvider);
+  const { gnosisSafeTransactionServiceUrl } =
+    multiProvider.getChainMetadata(chain);
+  assert(
+    gnosisSafeTransactionServiceUrl,
+    `Missing gnosisSafeTransactionServiceUrl for chain: ${chain}`,
+  );
+  const txServiceUrl = normalizeSafeTxServiceUrl(
+    gnosisSafeTransactionServiceUrl,
+  );
   const safeApiKey = await getSafeApiKey();
 
   // Fetch the transaction details to get the proposer
-  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
   let txDetails;
   try {
-    txDetails = await fetchSafeApi<{ proposer?: string }>(
-      txDetailsUrl,
-      safeApiKey,
+    txDetails = await retrySafeApi(() =>
+      safeService.getTransaction(safeTxHash),
     );
   } catch (error) {
     rootLogger.error(
@@ -393,8 +387,9 @@ export async function deleteSafeTx(
       typedData.message,
     );
 
-    // Make the API call to delete the transaction
-    const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
+    // API Kit exposes no transaction-delete method, so use Safe's authenticated
+    // Transaction Service endpoint directly.
+    const deleteUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
     await retrySafeApi(async () => {
       const res = await fetch(deleteUrl, {
         method: 'DELETE',
@@ -488,6 +483,48 @@ function findPrevOwner(owners: Address[], targetOwner: Address): Address {
   return owners[targetIndex - 1];
 }
 
+function assertValidExpectedOwners(
+  expectedOwners: Address[],
+  safeAddress: Address,
+): void {
+  const seenOwners = new Set<string>();
+  for (const owner of expectedOwners) {
+    assert(ethers.utils.isAddress(owner), `Invalid Safe owner ${owner}`);
+    assert(
+      !eqAddress(owner, ethers.constants.AddressZero),
+      'Safe owner cannot be the zero address',
+    );
+    assert(
+      !eqAddress(owner, SENTINEL_OWNERS),
+      `Safe owner cannot be sentinel owner ${SENTINEL_OWNERS}`,
+    );
+    assert(
+      !eqAddress(owner, safeAddress),
+      `Safe owner cannot be the Safe itself ${safeAddress}`,
+    );
+
+    const normalizedOwner = getAddress(owner).toLowerCase();
+    assert(!seenOwners.has(normalizedOwner), `Duplicate Safe owner ${owner}`);
+    seenOwners.add(normalizedOwner);
+  }
+}
+
+function findOwnerPosition(owners: Address[], targetOwner: Address): number {
+  const ownerIndex = owners.findIndex((owner) => eqAddress(owner, targetOwner));
+  assert(ownerIndex !== -1, `Owner ${targetOwner} not found in owners list`);
+  return ownerIndex;
+}
+
+function sortAddressesByValue(owners: Address[]): Address[] {
+  return deepCopy(owners).sort((a: Address, b: Address) => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    if (aLower < bLower) return -1;
+    if (aLower > bLower) return 1;
+    return 0;
+  });
+}
+
 /**
  * Creates swapOwner transactions for 1-to-1 owner replacements.
  * This is more efficient and succinct than remove+add operations.
@@ -502,7 +539,7 @@ function findPrevOwner(owners: Address[], targetOwner: Address): Address {
  */
 async function createSwapOwnerTransactions(
   safeSdk: Safe.default,
-  currentOwners: Address[],
+  effectiveOwners: Address[],
   ownersToRemove: Address[],
   ownersToAdd: Address[],
 ): Promise<AnnotatedCallData[]> {
@@ -512,35 +549,18 @@ async function createSwapOwnerTransactions(
     ),
   );
 
-  // Build a mapping of owners to their positions in the currentOwners array
-  const ownerPositions = new Map<Address, number>();
-  currentOwners.forEach((owner, index) => {
-    ownerPositions.set(owner, index);
-  });
-
-  // Sort ownersToRemove by their position in the currentOwners array
-  // This is important because Safe owners are stored in a linked list, and we need
-  // to swap them in the correct order to handle the prevOwner parameter correctly.
-  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
-    (a: Address, b: Address) => {
-      return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
-    },
-  );
-
-  // Track the effective owner list as we perform swaps
+  // Mutate the effective owner list as we perform swaps
   // This is crucial because when swapping consecutive owners in the linked list,
   // the prevOwner for the second swap needs to reference the NEW owner from the
   // first swap (since we just modified the linked list).
-  const effectiveOwners = deepCopy(currentOwners);
-
   const transactions: AnnotatedCallData[] = [];
 
   // Get the Safe contract address
   const safeAddress = await safeSdk.getAddress();
 
   // Pair each old owner with the corresponding new owner
-  for (let i = 0; i < sortedOwnersToRemove.length; i++) {
-    const oldOwner = sortedOwnersToRemove[i];
+  for (let i = 0; i < ownersToRemove.length; i++) {
+    const oldOwner = ownersToRemove[i];
     const newOwner = ownersToAdd[i];
 
     // Find the prevOwner based on the effective owners list
@@ -574,6 +594,55 @@ async function createSwapOwnerTransactions(
   return transactions;
 }
 
+async function createRemoveOwnerTransaction(
+  safeSdk: Safe.default,
+  effectiveOwners: Address[],
+  ownerToRemove: Address,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  const safeAddress = await safeSdk.getAddress();
+  const prevOwner = findPrevOwner(effectiveOwners, ownerToRemove);
+  const ownerIndex = effectiveOwners.findIndex((owner: Address) =>
+    eqAddress(owner, ownerToRemove),
+  );
+
+  if (ownerIndex !== -1) {
+    effectiveOwners.splice(ownerIndex, 1);
+  }
+
+  const data = ISafe__factory.createInterface().encodeFunctionData(
+    'removeOwner',
+    [prevOwner, ownerToRemove, newThreshold],
+  );
+
+  return {
+    to: safeAddress,
+    data,
+    value: BigNumber.from(0),
+    description: `Remove safe owner ${ownerToRemove} (prevOwner: ${prevOwner}, threshold: ${newThreshold})`,
+  };
+}
+
+async function createAddOwnerWithThresholdTransaction(
+  safeSdk: Safe.default,
+  ownerToAdd: Address,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  const safeAddress = await safeSdk.getAddress();
+
+  const data = ISafe__factory.createInterface().encodeFunctionData(
+    'addOwnerWithThreshold',
+    [ownerToAdd, newThreshold],
+  );
+
+  return {
+    to: safeAddress,
+    data,
+    value: BigNumber.from(0),
+    description: `Add safe owner ${ownerToAdd} (threshold: ${newThreshold})`,
+  };
+}
+
 /**
  * Creates a threshold change transaction.
  */
@@ -601,16 +670,19 @@ export async function updateSafeOwner({
   safeSdk,
   owners,
   threshold,
+  proposer,
 }: {
   safeSdk: Safe.default;
   owners?: Address[];
   threshold?: number;
+  proposer?: Address;
 }): Promise<AnnotatedCallData[]> {
   const currentThreshold = await safeSdk.getThreshold();
   const newThreshold = threshold ?? currentThreshold;
 
   const currentOwners = await safeSdk.getOwners();
   const expectedOwners = owners ?? currentOwners;
+  const safeAddress = await safeSdk.getAddress();
 
   const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
     currentOwners,
@@ -620,28 +692,83 @@ export async function updateSafeOwner({
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
   rootLogger.info(chalk.magentaBright('Owners to add:', ownersToAdd));
 
-  // Validate that we have equal numbers of adds and removes (swaps only)
-  if (ownersToRemove.length !== ownersToAdd.length) {
-    throw new Error(
-      `Owner changes must be 1-to-1 swaps. Found ${ownersToRemove.length} removals and ${ownersToAdd.length} additions.`,
-    );
-  }
+  assert(expectedOwners.length >= 1, 'Safe must have at least one owner');
+  assertValidExpectedOwners(expectedOwners, safeAddress);
+  assert(
+    newThreshold >= 1,
+    `Safe threshold ${newThreshold} must be at least 1`,
+  );
+  assert(
+    newThreshold <= expectedOwners.length,
+    `Safe threshold ${newThreshold} exceeds owner count ${expectedOwners.length}`,
+  );
+  assert(
+    !proposer ||
+      expectedOwners.some((owner: Address) => eqAddress(owner, proposer)),
+    `Proposer ${proposer} must remain a Safe owner`,
+  );
+
+  // Sort ownersToRemove by their position in the currentOwners array. Safe owners
+  // are stored in a linked list, and each update changes the prevOwner needed for
+  // later updates in the same multisend. ownersToAdd is sorted independently (by
+  // address) so swap pairing and surplus-add ordering are deterministic.
+  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
+    (a: Address, b: Address) => {
+      return (
+        findOwnerPosition(currentOwners, a) -
+        findOwnerPosition(currentOwners, b)
+      );
+    },
+  );
+  const sortedOwnersToAdd = sortAddressesByValue(ownersToAdd);
 
   const transactions: AnnotatedCallData[] = [];
+  const effectiveOwners = deepCopy(currentOwners);
+  const swapCount = Math.min(ownersToRemove.length, ownersToAdd.length);
 
-  // Use swapOwner for all owner replacements
-  if (ownersToRemove.length > 0) {
+  // Use swapOwner for the overlapping owner replacements.
+  if (swapCount > 0) {
     const swapTxs = await createSwapOwnerTransactions(
       safeSdk,
-      currentOwners,
-      ownersToRemove,
-      ownersToAdd,
+      effectiveOwners,
+      sortedOwnersToRemove.slice(0, swapCount),
+      sortedOwnersToAdd.slice(0, swapCount),
     );
     transactions.push(...swapTxs);
   }
 
-  // Handle threshold change (swapOwner doesn't take a threshold parameter)
-  if (currentThreshold !== newThreshold) {
+  const surplusOwnersToRemove = sortedOwnersToRemove.slice(swapCount);
+  for (const ownerToRemove of surplusOwnersToRemove) {
+    transactions.push(
+      await createRemoveOwnerTransaction(
+        safeSdk,
+        effectiveOwners,
+        ownerToRemove,
+        newThreshold,
+      ),
+    );
+  }
+
+  const surplusOwnersToAdd = sortedOwnersToAdd.slice(swapCount);
+  for (let i = 0; i < surplusOwnersToAdd.length; i++) {
+    const ownerToAdd = surplusOwnersToAdd[i];
+    const isLastAdd = i === surplusOwnersToAdd.length - 1;
+    const addThreshold = isLastAdd ? newThreshold : currentThreshold;
+    transactions.push(
+      await createAddOwnerWithThresholdTransaction(
+        safeSdk,
+        ownerToAdd,
+        addThreshold,
+      ),
+    );
+  }
+
+  // Handle threshold changes not already handled by removeOwner/addOwnerWithThreshold.
+  if (
+    currentThreshold !== newThreshold &&
+    surplusOwnersToRemove.length === 0 &&
+    surplusOwnersToAdd.length === 0
+  ) {
     const thresholdTx = await createThresholdTransaction(
       safeSdk,
       currentThreshold,
@@ -695,7 +822,7 @@ export async function getPendingTxsForChains(
       }
 
       let safeSdk: Safe.default;
-      let safeService: SafeApiKit.default;
+      let safeService: SafeService;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,

@@ -16,7 +16,8 @@ import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { relayerAddresses } from '../agents/key-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
-import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
+import { EnvironmentConfig } from '../config/environment.js';
 import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
 import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
@@ -174,7 +175,8 @@ export class KeyFunderHelmManager extends HelmManager {
 
         const override = this.config.sweepOverrides?.[chain];
         chainConfig.sweep = {
-          enabled: true,
+          // Temporarily disabled; re-enable once sweep destination is confirmed.
+          enabled: false,
           address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
           threshold: sweepThreshold,
           targetMultiplier: override?.targetMultiplier ?? 1.5,

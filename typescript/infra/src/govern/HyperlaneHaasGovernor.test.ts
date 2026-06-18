@@ -9,9 +9,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, formatStandardHookMetadata } from '@hyperlane-xyz/utils';
 
-import { AnnotatedCallData } from './HyperlaneAppGovernor.js';
 import { HyperlaneHaasGovernor } from './HyperlaneHaasGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
+import { AnnotatedCallData } from './types.js';
 
 describe('HyperlaneHaasGovernor', () => {
   describe('batchIcaCalls', () => {

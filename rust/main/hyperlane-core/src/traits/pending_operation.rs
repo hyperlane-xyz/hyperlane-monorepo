@@ -153,6 +153,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// returning `NotReady` if it is too early and matters.
     fn next_attempt_after(&self) -> Option<Instant>;
 
+    /// Whether this operation is ready to be attempted.
+    fn is_ready(&self) -> bool {
+        self.next_attempt_after()
+            .is_none_or(|t| Instant::now() >= t)
+    }
+
     /// Set the next time this operation should be attempted.
     fn set_next_attempt_after(&mut self, delay: Duration);
 
@@ -299,6 +305,12 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to create payload success criteria")]
     /// Failed to create payload success criteria
     ErrorCreatingPayloadSuccessCriteria,
+    #[strum(to_string = "Awaiting validator signatures")]
+    /// Validator quorum not yet reached — signatures are still being collected
+    AwaitingValidatorSignatures,
+    #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
+    /// ICA reveal commit not yet confirmed on-chain; polling until visible
+    AwaitingIcaReveal,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

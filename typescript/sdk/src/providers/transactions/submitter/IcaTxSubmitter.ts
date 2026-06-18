@@ -21,7 +21,7 @@ import { CallData } from '../types.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
-import { getSubmitter } from './submitterBuilderGetter.js';
+import type { SubmitterGetter } from './types.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterProps,
@@ -45,6 +45,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
+    getSubmitterFn: SubmitterGetter,
   ): Promise<EvmIcaTxSubmitter> {
     const interchainAccountRouterAddress: Address | undefined =
       config.originInterchainAccountRouter ??
@@ -54,7 +55,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
-    const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
+    const internalSubmitter = await getSubmitterFn<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
       coreAddressesByChain,
@@ -79,6 +80,9 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
         chain: config.chain,
         destinationChain: config.destinationChain,
         originInterchainAccountRouter: interchainAccountRouterAddress,
+        destinationInterchainAccountRouter:
+          config.destinationInterchainAccountRouter,
+        interchainSecurityModule: config.interchainSecurityModule,
       },
       internalSubmitter,
       multiProvider,
@@ -133,19 +137,29 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     );
 
     const refundAddress = bytes32ToAddress(this.config.owner);
-    const hookMetadata = formatStandardHookMetadata({ refundAddress });
+    const icaConfig = {
+      origin: this.config.chain,
+      owner: this.config.owner,
+      ismOverride: this.config.interchainSecurityModule,
+      routerOverride: this.config.destinationInterchainAccountRouter,
+      localRouter: this.config.originInterchainAccountRouter,
+    };
+    const gasLimit = await this.interchainAccountApp.estimateIcaHandleGas({
+      origin: this.config.chain,
+      destination: this.config.destinationChain,
+      innerCalls,
+      config: icaConfig,
+    });
+    const hookMetadata = formatStandardHookMetadata({
+      refundAddress,
+      gasLimit: gasLimit.toBigInt(),
+    });
 
     const icaTx = await this.interchainAccountApp.getCallRemote({
       chain: this.config.chain,
       destination: this.config.destinationChain,
       innerCalls,
-      config: {
-        origin: this.config.chain,
-        owner: this.config.owner,
-        ismOverride: this.config.interchainSecurityModule,
-        routerOverride: this.config.destinationInterchainAccountRouter,
-        localRouter: this.config.originInterchainAccountRouter,
-      },
+      config: icaConfig,
       hookMetadata,
     });
 

@@ -16,6 +16,7 @@ import {
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
@@ -45,8 +46,11 @@ function matchesUnderlyingAsset(
       return true;
     }
 
+    // Only HypNative collateral legitimately lacks collateralAddressOrDenom;
+    // any other collateralized token missing it is a config bug, not a native match.
     if (
       !source.collateralAddressOrDenom &&
+      source.isHypNative() &&
       (target.isNative() || target.isHypNative())
     ) {
       return true;
@@ -63,6 +67,7 @@ function matchesUnderlyingAsset(
 export class TokenMetadata implements ITokenMetadata {
   declare chainName: TokenArgs['chainName'];
   declare standard: TokenArgs['standard'];
+  declare tokenType: TokenArgs['tokenType'];
   declare decimals: TokenArgs['decimals'];
   declare symbol: TokenArgs['symbol'];
   declare name: TokenArgs['name'];
@@ -153,10 +158,7 @@ export class TokenMetadata implements ITokenMetadata {
   }
 
   isCrossCollateralToken(): boolean {
-    return (
-      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
-    );
+    return TOKEN_CROSS_COLLATERAL_STANDARDS.has(this.standard);
   }
 
   getConnections(): TokenConnection[] {

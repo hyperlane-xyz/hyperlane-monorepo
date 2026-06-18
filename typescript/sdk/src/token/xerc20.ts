@@ -17,6 +17,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
@@ -181,7 +182,8 @@ async function getLockboxesFromLogs(
 
         await maybeXERC20Lockbox.callStatic.XERC20();
         return log;
-      } catch {
+      } catch (error) {
+        throwIfNotMissingSelector(error);
         logger.debug(
           `Contract at address ${log.args.bridge} on chain ${chain} is not a XERC20Lockbox contract.`,
         );

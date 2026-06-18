@@ -16,7 +16,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
+import {
+  checkCrossCollateralWarpRoute,
+  runWarpIcaOwnerCheck,
+  runWarpRouteCheck,
+} from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   type CommandContext,
@@ -30,6 +34,7 @@ import {
   runWarpRouteCombine,
   runWarpRouteDeploy,
 } from '../deploy/warp.js';
+import { runWarpRouteBalances } from '../balances/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
@@ -76,6 +81,7 @@ export const warpCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(apply)
+      .command(balances)
       .command(check)
       .command(combine)
       .command(deploy)
@@ -134,6 +140,50 @@ async function getWarpConfigsFromContextOrRegistry({
     resolvedWarpRouteId,
   };
 }
+
+const balances: CommandModuleWithContext<
+  WarpRouteOptions & {
+    chains?: string[];
+    out?: string;
+    address?: string;
+    raw?: boolean;
+  }
+> = {
+  command: 'balances',
+  describe: 'Display token balances for each leg of a warp route',
+  builder: {
+    ...WARP_ROUTE_OPTIONS,
+    chains: stringArrayOptionConfig({
+      description: 'Filter to specific chains',
+      demandOption: false,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path (JSON or YAML)',
+    ),
+    address: addressCommandOption(
+      "User address to check balances for. When provided, shows the user's token balance on each chain instead of collateral/supply.",
+    ),
+    raw: {
+      type: 'boolean' as const,
+      description: 'Show balances in base units (without decimal formatting)',
+      default: false,
+    },
+  },
+  handler: async ({ context, warpRouteId, chains, out, address, raw }) => {
+    logCommandHeader('Hyperlane Warp Balances');
+    await runWarpRouteBalances({
+      context,
+      warpRouteId,
+      chains,
+      out,
+      address,
+      raw,
+    });
+    process.exit(0);
+  },
+};
 
 export const apply: CommandModuleWithWarpApplyContext<
   WarpRouteOptions & {
@@ -349,6 +399,9 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      predicateApiKey?: string;
+      predicateApiUrl?: string;
+      attestation?: string;
       sourceToken?: string;
       destinationToken?: string;
       feeQuotingUrl?: string;
@@ -380,6 +433,23 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+      default: process.env.PREDICATE_API_KEY,
+      conflicts: 'attestation',
+    },
+    'predicate-api-url': {
+      type: 'string',
+      description:
+        'Predicate API base URL (overrides default; useful for testing)',
+      default: process.env.PREDICATE_API_URL,
+      implies: 'predicate-api-key',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
     'source-token': {
       type: 'string',
       description:
@@ -408,12 +478,17 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol: _symbol,
+    warp: _warp,
     warpRouteId,
     amount,
     recipient,
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    predicateApiKey,
+    predicateApiUrl,
+    attestation,
     sourceToken,
     destinationToken,
     feeQuotingUrl,
@@ -495,6 +570,9 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      predicateApiKey,
+      predicateApiUrl,
+      attestation,
       sourceToken,
       destinationToken,
       feeQuotingUrl,
@@ -553,6 +631,26 @@ export const check: CommandModuleWithContext<
     chains,
   }) => {
     logCommandHeader('Hyperlane Warp Check');
+
+    // CROSS route case: resolver set warpCoreConfig but not warpDeployConfig
+    // (combined CROSS routes have no deploy config of their own)
+    if (context.warpCoreConfig && !context.warpDeployConfig) {
+      assert(
+        !ica,
+        'Cannot perform ICA owner check for combined CROSS routes (no deploy config)',
+      );
+      assert(
+        context.resolvedWarpRouteId,
+        'resolvedWarpRouteId must be set for CROSS routes',
+      );
+      const result = await checkCrossCollateralWarpRoute({
+        context,
+        warpCoreConfig: context.warpCoreConfig,
+        warpRouteId: context.resolvedWarpRouteId,
+      });
+      await runWarpRouteCheck({ result });
+      process.exit(0);
+    }
 
     let { warpCoreConfig, warpDeployConfig } =
       await getWarpConfigsFromContextOrRegistry({

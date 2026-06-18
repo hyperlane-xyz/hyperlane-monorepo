@@ -3,6 +3,7 @@ import { PopulatedTransaction } from 'ethers';
 import {
   CrossCollateralRouter,
   CrossCollateralRouter__factory,
+  PredicateCrossCollateralRouterWrapper__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -17,7 +18,7 @@ import {
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 
-import { InterchainGasQuote } from './ITokenAdapter.js';
+import { InterchainGasQuote, TransferRemoteToParams } from './ITokenAdapter.js';
 import { EvmHypCollateralAdapter } from './EvmTokenAdapter.js';
 
 /**
@@ -64,20 +65,54 @@ export class EvmHypCrossCollateralAdapter extends EvmHypCollateralAdapter {
     );
   }
 
-  async populateTransferRemoteToTx(params: {
-    destination: Domain;
-    recipient: Address;
-    amount: Numberish;
-    targetRouter: Address;
-    interchainGas?: InterchainGasQuote;
-  }): Promise<PopulatedTransaction> {
+  async populateTransferRemoteToTx(
+    params: TransferRemoteToParams,
+  ): Promise<PopulatedTransaction> {
     const recipientBytes32 = addressToBytes32(params.recipient);
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
     const quote =
       params.interchainGas ?? (await this.quoteTransferRemoteToGas(params));
-    const nativeGas = !quote.igpQuote.addressOrDenom
-      ? quote.igpQuote.amount.toString()
-      : '0';
+    let nativeValue = !quote.igpQuote.addressOrDenom
+      ? quote.igpQuote.amount
+      : 0n;
+    if (
+      !quote.tokenFeeQuote?.addressOrDenom ||
+      isZeroishAddress(quote.tokenFeeQuote.addressOrDenom)
+    ) {
+      nativeValue += quote.tokenFeeQuote?.amount ?? 0n;
+    }
+    const nativeGas = nativeValue.toString();
+
+    if (params.attestation) {
+      const predicateWrapperAddress = await this.getPredicateWrapperAddress();
+      if (!predicateWrapperAddress) {
+        throw new Error(
+          'Attestation provided but no PredicateCrossCollateralRouterWrapper detected on warp route hook.',
+        );
+      }
+
+      const predicateWrapper =
+        PredicateCrossCollateralRouterWrapper__factory.connect(
+          predicateWrapperAddress,
+          this.getProvider(),
+        );
+
+      const contractAttestation = {
+        uuid: params.attestation.uuid,
+        expiration: params.attestation.expiration,
+        attester: params.attestation.attester,
+        signature: params.attestation.signature,
+      };
+
+      return predicateWrapper.populateTransaction.transferRemoteToWithAttestation(
+        contractAttestation,
+        params.destination,
+        recipientBytes32,
+        params.amount.toString(),
+        targetRouterBytes32,
+        { value: nativeGas },
+      );
+    }
 
     return this.crossCollateralContract.populateTransaction.transferRemoteTo(
       params.destination,

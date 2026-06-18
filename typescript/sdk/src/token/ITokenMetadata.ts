@@ -11,7 +11,11 @@ import {
   TokenConnectionConfigSchema,
 } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import { TokenType } from './config.js';
+import { TokenMetadataSchema } from './types.js';
 
+// standard selects runtime adapters/checks; tokenType preserves deploy-time
+// semantics when multiple deploy types share a standard.
 export const TokenConfigSchema = z.object({
   chainName: ZChainName.describe(
     'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
@@ -19,6 +23,12 @@ export const TokenConfigSchema = z.object({
   standard: z
     .nativeEnum(TokenStandard)
     .describe('The type of token. See TokenStandard for valid values.'),
+  tokenType: z
+    .nativeEnum(TokenType)
+    .optional()
+    .describe(
+      'The warp route deploy token type. Used to preserve route implementation semantics when multiple deploy token types share the same token standard.',
+    ),
   decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
   symbol: z.string().min(1).describe('The symbol of the token'),
   name: z.string().min(1).describe('The name of the token'),
@@ -49,7 +59,9 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
-  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
+  scale: TokenMetadataSchema.shape.scale.describe(
+    'The scaling factor of the token',
+  ),
   warpRouteId: z
     .string()
     .min(1)

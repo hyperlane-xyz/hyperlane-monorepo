@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
+import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
@@ -26,6 +28,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -126,6 +129,11 @@ describe('EvmIsmModule', async () => {
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
     const normalizedConfig = normalizeConfig(testConfig);
 
+    // recipient is a deploy-time constructor arg not returned by read()
+    if (normalizedConfig.type === IsmType.RATE_LIMITED) {
+      delete normalizedConfig.recipient;
+    }
+
     assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
@@ -176,12 +184,41 @@ describe('EvmIsmModule', async () => {
       });
     });
 
+    it('deploys a rate limited ism and transfers ownership to non-deployer', async () => {
+      const recipient = randomAddress();
+      const owner = randomAddress();
+      const config: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        recipient,
+        owner,
+      };
+      const { ism } = await createIsm(config);
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+    });
+
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
         const config = randomIsmConfig();
         await createIsm(config);
       });
     }
+
+    it('deploys a rate limited ism via randomIsmConfig', async () => {
+      const config = randomIsmConfig(
+        undefined,
+        undefined,
+        IsmType.RATE_LIMITED,
+      );
+      await createIsm(config);
+    });
   });
 
   describe('update', async () => {
@@ -544,6 +581,38 @@ describe('EvmIsmModule', async () => {
       // expect the ISM address to be the same
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
+    });
+
+    it('transfers ownership in-place on ownership change', async () => {
+      const recipient = randomAddress();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const rateLimitedConfig: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        recipient,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(rateLimitedConfig);
+
+      const newOwner = randomAddress();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      rateLimitedConfig.owner = newOwner;
+
+      // RATE_LIMITED is mutable — update() transfers ownership in-place (1 tx)
+      await expectTxsAndUpdate(ism, rateLimitedConfig, 1);
+
+      // same contract address — no redeploy
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        newOwner.toLowerCase(),
+      );
     });
   });
 });

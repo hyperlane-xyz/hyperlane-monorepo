@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 import { ModuleType } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -347,6 +347,9 @@ const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
+  feeToken: ZHash.optional().describe(
+    'The origin fee token that must have paid the IGP. The zero address, or unset, represents native tokens.',
+  ),
 });
 const GasPaymentEnforcementSchema = z.union([
   GasPaymentEnforcementBaseSchema.extend({
@@ -365,6 +368,37 @@ const GasPaymentEnforcementSchema = z.union([
   }),
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+
+function feeTokenIsNonZero(feeToken?: string): boolean {
+  return !isEmptyAddress(feeToken);
+}
+
+type GasPaymentEnforcementParseResult =
+  | { policies: GasPaymentEnforcement[] | undefined; parseError: false }
+  | { policies: undefined; parseError: true };
+
+function gasPaymentEnforcementPolicies(
+  gasPaymentEnforcement: unknown,
+): GasPaymentEnforcementParseResult {
+  if (Array.isArray(gasPaymentEnforcement)) {
+    return { policies: gasPaymentEnforcement, parseError: false };
+  }
+
+  if (typeof gasPaymentEnforcement !== 'string') {
+    return { policies: undefined, parseError: false };
+  }
+
+  try {
+    const result = z
+      .array(GasPaymentEnforcementSchema)
+      .safeParse(JSON.parse(gasPaymentEnforcement));
+    return result.success
+      ? { policies: result.data, parseError: false }
+      : { policies: undefined, parseError: true };
+  } catch {
+    return { policies: undefined, parseError: true };
+  }
+}
 
 const MetricAppContextSchema = z.object({
   name: z.string().min(1),
@@ -483,6 +517,71 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
+  relayApiEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to enable the relay API HTTP server. Defaults to false.',
+    ),
+  relayApiPort: z
+    .number()
+    .int()
+    .positive()
+    .lte(65535)
+    .optional()
+    .describe(
+      'Port for the relay API HTTP server. When set, the relay API is served on this dedicated port instead of the shared metrics port.',
+    ),
+  relayApiRateLimitMaxRequests: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Relay API rate limit: max requests allowed per window. Defaults to 100.',
+    ),
+  relayApiRateLimitWindowSecs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Relay API rate limit: window duration in seconds. Defaults to 60.',
+    ),
+  relayApiCorsOrigins: z
+    .string()
+    .optional()
+    .describe(
+      'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
+    ),
+}).superRefine((config, ctx) => {
+  // Mirror the Rust relayer gate: the current IGP event does not expose the
+  // token address, so exact non-native `feeToken` enforcement is rejected.
+  const { policies, parseError } = gasPaymentEnforcementPolicies(
+    config.gasPaymentEnforcement,
+  );
+  if (parseError) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement'],
+      message: 'Invalid gasPaymentEnforcement JSON payload',
+    });
+    return;
+  }
+  if (!policies) {
+    return;
+  }
+  policies.forEach((policy, policyIndex) => {
+    if (!feeTokenIsNonZero(policy.feeToken)) {
+      return;
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement', policyIndex, 'feeToken'],
+      message:
+        '`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; leave it unset and use onChainFeeQuoting for ERC20 IGP gas-amount sufficiency.',
+    });
+  });
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
@@ -492,6 +591,12 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
+  ccrRouters: z
+    .record(z.record(z.string()))
+    .optional()
+    .describe(
+      'Per-domain CCR router → underlying ERC20 token mapping. Domain ID → { router_address → token_address }. Auto-populated from registry.',
+    ),
 });
 
 export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;

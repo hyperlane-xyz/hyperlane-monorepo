@@ -32,7 +32,24 @@ export interface SvmTransaction {
 export interface SvmReceipt {
   signature: string;
   slot?: bigint;
+  meta?: {
+    logMessages?: readonly string[];
+  };
 }
+
+/** Structural interface matching @solana/web3.js Keypair. */
+export interface LegacyKeypair {
+  secretKey: Uint8Array;
+}
+
+/**
+ * Mixin for legacy @solana/web3.js Keypair extra signers.
+ * Used at the signer boundary to accept extra signers from SDK adapters
+ * that still use the legacy Transaction format.
+ */
+export type WithExtraSigners<T> = T & {
+  extraSigners?: readonly LegacyKeypair[];
+};
 
 export type AnnotatedSvmTransaction = SvmTransaction & {
   annotation?: string;

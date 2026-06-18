@@ -19,7 +19,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    ValidatorAnnounce, H160, H256, H512,
 };
 
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
@@ -27,7 +27,10 @@ use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuil
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
+mod cached_checkpoint_syncer;
 mod validator_announced_storages;
+
+use cached_checkpoint_syncer::CachedCheckpointSyncer;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsmBuildMetricsParams {
@@ -85,6 +88,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
         -> eyre::Result<Option<u32>>;
+    async fn retrieve_origin_tx_hash_by_message_id(
+        &self,
+        message_id: H256,
+    ) -> eyre::Result<Option<H512>>;
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>>;
     async fn build_routing_ism(&self, address: H256) -> eyre::Result<Box<dyn RoutingIsm>>;
     async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>>;
@@ -172,6 +179,15 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         Ok(merkle_leaf)
     }
 
+    async fn retrieve_origin_tx_hash_by_message_id(
+        &self,
+        message_id: H256,
+    ) -> eyre::Result<Option<H512>> {
+        Ok(self
+            .db
+            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?)
+    }
+
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
         self.destination_chain_setup
             .build_ism(address, &self.metrics)
@@ -257,7 +273,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        if let Some(syncer) = self.build_and_validate(&config, validator).await? {
+                        if let Some(syncer) = self
+                            .build_and_validate(&config, validator, storage_location)
+                            .await?
+                        {
                             // found the syncer for this validator
                             return Ok(Some((*validator, syncer)));
                         }
@@ -312,10 +331,18 @@ impl BaseMetadataBuilder {
         &self,
         config: &CheckpointSyncerConf,
         validator: &H256,
+        storage_location: &str,
     ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
         match config.build_and_validate(None).await {
             Ok(checkpoint_syncer) => {
-                return Ok(Some(checkpoint_syncer));
+                let checkpoint_syncer = CachedCheckpointSyncer::new(
+                    checkpoint_syncer,
+                    self.cache.clone(),
+                    self.origin_domain.name().to_string(),
+                    *validator,
+                    storage_location.to_string(),
+                );
+                return Ok(Some(Box::new(checkpoint_syncer)));
             }
             Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
                 if self.ignore_reorg_reports {

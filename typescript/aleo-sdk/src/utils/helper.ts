@@ -1,10 +1,18 @@
-import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
+import {
+  BHP256,
+  BHP1024,
+  Plaintext,
+  Program,
+  U128,
+} from '@provablehq/sdk/mainnet.js';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
+  assert,
   isValidAddressAleo,
   isZeroishAddress,
   strip0x,
+  toHexString,
 } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
@@ -91,8 +99,14 @@ export function loadProgramsInDeployOrder(
           )
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) =>
-              `${p1}_${getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix}.aleo`,
+            (_, p1) => {
+              if (p1 === 'hyp_native') {
+                return `hyp_warp_token_credits.aleo`;
+              }
+              const effectiveSuffix =
+                getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
+              return `hyp_warp_token_${effectiveSuffix}.aleo`;
+            },
           ),
       ),
     );
@@ -173,9 +187,20 @@ constructor:
   return programs.map((p) => ({
     id: p.id(),
     name:
-      Object.keys(programRegistry).find((r) =>
-        p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`),
-      ) || '',
+      Object.keys(programRegistry).find((r) => {
+        if (r === 'hyp_native') {
+          return p.id() === `${prefix}_warp_token_credits.aleo`;
+        }
+        if (
+          (r === 'hyp_collateral' || r === 'hyp_synthetic') &&
+          r === programName &&
+          p.id().startsWith(`${prefix}_warp_token_`) &&
+          p.id() !== `${prefix}_warp_token_credits.aleo`
+        ) {
+          return true;
+        }
+        return p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`);
+      }) || '',
     program: p.toString(),
   }));
 }
@@ -329,12 +354,95 @@ export function bytes32ToU128String(input: string): string {
   return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
 }
 
+// Inverse of bytes32ToU128String: parses "[lowU128u128, highU128u128]" from dispatch_id_events
+// and converts back to a 0x-prefixed 32-byte hex string.
+export function u128PairToBytes32(u128PairStr: string): string {
+  assert(
+    u128PairStr.startsWith('[') && u128PairStr.endsWith(']'),
+    `u128PairToBytes32: expected "[low,high]" format, got: ${u128PairStr}`,
+  );
+  const inner = u128PairStr.slice(1, -1);
+  const parts = inner.split(',').map((s) => s.trim().replace(/u128$/, ''));
+  assert(
+    parts.length === 2,
+    `u128PairToBytes32: expected exactly 2 comma-separated parts, got ${parts.length}: ${inner}`,
+  );
+  const low = BigInt(parts[0]);
+  const high = BigInt(parts[1]);
+  const u128Max = 2n ** 128n;
+  assert(
+    low >= 0n && low < u128Max,
+    `u128PairToBytes32: low value out of u128 range: ${low}`,
+  );
+  assert(
+    high >= 0n && high < u128Max,
+    `u128PairToBytes32: high value out of u128 range: ${high}`,
+  );
+
+  const bytes = new Uint8Array(32);
+  let tempLow = low;
+  for (let i = 0; i < 16; i++) {
+    bytes[i] = Number(tempLow & 0xffn);
+    tempLow >>= 8n;
+  }
+  let tempHigh = high;
+  for (let i = 0; i < 16; i++) {
+    bytes[16 + i] = Number(tempHigh & 0xffn);
+    tempHigh >>= 8n;
+  }
+  return toHexString(Buffer.from(bytes));
+}
+
 export function getBalanceKey(address: string, denom: string): string {
   return new BHP256()
     .hash(
       Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
     )
     .toString();
+}
+
+// Aleo scalar field (BLS12-377 Fr) is 253 bits.
+const ALEO_FIELD_BITS = 253;
+
+// Encodes an Aleo Identifier to its snarkVM LE bit representation.
+// Identifier stores ASCII bytes packed into a field element: chars → LE bits → zero-padded to 253 bits.
+function identifierToBitsLe(name: string): boolean[] {
+  const bits: boolean[] = [];
+  for (let i = 0; i < name.length; i++) {
+    const byte = name.charCodeAt(i);
+    for (let b = 0; b < 8; b++) bits.push(((byte >> b) & 1) === 1);
+  }
+  while (bits.length < ALEO_FIELD_BITS) bits.push(false);
+  return bits;
+}
+
+// Encodes an Aleo ProgramID (e.g., "mailbox.aleo") as LE bits.
+// ProgramID serializes as: name identifier bits || network identifier bits.
+function programIdToBitsLe(programId: string): boolean[] {
+  const dot = programId.lastIndexOf('.');
+  return [
+    ...identifierToBitsLe(programId.slice(0, dot)),
+    ...identifierToBitsLe(programId.slice(dot + 1)),
+  ];
+}
+
+// Computes the Aleo mapping key_id used in FinalizeJSON.
+// Matches the Rust `to_key_id` in hyperlane-aleo/src/utils.rs:
+//   BHP1024(programId_bits | false | mappingName_bits | false | plaintextKey_bits)
+// key must be a valid Aleo plaintext string, e.g. "0u32".
+export function toKeyId(
+  programId: string,
+  mappingName: string,
+  key: string,
+): string {
+  const bits: boolean[] = [
+    ...programIdToBitsLe(programId),
+    false,
+    ...identifierToBitsLe(mappingName),
+    false,
+    ...Plaintext.fromString(key).toBitsLe(),
+  ];
+  return new BHP1024().hash(bits).toString();
 }
 
 /**

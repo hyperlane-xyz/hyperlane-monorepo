@@ -27,7 +27,7 @@ import {
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
   createServiceAccountIfNotExists,
@@ -244,6 +244,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
         this.config.relayerConfig.environmentVariableEndpointEnabled ?? true,
       cacheDefaultExpirationSeconds:
         this.config.relayerConfig.cache?.defaultExpirationSeconds,
+      relayApi: this.config.relayerConfig.relayApi ?? { enabled: false },
     };
 
     const signers = await this.config.signers();
@@ -383,6 +384,14 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
       (chain) => chain.name === cfg.originChainName,
     );
+    const originChain = helmValues.hyperlane.chains[0];
+    if (!originChain) {
+      throw new Error(`Missing chain config for ${cfg.originChainName}`);
+    }
+    originChain.blocks = {
+      ...originChain.blocks,
+      reorgPeriod: cfg.reorgPeriod,
+    };
 
     helmValues.hyperlane.validator = {
       enabled: true,

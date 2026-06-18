@@ -20,6 +20,10 @@ export const timelocks: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
+// Celestia multisig that owns the eden core deployment.
+// IGP/oracle ownership stays with the deployer.
+export const EDEN_CORE_OWNER = '0x260eDfa1d9f7Ec832E079f90c043360d394d2ce4';
+
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
@@ -63,9 +67,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   // and ensure there's an entry for each supported chain.
   stride: {
     owner: 'n/a - nothing owned here',
-  },
-  milkyway: {
-    owner: 'TODO: configure milkyway owner',
   },
   paradex: {
     owner: '0x41e326bf455461926b9c334d02039cb0d4f09698c5158ef8d939b33b240a0e0',

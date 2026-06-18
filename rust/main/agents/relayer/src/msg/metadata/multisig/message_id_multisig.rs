@@ -38,16 +38,21 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let message_id = message.id();
-        let leaf_index = unwrap_or_none_result!(
-            self.base_builder()
-                .get_merkle_leaf_id_by_message_id(message_id)
-                .await
-                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
-            debug!(
-                hyp_message=?message,
-                "No merkle leaf found for message id, must have not been enqueued in the tree"
-            )
-        );
+        let leaf_index = match self
+            .base_builder()
+            .get_merkle_leaf_id_by_message_id(message_id)
+            .await
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+        {
+            Some(idx) => idx,
+            None => {
+                debug!(
+                    hyp_message=?message,
+                    "No merkle leaf found for message id, must have not been enqueued in the tree"
+                );
+                return Err(MetadataBuildError::CouldNotFetch);
+            }
+        };
 
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer

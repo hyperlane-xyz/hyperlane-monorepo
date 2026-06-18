@@ -16,6 +16,7 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -118,6 +119,12 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     return null;
   }
 
+  createFeeArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null {
+    return null;
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e6),
@@ -125,6 +132,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: BigInt(3e5),
       AVS_GAS: BigInt(3e6),
       ISM_DEPLOY_GAS: BigInt(5e5),
+      HOOK_DEPLOY_GAS: BigInt(5e5),
     };
   }
 }
