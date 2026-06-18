@@ -95,11 +95,6 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
-  // tmp
-  'xrplevm',
-  'viction',
-  'prom',
-
   ...getDisabledChains(),
 ];
 
