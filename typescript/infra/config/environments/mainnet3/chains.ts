@@ -107,42 +107,57 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //   },
   // },
   // Deploy-only overrides, set when deploying contracts
-  // chilizmainnet: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
-  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
-  //   },
-  // },
-  // xlayer: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
-  // soneium: {
-  //   blocks: {
-  //     confirmations: 3,
-  //   },
-  // },
-  // flowmainnet: {
-  //   blocks: {
-  //     confirmations: 3,
-  //   },
-  // },
-  // arbitrum: {
-  //   blocks: {
-  //     confirmations: 3,
-  //   },
-  // },
-  // unichain: {
-  //   blocks: {
-  //     confirmations: 8,
-  //   },
-  // },
-  // optimism: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
+  chilizmainnet: {
+    transactionOverrides: {
+      maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+      maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+    },
+  },
+  immutablezkevmmainnet: {
+    blocks: {
+      confirmations: 5,
+    },
+  },
+  xrplevm: {
+    blocks: {
+      confirmations: 5,
+    },
+  },
+  xlayer: {
+    blocks: {
+      confirmations: 5,
+    },
+  },
+  soneium: {
+    blocks: {
+      confirmations: 3,
+    },
+  },
+  flowmainnet: {
+    blocks: {
+      confirmations: 3,
+    },
+  },
+  arbitrum: {
+    blocks: {
+      confirmations: 3,
+    },
+  },
+  unichain: {
+    blocks: {
+      confirmations: 5,
+    },
+  },
+  optimism: {
+    blocks: {
+      confirmations: 5,
+    },
+  },
+  prom: {
+    blocks: {
+      confirmations: 3,
+    },
+  },
 };
 
 export const getRegistry = async (
