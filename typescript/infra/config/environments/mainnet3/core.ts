@@ -27,16 +27,23 @@ import { legacyIgpChains } from '../../../src/config/chain.js';
 
 import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
-import { igp } from './igp.js';
+import { getIgp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 // There are no static ISMs or hooks for zkSync, this means
 // that the default ISM is a routing ISM and the default hook
 // is a fallback routing hook.
-export const core: ChainMap<CoreConfig> = objMap(
-  ethereumChainOwners,
-  (local, owner) => {
+// Lazily builds the core config map. Deferred (and memoized) because it depends
+// on the IGP config, which is itself computed lazily to keep merely importing
+// the environment config cheap. See getIgp in ./igp.ts.
+let coreCache: ChainMap<CoreConfig> | undefined;
+export function getCore(): ChainMap<CoreConfig> {
+  if (coreCache) {
+    return coreCache;
+  }
+  const igp = getIgp();
+  coreCache = objMap(ethereumChainOwners, (local, owner) => {
     // eden is a special case, it's only connected to celestia.
     // Core is owned by the Celestia multisig; igp/oracle stays deployer-owned.
     if (local === 'eden') {
@@ -176,5 +183,6 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...(legacyIgpChains.includes(local) ? { deployQuotedCalls: false } : {}),
       ...owner,
     };
-  },
-);
+  });
+  return coreCache;
+}
