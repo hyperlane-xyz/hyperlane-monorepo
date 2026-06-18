@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
 import { GovernanceType } from '../src/governanceTypes.js';
+import { getTimelockLogBlockRange } from '../src/utils/timelock.js';
 import {
   callMatchesTimelockIdempotency,
   getDeferredTimelockConfigChains,
@@ -80,6 +81,11 @@ describe('upgrade-compatible-igps', () => {
       'arbitrum',
       'optimism',
     ]);
+  });
+
+  it('uses conservative timelock log block ranges', () => {
+    expect(getTimelockLogBlockRange('ethereum')).to.equal(999);
+    expect(getTimelockLogBlockRange('xlayer')).to.equal(1000);
   });
 
   it('extracts target implementation from ProxyAdmin upgrade calldata', () => {

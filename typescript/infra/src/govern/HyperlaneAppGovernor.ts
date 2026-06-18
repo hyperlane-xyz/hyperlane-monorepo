@@ -40,10 +40,9 @@ import {
   SafeMultiSend,
   SignerMultiSend,
 } from './multisend.js';
+import { GOVERNOR_MAX_BATCH_SIZE } from './constants.js';
 import type { AnnotatedCallData, InferredCall } from './types.js';
 import { SubmissionType } from './types.js';
-
-export const GOVERNOR_MAX_BATCH_SIZE = 120;
 
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,

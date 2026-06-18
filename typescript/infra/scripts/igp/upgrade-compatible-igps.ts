@@ -51,10 +51,11 @@ import { getEnvAddresses } from '../../config/registry.js';
 import { chainsToSkip, legacyIgpChains } from '../../src/config/chain.js';
 import { determineGovernanceType, Owner } from '../../src/governance.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
-import { GOVERNOR_MAX_BATCH_SIZE } from '../../src/govern/HyperlaneAppGovernor.js';
+import { GOVERNOR_MAX_BATCH_SIZE } from '../../src/govern/constants.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { Role } from '../../src/roles.js';
 import { logTable } from '../../src/utils/log.js';
+import { getTimelockLogBlockRange } from '../../src/utils/timelock.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
@@ -70,10 +71,9 @@ const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
 // Timelock upgrade idempotency needs log scanning because CREATE deployments
 // change the implementation address in the scheduled calldata across reruns.
-// Keep chunks below common provider log limits; widen manually if an older
-// still-pending operation must be detected.
+// The per-query block range comes from the same conservative timelock helper
+// used by the pending-timelock scripts.
 const TIMELOCK_LOOKBACK_BLOCKS = 2_000_000;
-const TIMELOCK_LOG_CHUNK_BLOCKS = 50_000;
 
 type UpgradeCall = {
   to: Address;
@@ -106,6 +106,13 @@ type SafeCallGroup = {
   calls: UpgradeCall[];
   batchIndex?: number;
   batchCount?: number;
+};
+
+type IcaCallGroup = {
+  destination: ChainName;
+  governanceType: GovernanceType;
+  owner: Address;
+  calls: UpgradeCall[];
 };
 
 type ProposalResult = {
@@ -343,12 +350,14 @@ export function callMatchesTimelockIdempotency({
 }
 
 async function getExistingTimelockOperation({
+  chain,
   provider,
   timelock,
   call,
   idempotency,
   currentOperationId,
 }: {
+  chain: ChainName;
   provider: ethers.providers.Provider;
   timelock: ReturnType<typeof TimelockController__factory.connect>;
   call: UpgradeCall;
@@ -369,15 +378,13 @@ async function getExistingTimelockOperation({
   const latestBlock = await provider.getBlockNumber();
   const fromBlock = Math.max(0, latestBlock - TIMELOCK_LOOKBACK_BLOCKS);
   const eventFilter = timelock.filters.CallScheduled();
+  const logBlockRange = getTimelockLogBlockRange(chain);
   for (
     let startBlock = fromBlock;
     startBlock <= latestBlock;
-    startBlock += TIMELOCK_LOG_CHUNK_BLOCKS + 1
+    startBlock += logBlockRange + 1
   ) {
-    const endBlock = Math.min(
-      latestBlock,
-      startBlock + TIMELOCK_LOG_CHUNK_BLOCKS,
-    );
+    const endBlock = Math.min(latestBlock, startBlock + logBlockRange);
     const logs = await timelock.queryFilter(eventFilter, startBlock, endBlock);
     for (const log of logs) {
       const { id, target, value, data } = log.args;
@@ -459,6 +466,67 @@ function addSafeCall(
     safeAddress,
     calls: [call],
   });
+}
+
+function getIcaCallGroupKey({
+  destination,
+  governanceType,
+  owner,
+}: {
+  destination: ChainName;
+  governanceType: GovernanceType;
+  owner: Address;
+}) {
+  return `${destination}:${governanceType}:${owner}`;
+}
+
+function addIcaCall(
+  groups: Map<string, IcaCallGroup>,
+  destination: ChainName,
+  governanceType: GovernanceType,
+  owner: Address,
+  call: UpgradeCall,
+) {
+  const key = getIcaCallGroupKey({ destination, governanceType, owner });
+  const existing = groups.get(key);
+  if (existing) {
+    existing.calls.push(call);
+    return;
+  }
+
+  groups.set(key, {
+    destination,
+    governanceType,
+    owner,
+    calls: [call],
+  });
+}
+
+async function assertIcaOwner({
+  ica,
+  destination,
+  governanceType,
+  ownerAddress,
+}: {
+  ica: InterchainAccount;
+  destination: ChainName;
+  governanceType: GovernanceType;
+  ownerAddress: Address;
+}) {
+  const owner = getGovernanceSafes(governanceType)[ETHEREUM_CHAIN];
+  assert(
+    owner,
+    `No ${governanceType} Safe configured on ${ETHEREUM_CHAIN}; cannot propose ICA call for ${destination}`,
+  );
+
+  const expectedIca = await ica.getAccount(destination, {
+    origin: ETHEREUM_CHAIN,
+    owner,
+  });
+  assert(
+    eqAddress(expectedIca, ownerAddress),
+    `[${destination}] expected ${governanceType} ICA ${expectedIca}, but owner is ${ownerAddress}`,
+  );
 }
 
 function toUpgradeCall(
@@ -549,6 +617,7 @@ export function getUpgradeTargetImplementation({
       return decodedImplementation;
     }
   } catch {
+    // Not a ProxyAdmin.upgrade call; callers use undefined as a non-match.
     return undefined;
   }
 
@@ -597,6 +666,7 @@ async function getGovernedCallOwner({
 
 async function routeGovernedCall({
   groups,
+  icaGroups,
   ica,
   chain,
   call,
@@ -604,6 +674,7 @@ async function routeGovernedCall({
   timelockIdempotency,
 }: {
   groups: Map<string, SafeCallGroup>;
+  icaGroups: Map<string, IcaCallGroup>;
   ica: InterchainAccount;
   chain: ChainName;
   call: UpgradeCall;
@@ -639,17 +710,16 @@ async function routeGovernedCall({
           governanceType,
         };
       }
-      await addIcaSafeCall({
-        groups,
+      await assertIcaOwner({
         ica,
         destination: chain,
         governanceType,
-        innerCall: call,
-        expectedRemoteOwner: ownerAddress,
+        ownerAddress,
       });
+      addIcaCall(icaGroups, chain, governanceType, ownerAddress, call);
       return {
         status: 'queued',
-        detail: `queued ${governanceType} ICA tx from ethereum: ${call.description}`,
+        detail: `queued ${governanceType} ICA inner tx from ethereum: ${call.description}`,
         ownerType,
         governanceType,
       };
@@ -761,6 +831,66 @@ async function addIcaSafeCall({
   });
 }
 
+async function flushIcaCallGroups({
+  safeGroups,
+  icaGroups,
+  ica,
+}: {
+  safeGroups: Map<string, SafeCallGroup>;
+  icaGroups: Map<string, IcaCallGroup>;
+  ica: InterchainAccount;
+}) {
+  for (const group of icaGroups.values()) {
+    const safes = getGovernanceSafes(group.governanceType);
+    const owner = safes[ETHEREUM_CHAIN];
+    assert(
+      owner,
+      `No ${group.governanceType} Safe configured on ${ETHEREUM_CHAIN}; cannot propose ICA call for ${group.destination}`,
+    );
+
+    const accountConfig = {
+      origin: ETHEREUM_CHAIN,
+      owner,
+    };
+    const innerCalls = group.calls.map((call) => ({
+      to: call.to,
+      data: call.data,
+      value: call.value.toString(),
+    }));
+    const gasLimit = await ica.estimateIcaHandleGas({
+      origin: ETHEREUM_CHAIN,
+      destination: group.destination,
+      innerCalls,
+      config: accountConfig,
+    });
+    const hookMetadata = formatStandardHookMetadata({
+      gasLimit: gasLimit.toBigInt(),
+      refundAddress: accountConfig.owner,
+    });
+    const callRemote = await ica.getCallRemote({
+      chain: ETHEREUM_CHAIN,
+      destination: group.destination,
+      innerCalls,
+      config: accountConfig,
+      hookMetadata,
+    });
+
+    assert(
+      callRemote.to && callRemote.data,
+      `[${group.destination}] could not build ICA callRemote transaction`,
+    );
+
+    addSafeCall(safeGroups, ETHEREUM_CHAIN, group.governanceType, {
+      to: callRemote.to,
+      data: callRemote.data,
+      value: callRemote.value ?? BigNumber.from(0),
+      description: `ICA ${group.destination}: ${group.calls.length} ordered tx(s): ${group.calls
+        .map((call) => call.description)
+        .join('; ')}`,
+    });
+  }
+}
+
 async function routeTimelockCall({
   groups,
   ica,
@@ -801,6 +931,7 @@ async function routeTimelockCall({
   );
 
   const existingOperation = await getExistingTimelockOperation({
+    chain,
     provider,
     timelock,
     call: innerCall,
@@ -1130,6 +1261,7 @@ async function main() {
   );
   const ica = InterchainAccount.fromAddressesMap(icaAddresses, multiProvider);
   const safeGroups = new Map<string, SafeCallGroup>();
+  const icaGroups = new Map<string, IcaCallGroup>();
   const plans: ChainPlan[] = [];
 
   for (const chain of targetChains) {
@@ -1288,6 +1420,7 @@ async function main() {
         );
         const route = await routeGovernedCall({
           groups: safeGroups,
+          icaGroups,
           ica,
           chain,
           call: upgradeCall,
@@ -1369,6 +1502,7 @@ async function main() {
         });
         const route = await routeGovernedCall({
           groups: safeGroups,
+          icaGroups,
           ica,
           chain,
           call,
@@ -1427,6 +1561,12 @@ async function main() {
       });
     }
   }
+
+  await flushIcaCallGroups({
+    safeGroups,
+    icaGroups,
+    ica,
+  });
 
   const groups = splitSafeCallGroups([...safeGroups.values()]);
   const runDir = join(

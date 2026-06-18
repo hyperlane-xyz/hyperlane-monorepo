@@ -50,13 +50,6 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export {
-  isMissingSelectorCallException,
-  isMissingSelectorRevert,
-  isValidContractVersion,
-  throwIfNotMissingSelector,
-  throwIfNotMissingSelectorRevert,
-} from './utils/contract.js';
 export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
