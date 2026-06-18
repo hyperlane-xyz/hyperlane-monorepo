@@ -37,74 +37,79 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.module(domain)), address(_ism));
     }
 
-    function buildDomainModules(
+    function buildIsmConfigs(
         uint32 domain,
         uint8 count
-    ) internal returns (DomainRoutingIsm.DomainModule[] memory) {
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+    ) internal returns (DomainRoutingIsm.IsmConfig[] memory) {
+        vm.assume(
+            uint256(domain) + uint256(count) <= uint256(type(uint32).max) + 1
+        );
+        DomainRoutingIsm.IsmConfig[]
+            memory configs = new DomainRoutingIsm.IsmConfig[](count);
         for (uint32 i = 0; i < count; ++i) {
-            unchecked {
-                domainModules[i] = DomainRoutingIsm.DomainModule({
-                    domain: domain + i,
-                    module: IInterchainSecurityModule(
-                        address(deployTestIsm(bytes32(0)))
-                    )
-                });
-            }
+            configs[i] = DomainRoutingIsm.IsmConfig({
+                domain: domain + i,
+                ism: IInterchainSecurityModule(
+                    address(deployTestIsm(bytes32(0)))
+                )
+            });
         }
-        return domainModules;
+        return configs;
     }
 
-    function testSetBatch(uint32 domain, uint8 count) public {
+    function testSetIsms(uint32 domain, uint8 count) public {
         vm.assume(count > 0);
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = buildDomainModules(domain, count);
+        DomainRoutingIsm.IsmConfig[] memory configs = buildIsmConfigs(
+            domain,
+            count
+        );
 
-        ism.setBatch(domainModules);
+        ism.setIsms(configs);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(
-                address(ism.module(domainModules[i].domain)),
-                address(domainModules[i].module)
+                address(ism.module(configs[i].domain)),
+                address(configs[i].ism)
             );
         }
     }
 
-    function testSetBatchNonOwner(uint32 domain) public {
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = new DomainRoutingIsm.DomainModule[](1);
-        domainModules[0] = DomainRoutingIsm.DomainModule({
+    function testSetIsmsNonOwner(uint32 domain) public {
+        DomainRoutingIsm.IsmConfig[]
+            memory configs = new DomainRoutingIsm.IsmConfig[](1);
+        configs[0] = DomainRoutingIsm.IsmConfig({
             domain: domain,
-            module: IInterchainSecurityModule(address(0))
+            ism: IInterchainSecurityModule(address(0))
         });
         vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
-        ism.setBatch(domainModules);
+        ism.setIsms(configs);
     }
 
-    function testRemoveBatch(uint32 domain, uint8 count) public virtual {
+    function testRemoveIsms(uint32 domain, uint8 count) public virtual {
         vm.assume(count > 0);
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = buildDomainModules(domain, count);
-        ism.setBatch(domainModules);
+        DomainRoutingIsm.IsmConfig[] memory configs = buildIsmConfigs(
+            domain,
+            count
+        );
+        ism.setIsms(configs);
 
         uint32[] memory domains = new uint32[](count);
         for (uint256 i = 0; i < count; ++i) {
-            domains[i] = domainModules[i].domain;
+            domains[i] = configs[i].domain;
         }
-        ism.removeBatch(domains);
+        ism.removeIsms(domains);
         for (uint256 i = 0; i < count; ++i) {
             vm.expectRevert();
             ism.module(domains[i]);
         }
     }
 
-    function testRemoveBatchNonOwner(uint32 domain) public {
+    function testRemoveIsmsNonOwner(uint32 domain) public {
         uint32[] memory domains = new uint32[](1);
         domains[0] = domain;
         vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
-        ism.removeBatch(domains);
+        ism.removeIsms(domains);
     }
 
     function testRemove(uint32 domain) public virtual {
@@ -193,17 +198,19 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
         new DefaultFallbackRoutingIsm(address(0));
     }
 
-    function testRemoveBatch(uint32 domain, uint8 count) public override {
+    function testRemoveIsms(uint32 domain, uint8 count) public override {
         vm.assume(count > 0);
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = buildDomainModules(domain, count);
-        ism.setBatch(domainModules);
+        DomainRoutingIsm.IsmConfig[] memory configs = buildIsmConfigs(
+            domain,
+            count
+        );
+        ism.setIsms(configs);
 
         uint32[] memory domains = new uint32[](count);
         for (uint256 i = 0; i < count; ++i) {
-            domains[i] = domainModules[i].domain;
+            domains[i] = configs[i].domain;
         }
-        ism.removeBatch(domains);
+        ism.removeIsms(domains);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(domains[i])), address(defaultIsm));
         }

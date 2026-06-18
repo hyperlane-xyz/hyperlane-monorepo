@@ -30,16 +30,17 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         ism.remove(domain);
     }
 
-    function testRemoveBatch(uint32 domain, uint8 count) public override {
+    function testRemoveIsms(uint32 domain, uint8 count) public override {
         vm.assume(count > 0);
+        vm.assume(
+            uint256(domain) + uint256(count) <= uint256(type(uint32).max) + 1
+        );
         uint32[] memory domains = new uint32[](count);
         for (uint32 i = 0; i < count; ++i) {
-            unchecked {
-                domains[i] = domain + i;
-            }
+            domains[i] = domain + i;
         }
         vm.expectRevert("IncrementalDomainRoutingIsm: removal not supported");
-        ism.removeBatch(domains);
+        ism.removeIsms(domains);
     }
 
     function testSetTwiceReverts(uint32 domain) public {

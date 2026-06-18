@@ -32,10 +32,14 @@ contract DomainRoutingIsm is
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
+    // ============ Events ============
+    event ModuleSet(uint32 indexed domain, address indexed module);
+    event ModuleRemoved(uint32 indexed domain);
+
     // ============ Structs ============
-    struct DomainModule {
+    struct IsmConfig {
         uint32 domain;
-        IInterchainSecurityModule module;
+        IInterchainSecurityModule ism;
     }
 
     // ============ External Functions ============
@@ -82,13 +86,11 @@ contract DomainRoutingIsm is
 
     /**
      * @notice Sets the ISMs to be used for the specified origin domains
-     * @param _domainModules The origin domains and ISMs to enroll
+     * @param _configs The origin domains and ISMs to enroll
      */
-    function setBatch(
-        DomainModule[] calldata _domainModules
-    ) external onlyOwner {
-        for (uint256 i = 0; i < _domainModules.length; ++i) {
-            _set(_domainModules[i].domain, address(_domainModules[i].module));
+    function setIsms(IsmConfig[] calldata _configs) external onlyOwner {
+        for (uint256 i = 0; i < _configs.length; ++i) {
+            _set(_configs[i].domain, address(_configs[i].ism));
         }
     }
 
@@ -104,7 +106,7 @@ contract DomainRoutingIsm is
      * @notice Removes the specified origin domains
      * @param _domains The origin domains to remove
      */
-    function removeBatch(uint32[] calldata _domains) external onlyOwner {
+    function removeIsms(uint32[] calldata _domains) external onlyOwner {
         for (uint256 i = 0; i < _domains.length; ++i) {
             _remove(_domains[i]);
         }
@@ -145,6 +147,7 @@ contract DomainRoutingIsm is
      */
     function _remove(uint32 _domain) internal virtual {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
+        emit ModuleRemoved(_domain);
     }
 
     function _originNotFoundError(
@@ -161,5 +164,6 @@ contract DomainRoutingIsm is
     function _set(uint32 _domain, address _module) internal virtual {
         require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
+        emit ModuleSet(_domain, _module);
     }
 }

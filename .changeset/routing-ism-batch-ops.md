@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': minor
 ---
 
-Added `setBatch(DomainModule[])` and `removeBatch(uint32[])` to `DomainRoutingIsm` so routing ISM owners can enroll or unenroll many domains in a single transaction after initialization. Mirrors the `setHooks(HookConfig[])` pattern on `DomainRoutingHook`. Inherited by `IncrementalDomainRoutingIsm` (where `removeBatch` reverts, consistent with `remove`) and `DefaultFallbackRoutingIsm`.
+Added `setIsms(IsmConfig[])` and `removeIsms(uint32[])` to `DomainRoutingIsm` so routing ISM owners could enroll or unenroll many domains in a single transaction after initialization. Emitted `ModuleSet` and `ModuleRemoved` when domain ISM mappings changed. Mirrored the `setHooks(HookConfig[])` pattern on `DomainRoutingHook`. Was inherited by `IncrementalDomainRoutingIsm` (where `removeIsms` reverted, consistent with `remove`) and `DefaultFallbackRoutingIsm`.
