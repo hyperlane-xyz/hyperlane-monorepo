@@ -129,13 +129,23 @@ class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
   public readonly data?: string;
-  public readonly error?: { error?: { code?: number } };
+  public readonly error?: {
+    code?: string;
+    message?: string;
+    body?: string;
+    error?: { code?: number; message?: string };
+  };
 
   constructor(
     message: string,
     code: string,
     data?: string,
-    options?: { jsonRpcErrorCode?: number; hasNestedError?: boolean },
+    options?: {
+      jsonRpcErrorCode?: number;
+      jsonRpcErrorMessage?: string;
+      hasNestedError?: boolean;
+      nestedBody?: string;
+    },
   ) {
     super(message);
     this.reason = message;
@@ -143,10 +153,15 @@ class ProviderError extends Error {
     this.data = data;
     // Simulate ethers nested error structure for JSON-RPC errors
     if (options?.jsonRpcErrorCode !== undefined) {
-      this.error = { error: { code: options.jsonRpcErrorCode } };
+      this.error = {
+        error: {
+          code: options.jsonRpcErrorCode,
+          message: options.jsonRpcErrorMessage,
+        },
+      };
     } else if (options?.hasNestedError) {
       // Has nested error but no JSON-RPC code (e.g., RPC connection issue)
-      this.error = { error: {} };
+      this.error = { error: {}, body: options.nestedBody };
     }
     // If neither is set, error remains undefined (empty return decode failure)
   }
@@ -474,8 +489,36 @@ describe('SmartProvider', () => {
       // With nested error but no code 3, this should NOT be a BlockchainError
       expect(e).to.be.instanceOf(Error);
       expect(e).to.not.be.instanceOf(BlockchainError);
-      // Falls through to generic error handler (unhandled case)
-      expect(e.message).to.equal('Test fallback message');
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.CALL_EXCEPTION),
+      );
+    });
+
+    it('surfaces nested provider message for CALL_EXCEPTION wrapping SERVER_ERROR body', () => {
+      const error = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          hasNestedError: true,
+          nestedBody: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 331,
+            error: { code: -32000, message: 'header not found' },
+          }),
+        },
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.message).to.equal('header not found');
+      expect(e.cause).to.equal(error);
     });
 
     it('preserves unhandled provider errors as causes', () => {
