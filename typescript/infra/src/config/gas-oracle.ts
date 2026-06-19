@@ -111,6 +111,7 @@ function getLocalStorageGasOracleConfigOverride(
   gasPrices: ChainMap<GasPriceConfig>,
   getOverhead: (local: ChainName, remote: ChainName) => number,
   applyMinUsdCost: boolean,
+  onPrecisionFallback?: (ctx: { local: ChainName; remote: ChainName }) => void,
 ): ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost> {
   const localProtocolType = getChain(local).protocol;
   const localExchangeRateScale =
@@ -235,6 +236,7 @@ function getLocalStorageGasOracleConfigOverride(
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
     typicalCostGetter,
+    onPrecisionFallback,
   });
 }
 
@@ -435,7 +437,19 @@ export function getAllStorageGasOracleConfigs(
     }
   });
 
-  return chainNames.reduce((agg, local) => {
+  // Collect every local -> remote pair whose exchange rate underflowed and fell
+  // back to the on-chain minimum, so we can log a single summary line instead of
+  // one warning per pair (there can be dozens across the full chain matrix).
+  const flooredPairs = new Set<string>();
+  const onPrecisionFallback = ({
+    local,
+    remote,
+  }: {
+    local: ChainName;
+    remote: ChainName;
+  }) => flooredPairs.add(`${local} -> ${remote}`);
+
+  const configs = chainNames.reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,
@@ -446,9 +460,22 @@ export function getAllStorageGasOracleConfigs(
         gasPrices,
         getOverhead,
         applyMinUsdCost,
+        onPrecisionFallback,
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
+
+  if (flooredPairs.size > 0) {
+    rootLogger.warn(
+      `${flooredPairs.size} gas oracle pair(s) floored the token exchange rate to 1 after precision rebalance (expected for low-decimal fee tokens paying high-decimal remotes${
+        applyMinUsdCost
+          ? '; on-chain quote is backstopped by the min-USD-cost'
+          : ''
+      }): ${[...flooredPairs].join(', ')}`,
+    );
+  }
+
+  return configs;
 }
 
 // 5% threshold, adjust as needed

@@ -29,7 +29,10 @@ import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -44,7 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -69,7 +72,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -94,7 +97,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -463,7 +466,7 @@ const fastPath: RootAgentConfig = {
       tag: testnetDockerTags.relayerFastPath,
     },
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { sepolia: 1 },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     blacklist: relayBlacklist,
     ismCacheConfigs,
     cache: {

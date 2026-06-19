@@ -1,6 +1,6 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
-import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
+import { SafeTransactionData } from '@safe-global/types-kit';
 
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';

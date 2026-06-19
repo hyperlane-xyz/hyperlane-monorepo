@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 35.2.0
+
+### Minor Changes
+
+- b531fcd: Delivery time logging was added to `hyperlane warp send` and `hyperlane send message`, displaying elapsed seconds between dispatch and delivery for EVM chains.
+- 867ce3c: A fee submitter strategy was added to `warp apply` allowing a separate Safe or signer to submit fee-contract transactions. Same-chain Safe TX Builder payloads are now bundled into a single combined file per (chainId, safeAddress) pair. Transaction ordering was fixed so fee-recipient updates execute before ownership transfers. Router-owner `setFeeRecipient` calls were moved into the main submitter batch so a dedicated feeSubmitter only ever sees fee-contract-owner transactions. Safe TX Builder bundles from successful chains are now written before surfacing any partial-failure errors.
+
+### Patch Changes
+
+- 92ef474: resolveWarpConfigChains now includes chains referenced by the submission strategy (e.g. ICA origin chains) so signers are initialised for them before transaction submission.
+
 ## 35.1.0
 
 ### Minor Changes

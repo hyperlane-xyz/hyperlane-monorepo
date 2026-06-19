@@ -1,5 +1,30 @@
 # @hyperlane-xyz/ccip-server
 
+## 35.2.0
+
+### Minor Changes
+
+- 51345da: Added new public commitments endpoint to check whether calls are present or not
+
+### Patch Changes
+
+- Updated dependencies [88e51ed]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [889c68a]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [92ef474]
+- Updated dependencies [f0b325a]
+- Updated dependencies [6db4aee]
+- Updated dependencies [babb3d0]
+- Updated dependencies [867ce3c]
+- Updated dependencies [b77faf4]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [fb63f5f]
+  - @hyperlane-xyz/sdk@35.2.0
+  - @hyperlane-xyz/metrics@0.2.27
+  - @hyperlane-xyz/utils@35.2.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 35.1.0
 
 ### Minor Changes
