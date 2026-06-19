@@ -264,6 +264,8 @@ export async function getUSDTCitreaMoonpayWarpConfig(
 
   const crossCollateralRouters = getUsdcCrossCollateralRouters();
 
+  assert(oftRebalancingConfigByChain.bsc, 'missing rebalancing config for bsc');
+
   return {
     arbitrum: {
       type: TokenType.crossCollateral,
