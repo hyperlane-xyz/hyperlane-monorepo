@@ -19,6 +19,10 @@ import {
   retrySafeApi,
 } from '../utils/safe.js';
 
+// Safe nonce overrides to ensure transactions are proposed at the correct nonce.
+// Remove entries once the transactions have been executed.
+export const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
+
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<string[] | void>;
 }
@@ -100,7 +104,15 @@ export class SafeMultiSend extends MultiSend {
     }
   }
 
-  private async getNextNonce(): Promise<number> {
+  // Resolve the base nonce for new proposals: a manual override if set,
+  // otherwise the Safe transaction service's next nonce (queue-aware: highest
+  // pending + 1). Falling back to protocol-kit's default would use the on-chain
+  // nonce and collide with an already-pending proposal at that nonce.
+  private async resolveBaseNonce(): Promise<number> {
+    const override = SAFE_NONCE_OVERRIDES[this.chain];
+    if (override !== undefined) {
+      return override;
+    }
     const nextNonce = await retrySafeApi(() =>
       this.safeService.getNextNonce(this.safeAddress),
     );
@@ -111,7 +123,7 @@ export class SafeMultiSend extends MultiSend {
   private async proposeIndividualTransactions(
     calls: CallData[],
   ): Promise<string[]> {
-    const baseNonce = await this.getNextNonce();
+    const baseNonce = await this.resolveBaseNonce();
     const hashes: string[] = [];
     for (const [i, call] of calls.entries()) {
       const safeTransactionData = createSafeTransactionData(call);
@@ -136,7 +148,7 @@ export class SafeMultiSend extends MultiSend {
   private async proposeMultiSendTransaction(
     calls: CallData[],
   ): Promise<string[]> {
-    const nonce = await this.getNextNonce();
+    const nonce = await this.resolveBaseNonce();
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
     );
