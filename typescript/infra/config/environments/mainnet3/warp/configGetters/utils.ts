@@ -377,6 +377,27 @@ export function getFileSubmitterStrategyConfig(
 }
 
 /**
+ * Merges multiple allowedRebalancingBridges maps by concatenating bridge arrays
+ * for overlapping domain IDs. Undefined inputs are skipped.
+ */
+export function mergeAllowedBridges(
+  ...configs: (
+    | NonNullable<MovableTokenConfig['allowedRebalancingBridges']>
+    | undefined
+  )[]
+): NonNullable<MovableTokenConfig['allowedRebalancingBridges']> {
+  const result: NonNullable<MovableTokenConfig['allowedRebalancingBridges']> =
+    {};
+  for (const config of configs) {
+    if (!config) continue;
+    for (const [domain, bridges] of Object.entries(config)) {
+      result[domain] = [...(result[domain] ?? []), ...bridges];
+    }
+  }
+  return result;
+}
+
+/**
  * Creates an impersonated account strategy for anvil forks.
  * 'impersonatedAccount' is CLI-specific (not in SDK types), so we use type assertion.
  */
