@@ -6,7 +6,6 @@ import { GovernanceType } from '../src/governanceTypes.js';
 import { getTimelockLogBlockRange } from '../src/utils/timelock.js';
 import {
   callMatchesTimelockIdempotency,
-  getDeferredTimelockConfigChains,
   getUpgradeTargetImplementation,
   isMissingPackageVersionError,
   splitProposableGroups,
@@ -53,34 +52,6 @@ describe('upgrade-compatible-igps', () => {
         }),
       ).to.equal(false);
     });
-  });
-
-  it('detects timelock chains with deferred config txs', () => {
-    const plans = [
-      {
-        chain: 'ethereum',
-        targetVersion: '1.0.0',
-        status: 'queued',
-        detail: 'new safe proposal',
-      },
-      {
-        chain: 'arbitrum',
-        targetVersion: '1.0.0',
-        status: 'timelock queued',
-        detail: 'timelock schedule proposal; 2 config tx(s) deferred',
-      },
-      {
-        chain: 'optimism',
-        targetVersion: '1.0.0',
-        status: 'scheduled',
-        detail: 'timelock operation already scheduled; 1 config tx(s) deferred',
-      },
-    ];
-
-    expect(getDeferredTimelockConfigChains(plans)).to.deep.equal([
-      'arbitrum',
-      'optimism',
-    ]);
   });
 
   it('uses conservative timelock log block ranges', () => {

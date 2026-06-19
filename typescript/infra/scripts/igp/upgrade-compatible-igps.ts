@@ -32,6 +32,7 @@ import {
 import {
   Address,
   assert,
+  concurrentMap,
   deepCopy,
   eqAddress,
   formatStandardHookMetadata,
@@ -624,46 +625,6 @@ export function getUpgradeTargetImplementation({
   return undefined;
 }
 
-export function getDeferredTimelockConfigChains(
-  plans: Pick<ChainPlan, 'chain' | 'status' | 'detail'>[],
-): ChainName[] {
-  return plans
-    .filter(
-      (plan) =>
-        (plan.status === 'timelock queued' || plan.status === 'scheduled') &&
-        plan.detail.includes('config tx(s) deferred'),
-    )
-    .map((plan) => plan.chain);
-}
-
-async function getGovernedCallOwner({
-  chain,
-  provider,
-  call,
-  proxyAdminAddress,
-  proxyAddress,
-  currentImplementation,
-}: {
-  chain: ChainName;
-  provider: ethers.providers.Provider;
-  call: UpgradeCall;
-  proxyAdminAddress: Address;
-  proxyAddress: Address;
-  currentImplementation: Address;
-}): Promise<Address> {
-  if (eqAddress(call.to, proxyAdminAddress)) {
-    return assertProxyAdmin({
-      chain,
-      provider,
-      proxyAdminAddress,
-      proxyAddress,
-      expectedImplementation: currentImplementation,
-    });
-  }
-
-  return Ownable__factory.connect(call.to, provider).owner();
-}
-
 async function routeGovernedCall({
   groups,
   icaGroups,
@@ -1176,6 +1137,7 @@ async function main() {
     propose,
     all,
     skipEvmPreflight,
+    concurrency: chainConcurrency,
   } = await withOutputFile(
     withChains(
       withContext(
@@ -1191,6 +1153,11 @@ async function main() {
               type: 'boolean',
               default: false,
               describe: 'Skip Cancun/PUSH0 eth_call preflight',
+            })
+            .option('concurrency', {
+              type: 'number',
+              default: 8,
+              describe: 'Number of chains to plan concurrently',
             }),
         ),
       ),
@@ -1209,6 +1176,7 @@ async function main() {
     !skipEvmPreflight,
     'mainnet3 IGP upgrades require the Cancun/PUSH0 preflight; remove --skipEvmPreflight.',
   );
+  assert(chainConcurrency > 0, '--concurrency must be greater than 0');
 
   const envConfig = getEnvironmentConfig(environment);
   const supportedChains = new Set(envConfig.supportedChainNames);
@@ -1263,8 +1231,11 @@ async function main() {
   const safeGroups = new Map<string, SafeCallGroup>();
   const icaGroups = new Map<string, IcaCallGroup>();
   const plans: ChainPlan[] = [];
+  const targetChainIndexes = new Map(
+    targetChains.map((chain, index) => [chain, index]),
+  );
 
-  for (const chain of targetChains) {
+  await concurrentMap(chainConcurrency, targetChains, async (chain) => {
     const metadata = multiProvider.getChainMetadata(chain);
     if (!isEVMLike(metadata.protocol)) {
       plans.push({
@@ -1273,7 +1244,7 @@ async function main() {
         status: 'skipped',
         detail: `non-EVM protocol ${metadata.protocol}`,
       });
-      continue;
+      return;
     }
 
     const addresses = chainAddresses[chain];
@@ -1285,7 +1256,7 @@ async function main() {
         status: 'skipped',
         detail: 'missing interchainGasPaymaster in registry',
       });
-      continue;
+      return;
     }
 
     const provider = multiProvider.getProvider(chain);
@@ -1351,13 +1322,15 @@ async function main() {
                 ? 'ProxyAdmin is owned by a legacy V1 ICA; script only builds V2 ICA calls'
                 : `ProxyAdmin owner ${proxyAdminOwner} is not routeable`,
           });
-          continue;
+          return;
         }
       }
 
       const deploymentsBefore =
         multiProvider instanceof DryRunDeployMultiProvider
-          ? multiProvider.simulatedDeployments.length
+          ? multiProvider.simulatedDeployments.filter(
+              (deployment) => deployment.chain === chain,
+            ).length
           : 0;
       const transactions = await buildHookUpdateTransactions({
         chain,
@@ -1367,7 +1340,9 @@ async function main() {
       });
       const simulatedDeployments =
         multiProvider instanceof DryRunDeployMultiProvider
-          ? multiProvider.simulatedDeployments.slice(deploymentsBefore)
+          ? multiProvider.simulatedDeployments
+              .filter((deployment) => deployment.chain === chain)
+              .slice(deploymentsBefore)
           : undefined;
 
       if (transactions.length === 0) {
@@ -1383,7 +1358,7 @@ async function main() {
           detail: 'hook module produced no update transactions',
           ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
         });
-        continue;
+        return;
       }
 
       const upgradeIndex = transactions.findIndex(
@@ -1403,15 +1378,9 @@ async function main() {
             })
           : undefined;
 
-      const routeDetails: string[] = [];
-      let status = 'queued';
       let ownerType: Owner | null | undefined;
       let governanceType: GovernanceType | undefined;
       let routedTransactionCount = 0;
-      let manualTransactionCount = 0;
-      let doneTransactionCount = 0;
-      let hasTimelockQueued = false;
-      let hasScheduled = false;
 
       if (upgradeIndex >= 0) {
         const upgradeCall = toUpgradeCall(
@@ -1430,109 +1399,37 @@ async function main() {
             proxyAddress: interchainGasPaymaster,
           },
         });
-        status = route.status === 'done' ? 'skipped' : route.status;
+        const status = route.status === 'done' ? 'skipped' : route.status;
         ownerType = route.ownerType;
         governanceType = route.governanceType;
-        routeDetails.push(route.detail);
-        if (route.status !== 'done') {
+        if (route.status === 'queued' || route.status === 'timelock queued') {
           routedTransactionCount += 1;
         }
-
-        if (
-          route.status === 'timelock queued' ||
-          route.status === 'scheduled' ||
-          route.status === 'done'
-        ) {
-          plans.push({
-            chain,
-            interchainGasPaymaster,
-            currentImplementation,
-            targetImplementation,
-            currentVersion,
-            targetVersion: CONTRACTS_PACKAGE_VERSION,
-            proxyAdmin: actualProxyAdmin,
-            proxyAdminOwner,
-            ownerType,
-            governanceType,
-            transactionCount: routedTransactionCount,
-            status,
-            detail:
-              route.status === 'done'
-                ? `${route.detail}; upgrade already executed`
-                : `${route.detail}; ${transactions.length - 1} config tx(s) deferred until the timelock upgrade executes`,
-            ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
-          });
-          continue;
-        }
-
-        if (route.status === 'manual') {
-          plans.push({
-            chain,
-            interchainGasPaymaster,
-            currentImplementation,
-            targetImplementation,
-            currentVersion,
-            targetVersion: CONTRACTS_PACKAGE_VERSION,
-            proxyAdmin: actualProxyAdmin,
-            proxyAdminOwner,
-            ownerType,
-            governanceType,
-            transactionCount: routedTransactionCount,
-            status,
-            detail: route.detail,
-            ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
-          });
-          continue;
-        }
-      }
-
-      for (const [index, transaction] of transactions.entries()) {
-        if (index === upgradeIndex) continue;
-        const call = toUpgradeCall(
-          transaction,
-          `IGP update tx ${index + 1} for ${chain}`,
-        );
-        const ownerAddress = await getGovernedCallOwner({
+        const configTxCount = transactions.length - 1;
+        plans.push({
           chain,
-          provider,
-          call,
-          proxyAdminAddress: actualProxyAdmin,
-          proxyAddress: interchainGasPaymaster,
+          interchainGasPaymaster,
           currentImplementation,
+          targetImplementation,
+          currentVersion,
+          targetVersion: CONTRACTS_PACKAGE_VERSION,
+          proxyAdmin: actualProxyAdmin,
+          proxyAdminOwner,
+          ownerType,
+          governanceType,
+          transactionCount: routedTransactionCount,
+          status,
+          detail: [
+            route.status === 'done'
+              ? `${route.detail}; upgrade already executed`
+              : route.detail,
+            configTxCount > 0
+              ? `${configTxCount} hook-module config tx(s) intentionally not proposed; run deploy.ts -m igp after upgrade execution`
+              : 'run deploy.ts -m igp after upgrade execution to apply/confirm config',
+          ].join('; '),
+          ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
         });
-        const route = await routeGovernedCall({
-          groups: safeGroups,
-          icaGroups,
-          ica,
-          chain,
-          call,
-          ownerAddress,
-        });
-        ownerType ??= route.ownerType;
-        governanceType ??= route.governanceType;
-        routeDetails.push(route.detail);
-        if (route.status === 'manual') {
-          manualTransactionCount += 1;
-          continue;
-        }
-        if (route.status === 'done') {
-          doneTransactionCount += 1;
-          continue;
-        }
-
-        routedTransactionCount += 1;
-        hasTimelockQueued ||= route.status === 'timelock queued';
-        hasScheduled ||= route.status === 'scheduled';
-      }
-
-      if (manualTransactionCount > 0) {
-        status = routedTransactionCount > 0 ? 'partial' : 'manual';
-      } else if (hasTimelockQueued) {
-        status = 'timelock queued';
-      } else if (hasScheduled) {
-        status = 'scheduled';
-      } else if (routedTransactionCount === 0 && doneTransactionCount > 0) {
-        status = 'skipped';
+        return;
       }
 
       plans.push({
@@ -1546,9 +1443,9 @@ async function main() {
         proxyAdminOwner,
         ownerType,
         governanceType,
-        transactionCount: routedTransactionCount,
-        status,
-        detail: routeDetails.join('; '),
+        transactionCount: 0,
+        status: 'no upgrade',
+        detail: `${transactions.length} hook-module config tx(s) intentionally not proposed; run deploy.ts -m igp to apply config`,
         ...(simulatedDeployments?.length ? { simulatedDeployments } : {}),
       });
     } catch (error) {
@@ -1560,7 +1457,12 @@ async function main() {
         detail: formatError(error),
       });
     }
-  }
+  });
+  plans.sort(
+    (a, b) =>
+      (targetChainIndexes.get(a.chain) ?? Number.MAX_SAFE_INTEGER) -
+      (targetChainIndexes.get(b.chain) ?? Number.MAX_SAFE_INTEGER),
+  );
 
   await flushIcaCallGroups({
     safeGroups,
@@ -1625,12 +1527,20 @@ async function main() {
   if (!propose) {
     rootLogger.info(`Dry run: Safe batch files written under ${runDir}`);
   }
-  const deferredTimelockChains = getDeferredTimelockConfigChains(plans);
-  if (deferredTimelockChains.length > 0) {
+  const upgradeChains = plans
+    .filter(
+      (plan) =>
+        !!plan.targetImplementation &&
+        ['queued', 'timelock queued', 'scheduled', 'skipped'].includes(
+          plan.status,
+        ),
+    )
+    .map((plan) => plan.chain);
+  if (upgradeChains.length > 0) {
     rootLogger.warn(
       [
-        `Config txs were deferred for timelock-owned upgrade chain(s): ${deferredTimelockChains.join(', ')}`,
-        'Execute the timelock upgrade first, then rerun this script for those chains to propose the hook-module config txs.',
+        `Upgrade-only mode: apply IGP config after upgrade execution for chain(s): ${upgradeChains.join(', ')}`,
+        `pnpm -C typescript/infra exec tsx scripts/deploy.ts -e ${environment} -x ${context} -m igp --chains ${upgradeChains.join(' ')}`,
       ].join('\n'),
     );
   }
