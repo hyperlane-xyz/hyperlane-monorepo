@@ -41,6 +41,7 @@ import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {GasRouter} from "contracts/client/GasRouter.sol";
 import {LinearFee} from "contracts/token/fees/LinearFee.sol";
+import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
 /// Implements both ITokenFee (for base transferRemote) and ICrossCollateralFee (for transferRemoteTo).
@@ -1674,6 +1675,88 @@ contract CrossCollateralRouterTest is Test {
         assertEq(
             destUSDT.balanceOf(BOB),
             bobBefore + QC_TRANSFER_AMOUNT * USDC_SCALE_NUM
+        );
+    }
+
+    // ============ Rebalance config on CCR-only domains ============
+    // Mirrors the moonpay deployment: USDT/ethereum has Citrea enrolled only
+    // via _crossCollateralRouters (no entry in Router._routers), and the
+    // iron bridge needs to be whitelisted for that domain.
+
+    uint32 internal constant CITREA_DOMAIN = 3;
+    uint32 internal constant UNKNOWN_DOMAIN = 999;
+
+    function _enrollCitreaOnUsdtA(bytes32 ctusdRouter) internal {
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = CITREA_DOMAIN;
+        routers[0] = ctusdRouter;
+        usdtRouterA.enrollCrossCollateralRouters(domains, routers);
+    }
+
+    function test_addBridge_ccrOnlyDomain() public {
+        bytes32 ctusdRouter = address(usdcRouterB).addressToBytes32();
+        _enrollCitreaOnUsdtA(ctusdRouter);
+        MockITokenBridge ironBridge = new MockITokenBridge(originUSDT);
+
+        // No revert: CCR widens _validateRebalanceDomain to accept the
+        // _crossCollateralRouters set.
+        usdtRouterA.addBridge(CITREA_DOMAIN, ironBridge);
+
+        address[] memory bridges = usdtRouterA.allowedBridges(CITREA_DOMAIN);
+        assertEq(bridges.length, 1);
+        assertEq(bridges[0], address(ironBridge));
+    }
+
+    function test_setRecipient_ccrOnlyDomain() public {
+        bytes32 ctusdRouter = address(usdcRouterB).addressToBytes32();
+        _enrollCitreaOnUsdtA(ctusdRouter);
+
+        usdtRouterA.setRecipient(CITREA_DOMAIN, ctusdRouter);
+        assertEq(usdtRouterA.allowedRecipient(CITREA_DOMAIN), ctusdRouter);
+    }
+
+    function test_revert_addBridge_unknownDomain() public {
+        MockITokenBridge ironBridge = new MockITokenBridge(originUSDT);
+        vm.expectRevert("CCR: domain has no routers");
+        usdtRouterA.addBridge(UNKNOWN_DOMAIN, ironBridge);
+    }
+
+    function test_revert_setRecipient_unknownDomain() public {
+        vm.expectRevert("CCR: domain has no routers");
+        usdtRouterA.setRecipient(
+            UNKNOWN_DOMAIN,
+            address(usdcRouterB).addressToBytes32()
+        );
+    }
+
+    function test_addBridge_classicEnrolledDomain_stillWorks() public {
+        MockITokenBridge bridge = new MockITokenBridge(originUSDT);
+        usdtRouterA.addBridge(DESTINATION, bridge);
+        address[] memory bridges = usdtRouterA.allowedBridges(DESTINATION);
+        assertEq(bridges.length, 1);
+        assertEq(bridges[0], address(bridge));
+    }
+
+    function test_setRecipient_classicEnrolledDomain_stillWorks() public {
+        bytes32 recipient = address(usdtRouterB).addressToBytes32();
+        usdtRouterA.setRecipient(DESTINATION, recipient);
+        assertEq(usdtRouterA.allowedRecipient(DESTINATION), recipient);
+    }
+
+    function test_revert_addBridge_notOwner() public {
+        MockITokenBridge bridge = new MockITokenBridge(originUSDT);
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdtRouterA.addBridge(DESTINATION, bridge);
+    }
+
+    function test_revert_setRecipient_notOwner() public {
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdtRouterA.setRecipient(
+            DESTINATION,
+            address(usdtRouterB).addressToBytes32()
         );
     }
 
