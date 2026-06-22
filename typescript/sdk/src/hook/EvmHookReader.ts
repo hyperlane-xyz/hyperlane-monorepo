@@ -218,10 +218,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     } catch (e) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
       if (!onchainHookType && isMissingSelectorCallException(e)) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
+        this.logger.info(
+          `Hook at ${address} does not support hookType() — treating as unknown hook:\n\t${e}`,
         );
-        this.logger.info(`${customMessage}:\n\t${e}`);
+        return { type: HookType.UNKNOWN, address } as DerivedHookConfig;
       } else {
         this.logger.debug(`${customMessage}:\n\t${e}`);
       }
