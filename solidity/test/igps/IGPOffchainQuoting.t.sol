@@ -131,7 +131,7 @@ contract IGPOffchainQuotingTest is Test {
         uint48 expiry
     ) internal {
         SignedQuote memory sq = SignedQuote({
-            context: abi.encodePacked(feeToken, dest, sender_),
+            context: _igpContext(feeToken, dest, sender_),
             data: _encodeGasData(rate, gasPrice),
             issuedAt: issuedAt,
             expiry: expiry,
@@ -370,7 +370,7 @@ contract IGPOffchainQuotingTest is Test {
     function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
         uint48 now_ = uint48(block.timestamp);
         SignedQuote memory sq = SignedQuote({
-            context: abi.encodePacked(address(0), DEST, address(this)),
+            context: _igpContext(address(0), DEST, address(this)),
             data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
             issuedAt: now_ + 100,
             expiry: now_,
@@ -396,7 +396,7 @@ contract IGPOffchainQuotingTest is Test {
 
         // Older issuedAt should revert
         SignedQuote memory sq = SignedQuote({
-            context: abi.encodePacked(address(0), DEST, address(this)),
+            context: _igpContext(address(0), DEST, address(this)),
             data: _encodeGasData(3e10, 200),
             issuedAt: now_ - 1,
             expiry: now_ + 7200,
@@ -422,7 +422,7 @@ contract IGPOffchainQuotingTest is Test {
 
         // Same issuedAt should be silently skipped (no revert, no update)
         SignedQuote memory sq = SignedQuote({
-            context: abi.encodePacked(address(0), DEST, address(this)),
+            context: _igpContext(address(0), DEST, address(this)),
             data: _encodeGasData(3e10, 200),
             issuedAt: now_,
             expiry: now_ + 7200,
@@ -438,6 +438,98 @@ contract IGPOffchainQuotingTest is Test {
             uint256(GAS_PRICE) *
             uint256(EXCHANGE_RATE)) / 1e10;
         assertEq(fee, expected);
+    }
+
+    function test_standingQuote_futureIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: _igpContext(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: now_ + 1,
+            expiry: now_ + 3600,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
+    /// @dev Attack from HL-2026Q2-001: a compromised signer attempts to lock the
+    ///      monotonic issuedAt barrier near uint48 max with an indefinite expiry.
+    ///      The not-before check rejects this, leaving overwrite always possible
+    ///      for a later legitimate quote.
+    function test_standingQuote_brickingAttack_reverts() public {
+        SignedQuote memory sq = SignedQuote({
+            context: _igpContext(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: type(uint48).max - 1,
+            expiry: type(uint48).max,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
+    /// @dev Residual DoS surface from HL-2026Q2-001: the not-before check only
+    ///      rejects future-dated standing quotes, it does NOT cap the expiry
+    ///      window or sanitize the quoted rate/price. A standing quote issued
+    ///      `now` with max rate and gas price overflows `_computeGasFee`, so any
+    ///      dispatch quoting that context reverts until the quote expires. This
+    ///      anchors the residual risk as a regression marker.
+    function test_standingQuote_overflowDoS_revertsUntilExpiry() public {
+        uint48 now_ = uint48(block.timestamp);
+        uint48 expiry = now_ + 3600;
+        _submitStanding(
+            address(0),
+            DEST,
+            address(this),
+            type(uint128).max,
+            type(uint128).max,
+            now_,
+            expiry
+        );
+
+        // _computeGasFee = gasLimit * gasPrice * rate / SCALE overflows uint256.
+        vm.expectRevert();
+        igp.quoteGasPayment(DEST, GAS_LIMIT);
+
+        bytes memory message = MessageUtils.formatMessage(
+            0,
+            0,
+            ORIGIN,
+            address(this).addressToBytes32(),
+            DEST,
+            address(0x1).addressToBytes32(),
+            "hello"
+        );
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            GAS_LIMIT
+        );
+        vm.expectRevert();
+        igp.quoteDispatch(metadata, message);
+
+        // After expiry the poisoned quote stops resolving; falls back to oracle.
+        vm.warp(expiry + 1);
+        assertEq(igp.quoteGasPayment(DEST, GAS_LIMIT), 30_000_000);
+    }
+
+    function test_transientQuote_futureIssuedAt_allowed() public {
+        // Transient quotes (expiry == issuedAt) are exempt from the not-before
+        // and TTL checks; they auto-clear at end of transaction.
+        uint48 future = uint48(block.timestamp) + 1000;
+        SignedQuote memory sq = SignedQuote({
+            context: _igpContext(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: future,
+            expiry: future,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        igp.submitQuote(sq, sig);
     }
 
     // ============ Priority ============
@@ -506,7 +598,7 @@ contract IGPOffchainQuotingTest is Test {
         uint48 now_ = uint48(block.timestamp);
 
         SignedQuote memory sq = SignedQuote({
-            context: abi.encodePacked(address(0), DEST, address(this)),
+            context: _igpContext(address(0), DEST, address(this)),
             data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
             issuedAt: now_,
             expiry: now_,
@@ -641,6 +733,13 @@ contract IGPOffchainQuotingTest is Test {
             now_ + 3600
         );
 
+        // Advance time so the newer quote's issuedAt is not future-dated.
+        // Use `now_ + 1` directly rather than re-reading block.timestamp into a
+        // local — under FOUNDRY_PROFILE=coverage --ir-minimum the optimizer can
+        // reorder a `block.timestamp` read above the preceding `vm.warp(...)`.
+        uint48 later = now_ + 1;
+        vm.warp(later);
+
         uint128 newRate = 3e10;
         uint128 newPrice = 200;
         _submitStanding(
@@ -649,8 +748,8 @@ contract IGPOffchainQuotingTest is Test {
             address(this),
             newRate,
             newPrice,
-            now_ + 1,
-            now_ + 7200
+            later,
+            later + 7200
         );
 
         OffchainQuotedIGP.StoredGasQuote memory sq = igp.offchainQuotes(
@@ -660,8 +759,8 @@ contract IGPOffchainQuotingTest is Test {
         );
         assertEq(sq.tokenExchangeRate, newRate);
         assertEq(sq.gasPrice, newPrice);
-        assertEq(sq.issuedAt, now_ + 1);
-        assertEq(sq.expiry, now_ + 7200);
+        assertEq(sq.issuedAt, later);
+        assertEq(sq.expiry, later + 7200);
     }
 
     // ============ Zero Fee ============
