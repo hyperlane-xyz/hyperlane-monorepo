@@ -182,7 +182,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superseed: true,
     swell: true,
     tac: true,
-    taiko: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
     unichain: true,
@@ -314,7 +314,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superseed: true,
     swell: true,
     tac: true,
-    taiko: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
     unichain: true,
