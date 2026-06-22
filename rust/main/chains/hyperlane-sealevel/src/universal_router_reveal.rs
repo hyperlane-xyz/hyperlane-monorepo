@@ -103,19 +103,18 @@ pub fn maybe_spawn_reveal(
                 return;
             }
         };
-        if let Err(e) = submit_reveal(
-            &ccs_url,
+        let ctx = RevealContext {
+            ccs_url: &ccs_url,
             program_id,
             commitment,
             origin,
             sender,
             user_salt,
-            &rpc_client,
+            rpc_client: &rpc_client,
             priority_fee_oracle,
-            &fee_payer,
-        )
-        .await
-        {
+            fee_payer: &fee_payer,
+        };
+        if let Err(e) = submit_reveal(ctx).await {
             error!(commitment = %hex, error = ?e, "UR reveal failed");
         } else {
             info!(commitment = %hex, "UR reveal submitted successfully");
@@ -123,17 +122,30 @@ pub fn maybe_spawn_reveal(
     });
 }
 
-async fn submit_reveal(
-    ccs_url: &str,
+struct RevealContext<'a> {
+    ccs_url: &'a str,
     program_id: Pubkey,
     commitment: [u8; 32],
     origin: u32,
     sender: [u8; 32],
     user_salt: [u8; 32],
-    rpc_client: &SealevelFallbackRpcClient,
+    rpc_client: &'a SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    fee_payer: &SealevelKeypair,
-) -> Result<()> {
+    fee_payer: &'a SealevelKeypair,
+}
+
+async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
+    let RevealContext {
+        ccs_url,
+        program_id,
+        commitment,
+        origin,
+        sender,
+        user_salt,
+        rpc_client,
+        priority_fee_oracle,
+        fee_payer,
+    } = ctx;
     let http = Client::new();
     let ccs = fetch_from_ccs(&http, ccs_url, &commitment).await?;
     let instruction = build_instruction(program_id, origin, sender, user_salt, &ccs)?;
@@ -226,7 +238,9 @@ fn build_instruction(
     let salt = hex_decode_fixed32(&ccs.salt)?;
 
     let msg_len = message.len() as u32;
-    let mut data = Vec::with_capacity(1 + 4 + 32 + 32 + 4 + message.len() + 32);
+    // 1 (variant) + 4 (origin) + 32 (sender) + 32 (user_salt) + 4 (msg_len) + message + 32 (salt)
+    let fixed_overhead: usize = 105;
+    let mut data = Vec::with_capacity(fixed_overhead.saturating_add(message.len()));
     data.push(2u8); // RouterInstruction::Reveal variant
     data.extend_from_slice(&origin.to_le_bytes());
     data.extend_from_slice(&sender);
