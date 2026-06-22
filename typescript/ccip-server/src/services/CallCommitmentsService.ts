@@ -420,6 +420,12 @@ export class CallCommitmentsService extends BaseService {
 
   // ── /calldata endpoints ─────────────────────────────────────────────────────
 
+  private static readonly RevealAccountSchema = z.object({
+    pubkey: z.string().min(32).max(44),
+    isWritable: z.boolean(),
+    isSigner: z.boolean(),
+  });
+
   private static readonly CalldataPostSchema = z.object({
     commitment: z
       .string()
@@ -441,6 +447,9 @@ export class CallCommitmentsService extends BaseService {
         /^0x[0-9a-fA-F]{64}$/,
         'destinationAccount must be a 32-byte 0x hex string',
       ),
+    revealAccounts: z
+      .array(CallCommitmentsService.RevealAccountSchema)
+      .optional(),
   });
 
   public async handleCalldataPost(req: Request, res: Response) {
@@ -458,6 +467,7 @@ export class CallCommitmentsService extends BaseService {
       salt,
       relayers,
       destinationAccount,
+      revealAccounts,
     } = result.data;
     logger.info({ originDomain, commitment }, 'Storing calldata');
     try {
@@ -471,6 +481,7 @@ export class CallCommitmentsService extends BaseService {
           salt,
           relayers,
           destinationAccount,
+          ...(revealAccounts != null && { revealAccounts }),
         },
       });
 
@@ -541,6 +552,7 @@ export class CallCommitmentsService extends BaseService {
       salt: string;
       relayers: unknown;
       destinationAccount: string | null;
+      revealAccounts: unknown;
     } | null;
     try {
       record = await prisma.calldata.findUnique({ where: { commitment } });
@@ -559,6 +571,9 @@ export class CallCommitmentsService extends BaseService {
       salt: record.salt,
       ...(record.destinationAccount != null && {
         destinationAccount: record.destinationAccount,
+      }),
+      ...(record.revealAccounts != null && {
+        revealAccounts: record.revealAccounts,
       }),
     });
   }

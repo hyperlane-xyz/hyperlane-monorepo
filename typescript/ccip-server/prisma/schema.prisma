@@ -29,5 +29,6 @@ model Calldata {
   salt               String
   relayers           Json
   destinationAccount String
+  revealAccounts     Json?
   createdAt          DateTime @default(now())
 }

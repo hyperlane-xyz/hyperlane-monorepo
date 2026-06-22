@@ -37,6 +37,7 @@ use hyperlane_core::{
 
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
+use crate::universal_router_reveal::{maybe_spawn_reveal, UniversalRouterRevealConfig};
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
     ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
@@ -95,6 +96,7 @@ pub struct SealevelMailbox {
 
     system_program: Pubkey,
     spl_noop: Pubkey,
+    ur_reveal: Option<UniversalRouterRevealConfig>,
 }
 
 impl SealevelMailbox {
@@ -131,9 +133,9 @@ impl SealevelMailbox {
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
             provider,
-
             system_program,
             spl_noop,
+            ur_reveal: conf.ur_reveal.clone(),
         })
     }
 
@@ -555,6 +557,18 @@ impl Mailbox for SealevelMailbox {
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .unwrap_or(false);
         let txid = signature.into();
+
+        if let Some(reveal_config) = &self.ur_reveal {
+            if let Ok(payer) = self.get_payer() {
+                maybe_spawn_reveal(
+                    message,
+                    reveal_config,
+                    self.provider.rpc_client().clone(),
+                    self.priority_fee_oracle.clone(),
+                    payer.clone(),
+                );
+            }
+        }
 
         Ok(TxOutcome {
             transaction_id: txid,

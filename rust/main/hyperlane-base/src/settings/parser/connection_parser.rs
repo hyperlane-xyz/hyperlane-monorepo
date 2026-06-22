@@ -312,6 +312,7 @@ fn build_sealevel_connection_conf(
         transaction_submitter,
         mailbox_process_alt,
         process_alt_overrides,
+        ur_reveal: None,
     }))
 }
 
