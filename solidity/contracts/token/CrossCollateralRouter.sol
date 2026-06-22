@@ -18,7 +18,7 @@ import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -152,6 +152,47 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
+    }
+
+    // ============ Movable Collateral Overrides ============
+
+    /// @notice Emitted when the CCR override `setRecipient` writes the
+    /// per-domain rebalance recipient. Distinct from any base-contract event
+    /// so off-chain consumers can attribute changes to the CCR admin path.
+    event CCRRecipientSet(uint32 indexed domain, bytes32 recipient);
+
+    /// @notice Emitted when the CCR override `addBridge` registers a new
+    /// rebalance bridge for a CCR-enrolled domain.
+    event CCRBridgeAdded(uint32 indexed domain, address indexed bridge);
+
+    /// @dev Widens MovableCollateralRouter's rebalance-domain check to also
+    /// accept CCR-enrolled domains. For CCR-only domains, `setRecipient` must
+    /// be called to pin a target router — `_recipient`'s fallback would
+    /// otherwise revert in `_mustHaveRemoteRouter`.
+    function setRecipient(
+        uint32 domain,
+        bytes32 recipient
+    ) external override onlyOwner {
+        _requireEnrolledRouter(domain);
+        allowed.recipient[domain] = recipient;
+        emit CCRRecipientSet(domain, recipient);
+    }
+
+    function addBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) external override onlyOwner {
+        _requireEnrolledRouter(domain);
+        _addBridge(domain, bridge);
+        emit CCRBridgeAdded(domain, address(bridge));
+    }
+
+    function _requireEnrolledRouter(uint32 domain) internal view {
+        require(
+            routers(domain) != bytes32(0) ||
+                _crossCollateralRouters[domain].length() > 0,
+            "CCR: domain has no routers"
+        );
     }
 
     // ============ Internal Helpers ============
