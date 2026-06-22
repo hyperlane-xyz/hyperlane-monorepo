@@ -12,10 +12,29 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 
 /**
  * @title NetFlowRateLimitedHookIsm
- * @notice Hook + ISM pair that limits local collateral net outflow.
- * @dev Derives collateral/flow semantics from TokenRouter.token(). If
- * token() == router, outbound messages consume synthetic supply TVL. Otherwise,
- * inbound messages consume local collateral balance TVL.
+ * @notice Hook + ISM pair that caps a warp router's net collateral outflow per
+ * `DURATION` window.
+ * @dev Mechanic: the same contract is installed as both the router's hook and
+ * its ISM. Outbound dispatches run through `_postDispatch`, inbound deliveries
+ * through `verify()`. Each direction either consumes or credits a token bucket
+ * sized at `maxFlowBps` of live TVL (see `NetFlowRateLimited`), so only the
+ * *net* amount leaving the router is rate limited — symmetric flow nets out.
+ * The consume/credit direction is derived from `TokenRouter.token()`: if
+ * `token() == router` the route is synthetic (outbound burns supply → consume
+ * on dispatch); otherwise it is collateral (outbound moves balance out →
+ * consume on deliver).
+ *
+ * @dev Use for routes where `_message.body().amount()` is denominated in the
+ * same units as `localCollateral()`: HypERC20, HypERC20Collateral, HypNative,
+ * HypERC4626Collateral (shares-on-shares). Do NOT use for HypXERC20 /
+ * HypXERC20Lockbox / HypFiatToken — those mint/burn external tokens, so
+ * `balanceOf(router) == 0`, capacity collapses, and they already have
+ * bridge-level rate limits.
+ *
+ * @dev This contract authenticates flow only, NOT message authenticity
+ * (`moduleType()` is NULL). Deployers MUST compose it under an authenticating
+ * ISM (e.g. AggregationIsm with a MultisigIsm); using it as a route's sole ISM
+ * lets any caller process a forged message subject only to bucket capacity.
  */
 contract NetFlowRateLimitedHookIsm is
     AbstractPostDispatchHook,
@@ -31,9 +50,18 @@ contract NetFlowRateLimitedHookIsm is
     using Message for bytes;
     using TokenMessage for bytes;
 
+    /// @notice The warp router this contract guards (its hook AND ISM).
     address public immutable router;
+    /// @notice Mailbox nonce at deploy time. Outbound messages with a lower
+    /// nonce predate this hook, were never metered, and are rejected by
+    /// `_postDispatch` so already-dispatched history cannot be replayed through
+    /// the hook to drain the bucket.
     uint32 public immutable minOutboundNonce;
+    /// @notice Block this contract was deployed at.
     uint48 public immutable deployedAtBlock;
+    /// @notice Whether an outbound dispatch consumes or credits the bucket.
+    /// CONSUME for synthetic routes (outbound burns supply), CREDIT for
+    /// collateral routes (outbound is metered on inbound delivery instead).
     FlowDirection public immutable outboundFlow;
 
     mapping(bytes32 messageId => bool validated) public messageValidated;
