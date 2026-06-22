@@ -138,8 +138,8 @@
     },
     "igra": {
       "oracleConfig": {
-        "tokenExchangeRate": "1280789843859896",
-        "gasPrice": "101276819069391",
+        "tokenExchangeRate": "6233980165986777",
+        "gasPrice": "20807624956885",
         "tokenDecimals": 18
       },
       "overhead": 166887
