@@ -335,8 +335,8 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             match outcome {
                 ModuleBuildOutcome::Refused(reason) => {
                     // First refusal in completion order (not ism_addresses order);
-                    // nondeterministic for m > 1 but all refusals are fatal so the
-                    // specific message doesn't affect correctness.
+                    // nondeterministic for m > 1, but which refusal is returned
+                    // doesn't affect correctness.
                     return Err(MetadataBuildError::Refused(reason));
                 }
                 ModuleBuildOutcome::AwaitingSignatures => {
