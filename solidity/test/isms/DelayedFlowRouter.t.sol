@@ -339,6 +339,61 @@ contract DelayedFlowRouterTest is Test {
         destinationDelay.verify(bytes(""), message);
     }
 
+    // ============ setRefillRate override ============
+
+    /// @dev Capacity is derived dynamically, so the inherited `setRefillRate`
+    /// would write a dead slot. The override rejects it outright.
+    function test_setRefillRate_reverts() public {
+        vm.expectRevert(DelayedFlowRouter.UseThresholdBps.selector);
+        destinationDelay.setRefillRate(1 ether);
+    }
+
+    // ============ Replay guard on origin ============
+
+    /// @dev A second `postDispatch` carrying a nonce that has already been
+    /// credited is rejected, even from the paired warp router.
+    function test_postDispatch_revertsWhenAlreadyCredited() public {
+        // A real dispatch advances `lastCreditedNonce` past 0.
+        _dispatchWithdrawal(1 ether);
+        assertGt(originDelay.lastCreditedNonce(), 0);
+
+        // `_makeMessage` builds a nonce-0 message from the paired warp router,
+        // which clears the sender check but trips the replay guard.
+        bytes memory message = _makeMessage(
+            ORIGIN_DOMAIN,
+            address(syntheticRouter),
+            DESTINATION_DOMAIN,
+            address(collateralRouter),
+            1 ether
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DelayedFlowRouter.AlreadyCredited.selector,
+                uint32(0)
+            )
+        );
+        originDelay.postDispatch(bytes(""), message);
+    }
+
+    // ============ quoteDispatch override ============
+
+    /// @dev The `(id, amount)` payload override still routes the quote to the
+    /// configured hook, returning its fee unchanged.
+    function test_quoteDispatch_matchesConfiguredHook(uint256 fee) public {
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        customHook.setFee(fee);
+        originDelay.setHook(address(customHook));
+
+        bytes memory message = _makeMessage(
+            ORIGIN_DOMAIN,
+            address(syntheticRouter),
+            DESTINATION_DOMAIN,
+            address(collateralRouter),
+            1 ether
+        );
+        assertEq(originDelay.quoteDispatch(bytes(""), message), fee);
+    }
+
     // ============ Fuzz: net flow invariants ============
 
     /// @dev For any withdrawal amount on destination, the committed wait is
