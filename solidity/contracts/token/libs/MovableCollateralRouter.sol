@@ -10,6 +10,8 @@ import {Router} from "../../client/Router.sol";
 import {Quotes} from "./Quotes.sol";
 
 struct MovableCollateralRouterStorage {
+    // TODO: replace the single recipient override with a per-domain recipient
+    // set when routes need multiple allowed same-chain rebalance recipients.
     mapping(uint32 routerDomain => bytes32 recipient) recipient;
     mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges) bridges;
     EnumerableSet.AddressSet rebalancers;
@@ -30,10 +32,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     );
 
     modifier onlyRebalancer() {
-        require(
-            allowed.rebalancers.contains(_msgSender()),
-            "MCR: Only Rebalancer"
-        );
+        require(isAllowedRebalancer(_msgSender()), "MCR: Only Rebalancer");
         _;
     }
 
@@ -46,6 +45,13 @@ abstract contract MovableCollateralRouter is TokenRouter {
     /// @notice Set of addresses that are allowed to rebalance.
     function allowedRebalancers() external view returns (address[] memory) {
         return allowed.rebalancers.values();
+    }
+
+    /// @notice Returns whether an address is allowed to rebalance.
+    function isAllowedRebalancer(
+        address rebalancer
+    ) public view returns (bool) {
+        return allowed.rebalancers.contains(rebalancer);
     }
 
     /// @notice Mapping of domain to allowed rebalance recipient.
@@ -103,16 +109,16 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     /**
-     * @notice Approves the token for the bridge.
-     * @param token The token to approve.
-     * @param bridge The bridge to approve the token for.
-     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     * @notice Clears legacy standing token approval for a bridge.
+     * @dev Deprecated: `rebalance` grants exact collateral-token approval from
+     *      the bridge quote. This selector is retained so existing upgrade /
+     *      governance tooling remains compatible and can revoke old allowances.
      */
     function approveTokenForBridge(
         IERC20 token,
         ITokenBridge bridge
     ) external onlyOwner {
-        token.safeApprove(address(bridge), type(uint256).max);
+        token.forceApprove(address(bridge), 0);
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
@@ -144,9 +150,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
             collateralAmount
         );
 
+        address collateralToken = token();
+
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
-        uint256 collateralFees = quotes.extract(token());
+        uint256 collateralFees = quotes.extract(collateralToken);
         if (collateralFees > collateralAmount) {
             _transferFromSender(collateralFees - collateralAmount);
         }
@@ -157,6 +165,15 @@ abstract contract MovableCollateralRouter is TokenRouter {
         uint256 nativeFees = quotes.extract(address(0));
         if (nativeFees > address(this).balance) {
             revert("Rebalance native fee exceeds balance");
+        }
+
+        // Grant only the route collateral amount for this transfer. Expected
+        // bridges consume the full quoted collateral allowance.
+        if (collateralToken != address(0)) {
+            IERC20(collateralToken).forceApprove(
+                address(bridge),
+                collateralFees
+            );
         }
 
         bridge.transferRemote{value: nativeFees}(

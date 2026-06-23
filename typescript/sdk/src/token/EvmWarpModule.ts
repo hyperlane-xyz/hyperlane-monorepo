@@ -1,13 +1,11 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish, constants, providers } from 'ethers';
-import { UINT_256_MAX } from 'starknet';
 
 import {
   CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   GasRouter__factory,
-  IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
   PredicateRouterWrapper__factory,
@@ -38,7 +36,6 @@ import {
   objFilter,
   objKeys,
   objMap,
-  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -617,73 +614,6 @@ export class EvmWarpModule extends HyperlaneModule<
     return lower;
   }
 
-  async getAllowedBridgesApprovalTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    if (
-      !isMovableCollateralTokenConfig(expectedConfig) ||
-      !isMovableCollateralTokenConfig(actualConfig)
-    ) {
-      return [];
-    }
-
-    if (!expectedConfig.allowedRebalancingBridges) {
-      return [];
-    }
-
-    const tokensToApproveByAllowedBridge = Object.values(
-      expectedConfig.allowedRebalancingBridges,
-    ).reduce(
-      (acc, allowedBridgesConfigs) => {
-        allowedBridgesConfigs.forEach((bridgeConfig) => {
-          acc[bridgeConfig.bridge] ??= [];
-          acc[bridgeConfig.bridge].push(...(bridgeConfig.approvedTokens ?? []));
-        });
-
-        return acc;
-      },
-      // allowed bridge -> tokens to approve
-      {} as Record<Address, Address[]>,
-    );
-
-    const filteredTokensToApproveByAllowedBridge = await promiseObjAll(
-      objMap(tokensToApproveByAllowedBridge, async (bridge, tokens) => {
-        const filteredApprovals = [];
-        for (const token of tokens) {
-          const instance = IERC20__factory.connect(
-            token,
-            this.multiProvider.getProvider(this.chainId),
-          );
-
-          const allowance = await instance.allowance(
-            this.args.addresses.deployedTokenRoute,
-            bridge,
-          );
-
-          if (allowance.toBigInt() !== UINT_256_MAX) {
-            filteredApprovals.push(token);
-          }
-        }
-
-        return filteredApprovals;
-      }),
-    );
-
-    return Object.entries(filteredTokensToApproveByAllowedBridge).flatMap(
-      ([bridge, tokensToApprove]) =>
-        tokensToApprove.map((tokenToApprove) => ({
-          chainId: this.chainId,
-          annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
-          to: this.args.addresses.deployedTokenRoute,
-          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'approveTokenForBridge(address,address)',
-            [tokenToApprove, bridge],
-          ),
-        })),
-    );
-  }
-
   async createAddAllowedBridgesUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -737,11 +667,7 @@ export class EvmWarpModule extends HyperlaneModule<
       });
     });
 
-    const approvalTxs = await this.getAllowedBridgesApprovalTxs(
-      actualConfig,
-      expectedConfig,
-    );
-    return [...bridgesToAllow, ...approvalTxs];
+    return bridgesToAllow;
   }
 
   createRemoveBridgesTxs(

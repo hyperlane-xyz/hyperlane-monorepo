@@ -1,0 +1,355 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity ^0.8.22;
+
+import "forge-std/Test.sol";
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {CallLib} from "contracts/middleware/libs/Call.sol";
+import {AtomicLocalRebalancingBridge} from "contracts/token/AtomicLocalRebalancingBridge.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+
+interface IUniswapV3Router {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactInputSingle(
+        ExactInputSingleParams calldata params
+    ) external payable returns (uint256 amountOut);
+}
+
+interface IAerodromeRouter {
+    struct Route {
+        address from;
+        address to;
+        bool stable;
+        address factory;
+    }
+
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        Route[] calldata routes,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
+}
+
+abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
+    AtomicLocalRebalancingBridge internal bridge;
+    HypERC20Collateral internal sourceRouter;
+    HypERC20Collateral internal destinationRouter;
+    address internal rebalancer = makeAddr("rebalancer");
+
+    function _setUpFork(
+        string memory rpcAlias,
+        uint256 blockNumber,
+        IERC20 sourceToken,
+        IERC20 destinationToken,
+        uint32 localDomain
+    ) internal {
+        vm.createSelectFork(vm.rpcUrl(rpcAlias), blockNumber);
+
+        // Use the canonical MovableCollateralRouter rebalance flow rather than a
+        // mock so the fork test exercises real quote/approval/transferRemote
+        // semantics against a live DEX.
+        bridge = new AtomicLocalRebalancingBridge(localDomain);
+        sourceRouter = new HypERC20Collateral(
+            address(sourceToken),
+            1,
+            1,
+            address(new MockMailbox(localDomain))
+        );
+        destinationRouter = new HypERC20Collateral(
+            address(destinationToken),
+            1,
+            1,
+            address(new MockMailbox(localDomain))
+        );
+        sourceRouter.initialize(address(0), address(0), address(this));
+        destinationRouter.initialize(address(0), address(0), address(this));
+
+        sourceRouter.enrollRemoteRouter(
+            localDomain,
+            bytes32(uint256(uint160(address(destinationRouter))))
+        );
+        sourceRouter.addBridge(localDomain, bridge);
+        sourceRouter.addRebalancer(rebalancer);
+        sourceRouter.addRebalancer(address(bridge));
+    }
+
+    function _approveOutputForBridge(IERC20 destinationToken) internal {
+        vm.prank(rebalancer);
+        destinationToken.approve(address(bridge), type(uint256).max);
+    }
+
+    function _approveInputCall(
+        IERC20 token,
+        address spender,
+        uint256 amount
+    ) internal pure returns (CallLib.Call memory) {
+        return
+            CallLib.build(
+                address(token),
+                0,
+                abi.encodeCall(IERC20.approve, (spender, amount))
+            );
+    }
+
+    function _targetCall(
+        address target,
+        bytes memory data
+    ) internal pure returns (CallLib.Call memory) {
+        return CallLib.build(target, 0, data);
+    }
+
+    function _topUpCall(
+        IERC20 token,
+        uint256 amount
+    ) internal view returns (CallLib.Call memory) {
+        return
+            CallLib.build(
+                address(token),
+                0,
+                abi.encodeCall(
+                    IERC20.transferFrom,
+                    (rebalancer, address(bridge), amount)
+                )
+            );
+    }
+
+    function _assertExactFunding(
+        IERC20 destinationToken,
+        uint256 requiredDelta,
+        uint256 destinationBefore,
+        uint256 rebalancerBefore
+    ) internal view {
+        assertEq(
+            destinationToken.balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            requiredDelta
+        );
+        assertLe(destinationToken.balanceOf(rebalancer), rebalancerBefore);
+        assertEq(destinationToken.balanceOf(address(bridge)), 0);
+    }
+}
+
+contract AtomicLocalRebalancingBridgeEthereumForkTest is
+    AtomicLocalRebalancingBridgeForkTestBase
+{
+    address internal constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address internal constant UNISWAP_V3_ROUTER =
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    uint32 internal constant LOCAL_DOMAIN = 1;
+    uint256 internal constant FORK_BLOCK = 22_898_879;
+
+    function setUp() public {
+        _setUpFork(
+            "mainnet",
+            FORK_BLOCK,
+            IERC20(USDC),
+            IERC20(USDT),
+            LOCAL_DOMAIN
+        );
+
+        deal(USDC, address(sourceRouter), 1_000e6);
+        deal(USDT, rebalancer, 1_000e6);
+        _approveOutputForBridge(IERC20(USDT));
+    }
+
+    function testFork_uniswapExactInputSingle_fundsDestinationRouterExactly()
+        public
+    {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            amountIn,
+            _uniswapCalls(amountIn, 5e6)
+        );
+
+        _assertExactFunding(
+            IERC20(USDT),
+            amountIn,
+            destinationBefore,
+            rebalancerBefore
+        );
+    }
+
+    function testFork_uniswapExactInputSingle_coversShortfallFromRebalancerCall()
+        public
+    {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            amountIn,
+            _uniswapCalls(amountIn, 20e6)
+        );
+
+        assertEq(
+            IERC20(USDT).balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            amountIn
+        );
+        assertLt(IERC20(USDT).balanceOf(rebalancer), rebalancerBefore);
+    }
+
+    function testFork_uniswapExactInputSingle_refundsSurplusToRebalancer()
+        public
+    {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(
+            address(sourceRouter),
+            amountIn,
+            _uniswapCalls(amountIn, 20e6)
+        );
+
+        assertEq(
+            IERC20(USDT).balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            amountIn
+        );
+        assertGt(IERC20(USDT).balanceOf(rebalancer), rebalancerBefore - 20e6);
+    }
+
+    function testFork_uniswapExactInputSingle_revertsWhenOutputBelowRequiredOut()
+        public
+    {
+        uint256 amountIn = 100e6;
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.InsufficientOutput.selector
+        );
+        bridge.localRebalance(
+            address(sourceRouter),
+            amountIn,
+            _uniswapCalls(amountIn, 0)
+        );
+    }
+
+    function _uniswapCalls(
+        uint256 amountIn,
+        uint256 topUp
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](topUp == 0 ? 2 : 3);
+        calls[0] = _approveInputCall(IERC20(USDC), UNISWAP_V3_ROUTER, amountIn);
+        calls[1] = _targetCall(
+            UNISWAP_V3_ROUTER,
+            abi.encodeWithSelector(
+                IUniswapV3Router.exactInputSingle.selector,
+                IUniswapV3Router.ExactInputSingleParams({
+                    tokenIn: USDC,
+                    tokenOut: USDT,
+                    fee: 500,
+                    recipient: address(bridge),
+                    deadline: block.timestamp + 1 hours,
+                    amountIn: amountIn,
+                    amountOutMinimum: 1,
+                    sqrtPriceLimitX96: 0
+                })
+            )
+        );
+        if (topUp > 0) {
+            calls[2] = _topUpCall(IERC20(USDT), topUp);
+        }
+    }
+}
+
+contract AtomicLocalRebalancingBridgeBaseForkTest is
+    AtomicLocalRebalancingBridgeForkTestBase
+{
+    address internal constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal constant USDT = 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2;
+    address internal constant AERODROME_ROUTER =
+        0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43;
+    address internal constant AERODROME_FACTORY =
+        0x420DD381b31aEf6683db6B902084cB0FFECe40Da;
+    uint32 internal constant LOCAL_DOMAIN = 8453;
+    uint256 internal constant FORK_BLOCK = 32_739_842;
+
+    function setUp() public {
+        _setUpFork(
+            "base",
+            FORK_BLOCK,
+            IERC20(USDC),
+            IERC20(USDT),
+            LOCAL_DOMAIN
+        );
+
+        deal(USDC, address(sourceRouter), 1_000e6);
+        deal(USDT, rebalancer, 1_000e6);
+        _approveOutputForBridge(IERC20(USDT));
+    }
+
+    function testFork_aerodromeExactInput_fundsDestinationRouterExactly()
+        public
+    {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](
+            1
+        );
+        routes[0] = IAerodromeRouter.Route({
+            from: USDC,
+            to: USDT,
+            stable: false,
+            factory: AERODROME_FACTORY
+        });
+
+        CallLib.Call[] memory calls = new CallLib.Call[](3);
+        calls[0] = _approveInputCall(IERC20(USDC), AERODROME_ROUTER, amountIn);
+        calls[1] = _targetCall(
+            AERODROME_ROUTER,
+            abi.encodeWithSelector(
+                IAerodromeRouter.swapExactTokensForTokens.selector,
+                amountIn,
+                1,
+                routes,
+                address(bridge),
+                block.timestamp + 1 hours
+            )
+        );
+        calls[2] = _topUpCall(IERC20(USDT), 20e6);
+
+        vm.prank(rebalancer);
+        bridge.localRebalance(address(sourceRouter), amountIn, calls);
+
+        _assertExactFunding(
+            IERC20(USDT),
+            amountIn,
+            destinationBefore,
+            rebalancerBefore
+        );
+    }
+}

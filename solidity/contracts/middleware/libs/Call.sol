@@ -77,6 +77,23 @@ library CallLib {
         }
     }
 
+    function multicallCalldata(Call[] calldata calls) internal {
+        uint256 i = 0;
+        uint256 len = calls.length;
+        while (i < len) {
+            call(
+                Call({
+                    to: calls[i].to,
+                    value: calls[i].value,
+                    data: calls[i].data
+                })
+            );
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function multistaticcall(
         StaticCallWithCallback[] memory _calls
     ) internal view returns (bytes[] memory) {

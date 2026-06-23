@@ -1255,7 +1255,7 @@ export class GovernTransactionReader {
         .name
     ) {
       const [token, bridge] = decoded.args;
-      insight = `Approve token ${token} for bridge ${bridge}`;
+      insight = `Clear legacy token approval ${token} for bridge ${bridge}`;
     }
 
     if (

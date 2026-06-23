@@ -67,11 +67,6 @@ contract HypERC20Collateral is LpCollateralRouter {
         return address(wrappedToken);
     }
 
-    function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
-        MovableCollateralRouter._addBridge(domain, bridge);
-        wrappedToken.forceApprove(address(bridge), type(uint256).max);
-    }
-
     function _removeBridge(
         uint32 domain,
         ITokenBridge bridge
