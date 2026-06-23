@@ -51,7 +51,10 @@ import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
@@ -123,7 +126,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -141,7 +144,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -159,6 +163,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radix: true,
     rarichain: true,
     reactive: true,
+    robinhood: true,
     ronin: true,
     sei: true,
     shibarium: true,
@@ -177,7 +182,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superseed: true,
     swell: true,
     tac: true,
-    taiko: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -252,7 +258,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -270,7 +276,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -288,6 +295,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radix: true,
     rarichain: true,
     reactive: true,
+    robinhood: true,
     ronin: true,
     sei: true,
     shibarium: true,
@@ -306,7 +314,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superseed: true,
     swell: true,
     tac: true,
-    taiko: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -381,7 +390,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -399,7 +408,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -417,6 +427,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radix: true,
     rarichain: true,
     reactive: true,
+    robinhood: true,
     ronin: true,
     sei: true,
     shibarium: true,
@@ -436,6 +447,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     swell: true,
     tac: true,
     taiko: true,
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -871,7 +883,8 @@ const hyperlane: RootAgentConfig = {
       port: 8900,
       rateLimitMaxRequests: 100,
       rateLimitWindowSecs: 60,
-      corsOrigins: 'https://nexus.hyperlane.xyz',
+      corsOrigins:
+        'https://nexus.hyperlane.xyz,https://hyperlane-warp-template-git-xaroz-swap-form-abacus-works.vercel.app',
     },
     resources: relayerResources,
   },
@@ -1007,17 +1020,45 @@ const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
     '0xA9C9a8FB36Ce3e5ffBAC3757dA7141262723541F', // USDC
     '0xeB1b48b238E15A62e1858a601B6BfFdf41163AE3', // USDT
   ],
+  polygon: [
+    '0x28a96f9928dB06317356caACd5641C4Fde4424C7', // USDC
+    '0x766A80a7a6BBA555731DC1726DB5BFa030631270', // USDT
+  ],
+  bsc: [
+    '0x6E66a10Ce72fBdFA45Ab7de3693321246E254123', // USDC
+    '0x050dcc964BCA53eF1A98A2347995cabC73cE25b9', // USDT
+  ],
+  katana: [
+    '0x936e8A1fBD8317Be59A9B8924a300993c8Bf7ce6', // USDC
+    '0x0b51aFdd3F43446a621C555B16A1cb781D8443Ad', // USDT
+  ],
 });
 
 const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
   contextChainNames: {
-    validator: [],
-    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    validator: [
+      'arbitrum',
+      'base',
+      'bsc',
+      'citrea',
+      'ethereum',
+      'katana',
+      'polygon',
+    ],
+    relayer: [
+      'arbitrum',
+      'base',
+      'bsc',
+      'citrea',
+      'ethereum',
+      'katana',
+      'polygon',
+    ],
     scraper: [],
   },
-  rolesWithKeys: [Role.Relayer],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -1031,12 +1072,21 @@ const fastPath: RootAgentConfig = {
     ],
     blacklist,
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { ethereum: 1 },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,
     cache: {
       enabled: true,
     },
     resources: fastPathRelayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validatorFastPath,
+    },
+    chains: validatorChainConfig(Contexts.FastPath),
+    resources: validatorResources,
   },
 };
 

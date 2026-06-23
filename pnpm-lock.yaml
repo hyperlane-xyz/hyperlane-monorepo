@@ -82,17 +82,17 @@ catalogs:
       specifier: ^1.10.1
       version: 1.10.1
     '@safe-global/api-kit':
-      specifier: 4.0.0
-      version: 4.0.0
+      specifier: 4.2.0
+      version: 4.2.0
     '@safe-global/protocol-kit':
-      specifier: 6.1.1
-      version: 6.1.1
-    '@safe-global/safe-core-sdk-types':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 7.2.0
+      version: 7.2.0
     '@safe-global/safe-deployments':
-      specifier: 1.37.47
-      version: 1.37.47
+      specifier: 1.37.56
+      version: 1.37.56
+    '@safe-global/types-kit':
+      specifier: 3.1.0
+      version: 3.1.0
     '@solana/kit':
       specifier: ^6.1.0
       version: 6.1.0
@@ -1431,16 +1431,16 @@ importers:
         version: 3.1.8(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10))
       '@safe-global/api-kit':
         specifier: 'catalog:'
-        version: 4.0.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+        version: 4.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@safe-global/protocol-kit':
         specifier: 'catalog:'
-        version: 6.1.1(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@safe-global/safe-core-sdk-types':
-        specifier: 'catalog:'
-        version: 5.1.0(typescript@6.0.2)(zod@3.25.76)
+        version: 7.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
-        version: 1.37.47
+        version: 1.37.56
+      '@safe-global/types-kit':
+        specifier: 'catalog:'
+        version: 3.1.0(typescript@6.0.2)(zod@3.25.76)
       '@solana/kit':
         specifier: 'catalog:'
         version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
@@ -2213,16 +2213,16 @@ importers:
         version: link:../utils
       '@safe-global/api-kit':
         specifier: 'catalog:'
-        version: 4.0.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+        version: 4.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@safe-global/protocol-kit':
         specifier: 'catalog:'
-        version: 6.1.1(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@safe-global/safe-core-sdk-types':
-        specifier: 'catalog:'
-        version: 5.1.0(typescript@6.0.2)(zod@3.25.76)
+        version: 7.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
-        version: 1.37.47
+        version: 1.37.56
+      '@safe-global/types-kit':
+        specifier: 'catalog:'
+        version: 3.1.0(typescript@6.0.2)(zod@3.25.76)
       '@solana/spl-token':
         specifier: 'catalog:'
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
@@ -7528,11 +7528,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@safe-global/api-kit@4.0.0':
-    resolution: {integrity: sha512-xtLLi6OXguLw8cLoYnzCxqmirzRK4sSORxaiBDXdxJfBXIZLLKvYwQyDjsPL+2W4jKlJVcSLCw5EfolJahNMYg==}
+  '@safe-global/api-kit@4.2.0':
+    resolution: {integrity: sha512-K65OCsIXq70y19qliu6cjpzCGYpOQ7gsBClLTxktDBNayk/G8udef23Di162jv4xWNf3KQ2+OX844/80g6wQ/A==}
 
-  '@safe-global/protocol-kit@6.1.1':
-    resolution: {integrity: sha512-SlRosKB52h1CV2gMlKG4UOvh2j4tXuzz1GZ/yQ1HD0Zvm5azUlaytFwKzHun9xNVvfe+vvSNHUEGX2Umy+rQ9A==}
+  '@safe-global/protocol-kit@7.2.0':
+    resolution: {integrity: sha512-ALYkC2UmtZRdz7nFf55d1lcXcrTAZNS1bNDnyeBqCCLVKy/VEFU6orAi1+hdQGaaxoAPx5KsqH6LmOC40RLvWQ==}
 
   '@safe-global/safe-apps-provider@0.18.6':
     resolution: {integrity: sha512-4LhMmjPWlIO8TTDC2AwLk44XKXaK6hfBTWyljDm0HQ6TWlOEijVWNrt2s3OCVMSxlXAcEzYfqyu1daHZooTC2Q==}
@@ -7540,23 +7540,19 @@ packages:
   '@safe-global/safe-apps-sdk@9.1.0':
     resolution: {integrity: sha512-N5p/ulfnnA2Pi2M3YeWjULeWbjo7ei22JwU/IXnhoHzKq3pYCN6ynL9mJBOlvDVv892EgLPCWCOwQk/uBT2v0Q==}
 
-  '@safe-global/safe-core-sdk-types@5.1.0':
-    resolution: {integrity: sha512-UzXR4zWmVzux25FcIm4H049QhZZpVpIBL5HE+V0p5gHpArZROL+t24fZmsKUf403CtBxIJM5zZSVQL0nFJi+IQ==}
-    deprecated: 'WARNING: This project has been renamed to @safe-global/types-kit. Please, migrate from @safe-global/safe-core-sdk-types@5.1.0 to @safe-global/types-kit@1.0.0.'
-
-  '@safe-global/safe-deployments@1.37.47':
-    resolution: {integrity: sha512-abxu9nmvjfDahCIFdrHw4ENZ1CD60z/bgrv5cV3+sygADU1vuh96jFumebo+6PR/Q5qz5glrQuLwEtZ8K/lvJQ==}
+  '@safe-global/safe-deployments@1.37.56':
+    resolution: {integrity: sha512-HF3ETre/KSP3nCOZ72XEbq5U56gOGgYLJ22LxOAnR8+YzMjzZ8cpnHpx5Z31Zt1xkUTGSCMi9XF950lJt6WbsQ==}
 
   '@safe-global/safe-gateway-typescript-sdk@3.23.1':
     resolution: {integrity: sha512-6ORQfwtEJYpalCeVO21L4XXGSdbEMfyp2hEv6cP82afKXSwvse6d3sdelgaPWUxHIsFRkWvHDdzh8IyyKHZKxw==}
     engines: {node: '>=16'}
     deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
-  '@safe-global/safe-modules-deployments@2.2.21':
-    resolution: {integrity: sha512-fveOlRv0ccwsuaZjP1u7ZbXrwCyqMTYYiqETOGo8NdzTaceRUyR9TNzagSWovOSuHPVyUGJ9lnsxizikt/+PiQ==}
+  '@safe-global/safe-modules-deployments@3.0.4':
+    resolution: {integrity: sha512-aOFcv5tLPA/CS50Lknuo0QyB+zbwTCLKhnwzOoHRU9az6YDhB1q7ppq3jYk7+xhvzluhpPEfDd8HGKAOxHpLoQ==}
 
-  '@safe-global/types-kit@3.0.0':
-    resolution: {integrity: sha512-AZWIlR5MguDPdGiOj7BB4JQPY2afqmWQww1mu8m8Oi16HHBW99G01kFOu4NEHBwEU1cgwWOMY19hsI5KyL4W2w==}
+  '@safe-global/types-kit@3.1.0':
+    resolution: {integrity: sha512-uI6lFV8wOji4rb7juu0/LRMND0rq2NWaqH4zFzE2FUjO8lTvbCT+/5W/+flUUfkcaqyLDlJ1OPjasa2bEakrbw==}
 
   '@scure/base@1.1.9':
     resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
@@ -24034,10 +24030,10 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.53.3':
     optional: true
 
-  '@safe-global/api-kit@4.0.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@safe-global/api-kit@4.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
-      '@safe-global/protocol-kit': 6.1.1(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@safe-global/types-kit': 3.0.0(typescript@6.0.2)(zod@3.25.76)
+      '@safe-global/protocol-kit': 7.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@safe-global/types-kit': 3.1.0(typescript@6.0.2)(zod@3.25.76)
       node-fetch: 2.7.0(patch_hash=59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024)
       viem: 2.39.3(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
@@ -24047,11 +24043,11 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@safe-global/protocol-kit@6.1.1(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@safe-global/protocol-kit@7.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
-      '@safe-global/safe-deployments': 1.37.47
-      '@safe-global/safe-modules-deployments': 2.2.21
-      '@safe-global/types-kit': 3.0.0(typescript@6.0.2)(zod@3.25.76)
+      '@safe-global/safe-deployments': 1.37.56
+      '@safe-global/safe-modules-deployments': 3.0.4
+      '@safe-global/types-kit': 3.1.0(typescript@6.0.2)(zod@3.25.76)
       abitype: 1.1.2(typescript@6.0.2)(zod@3.25.76)
       semver: 7.7.3
       viem: 2.39.3(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -24084,22 +24080,15 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@safe-global/safe-core-sdk-types@5.1.0(typescript@6.0.2)(zod@3.25.76)':
-    dependencies:
-      abitype: 1.1.2(typescript@6.0.2)(zod@3.25.76)
-    transitivePeerDependencies:
-      - typescript
-      - zod
-
-  '@safe-global/safe-deployments@1.37.47':
+  '@safe-global/safe-deployments@1.37.56':
     dependencies:
       semver: 7.7.3
 
   '@safe-global/safe-gateway-typescript-sdk@3.23.1': {}
 
-  '@safe-global/safe-modules-deployments@2.2.21': {}
+  '@safe-global/safe-modules-deployments@3.0.4': {}
 
-  '@safe-global/types-kit@3.0.0(typescript@6.0.2)(zod@3.25.76)':
+  '@safe-global/types-kit@3.1.0(typescript@6.0.2)(zod@3.25.76)':
     dependencies:
       abitype: 1.1.2(typescript@6.0.2)(zod@3.25.76)
     transitivePeerDependencies:

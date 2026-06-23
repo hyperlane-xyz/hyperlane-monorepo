@@ -1,5 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
-import { MetaTransactionData } from '@safe-global/safe-core-sdk-types';
+import { MetaTransactionData } from '@safe-global/types-kit';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';

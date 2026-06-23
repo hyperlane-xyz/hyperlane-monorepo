@@ -166,6 +166,11 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     return this.submitter.submit({
       chainId: this.multiProvider.getDomainId(this.config.chain),
       ...icaTx,
+      // callRemote derives the ICA from msg.sender, so `from` must be the owner (not the
+      // populating signer) for file output to be self-describing. Live submitters are
+      // unaffected: MultiProvider.sendTransaction calls prepareTx with no `from`, which
+      // overwrites tx.from with getSignerAddress(chain).
+      from: bytes32ToAddress(this.config.owner),
     });
   }
 }

@@ -40,6 +40,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
+  throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
 
 import {
@@ -52,6 +53,7 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
@@ -472,20 +474,29 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.provider,
     );
 
-    // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary, quoteSigners] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      hook.beneficiary(),
-      // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch((error) => {
-        throwIfNotMissingSelector(error);
+    const getQuoteSignersResult = async (): Promise<{
+      quoteSigners: string[];
+      igpVersion?: IgpVersion;
+    }> => {
+      try {
+        return { quoteSigners: await hook.quoteSigners() };
+      } catch (error) {
+        throwIfNotMissingSelectorRevert(error);
         this.logger.debug(
           'quoteSigners() not available on this IGP version, skipping',
         );
-        return [] as string[];
-      }),
-    ]);
+        return { quoteSigners: [], igpVersion: IgpVersion.Legacy };
+      }
+    };
+
+    // Parallelize initial RPC calls
+    const [hookType, owner, beneficiary, quoteSignersResult] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.beneficiary(),
+        getQuoteSignersResult(),
+      ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
 
@@ -550,7 +561,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
-      ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
+      ...(quoteSignersResult.igpVersion
+        ? { igpVersion: quoteSignersResult.igpVersion }
+        : {}),
+      ...(quoteSignersResult.quoteSigners.length > 0
+        ? { quoteSigners: [...quoteSignersResult.quoteSigners] }
+        : {}),
     };
 
     this._cache.set(address, config);

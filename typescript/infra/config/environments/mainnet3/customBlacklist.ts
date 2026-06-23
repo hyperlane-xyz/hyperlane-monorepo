@@ -239,6 +239,8 @@ export const blacklistedMessageIds = [
   '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
   // USDC/paradex user transfer to USDC contract address (blacklisted by Circle) [2026-04-27]
   '0xeece23565b9bf5a344516b92a8bf857644f5ef29e49fd0b525c8f752452cf113',
+  // USDC/eclipsemainnet polygon->ethereum transfer to ethereum USDC contract itself (Circle-blacklisted recipient) [2026-06-22]
+  '0x15f8ed49d2c10c8bf1f255b91a0f38540dd6bd35de490c24befda7c554c7e872',
 
   // krown -> ethereum
   '0x4d745f718590f89ce261f2fea8dbbc251bb612f424d9bb1c06a89abaf75b680f',

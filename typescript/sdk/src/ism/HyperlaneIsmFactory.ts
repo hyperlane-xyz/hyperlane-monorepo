@@ -66,6 +66,7 @@ import {
   CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
+  DerivedPausableIsmConfigSchema,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
@@ -119,6 +120,16 @@ const domainRoutingInitializationSize = (destination: ChainName) => {
   }
 
   return 300;
+};
+
+const domainRoutingSetGasBuffer = (destination: ChainName) => {
+  // MegaETH underestimates incremental routing ISM set() gas by ~2x.
+  // Use a larger buffer only for per-domain enrollments on that chain.
+  if (destination === 'megaeth') {
+    return 150;
+  }
+
+  return 15;
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -254,13 +265,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           config.nativeBridge,
         ]);
         break;
-      case IsmType.PAUSABLE:
-        contract = await this.deployer.deployContract(
-          destination,
-          IsmType.PAUSABLE,
-          [config.owner],
-        );
+      case IsmType.PAUSABLE: {
+        const derivedConfig = DerivedPausableIsmConfigSchema.safeParse(config);
+        // Address-bearing configs represent recovered artifacts. Normal
+        // pausable configs omit address and deploy a chain/route-local ISM.
+        contract = derivedConfig.success
+          ? PausableIsm__factory.connect(
+              derivedConfig.data.address,
+              this.multiProvider.getSignerOrProvider(destination),
+            )
+          : await this.deployer.deployContract(destination, IsmType.PAUSABLE, [
+              config.owner,
+            ]);
         break;
+      }
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         contract = await this.deployer.deployContract(
@@ -757,7 +775,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             safeConfigDomains[i],
             submoduleAddresses[i],
             {
-              gasLimit: addBufferToGasLimit(estimatedGas, 15),
+              gasLimit: addBufferToGasLimit(
+                estimatedGas,
+                domainRoutingSetGasBuffer(destination),
+              ),
               ...overrides,
             },
           );

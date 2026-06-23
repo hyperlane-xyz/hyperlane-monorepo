@@ -66,6 +66,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 export const tokenPriceOverrides: ChainMap<string> = {
   incentiv: '0.003',
   krown: '0.0015',
+  tea: '10',
+  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -99,11 +101,26 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
+  // nexus: {
+  //   transactionOverrides: {
+  //     gasPrice: 2 * 10 ** 9, // 2 gwei
+  //   },
+  // },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //   },
+  // },
+  // immutablezkevmmainnet: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
+  // xrplevm: {
+  //   blocks: {
+  //     confirmations: 5,
   //   },
   // },
   // xlayer: {
@@ -128,12 +145,17 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
   // unichain: {
   //   blocks: {
-  //     confirmations: 8,
+  //     confirmations: 5,
   //   },
   // },
   // optimism: {
   //   blocks: {
   //     confirmations: 5,
+  //   },
+  // },
+  // prom: {
+  //   blocks: {
+  //     confirmations: 3,
   //   },
   // },
 };

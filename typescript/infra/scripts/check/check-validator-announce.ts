@@ -1,6 +1,11 @@
-import { ChainMap, defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainStatus,
+  defaultMultisigConfigs,
+} from '@hyperlane-xyz/sdk';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
@@ -23,6 +28,9 @@ const validatorCountToThreshold: Record<number, number> = {
 const getMinimumThreshold = (validatorCount: number): number =>
   validatorCountToThreshold[validatorCount] ??
   Math.floor(validatorCount / 2) + 1;
+
+// Chains where threshold == validatorCount is acceptable.
+const fullThresholdExceptions: string[] = ['fluent'];
 
 const thresholdOK = 'threshold OK';
 const totalOK = 'total OK';
@@ -50,6 +58,19 @@ async function main() {
   const allChainsToCheck =
     chains && chains.length > 0 ? chains : config.supportedChainNames;
 
+  const chainsToCheck = allChainsToCheck.filter(
+    (chain) => getChain(chain).availability?.status !== ChainStatus.Disabled,
+  );
+
+  const skippedChains = allChainsToCheck.filter(
+    (chain) => !chainsToCheck.includes(chain),
+  );
+  if (skippedChains.length > 0) {
+    console.log(`Skipping ${skippedChains.length} disabled chain(s):`);
+    skippedChains.forEach((chain) => console.log(` - ${chain}`));
+    console.log();
+  }
+
   const chainsWithUnannouncedValidators: ChainMap<
     {
       address: string;
@@ -60,7 +81,7 @@ async function main() {
   const chainsToSkip: string[] = [];
 
   const results: ChainResult[] = await Promise.all(
-    allChainsToCheck
+    chainsToCheck
       .filter((chain) => !chainsToSkip.includes(chain))
       .map(async (chain) => {
         try {
@@ -102,7 +123,8 @@ async function main() {
               threshold < minimumThreshold ||
               threshold > validatorCount ||
               (threshold === validatorCount &&
-                validatorCount !== minimumThreshold)
+                validatorCount !== minimumThreshold &&
+                !fullThresholdExceptions.includes(chain))
                 ? CheckResult.WARNING
                 : CheckResult.OK,
             total: validatorCount,
