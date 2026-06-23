@@ -175,10 +175,26 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
       `No submitter factory registered for protocol ${protocolType} and type ${submitterMetadata.type}`,
     );
   }
+  // Thread additionalSubmitterFactories through nested submitter resolution
+  // (e.g. an ICA/timelock submitter resolving its internalSubmitter) so custom
+  // factories like the CLI's `file` submitter remain available recursively.
+  const nestedGetSubmitter: SubmitterGetter = (
+    nestedMultiProvider,
+    nestedMetadata,
+    nestedCoreAddresses,
+    nestedFactories,
+  ) =>
+    getSubmitter(
+      nestedMultiProvider,
+      nestedMetadata,
+      nestedCoreAddresses,
+      nestedFactories ?? additionalSubmitterFactories,
+    );
+
   return factory(
     multiProvider,
     submitterMetadata,
     coreAddressesByChain,
-    getSubmitter,
+    nestedGetSubmitter,
   );
 }

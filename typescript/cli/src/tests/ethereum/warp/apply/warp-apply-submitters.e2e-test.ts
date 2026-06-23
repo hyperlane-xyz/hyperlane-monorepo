@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { type Signer, Wallet, ethers } from 'ethers';
+import { existsSync, rmSync } from 'fs';
 
 import {
   InterchainAccountRouter__factory,
@@ -25,6 +26,10 @@ import {
   assert,
 } from '@hyperlane-xyz/utils';
 
+import {
+  CustomTxSubmitterType,
+  type ExtendedChainSubmissionStrategy,
+} from '../../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
@@ -72,6 +77,10 @@ describe('hyperlane warp apply with submitters', async function () {
   const WARP_ROUTE_ID: string = DEFAULT_EVM_WARP_ID;
   const FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-simple-strategy.yaml`;
   const SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/gnosis-safe-strategy.yaml`;
+  const ICA_FILE_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/ica-file-strategy.yaml`;
+  const ICA_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/ica-file-submitter-output.json`;
+  const TIMELOCK_FILE_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-file-strategy.yaml`;
+  const TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/timelock-file-submitter-output.json`;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -348,6 +357,67 @@ describe('hyperlane warp apply with submitters', async function () {
         ].destinationGas![chain2DomainId],
       ).to.equal(expectedUpdatedGasValue);
     });
+
+    it('should write the timelock proposal to a file when the proposerSubmitter is a file submitter', async () => {
+      if (existsSync(TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH)) {
+        rmSync(TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH);
+      }
+
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = timelockInstance.address;
+      await deployAndExportWarpRoute();
+
+      const timelockFileStrategy: ExtendedChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            timelockAddress: timelockInstance.address,
+            // The CLI-only `file` submitter nested as the timelock's proposer.
+            proposerSubmitter: {
+              type: CustomTxSubmitterType.FILE,
+              chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+              filepath: TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH,
+            },
+          },
+        },
+      };
+      writeYamlOrJson(
+        TIMELOCK_FILE_SUBMITTER_STRATEGY_PATH,
+        timelockFileStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '900',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: TIMELOCK_FILE_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(res.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
+
+      // The propose tx must have been written to the file by the file submitter.
+      const proposeTxs: CallData[] = readYamlOrJson(
+        TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH,
+      );
+      expect(proposeTxs).to.be.an('array').with.lengthOf(1);
+      const [proposeTx] = proposeTxs;
+      // scheduleBatch is called on the timelock contract itself.
+      expect(proposeTx.to.toLowerCase()).to.equal(
+        timelockInstance.address.toLowerCase(),
+      );
+      expect(proposeTx.data).to.be.a('string').that.is.not.empty;
+    });
   });
 
   describe(TxSubmitterType.INTERCHAIN_ACCOUNT, () => {
@@ -385,6 +455,69 @@ describe('hyperlane warp apply with submitters', async function () {
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
         ].destinationGas![chain2DomainId],
       ).to.equal(expectedChain2Gas);
+    });
+
+    it('should write the ICA callRemote to a file when the internalSubmitter is a file submitter', async () => {
+      if (existsSync(ICA_FILE_SUBMITTER_OUTPUT_PATH)) {
+        rmSync(ICA_FILE_SUBMITTER_OUTPUT_PATH);
+      }
+
+      // Transfer ownership of the warp token on chain3 to the ICA account so
+      // that warp apply routes the update through the ICA submitter.
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = chain3IcaAddress;
+      await deployAndExportWarpRoute();
+
+      const icaFileStrategy: ExtendedChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+            destinationChain:
+              TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+            // The CLI-only `file` submitter nested as the ICA's internal submitter.
+            internalSubmitter: {
+              type: CustomTxSubmitterType.FILE,
+              chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+              filepath: ICA_FILE_SUBMITTER_OUTPUT_PATH,
+            },
+          },
+        },
+      };
+      writeYamlOrJson(ICA_FILE_SUBMITTER_STRATEGY_PATH, icaFileStrategy);
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '46000',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: ICA_FILE_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(res.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
+
+      // The ICA collapses the warp update into a single callRemote, which the
+      // file submitter must write to the output file.
+      const callRemoteTxs: CallData[] = readYamlOrJson(
+        ICA_FILE_SUBMITTER_OUTPUT_PATH,
+      );
+      expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
+      const [callRemoteTx] = callRemoteTxs;
+      // callRemote is sent to the origin-chain InterchainAccountRouter.
+      expect(callRemoteTx.to.toLowerCase()).to.equal(
+        chain2Addresses.interchainAccountRouter.toLowerCase(),
+      );
+      expect(callRemoteTx.data).to.be.a('string').that.is.not.empty;
     });
   });
 

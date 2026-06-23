@@ -401,7 +401,12 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
+export {
+  ZBigNumberish,
+  ZBytes32String,
+  ZChainName,
+  ZHash,
+} from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -546,6 +551,7 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
+  EvmTimelockControllerSubmitterProps,
   isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 

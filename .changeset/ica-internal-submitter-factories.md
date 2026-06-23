@@ -1,0 +1,6 @@
+---
+"@hyperlane-xyz/sdk": patch
+"@hyperlane-xyz/cli": patch
+---
+
+Custom submitter factories are now threaded through nested submitter resolution, and the CLI strategy schema accepts a custom nested submitter inside both composite submitters (interchain-account and timelock-controller). Previously `getSubmitter` passed the bare `getSubmitter` as the recursive `getSubmitterFn`, defaulting `additionalSubmitterFactories` to an empty map, so a wrapping submitter (e.g. `interchainAccount` or `timelockController`) could not resolve a nested submitter whose type was only registered via a custom factory (such as the CLI's `file` submitter). In addition, the CLI's `ExtendedChainSubmissionStrategySchema` only permitted the `file` submitter at the top level and as an ICA `internalSubmitter`, rejecting it as a timelock `proposerSubmitter`. The recursive getter now reuses the parent's `additionalSubmitterFactories`, and the CLI's extended ICA and timelock schemas allow any extended submitter (including `file`) as their nested submitter, so an `interchainAccount` submitter can write its `callRemote` to a file and a `timelockController` submitter can write its proposal to a file. The SDK now also exports `ZBytes32String` and the `EvmTimelockControllerSubmitterProps` type so consumers can build the extended timelock schema.
