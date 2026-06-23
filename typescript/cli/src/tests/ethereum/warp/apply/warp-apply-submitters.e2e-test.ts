@@ -287,6 +287,19 @@ describe('hyperlane warp apply with submitters', async function () {
     fixture.restoreConfigs();
 
     formatTimelockStrategyFile();
+
+    // Clear any file-submitter output from a previous test so each test asserts
+    // against freshly written transactions.
+    for (const outputPath of [
+      ICA_FILE_SUBMITTER_OUTPUT_PATH,
+      TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH,
+      ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH,
+      TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH,
+    ]) {
+      if (existsSync(outputPath)) {
+        rmSync(outputPath);
+      }
+    }
   });
 
   function getTimelockExecuteTxFile(logs: string): CallData {
@@ -399,10 +412,6 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should write the timelock proposal to a file when the proposerSubmitter is a file submitter', async () => {
-      if (existsSync(TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH)) {
-        rmSync(TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH);
-      }
-
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
@@ -473,10 +482,6 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should thread the file submitter through a timelock -> ICA -> file composite (depth 2)', async () => {
-      if (existsSync(TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH)) {
-        rmSync(TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH);
-      }
-
       // Own the warp token with the timelock; the timelock's proposer is the
       // chain3 ICA (owned by the deployer), which itself writes to a file. This
       // exercises the custom `file` factory at recursion depth 2 — the exact
@@ -610,10 +615,6 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should write the ICA callRemote to a file when the internalSubmitter is a file submitter', async () => {
-      if (existsSync(ICA_FILE_SUBMITTER_OUTPUT_PATH)) {
-        rmSync(ICA_FILE_SUBMITTER_OUTPUT_PATH);
-      }
-
       // Transfer ownership of the warp token on chain3 to the ICA account so
       // that warp apply routes the update through the ICA submitter.
       const warpDeployConfig = fixture.getDeployConfig();
@@ -692,10 +693,6 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should write a callRemote with `from` set to a Safe owner when the ICA owner is a multisig', async () => {
-      if (existsSync(ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH)) {
-        rmSync(ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH);
-      }
-
       // Own the warp token with the ICA derived from the Safe so warp apply
       // routes the update through the (Safe-owned) ICA submitter.
       const safeIcaAddress = await deriveChain3Ica(safeAddress);
