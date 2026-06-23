@@ -69,6 +69,27 @@ For each required protocol in Step 1, run Steps 4–5. Within a single skill inv
 
 The agent NEVER enumerates GCP secrets project-wide on its own. For each protocol, the user supplies either a specific key spec OR a candidate list of GCP secret names — follow the matching path.
 
+### 4.0: Reject Shared / Treasury Keys — Hard Gate
+
+Before processing a pre-supplied spec (4a) or rendering a candidate list (4b), reason about whether the secret is a **dedicated per-role deployer key** or a **shared / treasury / operational secret**. Halt on the latter — this is a hard gate, not a hint, because relying on agent judgment to "pick the test key over the production key" is a recurring foot-gun (the warp-update live test regressed onto a shared production key despite the right dedicated key being available).
+
+The rule: warp-deploy signing must use a dedicated per-role deployer key scoped to the calling identity. Shared keys — production treasury deployer, agent operational secrets used by other systems, anything that owns governance multisigs or treasuries — are out of scope for warp-deploy signing, even when the calling identity has access to them.
+
+Heuristics for spotting a shared / treasury secret (any one is enough to halt):
+
+- The secret name contains tokens like `production`, `treasury`, `shared`, `legacy`, or matches a top-level agent-secret convention (e.g. names that look like `<env>-key-deployer`, `<env>-key-relayer`, `<env>-key-validator-*`)
+- The address derived from the secret is a known Safe owner, governance multisig owner, treasury wallet, or any cross-system signer
+- The user (or skill-chain context) hasn't explicitly designated this secret for the calling identity's warp-deploy role
+- The secret is the default for some other agent/role and only "happens to" be accessible from this identity
+
+When uncertain, halt and ask the user to confirm whether the secret is dedicated to this identity for warp-deploy. Default to halting — agent confidence "this is probably fine" is exactly the failure mode this gate exists to override.
+
+Halt message shape:
+
+> _"The secret `<resolved-name>` looks like a shared / treasury / operational secret (`<the specific heuristic that matched>`). Warp-deploy signing must use a dedicated per-role deployer key, not a shared one. Re-invoke `/warp-deploy-select-keys` with a secret that is scoped to this identity's warp-deploy role."_
+
+Do NOT proceed to 4a/4b/4c with a shared / treasury secret, even if the user pre-supplied it. The user MUST re-invoke with a different name.
+
 ### 4a: Pre-Supplied Specific Key Spec
 
 If the user has already told you (in the conversation context, in the parent skill's input, or via this skill's invocation arguments) which exact key to use for THIS protocol — a single GCP secret name, env var name, or keystore path — record it and skip directly to Step 5 (Verify + Derive). No further user interaction needed for this protocol at Step 4.
