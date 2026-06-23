@@ -42,8 +42,13 @@ use crate::{
 const REVEAL_COMPUTE_UNITS: u32 = 600_000;
 const CCS_MAX_RETRIES: u32 = 10;
 const CCS_RETRY_DELAY_SECS: u64 = 5;
-const CONFIRM_MAX_POLLS: u32 = 60;
+// Outer send attempts (each gets a fresh blockhash): 3 × ~60s = ~3 min total.
+const SEND_RETRY_MAX: u32 = 3;
+// Inner polls per blockhash window (~150 slots ≈ 60 s on mainnet).
+const CONFIRM_POLLS_PER_BLOCKHASH: u32 = 30;
 const CONFIRM_POLL_DELAY_MS: u64 = 2_000;
+// Resend the signed tx every N inner polls to keep it in the leader queue.
+const RESEND_INTERVAL_POLLS: u32 = 10;
 
 // Raydium CLMM program on mainnet.
 const RAYDIUM_CLMM_PROGRAM: Pubkey =
@@ -51,6 +56,14 @@ const RAYDIUM_CLMM_PROGRAM: Pubkey =
 
 // SPL Associated Token Account program.
 const ATA_PROGRAM: Pubkey = solana_program::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
+// wSOL mint. When the output mint is wSOL, the reveal sweeps PDA wSOL ATA →
+// fee_payer's wSOL ATA, then closes it → native SOL to recipient.
+const WSOL_MINT: Pubkey = solana_program::pubkey!("So11111111111111111111111111111111111111112");
+
+// SPL Token (legacy) program. Used for the CloseAccount instruction on wSOL ATAs.
+const SPL_TOKEN_PROGRAM: Pubkey =
+    solana_program::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 // Byte offsets within a Raydium CLMM PoolState account (includes 8-byte Anchor discriminant).
 // Verified against `reveal.mjs` fetchClmmPoolState offsets.
@@ -174,6 +187,25 @@ fn make_ata_ix(
     }
 }
 
+// SPL Token CloseAccount instruction (discriminant = 9).
+// Transfers all lamports from `wsol_ata` to `lamport_dest` and closes the account,
+// unwrapping wSOL to native SOL. `authority` must sign the transaction.
+fn make_close_account_ix(
+    wsol_ata: &Pubkey,
+    lamport_dest: &Pubkey,
+    authority: &Pubkey,
+) -> Instruction {
+    Instruction {
+        program_id: SPL_TOKEN_PROGRAM,
+        accounts: vec![
+            AccountMeta::new(*wsol_ata, false),
+            AccountMeta::new(*lamport_dest, false),
+            AccountMeta::new_readonly(*authority, true),
+        ],
+        data: vec![9u8],
+    }
+}
+
 /// Configuration for automated UR reveal submission on a Sealevel destination.
 #[derive(Debug, Clone)]
 pub struct UniversalRouterRevealConfig {
@@ -254,6 +286,7 @@ pub fn maybe_spawn_reveal(
             }
         };
         info!(commitment = %commitment_hex, %program_id, "[REVEAL] Task started");
+        let http_client = Client::new();
         let ctx = RevealContext {
             ccs_url: &ccs_url,
             program_id,
@@ -265,6 +298,7 @@ pub fn maybe_spawn_reveal(
             rpc_client: &rpc_client,
             priority_fee_oracle,
             fee_payer: &fee_payer,
+            http_client,
         };
         match submit_reveal(ctx).await {
             Err(e) => error!(commitment = %commitment_hex, error = ?e, "[REVEAL] Failed"),
@@ -284,14 +318,14 @@ struct RevealContext<'a> {
     rpc_client: &'a SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: &'a SealevelKeypair,
+    http_client: reqwest::Client,
 }
 
 async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
     let commitment_hex = hex::encode(ctx.commitment);
 
     info!(commitment = %commitment_hex, ccs_url = ctx.ccs_url, "[REVEAL] Fetching calldata from CCS");
-    let http = Client::new();
-    let ccs = fetch_from_ccs(&http, ctx.ccs_url, &ctx.commitment).await?;
+    let ccs = fetch_from_ccs(&ctx.http_client, ctx.ccs_url, &ctx.commitment).await?;
     info!(
         commitment = %commitment_hex,
         data_len = ccs.data.len(),
@@ -301,7 +335,7 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
     );
 
     info!(commitment = %commitment_hex, "[REVEAL] Building RouterInstruction::Reveal");
-    let mut built = build_instruction(&ctx, ctx.fee_payer.pubkey(), &ccs).await?;
+    let built = build_instruction(&ctx, &ccs).await?;
     info!(
         commitment = %commitment_hex,
         instruction_count = built.len(),
@@ -324,66 +358,107 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
         "[REVEAL] Priority fee determined"
     );
 
-    let mut instructions = vec![
-        ComputeBudgetInstruction::set_compute_unit_limit(REVEAL_COMPUTE_UNITS),
-        ComputeBudgetInstruction::set_compute_unit_price(priority_fee),
-    ];
-    instructions.append(&mut built);
+    // Outer loop: each attempt fetches a fresh blockhash and rebuilds the tx.
+    // On mainnet, a tx sent once is often silently dropped by congested leaders;
+    // the inner loop resends periodically within the ~150-slot (~60 s) validity
+    // window, and the outer loop retries after the window expires.
+    for send_attempt in 1..=SEND_RETRY_MAX {
+        // Fresh blockhash each attempt so the tx is valid for a new ~150-slot window.
+        info!(commitment = %commitment_hex, send_attempt, "[REVEAL] Fetching latest blockhash");
+        let blockhash = ctx
+            .rpc_client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+            .await
+            .map_err(|e| eyre!("get_latest_blockhash: {e}"))?;
+        info!(commitment = %commitment_hex, blockhash = %blockhash, "[REVEAL] Got blockhash");
 
-    // Use `confirmed` commitment for the blockhash so the tx has a full ~150-slot validity window.
-    info!(commitment = %commitment_hex, "[REVEAL] Fetching latest blockhash");
-    let blockhash = ctx
-        .rpc_client
-        .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
-        .await
-        .map_err(|e| eyre!("get_latest_blockhash: {e}"))?;
-    info!(commitment = %commitment_hex, blockhash = %blockhash, "[REVEAL] Got blockhash");
+        let mut instructions = vec![
+            ComputeBudgetInstruction::set_compute_unit_limit(REVEAL_COMPUTE_UNITS),
+            ComputeBudgetInstruction::set_compute_unit_price(priority_fee),
+        ];
+        instructions.extend(built.iter().cloned());
 
-    let message = Message::new(&instructions, Some(&ctx.fee_payer.pubkey()));
-    let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
+        let message = Message::new(&instructions, Some(&ctx.fee_payer.pubkey()));
+        let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
 
-    info!(commitment = %commitment_hex, fee_payer = %ctx.fee_payer.pubkey(), "[REVEAL] Sending transaction");
-    let signature = ctx
-        .rpc_client
-        .send_transaction(&tx, true)
-        .await
-        .map_err(|e| eyre!("send_transaction: {e}"))?;
+        info!(
+            commitment = %commitment_hex,
+            fee_payer = %ctx.fee_payer.pubkey(),
+            send_attempt,
+            "[REVEAL] Sending transaction"
+        );
+        let signature = ctx
+            .rpc_client
+            .send_transaction(&tx, true)
+            .await
+            .map_err(|e| eyre!("send_transaction (attempt {send_attempt}): {e}"))?;
 
-    let max_confirm_secs = CONFIRM_MAX_POLLS.saturating_mul((CONFIRM_POLL_DELAY_MS / 1000) as u32);
-    info!(commitment = %commitment_hex, %signature, max_confirm_secs, "[REVEAL] Tx sent; polling for confirmation");
+        info!(
+            commitment = %commitment_hex,
+            %signature,
+            send_attempt,
+            "[REVEAL] Tx sent; polling for confirmation"
+        );
 
-    for attempt in 1..=CONFIRM_MAX_POLLS {
-        tokio::time::sleep(Duration::from_millis(CONFIRM_POLL_DELAY_MS)).await;
-        info!(commitment = %commitment_hex, %signature, attempt, max_attempts = CONFIRM_MAX_POLLS, "[REVEAL] Polling confirmation");
-        match ctx.rpc_client.get_signature_statuses(&[signature]).await {
-            Ok(response) => {
-                match response.value.into_iter().next().flatten() {
+        let mut confirmed = false;
+        for poll in 1..=CONFIRM_POLLS_PER_BLOCKHASH {
+            tokio::time::sleep(Duration::from_millis(CONFIRM_POLL_DELAY_MS)).await;
+
+            // Resend periodically to keep the tx in the leader queue within the validity window.
+            if poll % RESEND_INTERVAL_POLLS == 0 {
+                if let Err(e) = ctx.rpc_client.send_transaction(&tx, true).await {
+                    warn!(commitment = %commitment_hex, %signature, poll, error = ?e, "[REVEAL] Resend error (non-fatal)");
+                }
+            }
+
+            info!(
+                commitment = %commitment_hex,
+                %signature,
+                send_attempt,
+                poll,
+                max_polls = CONFIRM_POLLS_PER_BLOCKHASH,
+                "[REVEAL] Polling confirmation"
+            );
+            match ctx.rpc_client.get_signature_statuses(&[signature]).await {
+                Ok(response) => match response.value.into_iter().next().flatten() {
                     None => {
-                        // Tx not yet seen by RPC; keep polling.
-                        info!(commitment = %commitment_hex, %signature, attempt, "[REVEAL] Tx not yet confirmed; continuing to poll");
+                        info!(commitment = %commitment_hex, %signature, poll, "[REVEAL] Tx not yet seen; continuing to poll");
                     }
                     Some(TransactionStatus { err: Some(e), .. }) => {
                         bail!("Reveal tx failed on-chain: {e:?}");
                     }
                     Some(status) if status.satisfies_commitment(CommitmentConfig::confirmed()) => {
-                        info!(commitment = %commitment_hex, %signature, attempt, "[REVEAL] Tx confirmed");
-                        return Ok(());
+                        info!(commitment = %commitment_hex, %signature, send_attempt, poll, "[REVEAL] Tx confirmed");
+                        confirmed = true;
+                        break;
                     }
                     Some(_) => {
-                        // Landed but not yet at confirmed commitment; keep polling.
-                        info!(commitment = %commitment_hex, %signature, attempt, "[REVEAL] Tx processed but not yet confirmed; continuing to poll");
+                        info!(commitment = %commitment_hex, %signature, poll, "[REVEAL] Tx processed but not yet confirmed; continuing to poll");
                     }
+                },
+                Err(e) => {
+                    warn!(commitment = %commitment_hex, %signature, error = ?e, poll, "[REVEAL] Error polling confirmation");
                 }
             }
-            Err(e) => {
-                warn!(commitment = %commitment_hex, %signature, error = ?e, attempt, "[REVEAL] Error polling confirmation");
-            }
         }
-        if attempt == CONFIRM_MAX_POLLS {
-            bail!("Reveal tx not confirmed after {} polls", CONFIRM_MAX_POLLS);
+
+        if confirmed {
+            return Ok(());
+        }
+
+        if send_attempt < SEND_RETRY_MAX {
+            warn!(
+                commitment = %commitment_hex,
+                %signature,
+                send_attempt,
+                "[REVEAL] Tx not confirmed within blockhash window; retrying with fresh blockhash"
+            );
         }
     }
-    bail!("Reveal tx confirmation timed out")
+    bail!(
+        "Reveal tx not confirmed after {} send attempts",
+        SEND_RETRY_MAX
+    )
 }
 
 async fn fetch_from_ccs(
@@ -462,7 +537,6 @@ fn derive_pending_swap_pda(
 /// precede the reveal instruction so the CLMM output account and recipient ATA exist.
 async fn build_instruction(
     ctx: &RevealContext<'_>,
-    fee_payer_pubkey: Pubkey,
     ccs: &CcsGetResponse,
 ) -> Result<Vec<Instruction>> {
     let program_id = ctx.program_id;
@@ -477,7 +551,7 @@ async fn build_instruction(
 
     // Verify CCS data is consistent with the commitment from the message body.
     let ccs_commitment =
-        solana_program::keccak::hash(&[message.as_slice(), salt.as_ref()].concat()).to_bytes();
+        solana_program::keccak::hashv(&[message.as_slice(), salt.as_ref()]).to_bytes();
     if ccs_commitment != commitment {
         warn!(
             expected = %hex::encode(commitment),
@@ -592,15 +666,25 @@ async fn build_instruction(
                     "[REVEAL] Fetched live CLMM pool state"
                 );
 
-                let live_amm_config = pool_state.amm_config;
-                if accounts[5].pubkey != live_amm_config {
-                    warn!(
-                        ccs = %accounts[5].pubkey,
-                        live = %live_amm_config,
-                        "[REVEAL] account[5] (ammConfig) mismatch — using live pool state"
-                    );
-                    accounts[5].pubkey = live_amm_config;
-                }
+                let override_acct =
+                    |accounts: &mut Vec<AccountMeta>, idx: usize, live: Pubkey, label: &str| {
+                        if accounts[idx].pubkey != live {
+                            warn!(
+                                ccs = %accounts[idx].pubkey,
+                                live = %live,
+                                "[REVEAL] {} mismatch — using live pool state",
+                                label
+                            );
+                            accounts[idx].pubkey = live;
+                        }
+                    };
+
+                override_acct(
+                    &mut accounts,
+                    5,
+                    pool_state.amm_config,
+                    "account[5] (ammConfig)",
+                );
 
                 // Determine swap direction from the input_mint (account[15]) vs pool mint0.
                 // zero_for_one = inputMint == mint0 → inputVault=vault0, outputVault=vault1
@@ -622,34 +706,24 @@ async fn build_instruction(
                 } else {
                     (pool_state.vault1, pool_state.vault0)
                 };
-                if accounts[9].pubkey != live_input_vault {
-                    warn!(
-                        ccs = %accounts[9].pubkey,
-                        live = %live_input_vault,
-                        zero_for_one,
-                        "[REVEAL] account[9] (inputVault) mismatch — using live pool state"
-                    );
-                    accounts[9].pubkey = live_input_vault;
-                }
-                if accounts[10].pubkey != live_output_vault {
-                    warn!(
-                        ccs = %accounts[10].pubkey,
-                        live = %live_output_vault,
-                        zero_for_one,
-                        "[REVEAL] account[10] (outputVault) mismatch — using live pool state"
-                    );
-                    accounts[10].pubkey = live_output_vault;
-                }
-
-                let live_obs = pool_state.observation_state;
-                if accounts[11].pubkey != live_obs {
-                    warn!(
-                        ccs = %accounts[11].pubkey,
-                        live = %live_obs,
-                        "[REVEAL] account[11] (observationState) mismatch — using live pool state"
-                    );
-                    accounts[11].pubkey = live_obs;
-                }
+                override_acct(
+                    &mut accounts,
+                    9,
+                    live_input_vault,
+                    "account[9] (inputVault)",
+                );
+                override_acct(
+                    &mut accounts,
+                    10,
+                    live_output_vault,
+                    "account[10] (outputVault)",
+                );
+                override_acct(
+                    &mut accounts,
+                    11,
+                    pool_state.observation_state,
+                    "account[11] (observationState)",
+                );
 
                 let ticks_in_array = 60i32 * pool_state.tick_spacing as i32;
                 let ta0_start =
@@ -684,17 +758,19 @@ async fn build_instruction(
                 } else {
                     pool_state.mint0
                 };
-                if accounts[15].pubkey != live_input_mint {
-                    warn!(ccs=%accounts[15].pubkey, live=%live_input_mint, "[REVEAL] account[15] (inputMint) mismatch");
-                    accounts[15].pubkey = live_input_mint;
-                }
-                if accounts[16].pubkey != live_output_mint {
-                    warn!(ccs=%accounts[16].pubkey, live=%live_output_mint, "[REVEAL] account[16] (outputMint) mismatch");
-                    accounts[16].pubkey = live_output_mint;
-                }
-                if accounts[23].pubkey != live_output_mint {
-                    accounts[23].pubkey = live_output_mint;
-                }
+                override_acct(
+                    &mut accounts,
+                    15,
+                    live_input_mint,
+                    "account[15] (inputMint)",
+                );
+                override_acct(
+                    &mut accounts,
+                    16,
+                    live_output_mint,
+                    "account[16] (outputMint)",
+                );
+                accounts[23].pubkey = live_output_mint;
 
                 // Derive ATA accounts from locally-known authoritative values so stale CCS
                 // entries can't cause address constraint failures.
@@ -712,27 +788,70 @@ async fn build_instruction(
                 let live_recipient_output_ata =
                     derive_ata(&recipient_pubkey, &live_output_mint, &output_token_prog);
 
-                if accounts[1].pubkey != live_pda_input_ata {
-                    warn!(ccs=%accounts[1].pubkey, live=%live_pda_input_ata, "[REVEAL] account[1] (pda_input_ata) mismatch");
-                    accounts[1].pubkey = live_pda_input_ata;
-                }
-                if accounts[7].pubkey != live_pda_input_ata {
-                    accounts[7].pubkey = live_pda_input_ata;
-                }
-                if accounts[8].pubkey != live_pda_output_ata {
-                    warn!(ccs=%accounts[8].pubkey, live=%live_pda_output_ata, "[REVEAL] account[8] (pda_output_ata) mismatch");
-                    accounts[8].pubkey = live_pda_output_ata;
-                }
-                if accounts[21].pubkey != live_pda_output_ata {
-                    accounts[21].pubkey = live_pda_output_ata;
-                }
-                if accounts[22].pubkey != live_recipient_output_ata {
-                    warn!(ccs=%accounts[22].pubkey, live=%live_recipient_output_ata, "[REVEAL] account[22] (recipient_output_ata) mismatch");
-                    accounts[22].pubkey = live_recipient_output_ata;
-                }
+                override_acct(
+                    &mut accounts,
+                    1,
+                    live_pda_input_ata,
+                    "account[1] (pda_input_ata)",
+                );
+                accounts[7].pubkey = live_pda_input_ata;
+                override_acct(
+                    &mut accounts,
+                    8,
+                    live_pda_output_ata,
+                    "account[8] (pda_output_ata)",
+                );
+                accounts[21].pubkey = live_pda_output_ata;
+                let fee_payer_pubkey = ctx.fee_payer.pubkey();
+                let output_is_native_sol = live_output_mint == WSOL_MINT;
 
-                // Build idempotent ATA creates: CLMM output ATA and recipient output ATA
-                // must exist before the reveal instruction executes.
+                // For native SOL output: account[22] must be the fee_payer's wSOL ATA
+                // (not the recipient's). The UR SWEEP moves PDA wSOL → fee_payer wSOL ATA,
+                // then a CloseAccount ix below unwraps it → native SOL to recipient.
+                let (ata_second, maybe_close_ix) = if output_is_native_sol {
+                    let fee_payer_wsol_ata =
+                        derive_ata(&fee_payer_pubkey, &WSOL_MINT, &SPL_TOKEN_PROGRAM);
+                    override_acct(
+                        &mut accounts,
+                        22,
+                        fee_payer_wsol_ata,
+                        "account[22] (fee_payer_wsol_ata for SOL output)",
+                    );
+                    let ata_ix = make_ata_ix(
+                        &fee_payer_pubkey,
+                        &fee_payer_wsol_ata,
+                        &fee_payer_pubkey,
+                        &WSOL_MINT,
+                        &SPL_TOKEN_PROGRAM,
+                    );
+                    let close_ix = make_close_account_ix(
+                        &fee_payer_wsol_ata,
+                        &recipient_pubkey,
+                        &fee_payer_pubkey,
+                    );
+                    info!(
+                        fee_payer_wsol_ata = %fee_payer_wsol_ata,
+                        recipient = %recipient_pubkey,
+                        "[REVEAL] SOL output: fee_payer wSOL ATA will be closed → native SOL to recipient"
+                    );
+                    (ata_ix, Some(close_ix))
+                } else {
+                    override_acct(
+                        &mut accounts,
+                        22,
+                        live_recipient_output_ata,
+                        "account[22] (recipient_output_ata)",
+                    );
+                    let ata_ix = make_ata_ix(
+                        &fee_payer_pubkey,
+                        &live_recipient_output_ata,
+                        &recipient_pubkey,
+                        &live_output_mint,
+                        &output_token_prog,
+                    );
+                    (ata_ix, None)
+                };
+
                 let ata_pda_output = make_ata_ix(
                     &fee_payer_pubkey,
                     &live_pda_output_ata,
@@ -740,17 +859,10 @@ async fn build_instruction(
                     &live_output_mint,
                     &output_token_prog,
                 );
-                let ata_recipient = make_ata_ix(
-                    &fee_payer_pubkey,
-                    &live_recipient_output_ata,
-                    &recipient_pubkey,
-                    &live_output_mint,
-                    &output_token_prog,
-                );
 
                 info!(
                     pda_output_ata = %live_pda_output_ata,
-                    recipient_output_ata = %live_recipient_output_ata,
+                    output_is_native_sol,
                     "[REVEAL] ATA creation instructions prepared"
                 );
 
@@ -759,7 +871,11 @@ async fn build_instruction(
                     accounts,
                     data,
                 };
-                return Ok(vec![ata_pda_output, ata_recipient, reveal_ix]);
+                let mut ixs = vec![ata_pda_output, ata_second, reveal_ix];
+                if let Some(close_ix) = maybe_close_ix {
+                    ixs.push(close_ix);
+                }
+                return Ok(ixs);
             }
             Err(e) => {
                 warn!(

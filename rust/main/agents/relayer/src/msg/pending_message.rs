@@ -438,23 +438,6 @@ impl PendingOperation for PendingMessage {
                                 ConfirmReason::AlreadySubmitted,
                             );
                         }
-                        // Re-check delivered(): simulation and the earlier delivered() call may
-                        // have hit different RPC nodes at slightly different states.  If the
-                        // message is now delivered, skip the reprepare loop and fire on_delivered.
-                        if let Ok(true) = self
-                            .ctx
-                            .destination_mailbox
-                            .delivered(self.message.id())
-                            .await
-                        {
-                            debug!("Message delivered (detected after simulation failure), marking as submitted.");
-                            self.ctx.destination_mailbox.on_delivered(&self.message);
-                            self.submitted = true;
-                            self.set_next_attempt_after(CONFIRM_DELAY);
-                            return PendingOperationResult::Confirm(
-                                ConfirmReason::AlreadySubmitted,
-                            );
-                        }
                         warn!(
                             message_id = ?self.message.id(),
                             error = %e,
