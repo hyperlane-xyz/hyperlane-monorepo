@@ -7,6 +7,7 @@
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
     "build:zk": "turbo run build:zk",
+    "check": "turbo run check",
     "clean": "turbo run clean",
     "format": "turbo run format && pnpm exec tsx ./scripts/sort-yaml.ts",
     "format:check": "oxfmt --ignore-path .gitignore --check . && pnpm exec tsx ./scripts/sort-yaml.ts --check && prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'",
