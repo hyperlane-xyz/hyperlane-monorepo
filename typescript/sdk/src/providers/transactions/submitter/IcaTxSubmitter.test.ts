@@ -133,4 +133,30 @@ describe('EvmIcaTxSubmitter.submit', () => {
     expect(forwarded.from).to.equal(bytes32ToAddress(owner));
     expect(forwarded.from).to.not.equal(deployer);
   });
+
+  it('preserves the IGP quote `value` on the forwarded callRemote tx', async () => {
+    mockApp.estimateIcaHandleGas.resolves(BigNumber.from(150_000));
+    // Realistic path: getCallRemote attaches the IGP quote as the tx value.
+    const quote = BigNumber.from('123456789');
+    mockApp.getCallRemote.resolves({
+      to: randomAddress(),
+      data: '0x',
+      value: quote,
+    });
+
+    const { chainId: destChainId } =
+      multiProvider.getChainMetadata(destination);
+    const tx = {
+      to: randomAddress(),
+      data: '0x1234',
+      chainId: destChainId,
+    };
+
+    await makeSubmitter().submit(tx);
+
+    const forwarded = mockSubmitter.submit.firstCall.args[0];
+    expect(forwarded.value).to.equal(quote);
+    // The `from` override must not clobber other populated fields.
+    expect(forwarded.from).to.equal(bytes32ToAddress(owner));
+  });
 });

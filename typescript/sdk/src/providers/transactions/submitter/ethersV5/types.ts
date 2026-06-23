@@ -73,9 +73,21 @@ export type EvmIcaTxSubmitterProps = {
 // submitter as `internalSubmitter`; see cli/src/submitters/types.ts). The nested
 // schema is read through a thunk so a union declared later in module load order
 // (e.g. EvmSubmitterMetadataSchema) can be referenced without a TDZ error. TOut is
-// the resulting parsed type, supplied explicitly by the caller.
-export const buildEvmIcaTxSubmitterPropsSchema = <TOut>(
-  getInternalSubmitterSchema: () => z.ZodTypeAny,
+// the resulting parsed type, supplied explicitly by the caller; the thunk is
+// constrained to a schema parsing exactly TOut's `internalSubmitter`, so the
+// type<->schema linkage can't be broken by passing an unrelated schema.
+export const buildEvmIcaTxSubmitterPropsSchema = <
+  TOut extends { internalSubmitter: unknown },
+>(
+  // Output type is pinned to TOut's nested submitter so a mismatched schema (e.g.
+  // `() => z.string()`) is rejected; the input type stays open because zod infers
+  // a different input than output for fields with defaults (e.g. GnosisTxBuilder
+  // `version`), and the union's input would otherwise not satisfy ZodSchema<T>.
+  getInternalSubmitterSchema: () => z.ZodType<
+    TOut['internalSubmitter'],
+    z.ZodTypeDef,
+    any
+  >,
 ): z.ZodSchema<TOut> =>
   // @ts-expect-error due to zod3 type inference logic even if the
   // EV5GnosisSafeTxBuilderPropsSchema defines the version field with a default value
@@ -109,8 +121,16 @@ export type EvmTimelockControllerSubmitterProps = {
   proposerSubmitter: EvmSubmitterMetadata;
 };
 
-export const buildEvmTimelockControllerSubmitterPropsSchema = <TOut>(
-  getProposerSubmitterSchema: () => z.ZodTypeAny,
+export const buildEvmTimelockControllerSubmitterPropsSchema = <
+  TOut extends { proposerSubmitter: unknown },
+>(
+  // See buildEvmIcaTxSubmitterPropsSchema: output pinned to the nested submitter,
+  // input left open due to zod default-field input/output divergence.
+  getProposerSubmitterSchema: () => z.ZodType<
+    TOut['proposerSubmitter'],
+    z.ZodTypeDef,
+    any
+  >,
 ): z.ZodSchema<TOut> =>
   // @ts-expect-error same as the ICA
   z.lazy(() =>

@@ -177,24 +177,25 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   }
   // Thread additionalSubmitterFactories through nested submitter resolution
   // (e.g. an ICA/timelock submitter resolving its internalSubmitter) so custom
-  // factories like the CLI's `file` submitter remain available recursively.
-  const nestedGetSubmitter: SubmitterGetter = (
+  // factories like the CLI's `file` submitter remain available recursively. The
+  // parent's factories are always merged in so a nested caller passing its own
+  // (or an empty) factory map can never drop them and re-introduce the bug at
+  // recursion depth >= 2.
+  const getSubmitterWithInheritedFactories: SubmitterGetter = (
     nestedMultiProvider,
     nestedMetadata,
     nestedCoreAddresses,
     nestedFactories,
   ) =>
-    getSubmitter(
-      nestedMultiProvider,
-      nestedMetadata,
-      nestedCoreAddresses,
-      nestedFactories ?? additionalSubmitterFactories,
-    );
+    getSubmitter(nestedMultiProvider, nestedMetadata, nestedCoreAddresses, {
+      ...additionalSubmitterFactories,
+      ...nestedFactories,
+    });
 
   return factory(
     multiProvider,
     submitterMetadata,
     coreAddressesByChain,
-    nestedGetSubmitter,
+    getSubmitterWithInheritedFactories,
   );
 }

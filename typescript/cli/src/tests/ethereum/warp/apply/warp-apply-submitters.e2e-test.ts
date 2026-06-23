@@ -17,6 +17,7 @@ import {
   type SubmissionStrategy,
   TokenType,
   TxSubmitterType,
+  type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -24,6 +25,7 @@ import {
   type Domain,
   ProtocolType,
   assert,
+  bytes32ToAddress,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -81,6 +83,10 @@ describe('hyperlane warp apply with submitters', async function () {
   const ICA_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/ica-file-submitter-output.json`;
   const TIMELOCK_FILE_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-file-strategy.yaml`;
   const TIMELOCK_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/timelock-file-submitter-output.json`;
+  const ICA_SAFE_FILE_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/ica-safe-file-strategy.yaml`;
+  const ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/ica-safe-file-submitter-output.json`;
+  const TIMELOCK_ICA_FILE_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-ica-file-strategy.yaml`;
+  const TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH = `${TEMP_PATH}/timelock-ica-file-submitter-output.json`;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -149,6 +155,40 @@ describe('hyperlane warp apply with submitters', async function () {
     );
 
     return warpDeployConfig;
+  }
+
+  // Reads the deployed synthetic warp token address on chain3 from the exported
+  // warp core config, so payload-decoding assertions can check the inner call
+  // actually targets the warp token rather than just any address.
+  function getChain3WarpTokenAddress(): Address {
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH,
+    );
+    const chain3Token = warpCoreConfig.tokens.find(
+      (token) =>
+        token.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    );
+    assert(
+      chain3Token?.addressOrDenom,
+      'expected a chain3 warp token address in the warp core config',
+    );
+    return chain3Token.addressOrDenom;
+  }
+
+  // Derives the chain3 interchain account owned by `owner` (origin chain2), used
+  // to set the warp token owner so warp apply routes the update through the ICA.
+  async function deriveChain3Ica(owner: Address): Promise<Address> {
+    const chain2IcaRouter = InterchainAccountRouter__factory.connect(
+      chain2Addresses.interchainAccountRouter,
+      chain2Signer,
+    );
+    return chain2IcaRouter.callStatic[
+      'getRemoteInterchainAccount(address,address,address)'
+    ](
+      owner,
+      chain3Addresses.interchainAccountRouter,
+      ethers.constants.AddressZero,
+    );
   }
 
   before(async function () {
@@ -417,6 +457,118 @@ describe('hyperlane warp apply with submitters', async function () {
         timelockInstance.address.toLowerCase(),
       );
       expect(proposeTx.data).to.be.a('string').that.is.not.empty;
+
+      // Decode the payload: it must be a scheduleBatch whose single inner
+      // target is the chain3 warp token being updated.
+      const decoded =
+        TimelockController__factory.createInterface().parseTransaction({
+          data: proposeTx.data,
+        });
+      expect(decoded.name).to.equal('scheduleBatch');
+      const [targets] = decoded.args;
+      expect(targets).to.have.lengthOf(1);
+      expect(targets[0].toLowerCase()).to.equal(
+        getChain3WarpTokenAddress().toLowerCase(),
+      );
+    });
+
+    it('should thread the file submitter through a timelock -> ICA -> file composite (depth 2)', async () => {
+      if (existsSync(TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH)) {
+        rmSync(TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH);
+      }
+
+      // Own the warp token with the timelock; the timelock's proposer is the
+      // chain3 ICA (owned by the deployer), which itself writes to a file. This
+      // exercises the custom `file` factory at recursion depth 2 — the exact
+      // case the threading fix protects.
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = timelockInstance.address;
+      await deployAndExportWarpRoute();
+
+      const timelockIcaFileStrategy: ExtendedChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            timelockAddress: timelockInstance.address,
+            proposerSubmitter: {
+              type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+              chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+              destinationChain:
+                TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+              owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+              internalSubmitter: {
+                type: CustomTxSubmitterType.FILE,
+                chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+                filepath: TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH,
+              },
+            },
+          },
+        },
+      };
+      writeYamlOrJson(
+        TIMELOCK_ICA_FILE_SUBMITTER_STRATEGY_PATH,
+        timelockIcaFileStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '900',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: TIMELOCK_ICA_FILE_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(res.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
+
+      // The depth-2 file submitter must have written the ICA callRemote that
+      // wraps the timelock scheduleBatch.
+      const callRemoteTxs: Array<CallData & { from: string }> = readYamlOrJson(
+        TIMELOCK_ICA_FILE_SUBMITTER_OUTPUT_PATH,
+      );
+      expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
+      const [callRemoteTx] = callRemoteTxs;
+      // callRemote is sent to the origin-chain InterchainAccountRouter and the
+      // self-describing `from` is the ICA owner (the deployer).
+      expect(callRemoteTx.to.toLowerCase()).to.equal(
+        chain2Addresses.interchainAccountRouter.toLowerCase(),
+      );
+      expect(callRemoteTx.from.toLowerCase()).to.equal(
+        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
+      );
+
+      // The ICA inner call targets the timelock (scheduleBatch), whose own inner
+      // target is the chain3 warp token.
+      const decodedCallRemote =
+        InterchainAccountRouter__factory.createInterface().parseTransaction({
+          data: callRemoteTx.data,
+        });
+      expect(decodedCallRemote.name).to.equal('callRemoteWithOverrides');
+      const icaInnerCalls = decodedCallRemote.args[3];
+      expect(icaInnerCalls).to.have.lengthOf(1);
+      expect(bytes32ToAddress(icaInnerCalls[0].to).toLowerCase()).to.equal(
+        timelockInstance.address.toLowerCase(),
+      );
+
+      const decodedSchedule =
+        TimelockController__factory.createInterface().parseTransaction({
+          data: icaInnerCalls[0].data,
+        });
+      expect(decodedSchedule.name).to.equal('scheduleBatch');
+      const [scheduleTargets] = decodedSchedule.args;
+      expect(scheduleTargets).to.have.lengthOf(1);
+      expect(scheduleTargets[0].toLowerCase()).to.equal(
+        getChain3WarpTokenAddress().toLowerCase(),
+      );
     });
   });
 
@@ -508,7 +660,7 @@ describe('hyperlane warp apply with submitters', async function () {
 
       // The ICA collapses the warp update into a single callRemote, which the
       // file submitter must write to the output file.
-      const callRemoteTxs: CallData[] = readYamlOrJson(
+      const callRemoteTxs: Array<CallData & { from: string }> = readYamlOrJson(
         ICA_FILE_SUBMITTER_OUTPUT_PATH,
       );
       expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
@@ -518,6 +670,91 @@ describe('hyperlane warp apply with submitters', async function () {
         chain2Addresses.interchainAccountRouter.toLowerCase(),
       );
       expect(callRemoteTx.data).to.be.a('string').that.is.not.empty;
+
+      // `from` must be the configured ICA owner (here the deployer), not the
+      // signer that populated the tx — callRemote derives the ICA from msg.sender.
+      expect(callRemoteTx.from.toLowerCase()).to.equal(
+        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
+      );
+
+      // Decode the payload: it must be a callRemoteWithOverrides whose single
+      // inner call targets the chain3 warp token.
+      const decoded =
+        InterchainAccountRouter__factory.createInterface().parseTransaction({
+          data: callRemoteTx.data,
+        });
+      expect(decoded.name).to.equal('callRemoteWithOverrides');
+      const innerCalls = decoded.args[3];
+      expect(innerCalls).to.have.lengthOf(1);
+      expect(bytes32ToAddress(innerCalls[0].to).toLowerCase()).to.equal(
+        getChain3WarpTokenAddress().toLowerCase(),
+      );
+    });
+
+    it('should write a callRemote with `from` set to a Safe owner when the ICA owner is a multisig', async () => {
+      if (existsSync(ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH)) {
+        rmSync(ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH);
+      }
+
+      // Own the warp token with the ICA derived from the Safe so warp apply
+      // routes the update through the (Safe-owned) ICA submitter.
+      const safeIcaAddress = await deriveChain3Ica(safeAddress);
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = safeIcaAddress;
+      await deployAndExportWarpRoute();
+
+      const icaSafeFileStrategy: ExtendedChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+            destinationChain:
+              TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            owner: safeAddress,
+            internalSubmitter: {
+              type: CustomTxSubmitterType.FILE,
+              chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+              filepath: ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH,
+            },
+          },
+        },
+      };
+      writeYamlOrJson(
+        ICA_SAFE_FILE_SUBMITTER_STRATEGY_PATH,
+        icaSafeFileStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '46000',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: ICA_SAFE_FILE_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(res.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
+
+      const callRemoteTxs: Array<CallData & { from: string }> = readYamlOrJson(
+        ICA_SAFE_FILE_SUBMITTER_OUTPUT_PATH,
+      );
+      expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
+      const [callRemoteTx] = callRemoteTxs;
+      // The self-describing `from` must be the Safe, not the deployer signer.
+      expect(callRemoteTx.from.toLowerCase()).to.equal(
+        safeAddress.toLowerCase(),
+      );
+      expect(callRemoteTx.from.toLowerCase()).to.not.equal(
+        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
+      );
     });
   });
 
