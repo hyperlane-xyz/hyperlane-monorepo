@@ -50,6 +50,8 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
+// Maximum entries in seen_reveal_commitments before evicting the oldest half.
+const SEEN_REVEAL_MAX: usize = 1_000;
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -584,36 +586,6 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
-        // Spawn the reveal task before simulation runs so it fires even when
-        // CommitmentAlreadySet causes the simulation to fail (meaning another
-        // relayer already delivered). The task polls internally for the
-        // pending_swap PDA, so it is safe to fire before the commit lands.
-        if let Some(ref cfg) = self.ur_reveal {
-            if message.body.len() == 96 {
-                #[allow(clippy::unwrap_used)]
-                let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
-                let is_new = self
-                    .seen_reveal_commitments
-                    .lock()
-                    .unwrap()
-                    .insert(commitment);
-                if is_new {
-                    match self.get_payer() {
-                        Ok(payer) => maybe_spawn_reveal(
-                            message,
-                            cfg,
-                            self.provider.rpc_client().clone(),
-                            self.priority_fee_oracle.clone(),
-                            payer.clone(),
-                        ),
-                        Err(e) => {
-                            tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
-                        }
-                    }
-                }
-            }
-        }
-
         // Getting a process payload in Sealevel is a pretty expensive operation
         // that involves some view calls. Consider reusing the payload with subsequent
         // calls to `process` to avoid this cost.
@@ -663,20 +635,33 @@ impl Mailbox for SealevelMailbox {
             if message.body.len() == 96 {
                 #[allow(clippy::unwrap_used)]
                 let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
-                let is_new = self
+                // Check before acquiring payer so a transient get_payer() failure
+                // doesn't permanently mark the commitment as seen.
+                let already_seen = self
                     .seen_reveal_commitments
                     .lock()
                     .unwrap()
-                    .insert(commitment);
-                if is_new {
+                    .contains(&commitment);
+                if !already_seen {
                     match self.get_payer() {
-                        Ok(payer) => maybe_spawn_reveal(
-                            message,
-                            cfg,
-                            self.provider.rpc_client().clone(),
-                            self.priority_fee_oracle.clone(),
-                            payer.clone(),
-                        ),
+                        Ok(payer) => {
+                            let mut set = self.seen_reveal_commitments.lock().unwrap();
+                            // Evict oldest half when the set grows large to bound memory.
+                            if set.len() >= SEEN_REVEAL_MAX {
+                                let keep: std::collections::HashSet<_> =
+                                    set.iter().cloned().skip(set.len() / 2).collect();
+                                *set = keep;
+                            }
+                            set.insert(commitment);
+                            drop(set);
+                            maybe_spawn_reveal(
+                                message,
+                                cfg,
+                                self.provider.rpc_client().clone(),
+                                self.priority_fee_oracle.clone(),
+                                payer.clone(),
+                            );
+                        }
                         Err(e) => {
                             tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
                         }

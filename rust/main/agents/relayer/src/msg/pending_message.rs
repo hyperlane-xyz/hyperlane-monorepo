@@ -267,8 +267,6 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
-        self.ctx.destination_mailbox.on_delivered(&self.message);
-
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
@@ -285,6 +283,7 @@ impl PendingOperation for PendingMessage {
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
@@ -538,6 +537,7 @@ impl PendingOperation for PendingMessage {
                 return self
                     .on_reconfirm(Some(err), "Error when recording message process success");
             }
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             info!(
                 submission=?self.submission_outcome,
                 "Message successfully processed"

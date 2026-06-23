@@ -306,11 +306,11 @@ pub fn maybe_spawn_reveal(
         let pending_swap_pda =
             derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
 
-        // Phase 1: wait for the pending_swap PDA to appear on-chain.
-        // The reveal task may be spawned before the commit tx is confirmed
-        // (e.g. when another relayer delivers it), so we poll rather than
-        // aborting immediately on None.  Give up after ~10 min (120 × 5 s).
-        const PDA_WAIT_MAX_ITERS: u32 = 120;
+        // Phase 1: confirm the pending_swap PDA is visible at confirmed commitment.
+        // The task is spawned from on_delivered, so the commit is already confirmed —
+        // the PDA should exist immediately. A short retry window handles RPC propagation
+        // lag. If the PDA has tx history but is gone, it was already revealed; stop.
+        const PDA_WAIT_MAX_ITERS: u32 = 5; // 5 × 5s = 25s propagation grace
         let mut pda_wait_iters: u32 = 0;
         loop {
             match rpc_client
@@ -318,14 +318,10 @@ pub fn maybe_spawn_reveal(
                 .await
             {
                 Ok(Some(_)) => {
-                    info!(commitment = %commitment_hex, %pending_swap_pda, "[REVEAL] PDA appeared; proceeding to token wait");
+                    info!(commitment = %commitment_hex, %pending_swap_pda, "[REVEAL] PDA confirmed; proceeding to token wait");
                     break;
                 }
                 Ok(None) => {
-                    // Check if this PDA ever existed. If there's any transaction
-                    // history it was created and then consumed by a successful reveal —
-                    // either by us on a prior run or by another relayer. Stop immediately
-                    // rather than waiting the full 10-min timeout.
                     match rpc_client
                         .get_signatures_for_address_with_limit(pending_swap_pda, 1)
                         .await
@@ -334,21 +330,21 @@ pub fn maybe_spawn_reveal(
                             info!(
                                 commitment = %commitment_hex,
                                 %pending_swap_pda,
-                                "[REVEAL] PDA is gone and has transaction history — reveal already completed; stopping"
+                                "[REVEAL] PDA gone with tx history — already revealed; stopping"
                             );
                             return;
                         }
-                        Ok(_) => {} // no history yet, commit hasn't landed
+                        Ok(_) => {}
                         Err(e) => {
-                            warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA history; assuming not yet created");
+                            warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA history");
                         }
                     }
                     pda_wait_iters += 1;
                     if pda_wait_iters >= PDA_WAIT_MAX_ITERS {
-                        info!(
+                        warn!(
                             commitment = %commitment_hex,
                             %pending_swap_pda,
-                            "[REVEAL] PDA never appeared after {}s; commit may not have landed; stopping",
+                            "[REVEAL] PDA not visible after {}s post-confirmation; stopping",
                             PDA_WAIT_MAX_ITERS * 5
                         );
                         return;
@@ -357,7 +353,7 @@ pub fn maybe_spawn_reveal(
                         commitment = %commitment_hex,
                         %pending_swap_pda,
                         wait_iters = pda_wait_iters,
-                        "[REVEAL] PDA not yet visible; waiting 5s for commit to land"
+                        "[REVEAL] PDA not yet visible; retrying in 5s"
                     );
                 }
                 Err(e) => {
@@ -370,6 +366,10 @@ pub fn maybe_spawn_reveal(
         // Phase 2: fetch CCS to learn the pda_input_ata address (accounts[1]) and
         // poll for a non-zero token balance.  We must not build the full reveal tx
         // (pool state RPC, tick arrays, etc.) until the warp tokens have landed.
+        // Bail after 30 min (360 × 5s) to surface stuck swaps — the warp transfer
+        // should arrive in seconds; anything longer indicates a failed inbound leg.
+        const TOKEN_WAIT_MAX_ITERS: u32 = 360;
+        let mut token_wait_iters: u32 = 0;
         loop {
             // Bail early if PDA is already gone.
             match rpc_client
@@ -451,6 +451,16 @@ pub fn maybe_spawn_reveal(
                 }
             }
 
+            token_wait_iters += 1;
+            if token_wait_iters >= TOKEN_WAIT_MAX_ITERS {
+                error!(
+                    commitment = %commitment_hex,
+                    %pending_swap_pda,
+                    "[REVEAL] Warp tokens never arrived after {}s; inbound transfer may be stuck; stopping",
+                    TOKEN_WAIT_MAX_ITERS * 5
+                );
+                return;
+            }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
 
