@@ -194,6 +194,16 @@ Save this address — it is used as the `hook` field in Step 4.
 
 Compose the deploy.yaml using the extracted details and mailbox addresses.
 
+**Canonical schema files — read these before authoring nested ISM / hook / fee configs.** A `deploy.yaml` that fails Zod validation never reaches on-chain state — `warp apply` rejects it at parse time, but the resulting error output is voluminous; start from a correct shape:
+
+- Per-chain router config (token type + ISM + hook + fee + proxyAdmin + remoteRouters + destinationGas): `typescript/sdk/src/token/types.ts` — `HypTokenRouterConfigSchema` is the per-chain entry; `HypTokenConfig` is the token-type discriminated union (collateral, native, synthetic, xerc20, opL1/L2, cctp, everclear, depositAddress, crossCollateral, unknown).
+- ISMs: `typescript/sdk/src/ism/types.ts` — `IsmConfigSchema` union, plus per-type schemas (`PausableIsmConfigSchema`, `RateLimitedIsmConfigSchema`, `AggregationIsmConfigSchema`, `RoutingIsmConfigSchema`, etc.). Threshold semantics: `staticAggregationIsm` with `threshold = modules.length` is AND across all modules; `threshold: 1` is OR.
+- Hooks: `typescript/sdk/src/hook/types.ts` — `HookConfigSchema` union. Note `defaultHook` is the sentinel that means "use mailbox default"; `fallbackRoutingHook` is the standard pattern for "default hook on most chains, custom hook on a specific chain".
+- Fees: `typescript/sdk/src/fee/types.ts` — `TokenFeeConfigSchema` discriminated union (`LinearFee`, `OffchainQuotedLinearFee`, `RoutingFee`, `CrossCollateralRoutingFee`, etc.). `RoutingFee` is the outer wrapper that maps destination chain → inner `LinearFee`; the `bps` field on `LinearFee` is immutable at the contract level so a bps edit redeploys the contract.
+- Shared mixins: `typescript/sdk/src/types.ts` — `OwnableSchema` (`owner` + optional `ownerOverrides`) and `PausableSchema` (Ownable + `paused: boolean`). Many ISM / hook configs extend these, so `owner` is required on more types than the schema name alone suggests.
+
+Reference existing production deploy.yamls in the registry (`deployments/warp_routes/*/*-deploy.yaml`) — grep for the token type, ISM composition, or hook pattern you want, then copy the canonical shape.
+
 **Multi-collateral format** (multiple collateral chains + one synthetic): same as standard but repeated for each collateral chain, each with its own `token` address and `owner`:
 
 ```yaml
