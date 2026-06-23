@@ -128,7 +128,22 @@ Always prefer the `warp read` value when present — it's the canonical source.
 
 Owner classification is **open-set** — the auto-detection rules only cover a few shapes; for everything else the user supplies the type. Do NOT assume contract-not-Safe is necessarily an ICA. Real-world owners include Hyperlane ICAs, Gnosis Safes, Squads multisigs, Turnkey wallets, Privy embedded wallets, other MPC wallet contracts, custom non-Gnosis multisigs, timelocks, and one-off bespoke owners.
 
-For each unique owner address, run the following sequence:
+For each unique owner address, run the following sequence.
+
+### 4.0: Probe Shortcut — Match Against Known Hyperlane Governance Maps
+
+Most Hyperlane-owned warp routes have owners that already live in the canonical governance config in `typescript/infra/config/environments/mainnet3/governance/`. The Safe / ICA / timelock / ProxyAdmin maps there are the source of truth for those addresses across all chains, organized by governance group (AW / Foundation warpFees / Regular / Irregular / oUSDT). Use them as a probe shortcut — a direct match means you can skip the on-chain `cast` and `hyperlane ica deploy` calls in 4a–4c and resolve the type from the map directly.
+
+Read the lookup helpers in `typescript/infra/config/environments/mainnet3/governance/utils.ts` (`getGovernanceSafes`, `getGovernanceIcas`, `getSafesByGovernanceForChain`, `getGovernanceTimelocks`, `getWarpFeeOwner`) and the per-group address maps in `safe/`, `ica/`, `timelock/`, `proxy-admin/`. For each owner address being classified:
+
+- Match in `safe/<group>.ts[chain]` → `type: Safe`. Skip 4b's `VERSION()` probe.
+- Match in `ica/<group>.ts[chain]` → `type: ICA`, `origin: ethereum`, `controllingOwner: <safe-from-the-same-group-on-ethereum>`. Skip 4c's `hyperlane ica deploy` derivation — the map already encodes the deterministic result. Still run 4c.1 to classify the controller (it'll usually match `safe/<group>.ts[ethereum]` and short-circuit too).
+- Match in `timelock/<group>.ts[chain]` → `type: Timelock`, and record the underlying owner from the same group's Safe map as the resolution target.
+- Match in `proxy-admin/<group>.ts[chain]` → informational annotation that the artifact's ProxyAdmin is the canonical one; the ProxyAdmin's _own_ owner is classified separately.
+
+If no map matches, fall through to 4a–4d for on-chain detection. The governance maps are a cache of the most common Hyperlane-controlled cases, **not exhaustive** — customer routes, ad-hoc owners, third-party-controlled addresses, and any non-Hyperlane warp route won't be there. Don't assume a non-match means "wrong" — it just means the address isn't in this monorepo's governance config.
+
+You MAY add a free-form governance label (e.g. `details: "matched awSafes[arbitrum]"`) to the artifact's owner record when a map matches, to make the resolution table more readable. The schema does NOT require a structured `governanceType` field — many warp routes aren't governance-controlled at all.
 
 ### 4a. Is the owner an EOA?
 
@@ -163,8 +178,49 @@ pnpm --silent -C typescript/cli hyperlane ica deploy \
 
 This command is idempotent and read-mostly: it prints the deterministic ICA address derived from `(ethereum, ethereum-leg-owner, ICA router on <this-chain>, ISM)`. No tx is sent if the ICA already exists.
 
-- If the derived address **matches** the on-chain owner: classify as `type: ICA`, `origin: ethereum`, `controllingOwner: <ethereum-leg-owner>`. Done.
+- If the derived address **matches** the on-chain owner: classify as `type: ICA`, `origin: ethereum`, `controllingOwner: <ethereum-leg-owner>`. Then proceed to 4c.1 to classify the controller itself.
 - If the derived address **does not match** OR ethereum isn't in the route: fall through to 4d. The owner could still be an ICA controlled from a different chain, OR something else entirely.
+
+### 4c.1. Classify the controller (always — when the owner is an ICA)
+
+Recording `controllingOwner: <address>` is not enough. Downstream `/warp-update` Step 4a needs to know _what kind of account_ the controller is — Safe, EOA, another ICA, Squads, MPC wallet, etc. — to pick the right `internalSubmitter` for the `interchainAccount` strategy.
+
+First, check the governance maps again (from 4.0) against the controller address on its origin chain — most controllers in Hyperlane-owned routes are Safes that already live in `safe/<type>.ts`. A direct match yields `controllerType: Safe` + `controllerGovernanceType: <type>` without any on-chain probe.
+
+If no governance map matches, recursively apply the heuristics from 4a and 4b against the `controllingOwner` on its origin chain:
+
+```bash
+# Is the controllingOwner a contract on origin?
+cast code <controllingOwner> --rpc-url <origin-rpc>
+
+# If yes, is it a Gnosis Safe?
+cast call <controllingOwner> "VERSION()(string)" --rpc-url <origin-rpc>
+```
+
+Auto-detectable outcomes:
+
+- `cast code` returned bytecode AND `VERSION()` returned a Gnosis Safe version string → `controllerType: Safe`. This is the most common case for production warp routes (AW Safe / Foundation Safe / customer Safes control most ICAs).
+- `cast code` returned `0x` → `controllerType: EOA`. Common for test routes, contributor EOAs, or one-off setups.
+
+**If the controller is a contract but neither a Safe nor anything else the skill can determine on its own, halt and ASK THE USER inline — do not record `Unknown` and defer to downstream.** Open-set classification belongs here, in the foundation skill, not buried in a downstream propose failure that's hard to recover from. The controller could be another ICA (recursive — re-apply 4c against it), a Squads multisig (on SVM origins), a Turnkey wallet, a Privy embedded wallet, an MPC wallet, a custom multisig, a timelock, or something bespoke. Don't guess.
+
+Halt message shape:
+
+> _"Controller of ICA `<owner-address>` on `<this-chain>` is `<controllingOwner>` on `<origin-chain>` — contract, not a Gnosis Safe. I can't classify it autonomously. What is it? Options: another ICA (supply its origin chain + controllingOwner), Squads multisig PDA, Turnkey wallet, Privy embedded wallet, MPC wallet (other), custom multisig, timelock (supply its underlying owner), other — supply a short description. The classification gates downstream submitter choice; I need an answer before persisting."_
+
+```test
+[CONFIRM: Classify controller <controllingOwner> as <user-supplied-type>]
+```
+
+If the user says it's another ICA, recursively apply 4c against the new controller (using the user-supplied origin + controllingOwner). Recursion stops at an EOA, a Safe, or a non-ICA classification.
+
+**Print the resolved controller classification on every ICA artifact** — even (especially) when it's the common controller=Safe case. Making the type explicit is what prevents the unconscious "ICA controllers are always Safes" prior from re-emerging in the _other_ direction either:
+
+> _"arbitrum router owner `0x645F…d875` resolves to ICA(ethereum, controllingOwner=`0x3965…C5b6`); controller is **Safe**. Downstream `interchainAccount` strategy uses `internalSubmitter: gnosisSafeTxBuilder` targeting the controlling Safe on ethereum."_
+
+> _"base proxyAdmin owner `0xC92c…651c` resolves to ICA(ethereum, controllingOwner=`0x3f13…0913`); controller is **EOA**. Downstream `interchainAccount` strategy must use `internalSubmitter: jsonRpc` or `file` — NOT `gnosisSafeTxBuilder`."_
+
+If the same `controllingOwner` is referenced by multiple ICAs in this route, classify it once and reuse; still print the controller line for every artifact that resolves through it.
 
 ### 4d. Ask the user — open-set classification
 
@@ -260,8 +316,9 @@ artifacts:
       address: '0x645FE06507C8a188494d3E755B248a8dbF3bd875'
       type: ICA # Safe | ICA | Squads | Turnkey | Privy | MPC | CustomMultisig | Timelock | Other | Unknown
       origin: ethereum # for ICA only
-      controllingOwner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913' # for ICA only
-      details: null # free-form notes for non-auto-detected types (e.g. Turnkey org ID)
+      controllingOwner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6' # for ICA only — the controller on the origin chain (e.g. AW Safe on ethereum)
+      controllerType: Safe # for ICA only — Safe | EOA | ICA | Squads | Turnkey | Privy | MPC | CustomMultisig | Timelock | Other. Gates downstream `interchainAccount.internalSubmitter` choice.
+      details: null # free-form notes (e.g. Turnkey org ID, governance label if matched against a known map, etc.)
     drift: null # or { expected: '0x...', actual: '0x...', severity: 'warning' }
 
   - chain: arbitrum
@@ -287,7 +344,8 @@ groupedByOwner:
   - owner: '0x645FE06507C8a188494d3E755B248a8dbF3bd875'
     type: ICA
     origin: ethereum
-    controllingOwner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+    controllingOwner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+    controllerType: Safe
     artifacts:
       - { chain: arbitrum, type: router }
       - { chain: arbitrum, type: proxyAdmin }
