@@ -44,6 +44,8 @@ const CCS_MAX_RETRIES: u32 = 10;
 const CCS_RETRY_DELAY_SECS: u64 = 5;
 // Outer send attempts (each gets a fresh blockhash): 3 × ~60s = ~3 min total.
 const SEND_RETRY_MAX: u32 = 3;
+// Per-request timeout for CCS HTTP calls so a slow-responding CCS can't block the task forever.
+const CCS_REQUEST_TIMEOUT_SECS: u64 = 30;
 // Reveal task retry backoff on transient failures (RPC errors, tx not confirmed, fee payer low).
 const REVEAL_INITIAL_RETRY_DELAY_SECS: u64 = 30;
 const REVEAL_MAX_RETRY_DELAY_SECS: u64 = 600; // 10 min
@@ -141,13 +143,16 @@ async fn fetch_clmm_pool_state(
 
 // Mirrors reveal.mjs `getTickArrayStartIndex`.  Uses truncation-towards-zero integer
 // division (Rust default), with an explicit floor correction for negative ticks.
-fn get_tick_array_start_index(tick_current: i32, tick_spacing: i16) -> i32 {
+fn get_tick_array_start_index(tick_current: i32, tick_spacing: i16) -> Result<i32> {
+    if tick_spacing <= 0 {
+        bail!("invalid tick_spacing: {tick_spacing}");
+    }
     let ticks_in_array = 60i32 * tick_spacing as i32;
     let mut start = (tick_current / ticks_in_array) * ticks_in_array;
     if tick_current < 0 && tick_current % ticks_in_array != 0 {
         start -= ticks_in_array;
     }
-    start
+    Ok(start)
 }
 
 // Seeds: [b"tick_array", pool_id (32 bytes), start_index (i32 big-endian)]
@@ -289,7 +294,10 @@ pub fn maybe_spawn_reveal(
 
     tokio::spawn(async move {
         info!(commitment = %commitment_hex, %program_id, "[REVEAL] Task started");
-        let http_client = Client::new();
+        let http_client = Client::builder()
+            .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
+            .build()
+            .expect("HTTP client build failed — invalid configuration");
         let ctx = RevealContext {
             ccs_url: &ccs_url,
             program_id,
@@ -774,10 +782,10 @@ async fn build_instruction(
     let ccs_commitment =
         solana_program::keccak::hashv(&[message.as_slice(), salt.as_ref()]).to_bytes();
     if ccs_commitment != commitment {
-        warn!(
-            expected = %hex::encode(commitment),
-            from_ccs = %hex::encode(ccs_commitment),
-            "[REVEAL] CCS keccak(calldata||salt) does not match message body commitment — CCS data may be stale or wrong"
+        bail!(
+            "CCS keccak(calldata||salt) {} does not match message body commitment {} — CCS data is stale or wrong",
+            hex::encode(ccs_commitment),
+            hex::encode(commitment),
         );
     }
 
@@ -946,7 +954,7 @@ async fn build_instruction(
 
                 let ticks_in_array = 60i32 * pool_state.tick_spacing as i32;
                 let ta0_start =
-                    get_tick_array_start_index(pool_state.tick_current, pool_state.tick_spacing);
+                    get_tick_array_start_index(pool_state.tick_current, pool_state.tick_spacing)?;
                 // Forward progression matches UI's buildClmmAccounts formula.
                 let ta1_start = ta0_start + ticks_in_array;
                 let ta2_start = ta0_start + 2 * ticks_in_array;
@@ -1036,6 +1044,9 @@ async fn build_instruction(
                         fee_payer_wsol_ata,
                         "account[22] (fee_payer_wsol_ata for SOL output)",
                     );
+                    // The ATA is closed atomically in the same tx (step 3 below), so it is
+                    // always empty or non-existent at the start of each reveal — no pre-existing
+                    // balance can accumulate from the reveal flow itself.
                     let ata_ix = make_ata_ix(
                         &fee_payer_pubkey,
                         &fee_payer_wsol_ata,

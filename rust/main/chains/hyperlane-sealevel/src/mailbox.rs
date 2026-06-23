@@ -635,35 +635,34 @@ impl Mailbox for SealevelMailbox {
             if message.body.len() == 96 {
                 #[allow(clippy::unwrap_used)]
                 let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
-                // Check before acquiring payer so a transient get_payer() failure
-                // doesn't permanently mark the commitment as seen.
-                let already_seen = self
-                    .seen_reveal_commitments
-                    .lock()
-                    .unwrap()
-                    .contains(&commitment);
-                if !already_seen {
-                    match self.get_payer() {
-                        Ok(payer) => {
-                            let mut set = self.seen_reveal_commitments.lock().unwrap();
-                            // Evict oldest half when the set grows large to bound memory.
-                            if set.len() >= SEEN_REVEAL_MAX {
-                                let keep: std::collections::HashSet<_> =
-                                    set.iter().cloned().skip(set.len() / 2).collect();
-                                *set = keep;
+                match self.seen_reveal_commitments.lock() {
+                    Err(e) => {
+                        tracing::warn!(error = ?e, "[REVEAL] seen_reveal_commitments mutex poisoned; skipping reveal");
+                    }
+                    Ok(mut set) => {
+                        if !set.contains(&commitment) {
+                            match self.get_payer() {
+                                Ok(payer) => {
+                                    // Evict oldest half when the set grows large to bound memory.
+                                    if set.len() >= SEEN_REVEAL_MAX {
+                                        let keep: std::collections::HashSet<_> =
+                                            set.iter().cloned().skip(set.len() / 2).collect();
+                                        *set = keep;
+                                    }
+                                    set.insert(commitment);
+                                    drop(set);
+                                    maybe_spawn_reveal(
+                                        message,
+                                        cfg,
+                                        self.provider.rpc_client().clone(),
+                                        self.priority_fee_oracle.clone(),
+                                        payer.clone(),
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
+                                }
                             }
-                            set.insert(commitment);
-                            drop(set);
-                            maybe_spawn_reveal(
-                                message,
-                                cfg,
-                                self.provider.rpc_client().clone(),
-                                self.priority_fee_oracle.clone(),
-                                payer.clone(),
-                            );
-                        }
-                        Err(e) => {
-                            tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
                         }
                     }
                 }

@@ -608,7 +608,11 @@ export class CallCommitmentsService extends BaseService {
       commitmentRateLimit,
       this.handleCalldataPost.bind(this),
     );
-    router.get('/calldata/:commitment', this.handleCalldataGet.bind(this));
+    router.get(
+      '/calldata/:commitment',
+      commitmentRateLimit,
+      this.handleCalldataGet.bind(this),
+    );
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
