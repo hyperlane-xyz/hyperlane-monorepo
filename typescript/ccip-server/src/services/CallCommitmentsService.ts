@@ -436,7 +436,10 @@ export class CallCommitmentsService extends BaseService {
     originDomain: z.number().int().positive(),
     data: z
       .string()
-      .regex(/^0x[0-9a-fA-F]+$/, 'data must be a non-empty 0x hex string'),
+      .regex(
+        /^0x(?:[0-9a-fA-F]{2})+$/,
+        'data must be a non-empty byte-aligned 0x hex string',
+      ),
     salt: z
       .string()
       .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
@@ -489,25 +492,38 @@ export class CallCommitmentsService extends BaseService {
       // CCIP-Read endpoint keeps working. Only EVM-destination routes carry
       // ABI-encoded ICA calls — borsh (Solana) data will fail to decode and
       // skip the dual-write automatically.
+      let decodedCalls: Array<{
+        to: string;
+        value: string;
+        data: string;
+      }> | null = null;
       try {
-        const icaAddress = bytes32ToAddress(destinationAccount);
-        const [decodedCalls] = utils.defaultAbiCoder.decode(
+        const [raw] = utils.defaultAbiCoder.decode(
           ['tuple(bytes32 to, uint256 value, bytes data)[]'],
           data,
         ) as [
           Array<{ to: string; value: { toString(): string }; data: string }>,
         ];
-        const calls = decodedCalls.map((c) => ({
+        decodedCalls = raw.map((c) => ({
           to: c.to,
           value: c.value.toString(),
           data: c.data,
         }));
+      } catch {
+        // Solana-destination routes carry borsh data that fails ABI decode — not an error.
+        logger.debug(
+          { commitment },
+          'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
+        );
+      }
+      if (decodedCalls != null) {
+        const icaAddress = bytes32ToAddress(destinationAccount);
         await prisma.commitment.upsert({
           where: { commitment },
           update: {},
           create: {
             commitment,
-            calls,
+            calls: decodedCalls,
             relayers,
             salt,
             ica: icaAddress,
@@ -517,12 +533,6 @@ export class CallCommitmentsService extends BaseService {
         logger.info(
           { commitment, icaAddress, originDomain },
           'Dual-wrote to Commitment table',
-        );
-      } catch (dualWriteError: any) {
-        // Solana-destination routes carry borsh data that fails ABI decode — not an error.
-        logger.debug(
-          { commitment, error: dualWriteError.message },
-          'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
         );
       }
     } catch (error: any) {

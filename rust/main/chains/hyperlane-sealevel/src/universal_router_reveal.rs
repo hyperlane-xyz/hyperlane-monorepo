@@ -102,20 +102,22 @@ fn parse_clmm_pool_state(data: &[u8]) -> Result<ClmmPoolState> {
             min_len
         );
     }
-    #[allow(clippy::unwrap_used)]
-    let read_pubkey =
-        |offset: usize| Pubkey::new_from_array(data[offset..offset + 32].try_into().unwrap());
-    #[allow(clippy::unwrap_used)]
+    let read_pubkey = |offset: usize| {
+        Pubkey::new_from_array(
+            data[offset..offset + 32]
+                .try_into()
+                .expect("slice is exactly 32 bytes"),
+        )
+    };
     let tick_spacing = i16::from_le_bytes(
         data[POOL_TICK_SPACING_OFFSET..POOL_TICK_SPACING_OFFSET + 2]
             .try_into()
-            .unwrap(),
+            .expect("slice is exactly 2 bytes"),
     );
-    #[allow(clippy::unwrap_used)]
     let tick_current = i32::from_le_bytes(
         data[POOL_TICK_CURRENT_OFFSET..POOL_TICK_CURRENT_OFFSET + 4]
             .try_into()
-            .unwrap(),
+            .expect("slice is exactly 4 bytes"),
     );
     Ok(ClmmPoolState {
         amm_config: read_pubkey(POOL_AMM_CONFIG_OFFSET),
@@ -269,12 +271,15 @@ pub fn maybe_spawn_reveal(
         return;
     }
     // COMMIT body: commitment(32) | userSalt(32) | recipient(32)
-    #[allow(clippy::unwrap_used)]
-    let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
-    #[allow(clippy::unwrap_used)]
-    let user_salt: [u8; 32] = message.body[32..64].try_into().unwrap();
-    #[allow(clippy::unwrap_used)]
-    let recipient: [u8; 32] = message.body[64..96].try_into().unwrap();
+    let commitment: [u8; 32] = message.body[0..32]
+        .try_into()
+        .expect("body is exactly 96 bytes");
+    let user_salt: [u8; 32] = message.body[32..64]
+        .try_into()
+        .expect("body is exactly 96 bytes");
+    let recipient: [u8; 32] = message.body[64..96]
+        .try_into()
+        .expect("body is exactly 96 bytes");
     let origin = message.origin;
     let sender = message.sender.0;
     let commitment_hex = hex::encode(commitment);
