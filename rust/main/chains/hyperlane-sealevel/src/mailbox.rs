@@ -657,6 +657,34 @@ impl Mailbox for SealevelMailbox {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
     }
+
+    fn on_delivered(&self, message: &HyperlaneMessage) {
+        if let Some(ref cfg) = self.ur_reveal {
+            if message.body.len() == 96 {
+                #[allow(clippy::unwrap_used)]
+                let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
+                let is_new = self
+                    .seen_reveal_commitments
+                    .lock()
+                    .unwrap()
+                    .insert(commitment);
+                if is_new {
+                    match self.get_payer() {
+                        Ok(payer) => maybe_spawn_reveal(
+                            message,
+                            cfg,
+                            self.provider.rpc_client().clone(),
+                            self.priority_fee_oracle.clone(),
+                            payer.clone(),
+                        ),
+                        Err(e) => {
+                            tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Resolve which ALT to use for a given message.

@@ -322,6 +322,27 @@ pub fn maybe_spawn_reveal(
                     break;
                 }
                 Ok(None) => {
+                    // Check if this PDA ever existed. If there's any transaction
+                    // history it was created and then consumed by a successful reveal —
+                    // either by us on a prior run or by another relayer. Stop immediately
+                    // rather than waiting the full 10-min timeout.
+                    match rpc_client
+                        .get_signatures_for_address_with_limit(pending_swap_pda, 1)
+                        .await
+                    {
+                        Ok(sigs) if !sigs.is_empty() => {
+                            info!(
+                                commitment = %commitment_hex,
+                                %pending_swap_pda,
+                                "[REVEAL] PDA is gone and has transaction history — reveal already completed; stopping"
+                            );
+                            return;
+                        }
+                        Ok(_) => {} // no history yet, commit hasn't landed
+                        Err(e) => {
+                            warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA history; assuming not yet created");
+                        }
+                    }
                     pda_wait_iters += 1;
                     if pda_wait_iters >= PDA_WAIT_MAX_ITERS {
                         info!(
