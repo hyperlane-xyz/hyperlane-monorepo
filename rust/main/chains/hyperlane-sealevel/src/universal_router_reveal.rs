@@ -44,7 +44,10 @@ const CCS_MAX_RETRIES: u32 = 10;
 const CCS_RETRY_DELAY_SECS: u64 = 5;
 // Outer send attempts (each gets a fresh blockhash): 3 × ~60s = ~3 min total.
 const SEND_RETRY_MAX: u32 = 3;
-// Inner polls per blockhash window (~150 slots ≈ 60 s on mainnet).
+// Reveal task retry backoff on transient failures (RPC errors, tx not confirmed, fee payer low).
+const REVEAL_INITIAL_RETRY_DELAY_SECS: u64 = 30;
+const REVEAL_MAX_RETRY_DELAY_SECS: u64 = 600; // 10 min
+                                              // Inner polls per blockhash window (~150 slots ≈ 60 s on mainnet).
 const CONFIRM_POLLS_PER_BLOCKHASH: u32 = 30;
 const CONFIRM_POLL_DELAY_MS: u64 = 2_000;
 // Resend the signed tx every N inner polls to keep it in the leader queue.
@@ -232,8 +235,9 @@ struct CcsRevealAccount {
     is_signer: bool,
 }
 
-/// If `message` looks like a UR COMMIT (96-byte body) and config is present, spawns a
-/// tokio task to fetch from CCS and submit `RouterInstruction::Reveal`.
+/// If `message` looks like a UR COMMIT (96-byte body, recipient == UR program) and
+/// config is present, spawns a tokio task to fetch from CCS and submit
+/// `RouterInstruction::Reveal`.
 pub fn maybe_spawn_reveal(
     message: &HyperlaneMessage,
     config: &UniversalRouterRevealConfig,
@@ -243,11 +247,20 @@ pub fn maybe_spawn_reveal(
 ) {
     let body_len = message.body.len();
     if body_len != 96 {
-        info!(
-            body_len,
-            origin = message.origin,
-            "[REVEAL] Skipping: body is not 96 bytes (not a COMMIT message)"
-        );
+        return;
+    }
+
+    // Verify the message is addressed to this UR program, not some other
+    // Sealevel program that happens to send 96-byte messages.
+    let program_id = match Pubkey::from_str(&config.program_id) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[REVEAL] Invalid program ID in config: {e}");
+            return;
+        }
+    };
+    let message_recipient = Pubkey::new_from_array(message.recipient.0);
+    if message_recipient != program_id {
         return;
     }
     // COMMIT body: commitment(32) | userSalt(32) | recipient(32)
@@ -260,14 +273,12 @@ pub fn maybe_spawn_reveal(
     let origin = message.origin;
     let sender = message.sender.0;
     let commitment_hex = hex::encode(commitment);
-    let sender_hex = hex::encode(sender);
-    let user_salt_hex = hex::encode(user_salt);
 
     info!(
         commitment = %commitment_hex,
         origin,
-        sender = %sender_hex,
-        user_salt = %user_salt_hex,
+        sender = %hex::encode(sender),
+        user_salt = %hex::encode(user_salt),
         ccs_url = %config.ccs_url,
         program_id = %config.program_id,
         fee_payer = %fee_payer.pubkey(),
@@ -275,16 +286,8 @@ pub fn maybe_spawn_reveal(
     );
 
     let ccs_url = config.ccs_url.trim_end_matches('/').to_owned();
-    let program_id_str = config.program_id.clone();
 
     tokio::spawn(async move {
-        let program_id = match Pubkey::from_str(&program_id_str) {
-            Ok(p) => p,
-            Err(e) => {
-                error!(commitment = %commitment_hex, error = ?e, "[REVEAL] Invalid program ID; aborting");
-                return;
-            }
-        };
         info!(commitment = %commitment_hex, %program_id, "[REVEAL] Task started");
         let http_client = Client::new();
         let ctx = RevealContext {
@@ -300,9 +303,194 @@ pub fn maybe_spawn_reveal(
             fee_payer: &fee_payer,
             http_client,
         };
-        match submit_reveal(ctx).await {
-            Err(e) => error!(commitment = %commitment_hex, error = ?e, "[REVEAL] Failed"),
-            Ok(()) => info!(commitment = %commitment_hex, "[REVEAL] Confirmed successfully"),
+        let pending_swap_pda =
+            derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
+
+        // Phase 1: wait for the pending_swap PDA to appear on-chain.
+        // The reveal task may be spawned before the commit tx is confirmed
+        // (e.g. when another relayer delivers it), so we poll rather than
+        // aborting immediately on None.  Give up after ~10 min (120 × 5 s).
+        const PDA_WAIT_MAX_ITERS: u32 = 120;
+        let mut pda_wait_iters: u32 = 0;
+        loop {
+            match rpc_client
+                .get_account_option_with_commitment(pending_swap_pda, CommitmentConfig::confirmed())
+                .await
+            {
+                Ok(Some(_)) => {
+                    info!(commitment = %commitment_hex, %pending_swap_pda, "[REVEAL] PDA appeared; proceeding to token wait");
+                    break;
+                }
+                Ok(None) => {
+                    pda_wait_iters += 1;
+                    if pda_wait_iters >= PDA_WAIT_MAX_ITERS {
+                        info!(
+                            commitment = %commitment_hex,
+                            %pending_swap_pda,
+                            "[REVEAL] PDA never appeared after {}s; commit may not have landed; stopping",
+                            PDA_WAIT_MAX_ITERS * 5
+                        );
+                        return;
+                    }
+                    info!(
+                        commitment = %commitment_hex,
+                        %pending_swap_pda,
+                        wait_iters = pda_wait_iters,
+                        "[REVEAL] PDA not yet visible; waiting 5s for commit to land"
+                    );
+                }
+                Err(e) => {
+                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA; retrying in 5s");
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+
+        // Phase 2: fetch CCS to learn the pda_input_ata address (accounts[1]) and
+        // poll for a non-zero token balance.  We must not build the full reveal tx
+        // (pool state RPC, tick arrays, etc.) until the warp tokens have landed.
+        loop {
+            // Bail early if PDA is already gone.
+            match rpc_client
+                .get_account_option_with_commitment(pending_swap_pda, CommitmentConfig::confirmed())
+                .await
+            {
+                Ok(None) => {
+                    info!(commitment = %commitment_hex, "[REVEAL] PDA gone before tokens arrived; stopping");
+                    return;
+                }
+                Err(e) => {
+                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA while waiting for tokens");
+                }
+                Ok(Some(_)) => {}
+            }
+
+            // Fetch CCS to discover the pda_input_ata address.
+            let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment).await {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] CCS fetch failed while waiting for tokens; retrying in 5s");
+                    None
+                }
+            };
+
+            if let Some(ccs) = ccs_opt {
+                if let Some(accounts) = ccs.reveal_accounts.as_deref() {
+                    if accounts.len() > 1 {
+                        if let Ok(ata_pubkey) = Pubkey::from_str(&accounts[1].pubkey) {
+                            // Check the ATA balance.
+                            match rpc_client
+                                .get_account_option_with_commitment(
+                                    ata_pubkey,
+                                    CommitmentConfig::confirmed(),
+                                )
+                                .await
+                            {
+                                Ok(Some(acct)) if acct.data.len() >= 72 => {
+                                    let balance = u64::from_le_bytes(
+                                        acct.data[64..72].try_into().unwrap_or([0u8; 8]),
+                                    );
+                                    if balance > 0 {
+                                        info!(
+                                            commitment = %commitment_hex,
+                                            %ata_pubkey,
+                                            balance,
+                                            "[REVEAL] PDA input ATA has tokens; proceeding to build tx"
+                                        );
+                                        break;
+                                    }
+                                    info!(
+                                        commitment = %commitment_hex,
+                                        %ata_pubkey,
+                                        "[REVEAL] PDA input ATA exists but balance is zero; waiting 5s"
+                                    );
+                                }
+                                Ok(None) => {
+                                    info!(
+                                        commitment = %commitment_hex,
+                                        %ata_pubkey,
+                                        "[REVEAL] PDA input ATA not yet created; waiting 5s"
+                                    );
+                                }
+                                Ok(Some(_)) => {
+                                    warn!(commitment = %commitment_hex, "[REVEAL] PDA input ATA has unexpected data length; waiting 5s");
+                                }
+                                Err(e) => {
+                                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA input ATA balance; waiting 5s");
+                                }
+                            }
+                        } else {
+                            warn!(commitment = %commitment_hex, "[REVEAL] Could not parse accounts[1] pubkey from CCS; retrying in 5s");
+                        }
+                    } else {
+                        warn!(commitment = %commitment_hex, "[REVEAL] CCS revealAccounts has <2 entries; retrying in 5s");
+                    }
+                } else {
+                    warn!(commitment = %commitment_hex, "[REVEAL] CCS response missing revealAccounts; retrying in 5s");
+                }
+            }
+
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+
+        let mut delay_secs = REVEAL_INITIAL_RETRY_DELAY_SECS;
+        loop {
+            match submit_reveal(&ctx).await {
+                Ok(()) => {
+                    info!(commitment = %commitment_hex, "[REVEAL] Confirmed successfully");
+                    break;
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("Reveal tx failed on-chain") {
+                        // On-chain rejection — two possible causes:
+                        // 1. PDA is gone: another relayer already revealed → we're done.
+                        // 2. PDA still exists: our params were rejected (stale pool state,
+                        //    wrong vaults, etc.) → retry; build_instruction fetches fresh
+                        //    pool state on each call so the next attempt should self-correct.
+                        match rpc_client
+                            .get_account_option_with_commitment(
+                                pending_swap_pda,
+                                CommitmentConfig::confirmed(),
+                            )
+                            .await
+                        {
+                            Ok(None) => {
+                                info!(
+                                    commitment = %commitment_hex,
+                                    %pending_swap_pda,
+                                    "[REVEAL] pending_swap PDA is gone — reveal completed by another relayer; stopping"
+                                );
+                                break;
+                            }
+                            Ok(Some(_)) => {
+                                warn!(
+                                    commitment = %commitment_hex,
+                                    retry_in_secs = delay_secs,
+                                    error = ?e,
+                                    "[REVEAL] On-chain rejection but PDA still exists; retrying with fresh pool state"
+                                );
+                            }
+                            Err(check_err) => {
+                                warn!(
+                                    commitment = %commitment_hex,
+                                    error = ?check_err,
+                                    "[REVEAL] Could not check PDA existence after on-chain error; will retry"
+                                );
+                            }
+                        }
+                    } else {
+                        warn!(
+                            commitment = %commitment_hex,
+                            retry_in_secs = delay_secs,
+                            error = ?e,
+                            "[REVEAL] Transient failure; will retry"
+                        );
+                    }
+                    tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+                    delay_secs = (delay_secs * 2).min(REVEAL_MAX_RETRY_DELAY_SECS);
+                }
+            }
         }
     });
 }
@@ -321,7 +509,7 @@ struct RevealContext<'a> {
     http_client: reqwest::Client,
 }
 
-async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
+async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
     let commitment_hex = hex::encode(ctx.commitment);
 
     info!(commitment = %commitment_hex, ccs_url = ctx.ccs_url, "[REVEAL] Fetching calldata from CCS");
@@ -335,7 +523,7 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
     );
 
     info!(commitment = %commitment_hex, "[REVEAL] Building RouterInstruction::Reveal");
-    let built = build_instruction(&ctx, &ccs).await?;
+    let built = build_instruction(ctx, &ccs).await?;
     info!(
         commitment = %commitment_hex,
         instruction_count = built.len(),
@@ -513,6 +701,8 @@ fn derive_fee_payer_pda(program_id: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"hyperlane_fee_payer"], program_id).0
 }
 
+// Seeds: [b"pending_swap", origin_le, sender, user_salt, commitment]
+// commitment = keccak256(calldata || revealSalt), same value stored in PDA and in the COMMIT body.
 fn derive_pending_swap_pda(
     program_id: &Pubkey,
     origin: u32,
@@ -587,7 +777,6 @@ async fn build_instruction(
         .ok_or_else(|| eyre!("CCS response missing revealAccounts"))?;
 
     // Derive both critical PDAs locally to verify (and override) what CCS stored.
-    // Use commitment from message body — the authoritative PDA seed.
     let expected_pending_swap =
         derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
     let expected_fee_payer_pda = derive_fee_payer_pda(&program_id);
@@ -608,16 +797,15 @@ async fn build_instruction(
             let pubkey = Pubkey::from_str(&a.pubkey)
                 .map_err(|e| eyre!("invalid pubkey {}: {}", a.pubkey, e))?;
 
-            // Override accounts[0] (pending_swap), accounts[2] (fee_payer_pda), and
-            // accounts[4] (CLMM payer = pending_swap PDA) with locally-derived values.
+            // Override accounts[0] (pending_swap) and accounts[2] (fee_payer_pda)
+            // with locally-derived values.
             let pubkey = match i {
-                0 | 4 => {
+                0 => {
                     if pubkey != expected_pending_swap {
                         warn!(
-                            index = i,
                             ccs_pubkey = %pubkey,
                             expected = %expected_pending_swap,
-                            "[REVEAL] account (pending_swap PDA) mismatch — using locally-derived PDA"
+                            "[REVEAL] account[0] (pending_swap PDA) mismatch — using locally-derived PDA"
                         );
                     }
                     expected_pending_swap

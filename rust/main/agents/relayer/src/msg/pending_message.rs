@@ -170,6 +170,11 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     ur_commitment_already_set: bool,
+    /// Set after the reveal task has been spawned for a COMMIT message so that
+    /// repeated `prepare()` calls don't spawn duplicate tasks.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    reveal_spawned: bool,
 }
 
 impl Debug for PendingMessage {
@@ -283,6 +288,15 @@ impl PendingOperation for PendingMessage {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
+        }
+
+        // Proactively spawn a reveal task the first time we see a COMMIT message
+        // (96-byte body). The task waits for the pending_swap PDA to appear before
+        // building the reveal tx, so it is safe to fire before the commit lands.
+        // This ensures reveals happen even when another relayer delivers the commit.
+        if !self.reveal_spawned && self.message.body.len() == 96 {
+            self.ctx.destination_mailbox.on_delivered(&self.message);
+            self.reveal_spawned = true;
         }
 
         // If the message has already been processed, e.g. due to another relayer having

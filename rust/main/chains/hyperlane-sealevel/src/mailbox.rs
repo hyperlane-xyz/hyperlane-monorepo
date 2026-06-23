@@ -634,8 +634,6 @@ impl Mailbox for SealevelMailbox {
                     tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
                 }
             }
-        } else {
-            tracing::info!("[REVEAL] Not configured for this mailbox; skipping");
         }
     }
 }
