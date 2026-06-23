@@ -1,7 +1,11 @@
 // Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
 #![allow(clippy::blocks_in_conditions)]
 
-use std::{collections::HashMap, str::FromStr as _, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr as _,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -97,6 +101,9 @@ pub struct SealevelMailbox {
     system_program: Pubkey,
     spl_noop: Pubkey,
     ur_reveal: Option<UniversalRouterRevealConfig>,
+    /// Tracks commitments for which a reveal task has already been spawned,
+    /// preventing duplicate tasks across repeated `process_estimate_costs` calls.
+    seen_reveal_commitments: Arc<Mutex<HashSet<[u8; 32]>>>,
 }
 
 impl SealevelMailbox {
@@ -136,6 +143,7 @@ impl SealevelMailbox {
             system_program,
             spl_noop,
             ur_reveal: conf.ur_reveal.clone(),
+            seen_reveal_commitments: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -576,6 +584,36 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
+        // Spawn the reveal task before simulation runs so it fires even when
+        // CommitmentAlreadySet causes the simulation to fail (meaning another
+        // relayer already delivered). The task polls internally for the
+        // pending_swap PDA, so it is safe to fire before the commit lands.
+        if let Some(ref cfg) = self.ur_reveal {
+            if message.body.len() == 96 {
+                #[allow(clippy::unwrap_used)]
+                let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
+                let is_new = self
+                    .seen_reveal_commitments
+                    .lock()
+                    .unwrap()
+                    .insert(commitment);
+                if is_new {
+                    match self.get_payer() {
+                        Ok(payer) => maybe_spawn_reveal(
+                            message,
+                            cfg,
+                            self.provider.rpc_client().clone(),
+                            self.priority_fee_oracle.clone(),
+                            payer.clone(),
+                        ),
+                        Err(e) => {
+                            tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
+                        }
+                    }
+                }
+            }
+        }
+
         // Getting a process payload in Sealevel is a pretty expensive operation
         // that involves some view calls. Consider reusing the payload with subsequent
         // calls to `process` to avoid this cost.
@@ -618,23 +656,6 @@ impl Mailbox for SealevelMailbox {
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
-    }
-
-    fn on_delivered(&self, message: &HyperlaneMessage) {
-        if let Some(reveal_config) = &self.ur_reveal {
-            match self.get_payer() {
-                Ok(payer) => maybe_spawn_reveal(
-                    message,
-                    reveal_config,
-                    self.provider.rpc_client().clone(),
-                    self.priority_fee_oracle.clone(),
-                    payer.clone(),
-                ),
-                Err(e) => {
-                    tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
-                }
-            }
-        }
     }
 }
 
