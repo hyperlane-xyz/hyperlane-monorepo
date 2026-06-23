@@ -6,8 +6,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -32,7 +32,7 @@ import {
  * Reader for Cosmos Message ID Multisig ISM.
  * Uses message IDs for validator signature verification.
  */
-export class CosmosMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
+export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
@@ -65,7 +65,7 @@ export class CosmosMessageIdMultisigIsmReader implements OrchestratedArtifactRea
  */
 export class CosmosMessageIdMultisigIsmWriter
   extends CosmosMessageIdMultisigIsmReader
-  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
@@ -122,7 +122,7 @@ export class CosmosMessageIdMultisigIsmWriter
  * Reader for Cosmos Merkle Root Multisig ISM.
  * Uses merkle root proofs for validator signature verification.
  */
-export class CosmosMerkleRootMultisigIsmReader implements OrchestratedArtifactReader<
+export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
@@ -155,7 +155,7 @@ export class CosmosMerkleRootMultisigIsmReader implements OrchestratedArtifactRe
  */
 export class CosmosMerkleRootMultisigIsmWriter
   extends CosmosMerkleRootMultisigIsmReader
-  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,

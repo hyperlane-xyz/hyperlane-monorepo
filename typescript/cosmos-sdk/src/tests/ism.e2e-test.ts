@@ -6,8 +6,8 @@ import {
   type ArtifactDeployed,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -159,7 +159,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
     const DOMAIN_3 = 100;
 
     let config: OrchestratedRawRoutingIsmArtifactConfig;
-    let routingIsmWriter: OrchestratedArtifactWriter<
+    let routingIsmWriter: ArtifactWriter<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >;

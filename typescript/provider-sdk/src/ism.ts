@@ -95,8 +95,8 @@ export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
  *
  * Wraps `ConfigOnChain<IsmArtifactConfig, DeployedIsmAddress>` so embedded
  * routing-ISM children — which exist on-chain alongside their parent — type
- * as `ArtifactDeployed` post-create, matching the runtime contract of both
- * `OrchestratedArtifactReader.read()` and `EmbeddedArtifactReader.read()`.
+ * as `ArtifactDeployed` post-create, matching the runtime contract of
+ * `ArtifactReader.read()` for both orchestrated and embedded variants.
  */
 export type DeployedIsmArtifact = ArtifactDeployed<
   ConfigOnChain<IsmArtifactConfig, DeployedIsmAddress>,
@@ -155,9 +155,8 @@ export type DeployedRawIsmArtifact = ArtifactDeployed<
  * The manager's `ConfigMap` is the pre-collapse `IsmArtifactConfigs`. Per-type
  * writers consume bare pre-deploy configs (children remain in their
  * `Artifact<>` union shape) and return the post-deploy on-chain shape via the
- * `OrchestratedArtifactWriter` / `EmbeddedArtifactWriter` create signatures.
- * The `Raw*ArtifactConfig` aliases stay as the public output shape of
- * `read()`.
+ * `ArtifactWriter` create signature (orchestrated or embedded variant). The
+ * `Raw*ArtifactConfig` aliases stay as the public output shape of `read()`.
  */
 export interface IRawIsmArtifactManager extends IArtifactManager<
   IsmType,

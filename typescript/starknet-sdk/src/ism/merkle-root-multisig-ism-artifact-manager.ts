@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -22,7 +22,7 @@ import { StarknetSigner } from '../clients/signer.js';
 import { getMerkleRootMultisigIsmConfig } from './ism-query.js';
 import { getCreateMerkleRootMultisigIsmTx } from './ism-tx.js';
 
-export class StarknetMerkleRootMultisigIsmReader implements OrchestratedArtifactReader<
+export class StarknetMerkleRootMultisigIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['merkleRootMultisigIsm'],
   DeployedIsmAddress
 > {
@@ -57,7 +57,7 @@ export class StarknetMerkleRootMultisigIsmReader implements OrchestratedArtifact
 export class StarknetMerkleRootMultisigIsmWriter
   extends StarknetMerkleRootMultisigIsmReader
   implements
-    OrchestratedArtifactWriter<
+    ArtifactWriter<
       RawIsmArtifactConfigs['merkleRootMultisigIsm'],
       DeployedIsmAddress
     >

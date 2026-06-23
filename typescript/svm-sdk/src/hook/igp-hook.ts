@@ -7,8 +7,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
@@ -79,7 +79,7 @@ export function deriveIgpSalt(context: string): Uint8Array {
 /** Zero salt — matches mainnet IGP deployments (H256::zero() in Rust). */
 export const DEFAULT_IGP_SALT = new Uint8Array(32);
 
-export class SvmIgpHookReader implements OrchestratedArtifactReader<
+export class SvmIgpHookReader implements ArtifactReader<
   IgpHookConfig,
   SvmDeployedIgpHook
 > {
@@ -162,7 +162,7 @@ export class SvmIgpHookReader implements OrchestratedArtifactReader<
 
 export class SvmIgpHookWriter
   extends SvmIgpHookReader
-  implements OrchestratedArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
+  implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
     private readonly config: SvmIgpHookWriterConfig,

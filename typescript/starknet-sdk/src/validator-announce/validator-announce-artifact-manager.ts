@@ -7,8 +7,6 @@ import {
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -86,7 +84,7 @@ async function readMailboxAddressFromStorage(
   return uniqueCandidates.length === 1 ? uniqueCandidates[0] : undefined;
 }
 
-class StarknetValidatorAnnounceReader implements OrchestratedArtifactReader<
+class StarknetValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
   DeployedValidatorAnnounceAddress
 > {
@@ -134,7 +132,7 @@ class StarknetValidatorAnnounceReader implements OrchestratedArtifactReader<
 class StarknetValidatorAnnounceWriter
   extends StarknetValidatorAnnounceReader
   implements
-    OrchestratedArtifactWriter<
+    ArtifactWriter<
       RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
       DeployedValidatorAnnounceAddress
     >
@@ -223,7 +221,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     DeployedValidatorAnnounceAddress
   > {
     const readers: {
-      [K in ValidatorAnnounceType]: OrchestratedArtifactReader<
+      [K in ValidatorAnnounceType]: ArtifactReader<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;
@@ -243,7 +241,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     DeployedValidatorAnnounceAddress
   > {
     const writerFactories: {
-      [K in ValidatorAnnounceType]: () => OrchestratedArtifactWriter<
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;

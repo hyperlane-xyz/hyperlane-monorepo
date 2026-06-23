@@ -2,16 +2,14 @@ import { address, generateKeyPairSigner } from '@solana/kit';
 import { expect } from 'chai';
 import { it } from 'mocha';
 
-import type {
-  ArtifactDeployed,
-  ConfigOnChain,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
-  WithCompositionVariant,
-} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type ArtifactComposition,
+  type ArtifactDeployed,
+  type ArtifactReader,
   ArtifactState,
+  type ArtifactWriter,
+  type ConfigOnChain,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 
@@ -29,14 +27,12 @@ import { airdropSol, createSplMint } from '../testing/setup.js';
 type ParamsFeeConfig = BaseFeeConfig & { type: string; params: FeeParams };
 
 export interface LeafFeeTestContext<C extends ParamsFeeConfig> {
-  writer: OrchestratedArtifactWriter<C, SvmDeployedFee>;
-  reader: OrchestratedArtifactReader<C, SvmDeployedFee>;
+  writer: ArtifactWriter<C, SvmDeployedFee>;
+  reader: ArtifactReader<C, SvmDeployedFee>;
   makeConfig: (
     overrides?: Record<string, unknown>,
   ) => WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>;
-  makeWriter: (
-    signer: SvmSigner,
-  ) => OrchestratedArtifactWriter<C, SvmDeployedFee>;
+  makeWriter: (signer: SvmSigner) => ArtifactWriter<C, SvmDeployedFee>;
   signer: SvmSigner;
   rpc: ReturnType<typeof createRpc>;
   rpcUrl: string;

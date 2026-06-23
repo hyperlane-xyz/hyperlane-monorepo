@@ -7,9 +7,9 @@ import {
   ArtifactComposition,
   ArtifactState,
   type ArtifactUnderived,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -39,7 +39,7 @@ type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
  * Returns nested ISMs as address-only references (UNDERIVED state).
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
-export class CosmosRoutingIsmRawReader implements OrchestratedArtifactReader<
+export class CosmosRoutingIsmRawReader implements ArtifactReader<
   RawRoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
@@ -89,8 +89,7 @@ export class CosmosRoutingIsmRawReader implements OrchestratedArtifactReader<
  */
 export class CosmosRoutingIsmRawWriter
   extends CosmosRoutingIsmRawReader
-  implements
-    OrchestratedArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,

@@ -5,9 +5,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -58,7 +58,7 @@ type OrchestratedRawCollateralWarpArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
-export class SvmCollateralTokenReader implements OrchestratedArtifactReader<
+export class SvmCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
@@ -154,10 +154,7 @@ export class SvmCollateralTokenReader implements OrchestratedArtifactReader<
 export class SvmCollateralTokenWriter
   extends SvmCollateralTokenReader
   implements
-    OrchestratedArtifactWriter<
-      RawCollateralWarpArtifactConfig,
-      SvmDeployedWarpAddress
-    >
+    ArtifactWriter<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,

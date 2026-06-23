@@ -6,8 +6,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -29,7 +29,7 @@ import { getCreateMerkleTreeHookTx } from './hook-tx.js';
  * Reads deployed MerkleTree hook configuration from the chain.
  * MerkleTree hooks are immutable once deployed.
  */
-export class CosmosMerkleTreeHookReader implements OrchestratedArtifactReader<
+export class CosmosMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
@@ -61,8 +61,7 @@ export class CosmosMerkleTreeHookReader implements OrchestratedArtifactReader<
  */
 export class CosmosMerkleTreeHookWriter
   extends CosmosMerkleTreeHookReader
-  implements
-    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     query: CosmosHookQueryClient,

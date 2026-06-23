@@ -298,8 +298,8 @@ export type DeployedRawWarpArtifact = ArtifactDeployed<
  *
  * The manager's `ConfigMap` is the pre-collapse `WarpArtifactConfigs`. Per-type
  * writers consume bare pre-deploy configs and return the post-deploy on-chain
- * shape via the `OrchestratedArtifactWriter` / `EmbeddedArtifactWriter` create
- * signatures. The `Raw*ArtifactConfig` aliases stay as the public output
+ * shape via the `ArtifactWriter` create signature (orchestrated or embedded
+ * variant). The `Raw*ArtifactConfig` aliases stay as the public output
  * shape of `read()` / `readWarpToken()`.
  */
 export interface IRawWarpArtifactManager extends IArtifactManager<

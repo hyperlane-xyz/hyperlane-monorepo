@@ -4,8 +4,6 @@ import {
   type ArtifactReader,
   type ArtifactWriter,
   ArtifactComposition,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -62,7 +60,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
   ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
-      [K in WarpType]: OrchestratedArtifactReader<
+      [K in WarpType]: ArtifactReader<
         WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
@@ -89,7 +87,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
     assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
 
     const writers: {
-      [K in WarpType]: OrchestratedArtifactWriter<
+      [K in WarpType]: ArtifactWriter<
         WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;

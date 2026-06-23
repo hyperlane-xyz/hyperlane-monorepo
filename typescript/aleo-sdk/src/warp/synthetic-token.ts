@@ -1,11 +1,11 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
-  ArtifactComposition,
-  ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactWriter,
   type WithCompositionVariant,
+  ArtifactComposition,
+  type ArtifactReader,
+  ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -45,7 +45,7 @@ function withErrorContext(context: string, error: unknown): Error {
   return new Error(`${context}: ${message}`);
 }
 
-export class AleoSyntheticTokenReader implements OrchestratedArtifactReader<
+export class AleoSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
@@ -106,11 +106,7 @@ export class AleoSyntheticTokenReader implements OrchestratedArtifactReader<
 
 export class AleoSyntheticTokenWriter
   extends AleoSyntheticTokenReader
-  implements
-    OrchestratedArtifactWriter<
-      RawSyntheticWarpArtifactConfig,
-      DeployedWarpAddress
-    >
+  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

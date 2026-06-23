@@ -3,9 +3,9 @@ import { address as parseAddress, type Address } from '@solana/kit';
 import {
   type ArtifactDeployed,
   ArtifactComposition,
+  type ArtifactReader,
   ArtifactState,
   type ConfigOnChain,
-  type EmbeddedArtifactReader,
   type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
@@ -35,8 +35,8 @@ type EmbeddedRoutingMultisigConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape: EMBEDDED children collapse to `ArtifactDeployed`
- * via `ConfigOnChain`. This is what `read()` returns per the
- * `EmbeddedArtifactReader` contract.
+ * via `ConfigOnChain`. This is what `read()` returns per the embedded
+ * `ArtifactReader` contract.
  */
 type EmbeddedRoutingMultisigOnChain = ConfigOnChain<
   EmbeddedRoutingMultisigConfig,
@@ -65,9 +65,10 @@ export interface RoutingMultisigAccount {
  * the expected config's domain set. Pass `candidateDomains` to surface a
  * specific set in `read()` results.
  */
-export class SvmRoutingMultisigReader implements EmbeddedArtifactReader<
+export class SvmRoutingMultisigReader implements ArtifactReader<
   RoutingIsmArtifactConfig,
-  SvmDeployedIsm
+  SvmDeployedIsm,
+  typeof ArtifactComposition.EMBEDDED
 > {
   readonly composition = ArtifactComposition.EMBEDDED;
 

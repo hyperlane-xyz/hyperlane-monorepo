@@ -5,9 +5,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -44,7 +44,7 @@ type OrchestratedMailboxOnChain = WithCompositionVariant<
  * Reader for Cosmos Mailbox.
  * Reads deployed mailbox configuration from the chain.
  */
-export class CosmosMailboxReader implements OrchestratedArtifactReader<
+export class CosmosMailboxReader implements ArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
@@ -97,7 +97,7 @@ export class CosmosMailboxReader implements OrchestratedArtifactReader<
  */
 export class CosmosMailboxWriter
   extends CosmosMailboxReader
-  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     query: CosmosMailboxQueryClient,

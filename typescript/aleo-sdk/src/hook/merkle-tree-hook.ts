@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -29,7 +29,7 @@ import { getNewHookAddress } from './base.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class AleoMerkleTreeHookReader implements OrchestratedArtifactReader<
+export class AleoMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
@@ -56,8 +56,7 @@ export class AleoMerkleTreeHookReader implements OrchestratedArtifactReader<
 
 export class AleoMerkleTreeHookWriter
   extends AleoMerkleTreeHookReader
-  implements
-    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

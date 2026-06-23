@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -22,7 +22,7 @@ import { StarknetSigner } from '../clients/signer.js';
 import { getNoopIsmConfig } from './ism-query.js';
 import { getCreateNoopIsmTx } from './ism-tx.js';
 
-export class StarknetTestIsmReader implements OrchestratedArtifactReader<
+export class StarknetTestIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['testIsm'],
   DeployedIsmAddress
 > {
@@ -47,10 +47,7 @@ export class StarknetTestIsmReader implements OrchestratedArtifactReader<
 export class StarknetTestIsmWriter
   extends StarknetTestIsmReader
   implements
-    OrchestratedArtifactWriter<
-      RawIsmArtifactConfigs['testIsm'],
-      DeployedIsmAddress
-    >
+    ArtifactWriter<RawIsmArtifactConfigs['testIsm'], DeployedIsmAddress>
 {
   constructor(
     provider: StarknetProvider,

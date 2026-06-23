@@ -5,7 +5,7 @@ import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -33,13 +33,8 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   manager: StarknetWarpArtifactManager,
   type: T,
   signer: StarknetSigner,
-): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
-  const writer = manager.createWriter(type, signer);
-  assert(
-    writer.composition === ArtifactComposition.ORCHESTRATED,
-    `Starknet ${type} writer is expected to be orchestrated`,
-  );
-  return writer;
+): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
+  return manager.createWriter(type, signer);
 }
 
 describe('5a. starknet sdk warp core e2e tests', function () {
@@ -70,10 +65,6 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     const mailboxWriter = mailboxArtifactManager.createWriter(
       'mailbox',
       signer,
-    );
-    assert(
-      mailboxWriter.composition === ArtifactComposition.ORCHESTRATED,
-      'Starknet mailbox writer is expected to be orchestrated',
     );
     const [mailbox] = await mailboxWriter.create({
       config: {

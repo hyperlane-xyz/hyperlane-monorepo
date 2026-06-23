@@ -3,9 +3,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -46,7 +46,7 @@ type OrchestratedMailboxOnChain = WithCompositionVariant<
  * Reader for Aleo Mailbox.
  * Reads deployed mailbox configuration from the chain.
  */
-export class AleoMailboxReader implements OrchestratedArtifactReader<
+export class AleoMailboxReader implements ArtifactReader<
   MailboxOnChain,
   DeployedMailboxAddress
 > {
@@ -99,7 +99,7 @@ export class AleoMailboxReader implements OrchestratedArtifactReader<
  */
 export class AleoMailboxWriter
   extends AleoMailboxReader
-  implements OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
+  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     private readonly config: AleoArtifactNetworkConfig,

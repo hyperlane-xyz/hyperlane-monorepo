@@ -6,8 +6,8 @@ import {
   ArtifactComposition,
   ArtifactDeployed,
   ArtifactState,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -177,7 +177,7 @@ describe('Radix ISMs (e2e)', function () {
     const DOMAIN_3 = 100;
 
     let config: OrchestratedRawRoutingIsmArtifactConfig;
-    let routingIsmWriter: OrchestratedArtifactWriter<
+    let routingIsmWriter: ArtifactWriter<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
     >;

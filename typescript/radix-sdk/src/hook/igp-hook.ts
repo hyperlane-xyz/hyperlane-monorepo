@@ -6,8 +6,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
@@ -27,7 +27,7 @@ import {
   getSetIgpOwnerTx,
 } from './hook-tx.js';
 
-export class RadixIgpHookReader implements OrchestratedArtifactReader<
+export class RadixIgpHookReader implements ArtifactReader<
   IgpHookConfig,
   DeployedHookAddress
 > {
@@ -87,7 +87,7 @@ export class RadixIgpHookReader implements OrchestratedArtifactReader<
 
 export class RadixIgpHookWriter
   extends RadixIgpHookReader
-  implements OrchestratedArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

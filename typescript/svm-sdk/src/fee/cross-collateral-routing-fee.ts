@@ -11,8 +11,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -77,7 +77,7 @@ function allCCStrategies(
  * context are invisible and won't be added or removed. Callers must ensure the
  * context covers all active (domain, router) pairs to avoid partial diffs.
  */
-export class SvmCrossCollateralRoutingFeeReader implements OrchestratedArtifactReader<
+export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
   WithWildcardSigners<CrossCollateralRoutingFeeArtifactConfig>,
   SvmDeployedFee
 > {
@@ -152,10 +152,7 @@ export class SvmCrossCollateralRoutingFeeReader implements OrchestratedArtifactR
 export class SvmCrossCollateralRoutingFeeWriter
   extends SvmCrossCollateralRoutingFeeReader
   implements
-    OrchestratedArtifactWriter<
-      CrossCollateralRoutingFeeArtifactConfig,
-      SvmDeployedFee
-    >
+    ArtifactWriter<CrossCollateralRoutingFeeArtifactConfig, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,

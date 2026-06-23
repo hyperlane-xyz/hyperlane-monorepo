@@ -6,8 +6,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
@@ -31,7 +31,7 @@ export type SvmMerkleTreeHookWriterConfig = Readonly<{
   mailboxAddress: string;
 }>;
 
-export class SvmMerkleTreeHookReader implements OrchestratedArtifactReader<
+export class SvmMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   SvmDeployedHook
 > {
@@ -54,7 +54,7 @@ export class SvmMerkleTreeHookReader implements OrchestratedArtifactReader<
 
 export class SvmMerkleTreeHookWriter
   extends SvmMerkleTreeHookReader
-  implements OrchestratedArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
+  implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
     private readonly config: SvmMerkleTreeHookWriterConfig,

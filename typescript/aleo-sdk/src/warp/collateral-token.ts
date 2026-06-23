@@ -3,9 +3,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -45,7 +45,7 @@ function withErrorContext(context: string, error: unknown): Error {
   return new Error(`${context}: ${message}`);
 }
 
-export class AleoCollateralTokenReader implements OrchestratedArtifactReader<
+export class AleoCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
@@ -108,10 +108,7 @@ export class AleoCollateralTokenReader implements OrchestratedArtifactReader<
 export class AleoCollateralTokenWriter
   extends AleoCollateralTokenReader
   implements
-    OrchestratedArtifactWriter<
-      RawCollateralWarpArtifactConfig,
-      DeployedWarpAddress
-    >
+    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

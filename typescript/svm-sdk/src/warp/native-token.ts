@@ -5,9 +5,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -53,7 +53,7 @@ type OrchestratedRawNativeWarpArtifactConfig = WithCompositionVariant<
 /** Native SOL decimal precision. */
 const SOL_DECIMALS = 9;
 
-export class SvmNativeTokenReader implements OrchestratedArtifactReader<
+export class SvmNativeTokenReader implements ArtifactReader<
   RawNativeWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
@@ -132,11 +132,7 @@ export class SvmNativeTokenReader implements OrchestratedArtifactReader<
 
 export class SvmNativeTokenWriter
   extends SvmNativeTokenReader
-  implements
-    OrchestratedArtifactWriter<
-      RawNativeWarpArtifactConfig,
-      SvmDeployedWarpAddress
-    >
+  implements ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,

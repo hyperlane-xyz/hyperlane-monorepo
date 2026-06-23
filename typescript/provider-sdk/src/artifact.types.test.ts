@@ -13,8 +13,6 @@ import {
   ArtifactState,
   ArtifactWriter,
   ConfigOnChain,
-  EmbeddedArtifactWriter,
-  OrchestratedArtifactWriter,
   WithComposition,
   WithCompositionVariant,
   WithEmbeddedChildren,
@@ -533,7 +531,8 @@ export type _Test22 = AssertTrue<
 
 type ComposedWriter = ArtifactWriter<
   WithComposition<BaseCompositeConfig>,
-  TestDeployed
+  TestDeployed,
+  ArtifactComposition
 >;
 
 type EmbeddedWriter = Extract<
@@ -579,20 +578,22 @@ export type _Test23d = AssertTrue<
   >
 >;
 
-// The split union must structurally match the per-variant interfaces.
+// The split union must structurally match the per-variant ArtifactWriter
+// resolutions (orchestrated default + explicit embedded).
 export type _Test23e = AssertTrue<
   Equals<
     EmbeddedWriter,
-    EmbeddedArtifactWriter<WithComposition<BaseCompositeConfig>, TestDeployed>
+    ArtifactWriter<
+      WithComposition<BaseCompositeConfig>,
+      TestDeployed,
+      typeof ArtifactComposition.EMBEDDED
+    >
   >
 >;
 export type _Test23f = AssertTrue<
   Equals<
     OrchestratedWriter,
-    OrchestratedArtifactWriter<
-      WithComposition<BaseCompositeConfig>,
-      TestDeployed
-    >
+    ArtifactWriter<WithComposition<BaseCompositeConfig>, TestDeployed>
   >
 >;
 

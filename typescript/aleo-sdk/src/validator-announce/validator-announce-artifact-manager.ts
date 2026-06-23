@@ -1,8 +1,6 @@
 import {
   type ArtifactReader,
   type ArtifactWriter,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedValidatorAnnounceAddress,
@@ -45,7 +43,7 @@ export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnoun
     DeployedValidatorAnnounceAddress
   > {
     const readers: {
-      [K in ValidatorAnnounceType]: () => OrchestratedArtifactReader<
+      [K in ValidatorAnnounceType]: () => ArtifactReader<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;
@@ -63,7 +61,7 @@ export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnoun
     DeployedValidatorAnnounceAddress
   > {
     const writers: {
-      [K in ValidatorAnnounceType]: () => OrchestratedArtifactWriter<
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;

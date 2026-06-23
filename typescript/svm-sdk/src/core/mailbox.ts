@@ -5,9 +5,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedMailboxAddress,
@@ -58,7 +58,7 @@ type OrchestratedMailboxOnChain = WithCompositionVariant<
 const DEFAULT_MAX_PROTOCOL_FEE = 1_000_000_000n;
 const DEFAULT_PROTOCOL_FEE = 0n;
 
-export class SvmMailboxReader implements OrchestratedArtifactReader<
+export class SvmMailboxReader implements ArtifactReader<
   MailboxArtifactConfig,
   DeployedMailboxAddress
 > {
@@ -122,8 +122,7 @@ export class SvmMailboxReader implements OrchestratedArtifactReader<
 
 export class SvmMailboxWriter
   extends SvmMailboxReader
-  implements
-    OrchestratedArtifactWriter<MailboxArtifactConfig, DeployedMailboxAddress>
+  implements ArtifactWriter<MailboxArtifactConfig, DeployedMailboxAddress>
 {
   constructor(
     private readonly config: SvmMailboxConfig,

@@ -6,8 +6,6 @@ import {
   ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedRawWarpArtifact,
@@ -77,26 +75,24 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
   ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactReader<
-      WarpArtifactConfigs[T],
-      DeployedWarpAddress
-    > = {
-      composition: ArtifactComposition.ORCHESTRATED,
-      read: async (address) => {
-        const query = await this.getQuery();
-        const reader = this.createReaderWithQuery(type, query);
-        return reader.read(address);
-      },
-    };
+    const wrapper: ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> =
+      {
+        composition: ArtifactComposition.ORCHESTRATED,
+        read: async (address) => {
+          const query = await this.getQuery();
+          const reader = this.createReaderWithQuery(type, query);
+          return reader.read(address);
+        },
+      };
     return wrapper;
   }
 
   private createReaderWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,
-  ): OrchestratedArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactReader<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const readers: {
-      [K in WarpType]: () => OrchestratedArtifactReader<
+      [K in WarpType]: () => ArtifactReader<
         WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;
@@ -119,27 +115,25 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactWriter<
-      WarpArtifactConfigs[T],
-      DeployedWarpAddress
-    > = {
-      composition: ArtifactComposition.ORCHESTRATED,
-      read: async (address) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.read(address);
-      },
-      create: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.create(artifact);
-      },
-      update: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.update(artifact);
-      },
-    };
+    const wrapper: ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> =
+      {
+        composition: ArtifactComposition.ORCHESTRATED,
+        read: async (address) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.read(address);
+        },
+        create: async (artifact) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.create(artifact);
+        },
+        update: async (artifact) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.update(artifact);
+        },
+      };
     return wrapper;
   }
 
@@ -147,9 +141,9 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     type: T,
     query: CosmosWarpQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
+  ): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
     const writers: {
-      [K in WarpType]: () => OrchestratedArtifactWriter<
+      [K in WarpType]: () => ArtifactWriter<
         WarpArtifactConfigs[K],
         DeployedWarpAddress
       >;

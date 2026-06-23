@@ -7,8 +7,8 @@ import {
   type ArtifactDeployed,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -40,7 +40,7 @@ type OrchestratedMailboxOnChain = WithCompositionVariant<
 function createOrchestratedMailboxWriter(
   manager: AleoMailboxArtifactManager,
   signer: AleoSigner,
-): OrchestratedArtifactWriter<MailboxOnChain, DeployedMailboxAddress> {
+): ArtifactWriter<MailboxOnChain, DeployedMailboxAddress> {
   const writer = manager.createWriter('mailbox', signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,
@@ -409,10 +409,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       OrchestratedMailboxOnChain,
       DeployedMailboxAddress
     >;
-    let writer: OrchestratedArtifactWriter<
-      MailboxOnChain,
-      DeployedMailboxAddress
-    >;
+    let writer: ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
 
     beforeEach(async () => {
       // Step 1: Create ISM

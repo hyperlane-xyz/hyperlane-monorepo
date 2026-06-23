@@ -6,8 +6,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -25,7 +25,7 @@ import { getCreateTestIsmTx } from './ism-tx.js';
  * Reader for Cosmos NoopIsm (test ISM).
  * This is the simplest ISM type with no configuration beyond its address.
  */
-export class CosmosTestIsmReader implements OrchestratedArtifactReader<
+export class CosmosTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   DeployedIsmAddress
 > {
@@ -56,7 +56,7 @@ export class CosmosTestIsmReader implements OrchestratedArtifactReader<
  */
 export class CosmosTestIsmWriter
   extends CosmosTestIsmReader
-  implements OrchestratedArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,

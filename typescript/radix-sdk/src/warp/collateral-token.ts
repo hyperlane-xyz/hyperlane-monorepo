@@ -7,11 +7,11 @@ import {
   ArtifactNew,
   ArtifactState,
   ConfigOnChain,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactUnderived,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -44,8 +44,8 @@ type OrchestratedCollateralWarpArtifactConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape — children collapse to `ArtifactOnChain<>` via
- * `ConfigOnChain`. Returned from `read()` / `create()` per the
- * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ * `ConfigOnChain`. Returned from `read()` / `create()` per the orchestrated
+ * `ArtifactReader` / `ArtifactWriter` contract.
  */
 type OrchestratedCollateralWarpArtifactOnChain = ConfigOnChain<
   OrchestratedCollateralWarpArtifactConfig,
@@ -57,7 +57,7 @@ function withErrorContext(context: string, error: unknown): Error {
   return new Error(`${context}: ${message}`);
 }
 
-export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
+export class RadixCollateralTokenReader implements ArtifactReader<
   CollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
@@ -121,11 +121,7 @@ export class RadixCollateralTokenReader implements OrchestratedArtifactReader<
 
 export class RadixCollateralTokenWriter
   extends RadixCollateralTokenReader
-  implements
-    OrchestratedArtifactWriter<
-      CollateralWarpArtifactConfig,
-      DeployedWarpAddress
-    >
+  implements ArtifactWriter<CollateralWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     gateway: GatewayApiClient,

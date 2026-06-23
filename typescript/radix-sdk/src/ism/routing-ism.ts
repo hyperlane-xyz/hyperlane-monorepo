@@ -8,11 +8,11 @@ import {
   ArtifactState,
   ArtifactUnderived,
   ConfigOnChain,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactUnderived,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -41,14 +41,14 @@ type OrchestratedRoutingIsmArtifactConfig = WithCompositionVariant<
 /**
  * Post-deploy on-chain shape — ORCHESTRATED routing-ISM with children
  * collapsed via `ConfigOnChain`. Returned from `read()` / `create()` per the
- * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ * orchestrated `ArtifactReader` / `ArtifactWriter` contract.
  */
 type OrchestratedRoutingIsmOnChain = ConfigOnChain<
   OrchestratedRoutingIsmArtifactConfig,
   DeployedIsmAddress
 >;
 
-export class RadixRoutingIsmRawReader implements OrchestratedArtifactReader<
+export class RadixRoutingIsmRawReader implements ArtifactReader<
   RoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
@@ -90,8 +90,7 @@ export class RadixRoutingIsmRawReader implements OrchestratedArtifactReader<
 
 export class RadixRoutingIsmRawWriter
   extends RadixRoutingIsmRawReader
-  implements
-    OrchestratedArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
+  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

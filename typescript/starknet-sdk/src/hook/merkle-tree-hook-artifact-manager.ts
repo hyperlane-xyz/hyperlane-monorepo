@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -21,7 +21,7 @@ import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class StarknetMerkleTreeHookReader implements OrchestratedArtifactReader<
+export class StarknetMerkleTreeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['merkleTreeHook'],
   DeployedHookAddress
 > {
@@ -46,7 +46,7 @@ export class StarknetMerkleTreeHookReader implements OrchestratedArtifactReader<
 export class StarknetMerkleTreeHookWriter
   extends StarknetMerkleTreeHookReader
   implements
-    OrchestratedArtifactWriter<
+    ArtifactWriter<
       RawHookArtifactConfigs['merkleTreeHook'],
       DeployedHookAddress
     >

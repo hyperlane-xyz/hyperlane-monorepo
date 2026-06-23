@@ -13,8 +13,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -230,10 +230,7 @@ describe('CoreWriter', () => {
       create: mailboxCreateStub,
       update: mailboxUpdateStub,
       read: sinon.stub(),
-    } satisfies OrchestratedArtifactWriter<
-      MailboxOnChain,
-      DeployedMailboxAddress
-    >;
+    } satisfies ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
 
     createMailboxWriterStub = sinon.stub().returns(mockMailboxWriter);
 

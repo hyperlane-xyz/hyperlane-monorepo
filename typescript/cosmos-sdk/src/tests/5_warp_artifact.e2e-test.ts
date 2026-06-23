@@ -7,8 +7,8 @@ import {
   type ArtifactDeployed,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -52,7 +52,7 @@ function createOrchestratedWarpWriter<T extends WarpType>(
   artifactManager: CosmosWarpArtifactManager,
   type: T,
   signer: CosmosNativeSigner,
-): OrchestratedArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
+): ArtifactWriter<WarpArtifactConfigs[T], DeployedWarpAddress> {
   const writer = artifactManager.createWriter(type, signer);
   assert(
     writer.composition === ArtifactComposition.ORCHESTRATED,

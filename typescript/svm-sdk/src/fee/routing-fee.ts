@@ -11,8 +11,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -59,7 +59,7 @@ import {
  * invisible and won't be added or removed. Callers must ensure the context
  * covers all active domains to avoid partial diffs.
  */
-export class SvmRoutingFeeReader implements OrchestratedArtifactReader<
+export class SvmRoutingFeeReader implements ArtifactReader<
   WithWildcardSigners<RoutingFeeArtifactConfig>,
   SvmDeployedFee
 > {
@@ -126,8 +126,7 @@ export class SvmRoutingFeeReader implements OrchestratedArtifactReader<
 
 export class SvmRoutingFeeWriter
   extends SvmRoutingFeeReader
-  implements
-    OrchestratedArtifactWriter<RoutingFeeArtifactConfig, SvmDeployedFee>
+  implements ArtifactWriter<RoutingFeeArtifactConfig, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,

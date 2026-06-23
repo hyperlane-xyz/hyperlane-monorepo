@@ -7,8 +7,8 @@ import {
   type ArtifactDeployed,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -376,10 +376,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       OrchestratedMailboxOnChain,
       DeployedMailboxAddress
     >;
-    let writer: OrchestratedArtifactWriter<
-      MailboxOnChain,
-      DeployedMailboxAddress
-    >;
+    let writer: ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>;
 
     beforeEach(async () => {
       const ismWriter = ismArtifactManager.createWriter(

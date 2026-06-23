@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -31,7 +31,7 @@ import {
   getSetIgpHookOwnerTx,
 } from './hook-tx.js';
 
-export class AleoIgpHookReader implements OrchestratedArtifactReader<
+export class AleoIgpHookReader implements ArtifactReader<
   IgpHookConfig,
   DeployedHookAddress
 > {
@@ -85,7 +85,7 @@ export class AleoIgpHookReader implements OrchestratedArtifactReader<
 
 export class AleoIgpHookWriter
   extends AleoIgpHookReader
-  implements OrchestratedArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

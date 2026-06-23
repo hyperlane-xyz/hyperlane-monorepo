@@ -5,8 +5,6 @@ import {
   ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -98,10 +96,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
   ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactReader<
-      IsmArtifactConfigs[T],
-      DeployedIsmAddress
-    > = {
+    const wrapper: ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> = {
       composition: ArtifactComposition.ORCHESTRATED,
       read: async (address) => {
         const query = await this.getQuery();
@@ -122,9 +117,9 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   private createReaderWithQuery<T extends IsmType>(
     type: T,
     query: CosmosIsmQueryClient,
-  ): OrchestratedArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactReader<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const readers: {
-      [K in IsmType]: () => OrchestratedArtifactReader<
+      [K in IsmType]: () => ArtifactReader<
         IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
@@ -150,10 +145,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactWriter<
-      IsmArtifactConfigs[T],
-      DeployedIsmAddress
-    > = {
+    const wrapper: ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> = {
       composition: ArtifactComposition.ORCHESTRATED,
       read: async (address) => {
         const query = await this.getQuery();
@@ -186,9 +178,9 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
     query: CosmosIsmQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
+  ): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
     const writers: {
-      [K in IsmType]: () => OrchestratedArtifactWriter<
+      [K in IsmType]: () => ArtifactWriter<
         IsmArtifactConfigs[K],
         DeployedIsmAddress
       >;

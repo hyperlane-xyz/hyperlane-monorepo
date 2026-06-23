@@ -5,8 +5,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -21,7 +21,7 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getValidatorAnnounceConfig } from './validator-announce-query.js';
 import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
 
-export class RadixValidatorAnnounceReader implements OrchestratedArtifactReader<
+export class RadixValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
@@ -57,10 +57,7 @@ export class RadixValidatorAnnounceReader implements OrchestratedArtifactReader<
 export class RadixValidatorAnnounceWriter
   extends RadixValidatorAnnounceReader
   implements
-    OrchestratedArtifactWriter<
-      RawValidatorAnnounceConfig,
-      DeployedValidatorAnnounceAddress
-    >
+    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

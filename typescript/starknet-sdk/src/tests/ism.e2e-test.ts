@@ -4,18 +4,14 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
   type IsmType,
   type IsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  assert,
-  eqAddressStarknet,
-  normalizeAddressEvm,
-} from '@hyperlane-xyz/utils';
+import { eqAddressStarknet, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -30,13 +26,8 @@ function createOrchestratedIsmWriter<T extends IsmType>(
   manager: StarknetIsmArtifactManager,
   type: T,
   signer: StarknetSigner,
-): OrchestratedArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
-  const writer = manager.createWriter(type, signer);
-  assert(
-    writer.composition === ArtifactComposition.ORCHESTRATED,
-    `Starknet ${type} ISM writer is expected to be orchestrated`,
-  );
-  return writer;
+): ArtifactWriter<IsmArtifactConfigs[T], DeployedIsmAddress> {
+  return manager.createWriter(type, signer);
 }
 
 function normalizeValidators(addresses: string[]): string[] {

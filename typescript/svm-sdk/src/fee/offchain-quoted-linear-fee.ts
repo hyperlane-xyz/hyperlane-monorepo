@@ -11,8 +11,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -45,7 +45,7 @@ import {
   type SvmFeeWriterConfig,
 } from './types.js';
 
-export class SvmOffchainQuotedLinearFeeReader implements OrchestratedArtifactReader<
+export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
   OffchainQuotedLinearFeeConfig,
   SvmDeployedFee
 > {
@@ -106,8 +106,7 @@ export class SvmOffchainQuotedLinearFeeReader implements OrchestratedArtifactRea
 
 export class SvmOffchainQuotedLinearFeeWriter
   extends SvmOffchainQuotedLinearFeeReader
-  implements
-    OrchestratedArtifactWriter<OffchainQuotedLinearFeeConfig, SvmDeployedFee>
+  implements ArtifactWriter<OffchainQuotedLinearFeeConfig, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,

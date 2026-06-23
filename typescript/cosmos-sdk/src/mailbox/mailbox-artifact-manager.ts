@@ -5,8 +5,6 @@ import {
   ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedMailboxAddress,
@@ -72,7 +70,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   createReader<T extends MailboxType>(
     type: T,
   ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    const wrapper: OrchestratedArtifactReader<
+    const wrapper: ArtifactReader<
       MailboxArtifactConfigs[T],
       DeployedMailboxAddress
     > = {
@@ -89,12 +87,9 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   private createReaderWithQuery<T extends MailboxType>(
     type: T,
     query: CosmosMailboxQueryClient,
-  ): OrchestratedArtifactReader<
-    MailboxArtifactConfigs[T],
-    DeployedMailboxAddress
-  > {
+  ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
-      [K in MailboxType]: () => OrchestratedArtifactReader<
+      [K in MailboxType]: () => ArtifactReader<
         MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
@@ -116,7 +111,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
     type: T,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    const wrapper: OrchestratedArtifactWriter<
+    const wrapper: ArtifactWriter<
       MailboxArtifactConfigs[T],
       DeployedMailboxAddress
     > = {
@@ -144,12 +139,9 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
     type: T,
     query: CosmosMailboxQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<
-    MailboxArtifactConfigs[T],
-    DeployedMailboxAddress
-  > {
+  ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const writers: {
-      [K in MailboxType]: () => OrchestratedArtifactWriter<
+      [K in MailboxType]: () => ArtifactWriter<
         MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;

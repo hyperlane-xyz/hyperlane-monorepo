@@ -5,8 +5,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -92,7 +92,7 @@ export function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
   return [first, ...rest];
 }
 
-export class SvmAddressLookupTableReader implements OrchestratedArtifactReader<
+export class SvmAddressLookupTableReader implements ArtifactReader<
   SvmAltConfig,
   SvmDeployedAlt
 > {
@@ -124,7 +124,7 @@ export class SvmAddressLookupTableReader implements OrchestratedArtifactReader<
 
 export class SvmAddressLookupTableWriter
   extends SvmAddressLookupTableReader
-  implements OrchestratedArtifactWriter<SvmAltConfig, SvmDeployedAlt>
+  implements ArtifactWriter<SvmAltConfig, SvmDeployedAlt>
 {
   constructor(
     rpc: SvmRpc,

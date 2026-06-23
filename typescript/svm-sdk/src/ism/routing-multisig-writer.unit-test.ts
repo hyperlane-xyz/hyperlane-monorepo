@@ -56,7 +56,7 @@ interface DomainEntry {
 /**
  * Pre-deploy shape of the routing-multisig config — children are
  * `ArtifactEmbedded` (config only, no `.deployed`). This is what the
- * writer's create() and update() accept per the `EmbeddedArtifactWriter`
+ * writer's create() and update() accept per the embedded `ArtifactWriter`
  * contract and what `computeRoutingMultisigUpdate` consumes.
  */
 type EmbeddedRoutingConfig = Extract<

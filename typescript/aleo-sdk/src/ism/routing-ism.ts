@@ -5,9 +5,9 @@ import {
   ArtifactComposition,
   ArtifactState,
   type ArtifactUnderived,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -37,7 +37,7 @@ type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
-export class AleoRoutingIsmRawReader implements OrchestratedArtifactReader<
+export class AleoRoutingIsmRawReader implements ArtifactReader<
   RawRoutingIsmArtifactConfig,
   DeployedIsmAddress
 > {
@@ -82,8 +82,7 @@ export class AleoRoutingIsmRawReader implements OrchestratedArtifactReader<
 
 export class AleoRoutingIsmRawWriter
   extends AleoRoutingIsmRawReader
-  implements
-    OrchestratedArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

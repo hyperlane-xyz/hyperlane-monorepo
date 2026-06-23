@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -24,7 +24,7 @@ import { getNewIsmAddress } from './base.js';
 import { getTestIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
 
-export class AleoTestIsmReader implements OrchestratedArtifactReader<
+export class AleoTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   DeployedIsmAddress
 > {
@@ -51,7 +51,7 @@ export class AleoTestIsmReader implements OrchestratedArtifactReader<
 
 export class AleoTestIsmWriter
   extends AleoTestIsmReader
-  implements OrchestratedArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,

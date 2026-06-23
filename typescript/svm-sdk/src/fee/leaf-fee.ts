@@ -12,9 +12,9 @@ import {
   ArtifactComposition,
   ArtifactState,
   type ConfigOnChain,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   assert,
@@ -61,7 +61,7 @@ export type LeafFeeConfig =
 
 export abstract class SvmLeafFeeReader<
   C extends LeafFeeConfig,
-> implements OrchestratedArtifactReader<C, SvmDeployedFee> {
+> implements ArtifactReader<C, SvmDeployedFee> {
   readonly composition = ArtifactComposition.ORCHESTRATED;
   protected abstract readonly feeType: C['type'];
 
@@ -143,7 +143,7 @@ export abstract class SvmLeafFeeReader<
 
 export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
   extends SvmLeafFeeReader<C>
-  implements OrchestratedArtifactWriter<C, SvmDeployedFee>
+  implements ArtifactWriter<C, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,

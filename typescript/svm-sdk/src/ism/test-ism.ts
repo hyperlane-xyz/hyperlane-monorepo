@@ -6,8 +6,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -33,7 +33,7 @@ export type SvmTestIsmWriterConfig = Readonly<{
   program: SvmProgramTarget;
 }>;
 
-export class SvmTestIsmReader implements OrchestratedArtifactReader<
+export class SvmTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   SvmDeployedIsm
 > {
@@ -60,7 +60,7 @@ export class SvmTestIsmReader implements OrchestratedArtifactReader<
 
 export class SvmTestIsmWriter
   extends SvmTestIsmReader
-  implements OrchestratedArtifactWriter<TestIsmConfig, SvmDeployedIsm>
+  implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
     private readonly config: SvmTestIsmWriterConfig,

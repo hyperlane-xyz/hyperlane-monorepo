@@ -2,13 +2,11 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { it } from 'mocha';
 
-import type {
-  OrchestratedArtifactWriter,
-  WithCompositionVariant,
-} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type ArtifactComposition,
   ArtifactState,
+  type ArtifactWriter,
+  type WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedWarpAddress,
@@ -41,10 +39,7 @@ export type WarpConfigOverrides = Partial<
 >;
 
 export interface WarpTestContext {
-  writer: OrchestratedArtifactWriter<
-    RawWarpArtifactConfig,
-    DeployedWarpAddress
-  >;
+  writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
   makeConfig(
     overrides?: WarpConfigOverrides,
   ): OrchestratedRawWarpArtifactConfig;

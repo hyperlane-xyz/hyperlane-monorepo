@@ -6,8 +6,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
@@ -25,7 +25,7 @@ import {
   getCreateMessageIdMultisigIsmTx,
 } from './ism-tx.js';
 
-export class RadixMessageIdMultisigIsmReader implements OrchestratedArtifactReader<
+export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
@@ -54,7 +54,7 @@ export class RadixMessageIdMultisigIsmReader implements OrchestratedArtifactRead
 
 export class RadixMessageIdMultisigIsmWriter
   extends RadixMessageIdMultisigIsmReader
-  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -106,7 +106,7 @@ export class RadixMessageIdMultisigIsmWriter
   }
 }
 
-export class RadixMerkleRootMultisigIsmReader implements OrchestratedArtifactReader<
+export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
   DeployedIsmAddress
 > {
@@ -135,7 +135,7 @@ export class RadixMerkleRootMultisigIsmReader implements OrchestratedArtifactRea
 
 export class RadixMerkleRootMultisigIsmWriter
   extends RadixMerkleRootMultisigIsmReader
-  implements OrchestratedArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

@@ -2,6 +2,7 @@ import { address as parseAddress } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
+  ArtifactComposition,
   ArtifactReader,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -44,11 +45,16 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends keyof IsmArtifactConfigs>(
     type: T,
-  ): ArtifactReader<IsmArtifactConfigs[T], SvmDeployedIsm> {
+  ): ArtifactReader<
+    IsmArtifactConfigs[T],
+    SvmDeployedIsm,
+    ArtifactComposition
+  > {
     const readers: {
       [K in keyof IsmArtifactConfigs]?: () => ArtifactReader<
         IsmArtifactConfigs[K],
-        SvmDeployedIsm
+        SvmDeployedIsm,
+        ArtifactComposition
       >;
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
@@ -73,11 +79,16 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends keyof IsmArtifactConfigs>(
     type: T,
     signer: SvmSigner,
-  ): ArtifactWriter<IsmArtifactConfigs[T], SvmDeployedIsm> {
+  ): ArtifactWriter<
+    IsmArtifactConfigs[T],
+    SvmDeployedIsm,
+    ArtifactComposition
+  > {
     const writers: {
       [K in keyof IsmArtifactConfigs]?: () => ArtifactWriter<
         IsmArtifactConfigs[K],
-        SvmDeployedIsm
+        SvmDeployedIsm,
+        ArtifactComposition
       >;
     } = {
       testIsm: () =>

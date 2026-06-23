@@ -3,12 +3,12 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
   isArtifactDeployed,
   isArtifactNew,
   isArtifactUnderived,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -36,7 +36,7 @@ type OrchestratedRawRoutingIsmArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
-export class StarknetRoutingIsmReader implements OrchestratedArtifactReader<
+export class StarknetRoutingIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['domainRoutingIsm'],
   DeployedIsmAddress
 > {
@@ -81,7 +81,7 @@ export class StarknetRoutingIsmReader implements OrchestratedArtifactReader<
 export class StarknetRoutingIsmWriter
   extends StarknetRoutingIsmReader
   implements
-    OrchestratedArtifactWriter<
+    ArtifactWriter<
       RawIsmArtifactConfigs['domainRoutingIsm'],
       DeployedIsmAddress
     >

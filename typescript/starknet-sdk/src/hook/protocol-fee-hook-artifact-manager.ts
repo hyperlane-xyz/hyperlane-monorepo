@@ -4,8 +4,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -115,7 +115,7 @@ async function readProtocolFeeMaxFromStorage(
   return undefined;
 }
 
-export class StarknetProtocolFeeHookReader implements OrchestratedArtifactReader<
+export class StarknetProtocolFeeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['protocolFee'],
   DeployedHookAddress
 > {
@@ -181,10 +181,7 @@ export class StarknetProtocolFeeHookReader implements OrchestratedArtifactReader
 export class StarknetProtocolFeeHookWriter
   extends StarknetProtocolFeeHookReader
   implements
-    OrchestratedArtifactWriter<
-      RawHookArtifactConfigs['protocolFee'],
-      DeployedHookAddress
-    >
+    ArtifactWriter<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
 {
   constructor(
     chainMetadata: ChainMetadataForAltVM,

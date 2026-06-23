@@ -6,8 +6,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
@@ -22,7 +22,7 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class RadixMerkleTreeHookReader implements OrchestratedArtifactReader<
+export class RadixMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   DeployedHookAddress
 > {
@@ -49,8 +49,7 @@ export class RadixMerkleTreeHookReader implements OrchestratedArtifactReader<
 
 export class RadixMerkleTreeHookWriter
   extends RadixMerkleTreeHookReader
-  implements
-    OrchestratedArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,

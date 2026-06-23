@@ -5,8 +5,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedValidatorAnnounceAddress,
@@ -23,7 +23,7 @@ import { buildInitValidatorAnnounceInstruction } from './validator-announce-tx.j
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmValidatorAnnounceConfig } from './types.js';
 
-export class SvmValidatorAnnounceReader implements OrchestratedArtifactReader<
+export class SvmValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
@@ -59,10 +59,7 @@ export class SvmValidatorAnnounceReader implements OrchestratedArtifactReader<
 export class SvmValidatorAnnounceWriter
   extends SvmValidatorAnnounceReader
   implements
-    OrchestratedArtifactWriter<
-      RawValidatorAnnounceConfig,
-      DeployedValidatorAnnounceAddress
-    >
+    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
 {
   constructor(
     private readonly config: SvmValidatorAnnounceConfig,

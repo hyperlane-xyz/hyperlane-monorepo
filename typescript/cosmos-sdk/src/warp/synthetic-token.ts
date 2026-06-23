@@ -6,9 +6,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
@@ -37,7 +37,7 @@ type OrchestratedRawSyntheticWarpArtifactConfig = WithCompositionVariant<
   typeof ArtifactComposition.ORCHESTRATED
 >;
 
-export class CosmosSyntheticTokenReader implements OrchestratedArtifactReader<
+export class CosmosSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
@@ -87,11 +87,7 @@ export class CosmosSyntheticTokenReader implements OrchestratedArtifactReader<
 
 export class CosmosSyntheticTokenWriter
   extends CosmosSyntheticTokenReader
-  implements
-    OrchestratedArtifactWriter<
-      RawSyntheticWarpArtifactConfig,
-      DeployedWarpAddress
-    >
+  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     query: CosmosWarpQueryClient,

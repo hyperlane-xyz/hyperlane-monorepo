@@ -1,8 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactComposition,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -10,7 +10,7 @@ import {
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-export function createStarknetInterchainGasPaymasterHookReader(): OrchestratedArtifactReader<
+export function createStarknetInterchainGasPaymasterHookReader(): ArtifactReader<
   RawHookArtifactConfigs['interchainGasPaymaster'],
   DeployedHookAddress
 > {
@@ -25,7 +25,7 @@ export function createStarknetInterchainGasPaymasterHookReader(): OrchestratedAr
   };
 }
 
-export function createStarknetInterchainGasPaymasterHookWriter(): OrchestratedArtifactWriter<
+export function createStarknetInterchainGasPaymasterHookWriter(): ArtifactWriter<
   RawHookArtifactConfigs['interchainGasPaymaster'],
   DeployedHookAddress
 > {

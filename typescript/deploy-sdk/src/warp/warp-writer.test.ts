@@ -7,8 +7,8 @@ import type {
   ArtifactDeployed,
   ArtifactNew,
   ConfigOnChain,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
+  ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   ArtifactComposition,
@@ -76,7 +76,7 @@ const HOOK_ADDRESS = '0x5678';
 const FEE_ADDRESS = '0x9abc';
 
 // Type-safe mock implementations
-type MockRawWarpWriter = OrchestratedArtifactWriter<
+type MockRawWarpWriter = ArtifactWriter<
   RawWarpArtifactConfig,
   DeployedWarpAddress
 >;

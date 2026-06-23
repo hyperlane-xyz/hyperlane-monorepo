@@ -8,8 +8,6 @@ import {
   ArtifactState,
   ArtifactWriter,
   ConfigOnChain,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
@@ -49,15 +47,15 @@ type OrchestratedMailboxConfig = WithCompositionVariant<
 
 /**
  * Post-deploy on-chain shape — children collapse to `ArtifactOnChain<>` via
- * `ConfigOnChain`. Returned from `read()` / `create()` per the
- * `OrchestratedArtifactReader` / `OrchestratedArtifactWriter` contract.
+ * `ConfigOnChain`. Returned from `read()` / `create()` per the orchestrated
+ * `ArtifactReader` / `ArtifactWriter` contract.
  */
 type OrchestratedMailboxOnChain = ConfigOnChain<
   OrchestratedMailboxConfig,
   DeployedMailboxAddress
 >;
 
-class StarknetMailboxReader implements OrchestratedArtifactReader<
+class StarknetMailboxReader implements ArtifactReader<
   MailboxArtifactConfigs['mailbox'],
   DeployedMailboxAddress
 > {
@@ -110,10 +108,7 @@ class StarknetMailboxReader implements OrchestratedArtifactReader<
 class StarknetMailboxWriter
   extends StarknetMailboxReader
   implements
-    OrchestratedArtifactWriter<
-      MailboxArtifactConfigs['mailbox'],
-      DeployedMailboxAddress
-    >
+    ArtifactWriter<MailboxArtifactConfigs['mailbox'], DeployedMailboxAddress>
 {
   constructor(
     provider: StarknetProvider,
@@ -311,7 +306,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     type: T,
   ): ArtifactReader<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const readers: {
-      [K in MailboxType]: OrchestratedArtifactReader<
+      [K in MailboxType]: ArtifactReader<
         MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
@@ -328,7 +323,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<MailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const writerFactories: {
-      [K in MailboxType]: () => OrchestratedArtifactWriter<
+      [K in MailboxType]: () => ArtifactWriter<
         MailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;

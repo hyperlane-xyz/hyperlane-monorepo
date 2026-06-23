@@ -9,9 +9,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -79,7 +79,7 @@ type OrchestratedRawCrossCollateralWarpArtifactConfig = WithCompositionVariant<
 
 const MAX_CC_ROUTERS_PER_TX = 20;
 
-export class SvmCrossCollateralTokenReader implements OrchestratedArtifactReader<
+export class SvmCrossCollateralTokenReader implements ArtifactReader<
   RawCrossCollateralWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
@@ -282,10 +282,7 @@ export async function buildCrossCollateralRouterUnenrollTxs(
 export class SvmCrossCollateralTokenWriter
   extends SvmCrossCollateralTokenReader
   implements
-    OrchestratedArtifactWriter<
-      RawCrossCollateralWarpArtifactConfig,
-      SvmDeployedWarpAddress
-    >
+    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,

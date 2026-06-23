@@ -7,11 +7,11 @@ import {
   ArtifactNew,
   ArtifactState,
   ConfigOnChain,
-  OrchestratedArtifactReader,
-  OrchestratedArtifactWriter,
   WithCompositionVariant,
   isArtifactDeployed,
   isArtifactUnderived,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -42,8 +42,8 @@ type OrchestratedSyntheticWarpArtifactConfig = WithCompositionVariant<
 /**
  * Post-deploy on-chain shape: composite ISM/hook/fee children collapse to
  * `ArtifactOnChain<>` via `ConfigOnChain`. Returned from `read()` /
- * `create()` per the `OrchestratedArtifactReader` /
- * `OrchestratedArtifactWriter` contract.
+ * `create()` per the orchestrated `ArtifactReader` / `ArtifactWriter`
+ * contract.
  */
 type OrchestratedSyntheticWarpArtifactOnChain = ConfigOnChain<
   OrchestratedSyntheticWarpArtifactConfig,
@@ -55,7 +55,7 @@ function withErrorContext(context: string, error: unknown): Error {
   return new Error(`${context}: ${message}`);
 }
 
-export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
+export class RadixSyntheticTokenReader implements ArtifactReader<
   SyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
@@ -118,8 +118,7 @@ export class RadixSyntheticTokenReader implements OrchestratedArtifactReader<
 
 export class RadixSyntheticTokenWriter
   extends RadixSyntheticTokenReader
-  implements
-    OrchestratedArtifactWriter<SyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements ArtifactWriter<SyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     gateway: GatewayApiClient,

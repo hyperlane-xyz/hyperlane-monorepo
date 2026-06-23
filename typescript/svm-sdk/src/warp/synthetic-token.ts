@@ -3,9 +3,9 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
@@ -172,7 +172,7 @@ function createInitializeMetadataInstruction(
   );
 }
 
-export class SvmSyntheticTokenReader implements OrchestratedArtifactReader<
+export class SvmSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
   SvmDeployedWarpAddress
 > {
@@ -262,10 +262,7 @@ export class SvmSyntheticTokenReader implements OrchestratedArtifactReader<
 export class SvmSyntheticTokenWriter
   extends SvmSyntheticTokenReader
   implements
-    OrchestratedArtifactWriter<
-      RawSyntheticWarpArtifactConfig,
-      SvmDeployedWarpAddress
-    >
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,

@@ -6,8 +6,6 @@ import {
   ArtifactComposition,
   type ArtifactReader,
   type ArtifactWriter,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -95,17 +93,15 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
   ): ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactReader<
-      HookArtifactConfigs[T],
-      DeployedHookAddress
-    > = {
-      composition: ArtifactComposition.ORCHESTRATED,
-      read: async (address) => {
-        const query = await this.getQuery();
-        const reader = this.createReaderWithQuery(type, query);
-        return reader.read(address);
-      },
-    };
+    const wrapper: ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> =
+      {
+        composition: ArtifactComposition.ORCHESTRATED,
+        read: async (address) => {
+          const query = await this.getQuery();
+          const reader = this.createReaderWithQuery(type, query);
+          return reader.read(address);
+        },
+      };
     return wrapper;
   }
 
@@ -119,9 +115,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   private createReaderWithQuery<T extends HookType>(
     type: T,
     query: CosmosHookQueryClient,
-  ): OrchestratedArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactReader<HookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
-      [K in HookType]: () => OrchestratedArtifactReader<
+      [K in HookType]: () => ArtifactReader<
         HookArtifactConfigs[K],
         DeployedHookAddress
       >;
@@ -150,27 +146,25 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     signer: CosmosNativeSigner,
   ): ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
-    const wrapper: OrchestratedArtifactWriter<
-      HookArtifactConfigs[T],
-      DeployedHookAddress
-    > = {
-      composition: ArtifactComposition.ORCHESTRATED,
-      read: async (address) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.read(address);
-      },
-      create: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.create(artifact);
-      },
-      update: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.update(artifact);
-      },
-    };
+    const wrapper: ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> =
+      {
+        composition: ArtifactComposition.ORCHESTRATED,
+        read: async (address) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.read(address);
+        },
+        create: async (artifact) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.create(artifact);
+        },
+        update: async (artifact) => {
+          const query = await this.getQuery();
+          const writer = this.createWriterWithQuery(type, query, signer);
+          return writer.update(artifact);
+        },
+      };
     return wrapper;
   }
 
@@ -186,9 +180,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
-  ): OrchestratedArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
+  ): ArtifactWriter<HookArtifactConfigs[T], DeployedHookAddress> {
     const writers: Partial<{
-      [K in HookType]: () => OrchestratedArtifactWriter<
+      [K in HookType]: () => ArtifactWriter<
         HookArtifactConfigs[K],
         DeployedHookAddress
       >;

@@ -142,7 +142,7 @@ export type WithCompositionVariant<
  * `ArtifactOnChain` (DEPLOYED | UNDERIVED), with EMBEDDED children — if any —
  * collapsed to `ArtifactDeployed` via `ConfigOnChain`.
  */
-export interface OrchestratedArtifactReader<C, D> {
+interface OrchestratedArtifactReader<C, D> {
   readonly composition: typeof ArtifactComposition.ORCHESTRATED;
   read(
     address: string,
@@ -165,10 +165,10 @@ export interface OrchestratedArtifactReader<C, D> {
  * `update()` accepts the post-deploy on-chain shape; child reconciliation is
  * the writer's responsibility (most writers enumerate live state directly).
  */
-export interface OrchestratedArtifactWriter<
+interface OrchestratedArtifactWriter<C, D> extends OrchestratedArtifactReader<
   C,
-  D,
-> extends OrchestratedArtifactReader<C, D> {
+  D
+> {
   create(
     artifact: ArtifactNew<
       WithCompositionVariant<C, typeof ArtifactComposition.ORCHESTRATED>
@@ -201,7 +201,7 @@ export interface OrchestratedArtifactWriter<
  * `read()` returns the post-deploy on-chain shape with embedded children
  * collapsed to `ArtifactDeployed` via `ConfigOnChain`.
  */
-export interface EmbeddedArtifactReader<C, D> {
+interface EmbeddedArtifactReader<C, D> {
   readonly composition: typeof ArtifactComposition.EMBEDDED;
   read(
     address: string,
@@ -225,10 +225,7 @@ export interface EmbeddedArtifactReader<C, D> {
  * runtime writers enumerate live on-chain children directly rather than
  * relying on the input.
  */
-export interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<
-  C,
-  D
-> {
+interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<C, D> {
   create(
     artifact: ArtifactNew<
       WithCompositionVariant<C, typeof ArtifactComposition.EMBEDDED>
@@ -253,23 +250,35 @@ export interface EmbeddedArtifactWriter<C, D> extends EmbeddedArtifactReader<
   ): Promise<AnnotatedTx[]>;
 }
 
+type InternalArtifactReader<C, D> =
+  | OrchestratedArtifactReader<C, D>
+  | EmbeddedArtifactReader<C, D>;
+
 /**
  * Public reader union. Narrowing on `reader.composition` resolves to one
  * variant (orchestrated or embedded). Implementations pick one of the two
  * specific interfaces above.
  */
-export type ArtifactReader<C, D> =
-  | OrchestratedArtifactReader<C, D>
-  | EmbeddedArtifactReader<C, D>;
+export type ArtifactReader<
+  C,
+  D,
+  T extends ArtifactComposition = typeof ArtifactComposition.ORCHESTRATED,
+> = Extract<InternalArtifactReader<C, D>, { composition: T }>;
+
+type InternalArtifactWriter<C, D> =
+  | OrchestratedArtifactWriter<C, D>
+  | EmbeddedArtifactWriter<C, D>;
 
 /**
  * Public writer union. Narrowing on `writer.composition` resolves to one
- * variant (orchestrated or embedded). Implementations pick one of the two
- * specific interfaces above.
+ * variant (orchestrated or embedded). Defaults to the orchestrated variant
+ * so existing `ArtifactWriter<C, D>` callsites carry forward unchanged.
  */
-export type ArtifactWriter<C, D> =
-  | OrchestratedArtifactWriter<C, D>
-  | EmbeddedArtifactWriter<C, D>;
+export type ArtifactWriter<
+  C,
+  D,
+  T extends ArtifactComposition = typeof ArtifactComposition.ORCHESTRATED,
+> = Extract<InternalArtifactWriter<C, D>, { composition: T }>;
 
 /**
  * Helper type to transform nested objects containing Artifacts.
@@ -378,12 +387,14 @@ export interface IArtifactManager<
   ConfigMap extends Record<TypeKey, unknown>,
   D,
 > {
-  createReader<T extends TypeKey>(type: T): ArtifactReader<ConfigMap[T], D>;
+  createReader<T extends TypeKey>(
+    type: T,
+  ): ArtifactReader<ConfigMap[T], D, ArtifactComposition>;
 
   createWriter<T extends TypeKey>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<ConfigMap[T], D>;
+  ): ArtifactWriter<ConfigMap[T], D, ArtifactComposition>;
 }
 
 export type UnsetArtifactAddress = typeof ZERO_ADDRESS_HEX_32;

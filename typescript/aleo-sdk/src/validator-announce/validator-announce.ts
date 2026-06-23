@@ -3,8 +3,8 @@ import {
   type ArtifactNew,
   ArtifactComposition,
   ArtifactState,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedValidatorAnnounceAddress,
@@ -34,7 +34,7 @@ import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
  * Reader for Aleo ValidatorAnnounce.
  * Reads deployed validator announce configuration from the chain.
  */
-export class AleoValidatorAnnounceReader implements OrchestratedArtifactReader<
+export class AleoValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceConfig,
   DeployedValidatorAnnounceAddress
 > {
@@ -74,10 +74,7 @@ export class AleoValidatorAnnounceReader implements OrchestratedArtifactReader<
 export class AleoValidatorAnnounceWriter
   extends AleoValidatorAnnounceReader
   implements
-    OrchestratedArtifactWriter<
-      RawValidatorAnnounceConfig,
-      DeployedValidatorAnnounceAddress
-    >
+    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
 {
   constructor(
     private readonly config: AleoArtifactNetworkConfig,

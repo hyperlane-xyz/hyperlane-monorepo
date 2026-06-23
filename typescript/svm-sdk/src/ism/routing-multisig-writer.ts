@@ -6,8 +6,8 @@ import {
   ArtifactComposition,
   ArtifactState,
   type ConfigOnChain,
-  type EmbeddedArtifactWriter,
   type WithCompositionVariant,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { RoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -48,7 +48,7 @@ import {
 
 /**
  * Pre-deploy shape — children are `ArtifactEmbedded`. Accepted on create()
- * input and update() input per the `EmbeddedArtifactWriter` contract.
+ * input and update() input per the embedded `ArtifactWriter` contract.
  */
 type EmbeddedRoutingMultisigConfig = WithCompositionVariant<
   RoutingIsmArtifactConfig,
@@ -58,7 +58,7 @@ type EmbeddedRoutingMultisigConfig = WithCompositionVariant<
 /**
  * Post-deploy on-chain shape — EMBEDDED children collapse to
  * `ArtifactDeployed` via `ConfigOnChain`. Returned from create() per the
- * `EmbeddedArtifactWriter` contract.
+ * embedded `ArtifactWriter` contract.
  */
 type EmbeddedRoutingMultisigOnChain = ConfigOnChain<
   EmbeddedRoutingMultisigConfig,
@@ -93,9 +93,10 @@ interface DomainMultisig {
  * is a per-domain map of validators/threshold. Modeled as an EMBEDDED routing
  * ISM: the program is the parent, each domain's DomainData PDA is a child.
  */
-export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
+export class SvmRoutingMultisigWriter implements ArtifactWriter<
   RoutingIsmArtifactConfig,
-  SvmDeployedIsm
+  SvmDeployedIsm,
+  typeof ArtifactComposition.EMBEDDED
 > {
   readonly composition = ArtifactComposition.EMBEDDED;
 
@@ -121,7 +122,7 @@ export class SvmRoutingMultisigWriter implements EmbeddedArtifactWriter<
     return this.reader.read(address);
   }
 
-  // create() is fire-and-forget by design — the EmbeddedArtifactWriter
+  // create() is fire-and-forget by design — the embedded ArtifactWriter
   // interface returns `[deployed, TxReceipt[]]`, not `AnnotatedTx[]`. Post-
   // deploy steps (init + per-domain SetValidators + optional Transfer
   // Ownership) reference the freshly-deployed programId, so the program must

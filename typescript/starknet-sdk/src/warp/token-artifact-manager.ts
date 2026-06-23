@@ -6,13 +6,13 @@ import {
   ArtifactComposition,
   ArtifactState,
   type ConfigOnChain,
-  type OrchestratedArtifactReader,
-  type OrchestratedArtifactWriter,
   type WithCompositionVariant,
   addressToUnderivedArtifact,
   artifactOnChainToAddress,
   isArtifactDeployed,
   isArtifactUnderived,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -84,7 +84,7 @@ export function getStarknetWarpType(tokenType: string): WarpType {
 export abstract class StarknetWarpTokenReaderBase<
   T extends WarpType,
   C extends WarpArtifactConfigs[T],
-> implements OrchestratedArtifactReader<C, DeployedWarpAddress> {
+> implements ArtifactReader<C, DeployedWarpAddress> {
   readonly composition = ArtifactComposition.ORCHESTRATED;
 
   constructor(protected readonly provider: StarknetProvider) {}
@@ -170,7 +170,7 @@ export abstract class StarknetWarpTokenWriterBase<
   C extends WarpArtifactConfigs[T],
 >
   extends StarknetWarpTokenReaderBase<T, C>
-  implements OrchestratedArtifactWriter<C, DeployedWarpAddress>
+  implements ArtifactWriter<C, DeployedWarpAddress>
 {
   constructor(
     provider: StarknetProvider,
