@@ -79,7 +79,13 @@ pub fn maybe_spawn_reveal(
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: SealevelKeypair,
 ) {
-    if message.body.len() != 96 {
+    let body_len = message.body.len();
+    if body_len != 96 {
+        info!(
+            body_len,
+            origin = message.origin,
+            "Skipping UR reveal: body is not 96 bytes (not a COMMIT message)"
+        );
         return;
     }
     // COMMIT body: commitment(32) | userSalt(32) | recipient(32)
@@ -89,20 +95,33 @@ pub fn maybe_spawn_reveal(
     let user_salt: [u8; 32] = message.body[32..64].try_into().unwrap();
     let origin = message.origin;
     let sender = message.sender.0;
+    let commitment_hex = hex::encode(commitment);
+    let sender_hex = hex::encode(sender);
+    let user_salt_hex = hex::encode(user_salt);
+
+    info!(
+        commitment = %commitment_hex,
+        origin,
+        sender = %sender_hex,
+        user_salt = %user_salt_hex,
+        ccs_url = %config.ccs_url,
+        program_id = %config.program_id,
+        fee_payer = %fee_payer.pubkey(),
+        "Spawning UR reveal task"
+    );
 
     let ccs_url = config.ccs_url.trim_end_matches('/').to_owned();
     let program_id_str = config.program_id.clone();
 
     tokio::spawn(async move {
-        let hex = hex::encode(commitment);
-        info!(commitment = %hex, "Submitting UR reveal");
         let program_id = match Pubkey::from_str(&program_id_str) {
             Ok(p) => p,
             Err(e) => {
-                error!(commitment = %hex, error = ?e, "Invalid UR program ID");
+                error!(commitment = %commitment_hex, error = ?e, "Invalid UR program ID; aborting reveal");
                 return;
             }
         };
+        info!(commitment = %commitment_hex, %program_id, "UR reveal task started");
         let ctx = RevealContext {
             ccs_url: &ccs_url,
             program_id,
@@ -114,10 +133,9 @@ pub fn maybe_spawn_reveal(
             priority_fee_oracle,
             fee_payer: &fee_payer,
         };
-        if let Err(e) = submit_reveal(ctx).await {
-            error!(commitment = %hex, error = ?e, "UR reveal failed");
-        } else {
-            info!(commitment = %hex, "UR reveal submitted successfully");
+        match submit_reveal(ctx).await {
+            Err(e) => error!(commitment = %commitment_hex, error = ?e, "UR reveal failed"),
+            Ok(()) => info!(commitment = %commitment_hex, "UR reveal confirmed successfully"),
         }
     });
 }
@@ -146,9 +164,27 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
         priority_fee_oracle,
         fee_payer,
     } = ctx;
+    let commitment_hex = hex::encode(commitment);
+
+    info!(commitment = %commitment_hex, ccs_url, "Fetching reveal data from CCS");
     let http = Client::new();
     let ccs = fetch_from_ccs(&http, ccs_url, &commitment).await?;
+    info!(
+        commitment = %commitment_hex,
+        data_len = ccs.data.len(),
+        salt = %ccs.salt,
+        reveal_accounts_count = ccs.reveal_accounts.as_ref().map(|a| a.len()).unwrap_or(0),
+        "CCS fetch succeeded"
+    );
+
+    info!(commitment = %commitment_hex, "Building RouterInstruction::Reveal");
     let instruction = build_instruction(program_id, origin, sender, user_salt, &ccs)?;
+    info!(
+        commitment = %commitment_hex,
+        accounts_count = instruction.accounts.len(),
+        data_len = instruction.data.len(),
+        "Reveal instruction built"
+    );
 
     let dummy = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
         &[],
@@ -158,6 +194,12 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
         .get_priority_fee(&dummy)
         .await
         .unwrap_or(0);
+    info!(
+        commitment = %commitment_hex,
+        priority_fee,
+        compute_units = REVEAL_COMPUTE_UNITS,
+        "Priority fee determined"
+    );
 
     let instructions = vec![
         ComputeBudgetInstruction::set_compute_unit_limit(REVEAL_COMPUTE_UNITS),
@@ -165,34 +207,45 @@ async fn submit_reveal(ctx: RevealContext<'_>) -> Result<()> {
         instruction,
     ];
 
+    info!(commitment = %commitment_hex, "Fetching latest blockhash");
     let blockhash = rpc_client
         .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
         .await
         .map_err(|e| eyre!("get_latest_blockhash: {e}"))?;
+    info!(commitment = %commitment_hex, blockhash = %blockhash, "Got blockhash");
 
     let message = Message::new(&instructions, Some(&fee_payer.pubkey()));
     let tx = Transaction::new(&[fee_payer.keypair()], message, blockhash);
 
+    info!(commitment = %commitment_hex, fee_payer = %fee_payer.pubkey(), "Sending reveal transaction");
     let signature = rpc_client
         .send_transaction(&tx, true)
         .await
         .map_err(|e| eyre!("send_transaction: {e}"))?;
 
-    info!(%signature, "Reveal tx sent, awaiting confirmation");
+    let max_confirm_secs = CONFIRM_MAX_POLLS.saturating_mul((CONFIRM_POLL_DELAY_MS / 1000) as u32);
+    info!(commitment = %commitment_hex, %signature, max_confirm_secs, "Reveal tx sent; polling for confirmation");
 
     for attempt in 1..=CONFIRM_MAX_POLLS {
         tokio::time::sleep(Duration::from_millis(CONFIRM_POLL_DELAY_MS)).await;
+        info!(commitment = %commitment_hex, %signature, attempt, max_attempts = CONFIRM_MAX_POLLS, "Polling reveal tx confirmation");
         match rpc_client
             .confirm_transaction_with_commitment(signature, CommitmentConfig::confirmed())
             .await
         {
-            Ok(true) => return Ok(()),
+            Ok(true) => {
+                info!(commitment = %commitment_hex, %signature, attempt, "Reveal tx confirmed");
+                return Ok(());
+            }
             Ok(false) => {
                 if attempt == CONFIRM_MAX_POLLS {
                     bail!("Reveal tx not confirmed after {} polls", CONFIRM_MAX_POLLS);
                 }
+                info!(commitment = %commitment_hex, %signature, attempt, "Reveal tx not yet confirmed; continuing to poll");
             }
-            Err(e) => warn!(%signature, error = ?e, "Error polling reveal tx confirmation"),
+            Err(e) => {
+                warn!(commitment = %commitment_hex, %signature, error = ?e, attempt, "Error polling reveal tx confirmation")
+            }
         }
     }
     bail!("Reveal tx confirmation timed out")
@@ -203,21 +256,40 @@ async fn fetch_from_ccs(
     ccs_url: &str,
     commitment: &[u8; 32],
 ) -> Result<CcsGetResponse> {
-    let url = format!("{}/calldata/0x{}", ccs_url, hex::encode(commitment));
+    let commitment_hex = hex::encode(commitment);
+    let url = format!("{ccs_url}/calldata/0x{commitment_hex}");
+    info!(commitment = %commitment_hex, url, "GET CCS calldata");
     for attempt in 1..=CCS_MAX_RETRIES {
+        info!(commitment = %commitment_hex, attempt, max_retries = CCS_MAX_RETRIES, url, "CCS fetch attempt");
         let resp = http.get(&url).send().await?;
-        match resp.status() {
-            s if s.is_success() => return Ok(resp.json::<CcsGetResponse>().await?),
+        let status = resp.status();
+        info!(commitment = %commitment_hex, attempt, %status, "CCS response received");
+        match status {
+            s if s.is_success() => {
+                let ccs = resp.json::<CcsGetResponse>().await?;
+                info!(
+                    commitment = %commitment_hex,
+                    attempt,
+                    has_reveal_accounts = ccs.reveal_accounts.is_some(),
+                    "CCS calldata parsed successfully"
+                );
+                return Ok(ccs);
+            }
             reqwest::StatusCode::NOT_FOUND => {
                 if attempt < CCS_MAX_RETRIES {
                     warn!(
+                        commitment = %commitment_hex,
                         attempt,
-                        "CCS 404 for commitment; retrying in {}s", CCS_RETRY_DELAY_SECS
+                        max_retries = CCS_MAX_RETRIES,
+                        retry_delay_secs = CCS_RETRY_DELAY_SECS,
+                        "CCS 404 — calldata not yet stored; retrying"
                     );
                     tokio::time::sleep(Duration::from_secs(CCS_RETRY_DELAY_SECS)).await;
+                } else {
+                    warn!(commitment = %commitment_hex, attempt, "CCS 404 on final attempt");
                 }
             }
-            status => bail!(
+            _ => bail!(
                 "CCS GET failed: {} {}",
                 status,
                 resp.text().await.unwrap_or_default()
@@ -238,6 +310,15 @@ fn build_instruction(
     let salt = hex_decode_fixed32(&ccs.salt)?;
 
     let msg_len = message.len() as u32;
+    info!(
+        origin,
+        sender = %hex::encode(sender),
+        user_salt = %hex::encode(user_salt),
+        message_len = msg_len,
+        salt = %ccs.salt,
+        "Building reveal instruction data"
+    );
+
     // 1 (variant) + 4 (origin) + 32 (sender) + 32 (user_salt) + 4 (msg_len) + message + 32 (salt)
     let fixed_overhead: usize = 105;
     let mut data = Vec::with_capacity(fixed_overhead.saturating_add(message.len()));
@@ -254,9 +335,21 @@ fn build_instruction(
         .as_deref()
         .ok_or_else(|| eyre!("CCS response missing revealAccounts"))?;
 
+    info!(
+        account_count = reveal_accounts.len(),
+        "Building account metas from revealAccounts"
+    );
     let accounts: Vec<AccountMeta> = reveal_accounts
         .iter()
-        .map(|a| {
+        .enumerate()
+        .map(|(i, a)| {
+            info!(
+                index = i,
+                pubkey = %a.pubkey,
+                is_writable = a.is_writable,
+                is_signer = a.is_signer,
+                "Reveal account"
+            );
             let pubkey = Pubkey::from_str(&a.pubkey)
                 .map_err(|e| eyre!("invalid pubkey {}: {}", a.pubkey, e))?;
             Ok(match (a.is_writable, a.is_signer) {
@@ -265,6 +358,12 @@ fn build_instruction(
             })
         })
         .collect::<Result<_>>()?;
+
+    info!(
+        total_data_len = data.len(),
+        total_accounts = accounts.len(),
+        "Reveal instruction assembled"
+    );
 
     Ok(Instruction {
         program_id,
