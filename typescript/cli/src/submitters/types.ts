@@ -6,10 +6,9 @@ import {
   type SubmitterMetadata,
   SubmitterMetadataSchema,
   TxSubmitterType,
-  ZBigNumberish,
-  ZBytes32String,
   ZChainName,
-  ZHash,
+  buildEvmIcaTxSubmitterPropsSchema,
+  buildEvmTimelockControllerSubmitterPropsSchema,
   preprocessChainSubmissionStrategy,
   refineChainSubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
@@ -31,20 +30,18 @@ const FileSubmitterMetadataSchema = z.object({
 
 type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
 
-// An ICA submitter whose internalSubmitter may itself be any extended submitter,
-// including the CLI-only `file` submitter. The SDK ICA schema restricts
-// internalSubmitter to SDK submitter types; the CLI registers a `file` factory
+// ICA / timelock submitters whose nested submitter may itself be any extended
+// submitter, including the CLI-only `file` submitter. The SDK schemas restrict
+// the nested submitter to SDK submitter types; the CLI registers a `file` factory
 // at runtime (see deploy/warp.ts), so the strategy schema must permit it here.
+// The wrapper field lists and zod suppressions live once in the SDK builders — the
+// CLI only substitutes the nested submitter union (the Omit/intersection here is
+// because TS recursion rules reject a generic alias in this recursive position).
 type ExtendedIcaSubmitterMetadata = Omit<
   EvmIcaTxSubmitterProps,
   'internalSubmitter'
 > & { internalSubmitter: ExtendedSubmitterMetadata };
 
-// A timelock submitter whose proposerSubmitter may itself be any extended
-// submitter, including the CLI-only `file` submitter. Same rationale as the ICA
-// case above: the SDK timelock schema restricts proposerSubmitter to SDK
-// submitter types, but the CLI registers a `file` factory at runtime, so the
-// strategy schema must permit it here.
 type ExtendedTimelockSubmitterMetadata = Omit<
   EvmTimelockControllerSubmitterProps,
   'proposerSubmitter'
@@ -67,34 +64,14 @@ const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
     ]),
   );
 
-const ExtendedEvmIcaTxSubmitterPropsSchema: z.ZodSchema<ExtendedIcaSubmitterMetadata> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
-      chain: ZChainName,
-      owner: ZHash,
-      destinationChain: ZChainName,
-      originInterchainAccountRouter: ZHash.optional(),
-      destinationInterchainAccountRouter: ZHash.optional(),
-      interchainSecurityModule: ZHash.optional(),
-      internalSubmitter: ExtendedSubmitterMetadataSchema,
-    }),
+const ExtendedEvmIcaTxSubmitterPropsSchema =
+  buildEvmIcaTxSubmitterPropsSchema<ExtendedIcaSubmitterMetadata>(
+    () => ExtendedSubmitterMetadataSchema,
   );
 
-// @ts-expect-error ZBigNumberish infers a string|number|bigint input which does
-// not match the bigint `delay` field; same zod3 inference suppression the SDK
-// applies to its EvmTimelockControllerSubmitterPropsSchema.
-const ExtendedEvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<ExtendedTimelockSubmitterMetadata> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(TxSubmitterType.TIMELOCK_CONTROLLER),
-      chain: ZChainName,
-      timelockAddress: ZHash,
-      salt: ZBytes32String.optional(),
-      delay: ZBigNumberish.optional(),
-      predecessor: ZBytes32String.optional(),
-      proposerSubmitter: ExtendedSubmitterMetadataSchema,
-    }),
+const ExtendedEvmTimelockControllerSubmitterPropsSchema =
+  buildEvmTimelockControllerSubmitterPropsSchema<ExtendedTimelockSubmitterMetadata>(
+    () => ExtendedSubmitterMetadataSchema,
   );
 
 export const ExtendedSubmissionStrategySchema = z.object({

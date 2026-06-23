@@ -552,6 +552,8 @@ export {
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
   EvmTimelockControllerSubmitterProps,
+  buildEvmIcaTxSubmitterPropsSchema,
+  buildEvmTimelockControllerSubmitterPropsSchema,
   isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
