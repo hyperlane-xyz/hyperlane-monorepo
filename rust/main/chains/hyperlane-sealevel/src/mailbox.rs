@@ -437,7 +437,10 @@ impl SealevelMailbox {
         let account = self
             .provider
             .rpc_client()
-            .get_account_option_with_finalized_commitment(processed_message_account_key)
+            .get_account_option_with_commitment(
+                processed_message_account_key,
+                CommitmentConfig::processed(),
+            )
             .await?;
         Ok(account)
     }
@@ -558,18 +561,6 @@ impl Mailbox for SealevelMailbox {
             .unwrap_or(false);
         let txid = signature.into();
 
-        if let Some(reveal_config) = &self.ur_reveal {
-            if let Ok(payer) = self.get_payer() {
-                maybe_spawn_reveal(
-                    message,
-                    reveal_config,
-                    self.provider.rpc_client().clone(),
-                    self.priority_fee_oracle.clone(),
-                    payer.clone(),
-                );
-            }
-        }
-
         Ok(TxOutcome {
             transaction_id: txid,
             executed,
@@ -627,6 +618,25 @@ impl Mailbox for SealevelMailbox {
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
+    }
+
+    fn on_delivered(&self, message: &HyperlaneMessage) {
+        if let Some(reveal_config) = &self.ur_reveal {
+            match self.get_payer() {
+                Ok(payer) => maybe_spawn_reveal(
+                    message,
+                    reveal_config,
+                    self.provider.rpc_client().clone(),
+                    self.priority_fee_oracle.clone(),
+                    payer.clone(),
+                ),
+                Err(e) => {
+                    tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
+                }
+            }
+        } else {
+            tracing::info!("[REVEAL] Not configured for this mailbox; skipping");
+        }
     }
 }
 

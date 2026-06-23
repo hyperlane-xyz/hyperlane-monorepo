@@ -70,6 +70,16 @@ fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
     err.to_string().contains(ICA_INVALID_REVEAL)
 }
 
+/// Detects Custom(10) = CommitmentAlreadySet from the Solana Universal Router program.
+/// This error occurs in `process_estimate_costs` simulation when the UR program's
+/// `pending_swap` PDA already exists from a prior (possibly other-relayer) delivery.
+/// It signals that the COMMIT message was already processed; our `delivered()` check
+/// may be returning false due to RPC lag on the processed-message PDA.
+fn is_ur_commitment_already_set(err: &impl std::fmt::Display) -> bool {
+    // Simulation error format: "Error in simulation result: Some(UiTransactionError(InstructionError(N, Custom(10))))"
+    err.to_string().contains("Custom(10)")
+}
+
 /// The outcome of a gas payment requirement check.
 enum GasPaymentRequirementOutcome {
     MeetsRequirement(U256),
@@ -152,6 +162,14 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     ica_reveal_attempts: u32,
+    /// Set when simulation fails with CommitmentAlreadySet (Custom(10)) from the
+    /// Solana UR program. Means another relayer already processed the COMMIT;
+    /// our processed-message PDA is temporarily invisible at 'processed' commitment.
+    /// Guards `on_delivered` from firing more than once and skips the `delivered()`
+    /// check in `confirm()`.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    ur_commitment_already_set: bool,
 }
 
 impl Debug for PendingMessage {
@@ -283,6 +301,7 @@ impl PendingOperation for PendingMessage {
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
@@ -397,6 +416,44 @@ impl PendingOperation for PendingMessage {
                         // permanently-failing reveal doesn't re-enter the fast-poll burst.
                         if !is_ica_invalid_reveal(&e) {
                             self.ica_reveal_attempts = 0;
+                        }
+                        // CommitmentAlreadySet (Custom(10)) from the Solana UR program means
+                        // the pending_swap PDA already exists — the COMMIT was already
+                        // delivered (possibly by another relayer) and our processed-message
+                        // PDA is just not visible yet at 'processed' commitment. Skip the
+                        // delivered() re-check (which would return false) and go straight to
+                        // confirm, firing on_delivered exactly once.
+                        if is_ur_commitment_already_set(&e) && !self.ur_commitment_already_set {
+                            warn!(
+                                message_id = ?self.message.id(),
+                                "Simulation failed with CommitmentAlreadySet (Custom(10)); \
+                                 COMMIT was already delivered. Firing on_delivered and \
+                                 moving to confirm."
+                            );
+                            self.ur_commitment_already_set = true;
+                            self.ctx.destination_mailbox.on_delivered(&self.message);
+                            self.submitted = true;
+                            self.set_next_attempt_after(CONFIRM_DELAY);
+                            return PendingOperationResult::Confirm(
+                                ConfirmReason::AlreadySubmitted,
+                            );
+                        }
+                        // Re-check delivered(): simulation and the earlier delivered() call may
+                        // have hit different RPC nodes at slightly different states.  If the
+                        // message is now delivered, skip the reprepare loop and fire on_delivered.
+                        if let Ok(true) = self
+                            .ctx
+                            .destination_mailbox
+                            .delivered(self.message.id())
+                            .await
+                        {
+                            debug!("Message delivered (detected after simulation failure), marking as submitted.");
+                            self.ctx.destination_mailbox.on_delivered(&self.message);
+                            self.submitted = true;
+                            self.set_next_attempt_after(CONFIRM_DELAY);
+                            return PendingOperationResult::Confirm(
+                                ConfirmReason::AlreadySubmitted,
+                            );
                         }
                         warn!(
                             message_id = ?self.message.id(),
@@ -519,6 +576,22 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
+        // CommitmentAlreadySet path: the COMMIT was already delivered by another relayer.
+        // Our processed-message PDA may be invisible at 'processed' commitment; skip
+        // the delivered() check to avoid a reprepare loop. on_delivered was already
+        // fired in prepare() when the flag was first set.
+        if self.ur_commitment_already_set {
+            if let Err(err) = self.record_message_process_success() {
+                return self
+                    .on_reconfirm(Some(err), "Error when recording message process success");
+            }
+            info!(
+                message_id = ?self.message.id(),
+                "Message confirmed via CommitmentAlreadySet path (another relayer delivered)"
+            );
+            return PendingOperationResult::Success;
+        }
+
         let is_delivered = match self
             .ctx
             .destination_mailbox
@@ -540,6 +613,7 @@ impl PendingOperation for PendingMessage {
                 submission=?self.submission_outcome,
                 "Message successfully processed"
             );
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             PendingOperationResult::Success
         } else {
             warn!(message_id = ?self.message.id(), tx_outcome=?self.submission_outcome, "Transaction attempting to process message either reverted or was reorged");

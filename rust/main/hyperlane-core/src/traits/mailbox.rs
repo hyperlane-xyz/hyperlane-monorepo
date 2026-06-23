@@ -74,6 +74,11 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
+
+    /// Called once after a message is confirmed as delivered on-chain.
+    /// Default is a no-op; chain implementations may override to perform
+    /// post-delivery actions (e.g. submitting a reveal transaction).
+    fn on_delivered(&self, _message: &HyperlaneMessage) {}
 }
 
 /// The result of processing a batch of messages
