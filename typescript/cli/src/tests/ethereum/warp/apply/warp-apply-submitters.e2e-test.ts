@@ -26,6 +26,7 @@ import {
   ProtocolType,
   assert,
   bytes32ToAddress,
+  eqAddress,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -462,9 +463,7 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(proposeTxs).to.be.an('array').with.lengthOf(1);
       const [proposeTx] = proposeTxs;
       // scheduleBatch is called on the timelock contract itself.
-      expect(proposeTx.to.toLowerCase()).to.equal(
-        timelockInstance.address.toLowerCase(),
-      );
+      expect(eqAddress(proposeTx.to, timelockInstance.address)).to.be.true;
       expect(proposeTx.data).to.be.a('string').that.is.not.empty;
 
       // Decode the payload: it must be a scheduleBatch whose single inner
@@ -476,9 +475,7 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(decoded.name).to.equal('scheduleBatch');
       const [targets] = decoded.args;
       expect(targets).to.have.lengthOf(1);
-      expect(targets[0].toLowerCase()).to.equal(
-        getChain3WarpTokenAddress().toLowerCase(),
-      );
+      expect(eqAddress(targets[0], getChain3WarpTokenAddress())).to.be.true;
     });
 
     it('should thread the file submitter through a timelock -> ICA -> file composite (depth 2)', async () => {
@@ -544,12 +541,12 @@ describe('hyperlane warp apply with submitters', async function () {
       const [callRemoteTx] = callRemoteTxs;
       // callRemote is sent to the origin-chain InterchainAccountRouter and the
       // self-describing `from` is the ICA owner (the deployer).
-      expect(callRemoteTx.to.toLowerCase()).to.equal(
-        chain2Addresses.interchainAccountRouter.toLowerCase(),
-      );
-      expect(callRemoteTx.from.toLowerCase()).to.equal(
-        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
-      );
+      expect(
+        eqAddress(callRemoteTx.to, chain2Addresses.interchainAccountRouter),
+      ).to.be.true;
+      expect(
+        eqAddress(callRemoteTx.from, HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum),
+      ).to.be.true;
 
       // The ICA inner call targets the timelock (scheduleBatch), whose own inner
       // target is the chain3 warp token.
@@ -560,9 +557,12 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(decodedCallRemote.name).to.equal('callRemoteWithOverrides');
       const icaInnerCalls = decodedCallRemote.args[3];
       expect(icaInnerCalls).to.have.lengthOf(1);
-      expect(bytes32ToAddress(icaInnerCalls[0].to).toLowerCase()).to.equal(
-        timelockInstance.address.toLowerCase(),
-      );
+      expect(
+        eqAddress(
+          bytes32ToAddress(icaInnerCalls[0].to),
+          timelockInstance.address,
+        ),
+      ).to.be.true;
 
       const decodedSchedule =
         TimelockController__factory.createInterface().parseTransaction({
@@ -571,9 +571,8 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(decodedSchedule.name).to.equal('scheduleBatch');
       const [scheduleTargets] = decodedSchedule.args;
       expect(scheduleTargets).to.have.lengthOf(1);
-      expect(scheduleTargets[0].toLowerCase()).to.equal(
-        getChain3WarpTokenAddress().toLowerCase(),
-      );
+      expect(eqAddress(scheduleTargets[0], getChain3WarpTokenAddress())).to.be
+        .true;
     });
   });
 
@@ -667,16 +666,16 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
       const [callRemoteTx] = callRemoteTxs;
       // callRemote is sent to the origin-chain InterchainAccountRouter.
-      expect(callRemoteTx.to.toLowerCase()).to.equal(
-        chain2Addresses.interchainAccountRouter.toLowerCase(),
-      );
+      expect(
+        eqAddress(callRemoteTx.to, chain2Addresses.interchainAccountRouter),
+      ).to.be.true;
       expect(callRemoteTx.data).to.be.a('string').that.is.not.empty;
 
       // `from` must be the configured ICA owner (here the deployer), not the
       // signer that populated the tx — callRemote derives the ICA from msg.sender.
-      expect(callRemoteTx.from.toLowerCase()).to.equal(
-        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
-      );
+      expect(
+        eqAddress(callRemoteTx.from, HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum),
+      ).to.be.true;
 
       // Decode the payload: it must be a callRemoteWithOverrides whose single
       // inner call targets the chain3 warp token.
@@ -687,9 +686,12 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(decoded.name).to.equal('callRemoteWithOverrides');
       const innerCalls = decoded.args[3];
       expect(innerCalls).to.have.lengthOf(1);
-      expect(bytes32ToAddress(innerCalls[0].to).toLowerCase()).to.equal(
-        getChain3WarpTokenAddress().toLowerCase(),
-      );
+      expect(
+        eqAddress(
+          bytes32ToAddress(innerCalls[0].to),
+          getChain3WarpTokenAddress(),
+        ),
+      ).to.be.true;
     });
 
     it('should write a callRemote with `from` set to a Safe owner when the ICA owner is a multisig', async () => {
@@ -746,12 +748,10 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(callRemoteTxs).to.be.an('array').with.lengthOf(1);
       const [callRemoteTx] = callRemoteTxs;
       // The self-describing `from` must be the Safe, not the deployer signer.
-      expect(callRemoteTx.from.toLowerCase()).to.equal(
-        safeAddress.toLowerCase(),
-      );
-      expect(callRemoteTx.from.toLowerCase()).to.not.equal(
-        HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum.toLowerCase(),
-      );
+      expect(eqAddress(callRemoteTx.from, safeAddress)).to.be.true;
+      expect(
+        eqAddress(callRemoteTx.from, HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum),
+      ).to.be.false;
     });
   });
 
