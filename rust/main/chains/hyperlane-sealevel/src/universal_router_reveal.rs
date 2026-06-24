@@ -286,10 +286,13 @@ pub fn maybe_spawn_reveal(
     let sender = message.sender.0;
     let commitment_hex = hex::encode(commitment);
 
+    let pending_swap_pda =
+        derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
     info!(
         commitment = %commitment_hex,
         origin,
         sender = %hex::encode(sender),
+        %pending_swap_pda,
         ccs_url = %config.ccs_url,
         program_id = %config.program_id,
         fee_payer = %fee_payer.pubkey(),
@@ -316,9 +319,6 @@ pub fn maybe_spawn_reveal(
             fee_payer: &fee_payer,
             http_client,
         };
-        let pending_swap_pda =
-            derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
-
         // Phase 1: confirm the pending_swap PDA is visible at confirmed commitment.
         // The task is spawned from on_delivered, so the commit is already confirmed —
         // the PDA should exist immediately. A short retry window handles RPC propagation
