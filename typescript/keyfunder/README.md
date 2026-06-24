@@ -41,12 +41,20 @@ chains:
       threshold: '0.3'
       targetMultiplier: 1.5
       triggerMultiplier: 2.0
-  arbitrum:
+  optimism:
     balances:
       hyperlane-relayer: '0.1'
     igp:
       address: '0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22'
       claimThreshold: '0.1'
+    bridge:
+      type: 'opstack'
+      parentChain: 'ethereum'
+      standardBridge: '0x4200000000000000000000000000000000000010'
+      threshold: '0.1'
+      targetBalance: '0.5'
+      minGasLimit: 200000
+      extraData: '0x'
 
 metrics:
   jobName: 'keyfunder-mainnet3'
@@ -74,6 +82,14 @@ chainsToSkip: []
 | `chains.<chain>.sweep.threshold`         | Base threshold for sweep calculations (required when enabled; decimal string; up to 18 decimals) |
 | `chains.<chain>.sweep.targetMultiplier`  | Multiplier for target balance (default: 1.5; 2 decimal precision, floored)                       |
 | `chains.<chain>.sweep.triggerMultiplier` | Multiplier for trigger threshold (default: 2.0; 2 decimal precision, floored)                    |
+| `chains.<chain>.bridge`                  | Optional bridge configuration for topping up the funder wallet before key funding                |
+| `chains.<chain>.bridge.type`             | Bridge type. Currently supports `opstack`                                                        |
+| `chains.<chain>.bridge.parentChain`      | Parent chain that holds the funder balance used for bridging                                     |
+| `chains.<chain>.bridge.standardBridge`   | OP Stack `L1StandardBridge` contract address on the parent chain                                 |
+| `chains.<chain>.bridge.threshold`        | Child-chain funder balance below which bridging is triggered                                     |
+| `chains.<chain>.bridge.targetBalance`    | Child-chain funder balance to restore through bridging. Must be greater than `threshold`         |
+| `chains.<chain>.bridge.minGasLimit`      | OP Stack bridge gas limit passed to `bridgeETHTo` (default: 200000)                              |
+| `chains.<chain>.bridge.extraData`        | Hex bytes passed to `bridgeETHTo` (default: `0x`)                                                |
 | `metrics.jobName`                        | Job name for metrics                                                                             |
 | `metrics.labels`                         | Additional labels for metrics                                                                    |
 | `chainsToSkip`                           | Array of chain names to skip                                                                     |
@@ -142,6 +158,12 @@ Keys are funded when their balance drops below 40% of the desired balance. The f
 ### IGP Claims
 
 When the IGP contract balance exceeds the claim threshold, accumulated fees are claimed to the funder wallet.
+
+### OP Stack Bridge Top-Ups
+
+For OP Stack child chains, KeyFunder can top up the child-chain funder wallet from a parent-chain `L1StandardBridge` before it funds keys.
+
+When the child funder balance is below `bridge.threshold`, KeyFunder sends enough native tokens through `bridgeETHTo` to restore the child balance to `bridge.targetBalance`. The parent-chain funder must have enough balance to cover the bridge amount.
 
 ### Sweep
 
