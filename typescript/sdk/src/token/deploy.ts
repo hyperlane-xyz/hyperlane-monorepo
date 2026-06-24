@@ -827,13 +827,12 @@ abstract class TokenDeployer<
   }
 
   protected async setFeeHooks(
-    configMap: ChainMap<HypTokenConfig>,
+    configMap: ChainMap<HypTokenRouterConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        const fullConfig = config as HypTokenRouterConfig;
-        if (!fullConfig.feeHook) return;
+        if (!config.feeHook) return;
 
         const routerAddress = this.router(deployedContractsMap[chain]).address;
         const router = TokenRouter__factory.connect(
@@ -841,12 +840,10 @@ abstract class TokenDeployer<
           this.multiProvider.getSigner(chain),
         );
 
-        this.logger.info(
-          `Setting feeHook on ${chain} to ${fullConfig.feeHook}`,
-        );
+        this.logger.info(`Setting feeHook on ${chain} to ${config.feeHook}`);
         await this.multiProvider.handleTx(
           chain,
-          router.setFeeHook(fullConfig.feeHook),
+          router.setFeeHook(config.feeHook),
         );
       }),
     );

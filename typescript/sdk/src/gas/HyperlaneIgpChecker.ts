@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
 
@@ -194,25 +194,24 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         feeToken,
       };
 
-      for (const remote of Object.keys(remoteConfigs)) {
-        const remoteId = this.multiProvider.tryGetDomainId(remote);
-        if (remoteId === null) {
-          this.app.logger.warn(
-            `Skipping token oracle check ${local} -> ${remote} for fee token ${feeToken}`,
-          );
-          continue;
-        }
+      // TODO: this checker only verifies that an oracle slot is non-zero; it
+      // does not validate the tokenExchangeRate / gasPrice stored in the oracle.
+      await Promise.all(
+        Object.keys(remoteConfigs).map(async (remote) => {
+          const remoteId = this.multiProvider.tryGetDomainId(remote);
+          if (remoteId === null) {
+            this.app.logger.warn(
+              `Skipping token oracle check ${local} -> ${remote} for fee token ${feeToken}`,
+            );
+            return;
+          }
 
-        const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
-        // Expected oracle is non-zero (should be configured)
-        if (
-          eqAddress(actualOracle, '0x0000000000000000000000000000000000000000')
-        ) {
-          const remoteChain = remote as ChainName;
-          violation.actual[remoteChain] = actualOracle;
-          violation.expected[remoteChain] = 'configured';
-        }
-      }
+          const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
+          if (eqAddress(actualOracle, ethers.constants.AddressZero)) {
+            violation.actual[remote as ChainName] = actualOracle;
+          }
+        }),
+      );
 
       if (Object.keys(violation.actual).length > 0) {
         this.addViolation(violation);

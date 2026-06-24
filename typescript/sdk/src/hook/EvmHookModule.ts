@@ -1457,19 +1457,12 @@ export class EvmHookModule extends HyperlaneModule<
       config,
     });
 
-    // Deploy the InterchainGasPaymaster
+    // Deploy the InterchainGasPaymaster (handles token gas oracle wiring
+    // via updateIgpTokenGasOracles before transferring ownership)
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster({
       storageGasOracle,
       config,
     });
-
-    // Deploy per-token gas oracles for ERC20 fee payments
-    if (config.tokenOracleConfig) {
-      await this.deployTokenGasOracles({
-        igp: interchainGasPaymaster,
-        config,
-      });
-    }
 
     return interchainGasPaymaster;
   }
@@ -1563,71 +1556,6 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     return routingHook;
-  }
-
-  protected async deployTokenGasOracles({
-    igp,
-    config,
-  }: {
-    igp: InterchainGasPaymaster;
-    config: IgpHookConfig;
-  }): Promise<void> {
-    if (!config.tokenOracleConfig) return;
-
-    for (const [feeToken, remoteConfigs] of Object.entries(
-      config.tokenOracleConfig,
-    )) {
-      this.logger.info(
-        `Deploying StorageGasOracle for fee token ${feeToken}...`,
-      );
-
-      // Deploy a StorageGasOracle for this fee token
-      const oracle = await this.deployer.deployContractFromFactory(
-        this.chain,
-        new StorageGasOracle__factory(),
-        'storageGasOracle',
-        [],
-      );
-
-      // Configure remote gas data on the oracle
-      const configureTxs = await this.updateStorageGasOracle({
-        gasOracle: oracle.address,
-        targetOracleConfig: remoteConfigs,
-        targetOverhead: config.overhead,
-      });
-      for (const tx of configureTxs) {
-        await this.multiProvider.sendTransaction(this.chain, tx);
-      }
-
-      // Set the oracle on the IGP for this fee token
-      const tokenGasOracleConfigs: {
-        feeToken: string;
-        remoteDomain: number;
-        gasOracle: string;
-      }[] = [];
-      for (const remote of Object.keys(remoteConfigs)) {
-        const remoteId = this.multiProvider.tryGetDomainId(remote);
-        if (!remoteId) continue;
-        tokenGasOracleConfigs.push({
-          feeToken,
-          remoteDomain: remoteId,
-          gasOracle: oracle.address,
-        });
-      }
-
-      if (tokenGasOracleConfigs.length > 0) {
-        await this.multiProvider.handleTx(
-          this.chain,
-          igp.setTokenGasOracles(tokenGasOracleConfigs, this.txOverrides),
-        );
-      }
-
-      // Transfer ownership to oracleKey
-      await this.multiProvider.handleTx(
-        this.chain,
-        oracle.transferOwnership(config.oracleKey, this.txOverrides),
-      );
-    }
   }
 
   protected async deployStorageGasOracle({
