@@ -196,14 +196,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
   });
 
   const unsupportedChainsTestCases: Record<
-    // Radix and Aleo are excluded because they are still not supported on main
+    // Radix is excluded because it's still not supported on main
     // Unknown is excluded because it's a forward-compatibility placeholder
     Exclude<
       ProtocolType,
-      | ProtocolType.Radix
-      | ProtocolType.Aleo
-      | ProtocolType.Tron
-      | ProtocolType.Unknown
+      ProtocolType.Radix | ProtocolType.Tron | ProtocolType.Unknown
     >,
     Address
   > = {
@@ -212,6 +209,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
     [ProtocolType.Ethereum]: randomAddress(),
     [ProtocolType.Sealevel]: randomSvmAddress(),
     [ProtocolType.Starknet]: randomStarknetAddress(),
+    [ProtocolType.Aleo]:
+      'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px',
   };
 
   for (const [protocol, unsupportedChainAddress] of Object.entries(

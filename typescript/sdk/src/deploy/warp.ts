@@ -493,46 +493,53 @@ async function resolveWarpIsmAndHook(
   rateLimitedHookSnapshots: ChainMap<RateLimitedHookDeployInput>,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   return promiseObjAll(
-    objMap(warpConfig, async (chain, config) => {
-      const ccipContractCache = new CCIPContractCache(registryAddresses);
-      const chainAddresses = registryAddresses[chain];
+    objMap(
+      objFilter(
+        warpConfig,
+        (_, config): config is WarpRouteDeployConfigMailboxRequired[string] =>
+          !config.foreignDeployment,
+      ),
+      async (chain, config) => {
+        const ccipContractCache = new CCIPContractCache(registryAddresses);
+        const chainAddresses = registryAddresses[chain];
 
-      if (!chainAddresses) {
-        throw new Error(`Registry factory addresses not found for ${chain}.`);
-      }
+        if (!chainAddresses) {
+          throw new Error(`Registry factory addresses not found for ${chain}.`);
+        }
 
-      const ism = await createWarpIsm({
-        ccipContractCache,
-        chain,
-        chainAddresses,
-        multiProvider,
-        altVmSigners,
-        contractVerifier,
-        ismFactoryDeployer,
-        warpConfig: config,
-      }); // TODO write test
+        const ism = await createWarpIsm({
+          ccipContractCache,
+          chain,
+          chainAddresses,
+          multiProvider,
+          altVmSigners,
+          contractVerifier,
+          ismFactoryDeployer,
+          warpConfig: config,
+        }); // TODO write test
 
-      const hook = await createWarpHook({
-        ccipContractCache,
-        chain,
-        chainAddresses,
-        multiProvider,
-        altVmSigners,
-        contractVerifier,
-        ismFactoryDeployer,
-        warpConfig: config,
-        rateLimitedHookSnapshots,
-      });
+        const hook = await createWarpHook({
+          ccipContractCache,
+          chain,
+          chainAddresses,
+          multiProvider,
+          altVmSigners,
+          contractVerifier,
+          ismFactoryDeployer,
+          warpConfig: config,
+          rateLimitedHookSnapshots,
+        });
 
-      // Spread instead of mutating config in place — the caller holds a reference
-      // to warpDeployConfig[chain] and uses it for registry persistence; mutating
-      // would wipe the RATE_LIMITED stanza from the persisted YAML.
-      return {
-        ...config,
-        interchainSecurityModule: ism,
-        hook,
-      };
-    }),
+        // Spread instead of mutating config in place — the caller holds a reference
+        // to warpDeployConfig[chain] and uses it for registry persistence; mutating
+        // would wipe the RATE_LIMITED stanza from the persisted YAML.
+        return {
+          ...config,
+          interchainSecurityModule: ism,
+          hook,
+        };
+      },
+    ),
   );
 }
 
@@ -761,12 +768,16 @@ export async function enrollCrossChainRouters(
     ...config,
   }));
 
+  // foreignDeployment chains with an altVmSigner are included so the CLI can
+  // enroll remote routers on the pre-deployed contract.  Chains without a
+  // signer are excluded — their address is enrolled into other chains but
+  // nothing is written to them directly.
   const supportedChains = Object.keys(
     objFilter(
       resolvedConfigMap,
-      (_, config: any): config is any =>
-        !config.foreignDeployment &&
-        config.type !== TokenType.collateralDepositAddress,
+      (chainName, config: any): config is any =>
+        config.type !== TokenType.collateralDepositAddress &&
+        (!config.foreignDeployment || chainName in altVmSigners),
     ),
   );
 
