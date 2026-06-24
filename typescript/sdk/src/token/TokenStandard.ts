@@ -462,6 +462,7 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralDepositAddress]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralOft]: TokenStandard.EvmHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.EvmHypCrossCollateralRouter,
+  [TokenType.hyperToken]: TokenStandard.EvmHypSynthetic,
 };
 
 // Cosmos Native supported token types
@@ -577,6 +578,8 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralDepositAddress]: TokenStandard.TronHypCollateral,
   [TokenType.collateralOft]: TokenStandard.TronHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.TronHypCrossCollateralRouter,
+  // HyperToken is EVM-only; map to synthetic for Tron lookups
+  [TokenType.hyperToken]: TokenStandard.TronHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<

@@ -71,6 +71,8 @@ export enum WarpRouteIds {
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
   EclipseEthereumES = 'ES/eclipse',
+  HYPERSTAGE = 'HYPERSTAGE/arbitrum-base-bsc-ethereum-optimism',
+  stHYPERSTAGE = 'stHYPERSTAGE/bsc-ethereum',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',

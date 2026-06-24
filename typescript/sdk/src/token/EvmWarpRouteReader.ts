@@ -13,6 +13,7 @@ import {
   HypERC4626__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  HyperToken__factory,
   IFiatToken__factory,
   IMessageTransmitter__factory,
   ISafe__factory,
@@ -187,6 +188,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
+      [TokenType.hyperToken]: (addr: Address) =>
+        this.deriveHypSyntheticTokenConfig(addr, TokenType.hyperToken),
     };
 
     this.contractVerifier =
@@ -652,6 +655,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.syntheticRebase]: {
         factory: HypERC4626__factory,
         method: 'collateralDomain',
+      },
+      [TokenType.hyperToken]: {
+        factory: HyperToken__factory,
+        method: 'MINTER_ROLE',
       },
     };
 
@@ -1237,6 +1244,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   private async deriveHypSyntheticTokenConfig(
     hypTokenAddress: Address,
+    type:
+      | typeof TokenType.synthetic
+      | typeof TokenType.hyperToken = TokenType.synthetic,
   ): Promise<HypTokenConfig> {
     const [erc20TokenMetadata, scale] = await Promise.all([
       this.fetchERC20Metadata(hypTokenAddress),
@@ -1245,7 +1255,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return {
       ...erc20TokenMetadata,
-      type: TokenType.synthetic,
+      type,
       scale,
     };
   }

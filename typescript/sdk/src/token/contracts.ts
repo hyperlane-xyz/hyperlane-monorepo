@@ -17,6 +17,7 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  HyperToken__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeOft__factory,
@@ -49,6 +50,7 @@ export const hypERC20contracts = {
   [TokenType.collateralDepositAddress]: 'TokenBridgeDepositAddress',
   [TokenType.collateralOft]: 'TokenBridgeOft',
   [TokenType.crossCollateral]: 'CrossCollateralRouter',
+  [TokenType.hyperToken]: 'HyperToken',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -80,6 +82,7 @@ export const hypERC20factories = {
     new TokenBridgeDepositAddress__factory(),
   [TokenType.collateralOft]: new TokenBridgeOft__factory(),
   [TokenType.crossCollateral]: new CrossCollateralRouter__factory(),
+  [TokenType.hyperToken]: new HyperToken__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

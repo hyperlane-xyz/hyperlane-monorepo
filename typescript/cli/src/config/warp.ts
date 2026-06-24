@@ -44,6 +44,8 @@ import {
 import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
+  [TokenType.hyperToken]:
+    'A special ERC20 type for the HYPER token with mint and burn functionality',
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:

@@ -613,7 +613,7 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
   return 0;
 };
 
-const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
+const FIELDS_TO_IGNORE = new Set<string>([
   // gas is removed because the destinationGas is the result of
   // expanding the config based on the gas value for each chain
   // see `expandWarpDeployConfig` function
@@ -623,6 +623,9 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   // the warp route works
   'symbol',
   'name',
+  // initialSupply is a write-only constructor arg; it cannot be recovered
+  // from chain after deploy and drifts as supply is bridged in/out.
+  'initialSupply',
 ]);
 
 function normalizeCrossCollateralFeeContractsForCheck(
@@ -706,10 +709,7 @@ export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
   const filteredObj = Object.fromEntries(
-    Object.entries(obj).filter(
-      ([key, _value]) =>
-        !FIELDS_TO_IGNORE.has(key as keyof HypTokenRouterConfig),
-    ),
+    Object.entries(obj).filter(([key, _value]) => !FIELDS_TO_IGNORE.has(key)),
   );
 
   const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
