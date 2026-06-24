@@ -447,10 +447,7 @@ impl SealevelMailbox {
         let account = self
             .provider
             .rpc_client()
-            .get_account_option_with_commitment(
-                processed_message_account_key,
-                CommitmentConfig::processed(),
-            )
+            .get_account_option_with_finalized_commitment(processed_message_account_key)
             .await?;
         Ok(account)
     }
@@ -632,36 +629,57 @@ impl Mailbox for SealevelMailbox {
 
     fn on_delivered(&self, message: &HyperlaneMessage) {
         if let Some(ref cfg) = self.ur_reveal {
-            if message.body.len() == 96 {
-                #[allow(clippy::unwrap_used)]
-                let commitment: [u8; 32] = message.body[0..32].try_into().unwrap();
-                match self.seen_reveal_commitments.lock() {
-                    Err(e) => {
-                        tracing::warn!(error = ?e, "[REVEAL] seen_reveal_commitments mutex poisoned; skipping reveal");
-                    }
-                    Ok(mut set) => {
-                        if !set.contains(&commitment) {
-                            match self.get_payer() {
-                                Ok(payer) => {
-                                    // Evict oldest half when the set grows large to bound memory.
-                                    if set.len() >= SEEN_REVEAL_MAX {
-                                        let keep: std::collections::HashSet<_> =
-                                            set.iter().cloned().skip(set.len() / 2).collect();
-                                        *set = keep;
-                                    }
-                                    set.insert(commitment);
-                                    drop(set);
-                                    maybe_spawn_reveal(
-                                        message,
-                                        cfg,
-                                        self.provider.rpc_client().clone(),
-                                        self.priority_fee_oracle.clone(),
-                                        payer.clone(),
-                                    );
+            if message.body.len() != 96 {
+                return;
+            }
+            // Gate on recipient == UR program before touching seen_reveal_commitments,
+            // so a non-UR 96-byte message can't poison a slot for a real commitment.
+            let program_id = match Pubkey::from_str(&cfg.program_id) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(error = ?e, "Invalid UR program ID in config; skipping reveal");
+                    return;
+                }
+            };
+            let message_recipient = Pubkey::new_from_array(message.recipient.0);
+            if message_recipient != program_id {
+                return;
+            }
+
+            let commitment: [u8; 32] = message.body[0..32]
+                .try_into()
+                .expect("body is exactly 96 bytes");
+            match self.seen_reveal_commitments.lock() {
+                Err(e) => {
+                    tracing::warn!(error = ?e, "seen_reveal_commitments mutex poisoned; skipping reveal");
+                }
+                Ok(mut set) => {
+                    if !set.contains(&commitment) {
+                        match self.get_payer() {
+                            Ok(payer) => {
+                                // Evict oldest half when the set grows large to bound memory.
+                                if set.len() >= SEEN_REVEAL_MAX {
+                                    let keep: std::collections::HashSet<_> =
+                                        set.iter().cloned().skip(set.len() / 2).collect();
+                                    *set = keep;
                                 }
-                                Err(e) => {
-                                    tracing::warn!(error = ?e, "[REVEAL] get_payer failed; skipping reveal");
-                                }
+                                // Insert here — after recipient validation — so only genuine UR
+                                // COMMIT messages occupy a slot. If the reveal task times out or
+                                // fails, this commitment stays seen for the process lifetime
+                                // (until the 1000-entry eviction). A relayer restart will re-fire
+                                // it via the is_already_delivered → on_delivered path.
+                                set.insert(commitment);
+                                drop(set);
+                                maybe_spawn_reveal(
+                                    message,
+                                    cfg,
+                                    self.provider.rpc_client().clone(),
+                                    self.priority_fee_oracle.clone(),
+                                    payer.clone(),
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = ?e, "get_payer failed; skipping reveal");
                             }
                         }
                     }

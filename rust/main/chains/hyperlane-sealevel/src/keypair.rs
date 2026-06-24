@@ -29,8 +29,10 @@ impl Deref for SealevelKeypair {
 
 impl Clone for SealevelKeypair {
     fn clone(&self) -> Self {
-        #[allow(clippy::unwrap_used)]
-        Self(Keypair::try_from(self.0.to_bytes().as_slice()).unwrap())
+        Self(
+            Keypair::try_from(self.0.to_bytes().as_slice())
+                .expect("bytes from a valid Keypair are always valid"),
+        )
     }
 }
 
