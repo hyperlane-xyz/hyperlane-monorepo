@@ -319,10 +319,11 @@ pub fn maybe_spawn_reveal(
             fee_payer: &fee_payer,
             http_client,
         };
-        // Phase 1: confirm the pending_swap PDA is visible at confirmed commitment.
-        // The task is spawned from on_delivered, so the commit is already confirmed —
-        // the PDA should exist immediately. A short retry window handles RPC propagation
-        // lag. If the PDA has tx history but is gone, it was already revealed; stop.
+        // Phase 1: wait for the pending_swap PDA to appear at confirmed commitment.
+        // The task is spawned after the commit tx is confirmed on-chain (on_submitted_success
+        // polls delivered() before calling this; on_delivered fires post-confirmation),
+        // so the PDA should exist immediately.  A short retry window handles RPC
+        // propagation lag.  If the PDA has tx history but is gone, already revealed; stop.
         const PDA_WAIT_MAX_ITERS: u32 = 5; // 5 × 5s = 25s propagation grace
         let mut pda_wait_iters: u32 = 0;
         loop {

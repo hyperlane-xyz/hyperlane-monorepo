@@ -627,13 +627,13 @@ impl Mailbox for SealevelMailbox {
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
     }
 
-    fn on_submitted(&self, message: &HyperlaneMessage) {
+    fn on_submitted_success(&self, message: &HyperlaneMessage) {
         self.maybe_spawn_reveal_for_message(message);
     }
 
     /// Restart-recovery path: fires when the relayer detects a message was already
     /// delivered on a previous run.  Deduplication via `seen_reveal_commitments`
-    /// prevents double-spawning if `on_submitted` already ran this session.
+    /// prevents double-spawning if `on_submitted_success` already ran this session.
     fn on_delivered(&self, message: &HyperlaneMessage) {
         self.maybe_spawn_reveal_for_message(message);
     }

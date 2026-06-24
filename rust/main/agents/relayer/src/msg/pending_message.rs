@@ -497,7 +497,9 @@ impl PendingOperation for PendingMessage {
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit).await;
-                self.ctx.destination_mailbox.on_submitted(&self.message);
+                self.ctx
+                    .destination_mailbox
+                    .on_submitted_success(&self.message);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -627,8 +629,10 @@ impl PendingOperation for PendingMessage {
         Some(self.ctx.destination_mailbox.clone())
     }
 
-    fn on_submitted(&self) {
-        self.ctx.destination_mailbox.on_submitted(&self.message);
+    fn on_submitted_success(&self) {
+        self.ctx
+            .destination_mailbox
+            .on_submitted_success(&self.message);
     }
 
     fn get_metric(&self) -> Option<Arc<IntGauge>> {

@@ -77,7 +77,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Called immediately after the relayer successfully submits a process tx for a message.
     /// Fires before the confirm delay; use for latency-sensitive follow-up work.
-    fn on_submitted(&self, _message: &HyperlaneMessage) {}
+    fn on_submitted_success(&self, _message: &HyperlaneMessage) {}
 
     /// Called when the relayer confirms a message was already delivered (restart recovery path).
     fn on_delivered(&self, _message: &HyperlaneMessage) {}
