@@ -177,6 +177,10 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
         None
     }
 
+    /// Called immediately after the process tx for this operation is successfully submitted.
+    /// Default no-op; override for latency-sensitive follow-up work (e.g. UR reveal).
+    fn on_submitted(&self) {}
+
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
 

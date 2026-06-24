@@ -627,6 +627,10 @@ impl PendingOperation for PendingMessage {
         Some(self.ctx.destination_mailbox.clone())
     }
 
+    fn on_submitted(&self) {
+        self.ctx.destination_mailbox.on_submitted(&self.message);
+    }
+
     fn get_metric(&self) -> Option<Arc<IntGauge>> {
         self.metric.clone()
     }
