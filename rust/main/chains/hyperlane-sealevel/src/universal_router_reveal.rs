@@ -32,7 +32,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::TransactionStatus;
-use tracing::{error, info, warn, Instrument};
+use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
     priority_fee::PriorityFeeOracle, rpc::fallback::SealevelFallbackRpcClient, SealevelKeypair,
@@ -331,7 +331,7 @@ pub fn maybe_spawn_reveal(
                 .await
             {
                 Ok(Some(_)) => {
-                    tracing::debug!("PDA confirmed; proceeding");
+                    debug!("PDA confirmed; proceeding");
                     break;
                 }
                 Ok(None) => {
@@ -345,7 +345,7 @@ pub fn maybe_spawn_reveal(
                         }
                         Ok(_) => {}
                         Err(e) => {
-                            tracing::debug!(error = ?e, "Could not check PDA history");
+                            debug!(error = ?e, "Could not check PDA history");
                         }
                     }
                     pda_wait_iters = pda_wait_iters.saturating_add(1);
@@ -355,7 +355,7 @@ pub fn maybe_spawn_reveal(
                     }
                 }
                 Err(e) => {
-                    tracing::debug!(error = ?e, "Could not check PDA; retrying in 5s");
+                    debug!(error = ?e, "Could not check PDA; retrying in 5s");
                 }
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -379,7 +379,7 @@ pub fn maybe_spawn_reveal(
                     return;
                 }
                 Err(e) => {
-                    tracing::debug!(error = ?e, "Could not check PDA while waiting for tokens");
+                    debug!(error = ?e, "Could not check PDA while waiting for tokens");
                 }
                 Ok(Some(_)) => {}
             }
@@ -425,13 +425,13 @@ pub fn maybe_spawn_reveal(
                                             acct.data[64..72].try_into().unwrap_or([0u8; 8]),
                                         );
                                         if balance > 0 {
-                                            tracing::debug!(%ata_pubkey, balance, "PDA input ATA funded; proceeding to build tx");
+                                            debug!(%ata_pubkey, balance, "PDA input ATA funded; proceeding to build tx");
                                             break;
                                         }
                                     }
                                     Ok(None) => {}
                                     Ok(Some(_)) => {
-                                        tracing::debug!("PDA input ATA has unexpected data length; waiting 5s");
+                                        debug!("PDA input ATA has unexpected data length; waiting 5s");
                                     }
                                     Err(e) => {
                                         warn!(error = ?e, "Could not check PDA input ATA balance; waiting 5s");
@@ -485,7 +485,7 @@ pub fn maybe_spawn_reveal(
                                 warn!(retry_in_secs = delay_secs, error = ?e, "On-chain rejection but PDA still exists; retrying with fresh pool state");
                             }
                             Err(check_err) => {
-                                tracing::debug!(error = ?check_err, "Could not check PDA existence after on-chain error; will retry");
+                                debug!(error = ?check_err, "Could not check PDA existence after on-chain error; will retry");
                             }
                         }
                     } else {
@@ -563,7 +563,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
             // Resend periodically to keep the tx in the leader queue within the validity window.
             if poll % RESEND_INTERVAL_POLLS == 0 {
                 if let Err(e) = ctx.rpc_client.send_transaction(&tx, true).await {
-                    tracing::debug!(%signature, error = ?e, "Resend error (non-fatal)");
+                    debug!(%signature, error = ?e, "Resend error (non-fatal)");
                 }
             }
 
@@ -581,7 +581,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
                     Some(_) => {}
                 },
                 Err(e) => {
-                    tracing::debug!(%signature, error = ?e, "Error polling confirmation");
+                    debug!(%signature, error = ?e, "Error polling confirmation");
                 }
             }
         }
@@ -607,7 +607,7 @@ async fn fetch_from_ccs(
 ) -> Result<CcsGetResponse> {
     let commitment_hex = hex::encode(commitment);
     let url = format!("{ccs_url}/calldata/0x{commitment_hex}");
-    tracing::debug!(url, "GET CCS calldata");
+    debug!(url, "GET CCS calldata");
     for attempt in 1..=CCS_MAX_RETRIES {
         let resp = http.get(&url).send().await?;
         let status = resp.status();
@@ -618,7 +618,7 @@ async fn fetch_from_ccs(
             }
             reqwest::StatusCode::NOT_FOUND => {
                 if attempt < CCS_MAX_RETRIES {
-                    tracing::debug!(attempt, "CCS 404 — calldata not yet stored; retrying");
+                    debug!(attempt, "CCS 404 — calldata not yet stored; retrying");
                     tokio::time::sleep(Duration::from_secs(CCS_RETRY_DELAY_SECS)).await;
                 } else {
                     warn!("CCS 404 on final attempt");
@@ -758,7 +758,7 @@ async fn build_instruction(
         let pool_pubkey = accounts[6].pubkey;
         match fetch_clmm_pool_state(pool_pubkey, rpc_client).await {
             Ok(pool_state) => {
-                tracing::debug!(
+                debug!(
                     pool = %pool_pubkey,
                     amm_config = %pool_state.amm_config,
                     observation_state = %pool_state.observation_state,
@@ -839,7 +839,7 @@ async fn build_instruction(
                 let live_ta0 = compute_tick_array_address(&pool_pubkey, ta0_start);
                 let live_ta1 = compute_tick_array_address(&pool_pubkey, ta1_start);
                 let live_ta2 = compute_tick_array_address(&pool_pubkey, ta2_start);
-                tracing::debug!(ta0 = %live_ta0, ta1 = %live_ta1, ta2 = %live_ta2, "Recomputed tick arrays from live pool state");
+                debug!(ta0 = %live_ta0, ta1 = %live_ta1, ta2 = %live_ta2, "Recomputed tick arrays from live pool state");
                 accounts[17].pubkey = live_ta0;
                 accounts[18].pubkey = live_ta1;
                 accounts[19].pubkey = live_ta2;
@@ -929,7 +929,7 @@ async fn build_instruction(
                         &recipient_pubkey,
                         &fee_payer_pubkey,
                     );
-                    tracing::debug!(fee_payer_wsol_ata = %fee_payer_wsol_ata, "SOL output: closing wSOL ATA → native SOL to recipient");
+                    debug!(fee_payer_wsol_ata = %fee_payer_wsol_ata, "SOL output: closing wSOL ATA → native SOL to recipient");
                     (ata_ix, Some(close_ix))
                 } else {
                     override_acct(

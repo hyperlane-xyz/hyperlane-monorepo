@@ -497,6 +497,7 @@ impl PendingOperation for PendingMessage {
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit).await;
+                self.ctx.destination_mailbox.on_submitted(&self.message);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {

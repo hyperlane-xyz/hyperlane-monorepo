@@ -75,7 +75,11 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Get the calldata for a call which allows to check if a particular messages was delivered
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
 
-    /// Called when the relayer sees a message that may need chain-specific follow-up work.
+    /// Called immediately after the relayer successfully submits a process tx for a message.
+    /// Fires before the confirm delay; use for latency-sensitive follow-up work.
+    fn on_submitted(&self, _message: &HyperlaneMessage) {}
+
+    /// Called when the relayer confirms a message was already delivered (restart recovery path).
     fn on_delivered(&self, _message: &HyperlaneMessage) {}
 }
 
