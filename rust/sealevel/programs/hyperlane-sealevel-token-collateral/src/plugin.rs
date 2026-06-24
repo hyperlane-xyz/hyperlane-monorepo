@@ -231,7 +231,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     }
 
     /// Transfers tokens to the escrow account so they can be sent to a remote chain.
-    /// Burns the tokens from the sender's associated token account.
+    /// If fees are configured, transfers fee_amount to the fee beneficiary's ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The SPL token program for the mint.
@@ -244,6 +244,8 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         sender_wallet_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee_amount: u64,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // Account 0: SPL token program.
         let spl_token_account_info = next_account_info(accounts_iter)?;
@@ -280,6 +282,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             return Err(ProgramError::IncorrectProgramId);
         }
 
+        // Lock transfer amount in escrow
         let transfer_instruction = transfer_checked(
             spl_token_account_info.key,
             sender_ata_account_info.key,
@@ -302,6 +305,35 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 sender_wallet_account_info.clone(),
             ],
         )?;
+
+        // Transfer fee to beneficiary (if any).
+        // The fee_beneficiary_account's legitimacy (matching the fee account's
+        // stored beneficiary) was verified by verify_and_quote_fee in the
+        // hyperlane-sealevel-token lib.
+        if fee_amount > 0 {
+            let fee_beneficiary_ata = fee_beneficiary_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
+            ))?;
+            let fee_transfer_instruction = transfer_checked(
+                spl_token_account_info.key,
+                sender_ata_account_info.key,
+                mint_account_info.key,
+                fee_beneficiary_ata.key,
+                sender_wallet_account_info.key,
+                &[],
+                fee_amount,
+                token.decimals,
+            )?;
+            invoke(
+                &fee_transfer_instruction,
+                &[
+                    sender_ata_account_info.clone(),
+                    mint_account_info.clone(),
+                    fee_beneficiary_ata.clone(),
+                    sender_wallet_account_info.clone(),
+                ],
+            )?;
+        }
 
         Ok(())
     }
@@ -423,6 +455,14 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         )?;
 
         Ok(())
+    }
+
+    fn fee_beneficiary_account_key(token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey {
+        get_associated_token_address_with_program_id(
+            beneficiary,
+            &token.plugin_data.mint,
+            &token.plugin_data.spl_token_program,
+        )
     }
 
     /// Returns the accounts required for `transfer_out`.

@@ -1,0 +1,126 @@
+{
+  "linear": {
+    "vectors": [
+      {
+        "description": "zero amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 0,
+        "expected_fee": 0
+      },
+      {
+        "description": "at half_amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 10000,
+        "expected_fee": 500
+      },
+      {
+        "description": "at 2x half_amount (cap)",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 20000,
+        "expected_fee": 1000
+      },
+      {
+        "description": "above cap",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 30000,
+        "expected_fee": 1000
+      },
+      {
+        "description": "tiny amount rounds to zero",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 1,
+        "expected_fee": 0
+      },
+      {
+        "description": "routing test params",
+        "max_fee": 500,
+        "half_amount": 1000,
+        "amount": 2000,
+        "expected_fee": 500
+      }
+    ]
+  },
+  "progressive": {
+    "vectors": [
+      {
+        "description": "zero amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 0,
+        "expected_fee": 0
+      },
+      {
+        "description": "small amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 2000,
+        "expected_fee": 38
+      },
+      {
+        "description": "moderate amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 5000,
+        "expected_fee": 200
+      },
+      {
+        "description": "at half_amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 10000,
+        "expected_fee": 500
+      },
+      {
+        "description": "2x half_amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 20000,
+        "expected_fee": 800
+      },
+      {
+        "description": "5x half_amount",
+        "max_fee": 1000,
+        "half_amount": 10000,
+        "amount": 50000,
+        "expected_fee": 961
+      }
+    ]
+  },
+  "regressive": {
+    "vectors": [
+      {
+        "description": "zero amount",
+        "max_fee": 1000,
+        "half_amount": 5000,
+        "amount": 0,
+        "expected_fee": 0
+      },
+      {
+        "description": "small amount",
+        "max_fee": 1000,
+        "half_amount": 5000,
+        "amount": 1000,
+        "expected_fee": 166
+      },
+      {
+        "description": "at half_amount",
+        "max_fee": 1000,
+        "half_amount": 5000,
+        "amount": 5000,
+        "expected_fee": 500
+      },
+      {
+        "description": "4x half_amount",
+        "max_fee": 1000,
+        "half_amount": 5000,
+        "amount": 20000,
+        "expected_fee": 800
+      }
+    ]
+  }
+}

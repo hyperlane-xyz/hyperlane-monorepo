@@ -24,7 +24,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::AccountMeta,
     msg,
-    program::set_return_data,
+    program::{get_return_data, invoke, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -34,7 +34,7 @@ use solana_system_interface::program as system_program;
 use std::collections::HashMap;
 
 use crate::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
     instruction::{Init, TransferRemote},
 };
@@ -87,13 +87,15 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError>;
 
-    /// Transfers tokens into the program.
+    /// Transfers tokens into the program and optionally transfers fees to the fee beneficiary.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee_amount: u64,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError>;
 
     /// Transfers tokens out of the program.
@@ -113,6 +115,10 @@ where
         token: &HyperlaneToken<Self>,
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
+
+    /// Computes the expected public key of the fee beneficiary account.
+    /// Native: beneficiary directly. SPL: ATA(beneficiary, mint, token_program).
+    fn fee_beneficiary_account_key(token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey;
 }
 
 /// Core functionality of a Hyperlane Sealevel Token program that uses
@@ -221,6 +227,7 @@ where
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
+            fee_config: init.fee_config,
         };
         let token_account_data = HyperlaneTokenAccount::<T>::from(token);
 
@@ -265,14 +272,20 @@ where
     /// - 6: `[signer]` The token sender and mailbox payer.
     /// - 7: `[signer]` Unique message / gas payment account.
     /// - 8: `[writeable]` Message storage PDA.
-    ///   ---- If using an IGP ----
-    /// - 9: `[executable]` The IGP program.
-    /// - 10: `[writeable]` The IGP program data.
-    /// - 11: `[writeable]` Gas payment PDA.
-    /// - 12: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// - 13: `[writeable]` The IGP account.
+    ///   ---- If fee_config is set ----
+    /// - F:   `[executable]` The fee program.
+    /// - F+1: `[]` The fee account.
+    /// - F+2..F+1+N: `[]` Additional fee accounts (variable, terminated by sentinel).
+    /// - F+2+N: `[writeable]` Fee beneficiary account (sentinel — key matches expected fee beneficiary).
     ///   ---- End if ----
-    /// - 14..N: `[??..??]` Plugin-specific accounts.
+    ///   ---- If using an IGP ----
+    /// - G:   `[executable]` The IGP program.
+    /// - G+1: `[writeable]` The IGP program data.
+    /// - G+2: `[writeable]` Gas payment PDA.
+    /// - G+3: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// - G+3 or G+4: `[writeable]` The IGP account.
+    ///   ---- End if ----
+    /// - P..P+K: `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -339,23 +352,37 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
+        // ---- Fee section (only if fee_config is set) ----
+        let (fee_amount, fee_beneficiary_account) = if let Some(ref fee_config) = token.fee_config {
+            let (fee_amount, fee_beneficiary_acct) = Self::verify_and_quote_fee(
+                fee_config,
+                accounts_iter,
+                xfer.destination_domain,
+                &xfer.amount_or_id,
+                &*token,
+            )?;
+            (fee_amount, Some(fee_beneficiary_acct))
+        } else {
+            (0u64, None)
+        };
+
         let igp_payment_accounts =
             if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
-                // Account 9: The IGP program
+                // Account G: The IGP program.
                 let igp_program_account = next_account_info(accounts_iter)?;
                 if igp_program_account.key != igp_program_id {
                     return Err(ProgramError::InvalidArgument);
                 }
 
-                // Account 10: The IGP program data.
+                // Account G+1: The IGP program data.
                 // No verification is performed here, the IGP will do that.
                 let igp_program_data_account = next_account_info(accounts_iter)?;
 
-                // Account 11: The gas payment PDA.
+                // Account G+2: Gas payment PDA.
                 // No verification is performed here, the IGP will do that.
                 let igp_payment_pda_account = next_account_info(accounts_iter)?;
 
-                // Account 12: The configured IGP account.
+                // Account G+3 or G+4: The configured IGP account.
                 let configured_igp_account = next_account_info(accounts_iter)?;
                 if configured_igp_account.key != igp_account_type.key() {
                     return Err(ProgramError::InvalidArgument);
@@ -393,7 +420,7 @@ where
                         igp_payment_account_infos.push(configured_igp_account.clone());
                     }
                     InterchainGasPaymasterType::OverheadIgp(_) => {
-                        // Account 13: The inner IGP account.
+                        // Account G+3: The inner IGP account (G+4 is the Overhead IGP above).
                         let inner_igp_account = next_account_info(accounts_iter)?;
 
                         // The inner IGP is expected first, then the overhead IGP.
@@ -420,13 +447,18 @@ where
         // by the remote routers as the number of decimals used by the message amount.
         let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
 
-        // Transfer `local_amount` of tokens in...
+        // Fee-on-top: the sender pays `local_amount + fee_amount`. The message
+        // carries only `remote_amount` (derived from `local_amount`); the fee
+        // never crosses chains. The plugin burns/locks `local_amount` and
+        // transfers `fee_amount` directly to the fee beneficiary.
         T::transfer_in(
             program_id,
             &*token,
             sender_wallet,
             accounts_iter,
             local_amount,
+            fee_amount,
+            fee_beneficiary_account,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -452,7 +484,7 @@ where
             dispatched_message_pda.clone(),
         ];
 
-        // The token message body, which specifies the remote_amount.
+        // The token message body, which specifies the remote_amount (fee excluded).
         let token_transfer_message =
             TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 
@@ -482,10 +514,11 @@ where
         }
 
         msg!(
-            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
+            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}, fee: {}",
             xfer.destination_domain,
             xfer.recipient,
-            remote_amount
+            remote_amount,
+            fee_amount,
         );
 
         Ok(())
@@ -882,5 +915,134 @@ where
         HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
 
         Ok(())
+    }
+
+    /// Lets the owner set the fee configuration.
+    ///
+    /// Accounts:
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The token PDA account.
+    /// 2. `[signer]` The access control owner.
+    pub fn set_fee_config(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        fee_config: Option<FeeConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &system_program::ID {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 2: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+        token.ensure_owner_signer(owner_account)?;
+
+        token.fee_config = fee_config;
+
+        // Store the updated token account and realloc if necessary (size may change).
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+            system_program,
+        )?;
+
+        Ok(())
+    }
+
+    /// Verifies fee accounts against the FeeConfig and quotes the fee via CPI.
+    ///
+    /// Validates that the fee program and fee account passed in match the
+    /// stored FeeConfig, then collects additional fee accounts using the
+    /// fee beneficiary account as a sentinel (its expected key is computed via
+    /// `T::fee_beneficiary_account_key`). Invokes the fee program's QuoteFee
+    /// instruction via CPI to get the fee amount.
+    ///
+    /// Returns (fee_amount, fee_beneficiary_account_info).
+    fn verify_and_quote_fee<'a, 'b>(
+        fee_config: &FeeConfig,
+        accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+        destination_domain: u32,
+        amount_or_id: &hyperlane_core::U256,
+        token: &HyperlaneToken<T>,
+    ) -> Result<(u64, &'a AccountInfo<'b>), ProgramError> {
+        // Account F: Fee program
+        let fee_program_account = next_account_info(accounts_iter)?;
+        if fee_program_account.key != &fee_config.fee_program {
+            return Err(Error::FeeProgramMismatch.into());
+        }
+        if !fee_program_account.executable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Account F+1: Fee account
+        let fee_account_info = next_account_info(accounts_iter)?;
+        if fee_account_info.key != &fee_config.fee_account {
+            return Err(Error::FeeAccountMismatch.into());
+        }
+
+        // Read the beneficiary from the fee account header (trailing fee_data bytes ignored).
+        let fee_header = hyperlane_sealevel_fee::accounts::FeeAccountHeaderData::fetch(
+            &mut &fee_account_info.data.borrow()[..],
+        )?
+        .into_inner();
+
+        // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee beneficiary sentinel.
+        // Loop until we find the account whose key matches the expected fee beneficiary key.
+        let expected_fee_beneficiary_key =
+            T::fee_beneficiary_account_key(token, &fee_header.beneficiary);
+        let mut additional_accounts = Vec::new();
+        let mut additional_account_infos = Vec::new();
+        let fee_beneficiary_account = loop {
+            let acct = next_account_info(accounts_iter)?;
+            if acct.key == &expected_fee_beneficiary_key {
+                break acct;
+            }
+            additional_accounts.push(AccountMeta::new_readonly(*acct.key, false));
+            additional_account_infos.push(acct.clone());
+        };
+
+        // The local amount for fee computation
+        let local_amount: u64 = (*amount_or_id)
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
+
+        // Build the QuoteFee CPI instruction using the helper
+        let cpi_instruction = hyperlane_sealevel_fee::instruction::quote_fee_instruction(
+            fee_config.fee_program,
+            *fee_account_info.key,
+            destination_domain,
+            local_amount,
+            additional_accounts,
+        )?;
+
+        let mut cpi_account_infos = vec![fee_account_info.clone()];
+        cpi_account_infos.extend(additional_account_infos);
+
+        invoke(&cpi_instruction, &cpi_account_infos).map_err(|_| Error::FeeProgramCpiError)?;
+
+        // Read return data from fee program — error if missing or invalid
+        let (returning_program, data) =
+            get_return_data().ok_or(Error::FeeQuoteReturnDataInvalid)?;
+        if returning_program != fee_config.fee_program {
+            return Err(Error::FeeQuoteReturnDataInvalid.into());
+        }
+        if data.len() < 8 {
+            return Err(Error::FeeQuoteReturnDataInvalid.into());
+        }
+        let fee_amount = u64::from_le_bytes(
+            data[..8]
+                .try_into()
+                .map_err(|_| Error::FeeQuoteReturnDataInvalid)?,
+        );
+
+        Ok((fee_amount, fee_beneficiary_account))
     }
 }

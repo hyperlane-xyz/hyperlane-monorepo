@@ -77,11 +77,13 @@ mod registry;
 mod router;
 mod serde;
 mod squads;
+mod token_account;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
+use crate::token_account::parse_token_core_data;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
 
@@ -1157,9 +1159,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 .unwrap()
                 .value
                 .unwrap();
-            let token = HyperlaneTokenAccount::<()>::fetch(&mut &fetched_token_account.data[..])
-                .unwrap()
-                .into_inner();
+            let token = parse_token_core_data(&fetched_token_account.data);
 
             let unique_message_account_keypair = Keypair::new();
             let (dispatched_message_account, _dispatched_message_bump) =
