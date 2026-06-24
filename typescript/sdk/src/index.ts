@@ -356,6 +356,7 @@ export {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  AgentSealevelUrReveal,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,

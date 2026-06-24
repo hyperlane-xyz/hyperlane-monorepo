@@ -3,6 +3,7 @@ import { join } from 'path';
 import {
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
+  AgentSealevelUrReveal,
   ChainName,
   RelayerConfig,
   RpcConsensusType,
@@ -118,6 +119,12 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
               );
           }
 
+          let urReveal: AgentSealevelUrReveal | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            urReveal =
+              this.config.rawConfig.sealevel?.urRevealConfigGetter?.(chain);
+          }
+
           const batchConfig = this.batchConfig(chain);
 
           return {
@@ -134,6 +141,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
+            urReveal,
           };
         }),
       },

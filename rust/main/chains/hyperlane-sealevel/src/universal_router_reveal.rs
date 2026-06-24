@@ -395,38 +395,52 @@ pub fn maybe_spawn_reveal(
 
             if let Some(ccs) = ccs_opt {
                 if let Some(accounts) = ccs.reveal_accounts.as_deref() {
-                    if accounts.len() > 1 {
-                        if let Ok(ata_pubkey) = Pubkey::from_str(&accounts[1].pubkey) {
-                            // Check the ATA balance.
-                            match rpc_client
-                                .get_account_option_with_commitment(
-                                    ata_pubkey,
-                                    CommitmentConfig::confirmed(),
-                                )
-                                .await
-                            {
-                                Ok(Some(acct)) if acct.data.len() >= 72 => {
-                                    let balance = u64::from_le_bytes(
-                                        acct.data[64..72].try_into().unwrap_or([0u8; 8]),
-                                    );
-                                    if balance > 0 {
-                                        tracing::debug!(%ata_pubkey, balance, "PDA input ATA funded; proceeding to build tx");
-                                        break;
+                    // Require at least accounts[0..=15] so we can derive the ATA locally.
+                    if accounts.len() > 15 {
+                        // Derive the input ATA from first-principles (same logic as
+                        // build_instruction) rather than trusting accounts[1] from CCS, which
+                        // could be stale. accounts[12] = inputTokenProgram, accounts[15] =
+                        // inputMint; pending_swap_pda is the ATA owner.
+                        let maybe_ata_pubkey = Pubkey::from_str(&accounts[12].pubkey)
+                            .ok()
+                            .zip(Pubkey::from_str(&accounts[15].pubkey).ok())
+                            .map(|(token_prog, input_mint)| {
+                                derive_ata(&pending_swap_pda, &input_mint, &token_prog)
+                            });
+                        match maybe_ata_pubkey {
+                            None => {
+                                warn!("Could not parse accounts[12] or accounts[15] pubkey from CCS; retrying in 5s");
+                            }
+                            Some(ata_pubkey) => {
+                                // Check the ATA balance.
+                                match rpc_client
+                                    .get_account_option_with_commitment(
+                                        ata_pubkey,
+                                        CommitmentConfig::confirmed(),
+                                    )
+                                    .await
+                                {
+                                    Ok(Some(acct)) if acct.data.len() >= 72 => {
+                                        let balance = u64::from_le_bytes(
+                                            acct.data[64..72].try_into().unwrap_or([0u8; 8]),
+                                        );
+                                        if balance > 0 {
+                                            tracing::debug!(%ata_pubkey, balance, "PDA input ATA funded; proceeding to build tx");
+                                            break;
+                                        }
+                                    }
+                                    Ok(None) => {}
+                                    Ok(Some(_)) => {
+                                        tracing::debug!("PDA input ATA has unexpected data length; waiting 5s");
+                                    }
+                                    Err(e) => {
+                                        warn!(error = ?e, "Could not check PDA input ATA balance; waiting 5s");
                                     }
                                 }
-                                Ok(None) => {}
-                                Ok(Some(_)) => {
-                                    tracing::debug!("PDA input ATA has unexpected data length; waiting 5s");
-                                }
-                                Err(e) => {
-                                    warn!(error = ?e, "Could not check PDA input ATA balance; waiting 5s");
-                                }
                             }
-                        } else {
-                            warn!("Could not parse accounts[1] pubkey from CCS; retrying in 5s");
                         }
                     } else {
-                        warn!("CCS revealAccounts has <2 entries; retrying in 5s");
+                        warn!("CCS revealAccounts has <16 entries; retrying in 5s");
                     }
                 } else {
                     warn!("CCS response missing revealAccounts; retrying in 5s");
@@ -815,7 +829,11 @@ async fn build_instruction(
                 let ticks_in_array = 60i32.saturating_mul(pool_state.tick_spacing as i32);
                 let ta0_start =
                     get_tick_array_start_index(pool_state.tick_current, pool_state.tick_spacing)?;
-                // Forward progression matches UI's buildClmmAccounts formula.
+                // Forward progression matches the UI's buildClmmAccounts formula.
+                // The UR COMMIT currently only supports one_for_zero swaps (price moves
+                // up, tick increases), so forward tick arrays are always correct.  If
+                // zero_for_one support is added in future, this must become conditional
+                // on `zero_for_one` (subtract `ticks_in_array` for backward arrays).
                 let ta1_start = ta0_start.saturating_add(ticks_in_array);
                 let ta2_start = ta0_start.saturating_add(2i32.saturating_mul(ticks_in_array));
                 let live_ta0 = compute_tick_array_address(&pool_pubkey, ta0_start);

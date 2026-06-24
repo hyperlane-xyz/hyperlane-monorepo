@@ -187,6 +187,15 @@ const AgentSealevelChainMetadataSchema = z.object({
     .describe(
       'Per-message ALT overrides. Array of {matchingList, addressLookupTable} or JSON string.',
     ),
+  urReveal: z
+    .object({
+      ccsUrl: z.string().url().describe('CCS endpoint for calldata lookup'),
+      programId: z.string().describe('Universal Router program ID (base58)'),
+    })
+    .optional()
+    .describe(
+      'When set, the relayer automatically submits RouterInstruction::Reveal after confirming delivery of a UR COMMIT message.',
+    ),
 });
 
 export type AgentSealevelChainMetadata = z.infer<
@@ -198,6 +207,8 @@ export type AgentSealevelPriorityFeeOracle =
 
 export type AgentSealevelTransactionSubmitter =
   AgentSealevelChainMetadata['transactionSubmitter'];
+
+export type AgentSealevelUrReveal = AgentSealevelChainMetadata['urReveal'];
 
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,

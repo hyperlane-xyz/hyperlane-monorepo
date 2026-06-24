@@ -535,10 +535,10 @@ export class CallCommitmentsService extends BaseService {
           'Dual-wrote to Commitment table',
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
         {
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
         },
         'Database error storing calldata',
@@ -566,9 +566,12 @@ export class CallCommitmentsService extends BaseService {
     } | null;
     try {
       record = await prisma.calldata.findUnique({ where: { commitment } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        { commitment, error: error.message },
+        {
+          commitment,
+          error: error instanceof Error ? error.message : String(error),
+        },
         'Database error fetching calldata',
       );
       return res.status(500).json({ error: 'Internal server error' });

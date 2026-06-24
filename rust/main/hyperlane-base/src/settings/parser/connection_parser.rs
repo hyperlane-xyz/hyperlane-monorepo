@@ -364,10 +364,27 @@ fn parse_sealevel_ur_reveal(
         .map(|s| s.to_owned());
 
     match (ccs_url, program_id) {
-        (Some(ccs_url), Some(program_id)) => Some(UniversalRouterRevealConfig {
-            ccs_url,
-            program_id,
-        }),
+        (Some(ccs_url), Some(program_id)) => {
+            // Validate at startup so misconfiguration fails fast rather than at first reveal.
+            if Url::parse(&ccs_url).is_err() {
+                err.push(
+                    (&chain.cwp).add("urReveal").add("ccsUrl"),
+                    eyre!("urReveal.ccsUrl is not a valid URL: {ccs_url}"),
+                );
+                return None;
+            }
+            if Pubkey::from_str(&program_id).is_err() {
+                err.push(
+                    (&chain.cwp).add("urReveal").add("programId"),
+                    eyre!("urReveal.programId is not a valid Solana pubkey: {program_id}"),
+                );
+                return None;
+            }
+            Some(UniversalRouterRevealConfig {
+                ccs_url,
+                program_id,
+            })
+        }
         (None, None) => None,
         _ => {
             err.push(
