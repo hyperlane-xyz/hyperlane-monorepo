@@ -199,7 +199,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
                 owner: data.owner,
                 beneficiary: data.beneficiary,
                 gas_oracles: HashMap::new(),
-                fee_config: None,
+                fee_config: None.into(),
             }
             .into()
         },
@@ -968,13 +968,13 @@ fn set_igp_quote_config(
 
     // min_issued_at must not move backward when overwriting an existing config,
     // mirroring the SetIgpMinIssuedAt monotonic guarantee.
-    if let (Some(existing), Some(new_config)) = (&igp.fee_config, &config) {
+    if let (Some(existing), Some(new_config)) = (igp.fee_config.as_ref(), config.as_ref()) {
         if new_config.min_issued_at < existing.min_issued_at {
             return Err(ProgramError::InvalidArgument);
         }
     }
 
-    igp.fee_config = config;
+    igp.fee_config = config.into();
 
     let igp_account = IgpAccount::new(igp.into());
     igp_account.store_with_rent_exempt_realloc(

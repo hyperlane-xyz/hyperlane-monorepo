@@ -685,7 +685,7 @@ mod init_instruction {
                     escrow_bump: ctx.cc.escrow_bump,
                     ata_payer_bump: ctx.cc.ata_payer_bump,
                 },
-                fee_config: None,
+                fee_config: None.into(),
             }),
         );
 

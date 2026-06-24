@@ -24,10 +24,11 @@ use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
-        compute_gas_fee, GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount,
-        IgpFeeConfig, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
-        IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
-        RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN, WILDCARD_SENDER,
+        compute_gas_fee, igp_quote_mode, GasOracle, GasPaymentAccount, GasPaymentData, Igp,
+        IgpAccount, IgpFeeConfig, IgpQuoteMode, IgpStandingQuote, IgpStandingQuoteAccount,
+        IgpTransientQuote, IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE,
+        WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
@@ -318,7 +319,7 @@ async fn test_initialize_igp() {
                 owner,
                 beneficiary,
                 gas_oracles: HashMap::new(),
-                fee_config: None,
+                fee_config: None.into(),
             }
             .into()
         ),
@@ -524,6 +525,13 @@ async fn test_set_gas_oracle_configs() {
             remaining_config.domain,
             remaining_config.gas_oracle.unwrap(),
         )]),
+    );
+
+    // HLSVM-2026Q2-010: a real gas-oracle removal must leave fee_config absent.
+    assert_eq!(igp.fee_config, None);
+    assert_eq!(
+        igp_quote_mode(&igp_account.data).unwrap(),
+        IgpQuoteMode::Legacy,
     );
 }
 
@@ -1845,7 +1853,7 @@ async fn test_set_igp_quote_config_rejects_lower_min_issued_at() {
     .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 2000);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 2000);
 }
 
 #[tokio::test]
@@ -2019,7 +2027,7 @@ async fn test_add_igp_quote_signer() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    let signers = &igp.fee_config.unwrap().signers;
+    let signers = &igp.fee_config.as_ref().unwrap().signers;
     assert!(signers.contains(&signer_addr));
     assert_eq!(signers.len(), 1);
 }
@@ -2218,7 +2226,7 @@ async fn test_set_igp_min_issued_at() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 500);
 
     // Increase is allowed.
     let ix =
@@ -2228,7 +2236,7 @@ async fn test_set_igp_min_issued_at() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 1000);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 1000);
 }
 
 #[tokio::test]
@@ -2250,7 +2258,7 @@ async fn test_set_igp_min_issued_at_equal_allowed() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 500);
 }
 
 #[tokio::test]
