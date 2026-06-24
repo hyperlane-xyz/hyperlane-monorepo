@@ -104,18 +104,18 @@ fn parse_clmm_pool_state(data: &[u8]) -> Result<ClmmPoolState> {
     }
     let read_pubkey = |offset: usize| {
         Pubkey::new_from_array(
-            data[offset..offset + 32]
+            data[offset..offset.saturating_add(32)]
                 .try_into()
                 .expect("slice is exactly 32 bytes"),
         )
     };
     let tick_spacing = i16::from_le_bytes(
-        data[POOL_TICK_SPACING_OFFSET..POOL_TICK_SPACING_OFFSET + 2]
+        data[POOL_TICK_SPACING_OFFSET..POOL_TICK_SPACING_OFFSET.saturating_add(2)]
             .try_into()
             .expect("slice is exactly 2 bytes"),
     );
     let tick_current = i32::from_le_bytes(
-        data[POOL_TICK_CURRENT_OFFSET..POOL_TICK_CURRENT_OFFSET + 4]
+        data[POOL_TICK_CURRENT_OFFSET..POOL_TICK_CURRENT_OFFSET.saturating_add(4)]
             .try_into()
             .expect("slice is exactly 4 bytes"),
     );
@@ -145,14 +145,16 @@ async fn fetch_clmm_pool_state(
 
 // Mirrors reveal.mjs `getTickArrayStartIndex`.  Uses truncation-towards-zero integer
 // division (Rust default), with an explicit floor correction for negative ticks.
+// Division is safe: tick_spacing is guarded > 0, so ticks_in_array > 0 and i32::MIN/-1 is unreachable.
+#[allow(clippy::arithmetic_side_effects)]
 fn get_tick_array_start_index(tick_current: i32, tick_spacing: i16) -> Result<i32> {
     if tick_spacing <= 0 {
         bail!("invalid tick_spacing: {tick_spacing}");
     }
-    let ticks_in_array = 60i32 * tick_spacing as i32;
-    let mut start = (tick_current / ticks_in_array) * ticks_in_array;
+    let ticks_in_array = 60i32.saturating_mul(tick_spacing as i32);
+    let mut start = (tick_current / ticks_in_array).saturating_mul(ticks_in_array);
     if tick_current < 0 && tick_current % ticks_in_array != 0 {
-        start -= ticks_in_array;
+        start = start.saturating_sub(ticks_in_array);
     }
     Ok(start)
 }
@@ -346,7 +348,7 @@ pub fn maybe_spawn_reveal(
                             tracing::debug!(error = ?e, "Could not check PDA history");
                         }
                     }
-                    pda_wait_iters += 1;
+                    pda_wait_iters = pda_wait_iters.saturating_add(1);
                     if pda_wait_iters >= PDA_WAIT_MAX_ITERS {
                         warn!(%pending_swap_pda, "PDA not visible after {}s post-confirmation; stopping", PDA_WAIT_MAX_ITERS * 5);
                         return;
@@ -431,7 +433,7 @@ pub fn maybe_spawn_reveal(
                 }
             }
 
-            token_wait_iters += 1;
+            token_wait_iters = token_wait_iters.saturating_add(1);
             if token_wait_iters >= TOKEN_WAIT_MAX_ITERS {
                 error!(%pending_swap_pda, "Warp tokens never arrived after {}s; inbound transfer may be stuck; stopping", TOKEN_WAIT_MAX_ITERS * 5);
                 return;
@@ -476,7 +478,7 @@ pub fn maybe_spawn_reveal(
                         warn!(retry_in_secs = delay_secs, error = ?e, "Transient failure; will retry");
                     }
                     tokio::time::sleep(Duration::from_secs(delay_secs)).await;
-                    delay_secs = (delay_secs * 2).min(REVEAL_MAX_RETRY_DELAY_SECS);
+                    delay_secs = delay_secs.saturating_mul(2).min(REVEAL_MAX_RETRY_DELAY_SECS);
                 }
             }
         }
@@ -810,12 +812,12 @@ async fn build_instruction(
                     "account[11] (observationState)",
                 );
 
-                let ticks_in_array = 60i32 * pool_state.tick_spacing as i32;
+                let ticks_in_array = 60i32.saturating_mul(pool_state.tick_spacing as i32);
                 let ta0_start =
                     get_tick_array_start_index(pool_state.tick_current, pool_state.tick_spacing)?;
                 // Forward progression matches UI's buildClmmAccounts formula.
-                let ta1_start = ta0_start + ticks_in_array;
-                let ta2_start = ta0_start + 2 * ticks_in_array;
+                let ta1_start = ta0_start.saturating_add(ticks_in_array);
+                let ta2_start = ta0_start.saturating_add(2i32.saturating_mul(ticks_in_array));
                 let live_ta0 = compute_tick_array_address(&pool_pubkey, ta0_start);
                 let live_ta1 = compute_tick_array_address(&pool_pubkey, ta1_start);
                 let live_ta2 = compute_tick_array_address(&pool_pubkey, ta2_start);
