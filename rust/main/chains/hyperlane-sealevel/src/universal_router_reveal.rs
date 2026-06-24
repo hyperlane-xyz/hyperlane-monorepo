@@ -32,7 +32,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::TransactionStatus;
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, Instrument};
 
 use crate::{
     priority_fee::PriorityFeeOracle, rpc::fallback::SealevelFallbackRpcClient, SealevelKeypair,
@@ -262,7 +262,7 @@ pub fn maybe_spawn_reveal(
     let program_id = match Pubkey::from_str(&config.program_id) {
         Ok(p) => p,
         Err(e) => {
-            error!("[REVEAL] Invalid program ID in config: {e}");
+            error!("Invalid program ID in config: {e}");
             return;
         }
     };
@@ -288,17 +288,15 @@ pub fn maybe_spawn_reveal(
         commitment = %commitment_hex,
         origin,
         sender = %hex::encode(sender),
-        user_salt = %hex::encode(user_salt),
         ccs_url = %config.ccs_url,
         program_id = %config.program_id,
         fee_payer = %fee_payer.pubkey(),
-        "[REVEAL] Spawning reveal task"
+        "Spawning reveal task"
     );
 
     let ccs_url = config.ccs_url.trim_end_matches('/').to_owned();
 
     tokio::spawn(async move {
-        info!(commitment = %commitment_hex, %program_id, "[REVEAL] Task started");
         let http_client = Client::builder()
             .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
             .build()
@@ -331,7 +329,7 @@ pub fn maybe_spawn_reveal(
                 .await
             {
                 Ok(Some(_)) => {
-                    info!(commitment = %commitment_hex, %pending_swap_pda, "[REVEAL] PDA confirmed; proceeding to token wait");
+                    tracing::debug!("PDA confirmed; proceeding");
                     break;
                 }
                 Ok(None) => {
@@ -340,37 +338,22 @@ pub fn maybe_spawn_reveal(
                         .await
                     {
                         Ok(sigs) if !sigs.is_empty() => {
-                            info!(
-                                commitment = %commitment_hex,
-                                %pending_swap_pda,
-                                "[REVEAL] PDA gone with tx history — already revealed; stopping"
-                            );
+                            info!(%pending_swap_pda, "PDA gone with tx history — already revealed; stopping");
                             return;
                         }
                         Ok(_) => {}
                         Err(e) => {
-                            warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA history");
+                            tracing::debug!(error = ?e, "Could not check PDA history");
                         }
                     }
                     pda_wait_iters += 1;
                     if pda_wait_iters >= PDA_WAIT_MAX_ITERS {
-                        warn!(
-                            commitment = %commitment_hex,
-                            %pending_swap_pda,
-                            "[REVEAL] PDA not visible after {}s post-confirmation; stopping",
-                            PDA_WAIT_MAX_ITERS * 5
-                        );
+                        warn!(%pending_swap_pda, "PDA not visible after {}s post-confirmation; stopping", PDA_WAIT_MAX_ITERS * 5);
                         return;
                     }
-                    info!(
-                        commitment = %commitment_hex,
-                        %pending_swap_pda,
-                        wait_iters = pda_wait_iters,
-                        "[REVEAL] PDA not yet visible; retrying in 5s"
-                    );
                 }
                 Err(e) => {
-                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA; retrying in 5s");
+                    tracing::debug!(error = ?e, "Could not check PDA; retrying in 5s");
                 }
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -390,11 +373,11 @@ pub fn maybe_spawn_reveal(
                 .await
             {
                 Ok(None) => {
-                    info!(commitment = %commitment_hex, "[REVEAL] PDA gone before tokens arrived; stopping");
+                    info!("PDA gone before tokens arrived; stopping");
                     return;
                 }
                 Err(e) => {
-                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA while waiting for tokens");
+                    tracing::debug!(error = ?e, "Could not check PDA while waiting for tokens");
                 }
                 Ok(Some(_)) => {}
             }
@@ -403,7 +386,7 @@ pub fn maybe_spawn_reveal(
             let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment).await {
                 Ok(c) => Some(c),
                 Err(e) => {
-                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] CCS fetch failed while waiting for tokens; retrying in 5s");
+                    warn!(error = ?e, "CCS fetch failed while waiting for tokens; retrying in 5s");
                     None
                 }
             };
@@ -425,53 +408,32 @@ pub fn maybe_spawn_reveal(
                                         acct.data[64..72].try_into().unwrap_or([0u8; 8]),
                                     );
                                     if balance > 0 {
-                                        info!(
-                                            commitment = %commitment_hex,
-                                            %ata_pubkey,
-                                            balance,
-                                            "[REVEAL] PDA input ATA has tokens; proceeding to build tx"
-                                        );
+                                        tracing::debug!(%ata_pubkey, balance, "PDA input ATA funded; proceeding to build tx");
                                         break;
                                     }
-                                    info!(
-                                        commitment = %commitment_hex,
-                                        %ata_pubkey,
-                                        "[REVEAL] PDA input ATA exists but balance is zero; waiting 5s"
-                                    );
                                 }
-                                Ok(None) => {
-                                    info!(
-                                        commitment = %commitment_hex,
-                                        %ata_pubkey,
-                                        "[REVEAL] PDA input ATA not yet created; waiting 5s"
-                                    );
-                                }
+                                Ok(None) => {}
                                 Ok(Some(_)) => {
-                                    warn!(commitment = %commitment_hex, "[REVEAL] PDA input ATA has unexpected data length; waiting 5s");
+                                    tracing::debug!("PDA input ATA has unexpected data length; waiting 5s");
                                 }
                                 Err(e) => {
-                                    warn!(commitment = %commitment_hex, error = ?e, "[REVEAL] Could not check PDA input ATA balance; waiting 5s");
+                                    warn!(error = ?e, "Could not check PDA input ATA balance; waiting 5s");
                                 }
                             }
                         } else {
-                            warn!(commitment = %commitment_hex, "[REVEAL] Could not parse accounts[1] pubkey from CCS; retrying in 5s");
+                            warn!("Could not parse accounts[1] pubkey from CCS; retrying in 5s");
                         }
                     } else {
-                        warn!(commitment = %commitment_hex, "[REVEAL] CCS revealAccounts has <2 entries; retrying in 5s");
+                        warn!("CCS revealAccounts has <2 entries; retrying in 5s");
                     }
                 } else {
-                    warn!(commitment = %commitment_hex, "[REVEAL] CCS response missing revealAccounts; retrying in 5s");
+                    warn!("CCS response missing revealAccounts; retrying in 5s");
                 }
             }
 
             token_wait_iters += 1;
             if token_wait_iters >= TOKEN_WAIT_MAX_ITERS {
-                error!(
-                    commitment = %commitment_hex,
-                    %pending_swap_pda,
-                    "[REVEAL] Warp tokens never arrived after {}s; inbound transfer may be stuck; stopping",
-                    TOKEN_WAIT_MAX_ITERS * 5
-                );
+                error!(%pending_swap_pda, "Warp tokens never arrived after {}s; inbound transfer may be stuck; stopping", TOKEN_WAIT_MAX_ITERS * 5);
                 return;
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -481,7 +443,7 @@ pub fn maybe_spawn_reveal(
         loop {
             match submit_reveal(&ctx).await {
                 Ok(()) => {
-                    info!(commitment = %commitment_hex, "[REVEAL] Confirmed successfully");
+                    info!("Confirmed successfully");
                     break;
                 }
                 Err(e) => {
@@ -500,43 +462,25 @@ pub fn maybe_spawn_reveal(
                             .await
                         {
                             Ok(None) => {
-                                info!(
-                                    commitment = %commitment_hex,
-                                    %pending_swap_pda,
-                                    "[REVEAL] pending_swap PDA is gone — reveal completed by another relayer; stopping"
-                                );
+                                info!(%pending_swap_pda, "pending_swap PDA is gone — reveal completed by another relayer; stopping");
                                 break;
                             }
                             Ok(Some(_)) => {
-                                warn!(
-                                    commitment = %commitment_hex,
-                                    retry_in_secs = delay_secs,
-                                    error = ?e,
-                                    "[REVEAL] On-chain rejection but PDA still exists; retrying with fresh pool state"
-                                );
+                                warn!(retry_in_secs = delay_secs, error = ?e, "On-chain rejection but PDA still exists; retrying with fresh pool state");
                             }
                             Err(check_err) => {
-                                warn!(
-                                    commitment = %commitment_hex,
-                                    error = ?check_err,
-                                    "[REVEAL] Could not check PDA existence after on-chain error; will retry"
-                                );
+                                tracing::debug!(error = ?check_err, "Could not check PDA existence after on-chain error; will retry");
                             }
                         }
                     } else {
-                        warn!(
-                            commitment = %commitment_hex,
-                            retry_in_secs = delay_secs,
-                            error = ?e,
-                            "[REVEAL] Transient failure; will retry"
-                        );
+                        warn!(retry_in_secs = delay_secs, error = ?e, "Transient failure; will retry");
                     }
                     tokio::time::sleep(Duration::from_secs(delay_secs)).await;
                     delay_secs = (delay_secs * 2).min(REVEAL_MAX_RETRY_DELAY_SECS);
                 }
             }
         }
-    });
+    }.instrument(tracing::info_span!("reveal", commitment = %commitment_hex)));
 }
 
 struct RevealContext<'a> {
@@ -554,25 +498,8 @@ struct RevealContext<'a> {
 }
 
 async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
-    let commitment_hex = hex::encode(ctx.commitment);
-
-    info!(commitment = %commitment_hex, ccs_url = ctx.ccs_url, "[REVEAL] Fetching calldata from CCS");
     let ccs = fetch_from_ccs(&ctx.http_client, ctx.ccs_url, &ctx.commitment).await?;
-    info!(
-        commitment = %commitment_hex,
-        data_len = ccs.data.len(),
-        salt = %ccs.salt,
-        reveal_accounts_count = ccs.reveal_accounts.as_ref().map(|a| a.len()).unwrap_or(0),
-        "[REVEAL] CCS fetch succeeded"
-    );
-
-    info!(commitment = %commitment_hex, "[REVEAL] Building RouterInstruction::Reveal");
     let built = build_instruction(ctx, &ccs).await?;
-    info!(
-        commitment = %commitment_hex,
-        instruction_count = built.len(),
-        "[REVEAL] Instructions built"
-    );
 
     let dummy = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
         &[],
@@ -583,12 +510,6 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         .get_priority_fee(&dummy)
         .await
         .unwrap_or(0);
-    info!(
-        commitment = %commitment_hex,
-        priority_fee,
-        compute_units = REVEAL_COMPUTE_UNITS,
-        "[REVEAL] Priority fee determined"
-    );
 
     // Outer loop: each attempt fetches a fresh blockhash and rebuilds the tx.
     // On mainnet, a tx sent once is often silently dropped by congested leaders;
@@ -596,13 +517,11 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
     // window, and the outer loop retries after the window expires.
     for send_attempt in 1..=SEND_RETRY_MAX {
         // Fresh blockhash each attempt so the tx is valid for a new ~150-slot window.
-        info!(commitment = %commitment_hex, send_attempt, "[REVEAL] Fetching latest blockhash");
         let blockhash = ctx
             .rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
             .await
             .map_err(|e| eyre!("get_latest_blockhash: {e}"))?;
-        info!(commitment = %commitment_hex, blockhash = %blockhash, "[REVEAL] Got blockhash");
 
         let mut instructions = vec![
             ComputeBudgetInstruction::set_compute_unit_limit(REVEAL_COMPUTE_UNITS),
@@ -613,24 +532,13 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         let message = Message::new(&instructions, Some(&ctx.fee_payer.pubkey()));
         let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
 
-        info!(
-            commitment = %commitment_hex,
-            fee_payer = %ctx.fee_payer.pubkey(),
-            send_attempt,
-            "[REVEAL] Sending transaction"
-        );
         let signature = ctx
             .rpc_client
             .send_transaction(&tx, true)
             .await
             .map_err(|e| eyre!("send_transaction (attempt {send_attempt}): {e}"))?;
 
-        info!(
-            commitment = %commitment_hex,
-            %signature,
-            send_attempt,
-            "[REVEAL] Tx sent; polling for confirmation"
-        );
+        info!(%signature, send_attempt, "Tx sent");
 
         let mut confirmed = false;
         for poll in 1..=CONFIRM_POLLS_PER_BLOCKHASH {
@@ -639,37 +547,25 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
             // Resend periodically to keep the tx in the leader queue within the validity window.
             if poll % RESEND_INTERVAL_POLLS == 0 {
                 if let Err(e) = ctx.rpc_client.send_transaction(&tx, true).await {
-                    warn!(commitment = %commitment_hex, %signature, poll, error = ?e, "[REVEAL] Resend error (non-fatal)");
+                    tracing::debug!(%signature, error = ?e, "Resend error (non-fatal)");
                 }
             }
 
-            info!(
-                commitment = %commitment_hex,
-                %signature,
-                send_attempt,
-                poll,
-                max_polls = CONFIRM_POLLS_PER_BLOCKHASH,
-                "[REVEAL] Polling confirmation"
-            );
             match ctx.rpc_client.get_signature_statuses(&[signature]).await {
                 Ok(response) => match response.value.into_iter().next().flatten() {
-                    None => {
-                        info!(commitment = %commitment_hex, %signature, poll, "[REVEAL] Tx not yet seen; continuing to poll");
-                    }
+                    None => {}
                     Some(TransactionStatus { err: Some(e), .. }) => {
                         bail!("Reveal tx failed on-chain: {e:?}");
                     }
                     Some(status) if status.satisfies_commitment(CommitmentConfig::confirmed()) => {
-                        info!(commitment = %commitment_hex, %signature, send_attempt, poll, "[REVEAL] Tx confirmed");
+                        info!(%signature, "Tx confirmed");
                         confirmed = true;
                         break;
                     }
-                    Some(_) => {
-                        info!(commitment = %commitment_hex, %signature, poll, "[REVEAL] Tx processed but not yet confirmed; continuing to poll");
-                    }
+                    Some(_) => {}
                 },
                 Err(e) => {
-                    warn!(commitment = %commitment_hex, %signature, error = ?e, poll, "[REVEAL] Error polling confirmation");
+                    tracing::debug!(%signature, error = ?e, "Error polling confirmation");
                 }
             }
         }
@@ -679,12 +575,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         }
 
         if send_attempt < SEND_RETRY_MAX {
-            warn!(
-                commitment = %commitment_hex,
-                %signature,
-                send_attempt,
-                "[REVEAL] Tx not confirmed within blockhash window; retrying with fresh blockhash"
-            );
+            warn!(%signature, send_attempt, "Tx not confirmed within blockhash window; retrying with fresh blockhash");
         }
     }
     bail!(
@@ -700,35 +591,21 @@ async fn fetch_from_ccs(
 ) -> Result<CcsGetResponse> {
     let commitment_hex = hex::encode(commitment);
     let url = format!("{ccs_url}/calldata/0x{commitment_hex}");
-    info!(commitment = %commitment_hex, url, "[REVEAL] GET CCS calldata");
+    tracing::debug!(url, "GET CCS calldata");
     for attempt in 1..=CCS_MAX_RETRIES {
-        info!(commitment = %commitment_hex, attempt, max_retries = CCS_MAX_RETRIES, url, "[REVEAL] CCS fetch attempt");
         let resp = http.get(&url).send().await?;
         let status = resp.status();
-        info!(commitment = %commitment_hex, attempt, %status, "[REVEAL] CCS response received");
         match status {
             s if s.is_success() => {
                 let ccs = resp.json::<CcsGetResponse>().await?;
-                info!(
-                    commitment = %commitment_hex,
-                    attempt,
-                    has_reveal_accounts = ccs.reveal_accounts.is_some(),
-                    "[REVEAL] CCS calldata parsed successfully"
-                );
                 return Ok(ccs);
             }
             reqwest::StatusCode::NOT_FOUND => {
                 if attempt < CCS_MAX_RETRIES {
-                    warn!(
-                        commitment = %commitment_hex,
-                        attempt,
-                        max_retries = CCS_MAX_RETRIES,
-                        retry_delay_secs = CCS_RETRY_DELAY_SECS,
-                        "[REVEAL] CCS 404 — calldata not yet stored; retrying"
-                    );
+                    tracing::debug!(attempt, "CCS 404 — calldata not yet stored; retrying");
                     tokio::time::sleep(Duration::from_secs(CCS_RETRY_DELAY_SECS)).await;
                 } else {
-                    warn!(commitment = %commitment_hex, attempt, "[REVEAL] CCS 404 on final attempt");
+                    warn!("CCS 404 on final attempt");
                 }
             }
             _ => bail!(
@@ -795,14 +672,6 @@ async fn build_instruction(
     }
 
     let msg_len = message.len() as u32;
-    info!(
-        origin,
-        sender = %hex::encode(sender),
-        user_salt = %hex::encode(user_salt),
-        message_len = msg_len,
-        salt = %ccs.salt,
-        "[REVEAL] Building instruction data"
-    );
 
     // 1 (variant) + 4 (origin) + 32 (sender) + 32 (user_salt) + 4 (msg_len) + message + 32 (salt)
     let fixed_overhead: usize = 105;
@@ -824,16 +693,7 @@ async fn build_instruction(
     let expected_pending_swap =
         derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
     let expected_fee_payer_pda = derive_fee_payer_pda(&program_id);
-    info!(
-        expected_pending_swap = %expected_pending_swap,
-        expected_fee_payer_pda = %expected_fee_payer_pda,
-        "[REVEAL] Locally-derived PDAs"
-    );
 
-    info!(
-        account_count = reveal_accounts.len(),
-        "[REVEAL] Building account metas"
-    );
     let mut accounts: Vec<AccountMeta> = reveal_accounts
         .iter()
         .enumerate()
@@ -849,7 +709,7 @@ async fn build_instruction(
                         warn!(
                             ccs_pubkey = %pubkey,
                             expected = %expected_pending_swap,
-                            "[REVEAL] account[0] (pending_swap PDA) mismatch — using locally-derived PDA"
+                            "account[0] (pending_swap PDA) mismatch — using locally-derived PDA"
                         );
                     }
                     expected_pending_swap
@@ -859,7 +719,7 @@ async fn build_instruction(
                         warn!(
                             ccs_pubkey = %pubkey,
                             expected = %expected_fee_payer_pda,
-                            "[REVEAL] account[2] (fee_payer_pda) mismatch — using locally-derived PDA"
+                            "account[2] (fee_payer_pda) mismatch — using locally-derived PDA"
                         );
                     }
                     expected_fee_payer_pda
@@ -867,13 +727,6 @@ async fn build_instruction(
                 _ => pubkey,
             };
 
-            info!(
-                index = i,
-                pubkey = %pubkey,
-                is_writable = a.is_writable,
-                is_signer = a.is_signer,
-                "[REVEAL] Account"
-            );
             Ok(match (a.is_writable, a.is_signer) {
                 (true, _) => AccountMeta::new(pubkey, a.is_signer),
                 (false, _) => AccountMeta::new_readonly(pubkey, a.is_signer),
@@ -889,13 +742,13 @@ async fn build_instruction(
         let pool_pubkey = accounts[6].pubkey;
         match fetch_clmm_pool_state(pool_pubkey, rpc_client).await {
             Ok(pool_state) => {
-                info!(
+                tracing::debug!(
                     pool = %pool_pubkey,
                     amm_config = %pool_state.amm_config,
                     observation_state = %pool_state.observation_state,
                     tick_current = pool_state.tick_current,
                     tick_spacing = pool_state.tick_spacing,
-                    "[REVEAL] Fetched live CLMM pool state"
+                    "Fetched live CLMM pool state"
                 );
 
                 let override_acct =
@@ -904,7 +757,7 @@ async fn build_instruction(
                             warn!(
                                 ccs = %accounts[idx].pubkey,
                                 live = %live,
-                                "[REVEAL] {} mismatch — using live pool state",
+                                "{} mismatch — using live pool state",
                                 label
                             );
                             accounts[idx].pubkey = live;
@@ -966,15 +819,7 @@ async fn build_instruction(
                 let live_ta0 = compute_tick_array_address(&pool_pubkey, ta0_start);
                 let live_ta1 = compute_tick_array_address(&pool_pubkey, ta1_start);
                 let live_ta2 = compute_tick_array_address(&pool_pubkey, ta2_start);
-                info!(
-                    ta0 = %live_ta0,
-                    ta1 = %live_ta1,
-                    ta2 = %live_ta2,
-                    ta0_start,
-                    ta1_start,
-                    ta2_start,
-                    "[REVEAL] Recomputed tick arrays from live pool state"
-                );
+                tracing::debug!(ta0 = %live_ta0, ta1 = %live_ta1, ta2 = %live_ta2, "Recomputed tick arrays from live pool state");
                 accounts[17].pubkey = live_ta0;
                 accounts[18].pubkey = live_ta1;
                 accounts[19].pubkey = live_ta2;
@@ -1064,11 +909,7 @@ async fn build_instruction(
                         &recipient_pubkey,
                         &fee_payer_pubkey,
                     );
-                    info!(
-                        fee_payer_wsol_ata = %fee_payer_wsol_ata,
-                        recipient = %recipient_pubkey,
-                        "[REVEAL] SOL output: fee_payer wSOL ATA will be closed → native SOL to recipient"
-                    );
+                    tracing::debug!(fee_payer_wsol_ata = %fee_payer_wsol_ata, "SOL output: closing wSOL ATA → native SOL to recipient");
                     (ata_ix, Some(close_ix))
                 } else {
                     override_acct(
@@ -1095,12 +936,6 @@ async fn build_instruction(
                     &output_token_prog,
                 );
 
-                info!(
-                    pda_output_ata = %live_pda_output_ata,
-                    output_is_native_sol,
-                    "[REVEAL] ATA creation instructions prepared"
-                );
-
                 let reveal_ix = Instruction {
                     program_id,
                     accounts,
@@ -1116,22 +951,16 @@ async fn build_instruction(
                 warn!(
                     pool = %pool_pubkey,
                     error = ?e,
-                    "[REVEAL] Could not fetch CLMM pool state; submitting without ATA pre-creation"
+                    "Could not fetch CLMM pool state; submitting without ATA pre-creation"
                 );
             }
         }
     } else {
         warn!(
             account_count = accounts.len(),
-            "[REVEAL] Expected 25 accounts for CLMM reveal — skipping live pool state override"
+            "Expected 25 accounts for CLMM reveal — skipping live pool state override"
         );
     }
-
-    info!(
-        total_data_len = data.len(),
-        total_accounts = accounts.len(),
-        "[REVEAL] Instruction assembled (no pool state override)"
-    );
 
     Ok(vec![Instruction {
         program_id,
