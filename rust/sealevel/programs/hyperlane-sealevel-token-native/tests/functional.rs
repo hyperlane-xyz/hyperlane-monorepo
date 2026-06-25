@@ -33,7 +33,8 @@ use hyperlane_sealevel_igp::{
         GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType,
         TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN as IGP_WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
-    igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds,
+    igp_transient_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
         submit_igp_quote_instruction, GasOverheadConfig, Instruction as IgpProgramInstruction,
@@ -150,6 +151,7 @@ struct HyperlaneTokenAccounts {
     mailbox_process_authority: Pubkey,
     dispatch_authority: Pubkey,
     dispatch_authority_bump: u8,
+    igp_quote_authority: Pubkey,
     native_collateral: Pubkey,
     native_collateral_bump: u8,
 }
@@ -171,6 +173,9 @@ async fn initialize_hyperlane_token(
 
     let (dispatch_authority_key, dispatch_authority_seed) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+
+    let (igp_quote_authority_key, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
 
     let (native_collateral_account_key, native_collateral_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_native_collateral_pda_seeds!(), program_id);
@@ -229,6 +234,7 @@ async fn initialize_hyperlane_token(
         mailbox_process_authority: mailbox_process_authority_key,
         dispatch_authority: dispatch_authority_key,
         dispatch_authority_bump: dispatch_authority_seed,
+        igp_quote_authority: igp_quote_authority_key,
         native_collateral: native_collateral_account_key,
         native_collateral_bump: native_collateral_account_bump_seed,
     })
@@ -2899,7 +2905,7 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_standing_pda, false),
                     AccountMeta::new_readonly(ws_standing_pda, false),
@@ -2950,6 +2956,147 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
             .unwrap()
             .is_some(),
         "dispatched message should exist"
+    );
+}
+
+/// A quoted IGP transfer that passes the mailbox dispatch authority (the
+/// pre-fix account) at the IGP sender_authority slot must be rejected: the
+/// route only forwards its dedicated IGP quote authority PDA, so a malicious
+/// configured IGP can never receive a Mailbox-capable signer.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_rejects_non_quote_authority_native() {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
+            .await
+            .unwrap();
+
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        H256::random(),
+    )
+    .await
+    .unwrap();
+
+    let igp_signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &igp_signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        2 * TOKEN_EXCHANGE_RATE_SCALE,
+        5,
+        9,
+    )
+    .await;
+
+    let exact_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+    let ws_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
+
+    let token_sender =
+        new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: (10 * ONE_SOL_IN_LAMPORTS).into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    // Core (0-8)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(mailbox_accounts.program, false),
+                    AccountMeta::new(mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                    AccountMeta::new(dispatched_message_key, false),
+                    // IGP new flow — WRONG sender_authority: the mailbox dispatch
+                    // authority instead of the IGP quote authority PDA.
+                    AccountMeta::new_readonly(igp_accounts.program, false),
+                    AccountMeta::new(igp_accounts.program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(program_id, false),
+                    AccountMeta::new_readonly(exact_standing_pda, false),
+                    AccountMeta::new_readonly(ws_standing_pda, false),
+                    AccountMeta::new_readonly(wd_standing_pda, false),
+                    AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
+                    AccountMeta::new(igp_accounts.igp, false),
+                    // Plugin (native)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.native_collateral, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_message_account_keypair],
+            recent_blockhash,
+        ))
+        .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -3088,7 +3235,7 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3424,7 +3571,7 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
             AccountMeta::new_readonly(igp_accounts.program, false),
             AccountMeta::new(igp_accounts.program_data, false),
             AccountMeta::new(gas_payment_pda_key, false),
-            AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+            AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
             AccountMeta::new_readonly(program_id, false),
             AccountMeta::new(igp_transient_pda, false),
             AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3840,7 +3987,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -3965,7 +4112,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -4128,7 +4275,7 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -4270,7 +4417,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain_native() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -4300,4 +4447,348 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain_native() {
         ep,
     )
     .await;
+}
+
+// ========================================================================
+// HLSVM-2026Q2-008 regression: a malicious configured IGP cannot replay the
+// forwarded quoted-payment signer into a nested Mailbox::OutboxDispatch.
+//
+// Pre-fix the route forwarded its *mailbox dispatch authority* PDA to the
+// (owner-chosen, untrusted) IGP program's `PayForGas`. A malicious IGP could
+// re-invoke `Mailbox::OutboxDispatch` with that signer and `sender = route
+// program id` to emit an unbacked message as the route. The fix forwards a
+// dedicated `igp_quote_authority` PDA whose seeds do NOT satisfy Mailbox's
+// dispatch-authority check, so the nested dispatch is rejected with
+// `MissingRequiredSignature`.
+// ========================================================================
+
+/// Mock malicious IGP program id (replaces the real IGP that the route CPIs).
+const MALICIOUS_IGP_ID: Pubkey = pubkey!("US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx");
+
+/// Mock malicious IGP. From the token's `PayForGas` CPI accounts it takes the
+/// forwarded signer (`[6]`) and route id (`[7]=quoted_sender`), plus a full
+/// nested-dispatch set smuggled through the cascade
+/// (`[8]=mailbox [9]=outbox [10]=noop [11]=unique(signer) [12]=dispatched PDA`),
+/// and attempts a complete `OutboxDispatch` as the route. The full account set
+/// is deliberate: only Mailbox's signer check can stop the replay, so a success
+/// here means a Mailbox-capable signer was forwarded.
+fn malicious_igp_process(
+    _program_id: &Pubkey,
+    accounts: &[solana_program::account_info::AccountInfo],
+    _instruction_data: &[u8],
+) -> solana_program::entrypoint::ProgramResult {
+    let system_info = &accounts[0];
+    let payer_info = &accounts[1];
+    let sender_authority_info = &accounts[6];
+    let quoted_sender_info = &accounts[7];
+    let mailbox_program_info = &accounts[8];
+    let outbox_info = &accounts[9];
+    let noop_info = &accounts[10];
+    let unique_info = &accounts[11];
+    let dispatched_info = &accounts[12];
+
+    solana_program::msg!(
+        "malicious igp attempting nested mailbox dispatch as sender {}",
+        quoted_sender_info.key
+    );
+
+    let dispatch = hyperlane_sealevel_mailbox::instruction::OutboxDispatch {
+        sender: *quoted_sender_info.key,
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::zero(),
+        message_body: vec![],
+    };
+
+    let ix = Instruction::new_with_borsh(
+        *mailbox_program_info.key,
+        &hyperlane_sealevel_mailbox::instruction::Instruction::OutboxDispatch(dispatch),
+        vec![
+            AccountMeta::new(*outbox_info.key, false),
+            AccountMeta::new_readonly(*sender_authority_info.key, true),
+            AccountMeta::new_readonly(*system_info.key, false),
+            AccountMeta::new_readonly(*noop_info.key, false),
+            AccountMeta::new(*payer_info.key, true),
+            AccountMeta::new_readonly(*unique_info.key, true),
+            AccountMeta::new(*dispatched_info.key, false),
+        ],
+    );
+
+    // Swallow the result: a stealthy IGP doesn't break the route. The caller
+    // asserts the invariant via the attacker dispatched-message PDA, not an error.
+    match solana_program::program::invoke(
+        &ix,
+        &[
+            outbox_info.clone(),
+            sender_authority_info.clone(),
+            system_info.clone(),
+            noop_info.clone(),
+            payer_info.clone(),
+            unique_info.clone(),
+            dispatched_info.clone(),
+            mailbox_program_info.clone(),
+        ],
+    ) {
+        Ok(()) => {
+            solana_program::msg!(
+                "malicious nested mailbox dispatch SUCCEEDED: unbacked message emitted"
+            )
+        }
+        Err(e) => {
+            solana_program::msg!("malicious nested mailbox dispatch rejected: {:?}", e)
+        }
+    }
+
+    Ok(())
+}
+
+/// Like `setup_client`, but also registers the mock malicious IGP program.
+async fn setup_client_with_malicious_igp() -> (BanksClient, Keypair) {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mut program_test = ProgramTest::new(
+        "hyperlane_sealevel_token_native",
+        program_id,
+        processor!(process_instruction),
+    );
+
+    fn noop_processor(
+        _program_id: &Pubkey,
+        _accounts: &[solana_program::account_info::AccountInfo],
+        _instruction_data: &[u8],
+    ) -> solana_program::entrypoint::ProgramResult {
+        Ok(())
+    }
+    program_test.add_program(
+        "spl_noop",
+        account_utils::SPL_NOOP_PROGRAM_ID,
+        processor!(noop_processor),
+    );
+
+    let mailbox_program_id = mailbox_id();
+    program_test.add_program(
+        "hyperlane_sealevel_mailbox",
+        mailbox_program_id,
+        processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
+    );
+
+    program_test.add_program(
+        "hyperlane_sealevel_igp",
+        igp_program_id(),
+        processor!(hyperlane_sealevel_igp::processor::process_instruction),
+    );
+
+    program_test.add_program(
+        "hyperlane_sealevel_test_ism",
+        hyperlane_sealevel_test_ism::id(),
+        processor!(hyperlane_sealevel_test_ism::program::process_instruction),
+    );
+
+    program_test.add_program(
+        "hyperlane_sealevel_fee",
+        fee_program_id(),
+        processor!(fee_process_instruction),
+    );
+
+    program_test.add_program(
+        "malicious_igp",
+        MALICIOUS_IGP_ID,
+        processor!(malicious_igp_process),
+    );
+
+    let (banks_client, payer, _recent_blockhash) = program_test.start().await;
+
+    (banks_client, payer)
+}
+
+/// HLSVM-2026Q2-008: a route configured to use a malicious IGP forwards only
+/// its dedicated `igp_quote_authority` PDA. When the malicious IGP replays that
+/// signer into a nested `Mailbox::OutboxDispatch` (sender = route program id),
+/// Mailbox rejects it with `MissingRequiredSignature` because the forwarded PDA
+/// is not the route's mailbox dispatch authority.
+#[tokio::test]
+async fn test_transfer_remote_quoted_igp_malicious_igp_cannot_replay_signer_native() {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
+
+    let (mut banks_client, payer) = setup_client_with_malicious_igp().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    // Initialize the route pointed at the real IGP, then repoint it at the
+    // malicious IGP program (keeping the Quoted IGP account as the configured
+    // account so quote-mode is read correctly).
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
+            .await
+            .unwrap();
+
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        H256::random(),
+    )
+    .await
+    .unwrap();
+
+    // Configure the IGP account to Quoted mode and submit a standing quote.
+    let igp_signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &igp_signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        2 * TOKEN_EXCHANGE_RATE_SCALE,
+        5,
+        9,
+    )
+    .await;
+
+    // Repoint the route's IGP program at the malicious program, keeping the
+    // Quoted IGP account as the configured account.
+    let set_igp_ix = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
+        program_id,
+        payer.pubkey(),
+        Some((
+            MALICIOUS_IGP_ID,
+            InterchainGasPaymasterType::Igp(igp_accounts.igp),
+        )),
+    )
+    .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[set_igp_ix],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // The route's dedicated IGP quote authority PDA — the only signer the route
+    // forwards to the configured IGP.
+    let (igp_quote_authority, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), &program_id);
+
+    let token_sender =
+        new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+
+    // The route's own (backed) dispatch accounts.
+    let legit_unique_message = Keypair::new();
+    let (legit_dispatched_message_pda, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&legit_unique_message.pubkey()),
+        &mailbox_program_id,
+    );
+    // gas_payment_pda is a PDA of the REAL IGP program; the malicious mock
+    // ignores it, so its derivation under the real IGP is fine.
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&legit_unique_message.pubkey()),
+        &igp_program_id(),
+    );
+
+    // The attacker's dispatch accounts, smuggled through the cascade. If this
+    // PDA exists after the transfer, an unbacked message was emitted.
+    let attacker_unique_message = Keypair::new();
+    let (attacker_dispatched_message_pda, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&attacker_unique_message.pubkey()),
+        &mailbox_program_id,
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: (10 * ONE_SOL_IN_LAMPORTS).into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    // Core (0-8)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(mailbox_accounts.program, false),
+                    AccountMeta::new(mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(legit_unique_message.pubkey(), true),
+                    AccountMeta::new(legit_dispatched_message_pda, false),
+                    // IGP section: program points at the MALICIOUS IGP.
+                    AccountMeta::new_readonly(MALICIOUS_IGP_ID, false),
+                    AccountMeta::new(igp_accounts.program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    // Quoted pass-through: igp_quote_authority, route id, then the
+                    // cascade slots abused to smuggle a full nested-dispatch set
+                    // (mailbox, outbox, noop, attacker unique(signer), dispatched PDA).
+                    AccountMeta::new_readonly(igp_quote_authority, false),
+                    AccountMeta::new_readonly(program_id, false),
+                    AccountMeta::new_readonly(mailbox_accounts.program, false),
+                    AccountMeta::new(mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(attacker_unique_message.pubkey(), true),
+                    AccountMeta::new(attacker_dispatched_message_pda, false),
+                    // Terminal: configured IGP (Quoted account).
+                    AccountMeta::new(igp_accounts.igp, false),
+                    // Plugin (native)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.native_collateral, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[
+                &token_sender,
+                &legit_unique_message,
+                &attacker_unique_message,
+            ],
+            recent_blockhash,
+        ))
+        .await;
+
+    // The IGP swallowed its failed replay, so the transfer completes normally.
+    result.expect("transfer_remote should succeed; the malicious IGP swallows its failed replay");
+
+    // The route's own, backed message was dispatched.
+    assert!(
+        banks_client
+            .get_account(legit_dispatched_message_pda)
+            .await
+            .unwrap()
+            .is_some(),
+        "the route's own (backed) message should have been dispatched",
+    );
+
+    // Security invariant: the forwarded igp_quote_authority is not the route's
+    // mailbox dispatch authority, so the replay is rejected and no unbacked
+    // message exists. Regression here means a Mailbox-capable signer was forwarded.
+    assert!(
+        banks_client
+            .get_account(attacker_dispatched_message_pda)
+            .await
+            .unwrap()
+            .is_none(),
+        "an unbacked message was emitted: the malicious IGP replayed the forwarded signer",
+    );
 }

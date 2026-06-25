@@ -20,7 +20,7 @@ use hyperlane_sealevel_igp::{
         GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType,
         TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN as IGP_WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
-    igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
         submit_igp_quote_instruction, GasOverheadConfig, Instruction as IgpProgramInstruction,
@@ -154,6 +154,7 @@ struct HyperlaneTokenAccounts {
     mailbox_process_authority: Pubkey,
     dispatch_authority: Pubkey,
     dispatch_authority_bump: u8,
+    igp_quote_authority: Pubkey,
     mint: Pubkey,
     mint_bump: u8,
     ata_payer: Pubkey,
@@ -177,6 +178,9 @@ async fn initialize_hyperlane_token(
 
     let (dispatch_authority_key, dispatch_authority_seed) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+
+    let (igp_quote_authority_key, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
 
     let (mint_account_key, mint_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
@@ -259,6 +263,7 @@ async fn initialize_hyperlane_token(
         mailbox_process_authority: mailbox_process_authority_key,
         dispatch_authority: dispatch_authority_key,
         dispatch_authority_bump: dispatch_authority_seed,
+        igp_quote_authority: igp_quote_authority_key,
         mint: mint_account_key,
         mint_bump: mint_account_bump_seed,
         ata_payer: ata_payer_account_key,
@@ -2903,8 +2908,8 @@ async fn test_transfer_remote_igp_new_flow_standing_exact() {
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
                 AccountMeta::new(gas_payment_pda_key, false),
-                // sender_authority = dispatch_authority
-                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                // sender_authority = igp_quote_authority
+                AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                 // quoted_sender = program_id
                 AccountMeta::new_readonly(program_id, false),
                 // variable: all 3 cascade standing quote PDAs
@@ -3150,7 +3155,7 @@ async fn test_transfer_remote_igp_new_flow_transient_synthetic() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3339,7 +3344,7 @@ async fn test_transfer_remote_igp_new_flow_transient_wildcard_domain() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3526,7 +3531,7 @@ async fn test_transfer_remote_igp_new_flow_transient_wildcard_sender() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3602,7 +3607,7 @@ fn build_igp_new_flow_transfer_remote_accounts(
         AccountMeta::new_readonly(igp_accounts.program, false),
         AccountMeta::new(igp_accounts.program_data, false),
         AccountMeta::new(*gas_payment_pda_key, false),
-        AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+        AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
         AccountMeta::new_readonly(*program_id, false),
     ];
     // Variable quote PDAs
@@ -4339,7 +4344,7 @@ async fn test_transfer_remote_igp_new_flow_with_fee() {
                     AccountMeta::new(ctx.igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
                     AccountMeta::new_readonly(
-                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        ctx.hyperlane_token_accounts.igp_quote_authority,
                         false,
                     ),
                     AccountMeta::new_readonly(program_id, false),
