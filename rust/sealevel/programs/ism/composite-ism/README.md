@@ -127,7 +127,19 @@ independent of the outer composite ISM's account space.
   `SetDomainIsm` rejects any ISM subtree that contains either variant
   (`RoutingInDomainIsm` / `FallbackRoutingInDomainIsm` error). Domain PDAs may
   contain `MultisigMessageId`, `Aggregation`, `AmountRouting`, `TrustedRelayer`,
-  `RateLimited`, `Pausable`, and `Test` nodes only.
+  `RateLimited`, and `Test` nodes only.
+
+- **`Pausable` is not allowed inside a domain PDA.**
+  `Pause` and `Unpause` traverse only the root storage PDA — all accounts a
+  Solana transaction touches must be declared upfront, so propagating pause
+  state to an unbounded number of domain PDAs would require enumerating every
+  domain and passing their accounts in one transaction. Solana's 1232-byte
+  packet limit (32 bytes per pubkey) makes this infeasible for deployments with
+  many domains, and splitting it across multiple transactions would mean the
+  pause is not atomic. `Pausable` is therefore restricted to the root tree where
+  it can be flipped in a single account, single transaction operation.
+  To freeze a specific domain route, call `SetDomainIsm` with
+  `Test { accept: false }` for that domain.
 
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
