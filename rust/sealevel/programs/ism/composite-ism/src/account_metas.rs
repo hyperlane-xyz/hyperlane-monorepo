@@ -318,7 +318,7 @@ pub fn required_accounts_for_node(
         // The process authority PDA (derived from the mailbox program ID) must be
         // passed as a signer so that only `Mailbox.process` can drain the bucket.
         IsmNode::RateLimited { mailbox, .. } => {
-            let (process_authority, _) = derive_process_authority(mailbox);
+            let (process_authority, _) = derive_process_authority(mailbox, program_id);
             Ok(vec![
                 AccountMeta::new_readonly(process_authority, true).into()
             ])
@@ -495,7 +495,7 @@ mod test {
             last_updated: 0,
             mailbox,
         };
-        let (expected_pda, _) = derive_process_authority(&mailbox);
+        let (expected_pda, _) = derive_process_authority(&mailbox, &program_id);
         let msg = dummy_message(ORIGIN);
         let accounts =
             required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
@@ -662,7 +662,7 @@ mod test {
             last_updated: 0,
             mailbox,
         };
-        let (expected_process_authority, _) = derive_process_authority(&mailbox);
+        let (expected_process_authority, _) = derive_process_authority(&mailbox, &program_id);
         let msg = dummy_message(ORIGIN);
         let accounts =
             all_verify_account_metas(&vam_pda, &node, &[], &msg, &program_id, &[]).unwrap();
