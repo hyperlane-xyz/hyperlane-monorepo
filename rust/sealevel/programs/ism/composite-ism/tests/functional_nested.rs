@@ -25,6 +25,7 @@ use hyperlane_sealevel_composite_ism::{
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
+use hyperlane_test_utils::assert_transaction_error;
 use multisig_ism::MultisigIsmMessageIdMetadata;
 use solana_program::instruction::AccountMeta;
 use solana_sdk::{
@@ -533,33 +534,20 @@ async fn test_pausable_in_domain_pda_unpaused_accepts() {
     initialize(&mut banks_client, &payer, recent_blockhash, routing_root())
         .await
         .unwrap();
-    set_domain_ism(
+    let result = set_domain_ism(
         &mut banks_client,
         &payer,
         recent_blockhash,
         ORIGIN,
         IsmNode::Pausable { paused: false },
     )
-    .await
-    .unwrap();
-
-    let verify_ixn = verify_ixn_empty(ORIGIN);
-    let account_metas = get_all_verify_account_metas(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn.clone(),
-    )
     .await;
-    assert_simulation_ok(
-        &simulate_verify(
-            &mut banks_client,
-            &payer,
-            recent_blockhash,
-            verify_ixn,
-            account_metas,
-        )
-        .await,
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(Error::PausableInDomainIsm as u32),
+        ),
     );
 }
 
@@ -570,36 +558,19 @@ async fn test_pausable_in_domain_pda_paused_rejects() {
     initialize(&mut banks_client, &payer, recent_blockhash, routing_root())
         .await
         .unwrap();
-    set_domain_ism(
+    let result = set_domain_ism(
         &mut banks_client,
         &payer,
         recent_blockhash,
         ORIGIN,
         IsmNode::Pausable { paused: true },
     )
-    .await
-    .unwrap();
-
-    let verify_ixn = verify_ixn_empty(ORIGIN);
-    let account_metas = get_all_verify_account_metas(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn.clone(),
-    )
     .await;
-    assert_simulation_error(
-        &simulate_verify(
-            &mut banks_client,
-            &payer,
-            recent_blockhash,
-            verify_ixn,
-            account_metas,
-        )
-        .await,
+    assert_transaction_error(
+        result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(Error::VerifyRejected as u32),
+            InstructionError::Custom(Error::PausableInDomainIsm as u32),
         ),
     );
 }
