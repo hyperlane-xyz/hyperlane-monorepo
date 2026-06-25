@@ -25,7 +25,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
-    instruction::{Init, Instruction as TokenIxn},
+    instruction::{Init, Instruction as TokenIxn, TransferRemoteWithMemo},
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
 use hyperlane_warp_route::TokenMessage;
@@ -125,7 +125,10 @@ pub fn process_instruction(
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => {
-            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote(program_id, accounts, xfer)
+            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(program_id, accounts, TransferRemoteWithMemo { xfer, memo: vec![]})
+        }
+        TokenIxn::TransferRemoteWithMemo(transfer) => {
+            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(program_id, accounts, transfer)
         }
         TokenIxn::EnrollRemoteRouter(config) => {
             HyperlaneSealevelToken::<CollateralPlugin>::enroll_remote_router(
