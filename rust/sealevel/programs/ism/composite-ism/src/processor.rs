@@ -603,7 +603,22 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             }
             Ok(())
         }
-        IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+        IsmNode::Test { .. } => Ok(()),
+        // Pausable is intentionally disallowed in domain PDAs.
+        //
+        // set_paused/flip_pausable only traverses the root storage tree (a single
+        // PDA account). Propagating pause state into domain PDAs would require the
+        // caller to enumerate every domain PDA and pass them all as writable
+        // accounts in the Pause/Unpause transaction. Solana's 1232-byte transaction
+        // size limit makes this infeasible for deployments with many domains (each
+        // pubkey is 32 bytes), and even if it fit, multiple transactions would be
+        // required — meaning the pause would not be atomic across all domains.
+        //
+        // In practice Pausable is used at the root or inside Aggregation at the
+        // root level, not inside per-domain routing ISMs, so this is not a
+        // functional restriction. To freeze a specific domain route an owner can
+        // call set_domain_ism with Test { accept: false } instead.
+        IsmNode::Pausable { .. } => Err(Error::PausableInDomainIsm.into()),
     }
 }
 
@@ -657,6 +672,12 @@ fn flip_pausable(node: &mut IsmNode, paused: bool) {
 }
 
 /// Sets every `Pausable` node in the ISM tree to `paused`. Owner-gated.
+///
+/// Only `Pausable` nodes stored inline in the root storage PDA are updated.
+/// `Pausable` nodes are intentionally disallowed inside domain PDAs (see
+/// `validate_domain_ism`) because propagating pause state across an unbounded
+/// number of separate domain PDA accounts cannot be done atomically within
+/// Solana's transaction size and account-list constraints.
 ///
 /// Accounts:
 /// 0. `[signer]`   The owner.
@@ -987,6 +1008,27 @@ mod test {
             ],
         };
         assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rejects_pausable() {
+        let node = IsmNode::Pausable { paused: false };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rejects_pausable_nested_in_aggregation() {
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::Pausable { paused: true }],
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
     }
 
     #[test]

@@ -10,7 +10,7 @@
 //! (run from `rust/sealevel/`)
 //!
 //! TESTS:
-//! - 200 domains, each Routing → Aggregation(2-of-2)[Pausable, MultisigMessageId(7v,3)]
+//! - 200 domains, each Routing → Aggregation(2-of-2)[Test, MultisigMessageId(7v,3)]
 //! - 16 levels of nested single-child Aggregation (call-depth + stack)
 //! - UpdateConfig realloc: grow storage PDA from Test to Aggregation(50-of-50)
 //! - Wide Aggregation: 50-of-50 Test sub-ISMs (heap + compute scaling with fan-out)
@@ -131,7 +131,7 @@ fn scale_message() -> hyperlane_core::HyperlaneMessage {
     }
 }
 
-/// Builds aggregation metadata for [Pausable (empty), MultisigMessageId (3 sigs)].
+/// Builds aggregation metadata for [Test (empty), MultisigMessageId (3 sigs)].
 fn build_aggregation_metadata(message: &hyperlane_core::HyperlaneMessage) -> Vec<u8> {
     let checkpoint = CheckpointWithMessageId {
         checkpoint: Checkpoint {
@@ -160,7 +160,7 @@ fn build_aggregation_metadata(message: &hyperlane_core::HyperlaneMessage) -> Vec
     }
     .to_vec();
 
-    // sub-ISM 0 = Pausable (empty metadata), sub-ISM 1 = MultisigMessageId
+    // sub-ISM 0 = Test (empty metadata), sub-ISM 1 = MultisigMessageId
     encode_aggregation_metadata(&[Some(&[]), Some(&multisig_meta)])
 }
 
@@ -195,12 +195,12 @@ fn multisig_meta_for_scale_message() -> Vec<u8> {
     .to_vec()
 }
 
-/// The per-domain ISM node: 2-of-2 Aggregation[Pausable, MultisigMessageId(7v, 3-of-7)].
+/// The per-domain ISM node: 2-of-2 Aggregation[Test, MultisigMessageId(7v, 3-of-7)].
 fn domain_ism() -> IsmNode {
     IsmNode::Aggregation {
         threshold: 2,
         sub_isms: vec![
-            IsmNode::Pausable { paused: false },
+            IsmNode::Test { accept: true },
             IsmNode::MultisigMessageId {
                 validators: seven_validators(),
                 threshold: 3,
@@ -210,7 +210,7 @@ fn domain_ism() -> IsmNode {
 }
 
 // ===========================================================================
-// Test 1: 200 domains — Routing → Aggregation(2-of-2)[Pausable, Multisig(7v,3)]
+// Test 1: 200 domains — Routing → Aggregation(2-of-2)[Test, Multisig(7v,3)]
 // ===========================================================================
 //
 // Configures 200 domain PDAs under a single Routing root, then verifies a
@@ -223,7 +223,7 @@ fn domain_ism() -> IsmNode {
 //   - Compute budget (3 secp256k1 recoveries + routing/aggregation overhead)
 
 #[tokio::test]
-async fn test_scale_200_domains_aggregation_pausable_multisig() {
+async fn test_scale_200_domains_aggregation_multisig() {
     let (mut banks_client, payer, _) = bpf_program_test().start().await;
 
     // ── 1. Initialize with a bare Routing root ────────────────────────────
@@ -234,7 +234,7 @@ async fn test_scale_200_domains_aggregation_pausable_multisig() {
 
     // ── 2. Register 200 domain PDAs ───────────────────────────────────────
     // domains 1..=199 + VERIFY_DOMAIN (1234) = 200 total.
-    // Each gets: Aggregation(2-of-2)[Pausable, MultisigMessageId(7v, 3-of-7)].
+    // Each gets: Aggregation(2-of-2)[Test, MultisigMessageId(7v, 3-of-7)].
     let domains: Vec<u32> = (1u32..=199).chain(std::iter::once(VERIFY_DOMAIN)).collect();
     assert_eq!(domains.len(), TOTAL_DOMAINS);
 
