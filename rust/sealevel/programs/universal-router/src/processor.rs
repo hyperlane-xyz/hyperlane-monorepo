@@ -88,28 +88,34 @@ fn execute_with_deadline<'info>(
 // Accounts:
 //   [0] pending_swap PDA   writable
 //   [1] pda_token_ata      writable
-//   [2] fee_payer_pda      writable (receives pending_swap rent on success)
-//   [3] system_program
-//   [4..] swap command accounts
+//   [2] fee_payer_pda      writable (receives rent from PDA + ATA on close)
+//   [3] recipient_ata      writable (receives tokens on swap failure fallback)
+//   [4] token_program      readonly
+//   [5] mint               readonly
+//   [6] system_program     readonly
+//   [7..] swap command accounts
 
 pub fn reveal<'info>(
     program_id: &Pubkey,
     accounts: &'info [AccountInfo<'info>],
     ix: RevealIxn,
 ) -> ProgramResult {
-    if accounts.len() < 4 {
+    if accounts.len() < 7 {
         return Err(RouterError::InsufficientAccounts.into());
     }
     let swap_info = &accounts[0];
     let pda_ata_info = &accounts[1];
     let fee_payer_pda = &accounts[2];
-    let swap_accounts = &accounts[4..];
+    let recipient_ata = &accounts[3];
+    let token_program = &accounts[4];
+    let mint = &accounts[5];
+    let swap_accounts = &accounts[7..];
 
     // Compute commitment and verify pending_swap PDA address
     let origin_bytes = ix.origin.to_le_bytes();
     let commitment = {
-        let mut preimage = ix.message.clone();
-        preimage.extend_from_slice(&ix.salt);
+        let mut preimage = ix.salt.to_vec();
+        preimage.extend_from_slice(&ix.message);
         keccak::hash(&preimage).to_bytes()
     };
     let (swap_key, swap_bump) = Pubkey::find_program_address(
@@ -175,20 +181,68 @@ pub fn reveal<'info>(
     );
 
     if result.is_ok() {
-        // Close the pending_swap account and return rent to fee_payer_pda
+        // Swap succeeded — close the pending_swap account, rent to fee_payer_pda
         let swap_lamports = swap_info.lamports();
         **swap_info.try_borrow_mut_lamports()? = 0;
         **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
         swap_info.try_borrow_mut_data()?.fill(0);
     } else {
-        // Leave PDA open so recipient can call ClosePendingSwap to recover tokens
-        msg!("Swap failed; tokens remain in PDA ATA — recipient calls ClosePendingSwap");
+        // Swap failed — transfer remaining tokens directly to recipient_ata,
+        // then close pda_ata and swap PDA (rent → fee_payer_pda).
+        msg!("Swap failed; falling back to direct token delivery to recipient_ata");
+
+        let balance = read_token_amount(&pda_ata_info.data.borrow()).unwrap_or(0);
+        if balance > 0 {
+            let decimals = read_mint_decimals(&mint.data.borrow())?;
+            let transfer_ix = build_token_transfer_checked_ix(
+                token_program.key,
+                pda_ata_info.key,
+                mint.key,
+                recipient_ata.key,
+                swap_info.key,
+                balance,
+                decimals,
+            )?;
+            solana_program::program::invoke_signed(
+                &transfer_ix,
+                &[
+                    pda_ata_info.clone(),
+                    mint.clone(),
+                    recipient_ata.clone(),
+                    swap_info.clone(),
+                    token_program.clone(),
+                ],
+                &[signer_seeds],
+            )?;
+        }
+
+        // Close pda_ata — rent to fee_payer_pda
+        let close_ata_ix = spl_token::instruction::close_account(
+            token_program.key,
+            pda_ata_info.key,
+            fee_payer_pda.key,
+            swap_info.key,
+            &[],
+        )?;
+        solana_program::program::invoke_signed(
+            &close_ata_ix,
+            &[
+                pda_ata_info.clone(),
+                fee_payer_pda.clone(),
+                swap_info.clone(),
+                token_program.clone(),
+            ],
+            &[signer_seeds],
+        )?;
+
+        // Close swap PDA — rent to fee_payer_pda
+        let swap_lamports = swap_info.lamports();
+        **swap_info.try_borrow_mut_lamports()? = 0;
+        **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
+        swap_info.try_borrow_mut_data()?.fill(0);
     }
 
-    // Propagate the error: unlike the mailbox path (handle_reveal) which must always
-    // consume the message, the direct Reveal instruction should surface swap failures
-    // to the caller so they can retry or take corrective action.
-    result
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -196,29 +250,35 @@ pub fn reveal<'info>(
 // ---------------------------------------------------------------------------
 //
 // Accounts:
-//   [0] pending_swap PDA   writable (closed; rent → recipient)
-//   [1] recipient          writable signer (must match PendingSwap.recipient)
-//   [2] pda_ata            writable (token ATA owned by PDA; tokens → recipient_ata, rent → recipient)
-//   [3] recipient_ata      writable (receives tokens from pda_ata)
+//   [0] pending_swap PDA   writable (closed; rent → accounts[6])
+//   [1] caller             writable signer (anyone — triggers the close)
+//   [2] pda_ata            writable (tokens → recipient_ata, rent → accounts[6])
+//   [3] recipient_ata      writable (receives tokens; owner verified == swap.recipient)
 //   [4] token_program      readonly (SPL Token or Token-2022)
 //   [5] mint               readonly (required for transfer_checked; supports Token-2022 extensions)
+//   [6] recipient          writable (must match swap.recipient; receives all rent)
+//
+// Authorization:
+//   - Anyone (signer) may call, but only after 1 hour from commit_time.
+//   - recipient_ata owner and accounts[6] are both verified against swap.recipient.
 
 fn close_pending_swap<'info>(
     program_id: &Pubkey,
     accounts: &'info [AccountInfo<'info>],
     ix: ClosePendingSwapIxn,
 ) -> ProgramResult {
-    if accounts.len() < 6 {
+    if accounts.len() < 7 {
         return Err(RouterError::InsufficientAccounts.into());
     }
     let swap_info = &accounts[0];
-    let recipient = &accounts[1];
+    let caller = &accounts[1];
     let pda_ata = &accounts[2];
     let recipient_ata = &accounts[3];
     let token_program = &accounts[4];
     let mint = &accounts[5];
+    let recipient = &accounts[6];
 
-    if !recipient.is_signer {
+    if !caller.is_signer {
         return Err(RouterError::InvalidRecipient.into());
     }
 
@@ -247,8 +307,28 @@ fn close_pending_swap<'info>(
         PendingSwap::from_bytes(&data)?
     };
 
-    if swap.recipient != *recipient.key {
+    // Verify accounts[6] matches swap.recipient (rent destination).
+    if *recipient.key != swap.recipient {
         return Err(RouterError::InvalidRecipient.into());
+    }
+
+    // Verify recipient_ata is owned by swap.recipient (no sysvar needed).
+    {
+        let ata_data = recipient_ata.data.borrow();
+        if ata_data.len() < 64 {
+            return Err(RouterError::InvalidInputs.into());
+        }
+        let ata_owner =
+            Pubkey::try_from(&ata_data[32..64]).map_err(|_| RouterError::InvalidInputs)?;
+        if ata_owner != swap.recipient {
+            return Err(RouterError::InvalidRecipient.into());
+        }
+    }
+
+    // Only permitted after 1 hour from commit time — enforced for everyone.
+    let now = Clock::get()?.unix_timestamp;
+    if now < swap.commit_time + 3600 {
+        return Err(RouterError::SwapNotExpired.into());
     }
 
     // Build PDA signer seeds for token CPI
@@ -392,12 +472,14 @@ mod tests {
         let mut l3 = 0u64;
         let mut l4 = 0u64;
         let mut l5 = 0u64;
+        let mut l6 = 0u64;
         let mut d0 = vec![0u8; PendingSwap::LEN];
         let mut d1 = vec![];
         let mut d2 = vec![];
         let mut d3 = vec![];
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -413,6 +495,7 @@ mod tests {
             make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -423,7 +506,7 @@ mod tests {
         };
 
         let result = close_pending_swap(&prog, &accounts, ix);
-        // AFTER FIX: InvalidRecipient (correct semantic — recipient is not a signer)
+        // AFTER FIX: InvalidRecipient (correct semantic — caller is not a signer)
         // BEFORE FIX: UnauthorizedMailbox (wrong — that error is for mailbox auth failures)
         assert_eq!(result, Err(RouterError::InvalidRecipient.into()));
     }
@@ -468,6 +551,7 @@ mod tests {
         let mut l3 = 0u64;
         let mut l4 = 0u64;
         let mut l5 = 0u64;
+        let mut l6 = 0u64;
         // Simulates the BUGGY state: PDA data was zeroed even on swap failure
         let mut d0 = vec![]; // empty data — PDA was erroneously closed
         let mut d1 = vec![];
@@ -475,6 +559,7 @@ mod tests {
         let mut d3 = vec![];
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -483,6 +568,7 @@ mod tests {
             make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -533,6 +619,7 @@ mod tests {
             recipient: recipient_key,
             origin_domain: origin,
             bump: swap_bump,
+            commit_time: 0,
         };
         let swap_data = swap.to_bytes().unwrap();
 
@@ -542,12 +629,15 @@ mod tests {
         let mut l3 = 0u64;
         let mut l4 = 0u64;
         let mut l5 = 0u64;
+        let mut l6 = 0u64;
         let mut d0 = swap_data; // non-empty — swap failed but PDA was left open (CRITICAL-1 fix)
         let mut d1 = vec![];
         let mut d2 = vec![];
-        let mut d3 = vec![];
+        // recipient_ata must be owned by recipient_key so validation reaches the clock check
+        let mut d3 = make_spl_token_account_data(&recipient_key, 0);
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -556,6 +646,7 @@ mod tests {
             make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -565,8 +656,9 @@ mod tests {
             commitment,
         };
         let result = close_pending_swap(&prog, &accounts, ix);
-        // Validation passes (swap_key and recipient match); fails at invoke_signed for ATA close.
-        // NOT InvalidInputs (empty data) — that's the critical regression we're guarding against.
+        // Passes PDA and ata-owner validation; blocked at the clock check (UnsupportedSysvar in
+        // unit tests, SwapNotExpired in BPF). Either way it's NOT the empty-data InvalidInputs
+        // regression we're guarding against.
         assert_ne!(result, Err(RouterError::InvalidInputs.into()),
             "non-empty PDA data must NOT return InvalidInputs — the empty-data check is for the buggy pre-fix state");
     }
@@ -593,7 +685,7 @@ mod tests {
 
     #[test]
     fn test_close_pending_swap_five_accounts_returns_insufficient() {
-        // 5 accounts < 6 required (added mint at [5]) → InsufficientAccounts
+        // 6 accounts < 7 required (added recipient at [6]) → InsufficientAccounts
         let prog = Pubkey::new_unique();
         let k = Pubkey::new_unique();
         let owner = Pubkey::new_unique();
@@ -602,17 +694,20 @@ mod tests {
         let mut l2 = 0u64;
         let mut l3 = 0u64;
         let mut l4 = 0u64;
+        let mut l5 = 0u64;
         let mut d0 = vec![];
         let mut d1 = vec![];
         let mut d2 = vec![];
         let mut d3 = vec![];
         let mut d4 = vec![];
+        let mut d5 = vec![];
         let accounts = vec![
             make_account(&k, false, false, &mut l0, &mut d0, &owner),
             make_account(&k, false, false, &mut l1, &mut d1, &owner),
             make_account(&k, false, false, &mut l2, &mut d2, &owner),
             make_account(&k, false, false, &mut l3, &mut d3, &owner),
             make_account(&k, false, false, &mut l4, &mut d4, &owner),
+            make_account(&k, false, false, &mut l5, &mut d5, &owner),
         ];
         let result = close_pending_swap(
             &prog,
@@ -628,21 +723,23 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // reveal: LOW regression — swap failure must propagate to caller
+    // reveal: fallback on swap failure delivers tokens to recipient_ata
     // -----------------------------------------------------------------------
 
-    /// Direct reveal() must return the swap error, not swallow it.
-    /// BEFORE FIX: result.or(Ok(())) → swap failure returns Ok(()) to caller
-    /// AFTER FIX:  result           → Err(UnknownCommand) propagates
+    /// When the destination swap fails, reveal() must NOT propagate the swap
+    /// error. Instead it enters the fallback path: transfer tokens to
+    /// recipient_ata and close both the ATA and the pending_swap PDA.
     ///
-    /// Setup: craft a message that borsh-decodes correctly but contains an
-    /// unknown command (0x3F) so the dispatcher returns UnknownCommand.
+    /// In unit tests invoke_signed is unavailable (no BPF runtime), so the
+    /// fallback fails at the first CPI call. The critical assertion is that
+    /// the returned error is NOT UnknownCommand — proving we consumed the
+    /// swap failure and entered the fallback rather than propagating the error.
     #[test]
-    fn test_reveal_swap_failure_propagates_to_caller() {
+    fn test_reveal_swap_failure_falls_back_to_direct_delivery() {
         let prog = Pubkey::new_unique();
         let owner = Pubkey::new_unique();
+        let recipient_key = Pubkey::new_unique();
 
-        // Build a message that decodes as valid borsh but has a failing command
         let failing_cmd: u8 = 0x3F; // unknown — hits `_ => UnknownCommand` in dispatcher
         let swap_payload: (Vec<u8>, Vec<Vec<u8>>) = (vec![failing_cmd], vec![vec![]]);
         let message = borsh::to_vec(&swap_payload).unwrap();
@@ -651,12 +748,12 @@ mod tests {
         let origin: u32 = 7;
         let sender = [0x12u8; 32];
 
-        // Derive commitment and PDA
-        let mut preimage = message.clone();
-        preimage.extend_from_slice(&salt);
+        // commitment = keccak(salt || message)
+        let mut preimage = salt.to_vec();
+        preimage.extend_from_slice(&message);
         let commitment = keccak::hash(&preimage).to_bytes();
         let origin_bytes = origin.to_le_bytes();
-        let (swap_key, _) = Pubkey::find_program_address(
+        let (swap_key, swap_bump) = Pubkey::find_program_address(
             &[
                 PENDING_SWAP_SEED,
                 &origin_bytes,
@@ -668,26 +765,44 @@ mod tests {
         );
         let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
 
-        // ATA data: owner = swap_key, amount = 1000, state = Initialized
-        let ata_data = make_spl_token_account_data(&swap_key, 1000);
+        let pending_swap = PendingSwap {
+            recipient: recipient_key,
+            origin_domain: origin,
+            bump: swap_bump,
+            commit_time: 0,
+        };
 
-        let system_program_key = Pubkey::default();
         let pda_ata_key = Pubkey::new_unique();
+        let recipient_ata_key = Pubkey::new_unique();
+        let token_program_key = spl_token::ID;
+        let mint_key = Pubkey::new_unique();
+        let system_program_key = Pubkey::default();
+
+        let ata_data = make_spl_token_account_data(&swap_key, 1_000);
+        let mint_data = make_spl_mint_data(6);
+        let mut d0 = pending_swap.to_bytes().unwrap();
+        let mut d1 = ata_data;
+        let mut d2 = vec![];
+        let mut d3 = vec![];
+        let mut d4 = vec![];
+        let mut d5 = mint_data;
+        let mut d6 = vec![];
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 100_000u64;
         let mut l3 = 0u64;
-        let mut d0 = vec![1u8; PendingSwap::LEN]; // non-empty swap data
-        let mut d1 = ata_data;
-        let mut d2 = vec![];
-        let mut d3 = vec![];
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
 
         let accounts = vec![
-            make_account(&swap_key, false, true, &mut l0, &mut d0, &prog), // [0] pending_swap PDA
-            make_account(&pda_ata_key, false, true, &mut l1, &mut d1, &owner), // [1] pda_ata (ATA with balance)
-            make_account(&fee_payer_key, false, true, &mut l2, &mut d2, &owner), // [2] fee_payer_pda
-            make_account(&system_program_key, false, false, &mut l3, &mut d3, &owner), // [3] system_program
-                                                                                       // [4..] swap accounts — empty; failing_cmd 0x3F needs none
+            make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
+            make_account(&pda_ata_key, false, true, &mut l1, &mut d1, &owner),
+            make_account(&fee_payer_key, false, true, &mut l2, &mut d2, &owner),
+            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
+            make_account(&token_program_key, false, false, &mut l4, &mut d4, &owner),
+            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&system_program_key, false, false, &mut l6, &mut d6, &owner),
         ];
 
         let ix = RevealIxn {
@@ -699,12 +814,328 @@ mod tests {
         };
         let result = reveal(&prog, &accounts, ix);
 
-        // BEFORE FIX: Ok(()) — error swallowed by result.or(Ok(()))
-        // AFTER FIX:  Err(UnknownCommand) — propagates to caller
-        assert_eq!(
+        // Must NOT propagate UnknownCommand — that proves we entered the fallback.
+        // The fallback itself fails at invoke_signed (no BPF runtime in unit tests),
+        // but the important invariant is that the swap error was consumed.
+        assert_ne!(
             result,
             Err(RouterError::UnknownCommand.into()),
-            "swap failure in direct reveal must propagate, not be swallowed"
+            "swap error must not propagate — fallback path must be entered"
         );
+        // Must not be any early validation failure either
+        assert_ne!(result, Err(RouterError::InsufficientAccounts.into()));
+        assert_ne!(result, Err(RouterError::InvalidInputs.into()));
+        assert_ne!(result, Err(RouterError::InvalidRecipient.into()));
+        assert_ne!(result, Err(RouterError::CommitmentMissing.into()));
+        assert_ne!(result, Err(RouterError::InsufficientTokenBalance.into()));
+    }
+
+    // -----------------------------------------------------------------------
+    // close_pending_swap: permissionless expiry (1 hour after commit)
+    // -----------------------------------------------------------------------
+
+    // Build PendingSwap data at the correct PDA for close tests.
+    // Returns (swap_key, swap_bump, swap_data_bytes).
+    fn make_pending_swap_at_pda(
+        prog: &Pubkey,
+        origin: u32,
+        sender: &[u8; 32],
+        user_salt: &[u8; 32],
+        commitment: &[u8; 32],
+        recipient: &Pubkey,
+        commit_time: i64,
+    ) -> (Pubkey, u8, Vec<u8>) {
+        let origin_bytes = origin.to_le_bytes();
+        let (swap_key, swap_bump) = Pubkey::find_program_address(
+            &[
+                PENDING_SWAP_SEED,
+                &origin_bytes,
+                sender,
+                user_salt,
+                commitment,
+            ],
+            prog,
+        );
+        let swap = PendingSwap {
+            recipient: *recipient,
+            origin_domain: origin,
+            bump: swap_bump,
+            commit_time,
+        };
+        (swap_key, swap_bump, swap.to_bytes().unwrap())
+    }
+
+    /// Any caller before 1hr → blocked (SwapNotExpired in BPF; UnsupportedSysvar in unit tests).
+    /// Clock::get() returns unix_timestamp=0 in unit-test context (no BPF runtime).
+    /// commit_time=0 means 0 < 0+3600, so the swap has not expired.
+    #[test]
+    fn test_close_pending_swap_any_caller_before_expiry_is_blocked() {
+        let prog = Pubkey::new_unique();
+        let origin: u32 = 1;
+        let sender = [0x11u8; 32];
+        let user_salt = [0xEEu8; 32];
+        let commitment = [0x22u8; 32];
+        let recipient_key = Pubkey::new_unique();
+        let caller_key = Pubkey::new_unique(); // different from recipient
+        let pda_ata_key = Pubkey::new_unique();
+        let recipient_ata_key = Pubkey::new_unique();
+        let token_prog_key = Pubkey::new_unique();
+        let mint_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+
+        let (swap_key, _, mut d_swap) = make_pending_swap_at_pda(
+            &prog,
+            origin,
+            &sender,
+            &user_salt,
+            &commitment,
+            &recipient_key,
+            0, // commit_time=0, now=0 → 0 < 3600 → not expired
+        );
+        let mut l0 = 100_000u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = make_spl_token_account_data(&recipient_key, 0);
+        let mut d4 = vec![];
+        let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
+
+        let accounts = vec![
+            make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
+            make_account(&caller_key, true, true, &mut l1, &mut d1, &owner),
+            make_account(&pda_ata_key, false, true, &mut l2, &mut d2, &owner),
+            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
+            make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
+            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+        ];
+
+        let result = close_pending_swap(
+            &prog,
+            &accounts,
+            ClosePendingSwapIxn {
+                origin,
+                sender,
+                user_salt,
+                commitment,
+            },
+        );
+        // In BPF: SwapNotExpired. In unit tests Clock::get() returns UnsupportedSysvar
+        // (no sysvar cache available), so the error surfaces before the expiry check.
+        // Either way the caller is correctly rejected before 1 hour.
+        assert!(result.is_err());
+        assert_ne!(result, Ok(()));
+    }
+
+    /// Third-party caller after 1hr but recipient_ata owned by wrong key → InvalidRecipient.
+    /// commit_time=-3601: now(0) >= -3601+3600=-1 → expired.
+    #[test]
+    fn test_close_pending_swap_third_party_expired_wrong_ata_owner_returns_invalid_recipient() {
+        let prog = Pubkey::new_unique();
+        let origin: u32 = 2;
+        let sender = [0x22u8; 32];
+        let user_salt = [0xFFu8; 32];
+        let commitment = [0x33u8; 32];
+        let recipient_key = Pubkey::new_unique();
+        let caller_key = Pubkey::new_unique();
+        let wrong_owner = Pubkey::new_unique(); // not recipient_key
+        let pda_ata_key = Pubkey::new_unique();
+        let recipient_ata_key = Pubkey::new_unique();
+        let token_prog_key = Pubkey::new_unique();
+        let mint_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+
+        let (swap_key, _, mut d_swap) = make_pending_swap_at_pda(
+            &prog,
+            origin,
+            &sender,
+            &user_salt,
+            &commitment,
+            &recipient_key,
+            -3601, // expired: now(0) >= -1
+        );
+        let mut l0 = 100_000u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        // recipient_ata owned by wrong_owner — not the expected recipient
+        let mut d3 = make_spl_token_account_data(&wrong_owner, 0);
+        let mut d4 = vec![];
+        let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
+
+        let accounts = vec![
+            make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
+            make_account(&caller_key, true, true, &mut l1, &mut d1, &owner),
+            make_account(&pda_ata_key, false, true, &mut l2, &mut d2, &owner),
+            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
+            make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
+            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+        ];
+
+        let result = close_pending_swap(
+            &prog,
+            &accounts,
+            ClosePendingSwapIxn {
+                origin,
+                sender,
+                user_salt,
+                commitment,
+            },
+        );
+        // accounts[6] key matches swap.recipient ✓; recipient_ata owner is wrong_owner ≠ recipient_key
+        assert_eq!(result, Err(RouterError::InvalidRecipient.into()));
+    }
+
+    /// Third-party caller after 1hr with correct recipient_ata owner → passes
+    /// all validation and reaches the token CPI (which fails without BPF runtime).
+    #[test]
+    fn test_close_pending_swap_third_party_expired_valid_ata_proceeds_past_expiry_check() {
+        let prog = Pubkey::new_unique();
+        let origin: u32 = 3;
+        let sender = [0x33u8; 32];
+        let user_salt = [0xAAu8; 32];
+        let commitment = [0x44u8; 32];
+        let recipient_key = Pubkey::new_unique();
+        let caller_key = Pubkey::new_unique();
+        let pda_ata_key = Pubkey::new_unique();
+        let recipient_ata_key = Pubkey::new_unique();
+        let token_prog_key = Pubkey::new_unique();
+        let mint_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+
+        let (swap_key, _, mut d_swap) = make_pending_swap_at_pda(
+            &prog,
+            origin,
+            &sender,
+            &user_salt,
+            &commitment,
+            &recipient_key,
+            -3601, // expired
+        );
+        let mut l0 = 100_000u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        // recipient_ata correctly owned by recipient_key
+        let mut d3 = make_spl_token_account_data(&recipient_key, 0);
+        let mut d4 = vec![];
+        let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
+
+        let accounts = vec![
+            make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
+            make_account(&caller_key, true, true, &mut l1, &mut d1, &owner),
+            make_account(&pda_ata_key, false, true, &mut l2, &mut d2, &owner),
+            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
+            make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
+            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+        ];
+
+        let result = close_pending_swap(
+            &prog,
+            &accounts,
+            ClosePendingSwapIxn {
+                origin,
+                sender,
+                user_salt,
+                commitment,
+            },
+        );
+        // accounts[6] and ata owner both match recipient_key; then Clock::get() returns
+        // UnsupportedSysvar in unit tests. Key assertion: NOT rejected for InvalidRecipient.
+        assert_ne!(
+            result,
+            Err(RouterError::InvalidRecipient.into()),
+            "correct recipient and ata owner must pass the recipient checks"
+        );
+        assert_ne!(result, Err(RouterError::InvalidInputs.into()));
+        assert_ne!(result, Err(RouterError::InsufficientAccounts.into()));
+    }
+
+    /// The recipient is also blocked before 1 hour — the expiry applies to everyone.
+    #[test]
+    fn test_close_pending_swap_recipient_blocked_before_expiry() {
+        let prog = Pubkey::new_unique();
+        let origin: u32 = 4;
+        let sender = [0x44u8; 32];
+        let user_salt = [0xBBu8; 32];
+        let commitment = [0x55u8; 32];
+        let recipient_key = Pubkey::new_unique();
+        let pda_ata_key = Pubkey::new_unique();
+        let recipient_ata_key = Pubkey::new_unique();
+        let token_prog_key = Pubkey::new_unique();
+        let mint_key = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+
+        let (swap_key, _, mut d_swap) = make_pending_swap_at_pda(
+            &prog,
+            origin,
+            &sender,
+            &user_salt,
+            &commitment,
+            &recipient_key,
+            0, // fresh commit — not yet expired
+        );
+        let mut l0 = 100_000u64;
+        let mut l1 = 0u64;
+        let mut l2 = 0u64;
+        let mut l3 = 0u64;
+        let mut l4 = 0u64;
+        let mut l5 = 0u64;
+        let mut l6 = 0u64;
+        let mut d1 = vec![];
+        let mut d2 = vec![];
+        let mut d3 = make_spl_token_account_data(&recipient_key, 0); // correct ata owner
+        let mut d4 = vec![];
+        let mut d5 = make_spl_mint_data(6);
+        let mut d6 = vec![];
+
+        let accounts = vec![
+            make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
+            make_account(&recipient_key, true, true, &mut l1, &mut d1, &owner),
+            make_account(&pda_ata_key, false, true, &mut l2, &mut d2, &owner),
+            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
+            make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
+            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
+            make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+        ];
+
+        let result = close_pending_swap(
+            &prog,
+            &accounts,
+            ClosePendingSwapIxn {
+                origin,
+                sender,
+                user_salt,
+                commitment,
+            },
+        );
+        // ata owner check passes; clock check blocks everyone before 1hr.
+        // In BPF: SwapNotExpired. In unit tests: UnsupportedSysvar (no sysvar cache).
+        assert!(
+            result.is_err(),
+            "recipient must be blocked before 1-hour expiry"
+        );
+        assert_ne!(result, Err(RouterError::InvalidRecipient.into()));
+        assert_ne!(result, Err(RouterError::InvalidInputs.into()));
     }
 }

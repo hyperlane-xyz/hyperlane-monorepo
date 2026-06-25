@@ -133,16 +133,14 @@ pub struct PendingSwap {
     pub origin_domain: u32,
     /// PDA bump used for signing CPIs on behalf of the PDA
     pub bump: u8,
-    // Design note: PendingSwap PDAs have no on-chain expiry. A recipient who never
-    // calls ClosePendingSwap leaves the account (and its ATA tokens + rent) locked
-    // indefinitely. This is an accepted trade-off: expiry would require a crank or
-    // clock-based check, adding complexity. Off-chain monitoring should alert on
-    // long-lived PDAs so recipients can recover funds via ClosePendingSwap.
+    /// Unix timestamp (i64) when the commit message was processed on-chain.
+    /// Used to gate permissionless ClosePendingSwap: anyone may close after 1 hour.
+    pub commit_time: i64,
 }
 
 impl PendingSwap {
     /// Serialized size — no discriminator prefix
-    pub const LEN: usize = 32 + 4 + 1; // = 37
+    pub const LEN: usize = 32 + 4 + 1 + 8; // = 45
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, ProgramError> {
         Self::try_from_slice(data).map_err(|_| ProgramError::InvalidAccountData)
@@ -256,10 +254,11 @@ mod tests {
             recipient: Pubkey::new_unique(),
             origin_domain: 1,
             bump: 255,
+            commit_time: 0,
         };
         let serialized = swap.to_bytes().unwrap();
         assert_eq!(serialized.len(), PendingSwap::LEN);
-        assert_eq!(PendingSwap::LEN, 37);
+        assert_eq!(PendingSwap::LEN, 45);
     }
 
     #[test]
@@ -268,12 +267,14 @@ mod tests {
             recipient: Pubkey::new_unique(),
             origin_domain: 42,
             bump: 200,
+            commit_time: 1_700_000_000,
         };
         let bytes = original.to_bytes().unwrap();
         let decoded = PendingSwap::from_bytes(&bytes).unwrap();
         assert_eq!(decoded.recipient, original.recipient);
         assert_eq!(decoded.origin_domain, original.origin_domain);
         assert_eq!(decoded.bump, original.bump);
+        assert_eq!(decoded.commit_time, original.commit_time);
     }
 
     #[test]
@@ -292,6 +293,7 @@ mod tests {
             recipient: Pubkey::new_unique(),
             origin_domain: 99,
             bump: 1,
+            commit_time: 1_000_000,
         };
         let mut buf = vec![0u8; PendingSwap::LEN];
         swap.write_into(&mut buf).unwrap();
@@ -307,6 +309,7 @@ mod tests {
             recipient: Pubkey::new_unique(),
             origin_domain: 1,
             bump: 0,
+            commit_time: 0,
         };
         let mut buf = vec![0u8; 5]; // smaller than PendingSwap::LEN
         assert!(swap.write_into(&mut buf).is_err());

@@ -21,6 +21,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::AccountInfo,
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program::{invoke_signed, set_return_data},
@@ -181,6 +182,7 @@ fn handle_commit<'info>(
         recipient,
         origin_domain: handle.origin,
         bump: swap_bump,
+        commit_time: Clock::get()?.unix_timestamp,
     };
     let mut data = swap_info.data.borrow_mut();
     swap.write_into(&mut data)?;
@@ -406,21 +408,21 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Commitment derivation: keccak256(cmd_bytes || salt)
+    // Commitment derivation: keccak256(salt || cmd_bytes)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_commitment_derivation_is_keccak_of_cmds_then_salt() {
+    fn test_commitment_derivation_is_keccak_of_salt_then_cmds() {
         let cmd_bytes = b"borsh_encoded_commands";
         let salt = [0x42u8; 32];
 
-        let mut preimage = cmd_bytes.to_vec();
-        preimage.extend_from_slice(&salt);
+        let mut preimage = salt.to_vec();
+        preimage.extend_from_slice(cmd_bytes);
         let commitment = keccak::hash(&preimage).to_bytes();
 
         // Changing the salt produces a different commitment
-        let mut preimage2 = cmd_bytes.to_vec();
-        preimage2.extend_from_slice(&[0x00u8; 32]);
+        let mut preimage2 = [0x00u8; 32].to_vec();
+        preimage2.extend_from_slice(cmd_bytes);
         let commitment2 = keccak::hash(&preimage2).to_bytes();
 
         assert_ne!(
@@ -429,8 +431,8 @@ mod tests {
         );
 
         // Changing cmd_bytes produces a different commitment
-        let mut preimage3 = b"different_commands".to_vec();
-        preimage3.extend_from_slice(&salt);
+        let mut preimage3 = salt.to_vec();
+        preimage3.extend_from_slice(b"different_commands");
         let commitment3 = keccak::hash(&preimage3).to_bytes();
 
         assert_ne!(
@@ -443,8 +445,8 @@ mod tests {
     fn test_commitment_derivation_is_deterministic() {
         let cmd_bytes = b"some_payload";
         let salt = [0xFFu8; 32];
-        let mut preimage = cmd_bytes.to_vec();
-        preimage.extend_from_slice(&salt);
+        let mut preimage = salt.to_vec();
+        preimage.extend_from_slice(cmd_bytes);
 
         let c1 = keccak::hash(&preimage).to_bytes();
         let c2 = keccak::hash(&preimage).to_bytes();
