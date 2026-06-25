@@ -2892,6 +2892,47 @@ async fn test_submit_transient_quote() {
 }
 
 #[tokio::test]
+async fn test_submit_transient_quote_allows_fully_wildcarded() {
+    // Fully-wildcarded transient quotes are payer-scoped and consumed once, so allowed.
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let exchange_rate = 2_000_000_000_000_000_000u128;
+    let gas_price = 50_000_000_000u128;
+    let token_decimals = 18u8;
+
+    let context = encode_igp_context(&Pubkey::default(), WILDCARD_DOMAIN, &WILDCARD_SENDER);
+    let data = encode_igp_data(exchange_rate, gas_price, token_decimals);
+
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
+    let transient = fetch_transient_quote(&account.data);
+    assert_eq!(transient.payer, payer.pubkey());
+    assert_eq!(transient.destination_domain, WILDCARD_DOMAIN);
+    assert_eq!(transient.sender, WILDCARD_SENDER);
+    assert_eq!(transient.token_exchange_rate, exchange_rate);
+    assert_eq!(transient.gas_price, gas_price);
+    assert_eq!(transient.token_decimals, token_decimals);
+    assert_eq!(transient.expiry, 100);
+}
+
+#[tokio::test]
 async fn test_submit_transient_quote_rejects_reuse_by_different_payer() {
     let (mut banks_client, payer) = setup_client().await;
     let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;

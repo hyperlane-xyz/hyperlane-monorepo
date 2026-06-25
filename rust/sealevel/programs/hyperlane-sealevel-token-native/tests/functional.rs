@@ -2955,8 +2955,12 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
 
 /// IGP new flow with transient quote on native token, no fees.
 /// Isolates whether the IGP transient autoclose works with native SOL transfers.
-#[tokio::test]
-async fn test_transfer_remote_igp_new_flow_transient_native() {
+/// Parameterized by the quote's context (domain, sender) so the same flow covers
+/// both an exact-match quote and a fully-wildcarded one.
+async fn run_transfer_remote_igp_new_flow_transient_native(
+    quote_context_domain: u32,
+    quote_context_sender: Pubkey,
+) {
     let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
     let (mut banks_client, payer) = setup_client().await;
@@ -3009,7 +3013,11 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
 
     let igp_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
     let igp_gas_price: u128 = 5;
-    let igp_context = encode_igp_context(&Pubkey::default(), REMOTE_DOMAIN, &program_id);
+    let igp_context = encode_igp_context(
+        &Pubkey::default(),
+        quote_context_domain,
+        &quote_context_sender,
+    );
     let igp_data_bytes = encode_igp_data(igp_exchange_rate, igp_gas_price, 9);
 
     let mut igp_quote = SvmSignedQuote {
@@ -3132,6 +3140,22 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
         igp_transient_account.is_none() || igp_transient_account.unwrap().data.is_empty(),
         "IGP transient PDA should be closed"
     );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_transient_native() {
+    // Exact-match transient quote (context sender = the token program).
+    run_transfer_remote_igp_new_flow_transient_native(
+        REMOTE_DOMAIN,
+        hyperlane_sealevel_token_native_id(),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_transient_native_fully_wildcarded() {
+    // Fully-wildcarded transient quote is resolved, priced, and autoclosed end-to-end.
+    run_transfer_remote_igp_new_flow_transient_native(IGP_WILDCARD_DOMAIN, WILDCARD_SENDER).await;
 }
 
 /// Fully transient: both fee program AND IGP use transient quotes on native.
