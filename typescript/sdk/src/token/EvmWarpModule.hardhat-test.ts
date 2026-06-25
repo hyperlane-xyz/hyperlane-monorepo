@@ -1242,7 +1242,10 @@ describe('EvmWarpModule', async () => {
     it('should update the feeHook', async () => {
       const config: HypTokenRouterConfig = {
         ...baseConfig,
-        type: TokenType.native,
+        type: TokenType.synthetic,
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
       };
 
       const evmERC20WarpModule = await EvmWarpModule.create({

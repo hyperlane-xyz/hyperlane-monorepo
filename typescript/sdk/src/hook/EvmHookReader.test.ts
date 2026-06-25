@@ -421,7 +421,14 @@ describe('EvmHookReader', () => {
         .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
       owner: sandbox.stub().resolves(mockOwner),
       beneficiary: sandbox.stub().resolves(mockBeneficiary),
-      getExchangeRateAndGasPrice: sandbox.stub().rejects(new Error('no data')),
+      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      getExchangeRateAndGasPrice: sandbox
+        .stub()
+        .callsFake((domainId: number) =>
+          Promise.reject(
+            new Error(`Configured IGP doesn't support domain ${domainId}`),
+          ),
+        ),
       destinationGasLimit: sandbox.stub().resolves(ethers.BigNumber.from(0)),
       destinationGasConfigs: sandbox.stub().resolves({
         gasOracle: mockOracleAddress,
@@ -433,7 +440,11 @@ describe('EvmHookReader', () => {
     // tokenGasOracles returns zero for all domains except when feeToken matches
     mockIgp.tokenGasOracles.resolves(ethers.constants.AddressZero);
     // No configured domains for native oracle
-    mockIgp.getExchangeRateAndGasPrice.rejects(new Error('no data'));
+    mockIgp.getExchangeRateAndGasPrice.callsFake((domainId: number) =>
+      Promise.reject(
+        new Error(`Configured IGP doesn't support domain ${domainId}`),
+      ),
+    );
 
     sandbox
       .stub(InterchainGasPaymaster__factory, 'connect')
