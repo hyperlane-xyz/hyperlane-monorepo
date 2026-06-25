@@ -301,14 +301,18 @@ pub fn required_accounts_for_node(
                 )
                 .map_err(|_| ProgramError::BorshIoError)?;
 
-            // Keep fallback_storage_key in the result so that the next fixpoint
-            // iteration finds it at position 1 and re-enters Pass 3+ (stable point).
-            // verify_node skips this sentinel before the CPI to Verify.
+            // The sentinel (fallback_storage_key at position [1]) doubles as the
+            // fallback ISM's VAM PDA that its Verify handler needs as accounts[0].
+            // The inner ISM's VerifyAccountMetas result also starts with its own VAM PDA
+            // (= fallback_storage_key). Skip that first element to avoid a duplicate:
+            // a duplicate shifts inner extra_accounts on subsequent passes and prevents
+            // the inner ISM's Routing node from discovering its sub-accounts (e.g. a
+            // TrustedRelayer account), causing the fixpoint to converge on a broken list.
             let mut result: Vec<SerializableAccountMeta> = vec![
                 AccountMeta::new_readonly(domain_pda_key, false).into(),
                 AccountMeta::new_readonly(fallback_storage_key, false).into(),
             ];
-            result.extend(cpi_result.return_data);
+            result.extend(cpi_result.return_data.into_iter().skip(1));
             // Re-append the program account so that subsequent Verify calls (and the
             // fixpoint loop) also include it and can perform the CPI.
             result.push(AccountMeta::new_readonly(*fallback_ism, false).into());

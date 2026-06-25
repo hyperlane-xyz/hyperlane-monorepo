@@ -24,9 +24,9 @@ mod common;
 
 use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
-    accounts::{CompositeIsmAccount, IsmNode},
+    accounts::{derive_domain_pda, CompositeIsmAccount, IsmNode},
     error::Error,
-    instruction::initialize_instruction,
+    instruction::{initialize_instruction, set_domain_ism_instruction},
     processor::process_instruction,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -567,17 +567,16 @@ async fn test_vam_no_domain_ism_returns_fallback_storage() {
     )
     .await;
 
-    // [storage_pda, domain_pda, fallback_storage_pda (sentinel), fallback_storage_pda (from CPI), fallback_ism_program]
-    // fallback_storage_pda appears twice: once as the sentinel inserted by Pass 3+ to keep the
-    // fixpoint loop in Pass 3+ on subsequent iterations, and once as the VAM PDA returned by the
-    // fallback ISM's own all_verify_account_metas.  verify_node skips the first copy (sentinel)
-    // before forwarding the remaining accounts to the fallback ISM's Verify CPI.
-    assert_eq!(metas.len(), 5);
+    // [storage_pda, domain_pda, fallback_storage_pda (sentinel/fallback VAM PDA), fallback_ism_program]
+    // fallback_storage_pda appears exactly once: it is both the fixpoint sentinel (keeping
+    // the loop in Pass 3+) and the fallback ISM's VAM PDA forwarded to its Verify handler.
+    // The inner ISM's VAM result also starts with its own VAM PDA; we skip that first element
+    // (skip(1)) to avoid a duplicate that would corrupt the inner ISM's account discovery.
+    assert_eq!(metas.len(), 4);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
     assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
-    assert_eq!(metas[3].pubkey, fallback_storage_pda_key());
-    assert_eq!(metas[4].pubkey, fallback_ism_id());
+    assert_eq!(metas[3].pubkey, fallback_ism_id());
 }
 
 // ── Regression: sentinel convergence with non-empty fallback ISM accounts ─────
@@ -635,15 +634,16 @@ async fn test_vam_fallback_with_extra_accounts_converges() {
     .await;
 
     // Converged set:
-    // [storage_pda, domain_pda, fallback_storage (sentinel), fallback_storage (from CPI), relayer, fallback_ism]
-    assert_eq!(metas.len(), 6);
+    // [storage_pda, domain_pda, fallback_storage (sentinel/fallback VAM PDA), relayer, fallback_ism]
+    // fallback_storage appears once: the inner TrustedRelayer VAM result starts with the fallback
+    // VAM PDA; skip(1) removes that duplicate so the sentinel at [2] is the only copy.
+    assert_eq!(metas.len(), 5);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
     assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
-    assert_eq!(metas[3].pubkey, fallback_storage_pda_key());
-    assert_eq!(metas[4].pubkey, relayer.pubkey());
-    assert!(metas[4].is_signer, "relayer must be marked as signer");
-    assert_eq!(metas[5].pubkey, fallback_ism_id());
+    assert_eq!(metas[3].pubkey, relayer.pubkey());
+    assert!(metas[3].is_signer, "relayer must be marked as signer");
+    assert_eq!(metas[4].pubkey, fallback_ism_id());
 }
 
 #[tokio::test]
@@ -760,4 +760,180 @@ async fn test_metadata_spec_fallback_composite_ism_converges() {
         }
         other => panic!("expected MultisigMessageId spec, got {:?}", other),
     }
+}
+
+// ── Regression: FallbackRouting → Routing → TrustedRelayer ───────────────────
+//
+// When the fallback ISM itself contains a Routing node, the outer FallbackRouting
+// must forward the correct accounts to the inner ISM's VerifyAccountMetas so that
+// the Routing node can discover its sub-accounts (e.g. a TrustedRelayer).
+//
+// The bug: without the skip(1) fix in account_metas.rs, the outer code prepended
+// fallback_storage_key as a sentinel AND the inner ISM's result also started with
+// fallback_storage_key, creating a duplicate.  The duplicate shifted inner
+// extra_accounts by one, so the inner Routing node always saw the wrong account
+// at [0] and never entered its domain-PDA discovery pass.  The fixpoint converged
+// without the TrustedRelayer account, making Verify fail with InvalidRelayer.
+//
+// After the fix: skip(1) removes the duplicate; the inner Routing node correctly
+// discovers its domain PDA and the TrustedRelayer account on subsequent passes.
+
+/// Sets a domain ISM directly on the fallback ISM program (not on the outer ISM).
+async fn set_fallback_ism_domain_ism(
+    banks_client: &mut solana_program_test::BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    domain: u32,
+    ism: IsmNode,
+) {
+    let ix = set_domain_ism_instruction(fallback_ism_id(), payer.pubkey(), domain, ism).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_vam_fallback_with_inner_routing_discovers_trusted_relayer() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let relayer = Keypair::new();
+
+    // B (fallback ISM) has Routing as root with TrustedRelayer for ORIGIN.
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Routing,
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    set_fallback_ism_domain_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        ORIGIN,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await;
+
+    // A (outer ISM) delegates to B via FallbackRouting (no domain ISM for ORIGIN on A).
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+    )
+    .await;
+
+    // Converged set:
+    // [A_vam, A_domain_pda, B_vam (sentinel), B_domain_pda, relayer, B_id]
+    // B_domain_pda is B's per-domain PDA for ORIGIN (holds TrustedRelayer).
+    // Without the skip(1) fix the duplicate B_vam would prevent B's Routing node
+    // from entering its domain-PDA discovery pass, so the relayer would be missing.
+    let b_domain_pda = derive_domain_pda(&fallback_ism_id(), ORIGIN).0;
+    assert_eq!(metas.len(), 6);
+    assert_eq!(metas[0].pubkey, storage_pda_key());
+    assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
+    assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
+    assert_eq!(metas[3].pubkey, b_domain_pda);
+    assert_eq!(metas[4].pubkey, relayer.pubkey());
+    assert!(metas[4].is_signer, "relayer must be marked as signer");
+    assert_eq!(metas[5].pubkey, fallback_ism_id());
+}
+
+#[tokio::test]
+async fn test_verify_fallback_with_inner_routing_and_trusted_relayer_accepts() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let relayer = Keypair::new();
+
+    // B (fallback ISM) has Routing as root with TrustedRelayer for ORIGIN.
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Routing,
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    set_fallback_ism_domain_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        ORIGIN,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await;
+
+    // A (outer ISM) delegates to B via FallbackRouting.
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+
+    assert_simulation_ok(
+        &simulate_verify(
+            &mut context.banks_client,
+            &payer,
+            recent_blockhash,
+            verify_ixn,
+            metas,
+        )
+        .await,
+    );
 }
