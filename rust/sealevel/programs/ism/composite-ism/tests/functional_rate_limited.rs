@@ -591,7 +591,8 @@ async fn test_verify_account_metas_writable_pda() {
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn).await;
 
     use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
-    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+    let expected_process_authority =
+        derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0;
 
     // Storage PDA must be writable so the rate limit state can be written back on Verify.
     // Process authority PDA must also be present as a signer.

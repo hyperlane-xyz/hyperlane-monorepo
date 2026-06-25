@@ -705,7 +705,8 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
         get_all_verify_account_metas(&mut banks_client, &payer, recent_blockhash, verify_ixn).await;
 
     use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
-    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+    let expected_process_authority =
+        derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0;
 
     assert_eq!(account_metas.len(), 3);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
