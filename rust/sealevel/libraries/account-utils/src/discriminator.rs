@@ -320,4 +320,11 @@ mod test {
             OptionalDiscriminatedData::<Bar>::deserialize_reader(&mut &bytes[..]).unwrap();
         assert_eq!(decoded, Some(Bar { a: 9 }));
     }
+
+    #[test]
+    fn test_optional_discriminated_data_matching_discriminator_truncated_payload_errors() {
+        let mut bytes = Bar::DISCRIMINATOR.to_vec();
+        bytes.extend_from_slice(&[0u8; 3]); // Bar needs a u64; only 3 bytes follow
+        assert!(OptionalDiscriminatedData::<Bar>::deserialize_reader(&mut &bytes[..]).is_err());
+    }
 }
