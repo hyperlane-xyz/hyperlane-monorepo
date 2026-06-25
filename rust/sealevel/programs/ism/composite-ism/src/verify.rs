@@ -320,6 +320,11 @@ where
                 return Err(Error::RateLimitExceeded.into());
             }
 
+            // Zero-amount: passes capacity check but must not reset the refill timer.
+            if amount == 0 {
+                return Ok(());
+            }
+
             *filled_level = adjusted - amount;
             *last_updated = now;
             *did_mutate = true;
