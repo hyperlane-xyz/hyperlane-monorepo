@@ -591,7 +591,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
                 tokenExchangeRate: tokenExchangeRate.toString(),
                 gasPrice: gasPrice.toString(),
               };
-            } catch {
+            } catch (error) {
+              throwIfNotMissingSelector(error);
               // Domain not configured for this fee token
             }
           },

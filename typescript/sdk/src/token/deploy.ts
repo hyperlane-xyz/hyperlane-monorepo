@@ -832,7 +832,7 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        if (!config.feeHook) return;
+        if (!config.feeHook || isOftTokenConfig(config)) return;
 
         const routerAddress = this.router(deployedContractsMap[chain]).address;
         const router = TokenRouter__factory.connect(
@@ -843,7 +843,9 @@ abstract class TokenDeployer<
         this.logger.info(`Setting feeHook on ${chain} to ${config.feeHook}`);
         await this.multiProvider.handleTx(
           chain,
-          router.setFeeHook(config.feeHook),
+          router.setFeeHook(config.feeHook, {
+            ...this.multiProvider.getTransactionOverrides(chain),
+          }),
         );
       }),
     );

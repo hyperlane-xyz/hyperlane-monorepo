@@ -544,9 +544,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       config,
     );
 
-    // Deploy per-token gas oracles for ERC20 fee payments
-    await this.deployTokenGasOracles(chain, interchainGasPaymaster, config);
-
     const contracts = {
       proxyAdmin,
       storageGasOracle,

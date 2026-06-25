@@ -1650,6 +1650,8 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    if (isOftTokenConfig(expectedConfig)) return [];
+
     const expectedFeeHook = expectedConfig.feeHook;
     const actualFeeHook = actualConfig.feeHook;
 

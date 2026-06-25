@@ -446,7 +446,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       if (!isZeroishAddress(feeHookAddress)) {
         return feeHookAddress;
       }
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         `Token at "${routerAddress}" on chain "${this.chain}" does not support feeHook`,
       );

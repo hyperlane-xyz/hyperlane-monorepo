@@ -1267,7 +1267,8 @@ describe('EvmWarpModule', async () => {
 
       // Verify feeHook was set
       const updatedConfig = await evmERC20WarpModule.read();
-      expect(eqAddress(updatedConfig.feeHook!, feeHookAddress)).to.be.true;
+      assert(updatedConfig.feeHook != null, 'feeHook should be set');
+      expect(eqAddress(updatedConfig.feeHook, feeHookAddress)).to.be.true;
     });
 
     for (const tokenType of movableCollateralTypes) {
