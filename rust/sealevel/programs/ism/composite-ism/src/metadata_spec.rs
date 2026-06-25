@@ -95,15 +95,7 @@ pub(crate) fn spec_and_accounts_for_node(
                             });
                         }
                     },
-                    // NoRouteForDomain means this child cannot verify messages from
-                    // this origin, but that is a message-local condition — the child
-                    // is structurally valid. Treat it the same as a child that returns
-                    // MetadataSpec::CannotVerify (e.g. Pausable{paused:true}): the
-                    // relayer will encode a (0,0) slot for this position and Verify
-                    // will skip it. If the remaining children satisfy the threshold
-                    // the aggregation is still deliverable.
                     Err(Error::NoRouteForDomain) => sub_specs.push(MetadataSpec::CannotVerify),
-                    // All other errors are structural and must propagate.
                     Err(e) => return Err(e),
                 }
             }
