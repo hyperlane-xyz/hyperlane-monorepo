@@ -122,6 +122,7 @@ solana-commitment-config = "=3.0.0"
 solana-compute-budget-interface = { version = "=3.0.0", features = ["borsh"] }
 solana-loader-v3-interface = { version = "=6.1.0", features = ["serde", "bincode"] }
 solana-program = "=3.0.0"
+solana-sdk-ids = "=3.1.0"
 solana-program-test = "=3.0.7"
 solana-sdk = "=3.0.0"
 solana-stake-interface = "=1.2.1"

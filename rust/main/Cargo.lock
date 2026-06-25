@@ -6253,7 +6253,9 @@ dependencies = [
  "num-traits",
  "package-versioned",
  "serializable-account-meta",
+ "solana-loader-v3-interface 6.1.0",
  "solana-program 3.0.0",
+ "solana-sdk-ids 3.1.0",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.63",
 ]
