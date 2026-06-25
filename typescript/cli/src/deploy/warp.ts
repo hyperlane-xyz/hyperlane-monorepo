@@ -1147,6 +1147,15 @@ async function submitChainTransactions(
     chainStrategyEntry?.feeSubmitter ?? chainStrategyEntry?.submitter,
   );
 
+  // Fee-contract-owner txs only split off into their own submission when a
+  // dedicated feeSubmitter is configured. Otherwise they are merged into the
+  // main submission so they share a single submit() call (one batch / one
+  // callRemote / one receipts file) instead of being broadcast separately.
+  const hasDedicatedFeeSubmitter = chainStrategyEntry?.feeSubmitter != null;
+  const mainTransactions = hasDedicatedFeeSubmitter
+    ? transactions
+    : [...transactions, ...feeTxs];
+
   await retryAsync(
     async () => {
       const { submitter, config } = await getSubmitterByStrategy({
@@ -1156,8 +1165,8 @@ async function submitChainTransactions(
         isExtendedChain,
       });
       const transactionReceipts =
-        transactions.length > 0
-          ? await submitter.submit(...(transactions as any[]))
+        mainTransactions.length > 0
+          ? await submitter.submit(...(mainTransactions as any[]))
           : undefined;
 
       if (isSafeTxBuilderPayload(transactionReceipts)) {
@@ -1207,35 +1216,25 @@ async function submitChainTransactions(
       // Fee submission is intentionally wrapped in try/catch so a failure does NOT
       // bubble up to retryAsync and re-run the main submit block (which would
       // rebroadcast already-submitted main txs).
-      if (feeTxs.length > 0) {
+      // Only runs when a dedicated feeSubmitter is configured; otherwise the fee
+      // txs were already merged into the main submission above.
+      if (hasDedicatedFeeSubmitter && feeTxs.length > 0) {
         try {
           const feeSubmitter = await getFeeSubmitterByStrategy({
             chain,
             context: params.context,
             strategyUrl: params.strategyUrl,
           });
-          let feeReceipts:
-            | Awaited<ReturnType<typeof submitter.submit>>
-            | undefined;
-          if (!feeSubmitter) {
-            warnYellow(
-              `Chain ${chain} has ${feeTxs.length} fee transaction(s) but no feeSubmitter configured in strategy. Bundling with main submitter.`,
-            );
-            feeReceipts = await submitter.submit(...(feeTxs as any[]));
-            if (isSafeTxBuilderPayload(feeReceipts)) {
-              safePayloads.push({
-                ...feeReceipts,
-                meta: { ...feeReceipts.meta, _safeAddress: mainSafeAddress },
-              });
-            }
-          } else {
-            feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
-            if (isSafeTxBuilderPayload(feeReceipts)) {
-              safePayloads.push({
-                ...feeReceipts,
-                meta: { ...feeReceipts.meta, _safeAddress: feeSafeAddress },
-              });
-            }
+          assert(
+            feeSubmitter,
+            `Expected a feeSubmitter to be resolved for ${chain}`,
+          );
+          const feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
+          if (isSafeTxBuilderPayload(feeReceipts)) {
+            safePayloads.push({
+              ...feeReceipts,
+              meta: { ...feeReceipts.meta, _safeAddress: feeSafeAddress },
+            });
           }
           if (
             feeReceipts &&

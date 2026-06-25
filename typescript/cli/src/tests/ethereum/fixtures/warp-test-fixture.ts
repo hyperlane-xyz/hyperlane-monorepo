@@ -23,12 +23,14 @@ export interface SnapshotConfig {
  * Provides config management and EVM snapshot utilities for fast test isolation.
  */
 export class WarpTestFixture {
+  private baseDeployConfig: WarpRouteDeployConfig;
   private deployConfig: WarpRouteDeployConfig;
   private coreConfig?: WarpCoreConfig;
   private snapshots = new Map<string, string>();
 
   constructor(private readonly config: WarpTestFixtureConfig) {
-    this.deployConfig = config.initialDeployConfig;
+    this.baseDeployConfig = config.initialDeployConfig;
+    this.deployConfig = structuredClone(config.initialDeployConfig);
   }
 
   writeConfigs(deployConfig?: WarpRouteDeployConfig): void {
@@ -45,11 +47,16 @@ export class WarpTestFixture {
   }
 
   restoreConfigs(): void {
+    // Reset to a pristine deep clone of the baseline so per-test in-place
+    // mutations (owner, tokenFee, destinationGas, ...) never leak into the
+    // next test.
+    this.deployConfig = structuredClone(this.baseDeployConfig);
     this.writeConfigs();
   }
 
   updateDeployConfig(config: WarpRouteDeployConfig): void {
-    this.deployConfig = config;
+    this.baseDeployConfig = config;
+    this.deployConfig = structuredClone(config);
   }
 
   loadCoreConfig(): void {
@@ -103,7 +110,8 @@ export class WarpTestFixture {
 
   reset(): void {
     this.snapshots.clear();
-    this.deployConfig = this.config.initialDeployConfig;
+    this.baseDeployConfig = this.config.initialDeployConfig;
+    this.deployConfig = structuredClone(this.config.initialDeployConfig);
     this.coreConfig = undefined;
   }
 }
