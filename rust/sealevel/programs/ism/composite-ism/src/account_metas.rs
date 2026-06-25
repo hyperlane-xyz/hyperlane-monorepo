@@ -303,16 +303,22 @@ pub fn required_accounts_for_node(
 
             // The sentinel (fallback_storage_key at position [1]) doubles as the
             // fallback ISM's VAM PDA that its Verify handler needs as accounts[0].
-            // The inner ISM's VerifyAccountMetas result also starts with its own VAM PDA
-            // (= fallback_storage_key). Skip that first element to avoid a duplicate:
-            // a duplicate shifts inner extra_accounts on subsequent passes and prevents
-            // the inner ISM's Routing node from discovering its sub-accounts (e.g. a
-            // TrustedRelayer account), causing the fixpoint to converge on a broken list.
+            // When the fallback ISM is a composite ISM, its VAM result also starts with
+            // its own VAM PDA (= fallback_storage_key), creating a duplicate that shifts
+            // inner extra_accounts and prevents sub-account discovery. Only skip the
+            // first element if it is that duplicate; external ISMs (multisig, test-ism)
+            // return their own non-sentinel first account which must be preserved.
             let mut result: Vec<SerializableAccountMeta> = vec![
                 AccountMeta::new_readonly(domain_pda_key, false).into(),
                 AccountMeta::new_readonly(fallback_storage_key, false).into(),
             ];
-            result.extend(cpi_result.return_data.into_iter().skip(1));
+            let mut inner = cpi_result.return_data.into_iter();
+            if let Some(first) = inner.next() {
+                if first.pubkey != fallback_storage_key {
+                    result.push(first);
+                }
+            }
+            result.extend(inner);
             // Re-append the program account so that subsequent Verify calls (and the
             // fixpoint loop) also include it and can perform the CPI.
             result.push(AccountMeta::new_readonly(*fallback_ism, false).into());
