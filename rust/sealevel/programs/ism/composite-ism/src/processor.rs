@@ -262,6 +262,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
 
 /// Replaces the full ISM config tree. Owner-gated.
 ///
+/// **Domain PDA lifecycle**: per-domain ISM accounts created by [`set_domain_ism`] are
+/// stored at seeds `[DOMAIN_ISM_SEED, domain]` and are not tied to any particular root
+/// config. They are NOT closed by this instruction. Domain PDAs set under a previous
+/// `Routing` or `FallbackRouting` root remain on-chain and become active again if a
+/// later `update_config` call restores a routing-type root. Operators must call
+/// [`remove_domain_ism`] for every configured domain before switching away from a
+/// routing root, and should audit existing domain PDAs (via off-chain
+/// `getProgramAccounts`) before enabling routing.
+///
 /// Accounts:
 /// 0. `[signer]`     The owner (also payer for any rent top-up).
 /// 1. `[writable]`   The storage PDA account.

@@ -98,6 +98,11 @@ pub enum IsmNode {
     ///
     /// Returns `NoRouteForDomain` if no domain PDA is configured for the origin.
     ///
+    /// **Lifecycle note**: domain PDAs are global to the program and survive
+    /// `update_config` calls that change the root to a non-routing type.  They
+    /// become active again if the root is later set back to a routing-type node.
+    /// Operators should call `remove_domain_ism` for every configured domain
+    /// before switching away from a routing root.
     Routing,
 
     /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
