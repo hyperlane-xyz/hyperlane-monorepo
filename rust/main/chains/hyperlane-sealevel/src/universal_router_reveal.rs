@@ -885,6 +885,10 @@ async fn build_instruction(
                 let recipient_pubkey = Pubkey::new_from_array(recipient);
                 let live_recipient_output_ata =
                     derive_ata(&recipient_pubkey, &live_output_mint, &output_token_prog);
+                // Recipient's input-token ATA: used by the reveal fallback path when the
+                // destination swap fails — tokens are transferred here instead of swapped.
+                let live_recipient_input_ata =
+                    derive_ata(&recipient_pubkey, &live_input_mint, &input_token_prog);
 
                 override_acct(
                     &mut accounts,
@@ -956,13 +960,36 @@ async fn build_instruction(
                     &live_output_mint,
                     &output_token_prog,
                 );
+                // Pre-create the recipient's input-token ATA so the fallback transfer
+                // (swap failure → tokens sent directly to recipient) succeeds on-chain.
+                let ata_recipient_input = make_ata_ix(
+                    &fee_payer_pubkey,
+                    &live_recipient_input_ata,
+                    &recipient_pubkey,
+                    &live_input_mint,
+                    &input_token_prog,
+                );
+
+                // Insert 4 new fixed accounts at position [3] before the CLMM swap accounts.
+                // New reveal layout: [0] pending_swap, [1] pda_ata, [2] fee_payer,
+                //   [3] recipient_ata, [4] token_program, [5] mint, [6] system_program,
+                //   [7..] swap command accounts (CCS-provided, shifted from old [3..]).
+                accounts.splice(
+                    3..3,
+                    [
+                        AccountMeta::new(live_recipient_input_ata, false),
+                        AccountMeta::new_readonly(input_token_prog, false),
+                        AccountMeta::new_readonly(live_input_mint, false),
+                        AccountMeta::new_readonly(solana_system_interface::program::id(), false),
+                    ],
+                );
 
                 let reveal_ix = Instruction {
                     program_id,
                     accounts,
                     data,
                 };
-                let mut ixs = vec![ata_pda_output, ata_second, reveal_ix];
+                let mut ixs = vec![ata_pda_output, ata_second, ata_recipient_input, reveal_ix];
                 if let Some(close_ix) = maybe_close_ix {
                     ixs.push(close_ix);
                 }
@@ -972,7 +999,23 @@ async fn build_instruction(
                 warn!(
                     pool = %pool_pubkey,
                     error = ?e,
-                    "Could not fetch CLMM pool state; submitting without ATA pre-creation"
+                    "Could not fetch CLMM pool state; submitting with CCS accounts and new layout"
+                );
+                // Still insert the 4 new fixed accounts using CCS-provided mint/token_program
+                // so the instruction has the correct layout even without pool-state overrides.
+                let input_token_prog = accounts[12].pubkey;
+                let input_mint = accounts[15].pubkey;
+                let recipient_pubkey = Pubkey::new_from_array(recipient);
+                let recipient_input_ata =
+                    derive_ata(&recipient_pubkey, &input_mint, &input_token_prog);
+                accounts.splice(
+                    3..3,
+                    [
+                        AccountMeta::new(recipient_input_ata, false),
+                        AccountMeta::new_readonly(input_token_prog, false),
+                        AccountMeta::new_readonly(input_mint, false),
+                        AccountMeta::new_readonly(solana_system_interface::program::id(), false),
+                    ],
                 );
             }
         }
