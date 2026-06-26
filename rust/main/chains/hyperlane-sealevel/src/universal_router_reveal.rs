@@ -549,6 +549,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         let message = Message::new(&instructions, Some(&ctx.fee_payer.pubkey()));
         let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
 
+        // skip_preflight=true to avoid BlockhashNotFound race on multi-RPC setups.
         let signature = ctx
             .rpc_client
             .send_transaction(&tx, true)
@@ -640,7 +641,7 @@ fn derive_fee_payer_pda(program_id: &Pubkey) -> Pubkey {
 }
 
 // Seeds: [b"pending_swap", origin_le, sender, user_salt, commitment]
-// commitment = keccak256(calldata || revealSalt), same value stored in PDA and in the COMMIT body.
+// commitment = keccak256(revealSalt || calldata), same value stored in PDA and in the COMMIT body.
 fn derive_pending_swap_pda(
     program_id: &Pubkey,
     origin: u32,
@@ -679,10 +680,10 @@ async fn build_instruction(
 
     // Verify CCS data is consistent with the commitment from the message body.
     let ccs_commitment =
-        solana_program::keccak::hashv(&[message.as_slice(), salt.as_ref()]).to_bytes();
+        solana_program::keccak::hashv(&[salt.as_ref(), message.as_slice()]).to_bytes();
     if ccs_commitment != commitment {
         bail!(
-            "CCS keccak(calldata||salt) {} does not match message body commitment {} — CCS data is stale or wrong",
+            "CCS keccak(salt||calldata) {} does not match message body commitment {} — CCS data is stale or wrong",
             hex::encode(ccs_commitment),
             hex::encode(commitment),
         );
@@ -970,12 +971,13 @@ async fn build_instruction(
                     &input_token_prog,
                 );
 
-                // Insert 4 new fixed accounts at position [3] before the CLMM swap accounts.
+                // Replace CCS[3] (old system_program fixed account) with 4 new fixed accounts.
+                // Old reveal layout: [0] pending_swap, [1] pda_ata, [2] fee_payer, [3] system_program, [4..] swap accounts
                 // New reveal layout: [0] pending_swap, [1] pda_ata, [2] fee_payer,
                 //   [3] recipient_ata, [4] token_program, [5] mint, [6] system_program,
-                //   [7..] swap command accounts (CCS-provided, shifted from old [3..]).
+                //   [7..] swap command accounts (CCS[4..], same as old [4..]).
                 accounts.splice(
-                    3..3,
+                    3..4,
                     [
                         AccountMeta::new(live_recipient_input_ata, false),
                         AccountMeta::new_readonly(input_token_prog, false),
@@ -1001,15 +1003,15 @@ async fn build_instruction(
                     error = ?e,
                     "Could not fetch CLMM pool state; submitting with CCS accounts and new layout"
                 );
-                // Still insert the 4 new fixed accounts using CCS-provided mint/token_program
-                // so the instruction has the correct layout even without pool-state overrides.
+                // Still replace CCS[3] with the 4 new fixed accounts using CCS-provided
+                // mint/token_program so the instruction has the correct layout.
                 let input_token_prog = accounts[12].pubkey;
                 let input_mint = accounts[15].pubkey;
                 let recipient_pubkey = Pubkey::new_from_array(recipient);
                 let recipient_input_ata =
                     derive_ata(&recipient_pubkey, &input_mint, &input_token_prog);
                 accounts.splice(
-                    3..3,
+                    3..4,
                     [
                         AccountMeta::new(recipient_input_ata, false),
                         AccountMeta::new_readonly(input_token_prog, false),
