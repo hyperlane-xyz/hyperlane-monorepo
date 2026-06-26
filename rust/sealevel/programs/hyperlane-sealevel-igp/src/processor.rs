@@ -1190,6 +1190,7 @@ fn submit_igp_quote(
                     bump_seed: pda_bump,
                     payer: *payer_info.key,
                     scoped_salt,
+                    fee_token_mint: ctx.fee_token_mint,
                     destination_domain: ctx.destination_domain,
                     sender: ctx.sender,
                     token_exchange_rate: data.token_exchange_rate,
