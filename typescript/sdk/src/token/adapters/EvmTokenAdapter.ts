@@ -29,7 +29,6 @@ import {
   IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
-  Mailbox__factory,
   MovableCollateralRouter,
   MovableCollateralRouter__factory,
   PredicateRouterWrapper__factory,
@@ -480,68 +479,40 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract[
+    const rawQuotes: RawTupleQuote[] = await this.contract[
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, amount.toString());
-    const [igpTokenAddress, igpAmountBN] = igpQuote;
-    const igpAmount = BigInt(igpAmountBN.toString());
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
-      addressOrDenom: quote[0],
-      amount: BigInt(quote[1].toString()),
+    const allQuotes = rawQuotes.map((q) => ({
+      addressOrDenom: q[0] as Address,
+      amount: BigInt(q[1].toString()),
     }));
 
-    // When the IGP accepts an ERC20 fee token (igpTokenAddress is non-zero), fold
-    // igpAmount into tokenFeeQuote so it's included in the ERC20 approval.
-    // The mailbox's requiredHook (ProtocolFee) may still require a small native ETH
-    // payment; get that separately so we send the correct msg.value.
-    const isErc20Igp = !isZeroishAddress(igpTokenAddress);
+    // Native quotes (token == address(0)) → msg.value sent with transferRemote
+    const nativeAmount = allQuotes
+      .filter((q) => isZeroishAddress(q.addressOrDenom))
+      .reduce((sum, q) => sum + q.amount, 0n);
 
-    // Because the amount is added on the fees, we need to subtract it from the actual fees
-    const baseTokenFee =
-      tokenFeeQuotes.length > 0
-        ? tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount
-        : 0n;
-    const totalTokenFee = baseTokenFee + (isErc20Igp ? igpAmount : 0n);
-    const tokenFeeAddress =
-      tokenFeeQuotes.length > 0
-        ? tokenFeeQuotes[0].addressOrDenom
-        : isErc20Igp
-          ? igpTokenAddress
-          : undefined;
-
+    // ERC20 quotes → must be approved before transferRemote.
+    // quotes[1] always has token = token() with amount = transfer_amount + feeAmount.
+    // Subtract transfer_amount from index 1 only, so we get just the fee portion.
+    const erc20Quotes = allQuotes.filter(
+      (q) => !isZeroishAddress(q.addressOrDenom),
+    );
+    const tokenFeeAmount = allQuotes.reduce((sum, q, i) => {
+      if (isZeroishAddress(q.addressOrDenom)) return sum;
+      return sum + q.amount - (i === 1 ? amount : 0n);
+    }, 0n);
     const tokenFeeQuote: Quote | undefined =
-      totalTokenFee > 0n && tokenFeeAddress
-        ? { addressOrDenom: tokenFeeAddress, amount: totalTokenFee }
+      tokenFeeAmount > 0n
+        ? {
+            addressOrDenom: erc20Quotes[0].addressOrDenom,
+            amount: tokenFeeAmount,
+          }
         : undefined;
 
-    // For ERC20 IGPs, compute the native ETH the mailbox requiredHook still needs.
-    // The igpAmount from quoteTransferRemote sums requiredHook + USDC_IGP quotes in
-    // mixed denominations; the requiredHook's native fee must be sent as msg.value.
-    let nativeEthFee = 0n;
-    if (isErc20Igp) {
-      try {
-        const provider = this.getProvider();
-        const mailboxAddr = await this.contract.mailbox();
-        const mailbox = Mailbox__factory.connect(mailboxAddr, provider);
-        const requiredHookAddr = await mailbox.requiredHook();
-        const requiredHook = IPostDispatchHook__factory.connect(
-          requiredHookAddr,
-          provider,
-        );
-        // ProtocolFee._quoteDispatch ignores metadata/message, returns protocolFee
-        const rawFee = await requiredHook.quoteDispatch('0x', '0x');
-        nativeEthFee = BigInt(rawFee.toString());
-      } catch {
-        // If the mailbox doesn't have a requiredHook or quoteDispatch fails,
-        // fall back to 0 (no native ETH needed).
-      }
-    }
-
     return {
-      igpQuote: {
-        amount: isErc20Igp ? nativeEthFee : igpAmount,
-      },
+      igpQuote: { amount: nativeAmount },
       tokenFeeQuote,
     };
   }
