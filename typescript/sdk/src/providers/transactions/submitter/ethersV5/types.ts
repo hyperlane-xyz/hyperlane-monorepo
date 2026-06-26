@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
   ZBigNumberish,
@@ -8,6 +8,18 @@ import {
   ZChainName,
   ZHash,
 } from '../../../../metadata/customZodTypes.js';
+
+/**
+ * Zod schema for an EVM address that validates the EIP-55 checksum.
+ *
+ * ZHash only checks the hex shape, so a mixed-case address with a bad checksum
+ * passes schema parsing and only fails later when ethers normalizes it — by
+ * which point an ICA submission may have already run irreversible deploys.
+ * Validating here fails fast at the config boundary with a clear message.
+ */
+export const ZEvmAddress = z.string().refine(isValidAddressEvm, (val) => ({
+  message: `Invalid EVM address (malformed or bad EIP-55 checksum): ${val}`,
+}));
 import { ChainName } from '../../../../types.js';
 import { isCompliant } from '../../../../utils/schemas.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -97,11 +109,11 @@ export const buildEvmIcaTxSubmitterPropsSchema = <
     z.object({
       type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
       chain: ZChainName,
-      owner: ZHash,
+      owner: ZEvmAddress,
       destinationChain: ZChainName,
-      originInterchainAccountRouter: ZHash.optional(),
-      destinationInterchainAccountRouter: ZHash.optional(),
-      interchainSecurityModule: ZHash.optional(),
+      originInterchainAccountRouter: ZEvmAddress.optional(),
+      destinationInterchainAccountRouter: ZEvmAddress.optional(),
+      interchainSecurityModule: ZEvmAddress.optional(),
       internalSubmitter: getInternalSubmitterSchema(),
     }),
   );
