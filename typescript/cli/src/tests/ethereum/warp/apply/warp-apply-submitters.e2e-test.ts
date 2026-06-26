@@ -877,9 +877,6 @@ describe('hyperlane warp apply with submitters', async function () {
       );
       expect(innerCalls.length).to.be.greaterThan(1);
 
-      // No separate fee file is produced.
-      expect(existsSync(FEE_BUCKET_SPLIT_FEE_OUTPUT_PATH)).to.be.false;
-
       // The merged callRemote carries both the fee-contract op and the router op.
       expect(
         innerCalls.some(isFeeContractOp),

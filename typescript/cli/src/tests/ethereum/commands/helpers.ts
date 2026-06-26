@@ -520,7 +520,14 @@ export async function createMockSafeApi(
     const url = req.url || '';
     console.info('Mock safe API received request', req.method, url);
 
-    if (url.includes('/safes/') && url.includes('multisig-transactions')) {
+    if (req.method === 'POST' && url.includes('/multisig-transactions')) {
+      // Mock POST /api/v2/safes/{address}/multisig-transactions/
+      sendJson(res, 201, { success: true });
+    } else if (
+      req.method === 'GET' &&
+      url.includes('/safes/') &&
+      url.includes('multisig-transactions')
+    ) {
       // Mock GET /v2/safes/${address}/multisig-transactions/`
       sendJson(res, 200, { count: 0, results: [] });
     } else if (url.includes('/safes/')) {
@@ -537,12 +544,6 @@ export async function createMockSafeApi(
     } else if (url.includes('/delegates')) {
       // Mock GET /api/v2/delegates?safe={address}
       sendJson(res, 200, { count: 1, results: [{ delegate: safeOwner }] });
-    } else if (
-      req.method === 'POST' &&
-      url.includes('/multisig-transactions')
-    ) {
-      // Mock POST /api/v2/safes/{address}/multisig-transactions/
-      sendJson(res, 201, { success: true });
     } else {
       res.statusCode = 404;
       res.end();

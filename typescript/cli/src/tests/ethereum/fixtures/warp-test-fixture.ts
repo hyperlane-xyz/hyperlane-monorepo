@@ -29,7 +29,9 @@ export class WarpTestFixture {
   private snapshots = new Map<string, string>();
 
   constructor(private readonly config: WarpTestFixtureConfig) {
-    this.baseDeployConfig = config.initialDeployConfig;
+    // Clone the baseline too, so later mutations of the caller's object can't
+    // leak into the pristine config that restoreConfigs()/reset() clone from.
+    this.baseDeployConfig = structuredClone(config.initialDeployConfig);
     this.deployConfig = structuredClone(config.initialDeployConfig);
   }
 
@@ -55,7 +57,7 @@ export class WarpTestFixture {
   }
 
   updateDeployConfig(config: WarpRouteDeployConfig): void {
-    this.baseDeployConfig = config;
+    this.baseDeployConfig = structuredClone(config);
     this.deployConfig = structuredClone(config);
   }
 
@@ -110,7 +112,7 @@ export class WarpTestFixture {
 
   reset(): void {
     this.snapshots.clear();
-    this.baseDeployConfig = this.config.initialDeployConfig;
+    this.baseDeployConfig = structuredClone(this.config.initialDeployConfig);
     this.deployConfig = structuredClone(this.config.initialDeployConfig);
     this.coreConfig = undefined;
   }

@@ -2,4 +2,4 @@
 '@hyperlane-xyz/cli': patch
 ---
 
-Warp apply now merges fee-contract-owner transactions into the main submission when no dedicated `feeSubmitter` is configured, so a single submitter produces one batch (one callRemote / one receipts file) instead of broadcasting fee transactions separately. Fee transactions are only split into their own submission when a `feeSubmitter` is defined in the strategy.
+Warp apply merged fee-contract-owner transactions into the main submission when no dedicated `feeSubmitter` was configured and the main submitter materialized a payload/file artifact (e.g. Safe TX Builder, or an ICA wrapping one), so those collapsed into a single bundle / callRemote instead of being submitted separately. Live-broadcast submitters (e.g. JSON_RPC) kept fee transactions out of the retried main submission and submitted them in isolation, preserving fee-failure isolation. Fee transactions were also split into their own submission when a `feeSubmitter` was defined in the strategy.
