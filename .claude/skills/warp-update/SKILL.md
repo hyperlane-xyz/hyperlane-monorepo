@@ -303,6 +303,57 @@ Use `TaskStop` with the background task ID from Step 6a. If that doesn't clean u
 
 ---
 
+## Step 11: Open Registry PR with Target Config
+
+The deploy.yaml in `$REGISTRY_PATH` already reflects the **target post-update state** (set in Step 3). Open a PR now — you do NOT have to wait for the multisig proposals from Step 9 to be signed + executed. The registry's `check-warp-deploy.yaml` GitHub Action runs on every PR push: it determines which warp route IDs were changed (added / renamed / modified `*-config.yaml` or `*-deploy.yaml`) and runs `hyperlane warp check` against the on-chain state, posting a sync table as a PR comment. So the PR can be opened immediately and merged once the CI's sync check goes green (which happens after signers execute the proposals — sometimes hours or days later).
+
+### 11a: Write the Changeset
+
+Invoke `/add-registry-changeset` with:
+
+- Change summary: a one-sentence past-tense description matching the Linear ticket scope (e.g. `reduced base→arbitrum fee to 11 bps and added pausable hook on base for ETH`)
+- Bump: `patch` (updating an existing route — not a new published asset)
+- Filename slug: `update-<token>-<chains>-<short-change>` (e.g. `update-eth-arbitrum-base-fee-and-pause-hook`)
+
+### 11b: Scoped Commit + PR
+
+```bash
+cd $REGISTRY_PATH
+git checkout -b update/<token>-<chains>-<ticket-id>
+
+# Stage ONLY the changed warp-route config + the changeset. NEVER `git add .` /
+# `git add -A` here — unrelated FS writes from the HTTP registry's writeMode
+# could carry API-keyed RPC overrides that would leak on commit.
+git add deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml
+git add .changeset/<slug>.md
+git status   # Verify nothing else is staged
+
+git commit -m "chore(<warp-route-id>): <short summary>"
+git push -u origin HEAD
+
+gh pr create \
+  --base main \
+  --title "chore(<warp-route-id>): <short summary>" \
+  --body "$(cat <<'EOF'
+## Summary
+
+Updates the `<WARP_ROUTE_ID>` warp route's target `deploy.yaml` per `<ticket-id>`. The on-chain wiring lands via the proposals dispatched in `/warp-update-propose`; the `check-warp-deploy` CI on this PR will go green once signers execute them.
+
+| Field | Value |
+| ----- | ----- |
+| **Linear** | <linear-issue-url> |
+| **Changes** | <bulleted summary of the diff vs prior config> |
+| **Proposal references** | <Safe TX hashes / Squads sigs from the Step 9 summary> |
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+Surface the PR URL to the user. Once CI goes green (typically after the last multisig proposal executes) the PR is mergeable.
+
+---
+
 ## Notes
 
 - **Scope**: this skill handles ONLY existing-route updates. For brand-new deployments use `/warp-deploy-init-route`. For chain extensions (adding a new chain with new on-chain contracts) use `/warp-update-extend`. The dispatch is at the user level — there's no auto-detection of which skill applies.

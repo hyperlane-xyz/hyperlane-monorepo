@@ -262,17 +262,13 @@ Show the user the list of changed/new files. There should be at minimum:
 
 ### 12b: Write Changeset
 
-Write a changeset file directly to `$REGISTRY_PATH/.changeset/` — do NOT run the interactive CLI. Use a filename derived from the warp route (e.g. `add-ikas-ethereum-igra.md`):
+Invoke `/add-registry-changeset` with:
 
-```markdown
----
-'@hyperlane-xyz/registry': minor
----
+- Change summary: `added <token-name> warp route on <chain1> and <chain2>`
+- Bump: `minor` (new warp route)
+- Filename slug: `add-<token>-<chains>` (e.g. `add-ikas-ethereum-igra`)
 
-added <token-name> warp route on <chain1> and <chain2>
-```
-
-Follow the changeset style from CLAUDE.md: past tense, lowercase, concise. The bump is always `minor` for new warp routes.
+The shared skill writes the file directly to `$REGISTRY_PATH/.changeset/<slug>.md`. Don't run the interactive `pnpm changeset` CLI.
 
 ### 12c: Create a Branch and Commit
 
