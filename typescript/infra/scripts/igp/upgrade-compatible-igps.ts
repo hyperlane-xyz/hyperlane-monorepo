@@ -633,6 +633,8 @@ async function routeGovernedCall({
   call,
   ownerAddress,
   timelockIdempotency,
+  propose,
+  multiProvider,
 }: {
   groups: Map<string, SafeCallGroup>;
   icaGroups: Map<string, IcaCallGroup>;
@@ -641,8 +643,16 @@ async function routeGovernedCall({
   call: UpgradeCall;
   ownerAddress: Address;
   timelockIdempotency?: TimelockIdempotency;
+  propose: boolean;
+  multiProvider: MultiProvider;
 }): Promise<{
-  status: 'queued' | 'timelock queued' | 'scheduled' | 'done' | 'manual';
+  status:
+    | 'queued'
+    | 'timelock queued'
+    | 'scheduled'
+    | 'done'
+    | 'manual'
+    | 'executed';
   detail: string;
   ownerType: Owner | null;
   governanceType: GovernanceType;
@@ -699,13 +709,38 @@ async function routeGovernedCall({
         governanceType,
       };
     case Owner.DEPLOYER:
-      return {
-        status: 'manual',
-        detail:
-          'owned by deployer; script does not execute deployer-key governed calls',
-        ownerType,
-        governanceType,
-      };
+      if (!propose) {
+        return {
+          status: 'manual',
+          detail:
+            'owned by deployer; pass --propose to execute directly with deployer key',
+          ownerType,
+          governanceType,
+        };
+      }
+      try {
+        rootLogger.info(
+          `[${chain}] executing deployer-key upgrade: ${call.description}`,
+        );
+        await multiProvider.sendTransaction(chain, {
+          to: call.to,
+          data: call.data,
+          value: call.value,
+        });
+        return {
+          status: 'executed',
+          detail: `executed deployer-key upgrade: ${call.description}`,
+          ownerType,
+          governanceType,
+        };
+      } catch (error) {
+        return {
+          status: 'manual',
+          detail: `deployer-key upgrade failed: ${error instanceof Error ? error.message : String(error)}`,
+          ownerType,
+          governanceType,
+        };
+      }
     default:
       return {
         status: 'manual',
@@ -1299,13 +1334,13 @@ async function main() {
           proxyAdminOwner,
         );
         const legacyIcaOwner = getLegacyGovernanceIcas(governanceType)[chain];
-        if (
-          ownerType === Owner.DEPLOYER ||
+        const isUnroutable =
           ownerType === Owner.UNKNOWN ||
           (ownerType === Owner.ICA &&
             legacyIcaOwner &&
-            eqAddress(legacyIcaOwner, proxyAdminOwner))
-        ) {
+            eqAddress(legacyIcaOwner, proxyAdminOwner)) ||
+          (ownerType === Owner.DEPLOYER && !propose);
+        if (isUnroutable) {
           plans.push({
             chain,
             interchainGasPaymaster,
@@ -1320,7 +1355,9 @@ async function main() {
             detail:
               ownerType === Owner.ICA
                 ? 'ProxyAdmin is owned by a legacy V1 ICA; script only builds V2 ICA calls'
-                : `ProxyAdmin owner ${proxyAdminOwner} is not routeable`,
+                : ownerType === Owner.DEPLOYER
+                  ? 'owned by deployer; pass --propose to execute directly with deployer key'
+                  : `ProxyAdmin owner ${proxyAdminOwner} is not routeable`,
           });
           return;
         }
@@ -1398,6 +1435,8 @@ async function main() {
             type: 'proxyAdminUpgrade',
             proxyAddress: interchainGasPaymaster,
           },
+          propose,
+          multiProvider,
         });
         const status = route.status === 'done' ? 'skipped' : route.status;
         ownerType = route.ownerType;
@@ -1531,9 +1570,13 @@ async function main() {
     .filter(
       (plan) =>
         !!plan.targetImplementation &&
-        ['queued', 'timelock queued', 'scheduled', 'skipped'].includes(
-          plan.status,
-        ),
+        [
+          'queued',
+          'timelock queued',
+          'scheduled',
+          'skipped',
+          'executed',
+        ].includes(plan.status),
     )
     .map((plan) => plan.chain);
   if (upgradeChains.length > 0) {
