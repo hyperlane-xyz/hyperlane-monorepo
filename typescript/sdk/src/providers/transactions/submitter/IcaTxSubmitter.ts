@@ -56,19 +56,19 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
-    // Canonicalize the EVM addresses up front so a config value with a valid
-    // shape but bad EIP-55 casing doesn't throw deep inside ethers mid-submission.
+    // Canonicalize only the origin-side addresses up front so a config value
+    // with a valid shape but bad EIP-55 casing doesn't throw deep inside ethers
+    // mid-submission. The origin chain is EVM here (this is the EVM ICA
+    // submitter), so `owner` and the origin router are safe to normalize. The
+    // destination router and ISM live on the remote chain, whose protocol we do
+    // not assume is EVM, so they are passed through untouched.
     const owner = normalizeAddressEvm(config.owner);
     const originInterchainAccountRouter = normalizeAddressEvm(
       interchainAccountRouterAddress,
     );
     const destinationInterchainAccountRouter =
-      config.destinationInterchainAccountRouter
-        ? normalizeAddressEvm(config.destinationInterchainAccountRouter)
-        : undefined;
-    const interchainSecurityModule = config.interchainSecurityModule
-      ? normalizeAddressEvm(config.interchainSecurityModule)
-      : undefined;
+      config.destinationInterchainAccountRouter;
+    const interchainSecurityModule = config.interchainSecurityModule;
 
     const internalSubmitter = await getSubmitterFn<ProtocolType.Ethereum>(
       multiProvider,
