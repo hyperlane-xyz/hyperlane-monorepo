@@ -401,19 +401,27 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       if (tokenOracleParams.length > 0) {
         await this.runIfOwner(chain, igp, async () => {
-          this.logger.info(
-            `Setting token gas oracles for ${feeToken} on ${chain} (domains ${tokenOracleParams
-              .map((p) => p.remoteDomain)
-              .join(', ')})`,
-          );
-          const estimatedGas =
-            await igp.estimateGas.setTokenGasOracles(tokenOracleParams);
-          await this.multiProvider.handleTx(
+          await submitBatched(
             chain,
-            igp.setTokenGasOracles(tokenOracleParams, {
-              gasLimit: addBufferToGasLimit(estimatedGas),
-              ...this.multiProvider.getTransactionOverrides(chain),
-            }),
+            tokenOracleParams,
+            async (batch) => {
+              this.logger.info(
+                `Setting token gas oracles for ${feeToken} on ${chain} (domains ${batch
+                  .map((p) => p.remoteDomain)
+                  .join(', ')})`,
+              );
+              const estimatedGas =
+                await igp.estimateGas.setTokenGasOracles(batch);
+              await this.multiProvider.handleTx(
+                chain,
+                igp.setTokenGasOracles(batch, {
+                  gasLimit: addBufferToGasLimit(estimatedGas),
+                  ...this.multiProvider.getTransactionOverrides(chain),
+                }),
+              );
+            },
+            this.logger,
+            'token gas oracles',
           );
         });
       }

@@ -226,6 +226,7 @@ export {
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
+  IgpTokenGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
 } from './gas/types.js';

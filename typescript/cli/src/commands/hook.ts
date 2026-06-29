@@ -1,5 +1,7 @@
 import { type CommandModule } from 'yargs';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   type CommandModuleWithContext,
   type CommandModuleWithWriteContext,
@@ -73,6 +75,7 @@ export const read: CommandModuleWithContext<{
   chain: string;
   address: string;
   out: string;
+  feeTokens?: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain Hook configuration for a given address',
@@ -83,11 +86,29 @@ export const read: CommandModuleWithContext<{
     },
     address: addressCommandOption('Address of the Hook to read.', true),
     out: outputFileCommandOption(),
+    'fee-tokens': {
+      type: 'string',
+      description:
+        'Comma-separated ERC20 fee token addresses to include token oracle config (IGP hooks only)',
+      alias: 'ft',
+    },
   },
   handler: async (args) => {
     logGray('Hyperlane Hook Read');
     logGray('------------------');
-    await readHookConfig(args);
+    await readHookConfig({
+      ...args,
+      feeTokens: args.feeTokens
+        ? (() => {
+            const tokens = args.feeTokens!.split(',').map((t) => t.trim());
+            assert(
+              tokens.every((t) => t.length > 0),
+              '--fee-tokens contains an empty entry; check for trailing commas or double commas',
+            );
+            return tokens;
+          })()
+        : undefined,
+    });
     process.exit(0);
   },
 };
