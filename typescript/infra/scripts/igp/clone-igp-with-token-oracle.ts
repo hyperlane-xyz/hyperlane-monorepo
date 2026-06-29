@@ -170,12 +170,16 @@ async function main() {
   const missingPriceData = remoteChains.filter(
     (c) => !gasPrices[c] || !tokenPrices[c],
   );
-  assert(
-    missingPriceData.length === 0,
-    `Missing gasPrice or tokenPrice data in ${environment} for: ${missingPriceData.join(', ')}`,
-  );
+  if (missingPriceData.length > 0) {
+    rootLogger.warn(
+      { missingChains: missingPriceData },
+      `Missing gasPrice or tokenPrice data in ${environment} for some chains — skipping them`,
+    );
+  }
 
-  const oracledRemotes = remoteChains;
+  const oracledRemotes = remoteChains.filter(
+    (c) => gasPrices[c] && tokenPrices[c],
+  );
 
   // ── 3. Build tokenOracleConfig ────────────────────────────────────────────
   // Substitute the ERC20 fee token as the "local native token" so the exchange
