@@ -39,6 +39,7 @@ import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   isMissingSelectorCallException,
+  isMissingSelectorRevert,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
 
@@ -488,9 +489,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       try {
         return { quoteSigners: await hook.quoteSigners() };
       } catch (error) {
-        // quoteSigners() only exists on v2+ IGPs. Any failure (missing selector,
-        // SmartProvider "All providers failed" wrapping a revert, etc.) means
-        // this is a legacy IGP.
+        // quoteSigners() only exists on v2+ IGPs. A missing-selector revert
+        // (CALL_EXCEPTION with empty data) means this is a legacy IGP.
+        // Network errors and other transient failures must propagate so the
+        // caller can distinguish a legacy IGP from a provider outage.
+        if (!isMissingSelectorRevert(error)) throw error;
         this.logger.debug(
           'quoteSigners() call failed — treating as legacy IGP',
           { address, error },
