@@ -3,6 +3,10 @@ import { providers } from 'ethers';
 
 import { Address, chunk, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
+/**
+ * Returns true when the deployed contract version is already at or above the
+ * target version.
+ */
 export function isValidContractVersion(
   currentVersion: string,
   targetVersion: string,
