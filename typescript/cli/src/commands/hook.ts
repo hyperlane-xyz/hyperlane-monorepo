@@ -1,5 +1,7 @@
 import { type CommandModule } from 'yargs';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   type CommandModuleWithContext,
   type CommandModuleWithWriteContext,
@@ -97,7 +99,14 @@ export const read: CommandModuleWithContext<{
     await readHookConfig({
       ...args,
       feeTokens: args.feeTokens
-        ? args.feeTokens.split(',').map((t) => t.trim())
+        ? (() => {
+            const tokens = args.feeTokens!.split(',').map((t) => t.trim());
+            assert(
+              tokens.every((t) => t.length > 0),
+              '--fee-tokens contains an empty entry; check for trailing commas or double commas',
+            );
+            return tokens;
+          })()
         : undefined,
     });
     process.exit(0);

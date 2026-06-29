@@ -3,6 +3,7 @@ import { type ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
+  assert,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
@@ -43,6 +44,10 @@ export async function readHookConfig({
       break;
     }
     default: {
+      assert(
+        !feeTokens,
+        `--fee-tokens is only supported for EVM chains (${ProtocolType.Ethereum}, ${ProtocolType.Tron}), not ${protocol}`,
+      );
       const metadata = context.multiProvider.getChainMetadata(chain);
       const addresses = await context.registry.getChainAddresses(chain);
       const hookReader = createHookReader(metadata, context.multiProvider, {
