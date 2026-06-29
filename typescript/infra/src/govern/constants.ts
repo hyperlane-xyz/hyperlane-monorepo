@@ -1,0 +1,1 @@
+export const GOVERNOR_MAX_BATCH_SIZE = 120;

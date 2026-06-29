@@ -1,6 +1,8 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
+
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -13,6 +15,7 @@ import {
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
+  IgpTokenGasOraclesViolation,
   IgpViolationType,
 } from './types.js';
 
@@ -26,6 +29,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     await this.checkBytecodes(chain);
     await this.checkOverheadInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);
+    await this.checkTokenGasOracles(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
@@ -169,6 +173,56 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         expected: expectedBeneficiary,
       };
       this.addViolation(violation);
+    }
+  }
+
+  async checkTokenGasOracles(local: ChainName): Promise<void> {
+    const config = this.configMap[local];
+    if (!config.tokenOracleConfig) return;
+
+    const coreContracts = this.app.getContracts(local);
+    const igp = coreContracts.interchainGasPaymaster;
+
+    for (const [feeToken, remoteConfigs] of Object.entries(
+      config.tokenOracleConfig,
+    )) {
+      const violation: IgpTokenGasOraclesViolation = {
+        type: 'InterchainGasPaymaster',
+        subType: IgpViolationType.TokenGasOracles,
+        contract: igp,
+        chain: local,
+        actual: {},
+        expected: {},
+        feeToken,
+      };
+
+      // TODO: this checker only verifies that an oracle slot is non-zero; it
+      // does not validate the tokenExchangeRate / gasPrice stored in the oracle.
+      await Promise.all(
+        Object.keys(remoteConfigs).map(async (remote) => {
+          const remoteId = this.multiProvider.tryGetDomainId(remote);
+          if (remoteId === null) {
+            this.app.logger.warn(
+              `Skipping token oracle check ${local} -> ${remote} for fee token ${feeToken}`,
+            );
+            return;
+          }
+
+          try {
+            const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
+            if (eqAddress(actualOracle, ethers.constants.AddressZero)) {
+              violation.actual[remote as ChainName] = actualOracle;
+            }
+          } catch (error) {
+            throwIfNotMissingSelector(error);
+            // Legacy IGP contracts don't have tokenGasOracles — skip silently.
+          }
+        }),
+      );
+
+      if (Object.keys(violation.actual).length > 0) {
+        this.addViolation(violation);
+      }
     }
   }
 }
