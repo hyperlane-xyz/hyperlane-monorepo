@@ -4,6 +4,7 @@ import {
   assert,
   bytes32ToAddress,
   formatStandardHookMetadata,
+  normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -55,6 +56,20 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
+    // Canonicalize only the origin-side addresses up front so a config value
+    // with a valid shape but bad EIP-55 casing doesn't throw deep inside ethers
+    // mid-submission. The origin chain is EVM here (this is the EVM ICA
+    // submitter), so `owner` and the origin router are safe to normalize. The
+    // destination router and ISM live on the remote chain, whose protocol we do
+    // not assume is EVM, so they are passed through untouched.
+    const owner = normalizeAddressEvm(config.owner);
+    const originInterchainAccountRouter = normalizeAddressEvm(
+      interchainAccountRouterAddress,
+    );
+    const destinationInterchainAccountRouter =
+      config.destinationInterchainAccountRouter;
+    const interchainSecurityModule = config.interchainSecurityModule;
+
     const internalSubmitter = await getSubmitterFn<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
@@ -66,23 +81,22 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
         multiProvider,
         config.chain,
         {
-          owner: config.owner,
+          owner,
           origin: config.chain,
-          localRouter: interchainAccountRouterAddress,
-          ismOverride: config.interchainSecurityModule,
+          localRouter: originInterchainAccountRouter,
+          ismOverride: interchainSecurityModule,
         },
         coreAddressesByChain,
       );
 
     return new EvmIcaTxSubmitter(
       {
-        owner: config.owner,
+        owner,
         chain: config.chain,
         destinationChain: config.destinationChain,
-        originInterchainAccountRouter: interchainAccountRouterAddress,
-        destinationInterchainAccountRouter:
-          config.destinationInterchainAccountRouter,
-        interchainSecurityModule: config.interchainSecurityModule,
+        originInterchainAccountRouter,
+        destinationInterchainAccountRouter,
+        interchainSecurityModule,
       },
       internalSubmitter,
       multiProvider,
