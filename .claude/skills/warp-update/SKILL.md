@@ -206,13 +206,9 @@ If `/warp-deploy-fund-deployer` reports any chain it couldn't auto-fund (treasur
 
 ### 6a: Start the HTTP Registry
 
-The HTTP registry must be running before warp apply so the deploy uses private RPCs (avoids stale-gas / OOG issues with public free-tier endpoints):
+Invoke `/start-http-registry` with `--writeMode` so newly-deployed contract addresses (new ISM / hook / fee contract / router) get persisted back through the server. The HTTP registry's serving of private/pinned RPCs is what avoids stale-gas / OOG issues + confirmation-poll timeouts against public free-tier endpoints — this benefit is from the server itself, independent of `--writeMode` (writeMode just enables the write routes).
 
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for the log line `Server running`. Note the port (typically `3333`) and the background task ID.
+After a writeMode-enabled run, before committing anything from the registry checkout: scope `git add` to ONLY the warp route config files (`deployments/warp_routes/<TOKEN>/...`). Do not stage chain-metadata files; if a private/API-keyed RPC override was supplied at runtime, it could have landed in a write-route mutation, and an unscoped commit would publish the API key.
 
 ### 6b: Build and Run the Warp Apply Command
 

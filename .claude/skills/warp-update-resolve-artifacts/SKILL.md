@@ -22,13 +22,7 @@ If either is missing, ask the user.
 
 ## Step 1: Start the HTTP Registry
 
-`warp read` queries chain state; for accurate reads on rate-limited public free-tier RPCs, use the private RPC URLs injected by `--writeMode`.
-
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for the log line `Server running` and note the port + background task ID. The `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route` applies here too if `TaskStop` doesn't clean up the process at the end of this skill.
+Invoke `/start-http-registry` (no extra flags — this skill is read-only and doesn't need `--writeMode`). The HTTP registry serves the central chain-metadata config so `warp read` hits private/pinned RPCs instead of rate-limited public ones. The `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route` applies here too if `TaskStop` doesn't clean up the process at the end of this skill.
 
 ---
 
