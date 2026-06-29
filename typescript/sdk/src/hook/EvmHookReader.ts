@@ -140,6 +140,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   async deriveHookConfigFromAddress(
     address: Address,
+    feeTokens?: Address[],
   ): Promise<DerivedHookConfig> {
     this.logger.debug('Deriving HookConfig:', { address });
 
@@ -178,7 +179,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = await this.deriveMerkleTreeConfig(address);
           break;
         case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-          derivedHookConfig = await this.deriveIgpConfig(address);
+          derivedHookConfig = await this.deriveIgpConfig(address, feeTokens);
           break;
         case OnchainHookType.FALLBACK_ROUTING:
           derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
@@ -252,9 +253,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
    */
   public async deriveHookConfig(
     config: HookConfig,
+    feeTokens?: Address[],
   ): Promise<DerivedHookConfig> {
     if (typeof config === 'string')
-      return this.deriveHookConfigFromAddress(config);
+      return this.deriveHookConfigFromAddress(config, feeTokens);
 
     // Extend the inner hooks
     switch (config.type) {
