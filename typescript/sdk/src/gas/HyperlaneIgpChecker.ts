@@ -2,6 +2,8 @@ import { BigNumber, ethers } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
 
+import { throwIfNotMissingSelector } from '../utils/contract.js';
+
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
@@ -206,9 +208,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
             return;
           }
 
-          const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
-          if (eqAddress(actualOracle, ethers.constants.AddressZero)) {
-            violation.actual[remote as ChainName] = actualOracle;
+          try {
+            const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
+            if (eqAddress(actualOracle, ethers.constants.AddressZero)) {
+              violation.actual[remote as ChainName] = actualOracle;
+            }
+          } catch (error) {
+            throwIfNotMissingSelector(error);
+            // Legacy IGP contracts don't have tokenGasOracles — skip silently.
           }
         }),
       );

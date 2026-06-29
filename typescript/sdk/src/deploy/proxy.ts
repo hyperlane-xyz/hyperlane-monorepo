@@ -46,7 +46,7 @@ async function assertCodeExists(
       }
     },
     5,
-    2000,
+    500,
   );
 }
 

@@ -566,7 +566,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       for (const feeToken of feeTokens) {
         const tokenConfig: Record<
           string,
-          { gasPrice: string; tokenExchangeRate: string }
+          {
+            gasPrice: string;
+            tokenExchangeRate: string;
+            tokenDecimals?: number;
+          }
         > = {};
         await concurrentMap(
           this.concurrency,
@@ -585,11 +589,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
               );
               const { tokenExchangeRate, gasPrice } =
                 await oracle.remoteGasData(domainId);
-              const { name: chainName } =
+              const { name: chainName, nativeToken } =
                 this.multiProvider.getChainMetadata(domainId);
               tokenConfig[chainName] = {
                 tokenExchangeRate: tokenExchangeRate.toString(),
                 gasPrice: gasPrice.toString(),
+                ...(nativeToken?.decimals !== undefined
+                  ? { tokenDecimals: nativeToken.decimals }
+                  : {}),
               };
             } catch (error) {
               throwIfNotMissingSelector(error);

@@ -99,6 +99,19 @@ async function main() {
     }).argv;
 
   assert(chain, '--chain is required');
+  assert(
+    ethers.utils.isAddress(existingIgp),
+    '--existing-igp must be a valid address',
+  );
+  assert(
+    ethers.utils.isAddress(feeToken),
+    '--fee-token must be a valid address',
+  );
+  assert(Number(feeTokenPrice) > 0, '--fee-token-price must be positive');
+  assert(
+    Number.isInteger(feeTokenDecimals) && feeTokenDecimals >= 0,
+    '--fee-token-decimals must be a non-negative integer',
+  );
 
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider(
@@ -154,22 +167,15 @@ async function main() {
     'tokenPrices.json',
   );
 
-  const missingGasPrices = remoteChains.filter((c) => !gasPrices[c]);
-  if (missingGasPrices.length > 0) {
-    rootLogger.warn(
-      { missing: missingGasPrices },
-      'Remote chains missing gas price data — they will be excluded from the token oracle',
-    );
-  }
-
-  const oracledRemotes = remoteChains.filter(
-    (c) => gasPrices[c] && tokenPrices[c],
+  const missingPriceData = remoteChains.filter(
+    (c) => !gasPrices[c] || !tokenPrices[c],
   );
   assert(
-    oracledRemotes.length > 0,
-    `No remote chains have both gasPrice and tokenPrice data in ${environment}. ` +
-      `Missing: ${remoteChains.join(', ')}`,
+    missingPriceData.length === 0,
+    `Missing gasPrice or tokenPrice data in ${environment} for: ${missingPriceData.join(', ')}`,
   );
+
+  const oracledRemotes = remoteChains;
 
   // ── 3. Build tokenOracleConfig ────────────────────────────────────────────
   // Substitute the ERC20 fee token as the "local native token" so the exchange
@@ -280,7 +286,10 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((error: unknown) => {
+  rootLogger.error(
+    { error: error instanceof Error ? error.message : String(error) },
+    'Fatal error',
+  );
   process.exit(1);
 });

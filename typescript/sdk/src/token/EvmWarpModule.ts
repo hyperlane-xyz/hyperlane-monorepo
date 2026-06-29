@@ -1657,6 +1657,9 @@ export class EvmWarpModule extends HyperlaneModule<
 
     // No change needed
     if (!expectedFeeHook && !actualFeeHook) return [];
+    // Unset in expected config → leave the on-chain feeHook unchanged.
+    // Clearing an existing feeHook requires an explicit address(0) in the config.
+    if (!expectedFeeHook && actualFeeHook) return [];
     if (
       expectedFeeHook &&
       actualFeeHook &&

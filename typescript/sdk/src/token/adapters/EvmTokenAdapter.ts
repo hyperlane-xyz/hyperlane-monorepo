@@ -499,6 +499,13 @@ export class EvmHypSyntheticAdapter
     const erc20Quotes = allQuotes.filter(
       (q) => !isZeroishAddress(q.addressOrDenom),
     );
+    const erc20Denoms = new Set(
+      erc20Quotes.map((q) => q.addressOrDenom.toLowerCase()),
+    );
+    assert(
+      erc20Denoms.size <= 1,
+      `Unexpected multi-token ERC20 fee quotes: ${[...erc20Denoms].join(', ')}`,
+    );
     const tokenFeeAmount = allQuotes.reduce((sum, q, i) => {
       if (isZeroishAddress(q.addressOrDenom)) return sum;
       return sum + q.amount - (i === 1 ? amount : 0n);

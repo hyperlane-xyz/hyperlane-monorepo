@@ -475,6 +475,68 @@ describe('EvmHookReader', () => {
     expect(configZeroOracle.tokenOracleConfig).to.be.undefined;
   });
 
+  it('should populate tokenOracleConfig when tokenGasOracles returns non-zero oracle', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
+    const mockOracleAddress = randomAddress();
+    const feeToken = randomAddress();
+    const domainId = test1.domainId;
+
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
+
+    const mockIgp = {
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(mockOwner),
+      beneficiary: sandbox.stub().resolves(mockBeneficiary),
+      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      getExchangeRateAndGasPrice: sandbox
+        .stub()
+        .rejects(
+          new Error(`Configured IGP doesn't support domain ${domainId}`),
+        ),
+      destinationGasLimit: sandbox.stub().resolves(ethers.BigNumber.from(0)),
+      destinationGasConfigs: sandbox.stub().resolves({
+        gasOracle: mockOracleAddress,
+        gasOverhead: ethers.BigNumber.from(0),
+      }),
+      tokenGasOracles: sandbox.stub().resolves(mockOracleAddress), // non-zero oracle for all calls
+    };
+
+    sandbox
+      .stub(InterchainGasPaymaster__factory, 'connect')
+      .returns(mockIgp as unknown as InterchainGasPaymaster);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockIgp as unknown as IPostDispatchHook);
+
+    const mockOracle = {
+      owner: sandbox.stub().resolves(mockOwner),
+      remoteGasData: sandbox.stub().resolves({
+        tokenExchangeRate: ethers.BigNumber.from('15000000000'),
+        gasPrice: ethers.BigNumber.from('500000000'),
+      }),
+    };
+    sandbox
+      .stub(StorageGasOracle__factory, 'connect')
+      .returns(mockOracle as unknown as StorageGasOracle);
+
+    const config = await evmHookReader.deriveIgpConfig(mockAddress, [feeToken]);
+
+    expect(mockOracle.remoteGasData.calledOnce).to.be.true;
+    expect(config.tokenOracleConfig).to.deep.equal({
+      [feeToken]: {
+        [test1.name]: {
+          tokenExchangeRate: '15000000000',
+          gasPrice: '500000000',
+          tokenDecimals: test1.nativeToken?.decimals,
+        },
+      },
+    });
+  });
+
   /*
     Testing for more nested hook types can be done manually by reading from existing contracts onchain.
     Examples of nested hook types include:
