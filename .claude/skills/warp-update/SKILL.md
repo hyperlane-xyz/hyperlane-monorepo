@@ -107,32 +107,80 @@ Ask the user to correct anything wrong before proceeding. No `[CONFIRM:]` here �
 
 ---
 
-## Step 2: Fetch Current deploy.yaml
+## Step 2: Detect the Source of Truth (YAML or Config Getter)
+
+Warp routes come in two flavors in this monorepo, and the edit path branches on which one:
+
+- **Plain YAML route** — the `deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml` in the registry IS the source of truth. Edit it directly.
+- **Config-getter route** — the source of truth is a TypeScript getter in `typescript/infra/config/environments/<env>/warp/configGetters/`, registered in `warpConfigGetterMap` in `typescript/infra/config/warp.ts`. The registry's `deploy.yaml` is GENERATED from the getter via `typescript/infra/scripts/warp-routes/export-warp-configs.ts`. Editing the registry YAML directly will be silently overwritten the next time the export script runs.
+
+Determine which kind the route is by checking the map:
+
+```bash
+grep -E "^\s*'?<WARP_ROUTE_ID>'?:" typescript/infra/config/warp.ts
+```
+
+If the route ID is keyed in `warpConfigGetterMap` (or in the per-environment dispatch in that file), it's a **getter-backed route**. Note which getter file it points to (e.g. `getRenzoPZETHWarpConfig.ts`). If the route ID isn't in the map at all, it's a **plain YAML route**.
+
+Then fetch the CURRENT state (regardless of source flavor):
 
 ```bash
 REGISTRY_PATH="${HYPERLANE_REGISTRY:-$(pwd)/../hyperlane-registry}"
 cat $REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-deploy.yaml
 ```
 
-Show the user the current content. This is the baseline the warp-apply diff is computed against.
+Show the user the current YAML content + the flavor (YAML / getter-backed + which getter file). This is the baseline the warp-apply diff is computed against either way; the difference shows up in Step 3 (where the edit lands).
 
 ---
 
-## Step 3: Apply Edits to deploy.yaml
+## Step 3: Apply Edits
 
 For each requested change from Step 1, target the precise field. Parse the YAML, mutate the target, serialize back. Do NOT do a global string replace — that's how field-targeting bugs sneak in.
 
 Preserve the existing YAML formatting (alphabetical chain order at the top level AND alphabetical keys within each chain entry, per the rule in `/warp-deploy-init-route` Step 4). The registry CI / CodeRabbit enforces both invariants.
 
-Show the user the diff (unified format, `-` old, `+` new). End your message with:
+### 3a: Plain YAML Route — Edit the Registry File Directly
+
+If Step 2 classified the route as plain YAML, edit `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml` in place. Show the user the diff (unified format, `-` old, `+` new). End your message with:
 
 ```test
 [CONFIRM: Apply deploy.yaml edits for <ticket-id>]
 ```
 
+If confirmed, write the updated deploy.yaml back to the registry.
+
+### 3b: Config-Getter Route — Edit the Getter, Then Regenerate
+
+If Step 2 classified the route as getter-backed:
+
+1. **Edit the getter TS file** in `typescript/infra/config/environments/<env>/warp/configGetters/<getter>.ts` to encode the requested changes. The getter returns a `ChainMap<HypTokenRouterConfig>`; mutate the relevant fields in the returned object. Show the user the unified TS diff.
+
+2. **Regenerate the registry YAML** by running the export script for ONLY this route:
+
+   ```bash
+   pnpm -C typescript/infra tsx scripts/warp-routes/export-warp-configs.ts \
+     -e <env> \
+     --warpRouteIds <WARP_ROUTE_ID>
+   ```
+
+   This calls the getter, sorts the output per `WARP_YAML_SORT_CONFIG`, and writes `$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains>-deploy.yaml` in place.
+
+3. **Diff the regenerated YAML against the previous version** (e.g. `git -C $REGISTRY_PATH diff deployments/warp_routes/<TOKEN>/`). The diff should match the conceptual change requested in the ticket; if other fields drifted, the getter has a bug or the export script picked up unrelated env state. Halt and surface the unexpected diff to the user before continuing.
+
+End your message with:
+
+```test
+[CONFIRM: Apply getter edits + regenerated deploy.yaml for <ticket-id>]
+```
+
 > **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
-If confirmed, write the updated deploy.yaml back to the registry.
+For getter-backed routes, **both** changes ship as PRs in Step 11:
+
+- Monorepo PR for the getter edit (no changeset needed — `@hyperlane-xyz/infra` is `private: true`).
+- Registry PR for the regenerated YAML + changeset (per the standard Step 11 flow).
+
+Step 11 covers the registry PR; for the monorepo PR open it separately with a normal `gh pr create` against `main`, scoping `git add` to the specific getter file + `typescript/infra/config/warp.ts` if you touched the map.
 
 ---
 
@@ -352,11 +400,50 @@ EOF
 
 Surface the PR URL to the user. Once CI goes green (typically after the last multisig proposal executes) the PR is mergeable.
 
+### 11c: Companion Monorepo PR (config-getter routes only)
+
+If Step 2 classified the route as **getter-backed** and Step 3b edited a TS getter, also open a monorepo PR for the getter change. The registry YAML PR above carries the _regenerated_ artifact; this PR carries the _source_ of that regeneration. Both must land for the route's config-getter loop to stay consistent.
+
+```bash
+cd <MONOREPO_ROOT>
+git checkout -b update/<token>-<chains>-<ticket-id>
+
+# Scope: the getter file (and warp.ts if you touched the map). Nothing else.
+git add typescript/infra/config/environments/<env>/warp/configGetters/<getter>.ts
+# only if the warpConfigGetterMap was modified:
+# git add typescript/infra/config/warp.ts
+git status   # Verify nothing else is staged
+
+git commit -m "feat(infra): <short summary of getter change>"
+git push -u origin HEAD
+
+gh pr create \
+  --base main \
+  --title "feat(infra): <short summary>" \
+  --body "$(cat <<'EOF'
+## Summary
+
+Updates the `<WARP_ROUTE_ID>` config getter per `<ticket-id>`. The companion registry PR with the regenerated `deploy.yaml` is at `<registry-pr-url>`.
+
+| Field | Value |
+| ----- | ----- |
+| **Linear** | <linear-issue-url> |
+| **Registry PR** | <registry-pr-url> |
+| **Changes** | <bulleted summary of the getter diff> |
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+No changeset needed (`@hyperlane-xyz/infra` is `"private": true` and isn't published). Surface this PR URL to the user too.
+
 ---
 
 ## Notes
 
 - **Scope**: this skill handles ONLY existing-route updates. For brand-new deployments use `/warp-deploy-init-route`. For chain extensions (adding a new chain with new on-chain contracts) use `/warp-update-extend`. The dispatch is at the user level — there's no auto-detection of which skill applies.
+- **Source-of-truth flavors**: Step 2 detects whether the route's config lives as a plain registry YAML or as a TypeScript getter in `typescript/infra/config/environments/<env>/warp/configGetters/`. Steps 3a vs 3b branch on this; Step 11 always produces a registry PR with the regenerated/edited YAML, and Step 11c additionally opens a monorepo PR for the getter source if applicable.
 - **Batching**: multiple changes in one ticket are applied to the same deploy.yaml diff and proposed in a single warp apply run. Signers get one batch per Safe / governance context rather than N small batches per individual change.
 - **The strategy file is the dispatch layer**. Owner-type → submitter mapping (Step 4) is the single point that controls whether a chain's batch goes through Heimdall (via Safe Transaction Service, for AW/Foundation Safes), Squads (file submitter + `submitProposalToSquads` in the propose skill), or manual hand-off (file submitter for Turnkey / Privy / customer multisigs).
 - **Fork-simulate-verify is mandatory**, not optional. The gate at Step 8 catches deploy.yaml drift, runWarpRouteApply corruption, ICA mis-derivation, and ISM/hook misconfiguration before signers see anything.
