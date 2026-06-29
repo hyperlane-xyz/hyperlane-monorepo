@@ -117,6 +117,7 @@ export const mainnet3SupportedChainNames = [
   'tac',
   'taiko',
   'tea',
+  'tempo',
   'tron',
   'unichain',
   'vana',

@@ -329,6 +329,9 @@
   "tea": {
     "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
   },
+  "tempo": {
+    "validators": ["0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44"]
+  },
   "tron": {
     "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
   },

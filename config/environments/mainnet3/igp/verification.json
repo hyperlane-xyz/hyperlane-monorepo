@@ -1,0 +1,22 @@
+{
+  "tempo": [
+    {
+      "name": "StorageGasOracle",
+      "address": "0x977bEa426B132a0fBB6F072F48520aDb5EeA4216",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StorageGasOracle",
+      "address": "0x04Bd82Ba84a165BE5D555549ebB9890Bb327336E",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StorageGasOracle",
+      "address": "0xA87F683D055386e2b96EBD6F11e8DA5e089a2527",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}

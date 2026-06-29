@@ -184,6 +184,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tac: true,
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
+    tempo: false,
     tron: true,
     unichain: true,
     vana: true,
@@ -316,6 +317,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tac: true,
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
+    tempo: false,
     tron: true,
     unichain: true,
     vana: true,
@@ -448,6 +450,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tac: true,
     taiko: true,
     tea: true,
+    tempo: false,
     tron: true,
     unichain: true,
     vana: true,
