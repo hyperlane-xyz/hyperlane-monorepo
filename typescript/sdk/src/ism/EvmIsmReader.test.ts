@@ -20,6 +20,7 @@ import {
   InterchainAccountRouter__factory,
   OPStackIsm,
   OPStackIsm__factory,
+  Ownable,
   Ownable__factory,
   PausableIsm,
   PausableIsm__factory,
@@ -167,6 +168,9 @@ describe('EvmIsmReader', () => {
       .stub(RateLimitedIsm__factory, 'connect')
       .returns(mockContract as unknown as RateLimitedIsm);
     sandbox
+      .stub(Ownable__factory, 'connect')
+      .returns(mockContract as unknown as Ownable);
+    sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
 
@@ -180,6 +184,55 @@ describe('EvmIsmReader', () => {
     expect(ismConfig).to.deep.equal(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should preserve an unrecognized Ownable NULL-type ISM as UNKNOWN, not TEST_ISM', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+
+    // A custom NULL-type ISM (e.g. a message-id blacklist ISM): all known probes miss,
+    // but it exposes owner(), so it must NOT be misclassified as a no-op TestIsm.
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+      recipient: sandbox.stub().rejects(missingSelectorError()),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(OPStackIsm__factory, 'connect')
+      .returns(mockContract as unknown as OPStackIsm);
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
+      .stub(CCIPIsm__factory, 'connect')
+      .returns(mockContract as unknown as CCIPIsm);
+    sandbox
+      .stub(RateLimitedIsm__factory, 'connect')
+      .returns(mockContract as unknown as RateLimitedIsm);
+    sandbox
+      .stub(Ownable__factory, 'connect')
+      .returns(mockContract as unknown as Ownable);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    const expectedConfig = {
+      address: mockAddress,
+      type: IsmType.UNKNOWN,
+    };
+
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
   });

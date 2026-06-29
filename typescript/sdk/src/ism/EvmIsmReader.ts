@@ -55,6 +55,7 @@ import {
   NullIsmConfig,
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
+  UnknownIsmConfig,
 } from './types.js';
 
 const INCREMENTAL_REVERT_STRING =
@@ -72,7 +73,9 @@ export interface IsmReader {
   deriveMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>>;
-  deriveNullConfig(address: Address): Promise<WithAddress<NullIsmConfig>>;
+  deriveNullConfig(
+    address: Address,
+  ): Promise<WithAddress<NullIsmConfig | UnknownIsmConfig>>;
   deriveArbL2ToL1Config(
     address: Address,
   ): Promise<WithAddress<ArbL2ToL1IsmConfig>>;
@@ -553,7 +556,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
   async deriveNullConfig(
     address: Address,
-  ): Promise<WithAddress<NullIsmConfig>> {
+  ): Promise<WithAddress<NullIsmConfig | UnknownIsmConfig>> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,
@@ -677,7 +680,27 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // no specific properties, must be Test ISM
+    // A genuine TestIsm is NOT Ownable (TestIsm.sol exposes only moduleType/verify/
+    // setVerify). If this NULL-type ISM has an owner() it is an unrecognized custom ISM
+    // (e.g. a message-id blacklist ISM), not a TestIsm. Falling through to TEST_ISM here
+    // would misrepresent a real filtering module as a no-op accept-all ISM, so preserve
+    // it as UNKNOWN instead.
+    const ownableIsm = Ownable__factory.connect(address, this.provider);
+    try {
+      await ownableIsm.owner();
+      this.logger.warn(
+        { address, chain: this.chain },
+        'Unrecognized Ownable NULL-type ISM; preserving as UNKNOWN instead of TEST_ISM',
+      );
+      return {
+        address,
+        type: IsmType.UNKNOWN,
+      };
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+    }
+
+    // no owner and no recognized selectors --> genuine Test ISM
     return {
       address,
       type: IsmType.TEST_ISM,
