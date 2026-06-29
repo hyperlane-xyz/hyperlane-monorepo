@@ -551,11 +551,17 @@ function getTargetIgpConfig(chain: ChainName, config: IgpConfig): IgpConfig {
     `[${chain}] expected InterchainGasPaymaster config, got ${config.type}`,
   );
 
+  // Strip tokenOracleConfig: those oracles require the new implementation and
+  // will be deployed/configured by deploy.ts -m igp after this upgrade executes.
+  const { tokenOracleConfig: _stripped, ...rest } = deepCopy(config) as {
+    tokenOracleConfig?: unknown;
+    [key: string]: unknown;
+  };
   return {
-    ...deepCopy(config),
+    ...rest,
     contractVersion: CONTRACTS_PACKAGE_VERSION,
     owner: config.ownerOverrides?.interchainGasPaymaster ?? config.owner,
-  };
+  } as IgpConfig;
 }
 
 async function buildHookUpdateTransactions({
