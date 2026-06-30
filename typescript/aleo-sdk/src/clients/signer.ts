@@ -7,6 +7,7 @@ import {
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
   SUFFIX_LENGTH_LONG,
+  getFileOverrideProgramId,
   getProgramSuffix,
   loadProgramsInDeployOrder,
 } from '../utils/helper.js';
@@ -93,6 +94,19 @@ export class AleoSigner
   ): Promise<string> {
     if (tokenType === TokenType.native) {
       return 'credits';
+    }
+
+    // If a file override is set, validate the override program isn't already deployed
+    const warpProgram =
+      tokenType === TokenType.collateral ? 'hyp_collateral' : 'hyp_synthetic';
+    const overrideProgramId = getFileOverrideProgramId(warpProgram);
+    if (overrideProgramId) {
+      const isDeployed = await this.isProgramDeployed(overrideProgramId);
+      assert(
+        !isDeployed,
+        `${overrideProgramId} ${AleoSigner.WARP_SUFFIX_ALREADY_DEPLOYED_ERROR}`,
+      );
+      return ''; // suffix unused — program name comes from the override file
     }
 
     const configuredSuffix = preferredSuffix || this.warpSuffix;

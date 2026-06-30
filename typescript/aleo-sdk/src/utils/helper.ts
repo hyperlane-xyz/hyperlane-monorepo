@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+
 import {
   BHP256,
   BHP1024,
@@ -24,6 +26,51 @@ const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
 
+// Env vars that point to pre-built .aleo files to deploy verbatim
+export const PROGRAM_FILE_ENV: Partial<Record<AleoProgram, string>> = {
+  credits: 'ALEO_CREDITS',
+  dispatch_proxy: 'ALEO_DISPATCH_PROXY',
+  hook_manager: 'ALEO_HOOK_MANAGER',
+  hyp_collateral: 'ALEO_HYP_COLLATERAL',
+  hyp_native: 'ALEO_HYP_NATIVE',
+  hyp_synthetic: 'ALEO_HYP_SYNTHETIC',
+  ism_manager: 'ALEO_ISM_MANAGER',
+  mailbox: 'ALEO_MAILBOX',
+  token_registry: 'ALEO_TOKEN_REGISTRY',
+  validator_announce: 'ALEO_VALIDATOR_ANNOUNCE',
+};
+
+function readFileOverride(
+  programName: AleoProgram,
+): { id: string; program: string } | undefined {
+  const envVar = PROGRAM_FILE_ENV[programName];
+  if (!envVar) return undefined;
+  const filePath = process.env[envVar];
+  if (!filePath) return undefined;
+  const content = readFileSync(filePath, 'utf8');
+  const match = content.match(/^program ([a-z0-9_]+\.aleo);/m);
+  assert(
+    match,
+    `Could not find program declaration in override file ${filePath}`,
+  );
+  const id = match[1];
+  try {
+    Program.fromString(content);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Invalid Aleo program in override file ${filePath} (${id}): ${msg}`,
+    );
+  }
+  return { id, program: content };
+}
+
+export function getFileOverrideProgramId(
+  programName: AleoProgram,
+): string | undefined {
+  return readFileOverride(programName)?.id;
+}
+
 function getCustomWarpSuffixFromEnv(): string | undefined {
   return process.env['ALEO_WARP_SUFFIX'];
 }
@@ -49,6 +96,12 @@ export function loadProgramsInDeployOrder(
   coreSuffix: string,
   warpSuffix?: string,
 ): { id: string; name: string; program: string }[] {
+  // If a file override is set, deploy that file verbatim — no substitutions, no deps
+  const override = readFileOverride(programName);
+  if (override) {
+    return [{ id: override.id, name: programName, program: override.program }];
+  }
+
   const visited = new Set<string>();
   let programs: Program[] = [];
 
