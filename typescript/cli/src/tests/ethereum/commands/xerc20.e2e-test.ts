@@ -285,7 +285,66 @@ describe('xerc20 e2e tests', function () {
     });
   });
 
+  describe('ownership transfer', function () {
+    it('transfers XERC20 token ownership when ownerOverrides.collateralToken differs', async function () {
+      const newOwner = Wallet.createRandom().address;
+
+      const configWithNewOwner: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.XERC20,
+          token: xERC20VS2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          ownerOverrides: {
+            collateralToken: newOwner,
+          },
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              ...BRIDGE_LIMITS,
+            },
+          },
+        },
+      };
+      writeYamlOrJson(XERC20_VS_REGISTRY_DEPLOY_PATH, configWithNewOwner);
+
+      const ownerBefore = await xERC20VS2.owner();
+      expect(ownerBefore).to.equal(ownerAddress);
+
+      await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+        --chains ${CHAIN_NAME_2} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug`;
+
+      const ownerAfter = await xERC20VS2.owner();
+      expect(ownerAfter).to.equal(newOwner);
+    });
+
+    it('reports no updates when token owner already matches config', async function () {
+      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+        --chains ${CHAIN_NAME_2} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug`;
+
+      expect(result.stdout).to.include('No updates needed');
+    });
+  });
+
   describe('read', function () {
+    it('displays the XERC20 token owner', async function () {
+      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+        --chains ${CHAIN_NAME_2} \
+        --verbosity debug`;
+
+      expect(result.stdout).to.include(ownerAddress);
+    });
+
     it('displays current limits for Velodrome XERC20', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \

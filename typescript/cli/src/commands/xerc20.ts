@@ -62,7 +62,7 @@ const apply: CommandModuleWithWriteContext<
 > = {
   command: 'apply',
   describe:
-    'Apply XERC20 config from warp deploy config (auto-detects add/update/remove)',
+    'Apply XERC20 config from warp deploy config (auto-detects add/update/remove limits and ownership transfer for the token and its ProxyAdmin)',
   builder: {
     ...XERC20_WARP_ROUTE_BUILDER,
     chains: {
@@ -157,8 +157,15 @@ const read: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
-    const allLimits: Record<string, { type: string; limits: XERC20LimitsMap }> =
-      {};
+    const allLimits: Record<
+      string,
+      {
+        type: string;
+        owner?: string;
+        proxyAdmin?: { address?: string; owner: string };
+        limits: XERC20LimitsMap;
+      }
+    > = {};
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
@@ -193,6 +200,8 @@ const read: CommandModuleWithContext<
 
         allLimits[chainName] = {
           type: onChainConfig.type,
+          owner: onChainConfig.owner,
+          proxyAdmin: onChainConfig.proxyAdmin,
           limits,
         };
       } catch (error) {

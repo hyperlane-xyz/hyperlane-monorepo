@@ -1,7 +1,9 @@
 import { parseEventLogs } from 'viem';
 
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, normalizeAddress, rootLogger } from '@hyperlane-xyz/utils';
 
+import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
@@ -169,6 +171,42 @@ export class EvmXERC20Reader extends HyperlaneReader {
     }
 
     return activeBridges;
+  }
+
+  /**
+   * Read the owner of the XERC20 token contract.
+   * This owner controls limit/bridge management (setBufferCap, addBridge, etc.).
+   */
+  async readOwner(xERC20Address: Address): Promise<Address> {
+    const owner = await Ownable__factory.connect(
+      xERC20Address,
+      this.provider,
+    ).owner();
+    return normalizeAddress(owner);
+  }
+
+  /**
+   * Read the ProxyAdmin for the XERC20 proxy and its owner.
+   * The ProxyAdmin owner controls upgrades. Returns undefined if the XERC20 is
+   * not behind a transparent proxy.
+   */
+  async readProxyAdmin(
+    xERC20Address: Address,
+  ): Promise<{ address: Address; owner: Address } | undefined> {
+    if (!(await isProxy(this.provider, xERC20Address))) {
+      return undefined;
+    }
+
+    const proxyAdminAddress = await proxyAdmin(this.provider, xERC20Address);
+    const owner = await ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      this.provider,
+    ).owner();
+
+    return {
+      address: normalizeAddress(proxyAdminAddress),
+      owner: normalizeAddress(owner),
+    };
   }
 
   protected toStandardLimits(limits: xERC20Limits): StandardXERC20Limits {
