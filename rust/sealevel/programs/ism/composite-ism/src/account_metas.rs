@@ -314,7 +314,11 @@ pub fn required_accounts_for_node(
             ];
             let mut inner = cpi_result.return_data.into_iter();
             if let Some(first) = inner.next() {
-                if first.pubkey != fallback_storage_key {
+                if first.pubkey == fallback_storage_key {
+                    // Dedup: merge elevated permissions (e.g. writable for RateLimited).
+                    result[1].is_writable |= first.is_writable;
+                    result[1].is_signer |= first.is_signer;
+                } else {
                     result.push(first);
                 }
             }

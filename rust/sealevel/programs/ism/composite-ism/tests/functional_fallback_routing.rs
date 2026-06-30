@@ -45,7 +45,8 @@ use solana_sdk::{
 use common::{
     assert_simulation_error, assert_simulation_ok, domain_pda_key, dummy_message,
     get_all_verify_account_metas, get_metadata_spec, get_verify_account_metas, initialize,
-    program_test, remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
+    mock_mailbox_id, process_verify_via_mailbox, program_test, remove_domain_ism, set_domain_ism,
+    simulate_verify, storage_pda_key, token_message_body,
 };
 
 const ORIGIN: u32 = 1234;
@@ -936,4 +937,133 @@ async fn test_verify_fallback_with_inner_routing_and_trusted_relayer_accepts() {
         )
         .await,
     );
+}
+
+// ── Regression: FallbackRouting → RateLimited fallback preserves writable flag ──
+//
+// When the fallback ISM contains a RateLimited node, its all_verify_account_metas
+// returns the storage PDA as writable (it must be written during Verify to update
+// filled_level/last_updated).  The old dedup silently dropped the writable copy and
+// kept only the read-only sentinel, causing DomainPdaNotWritable at Verify time.
+//
+// The fix: merge is_writable/is_signer from the inner ISM's first element into the
+// retained sentinel instead of discarding it.
+
+#[tokio::test]
+async fn test_vam_fallback_with_rate_limited_storage_is_writable() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::RateLimited {
+            max_capacity: 1_000_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: mock_mailbox_id(),
+        },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    msg.body = token_message_body(100);
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+    )
+    .await;
+
+    // [storage_pda, domain_pda, fallback_storage_pda (writable), process_authority (signer), fallback_ism]
+    // The sentinel for fallback_storage_pda must be writable because RateLimited writes
+    // filled_level/last_updated to the storage PDA during Verify.
+    assert_eq!(metas.len(), 5);
+    assert_eq!(metas[0].pubkey, storage_pda_key());
+    assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
+    assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
+    assert!(
+        metas[2].is_writable,
+        "fallback storage must be writable for RateLimited"
+    );
+    assert!(metas[3].is_signer, "process authority must be signer");
+    assert_eq!(metas[4].pubkey, fallback_ism_id());
+}
+
+#[tokio::test]
+async fn test_verify_fallback_with_rate_limited_accepts_within_capacity() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::RateLimited {
+            max_capacity: 1_000_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: mock_mailbox_id(),
+        },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    msg.body = token_message_body(100);
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    process_verify_via_mailbox(&mut context.banks_client, &payer, verify_ixn, metas)
+        .await
+        .unwrap();
 }
