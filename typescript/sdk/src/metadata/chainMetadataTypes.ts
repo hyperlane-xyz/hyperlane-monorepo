@@ -343,6 +343,16 @@ export const ChainMetadataSchemaObject = z.object({
   gasPrice: GasPriceSchema.optional().describe(
     'The gas price of Cosmos chains.',
   ),
+
+  tronAddressPrefix: z
+    .number()
+    .int()
+    .min(0)
+    .max(255)
+    .optional()
+    .describe(
+      'The address prefix byte for Tron-protocol chains (e.g. 0x41 for Tron mainnet, 0x44 for Ultima). Defaults to 0x41.',
+    ),
 });
 
 // Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)

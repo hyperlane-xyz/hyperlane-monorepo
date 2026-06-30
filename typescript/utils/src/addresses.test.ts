@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import {
   addressToBytes,
   addressToBytes32,
+  addressToBytesTron,
+  bytesToAddressTron,
   bytesToProtocolAddress,
   isAddressStarknet,
   isValidAddressStarknet,
@@ -175,6 +177,68 @@ describe('Address utilities', () => {
       const outOfBoundsAddress =
         '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
       expect(isValidAddressStarknet(outOfBoundsAddress)).to.be.false;
+    });
+  });
+
+  describe('bytesToAddressTron / addressToBytesTron', () => {
+    // Known Tron mainnet zero address (0x41 prefix + 20 zero bytes, base58check encoded)
+    const TRON_ZERO_ADDR = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
+    const ZERO_20 = new Uint8Array(20);
+    // Arbitrary 20-byte payload used for 0x44 tests
+    const SAMPLE_20 = new Uint8Array([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    ]);
+
+    describe('0x41 (Tron mainnet)', () => {
+      it('encodes 20 zero bytes to the known Tron zero address', () => {
+        expect(bytesToAddressTron(ZERO_20, 0x41)).to.equal(TRON_ZERO_ADDR);
+      });
+
+      it('decodes the Tron zero address back to 20 zero bytes', () => {
+        expect(
+          Array.from(addressToBytesTron(TRON_ZERO_ADDR, 0x41)),
+        ).to.deep.equal(Array.from(ZERO_20));
+      });
+
+      it('round-trips arbitrary 20-byte payload', () => {
+        const addr = bytesToAddressTron(SAMPLE_20, 0x41);
+        expect(Array.from(addressToBytesTron(addr, 0x41))).to.deep.equal(
+          Array.from(SAMPLE_20),
+        );
+      });
+    });
+
+    describe('0x44 (Ultima mainnet)', () => {
+      it('round-trips arbitrary 20-byte payload', () => {
+        const addr = bytesToAddressTron(SAMPLE_20, 0x44);
+        expect(Array.from(addressToBytesTron(addr, 0x44))).to.deep.equal(
+          Array.from(SAMPLE_20),
+        );
+      });
+
+      it('produces a different address than 0x41 for the same bytes', () => {
+        const addr41 = bytesToAddressTron(SAMPLE_20, 0x41);
+        const addr44 = bytesToAddressTron(SAMPLE_20, 0x44);
+        expect(addr44).not.to.equal(addr41);
+      });
+
+      it('does not start with T', () => {
+        const addr = bytesToAddressTron(SAMPLE_20, 0x44);
+        expect(addr.startsWith('T')).to.be.false;
+      });
+
+      it('throws on prefix mismatch when decoding', () => {
+        const addr44 = bytesToAddressTron(SAMPLE_20, 0x44);
+        expect(() => addressToBytesTron(addr44, 0x41)).to.throw(
+          'Tron address prefix mismatch',
+        );
+      });
+
+      it('throws if 0x41 address is decoded with 0x44', () => {
+        expect(() => addressToBytesTron(TRON_ZERO_ADDR, 0x44)).to.throw(
+          'Tron address prefix mismatch',
+        );
+      });
     });
   });
 

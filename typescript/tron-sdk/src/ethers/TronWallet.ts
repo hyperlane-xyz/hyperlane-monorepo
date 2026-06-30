@@ -2,7 +2,13 @@ import { BigNumber, Wallet, ethers, providers } from 'ethers';
 import { keccak256 as ethersKeccak256 } from 'ethers/lib/utils.js';
 import { TronWeb, Types } from 'tronweb';
 
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  addressToBytesTron,
+  assert,
+  bytesToAddressTron,
+  ensure0x,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   MAX_TRON_ORIGIN_ENERGY_LIMIT,
@@ -48,12 +54,13 @@ export class TronWallet extends Wallet {
   private static txCounter = 0;
 
   private readonly originalTronUrl: string;
+  private readonly addressPrefixHex: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
   private tronAddressHex: string;
   private txBuilder: TronTransactionBuilder;
 
-  constructor(privateKey: string, tronUrl: string) {
+  constructor(privateKey: string, tronUrl: string, addressPrefix = 0x41) {
     // tronUrl should be the JSON-RPC endpoint (e.g. http://host:port/jsonrpc
     // for TronGrid/TRE, or the root URL for third-party providers like Alchemy).
     // TronWeb needs the base HTTP API URL — strip /jsonrpc path if present, and
@@ -71,15 +78,19 @@ export class TronWallet extends Wallet {
         : 'https://api.trongrid.io';
     super(privateKey, new TronJsonRpcProvider(tronUrl));
     this.originalTronUrl = tronUrl;
+    this.addressPrefixHex = addressPrefix.toString(16).padStart(2, '0');
 
     this.tronWeb = new TronWeb({ fullHost: tronWebUrl, headers });
     const cleanKey = strip0x(privateKey);
     this.tronWeb.setPrivateKey(cleanKey);
 
-    const derivedAddress = this.tronWeb.address.fromPrivateKey(cleanKey);
-    assert(derivedAddress, 'Failed to derive Tron address from private key');
-    this.tronAddress = derivedAddress;
-    this.tronAddressHex = this.tronWeb.address.toHex(this.tronAddress);
+    // tronweb always derives a T-address (0x41 prefix). Re-encode to the correct prefix.
+    const derivedT = this.tronWeb.address.fromPrivateKey(cleanKey);
+    assert(derivedT, 'Failed to derive Tron address from private key');
+    const evmHex20 = this.tronWeb.address.toHex(derivedT).slice(2); // strip hardcoded '41'
+    const addressBytes = new Uint8Array(Buffer.from(evmHex20, 'hex'));
+    this.tronAddress = bytesToAddressTron(addressBytes, addressPrefix);
+    this.tronAddressHex = this.addressPrefixHex + evmHex20;
     this.tronWeb.setAddress(this.tronAddress);
 
     this.txBuilder = new TronTransactionBuilder(
@@ -87,6 +98,7 @@ export class TronWallet extends Wallet {
       this.tronAddress,
       tronUrl,
       headers,
+      addressPrefix,
     );
   }
 
@@ -95,14 +107,25 @@ export class TronWallet extends Wallet {
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
   connect(_provider: providers.Provider): TronWallet {
-    return new TronWallet(this.privateKey, this.originalTronUrl);
+    return new TronWallet(
+      this.privateKey,
+      this.originalTronUrl,
+      parseInt(this.addressPrefixHex, 16),
+    );
   }
 
-  /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
+  /** Convert Tron/Ultima address (base58 or 21-byte tron hex) to ethers 0x address */
   toEvmAddress(tronAddress: string): string {
-    const hex = this.tronWeb.address.toHex(tronAddress);
-    const rawAddress = ensure0x(hex.slice(2)).toLowerCase();
-    return ethers.utils.getAddress(rawAddress);
+    // 42 lowercase hex chars = 21-byte tron hex (prefix + 20-byte address): strip the prefix byte
+    if (/^[0-9a-fA-F]{42}$/.test(tronAddress)) {
+      return ethers.utils.getAddress(ensure0x(tronAddress.slice(2)));
+    }
+    // base58 address: decode using the chain's address prefix byte
+    const prefixByte = parseInt(this.addressPrefixHex, 16);
+    const bytes = addressToBytesTron(tronAddress, prefixByte);
+    return ethers.utils.getAddress(
+      ensure0x(Buffer.from(bytes).toString('hex')),
+    );
   }
 
   /** Tron doesn't use nonces */
@@ -154,7 +177,8 @@ export class TronWallet extends Wallet {
       const hash = ethersKeccak256(
         Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
       );
-      (altered as any).contract_address = '41' + hash.substring(2).slice(24);
+      (altered as any).contract_address =
+        this.addressPrefixHex + hash.substring(2).slice(24);
     }
 
     return altered as TronTransaction;
@@ -164,6 +188,7 @@ export class TronWallet extends Wallet {
 export class TronTransactionBuilder extends TronWeb {
   private tronAddress: string;
   private tronAddressHex: string;
+  private readonly addressPrefixHex: string;
   private provider: TronJsonRpcProvider;
 
   constructor(
@@ -171,6 +196,7 @@ export class TronTransactionBuilder extends TronWeb {
     tronAddress: string,
     jsonRpcUrl?: string,
     headers?: Record<string, string>,
+    addressPrefix = 0x41,
   ) {
     // Strip custom_rpc_header from the URL and merge with any provided headers
     const { url: cleanTronWebUrl, headers: parsedHeaders } =
@@ -178,6 +204,7 @@ export class TronTransactionBuilder extends TronWeb {
     const mergedHeaders = { ...parsedHeaders, ...headers };
     super({ fullHost: cleanTronWebUrl, headers: mergedHeaders });
 
+    this.addressPrefixHex = addressPrefix.toString(16).padStart(2, '0');
     this.tronAddress = tronAddress;
     this.setAddress(this.tronAddress);
     // Use provided JSON-RPC URL, or derive from TronWeb URL.
@@ -191,7 +218,11 @@ export class TronTransactionBuilder extends TronWeb {
       rpcUrl = u.toString();
     }
     this.provider = new TronJsonRpcProvider(rpcUrl);
-    this.tronAddressHex = this.address.toHex(this.tronAddress);
+    // Decode from base58 to get the canonical hex (works for any prefix)
+    const prefixByte = addressPrefix;
+    const addrBytes = addressToBytesTron(tronAddress, prefixByte);
+    this.tronAddressHex =
+      this.addressPrefixHex + Buffer.from(addrBytes).toString('hex');
   }
 
   getTransactionResponse(
@@ -279,7 +310,7 @@ export class TronTransactionBuilder extends TronWeb {
     feeLimit: number,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(tx.to!).toLowerCase();
+    const tronHexTo = this.addressPrefixHex + strip0x(tx.to!).toLowerCase();
     const result = await this.transactionBuilder.triggerSmartContract(
       tronHexTo,
       '',
@@ -302,7 +333,7 @@ export class TronTransactionBuilder extends TronWeb {
     to: string,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(to).toLowerCase();
+    const tronHexTo = this.addressPrefixHex + strip0x(to).toLowerCase();
     return this.transactionBuilder.sendTrx(
       tronHexTo,
       callValue,

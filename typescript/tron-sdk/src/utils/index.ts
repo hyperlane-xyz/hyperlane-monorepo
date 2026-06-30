@@ -1,6 +1,11 @@
 import { TronWeb } from 'tronweb';
 
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import {
+  addressToBytesTron,
+  assert,
+  bytesToAddressTron,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { IABI } from './types.js';
 import { BigNumber, providers } from 'ethers';
@@ -52,6 +57,7 @@ export async function createDeploymentTransaction(
 export function buildMetaProxyBytecode(
   implementationAddress: string,
   metadata: string,
+  prefix = '41',
 ): string {
   const PREFIX =
     '600b380380600b3d393df3363d3d373d3d3d3d60368038038091363936013d73';
@@ -61,9 +67,9 @@ export function buildMetaProxyBytecode(
   const cleanMetadata = strip0x(metadata);
   let cleanImpl = strip0x(implementationAddress);
 
-  // Tron addresses have 41 prefix byte - strip it to get 20 bytes
-  if (cleanImpl.startsWith('41')) {
-    cleanImpl = cleanImpl.slice(2);
+  // Tron addresses have a prefix byte (e.g. '41' for Tron, '44' for Ultima) - strip it to get 20 bytes
+  if (cleanImpl.startsWith(prefix.toLowerCase())) {
+    cleanImpl = cleanImpl.slice(prefix.length);
   }
 
   // Validate address is exactly 20 bytes (40 hex chars)
@@ -107,19 +113,43 @@ export async function createRawBytecodeDeploymentTransaction(
   );
 }
 
-/** Convert ethers 0x address to Tron 41-prefixed hex */
-export function toTronHex(address: string): string {
-  return '41' + strip0x(address).toLowerCase();
+/** Convert ethers 0x address to Tron-prefixed hex (default prefix '41' for Tron mainnet). */
+export function toTronHex(address: string, prefix = '41'): string {
+  return prefix + strip0x(address).toLowerCase();
+}
+
+/**
+ * Convert a Tron/Ultima base58 or EVM 0x address to a tron-protocol hex address.
+ * Unlike toTronHex (which assumes EVM input), this handles base58 Tron addresses too.
+ */
+export function tronAddressToHex(address: string, prefix = '41'): string {
+  if (address.startsWith('0x') || address.startsWith('0X')) {
+    return prefix + strip0x(address).toLowerCase();
+  }
+  // base58 tron address — decode to 20 raw bytes, re-encode with given prefix
+  const prefixByte = parseInt(prefix, 16);
+  const bytes = addressToBytesTron(address, prefixByte);
+  return prefix + Buffer.from(bytes).toString('hex');
+}
+
+/**
+ * Convert a 21-byte tron-protocol hex address (e.g. "41abc..." or "44abc...") to base58check.
+ * The prefix byte is embedded in the hex string; no explicit prefix param needed.
+ */
+export function fromTronHex(hex: string): string {
+  const bytes = new Uint8Array(Buffer.from(hex, 'hex')); // 21 bytes
+  return bytesToAddressTron(bytes.slice(1), bytes[0]);
 }
 
 export async function convertEthersToTronTransaction(
   tronWeb: Readonly<TronWeb>,
   tx: providers.TransactionRequest,
   sender: string,
+  prefix = '41',
 ): Promise<any> {
   assert(tx.to, 'Transaction must have a destination address');
   // Contract call - use 'input' option for raw ABI-encoded calldata
-  const tronHexTo = toTronHex(tx.to);
+  const tronHexTo = toTronHex(tx.to, prefix);
   const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 
   const result = await tronWeb.transactionBuilder.triggerSmartContract(

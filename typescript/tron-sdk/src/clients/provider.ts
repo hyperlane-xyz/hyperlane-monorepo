@@ -12,25 +12,31 @@ import {
   EIP1967_ADMIN_SLOT,
   TRON_EMPTY_ADDRESS,
   decodeRevertReason,
+  tronAddressToHex,
 } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
+  protected readonly addressPrefixHex: string;
 
   protected readonly tronweb: TronWeb;
 
-  static async connect(rpcUrls: string[]): Promise<TronProvider> {
+  static async connect(
+    rpcUrls: string[],
+    addressPrefix = 0x41,
+  ): Promise<TronProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
-    return new TronProvider(rpcUrls, strip0x(privateKey));
+    return new TronProvider(rpcUrls, strip0x(privateKey), addressPrefix);
   }
 
-  constructor(rpcUrls: string[], privateKey?: string) {
+  constructor(rpcUrls: string[], privateKey?: string, addressPrefix = 0x41) {
     this.rpcUrls = rpcUrls;
+    this.addressPrefixHex = addressPrefix.toString(16).padStart(2, '0');
 
     if (!privateKey) {
       privateKey = new TronWeb({
@@ -96,7 +102,7 @@ export class TronProvider implements AltVM.IProvider {
           jsonrpc: '2.0',
           method: 'eth_getStorageAt',
           params: [
-            ensure0x(this.tronweb.address.toHex(proxyAddress)),
+            ensure0x(tronAddressToHex(proxyAddress, this.addressPrefixHex)),
             EIP1967_ADMIN_SLOT,
             'latest',
           ],
@@ -106,7 +112,7 @@ export class TronProvider implements AltVM.IProvider {
       );
 
       const ethAddress = strip0x(response.result).slice(-40);
-      const tronHex = '41' + ethAddress;
+      const tronHex = this.addressPrefixHex + ethAddress;
 
       const proxyAdminAddress = this.tronweb.address.fromHex(tronHex);
       const proxyAdminContract = this.tronweb.contract(

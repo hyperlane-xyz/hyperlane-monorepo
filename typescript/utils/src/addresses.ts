@@ -531,10 +531,18 @@ export function addressToBytesAleo(address: Address): Uint8Array {
   return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
 }
 
-export function addressToBytesTron(address: Address): Uint8Array {
+export function addressToBytesTron(
+  address: Address,
+  prefix = 0x41,
+): Uint8Array {
   const decoded = bs58.decode(address);
   const payload = decoded.slice(0, -4);
-  return new Uint8Array(payload.slice(1)); // strip 0x41 prefix
+  const versionByte = payload[0];
+  assert(
+    versionByte === prefix,
+    `Tron address prefix mismatch: expected 0x${prefix.toString(16).padStart(2, '0')}, got 0x${versionByte.toString(16).padStart(2, '0')}`,
+  );
+  return new Uint8Array(payload.slice(1));
 }
 
 export function addressToBytes(
@@ -670,15 +678,16 @@ export function bytesToAddressAleo(bytes: Uint8Array): Address {
   return bech32m.encode('aleo', bech32m.toWords(bytes));
 }
 
-export function bytesToAddressTron(bytes: Uint8Array): Address {
+export function bytesToAddressTron(bytes: Uint8Array, prefix = 0x41): Address {
   let payload20: Uint8Array;
 
   if (bytes.length === 32) payload20 = bytes.slice(12);
-  else if (bytes.length === 21 && bytes[0] === 0x41) payload20 = bytes.slice(1);
+  else if (bytes.length === 21 && bytes[0] === prefix)
+    payload20 = bytes.slice(1);
   else if (bytes.length === 20) payload20 = bytes;
   else throw new Error(`Invalid Tron address byte length: ${bytes.length}`);
 
-  const addressBytes = new Uint8Array([0x41, ...payload20]);
+  const addressBytes = new Uint8Array([prefix, ...payload20]);
 
   const hash1 = ethersUtils.arrayify(ethersUtils.sha256(addressBytes));
   const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));

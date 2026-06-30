@@ -112,7 +112,7 @@ export async function getMessageIdMultisigIsmConfig(
     return {
       address: ismAddress,
       threshold: Number(threshold),
-      validators: validators.map((v: any) => v.replace('41', '0x')),
+      validators: validators.map((v: any) => '0x' + v.slice(2)),
     };
   } catch (error) {
     throw new Error(
@@ -150,7 +150,7 @@ export async function getMerkleRootMultisigIsmConfig(
     return {
       address: ismAddress,
       threshold: Number(threshold),
-      validators: validators.map((v: any) => v.replace('41', '0x')),
+      validators: validators.map((v: any) => '0x' + v.slice(2)),
     };
   } catch (error) {
     throw new Error(

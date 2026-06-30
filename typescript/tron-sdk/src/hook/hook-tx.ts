@@ -6,7 +6,10 @@ import InterchainGasPaymasterAbi from '@hyperlane-xyz/core/tron/abi/contracts/ho
 import MerkleTreeHookAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/igp/StorageGasOracle.sol/StorageGasOracle.json' with { type: 'json' };
 import TransparentUpgradeableProxyAbi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json' with { type: 'json' };
-import { createDeploymentTransaction } from '../utils/index.js';
+import {
+  createDeploymentTransaction,
+  tronAddressToHex,
+} from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
 export async function getCreateMerkleTreeHookTx(
@@ -51,6 +54,7 @@ export async function getInitIgpTx(
   config: {
     igpAddress: string;
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
@@ -66,7 +70,7 @@ export async function getInitIgpTx(
         value: fromAddress,
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;
@@ -91,6 +95,7 @@ export async function getSetOracleTx(
     igpAddress: string;
     oracleAddress: string;
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
@@ -102,7 +107,7 @@ export async function getSetOracleTx(
         value: config.oracleAddress,
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;
@@ -121,6 +126,7 @@ export async function getSetRemoteGasTx(
       };
     }[];
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const igp = tronweb.contract(
     InterchainGasPaymasterAbi.abi,
@@ -143,7 +149,7 @@ export async function getSetRemoteGasTx(
         })),
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;
@@ -156,6 +162,7 @@ export async function getSetIgpOwnerTx(
     igpAddress: string;
     newOwner: string;
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
@@ -167,7 +174,7 @@ export async function getSetIgpOwnerTx(
         value: config.newOwner,
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;
@@ -183,6 +190,7 @@ export async function getSetIgpDestinationGasConfigTx(
       gasOverhead: string;
     }[];
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const igp = tronweb.contract(
     InterchainGasPaymasterAbi.abi,
@@ -207,13 +215,14 @@ export async function getSetIgpDestinationGasConfigTx(
         value: config.destinationGasConfigs.map((c) => ({
           remoteDomain: c.remoteDomainId,
           config: {
-            gasOracle: gasOracle.replace('41', '0x'), // tron address format requires 0x prefix here
+            // strip 1-byte tron prefix (2 hex chars), add 0x — works for any prefix
+            gasOracle: '0x' + gasOracle.slice(2),
             gasOverhead: c.gasOverhead,
           },
         })),
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;
@@ -226,6 +235,7 @@ export async function getRemoveIgpDestinationGasConfigTx(
     igpAddress: string;
     remoteDomainIds: number[];
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
@@ -237,7 +247,7 @@ export async function getRemoveIgpDestinationGasConfigTx(
         value: config.remoteDomainIds,
       },
     ],
-    tronweb.address.toHex(fromAddress),
+    tronAddressToHex(fromAddress, prefix),
   );
 
   return transaction;

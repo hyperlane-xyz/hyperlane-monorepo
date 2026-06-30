@@ -8,6 +8,7 @@ import {
   buildMetaProxyBytecode,
   createDeploymentTransaction,
   createRawBytecodeDeploymentTransaction,
+  tronAddressToHex,
 } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
@@ -68,6 +69,7 @@ export async function getCreateMessageIdMultisigIsmWithMetaProxyTx(
   fromAddress: string,
   implementationAddress: string,
   config: { validators: string[]; threshold: number },
+  prefix = '41',
 ): Promise<TronTransaction> {
   // ABI encode the metadata: (address[], uint8)
   const metadata = tronweb.utils.abi.encodeParams(
@@ -77,8 +79,9 @@ export async function getCreateMessageIdMultisigIsmWithMetaProxyTx(
 
   // Build MetaProxy bytecode with embedded metadata
   const metaProxyBytecode = buildMetaProxyBytecode(
-    tronweb.address.toHex(implementationAddress),
+    tronAddressToHex(implementationAddress, prefix),
     metadata,
+    prefix,
   );
 
   return createRawBytecodeDeploymentTransaction(
@@ -103,6 +106,7 @@ export async function getCreateMerkleRootMultisigIsmWithMetaProxyTx(
   fromAddress: string,
   implementationAddress: string,
   config: { validators: string[]; threshold: number },
+  prefix = '41',
 ): Promise<TronTransaction> {
   // ABI encode the metadata: (address[], uint8)
   const metadata = tronweb.utils.abi.encodeParams(
@@ -112,8 +116,9 @@ export async function getCreateMerkleRootMultisigIsmWithMetaProxyTx(
 
   // Build MetaProxy bytecode with embedded metadata
   const metaProxyBytecode = buildMetaProxyBytecode(
-    tronweb.address.toHex(implementationAddress),
+    tronAddressToHex(implementationAddress, prefix),
     metadata,
+    prefix,
   );
 
   return createRawBytecodeDeploymentTransaction(
@@ -143,6 +148,7 @@ export async function getInitRoutingIsmTx(
     ismAddress: string;
     routes: { ismAddress: string; domainId: number }[];
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
@@ -162,7 +168,7 @@ export async function getInitRoutingIsmTx(
         value: config.routes.map((r) => r.ismAddress),
       },
     ],
-    tronweb.address.toHex(ownerAddress),
+    tronAddressToHex(ownerAddress, prefix),
   );
 
   return transaction;
@@ -175,6 +181,7 @@ export async function getSetRoutingIsmRouteTx(
     ismAddress: string;
     domainIsm: { domainId: number; ismAddress: string };
   },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
@@ -190,7 +197,7 @@ export async function getSetRoutingIsmRouteTx(
         value: config.domainIsm.ismAddress,
       },
     ],
-    tronweb.address.toHex(ownerAddress),
+    tronAddressToHex(ownerAddress, prefix),
   );
 
   return transaction;
@@ -200,6 +207,7 @@ export async function getRemoveRoutingIsmRouteTx(
   tronweb: Readonly<TronWeb>,
   ownerAddress: string,
   config: { ismAddress: string; domainId: number },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
@@ -211,7 +219,7 @@ export async function getRemoveRoutingIsmRouteTx(
         value: config.domainId,
       },
     ],
-    tronweb.address.toHex(ownerAddress),
+    tronAddressToHex(ownerAddress, prefix),
   );
 
   return transaction;
@@ -221,6 +229,7 @@ export async function getSetRoutingIsmOwnerTx(
   tronweb: Readonly<TronWeb>,
   ownerAddress: string,
   config: { ismAddress: string; newOwner: string },
+  prefix = '41',
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
@@ -232,7 +241,7 @@ export async function getSetRoutingIsmOwnerTx(
         value: config.newOwner,
       },
     ],
-    tronweb.address.toHex(ownerAddress),
+    tronAddressToHex(ownerAddress, prefix),
   );
 
   return transaction;
