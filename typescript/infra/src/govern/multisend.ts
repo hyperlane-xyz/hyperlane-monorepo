@@ -116,7 +116,7 @@ export class SafeMultiSend extends MultiSend {
     const nextNonce = await retrySafeApi(() =>
       this.safeService.getNextNonce(this.safeAddress),
     );
-    return Number(nextNonce);
+    return parseInt(nextNonce, 10);
   }
 
   // Helper function to propose individual transactions

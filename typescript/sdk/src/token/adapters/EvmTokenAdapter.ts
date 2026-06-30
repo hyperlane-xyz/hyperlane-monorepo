@@ -479,30 +479,47 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract[
+    const rawQuotes: RawTupleQuote[] = await this.contract[
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, amount.toString());
-    const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
-      addressOrDenom: quote[0],
-      amount: BigInt(quote[1].toString()),
+    const allQuotes = rawQuotes.map((q) => ({
+      addressOrDenom: q[0] as Address,
+      amount: BigInt(q[1].toString()),
     }));
 
-    // Because the amount is added on  the fees, we need to subtract it from the actual fees
+    // Native quotes (token == address(0)) → msg.value sent with transferRemote
+    const nativeAmount = allQuotes
+      .filter((q) => isZeroishAddress(q.addressOrDenom))
+      .reduce((sum, q) => sum + q.amount, 0n);
+
+    // ERC20 quotes → must be approved before transferRemote.
+    // quotes[1] always has token = token() with amount = transfer_amount + feeAmount.
+    // Subtract transfer_amount from index 1 only, so we get just the fee portion.
+    const erc20Quotes = allQuotes.filter(
+      (q) => !isZeroishAddress(q.addressOrDenom),
+    );
+    const erc20Denoms = new Set(
+      erc20Quotes.map((q) => q.addressOrDenom.toLowerCase()),
+    );
+    assert(
+      erc20Denoms.size <= 1,
+      `Unexpected multi-token ERC20 fee quotes: ${[...erc20Denoms].join(', ')}`,
+    );
+    const tokenFeeAmount = allQuotes.reduce((sum, q, i) => {
+      if (isZeroishAddress(q.addressOrDenom)) return sum;
+      return sum + q.amount - (i === 1 ? amount : 0n);
+    }, 0n);
     const tokenFeeQuote: Quote | undefined =
-      tokenFeeQuotes.length > 0
+      tokenFeeAmount > 0n
         ? {
-            addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
-            amount:
-              tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
+            addressOrDenom: erc20Quotes[0].addressOrDenom,
+            amount: tokenFeeAmount,
           }
         : undefined;
 
     return {
-      igpQuote: {
-        amount: BigInt(igpAmount.toString()),
-      },
+      igpQuote: { amount: nativeAmount },
       tokenFeeQuote,
     };
   }
