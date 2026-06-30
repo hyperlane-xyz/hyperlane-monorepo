@@ -49,6 +49,7 @@ jobs:
           - warp-apply-predicate-updates
           - warp-check-1
           - warp-send
+          - xerc20 # TEMP probe: run pre-existing xerc20 e2e on clean main (no feature changes) to baseline beforeEach flake; do not merge
     steps:
       - uses: actions/checkout@v6
         with:
