@@ -37,6 +37,7 @@ contract MockRebalanceRouter {
     bool public reenter;
     bool public doubleCallback;
     uint256 public postCallbackApproval;
+    address public owner;
 
     constructor(
         ERC20Test _token,
@@ -107,6 +108,10 @@ contract MockRebalanceRouter {
 
     function setPostCallbackApproval(uint256 _postCallbackApproval) external {
         postCallbackApproval = _postCallbackApproval;
+    }
+
+    function setOwner(address _owner) external {
+        owner = _owner;
     }
 
     function addRebalancer(address rebalancer) external {
@@ -806,6 +811,73 @@ contract AtomicLocalRebalancingBridgeTest is Test {
             100e6,
             _rebalancerCalls(100e6)
         );
+    }
+
+    function test_recoverToken_sendsStrayBalanceToRecipient() public {
+        address routerOwner = makeAddr("routerOwner");
+        address recipient = makeAddr("recipient");
+        sourceRouter.setOwner(routerOwner);
+        inputToken.mintTo(address(bridge), 50e6);
+
+        vm.prank(routerOwner);
+        bridge.recoverToken(inputToken, recipient);
+
+        assertEq(inputToken.balanceOf(recipient), 50e6);
+        assertEq(inputToken.balanceOf(address(bridge)), 0);
+    }
+
+    function test_recoverToken_revertsForNonSourceRouterOwner() public {
+        sourceRouter.setOwner(makeAddr("routerOwner"));
+        inputToken.mintTo(address(bridge), 50e6);
+
+        vm.prank(other);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.NotSourceRouterOwner.selector
+        );
+        bridge.recoverToken(inputToken, other);
+    }
+
+    function test_recoverNativeBalance_sendsStrayBalanceToRecipient() public {
+        address routerOwner = makeAddr("routerOwner");
+        address recipient = makeAddr("recipient");
+        sourceRouter.setOwner(routerOwner);
+        vm.deal(address(bridge), 3 ether);
+
+        vm.prank(routerOwner);
+        bridge.recoverNativeBalance(recipient);
+
+        assertEq(recipient.balance, 3 ether);
+        assertEq(address(bridge).balance, 0);
+    }
+
+    function test_recoverNativeBalance_revertsForNonSourceRouterOwner() public {
+        sourceRouter.setOwner(makeAddr("routerOwner"));
+        vm.deal(address(bridge), 3 ether);
+
+        vm.prank(other);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge.NotSourceRouterOwner.selector
+        );
+        bridge.recoverNativeBalance(other);
+    }
+
+    function test_recoverToken_revertsWhenCalledDuringRebalance() public {
+        // Even with the gate satisfied (owner == bridge), the rebalance's
+        // transient lock blocks recovery reached through the rebalancer calls.
+        sourceRouter.setOwner(address(bridge));
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.build(
+            address(bridge),
+            0,
+            abi.encodeCall(bridge.recoverToken, (inputToken, other))
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
+        );
+        _localRebalance(100e6, calls);
     }
 
     function test_rebalance_revertsIfCallsBridgeOutThroughDestinationRouter()
