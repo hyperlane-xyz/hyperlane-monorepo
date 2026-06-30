@@ -49,8 +49,6 @@ jobs:
           - warp-apply-predicate-updates
           - warp-check-1
           - warp-send
-          # TEMP: validate xerc20 ownership-transfer e2e at PR level; revert before merge
-          - xerc20
     steps:
       - uses: actions/checkout@v6
         with:
