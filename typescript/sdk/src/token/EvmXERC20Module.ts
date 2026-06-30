@@ -9,6 +9,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -38,6 +39,21 @@ import { XERC20Type } from './types.js';
 export interface XERC20ModuleConfig {
   type: XERC20Type;
   limits: XERC20LimitsMap;
+  /**
+   * Expected owner of the XERC20 token contract (controls limit/bridge mgmt).
+   * On a config read this reflects the on-chain owner; on an expected config it
+   * drives an ownership-transfer transaction when it differs.
+   */
+  owner?: Address;
+  /**
+   * The XERC20 proxy's ProxyAdmin (controls upgrades). On a config read both
+   * fields are populated; on an expected config only `owner` is meaningful and
+   * `address` may be omitted.
+   */
+  proxyAdmin?: {
+    address?: Address;
+    owner: Address;
+  };
 }
 
 /**
@@ -93,7 +109,13 @@ export class EvmXERC20Module extends HyperlaneModule<
       bridges,
       type,
     );
-    return { type, limits };
+
+    const owner = await this.reader.readOwner(this.args.addresses.xERC20);
+    const proxyAdmin = await this.reader.readProxyAdmin(
+      this.args.addresses.xERC20,
+    );
+
+    return { type, limits, owner, proxyAdmin };
   }
 
   /**
@@ -135,10 +157,56 @@ export class EvmXERC20Module extends HyperlaneModule<
       }
     }
 
+    // Ownership transfers are appended LAST so any owner-restricted limit/bridge
+    // updates above execute before ownership is handed off.
+    transactions.push(
+      ...this.generateOwnershipTransferTxs(expectedConfig, actualConfig),
+    );
+
     if (transactions.length > 0) {
       this.logger.info(
         `Generated ${transactions.length} XERC20 correction txs: ` +
           `${missingBridges.length} missing, ${limitMismatches.length} mismatches, ${extraBridges.length} extra`,
+      );
+    }
+
+    return transactions;
+  }
+
+  /**
+   * Generate ownership-transfer transactions for the XERC20 token owner and the
+   * proxy's ProxyAdmin owner. No-ops when the expected owner is unset or already
+   * matches on-chain state, so callers can apply repeatedly (idempotent).
+   */
+  protected generateOwnershipTransferTxs(
+    expectedConfig: XERC20ModuleConfig,
+    actualConfig: XERC20ModuleConfig,
+  ): AnnotatedEV5Transaction[] {
+    const chainId = this.multiProvider.getEvmChainId(this.chainName);
+    const xERC20Address = this.args.addresses.xERC20;
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    if (expectedConfig.owner && actualConfig.owner) {
+      transactions.push(
+        ...transferOwnershipTransactions(
+          chainId,
+          xERC20Address,
+          { owner: actualConfig.owner },
+          { owner: expectedConfig.owner },
+          `XERC20 ${xERC20Address}`,
+        ),
+      );
+    }
+
+    if (expectedConfig.proxyAdmin?.owner && actualConfig.proxyAdmin?.address) {
+      transactions.push(
+        ...transferOwnershipTransactions(
+          chainId,
+          actualConfig.proxyAdmin.address,
+          { owner: actualConfig.proxyAdmin.owner },
+          { owner: expectedConfig.proxyAdmin.owner },
+          `XERC20 ProxyAdmin ${actualConfig.proxyAdmin.address}`,
+        ),
       );
     }
 
@@ -334,6 +402,8 @@ export class EvmXERC20Module extends HyperlaneModule<
     warpRouteConfig: {
       type: string;
       token: Address;
+      owner?: Address;
+      ownerOverrides?: Record<string, Address>;
       xERC20?: {
         warpRouteLimits: {
           type: XERC20Type;
@@ -431,7 +501,23 @@ export class EvmXERC20Module extends HyperlaneModule<
           xERC20Address,
         );
 
-    const config: XERC20ModuleConfig = { type, limits };
+    // Expected owners are config-driven. ownerOverrides take precedence over the
+    // top-level owner; collateralToken -> token Ownable, collateralProxyAdmin ->
+    // ProxyAdmin owner. Keys mirror the warp checker's ownerOverrides convention.
+    const expectedTokenOwner =
+      warpRouteConfig.ownerOverrides?.collateralToken ?? warpRouteConfig.owner;
+    const expectedProxyAdminOwner =
+      warpRouteConfig.ownerOverrides?.collateralProxyAdmin ??
+      warpRouteConfig.owner;
+
+    const config: XERC20ModuleConfig = {
+      type,
+      limits,
+      ...(expectedTokenOwner ? { owner: expectedTokenOwner } : {}),
+      ...(expectedProxyAdminOwner
+        ? { proxyAdmin: { owner: expectedProxyAdminOwner } }
+        : {}),
+    };
     const module = new EvmXERC20Module(multiProvider, {
       addresses: { xERC20: xERC20Address, warpRoute: warpRouteAddress },
       chain,
