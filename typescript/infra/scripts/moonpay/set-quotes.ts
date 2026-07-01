@@ -568,9 +568,11 @@ async function main(): Promise<void> {
       slot.oqlfAddress,
       submitter_wallet,
     );
+    const txOverrides = multiProvider.getTransactionOverrides(slot.origin);
     const tx = await oqlf.submitQuote(
       { context, data, issuedAt, expiry, salt, submitter },
       signature,
+      txOverrides,
     );
     process.stdout.write(`${tx.hash.slice(0, 14)}… `);
     await tx.wait(1);
