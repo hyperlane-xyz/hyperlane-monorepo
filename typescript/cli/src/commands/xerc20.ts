@@ -106,7 +106,9 @@ const apply: CommandModuleWithWriteContext<
             warpRouteAddress,
           );
 
-        const txs = await module.update(expectedConfig);
+        const txs = await module.update(expectedConfig, {
+          includeOwnership: true,
+        });
         if (txs.length > 0) {
           logBlue(`Generated ${txs.length} transaction(s) for ${chainName}`);
           transactions.push(...txs);

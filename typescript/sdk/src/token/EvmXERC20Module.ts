@@ -121,9 +121,17 @@ export class EvmXERC20Module extends HyperlaneModule<
   /**
    * Generate transactions to update XERC20 limits to match expected config.
    * Detects drift and generates correction transactions.
+   *
+   * Ownership transfers are opt-in via `includeOwnership`. They are only emitted
+   * by the dedicated `xerc20 apply` command, where `expectedConfig.owner` is an
+   * intentional target for the XERC20 token's `Ownable` owner. The warp
+   * deploy/apply path (EvmWarpModule) must NOT enable this: there the warp
+   * config `owner` denotes the router owner, not the (often externally-governed)
+   * XERC20 token owner, so reconciling it would emit a doomed transferOwnership.
    */
   async update(
     expectedConfig: XERC20ModuleConfig,
+    { includeOwnership = false }: { includeOwnership?: boolean } = {},
   ): Promise<AnnotatedEV5Transaction[]> {
     const actualConfig = await this.read();
 
@@ -159,9 +167,11 @@ export class EvmXERC20Module extends HyperlaneModule<
 
     // Ownership transfers are appended LAST so any owner-restricted limit/bridge
     // updates above execute before ownership is handed off.
-    transactions.push(
-      ...this.generateOwnershipTransferTxs(expectedConfig, actualConfig),
-    );
+    if (includeOwnership) {
+      transactions.push(
+        ...this.generateOwnershipTransferTxs(expectedConfig, actualConfig),
+      );
+    }
 
     if (transactions.length > 0) {
       this.logger.info(
