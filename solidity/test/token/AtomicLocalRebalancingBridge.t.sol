@@ -37,7 +37,6 @@ contract MockRebalanceRouter {
     bool public reenter;
     bool public doubleCallback;
     uint256 public postCallbackApproval;
-    address public owner;
 
     constructor(
         ERC20Test _token,
@@ -108,10 +107,6 @@ contract MockRebalanceRouter {
 
     function setPostCallbackApproval(uint256 _postCallbackApproval) external {
         postCallbackApproval = _postCallbackApproval;
-    }
-
-    function setOwner(address _owner) external {
-        owner = _owner;
     }
 
     function addRebalancer(address rebalancer) external {
@@ -248,6 +243,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
     address internal rebalancer = makeAddr("rebalancer");
     address internal other = makeAddr("other");
+    address internal bridgeOwner = makeAddr("bridgeOwner");
 
     function setUp() public {
         inputToken = new ERC20Test("Input", "IN", 0, 6);
@@ -256,7 +252,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         bridge = new AtomicLocalRebalancingBridge(
             LOCAL_DOMAIN,
-            address(sourceRouter)
+            address(sourceRouter),
+            bridgeOwner
         );
         destinationRouter = new MockRebalanceRouter(
             outputToken,
@@ -341,7 +338,20 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
     function test_constructor_revertsForNonContractSource() public {
         vm.expectRevert(AtomicLocalRebalancingBridge.InvalidSource.selector);
-        new AtomicLocalRebalancingBridge(LOCAL_DOMAIN, address(0xdead));
+        new AtomicLocalRebalancingBridge(
+            LOCAL_DOMAIN,
+            address(0xdead),
+            bridgeOwner
+        );
+    }
+
+    function test_constructor_revertsForZeroOwner() public {
+        vm.expectRevert(AtomicLocalRebalancingBridge.InvalidOwner.selector);
+        new AtomicLocalRebalancingBridge(
+            LOCAL_DOMAIN,
+            address(sourceRouter),
+            address(0)
+        );
     }
 
     function test_rebalance_allowsCallerWhitelistedOnSourceRouter() public {
@@ -386,7 +396,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(source)
+                address(source),
+                bridgeOwner
             );
 
         source.enrollRemoteRouter(
@@ -814,57 +825,48 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     }
 
     function test_recoverToken_sendsStrayBalanceToRecipient() public {
-        address routerOwner = makeAddr("routerOwner");
         address recipient = makeAddr("recipient");
-        sourceRouter.setOwner(routerOwner);
         inputToken.mintTo(address(bridge), 50e6);
 
-        vm.prank(routerOwner);
+        vm.prank(bridgeOwner);
         bridge.recoverToken(inputToken, recipient);
 
         assertEq(inputToken.balanceOf(recipient), 50e6);
         assertEq(inputToken.balanceOf(address(bridge)), 0);
     }
 
-    function test_recoverToken_revertsForNonSourceRouterOwner() public {
-        sourceRouter.setOwner(makeAddr("routerOwner"));
+    function test_recoverToken_revertsForNonOwner() public {
         inputToken.mintTo(address(bridge), 50e6);
 
         vm.prank(other);
-        vm.expectRevert(
-            AtomicLocalRebalancingBridge.NotSourceRouterOwner.selector
-        );
+        vm.expectRevert("Ownable: caller is not the owner");
         bridge.recoverToken(inputToken, other);
     }
 
     function test_recoverNativeBalance_sendsStrayBalanceToRecipient() public {
-        address routerOwner = makeAddr("routerOwner");
         address recipient = makeAddr("recipient");
-        sourceRouter.setOwner(routerOwner);
         vm.deal(address(bridge), 3 ether);
 
-        vm.prank(routerOwner);
+        vm.prank(bridgeOwner);
         bridge.recoverNativeBalance(recipient);
 
         assertEq(recipient.balance, 3 ether);
         assertEq(address(bridge).balance, 0);
     }
 
-    function test_recoverNativeBalance_revertsForNonSourceRouterOwner() public {
-        sourceRouter.setOwner(makeAddr("routerOwner"));
+    function test_recoverNativeBalance_revertsForNonOwner() public {
         vm.deal(address(bridge), 3 ether);
 
         vm.prank(other);
-        vm.expectRevert(
-            AtomicLocalRebalancingBridge.NotSourceRouterOwner.selector
-        );
+        vm.expectRevert("Ownable: caller is not the owner");
         bridge.recoverNativeBalance(other);
     }
 
     function test_recoverToken_revertsWhenCalledDuringRebalance() public {
         // Even with the gate satisfied (owner == bridge), the rebalance's
         // transient lock blocks recovery reached through the rebalancer calls.
-        sourceRouter.setOwner(address(bridge));
+        vm.prank(bridgeOwner);
+        bridge.transferOwnership(address(bridge));
 
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.build(
@@ -913,7 +915,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(source)
+                address(source),
+                bridgeOwner
             );
         source.addBridge(LOCAL_DOMAIN, localBridge);
         source.addRebalancer(rebalancer);
@@ -1081,7 +1084,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(sourceRouter)
+                address(sourceRouter),
+                bridgeOwner
             );
         sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
         sourceRouter.setCallbackRecipient(address(destinationRouter));
@@ -1156,7 +1160,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         );
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(src)
+                address(src),
+                bridgeOwner
             );
         src.setPrimaryRouter(LOCAL_DOMAIN, address(dst));
         src.setCallbackRecipient(address(dst));
@@ -1313,7 +1318,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(sourceRouter)
+                address(sourceRouter),
+                bridgeOwner
             );
         destinationRouter = new MockRebalanceRouter(
             outputToken,
@@ -1350,7 +1356,8 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         sourceRouter = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         AtomicLocalRebalancingBridge localBridge = new AtomicLocalRebalancingBridge(
                 LOCAL_DOMAIN,
-                address(sourceRouter)
+                address(sourceRouter),
+                bridgeOwner
             );
         destinationRouter = new MockRebalanceRouter(
             outputToken,

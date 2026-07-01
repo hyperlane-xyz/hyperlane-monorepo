@@ -75,7 +75,8 @@ abstract contract AtomicLocalRebalancingBridgeForkTestBase is Test {
         );
         bridge = new AtomicLocalRebalancingBridge(
             localDomain,
-            address(sourceRouter)
+            address(sourceRouter),
+            address(this)
         );
         destinationRouter = new CrossCollateralRouter(
             address(destinationToken),

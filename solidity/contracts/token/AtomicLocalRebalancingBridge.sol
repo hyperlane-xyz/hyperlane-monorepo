@@ -51,13 +51,14 @@ struct SelfBalanceSnapshot {
 ///   destination only with output the calls produce.
 /// - The bridge keeps no value of its own: any balance present before a call is
 ///   neither consumed to fund the destination nor refunded to the rebalancer.
-///   Such stray balances are recoverable only by the source router's owner via
+///   Such stray balances are recoverable only by the owner via
 ///   `recoverToken`/`recoverNativeBalance`.
 contract AtomicLocalRebalancingBridge is
     IRebalancingBridge,
     ITokenBridge,
     PackageVersioned,
-    ReentrancyGuardTransient
+    ReentrancyGuardTransient,
+    Ownable
 {
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
@@ -85,26 +86,20 @@ contract AtomicLocalRebalancingBridge is
     error UnauthorizedRebalancer();
     error InvalidToken();
     error InvalidSource();
+    error InvalidOwner();
     error InvalidRecipient();
-    error NotSourceRouterOwner();
     error SourceRouterOverdrawn();
     error PreexistingSourceTokenSpent();
     error PreexistingNativeBalanceSpent();
     error InsufficientOutputTokenProduced();
 
-    constructor(uint32 _localDomain, address _sourceRouter) {
+    constructor(uint32 _localDomain, address _sourceRouter, address _owner) {
         if (!Address.isContract(_sourceRouter)) revert InvalidSource();
+        if (_owner == address(0)) revert InvalidOwner();
+
         localDomain = _localDomain;
         allowedSourceRouter = _sourceRouter;
-    }
-
-    /// @dev Recovery is delegated to the source router's owner, reusing its existing
-    /// governance rather than giving this bridge its own custody powers.
-    modifier onlySourceRouterOwner() {
-        if (msg.sender != Ownable(allowedSourceRouter).owner()) {
-            revert NotSourceRouterOwner();
-        }
-        _;
+        _transferOwnership(_owner);
     }
 
     /// @notice Executes a same-chain rebalance into a validated destination
@@ -184,21 +179,21 @@ contract AtomicLocalRebalancingBridge is
     }
 
     /// @notice Recovers an ERC20 balance accidentally sent to this bridge.
-    /// @dev Callable by the source router's owner; the bridge holds no token balance
-    /// of its own between rebalances, so the full balance is sent to `recipient`.
+    /// @dev Callable by the owner; the bridge holds no token balance of its own
+    /// between rebalances, so the full balance is sent to `recipient`.
     function recoverToken(
         IERC20 token,
         address recipient
-    ) external nonReentrant onlySourceRouterOwner {
+    ) external nonReentrant onlyOwner {
         token.safeTransfer(recipient, token.balanceOf(address(this)));
     }
 
     /// @notice Recovers native accidentally sent to this bridge.
-    /// @dev Callable by the source router's owner; unspent native is refunded per
-    /// rebalance, so any standing balance is sent to `recipient`.
+    /// @dev Callable by the owner; unspent native is refunded per rebalance, so any
+    /// standing balance is sent to `recipient`.
     function recoverNativeBalance(
         address recipient
-    ) external nonReentrant onlySourceRouterOwner {
+    ) external nonReentrant onlyOwner {
         Address.sendValue(payable(recipient), address(this).balance);
     }
 
