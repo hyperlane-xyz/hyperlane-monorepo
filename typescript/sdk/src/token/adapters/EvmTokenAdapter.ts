@@ -483,20 +483,26 @@ export class EvmHypSyntheticAdapter
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, amount.toString());
 
-    const allQuotes = rawQuotes.map((q) => ({
-      addressOrDenom: q[0] as Address,
-      amount: BigInt(q[1].toString()),
+    // Per the TokenRouter.quoteTransferRemote convention the contract returns:
+    //   [0] gas payment (native when feeToken()==address(0), else token())
+    //   [1] transfer amount + internal warp route fee (denominated in token())
+    //   [2] external bridging fee (denominated in token())
+    // Subtract the transfer amount from index 1 so only the fee portion remains.
+    // This must happen before classifying quotes by denom: for native routes
+    // (token()==address(0)) index 1 is denominated in address(0), so leaving the
+    // bridged amount in would miscount it as a native fee and inflate the IGP quote.
+    const feeQuotes = rawQuotes.map((q, i) => ({
+      addressOrDenom: q[0],
+      amount: BigInt(q[1].toString()) - (i === 1 ? amount : 0n),
     }));
 
-    // Native quotes (token == address(0)) → msg.value sent with transferRemote
-    const nativeAmount = allQuotes
+    // Native fees (denom == address(0)) → msg.value sent with transferRemote.
+    const nativeAmount = feeQuotes
       .filter((q) => isZeroishAddress(q.addressOrDenom))
       .reduce((sum, q) => sum + q.amount, 0n);
 
-    // ERC20 quotes → must be approved before transferRemote.
-    // quotes[1] always has token = token() with amount = transfer_amount + feeAmount.
-    // Subtract transfer_amount from index 1 only, so we get just the fee portion.
-    const erc20Quotes = allQuotes.filter(
+    // ERC20 fees → must be approved before transferRemote.
+    const erc20Quotes = feeQuotes.filter(
       (q) => !isZeroishAddress(q.addressOrDenom),
     );
     const erc20Denoms = new Set(
@@ -506,10 +512,7 @@ export class EvmHypSyntheticAdapter
       erc20Denoms.size <= 1,
       `Unexpected multi-token ERC20 fee quotes: ${[...erc20Denoms].join(', ')}`,
     );
-    const tokenFeeAmount = allQuotes.reduce((sum, q, i) => {
-      if (isZeroishAddress(q.addressOrDenom)) return sum;
-      return sum + q.amount - (i === 1 ? amount : 0n);
-    }, 0n);
+    const tokenFeeAmount = erc20Quotes.reduce((sum, q) => sum + q.amount, 0n);
     const tokenFeeQuote: Quote | undefined =
       tokenFeeAmount > 0n
         ? {
