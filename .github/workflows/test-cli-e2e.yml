@@ -49,7 +49,6 @@ jobs:
           - warp-apply-predicate-updates
           - warp-check-1
           - warp-send
-          - xerc20 # TEMP verify: prove ownership-gate fix green; revert before merge
     steps:
       - uses: actions/checkout@v6
         with:
