@@ -7,8 +7,9 @@
  * Output columns:
  *   origin → dest  target  bps  source  expires
  *
- *   target  – DEFAULT (standard transfer) or symbol of the specific
- *             destination token router (cross-collateral path)
+ *   path    – "standard" = DEFAULT slot, used for generic transfers
+ *             "targeted" = per-router slot, OVERRIDES DEFAULT for that token
+ *   target  – DEFAULT or symbol of the destination token router
  *   bps     – effective fee rate: standing quote if active, else fallback
  *   source  – "standing" | "fallback"
  *   expires – expiry of the standing quote, or "—" for fallback
@@ -64,6 +65,9 @@ interface EffectiveQuote {
 interface Row {
   origin: string;
   destination: string;
+  // "standard" = DEFAULT CCR slot (generic transfers)
+  // "targeted" = per-router CCR slot (overrides DEFAULT for this specific token)
+  path: 'standard' | 'targeted';
   target: string; // DEFAULT or token symbol
   oqlf: string;
   quote: EffectiveQuote;
@@ -291,6 +295,7 @@ async function main(): Promise<void> {
                 return {
                   origin,
                   destination,
+                  path: label === 'DEFAULT' ? 'standard' : 'targeted',
                   target: label,
                   oqlf: oqlfAddress,
                   quote,
@@ -316,6 +321,7 @@ async function main(): Promise<void> {
     const W = {
       origin: Math.max(6, ...rows.map((r) => r.origin.length)),
       dest: Math.max(4, ...rows.map((r) => r.destination.length)),
+      path: 8, // "standard" | "targeted"
       target: Math.max(6, ...rows.map((r) => r.target.length)),
       bps: 6,
       source: 8,
@@ -325,13 +331,15 @@ async function main(): Promise<void> {
       '   ' +
       pad('dest', W.dest) +
       '   ' +
+      pad('path', W.path) +
+      '   ' +
       pad('target', W.target) +
       '   ' +
       pad('bps', W.bps) +
       '   ' +
       pad('source', W.source) +
       '   expires';
-    const divider = [W.origin, W.dest, W.target, W.bps, W.source, 30]
+    const divider = [W.origin, W.dest, W.path, W.target, W.bps, W.source, 30]
       .map((w) => '─'.repeat(w))
       .join('   ');
 
@@ -340,10 +348,14 @@ async function main(): Promise<void> {
 
     for (const r of rows) {
       const bpsDisplay = pad(r.quote.bps + ' bps', W.bps + 4);
+      // "targeted" rows override DEFAULT: mark them so the active fee is obvious.
+      const pathDisplay = r.path === 'targeted' ? '► ' + r.path : '  ' + r.path;
       console.log(
         pad(r.origin, W.origin) +
           ' → ' +
           pad(r.destination, W.dest) +
+          '   ' +
+          pad(pathDisplay, W.path + 2) +
           '   ' +
           pad(r.target, W.target) +
           '   ' +
@@ -354,6 +366,9 @@ async function main(): Promise<void> {
           formatExpiry(r.quote.expiry),
       );
     }
+    console.log(
+      '\n  ► targeted = per-router OQLF; overrides DEFAULT when user targets that token',
+    );
   }
 
   console.log('\nDone.');
