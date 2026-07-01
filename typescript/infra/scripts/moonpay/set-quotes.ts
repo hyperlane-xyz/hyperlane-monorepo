@@ -113,6 +113,12 @@ async function main(): Promise<void> {
     ttl,
     signerKey: signerKeyArg,
     submitterKey: submitterKeyArg,
+    origins: originsArg,
+    sourceTokens: sourceTokensArg,
+    destinations: destinationsArg,
+    targets: targetsArg,
+    bps: bpsArg,
+    yes: autoConfirm,
   } = await yargs(process.argv.slice(2))
     .option('registry', {
       alias: 'r',
@@ -121,8 +127,9 @@ async function main(): Promise<void> {
     })
     .option('ttl', {
       type: 'number',
-      default: DEFAULT_TTL,
-      describe: 'Standing quote TTL in seconds (default 24 h)',
+      describe:
+        'Standing quote TTL in seconds. Skips the TTL prompt when provided. ' +
+        'Accepts raw seconds; use --ttl=86400 for 24h.',
     })
     .option('signer-key', {
       alias: 's',
@@ -138,6 +145,42 @@ async function main(): Promise<void> {
         'Private key (0x…) of the gas-paying submitter account. ' +
         'Defaults to PRIVATE_KEY env var. ' +
         'The quote signer signs; this account pays gas.',
+    })
+    .option('origins', {
+      alias: 'o',
+      type: 'string',
+      describe:
+        'Comma-separated origin chain names, or "all". Skips the origin prompt.',
+    })
+    .option('source-tokens', {
+      type: 'string',
+      describe:
+        'Comma-separated source token groups (e.g. "USDC,USDT"), or "all". ' +
+        'Skips the source token prompt.',
+    })
+    .option('destinations', {
+      alias: 'd',
+      type: 'string',
+      describe:
+        'Comma-separated destination chain names, or "all". Skips the destination prompt.',
+    })
+    .option('targets', {
+      alias: 't',
+      type: 'string',
+      describe:
+        'Comma-separated target groups (e.g. "DEFAULT,USDC"), or "all". ' +
+        'Skips the target prompt.',
+    })
+    .option('bps', {
+      type: 'number',
+      describe:
+        'Fee in bps to apply to all selected slots. Skips per-slot prompts.',
+    })
+    .option('yes', {
+      alias: 'y',
+      type: 'boolean',
+      default: false,
+      describe: 'Skip the confirmation prompt.',
     })
     .parseAsync();
 
@@ -157,19 +200,22 @@ async function main(): Promise<void> {
     console.log(`Signer:    ${secret.address}`);
   }
 
-  // Submitter key: pays gas for submitQuote(). Anyone may submit since submitter=address(0).
-  const submitterKeyRaw = submitterKeyArg ?? process.env.PRIVATE_KEY;
+  // Submitter key: pays gas for submitQuote(). Defaults to GCP mainnet3 deployer key.
+  let submitterKeyRaw = submitterKeyArg ?? process.env.PRIVATE_KEY;
   if (!submitterKeyRaw) {
-    console.error(
-      'Error: provide a gas-paying key via --submitter-key or PRIVATE_KEY env var.',
-    );
-    process.exit(1);
+    const deployerSecret = (await fetchGCPSecret(
+      'hyperlane-mainnet3-key-deployer',
+    )) as { privateKey: string; address: string };
+    submitterKeyRaw = deployerSecret.privateKey;
+    console.log(`Submitter: ${deployerSecret.address} (mainnet3 deployer)`);
   }
   const submitterKey = submitterKeyRaw.startsWith('0x')
     ? submitterKeyRaw
     : `0x${submitterKeyRaw}`;
   const submitterWallet = new Wallet(submitterKey);
-  console.log(`Submitter: ${submitterWallet.address}`);
+  if (submitterKeyArg || process.env.PRIVATE_KEY) {
+    console.log(`Submitter: ${submitterWallet.address}`);
+  }
 
   // HTTP registry overlays private RPC URLs; filesystem registry handles warp configs.
   const rpcRegistry = registryUri
@@ -359,7 +405,7 @@ async function main(): Promise<void> {
   console.log(`Found ${allSlots.length} OQLF slots.\n`);
 
   // ── Verify signer authorization ────────────────────────────────────────────
-  const signerAddress = secret.address;
+  const signerAddress = new Wallet(signerKey).address;
   const sampleSlot = allSlots[0];
   if (sampleSlot) {
     const provider = multiProvider.getProvider(sampleSlot.origin);
@@ -383,7 +429,7 @@ async function main(): Promise<void> {
     console.log(`Signer ${signerAddress} is authorized. Proceeding.\n`);
   }
 
-  // ── Interactive selection ──────────────────────────────────────────────────
+  // ── Selection helpers ──────────────────────────────────────────────────────
 
   const parseTtl = (v: string): number | null => {
     const t = v.trim().toLowerCase();
@@ -394,42 +440,76 @@ async function main(): Promise<void> {
     return m[2] === 'd' ? n * 86_400 : n * 3600;
   };
 
-  const defaultTtlStr =
-    ttl % 86_400 === 0 ? `${ttl / 86_400}d` : `${ttl / 3600}h`;
-  const ttlRaw = await input({
-    message: 'Standing quote TTL (e.g. 24h or 2d)',
-    default: defaultTtlStr,
-    validate: (v) => parseTtl(v) !== null || 'Enter a duration like 24h or 2d.',
-  });
-  const effectiveTtl = parseTtl(ttlRaw)!;
+  // Resolve a comma-separated flag value ("all" = every available item).
+  // Returns null when the flag was not provided → caller should prompt.
+  const resolveFlag = (
+    flag: string | undefined,
+    available: string[],
+  ): string[] | null => {
+    if (flag === undefined) return null;
+    if (flag.toLowerCase() === 'all') return [...available];
+    return flag
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  // ── TTL ───────────────────────────────────────────────────────────────────
+
+  let effectiveTtl: number;
+  if (ttl !== undefined) {
+    effectiveTtl = ttl;
+    const h = (effectiveTtl / 3600).toFixed(1);
+    console.log(`TTL: ${h} h`);
+  } else {
+    const defaultTtlStr =
+      DEFAULT_TTL % 86_400 === 0
+        ? `${DEFAULT_TTL / 86_400}d`
+        : `${DEFAULT_TTL / 3600}h`;
+    const ttlRaw = await input({
+      message: 'Standing quote TTL (e.g. 24h or 2d)',
+      default: defaultTtlStr,
+      validate: (v) =>
+        parseTtl(v) !== null || 'Enter a duration like 24h or 2d.',
+    });
+    effectiveTtl = parseTtl(ttlRaw)!;
+  }
+
+  // ── Filter selections ─────────────────────────────────────────────────────
 
   const availableOrigins = [...new Set(allSlots.map((s) => s.origin))].sort();
-  const selectedChains = await checkbox({
-    message: 'Select origin chains',
-    choices: availableOrigins.map((c) => ({ value: c })),
-    pageSize: 20,
-    required: true,
-  });
+  const selectedChains =
+    resolveFlag(originsArg, availableOrigins) ??
+    (await checkbox({
+      message: 'Select origin chains',
+      choices: availableOrigins.map((c) => ({ value: c })),
+      pageSize: 20,
+      required: true,
+    }));
 
   const availableSourceTokens = [
     ...new Set(allSlots.map((s) => s.sourceToken)),
   ].sort();
-  const selectedSourceTokens = await checkbox({
-    message: 'Select source token groups',
-    choices: availableSourceTokens.map((t) => ({ value: t })),
-    pageSize: 20,
-    required: true,
-  });
+  const selectedSourceTokens =
+    resolveFlag(sourceTokensArg, availableSourceTokens) ??
+    (await checkbox({
+      message: 'Select source token groups',
+      choices: availableSourceTokens.map((t) => ({ value: t })),
+      pageSize: 20,
+      required: true,
+    }));
 
   const availableDestinations = [
     ...new Set(allSlots.map((s) => s.destination)),
   ].sort();
-  const selectedDestinations = await checkbox({
-    message: 'Select destination chains',
-    choices: availableDestinations.map((c) => ({ value: c })),
-    pageSize: 20,
-    required: true,
-  });
+  const selectedDestinations =
+    resolveFlag(destinationsArg, availableDestinations) ??
+    (await checkbox({
+      message: 'Select destination chains',
+      choices: availableDestinations.map((c) => ({ value: c })),
+      pageSize: 20,
+      required: true,
+    }));
 
   const availableTargets = [...new Set(allSlots.map((s) => s.target))].sort(
     (a, b) => {
@@ -438,12 +518,14 @@ async function main(): Promise<void> {
       return a.localeCompare(b);
     },
   );
-  const selectedTargets = await checkbox({
-    message: 'Select target token groups',
-    choices: availableTargets.map((t) => ({ value: t })),
-    pageSize: 20,
-    required: true,
-  });
+  const selectedTargets =
+    resolveFlag(targetsArg, availableTargets) ??
+    (await checkbox({
+      message: 'Select target token groups',
+      choices: availableTargets.map((t) => ({ value: t })),
+      pageSize: 20,
+      required: true,
+    }));
 
   const filteredSlots = allSlots.filter(
     (s) =>
@@ -453,12 +535,12 @@ async function main(): Promise<void> {
       selectedTargets.includes(s.target),
   );
 
-  console.log(
-    `\n${filteredSlots.length} combination(s) to review.\n` +
-      'For each: enter bps, ↵ skip, "d" for on-chain default.\n',
-  );
+  if (filteredSlots.length === 0) {
+    console.log('\nNo slots match the selected filters.');
+    return;
+  }
 
-  // ── Per-slot prompts ───────────────────────────────────────────────────────
+  // ── Build submission queue ─────────────────────────────────────────────────
 
   const toSubmit: Array<{
     slot: OqlfSlot;
@@ -467,51 +549,89 @@ async function main(): Promise<void> {
     newBpsStr: string;
   }> = [];
 
-  for (const slot of filteredSlots) {
-    const fallbackBpsStr = fmtBps(slot.onchainMaxFee, slot.onchainHalfAmount);
-    const effectiveLine =
-      slot.currentSource === 'standing'
-        ? `  effective : ${slot.currentBpsStr} bps (standing quote — overrides fallback)`
-        : `  effective : ${slot.currentBpsStr} bps (no standing quote, using fallback)`;
+  if (bpsArg !== undefined) {
+    // Non-interactive: apply the same bps to all filtered slots.
+    const { maxFee, halfAmount } = bpsToParams(bpsArg);
+    const newBpsStr = fmtBps(maxFee, halfAmount);
+    const W = {
+      origin: Math.max(6, ...filteredSlots.map((s) => s.origin.length)),
+      src: Math.max(3, ...filteredSlots.map((s) => s.sourceToken.length)),
+      dest: Math.max(4, ...filteredSlots.map((s) => s.destination.length)),
+      target: Math.max(6, ...filteredSlots.map((s) => s.target.length)),
+      cur: Math.max(7, ...filteredSlots.map((s) => s.currentBpsStr.length)),
+    };
+    const pad = (s: string, n: number) =>
+      s.length >= n ? s : s + ' '.repeat(n - s.length);
     console.log(
-      `\n${slot.origin} (${slot.sourceToken}) → ${slot.destination}  /  ${slot.target}\n` +
-        effectiveLine +
-        `\n  fallback  : ${fallbackBpsStr} bps`,
+      `\n${filteredSlots.length} slot(s) → ${newBpsStr} bps (TTL ${(effectiveTtl / 3600).toFixed(1)} h):\n`,
     );
-
-    const raw = await input({
-      message: 'new bps [↵=skip, d=reset to fallback]',
-      default: '',
-      validate: (v) => {
-        const t = v.trim();
-        if (t === '' || t === 'd') return true;
-        const n = parseFloat(t);
-        if (Number.isFinite(n) && n > 0) return true;
-        return 'Enter a positive number, ↵ to skip, or "d" for on-chain default.';
-      },
-    });
-
-    const trimmed = raw.trim();
-    if (trimmed === '') {
-      console.log('  → skipped.');
-      continue;
+    console.log(
+      `${pad('origin', W.origin)}   ${pad('src', W.src)} → ${pad('dest', W.dest)}   ${pad('target', W.target)}   ${pad('current', W.cur)}   new`,
+    );
+    console.log(
+      [W.origin, W.src, W.dest, W.target, W.cur, 8]
+        .map((w) => '─'.repeat(w))
+        .join('   '),
+    );
+    for (const slot of filteredSlots) {
+      console.log(
+        `${pad(slot.origin, W.origin)}   ${pad(slot.sourceToken, W.src)} → ${pad(slot.destination, W.dest)}   ${pad(slot.target, W.target)}   ${pad(slot.currentBpsStr, W.cur)}   ${newBpsStr}`,
+      );
+      toSubmit.push({ slot, maxFee, halfAmount, newBpsStr });
     }
+    console.log();
+  } else {
+    // Interactive: prompt bps per slot.
+    console.log(
+      `\n${filteredSlots.length} combination(s) to review.\n` +
+        'For each: enter bps, ↵ skip, "d" for on-chain default.\n',
+    );
+    for (const slot of filteredSlots) {
+      const fallbackBpsStr = fmtBps(slot.onchainMaxFee, slot.onchainHalfAmount);
+      const effectiveLine =
+        slot.currentSource === 'standing'
+          ? `  effective : ${slot.currentBpsStr} bps (standing quote — overrides fallback)`
+          : `  effective : ${slot.currentBpsStr} bps (no standing quote, using fallback)`;
+      console.log(
+        `\n${slot.origin} (${slot.sourceToken}) → ${slot.destination}  /  ${slot.target}\n` +
+          effectiveLine +
+          `\n  fallback  : ${fallbackBpsStr} bps`,
+      );
 
-    let maxFee: bigint;
-    let halfAmount: bigint;
-    let newBpsStr: string;
+      const raw = await input({
+        message: 'new bps [↵=skip, d=reset to fallback]',
+        default: '',
+        validate: (v) => {
+          const t = v.trim();
+          if (t === '' || t === 'd') return true;
+          const n = parseFloat(t);
+          if (Number.isFinite(n) && n > 0) return true;
+          return 'Enter a positive number, ↵ to skip, or "d" for on-chain default.';
+        },
+      });
 
-    if (trimmed === 'd') {
-      maxFee = slot.onchainMaxFee;
-      halfAmount = slot.onchainHalfAmount;
-      newBpsStr = fallbackBpsStr;
-    } else {
-      ({ maxFee, halfAmount } = bpsToParams(parseFloat(trimmed)));
-      newBpsStr = fmtBps(maxFee, halfAmount);
+      const trimmed = raw.trim();
+      if (trimmed === '') {
+        console.log('  → skipped.');
+        continue;
+      }
+
+      let maxFee: bigint;
+      let halfAmount: bigint;
+      let newBpsStr: string;
+
+      if (trimmed === 'd') {
+        maxFee = slot.onchainMaxFee;
+        halfAmount = slot.onchainHalfAmount;
+        newBpsStr = fallbackBpsStr;
+      } else {
+        ({ maxFee, halfAmount } = bpsToParams(parseFloat(trimmed)));
+        newBpsStr = fmtBps(maxFee, halfAmount);
+      }
+
+      console.log(`  → queued: ${newBpsStr} bps`);
+      toSubmit.push({ slot, maxFee, halfAmount, newBpsStr });
     }
-
-    console.log(`  → queued: ${newBpsStr} bps`);
-    toSubmit.push({ slot, maxFee, halfAmount, newBpsStr });
   }
 
   if (toSubmit.length === 0) {
@@ -521,20 +641,21 @@ async function main(): Promise<void> {
 
   // ── Confirm ────────────────────────────────────────────────────────────────
 
-  const ttlHours = (effectiveTtl / 3600).toFixed(1);
-  console.log(`\n${'═'.repeat(60)}`);
-  console.log(`${toSubmit.length} quote(s) to submit (TTL ${ttlHours} h):`);
-  for (const { slot, newBpsStr } of toSubmit) {
-    console.log(
-      `  ${slot.origin} (${slot.sourceToken}) → ${slot.destination}  /  ${slot.target}  →  ${newBpsStr} bps`,
-    );
-  }
-  console.log('═'.repeat(60));
-
-  const confirmed = await confirm({ message: 'Submit?', default: false });
-  if (!confirmed) {
-    console.log('Aborted.');
-    return;
+  if (!autoConfirm) {
+    const ttlHours = (effectiveTtl / 3600).toFixed(1);
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`${toSubmit.length} quote(s) to submit (TTL ${ttlHours} h):`);
+    for (const { slot, newBpsStr } of toSubmit) {
+      console.log(
+        `  ${slot.origin} (${slot.sourceToken}) → ${slot.destination}  /  ${slot.target}  →  ${newBpsStr} bps`,
+      );
+    }
+    console.log('═'.repeat(60));
+    const confirmed = await confirm({ message: 'Submit?', default: false });
+    if (!confirmed) {
+      console.log('Aborted.');
+      return;
+    }
   }
 
   // ── Sign and submit ────────────────────────────────────────────────────────
