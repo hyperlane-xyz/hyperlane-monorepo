@@ -141,6 +141,12 @@ independent of the outer composite ISM's account space.
   To freeze a specific domain route, call `SetDomainIsm` with
   `Test { accept: false }` for that domain.
 
+  Additionally, `set_paused` does **not** affect the external `fallback_ism`
+  program referenced by a `FallbackRouting` node. The fallback ISM is an
+  independent program with its own state; pausing this composite ISM does not
+  pause it. To pause the fallback path, call the pause instruction on the
+  fallback ISM program directly.
+
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
   marks the relevant PDA writable. Callers must pass that account as writable in
