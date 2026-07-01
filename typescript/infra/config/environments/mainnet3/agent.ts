@@ -136,7 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // temporarily disabled
     mitosis: true,
     mocachain: true,
     mode: true,
@@ -268,7 +268,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // temporarily disabled
     mitosis: true,
     mocachain: true,
     mode: true,
@@ -400,7 +400,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // temporarily disabled
     mitosis: true,
     mocachain: true,
     mode: true,
