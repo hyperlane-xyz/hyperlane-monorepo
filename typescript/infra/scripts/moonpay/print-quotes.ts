@@ -48,10 +48,7 @@ const WILDCARD_RECIPIENT = '0x' + 'ff'.repeat(32); // bytes32 max
 const DEFAULT_ROUTER_KEY =
   '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
 
-const ROUTE_IDS = [
-  WarpRouteIds.USDCCitreaMoonpay,
-  WarpRouteIds.USDTCitreaMoonpay,
-];
+const ROUTE_IDS = [WarpRouteIds.CROSSCitreaMoonpay];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -164,34 +161,33 @@ async function main(): Promise<void> {
   const multiProvider = new MultiProvider(chainMetadata);
   const now = Math.floor(Date.now() / 1000);
 
-  // Build address→label map for all token routers across both routes,
+  // Build address→label map for all token routers across all routes,
   // so per-router CCR keys can be labelled as e.g. "USDT" instead of "0x1234".
-  const addrToLabel = new Map<string, string>(); // lowercase addr → label
+  // EVM addresses are lowercased; non-EVM (e.g. Solana base58) are kept as-is.
+  const addrToLabel = new Map<string, string>(); // normalized addr → label
   for (const routeId of ROUTE_IDS) {
     const warpConfig = getWarpCoreConfig(routeId);
     for (const t of warpConfig.tokens) {
-      if (t.addressOrDenom && /^0x[0-9a-f]{40}$/i.test(t.addressOrDenom)) {
-        addrToLabel.set(
-          t.addressOrDenom.toLowerCase(),
-          t.symbol ?? t.chainName,
-        );
+      if (t.addressOrDenom) {
+        const key = t.addressOrDenom.startsWith('0x')
+          ? t.addressOrDenom.toLowerCase()
+          : t.addressOrDenom;
+        addrToLabel.set(key, t.symbol ?? t.chainName);
       }
     }
   }
 
-  // Collect all EVM router addresses per chain (both routes combined).
+  // Collect all router addresses per chain (both EVM and non-EVM, all routes combined).
   const routersByChain = new Map<string, string[]>(); // chain → [addr]
   for (const routeId of ROUTE_IDS) {
     const warpConfig = getWarpCoreConfig(routeId);
     for (const t of warpConfig.tokens) {
-      if (
-        t.addressOrDenom &&
-        t.chainName &&
-        /^0x[0-9a-f]{40}$/i.test(t.addressOrDenom)
-      ) {
+      if (t.addressOrDenom && t.chainName) {
+        const normalizedAddr = t.addressOrDenom.startsWith('0x')
+          ? t.addressOrDenom.toLowerCase()
+          : t.addressOrDenom;
         const list = routersByChain.get(t.chainName) ?? [];
-        if (!list.includes(t.addressOrDenom.toLowerCase()))
-          list.push(t.addressOrDenom.toLowerCase());
+        if (!list.includes(normalizedAddr)) list.push(normalizedAddr);
         routersByChain.set(t.chainName, list);
       }
     }
@@ -264,11 +260,11 @@ async function main(): Promise<void> {
               return [];
             }
 
-            // Build targetRouter keys: DEFAULT + per-token EVM routers on dest chain.
-            const destEVMRouters = routersByChain.get(destination) ?? [];
+            // Build targetRouter keys: DEFAULT + all routers on dest chain (EVM and non-EVM).
+            const destRouters = routersByChain.get(destination) ?? [];
             const targetKeys: Array<{ key: string; label: string }> = [
               { key: DEFAULT_ROUTER_KEY, label: 'DEFAULT' },
-              ...destEVMRouters.map((addr) => ({
+              ...destRouters.map((addr) => ({
                 key: addressToBytes32(addr),
                 label: addrToLabel.get(addr) ?? addr.slice(0, 10),
               })),
@@ -374,7 +370,9 @@ async function main(): Promise<void> {
   console.log('\nDone.');
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
