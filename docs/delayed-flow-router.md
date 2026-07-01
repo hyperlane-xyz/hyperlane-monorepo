@@ -62,24 +62,6 @@ sequenceDiagram
   end
 ```
 
-## Composing with `PausableIsm`
-
-`StaticAggregationIsm.verify` calls each module's `verify` in array order and
-requires `threshold` of them to succeed. When `threshold == modules.length`
-(the "all must pass" mode used here), the first revert aborts the whole
-aggregation with that module's revert reason.
-
-Putting `PausableIsm` **first** means a paused state surfaces as
-`Pausable: paused` immediately, instead of the delay ISM running first and
-surfacing `MessageNotReadyUntil(readyAt)` even though the watcher's intent
-was the kill switch. UX-only — the _security_ outcome (verification fails)
-is the same either way.
-
-```solidity
-modules    = [pausable, delayedFlowRouter]
-threshold  = 2 // both required (all-must-pass)
-```
-
 ## Sender / recipient binding
 
 - `postDispatch` requires `message.sender == warpRouter` — prevents a third

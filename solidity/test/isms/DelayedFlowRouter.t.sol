@@ -289,7 +289,9 @@ contract DelayedFlowRouterTest is Test {
     // ============ Sender / recipient binding ============
 
     function test_postDispatch_revertsForWrongSender() public {
-        // Craft a message whose sender is NOT the paired warp router.
+        // Craft a message whose sender is NOT the paired warp router. Make it
+        // the latest dispatched so `postDispatch`'s `_isLatestDispatched`
+        // guard passes and execution reaches the sender check.
         bytes memory message = _makeMessage(
             ORIGIN_DOMAIN,
             makeAddr("imposter"),
@@ -297,6 +299,7 @@ contract DelayedFlowRouterTest is Test {
             address(collateralRouter),
             1 ether
         );
+        _mockLatestDispatched(message);
         vm.expectRevert(
             abi.encodeWithSelector(
                 DelayedFlowRouter.WrongSender.selector,
@@ -358,7 +361,8 @@ contract DelayedFlowRouterTest is Test {
         assertGt(originDelay.lastCreditedNonce(), 0);
 
         // `_makeMessage` builds a nonce-0 message from the paired warp router,
-        // which clears the sender check but trips the replay guard.
+        // which clears the sender check but trips the replay guard. Make it
+        // the latest dispatched so `postDispatch` reaches that guard.
         bytes memory message = _makeMessage(
             ORIGIN_DOMAIN,
             address(syntheticRouter),
@@ -366,6 +370,7 @@ contract DelayedFlowRouterTest is Test {
             address(collateralRouter),
             1 ether
         );
+        _mockLatestDispatched(message);
         vm.expectRevert(
             abi.encodeWithSelector(
                 DelayedFlowRouter.AlreadyCredited.selector,
@@ -609,6 +614,17 @@ contract DelayedFlowRouterTest is Test {
                 recipient.addressToBytes32(),
                 body
             );
+    }
+
+    /// @dev Force the origin mailbox to report `message` as the latest
+    /// dispatched id, so `postDispatch`'s `_isLatestDispatched` guard passes
+    /// and execution reaches the subclass sender / replay checks.
+    function _mockLatestDispatched(bytes memory message) internal {
+        vm.mockCall(
+            address(originMailbox),
+            abi.encodeWithSignature("latestDispatchedId()"),
+            abi.encode(keccak256(message))
+        );
     }
 
     receive() external payable {}

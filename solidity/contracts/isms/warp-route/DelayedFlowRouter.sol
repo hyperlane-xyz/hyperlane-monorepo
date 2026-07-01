@@ -41,14 +41,13 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  *   - `token() == warpRouter`   → synthetic totalSupply (HypERC20)
  *   - otherwise                  → underlying ERC20 balance (HypERC20Collateral)
  *
- * The capacity base is read live at call time, so direct deposits / donations
- * to `warpRouter` (or `selfdestruct` for HypNative) inflate it. This is by
- * design — donating to grow the cap also funds the pool that the cap is
- * gating, so the attacker pays for any drain-headroom they unlock.
+ * The capacity base is read live at call time, so direct transfers to
+ * `warpRouter` (or `selfdestruct` for HypNative) inflate it. This is by
+ * design — growing the balance to raise the cap also funds the pool that the
+ * cap is gating, so the attacker pays for any drain-headroom they unlock.
  *
  * Compose with `PausableIsm` via `StaticAggregationIsm` so watchers can kill
- * delivery during the delay window. See `docs/delayed-flow-router.md` for
- * the recommended composition order.
+ * delivery during the delay window.
  */
 contract DelayedFlowRouter is TimelockRouter, RateLimited {
     using Message for bytes;
@@ -159,71 +158,53 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
 
     // ============ TimelockRouter overrides ============
 
-    /// @dev One-shot replay guard, bucket credit, then a single call into
-    /// the parent's leaf dispatch helper. Payload carries `(id, amount)` so
-    /// the destination can size the delay against its current bucket.
-    /// Sender binding prevents an attacker from dispatching an arbitrary
-    /// message through the Mailbox and triggering a credit + preverify
-    /// against our paired pool's bucket.
-    function postDispatch(
-        bytes calldata /*metadata*/,
+    /// @dev Origin-side side effects for `postDispatch`. Sender binding
+    /// prevents an attacker from dispatching an arbitrary message through the
+    /// Mailbox and triggering a credit + preverify against our paired pool's
+    /// bucket; the nonce guard is a one-shot replay guard for the credit.
+    function _TimelockRouter_onDispatch(
         bytes calldata message
-    ) external payable override {
+    ) internal override {
         if (message.senderAddress() != warpRouter) {
             revert WrongSender(message.senderAddress());
         }
+
         uint32 messageNonce = message.nonce();
         if (messageNonce <= lastCreditedNonce) {
             revert AlreadyCredited(messageNonce);
         }
         lastCreditedNonce = messageNonce;
 
-        // `TokenMessage` slices `body[32:64]` for `amount`. Safe here because
-        // the parent's `_TimelockRouter_assertLatestAndDispatch` (below)
-        // enforces `_isLatestDispatched`, which only passes for messages
-        // currently being dispatched through the Mailbox by `warpRouter` —
-        // and `warpRouter` only formats valid token messages.
+        // `TokenMessage` slices `body[32:64]` for `amount`. Safe here: the
+        // parent asserted `_isLatestDispatched` before invoking this hook, and
+        // the sender binding above only passes for messages formatted by
+        // `warpRouter`, which only ever formats valid token messages.
         uint256 amount = message.body().amount();
         _credit(amount);
-
-        bytes32 id = message.id();
-        emit NetFlowCredited(id, messageNonce, amount);
-
-        _TimelockRouter_assertLatestAndDispatch(
-            id,
-            message.destination(),
-            abi.encode(id, amount)
-        );
+        emit NetFlowCredited(message.id(), messageNonce, amount);
     }
 
-    /// @dev Matches the `(id, amount)` payload shape that `postDispatch`
-    /// actually dispatches. The fee under the default `IGP` doesn't scale
-    /// with payload length, but keeping the quote consistent with the real
-    /// dispatch payload future-proofs the contract against fee-table changes.
-    function quoteDispatch(
-        bytes calldata /*metadata*/,
+    /// @dev Carries `(id, amount)` so the destination can size the delay
+    /// against its current bucket. Shared by `postDispatch` and
+    /// `quoteDispatch` via the parent, so the quote can never drift from the
+    /// dispatched payload.
+    function _encodePayload(
         bytes calldata message
-    ) external view override returns (uint256) {
-        bytes32 id = message.id();
-        uint256 amount = message.body().amount();
-        return
-            _Router_quoteDispatch(
-                message.destination(),
-                abi.encode(id, amount)
-            );
+    ) internal view override returns (bytes memory) {
+        return abi.encode(message.id(), message.body().amount());
     }
 
     /// @dev Recipient binding prevents verifying messages that aren't
     /// destined for our paired warp router (e.g. a third-party contract
     /// that configured us as its ISM).
-    function verify(
-        bytes calldata /*metadata*/,
+    function _TimelockRouter_verify(
         bytes calldata message
-    ) external view override returns (bool) {
+    ) internal view override returns (bool) {
         if (message.recipientAddress() != warpRouter) {
             revert WrongRecipient(message.recipientAddress());
         }
-        return _TimelockRouter_verify(message);
+
+        return super._TimelockRouter_verify(message);
     }
 
     /// @dev Consume the bucket, cap at `maxDelay`, then commit `readyAt`.

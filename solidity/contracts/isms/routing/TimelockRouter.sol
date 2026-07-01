@@ -28,13 +28,16 @@ import {Message} from "../../libs/Message.sol";
  * 2. Router: On destination chain, receives message IDs and stores readyAt time
  * 3. ISM: On destination chain, verifies messages after the timelock window
  *
- * @dev **Subclass contract**: subclasses customize behavior by overriding
- * `postDispatch` (and **must** route their cross-chain dispatch through
- * `_TimelockRouter_assertLatestAndDispatch`, which enforces the
- * `_isLatestDispatched` invariant) and `_handle` (computing a per-message
- * wait and calling `_TimelockRouter_commitReadyAt`). `verify` can be
- * extended via `_TimelockRouter_verify`. See `DelayedFlowRouter` for an
- * amount-sensitive extension.
+ * @dev **Subclass contract**: `postDispatch`, `quoteDispatch`, and `verify`
+ * enforce this contract's invariants (notably `_isLatestDispatched(id)`).
+ * Subclasses customize via the internal hooks:
+ * - `_encodePayload` — cross-chain payload, shared by `postDispatch` and
+ *   `quoteDispatch` so the quote tracks the dispatched payload
+ * - `_TimelockRouter_onDispatch` — origin-side side effects (sender binding,
+ *   replay guards, etc.)
+ * - `_handle` — compute a per-message wait and call `_TimelockRouter_commitReadyAt`
+ * - `_TimelockRouter_verify` — extend destination-side verification
+ * See `DelayedFlowRouter` for an amount-sensitive extension.
  */
 contract TimelockRouter is
     Router,
@@ -86,44 +89,50 @@ contract TimelockRouter is
 
     /**
      * @inheritdoc IPostDispatchHook
-     * @dev Subclasses override this to add domain-specific checks (sender
-     * binding, replay guards, etc.) but **must** route the cross-chain
-     * dispatch through `_TimelockRouter_assertLatestAndDispatch` so the
-     * `_isLatestDispatched(id)` invariant is enforced. Bypassing the helper
-     * is a footgun.
+     * @dev Enforces `_isLatestDispatched(id)` — so only a message currently
+     * being dispatched through the Mailbox reaches the cross-chain send —
+     * then runs subclass side effects via `_TimelockRouter_onDispatch` and
+     * forwards `_encodePayload(message)`.
      */
     function postDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
-    ) external payable virtual {
-        bytes32 id = message.id();
-        _TimelockRouter_assertLatestAndDispatch(
-            id,
+    ) external payable {
+        require(_isLatestDispatched(message.id()), "message not dispatching");
+        _TimelockRouter_onDispatch(message);
+        _Router_dispatch(
             message.destination(),
-            abi.encode(id)
+            msg.value,
+            _encodePayload(message)
         );
     }
 
-    /// @dev Asserts `_isLatestDispatched(id)` and forwards `payload`
-    /// cross-chain. Subclasses **must** invoke this from their `postDispatch`
-    /// override — calling `_Router_dispatch` directly skips the invariant.
-    function _TimelockRouter_assertLatestAndDispatch(
-        bytes32 id,
-        uint32 destination,
-        bytes memory payload
-    ) internal {
-        require(_isLatestDispatched(id), "message not dispatching");
-        _Router_dispatch(destination, msg.value, payload);
+    /// @dev Origin-side side-effect hook, invoked by `postDispatch` after it
+    /// enforces `_isLatestDispatched`. Default is a no-op; subclasses override
+    /// to add sender binding, replay guards, bucket credits, etc.
+    function _TimelockRouter_onDispatch(
+        bytes calldata /*message*/
+    ) internal virtual {}
+
+    /// @dev The cross-chain payload. Shared by `postDispatch` and
+    /// `quoteDispatch` so the quote can never drift from the dispatched
+    /// payload. Default carries just the message id; subclasses override to
+    /// carry additional data the destination needs.
+    function _encodePayload(
+        bytes calldata message
+    ) internal view virtual returns (bytes memory) {
+        return abi.encode(message.id());
     }
 
+    /// @inheritdoc IPostDispatchHook
     function quoteDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
-    ) external view virtual returns (uint256) {
+    ) external view returns (uint256) {
         return
             _Router_quoteDispatch(
                 message.destination(),
-                abi.encode(message.id())
+                _encodePayload(message)
             );
     }
 
@@ -164,15 +173,16 @@ contract TimelockRouter is
     }
 
     /// @inheritdoc IInterchainSecurityModule
+    /// @dev Subclasses extend verification via the `_TimelockRouter_verify` hook.
     function verify(
         bytes calldata /*metadata*/,
         bytes calldata message
-    ) external view virtual returns (bool) {
+    ) external view returns (bool) {
         return _TimelockRouter_verify(message);
     }
 
-    /// @dev Core `verify` logic. Subclasses can extend by overriding `verify`
-    /// and delegating here, or override this helper directly.
+    /// @dev Core `verify` logic. Subclasses extend by overriding this hook
+    /// (adding their own checks and delegating to `super`).
     function _TimelockRouter_verify(
         bytes calldata message
     ) internal view virtual returns (bool) {
