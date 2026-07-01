@@ -492,7 +492,7 @@ export class EvmHypSyntheticAdapter
     // (token()==address(0)) index 1 is denominated in address(0), so leaving the
     // bridged amount in would miscount it as a native fee and inflate the IGP quote.
     const feeQuotes = rawQuotes.map((q, i) => ({
-      addressOrDenom: q[0] as Address,
+      addressOrDenom: q[0],
       amount: BigInt(q[1].toString()) - (i === 1 ? amount : 0n),
     }));
 
