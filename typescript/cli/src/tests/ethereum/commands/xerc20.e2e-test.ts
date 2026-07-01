@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, utils } from 'ethers';
 import { $ } from 'zx';
 
 import {
@@ -287,7 +287,8 @@ describe('xerc20 e2e tests', function () {
 
   describe('ownership transfer', function () {
     it('transfers XERC20 token ownership when ownerOverrides.collateralToken differs', async function () {
-      const newOwner = Wallet.createRandom().address;
+      const newOwnerWallet = Wallet.createRandom().connect(xERC20VS2.provider);
+      const newOwner = newOwnerWallet.address;
 
       const configWithNewOwner: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -320,6 +321,17 @@ describe('xerc20 e2e tests', function () {
 
       const ownerAfter = await xERC20VS2.owner();
       expect(ownerAfter).to.equal(newOwner);
+
+      // xERC20VS2 is shared across tests; the owner-gated addBridge in every
+      // beforeEach deploy would revert if we left ownership with this throwaway
+      // wallet. Fund it for gas and hand ownership back to the deployer.
+      await xERC20VS2.signer
+        .sendTransaction({ to: newOwner, value: utils.parseEther('1') })
+        .then((tx) => tx.wait());
+      await xERC20VS2
+        .connect(newOwnerWallet)
+        .transferOwnership(ownerAddress)
+        .then((tx) => tx.wait());
     });
 
     it('reports no updates when token owner already matches config', async function () {
