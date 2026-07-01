@@ -52,6 +52,8 @@ const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 // Maximum entries in seen_reveal_commitments before evicting the oldest half.
 const SEEN_REVEAL_MAX: usize = 1_000;
+/// Expected byte length of a Universal Router COMMIT message body.
+const COMMIT_BODY_LEN: usize = 96;
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -642,7 +644,7 @@ impl Mailbox for SealevelMailbox {
 impl SealevelMailbox {
     fn maybe_spawn_reveal_for_message(&self, message: &HyperlaneMessage) {
         if let Some(ref cfg) = self.ur_reveal {
-            if message.body.len() != 96 {
+            if message.body.len() != COMMIT_BODY_LEN {
                 return;
             }
             // Gate on recipient == UR program before touching seen_reveal_commitments,
@@ -661,7 +663,7 @@ impl SealevelMailbox {
 
             let commitment: [u8; 32] = message.body[0..32]
                 .try_into()
-                .expect("body is exactly 96 bytes");
+                .expect("body is exactly COMMIT_BODY_LEN bytes");
             match self.seen_reveal_commitments.lock() {
                 Err(e) => {
                     tracing::warn!(error = ?e, "seen_reveal_commitments mutex poisoned; skipping reveal");
@@ -682,6 +684,8 @@ impl SealevelMailbox {
                                 // (until the 1000-entry eviction). A relayer restart will re-fire
                                 // it via the is_already_delivered → on_delivered path.
                                 set.insert(commitment);
+                                // Release the lock before spawning so on_delivered callbacks
+                                // can acquire the mutex immediately without blocking on the spawn.
                                 drop(set);
                                 maybe_spawn_reveal(
                                     message,

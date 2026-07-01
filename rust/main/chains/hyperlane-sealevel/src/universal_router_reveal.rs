@@ -518,13 +518,15 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
     let ccs = fetch_from_ccs(&ctx.http_client, ctx.ccs_url, &ctx.commitment).await?;
     let built = build_instruction(ctx, &ccs).await?;
 
-    let dummy = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
-        &[],
+    // Build a probe tx from the real instructions so the oracle can price based
+    // on the actual hot accounts (pool, vaults, tick arrays) rather than a global estimate.
+    let probe = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
+        &built,
         Some(&ctx.fee_payer.pubkey()),
     )));
     let priority_fee = ctx
         .priority_fee_oracle
-        .get_priority_fee(&dummy)
+        .get_priority_fee(&probe)
         .await
         .unwrap_or(0);
 
@@ -998,27 +1000,11 @@ async fn build_instruction(
                 return Ok(ixs);
             }
             Err(e) => {
-                warn!(
-                    pool = %pool_pubkey,
-                    error = ?e,
-                    "Could not fetch CLMM pool state; submitting with CCS accounts and new layout"
-                );
-                // Still replace CCS[3] with the 4 new fixed accounts using CCS-provided
-                // mint/token_program so the instruction has the correct layout.
-                let input_token_prog = accounts[12].pubkey;
-                let input_mint = accounts[15].pubkey;
-                let recipient_pubkey = Pubkey::new_from_array(recipient);
-                let recipient_input_ata =
-                    derive_ata(&recipient_pubkey, &input_mint, &input_token_prog);
-                accounts.splice(
-                    3..4,
-                    [
-                        AccountMeta::new(recipient_input_ata, false),
-                        AccountMeta::new_readonly(input_token_prog, false),
-                        AccountMeta::new_readonly(input_mint, false),
-                        AccountMeta::new_readonly(solana_system_interface::program::id(), false),
-                    ],
-                );
+                // Bail so the outer retry loop re-fetches pool state on the next attempt.
+                // Submitting with stale CCS accounts would produce a ConstraintAddress failure
+                // on-chain and, for SOL-output reveals, would silently omit the wSOL close
+                // instruction — burning fees without unwrapping the token.
+                bail!("Could not fetch live CLMM pool state: {e}");
             }
         }
     } else {

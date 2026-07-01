@@ -421,7 +421,12 @@ export class CallCommitmentsService extends BaseService {
   // ── /calldata endpoints ─────────────────────────────────────────────────────
 
   private static readonly RevealAccountSchema = z.object({
-    pubkey: z.string().min(32).max(44),
+    pubkey: z
+      .string()
+      .regex(
+        /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+        'pubkey must be a base58 Solana address',
+      ),
     isWritable: z.boolean(),
     isSigner: z.boolean(),
   });
@@ -443,7 +448,16 @@ export class CallCommitmentsService extends BaseService {
     salt: z
       .string()
       .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
-    relayers: z.array(z.string().regex(/^0x[0-9a-fA-F]{64}$/)).default([]),
+    relayers: z
+      .array(
+        z
+          .string()
+          .regex(
+            /^0x[0-9a-fA-F]{40}$/,
+            'relayer must be a 20-byte EVM address',
+          ),
+      )
+      .default([]),
     destinationAccount: z
       .string()
       .regex(
@@ -472,6 +486,17 @@ export class CallCommitmentsService extends BaseService {
       destinationAccount,
       revealAccounts,
     } = result.data;
+    // Verify commitment = keccak256(salt || data) before persisting.
+    // This prevents a client from poisoning a commitment slot with arbitrary data.
+    const expectedCommitment = utils.keccak256(
+      utils.concat([utils.arrayify(salt), utils.arrayify(data)]),
+    );
+    if (expectedCommitment.toLowerCase() !== commitment.toLowerCase()) {
+      return res
+        .status(400)
+        .json({ error: 'commitment does not match keccak256(salt || data)' });
+    }
+
     logger.info({ originDomain, commitment }, 'Storing calldata');
     try {
       await prisma.calldata.upsert({
