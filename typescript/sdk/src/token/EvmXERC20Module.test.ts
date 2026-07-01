@@ -247,6 +247,31 @@ describe('EvmXERC20Module', () => {
       expect(txs.length).to.be.greaterThan(0);
     });
 
+    it('does not emit ownership transfer txs by default', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: NEW_OWNER_ADDRESS,
+        proxyAdmin: { owner: NEW_OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves({
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      });
+
+      const txs = await module.update(config);
+
+      expect(
+        txs.every((tx) => !tx.annotation?.includes('Transferring ownership')),
+      ).to.equal(true);
+    });
+
     it('appends a token ownership transfer tx when expected owner differs', async () => {
       const config: XERC20ModuleConfig = {
         ...createStandardConfig(),
@@ -261,7 +286,7 @@ describe('EvmXERC20Module', () => {
       sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
       sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
 
-      const txs = await module.update(config);
+      const txs = await module.update(config, { includeOwnership: true });
 
       expect(txs).to.have.lengthOf(1);
       expect(txs[0].to).to.equal(XERC20_ADDRESS);
@@ -286,7 +311,7 @@ describe('EvmXERC20Module', () => {
         owner: OWNER_ADDRESS,
       });
 
-      const txs = await module.update(config);
+      const txs = await module.update(config, { includeOwnership: true });
 
       expect(txs).to.have.lengthOf(1);
       expect(txs[0].to).to.equal(PROXY_ADMIN_ADDRESS);
@@ -312,7 +337,7 @@ describe('EvmXERC20Module', () => {
         owner: OWNER_ADDRESS,
       });
 
-      const txs = await module.update(config);
+      const txs = await module.update(config, { includeOwnership: true });
 
       expect(txs).to.have.lengthOf(0);
     });
@@ -342,7 +367,7 @@ describe('EvmXERC20Module', () => {
       sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
       sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
 
-      const txs = await module.update(config);
+      const txs = await module.update(config, { includeOwnership: true });
 
       // Limit update tx(s) come first; the ownership transfer is last.
       const lastTx = txs[txs.length - 1];
