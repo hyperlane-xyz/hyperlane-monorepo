@@ -1,9 +1,15 @@
+import { ethers } from 'ethers';
 import { parseEventLogs } from 'viem';
 
 import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Address, normalizeAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  normalizeAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { isProxy, proxyAdmin } from '../deploy/proxy.js';
+import { proxyAdmin } from '../deploy/proxy.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
@@ -193,11 +199,11 @@ export class EvmXERC20Reader extends HyperlaneReader {
   async readProxyAdmin(
     xERC20Address: Address,
   ): Promise<{ address: Address; owner: Address } | undefined> {
-    if (!(await isProxy(this.provider, xERC20Address))) {
+    const proxyAdminAddress = await proxyAdmin(this.provider, xERC20Address);
+    if (eqAddress(proxyAdminAddress, ethers.constants.AddressZero)) {
       return undefined;
     }
 
-    const proxyAdminAddress = await proxyAdmin(this.provider, xERC20Address);
     const owner = await ProxyAdmin__factory.connect(
       proxyAdminAddress,
       this.provider,

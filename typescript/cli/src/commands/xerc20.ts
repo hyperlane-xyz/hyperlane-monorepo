@@ -8,7 +8,7 @@ import {
   EvmXERC20Module,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
-  type XERC20LimitsMap,
+  type XERC20ModuleConfig,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
@@ -159,15 +159,7 @@ const read: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
-    const allLimits: Record<
-      string,
-      {
-        type: string;
-        owner?: string;
-        proxyAdmin?: { address?: string; owner: string };
-        limits: XERC20LimitsMap;
-      }
-    > = {};
+    const allLimits: Record<string, XERC20ModuleConfig> = {};
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];

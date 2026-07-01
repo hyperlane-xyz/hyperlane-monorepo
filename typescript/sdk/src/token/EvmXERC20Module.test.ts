@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { IXERC20Lockbox__factory, Ownable__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -24,6 +25,21 @@ const XERC20_FROM_LOCKBOX = '0x7777777777777777777777777777777777777777';
 const OWNER_ADDRESS = '0x8888888888888888888888888888888888888888';
 const NEW_OWNER_ADDRESS = '0x9999999999999999999999999999999999999999';
 const PROXY_ADMIN_ADDRESS = '0xaaaaAAaaaaaAAAAaAaaaAaAaAAAaaAAaaaAAAAAa';
+
+const ownableInterface = Ownable__factory.createInterface();
+
+// Decode the transferOwnership(address) argument so tests assert the tx actually
+// hands ownership to the expected address, not just that the annotation says so.
+function decodeTransferOwnershipTarget(data: string | undefined): string {
+  if (data == null) {
+    expect.fail('ownership tx must carry calldata');
+  }
+  const [newOwner] = ownableInterface.decodeFunctionData(
+    'transferOwnership',
+    data,
+  );
+  return newOwner;
+}
 
 describe('EvmXERC20Module', () => {
   let multiProvider: MultiProvider;
@@ -291,7 +307,12 @@ describe('EvmXERC20Module', () => {
       expect(txs).to.have.lengthOf(1);
       expect(txs[0].to).to.equal(XERC20_ADDRESS);
       expect(txs[0].annotation).to.include('Transferring ownership');
-      expect(txs[0].annotation).to.include(NEW_OWNER_ADDRESS);
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(txs[0].data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
     });
 
     it('appends a ProxyAdmin ownership transfer tx when expected proxyAdmin owner differs', async () => {
@@ -316,7 +337,12 @@ describe('EvmXERC20Module', () => {
       expect(txs).to.have.lengthOf(1);
       expect(txs[0].to).to.equal(PROXY_ADMIN_ADDRESS);
       expect(txs[0].annotation).to.include('Transferring ownership');
-      expect(txs[0].annotation).to.include(NEW_OWNER_ADDRESS);
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(txs[0].data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
     });
 
     it('no-ops ownership transfer when owners already match', async () => {

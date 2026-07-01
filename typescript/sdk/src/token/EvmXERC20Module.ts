@@ -17,7 +17,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName } from '../types.js';
+import { ChainName, OwnableConfig } from '../types.js';
 
 import {
   EvmXERC20Reader,
@@ -31,7 +31,7 @@ import {
   EvmXERC20VSAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
-import { XERC20Type } from './types.js';
+import { XERC20LimitsTokenConfig, XERC20Type } from './types.js';
 
 /**
  * Configuration for XERC20 limits management
@@ -110,10 +110,10 @@ export class EvmXERC20Module extends HyperlaneModule<
       type,
     );
 
-    const owner = await this.reader.readOwner(this.args.addresses.xERC20);
-    const proxyAdmin = await this.reader.readProxyAdmin(
-      this.args.addresses.xERC20,
-    );
+    const [owner, proxyAdmin] = await Promise.all([
+      this.reader.readOwner(this.args.addresses.xERC20),
+      this.reader.readProxyAdmin(this.args.addresses.xERC20),
+    ]);
 
     return { type, limits, owner, proxyAdmin };
   }
@@ -409,31 +409,7 @@ export class EvmXERC20Module extends HyperlaneModule<
   static async fromWarpRouteConfig(
     multiProvider: MultiProvider,
     chain: ChainName,
-    warpRouteConfig: {
-      type: string;
-      token: Address;
-      owner?: Address;
-      ownerOverrides?: Record<string, Address>;
-      xERC20?: {
-        warpRouteLimits: {
-          type: XERC20Type;
-          mint?: string;
-          burn?: string;
-          bufferCap?: string;
-          rateLimitPerSecond?: string;
-        };
-        extraBridges?: Array<{
-          lockbox: Address;
-          limits: {
-            type: XERC20Type;
-            mint?: string;
-            burn?: string;
-            bufferCap?: string;
-            rateLimitPerSecond?: string;
-          };
-        }>;
-      };
-    },
+    warpRouteConfig: XERC20LimitsTokenConfig & Partial<OwnableConfig>,
     warpRouteAddress: Address,
   ): Promise<{ module: EvmXERC20Module; config: XERC20ModuleConfig }> {
     assert(
