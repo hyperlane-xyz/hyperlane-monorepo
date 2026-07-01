@@ -21,14 +21,12 @@ describe('EvmHypSyntheticAdapter.quoteTransferRemoteGas', () => {
   //   [0] gas payment, [1] transfer amount + internal fee, [2] external fee.
   function stubRawQuotes(quotes: Array<[string, bigint]>) {
     sandbox.stub(adapter, 'getContractPackageVersion').resolves('10.0.0');
-    const quoteFn = sandbox
-      .stub()
-      .resolves(
-        quotes.map(([token, amount]) => ({
-          0: token,
-          1: BigNumber.from(amount),
-        })),
-      );
+    const quoteFn = sandbox.stub().resolves(
+      quotes.map(([token, amount]) => ({
+        0: token,
+        1: BigNumber.from(amount),
+      })),
+    );
     // @ts-ignore inject a minimal contract stub for the unit test
     adapter.contract = {
       'quoteTransferRemote(uint32,bytes32,uint256)': quoteFn,
