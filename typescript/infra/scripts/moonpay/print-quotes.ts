@@ -61,11 +61,9 @@ interface EffectiveQuote {
 
 interface Row {
   origin: string;
+  sourceToken: string; // normalised group label: USDC / USDT / …
   destination: string;
-  // "standard" = DEFAULT CCR slot (generic transfers)
-  // "targeted" = per-router CCR slot (overrides DEFAULT for this specific token)
-  path: 'standard' | 'targeted';
-  target: string; // DEFAULT or token symbol
+  target: string; // DEFAULT or normalised group label of the destination token
   oqlf: string;
   quote: EffectiveQuote;
 }
@@ -161,8 +159,8 @@ async function main(): Promise<void> {
   const multiProvider = new MultiProvider(chainMetadata);
   const now = Math.floor(Date.now() / 1000);
 
-  // Build address→label map for all token routers across all routes,
-  // so per-router CCR keys can be labelled as e.g. "USDT" instead of "0x1234".
+  // Build address→label map for all token routers across all routes.
+  // usd-coin→"USDC", tether→"USDT", else symbol.
   // EVM addresses are lowercased; non-EVM (e.g. Solana base58) are kept as-is.
   const addrToLabel = new Map<string, string>(); // normalized addr → label
   for (const routeId of ROUTE_IDS) {
@@ -172,7 +170,13 @@ async function main(): Promise<void> {
         const key = t.addressOrDenom.startsWith('0x')
           ? t.addressOrDenom.toLowerCase()
           : t.addressOrDenom;
-        addrToLabel.set(key, t.symbol ?? t.chainName);
+        const label =
+          t.coinGeckoId === 'usd-coin'
+            ? 'USDC'
+            : t.coinGeckoId === 'tether'
+              ? 'USDT'
+              : (t.symbol ?? t.chainName);
+        addrToLabel.set(key, label);
       }
     }
   }
@@ -212,6 +216,9 @@ async function main(): Promise<void> {
         const { chainName: origin, addressOrDenom: routerAddress } =
           originToken;
         if (!routerAddress || !origin) return [];
+        const normalizedOriginAddr = routerAddress.toLowerCase();
+        const sourceToken =
+          addrToLabel.get(normalizedOriginAddr) ?? originToken.symbol ?? origin;
 
         const provider = multiProvider.getProvider(origin);
 
@@ -290,8 +297,8 @@ async function main(): Promise<void> {
                 );
                 return {
                   origin,
+                  sourceToken,
                   destination,
-                  path: label === 'DEFAULT' ? 'standard' : 'targeted',
                   target: label,
                   oqlf: oqlfAddress,
                   quote,
@@ -316,18 +323,18 @@ async function main(): Promise<void> {
 
     const W = {
       origin: Math.max(6, ...rows.map((r) => r.origin.length)),
+      src: Math.max(3, ...rows.map((r) => r.sourceToken.length)),
       dest: Math.max(4, ...rows.map((r) => r.destination.length)),
-      path: 8, // "standard" | "targeted"
       target: Math.max(6, ...rows.map((r) => r.target.length)),
-      bps: 6,
+      bps: Math.max(3, ...rows.map((r) => (r.quote.bps + ' bps').length)),
       source: 8,
     };
     const header =
       pad('origin', W.origin) +
       '   ' +
-      pad('dest', W.dest) +
+      pad('src', W.src) +
       '   ' +
-      pad('path', W.path) +
+      pad('dest', W.dest) +
       '   ' +
       pad('target', W.target) +
       '   ' +
@@ -335,7 +342,7 @@ async function main(): Promise<void> {
       '   ' +
       pad('source', W.source) +
       '   expires';
-    const divider = [W.origin, W.dest, W.path, W.target, W.bps, W.source, 30]
+    const divider = [W.origin, W.src, W.dest, W.target, W.bps, W.source, 30]
       .map((w) => '─'.repeat(w))
       .join('   ');
 
@@ -343,28 +350,22 @@ async function main(): Promise<void> {
     console.log(divider);
 
     for (const r of rows) {
-      const bpsDisplay = pad(r.quote.bps + ' bps', W.bps + 4);
-      // "targeted" rows override DEFAULT: mark them so the active fee is obvious.
-      const pathDisplay = r.path === 'targeted' ? '► ' + r.path : '  ' + r.path;
       console.log(
         pad(r.origin, W.origin) +
+          '   ' +
+          pad(r.sourceToken, W.src) +
           ' → ' +
           pad(r.destination, W.dest) +
           '   ' +
-          pad(pathDisplay, W.path + 2) +
-          '   ' +
           pad(r.target, W.target) +
           '   ' +
-          bpsDisplay +
+          pad(r.quote.bps + ' bps', W.bps) +
           '   ' +
           pad(r.quote.source, W.source) +
           '   ' +
           formatExpiry(r.quote.expiry),
       );
     }
-    console.log(
-      '\n  ► targeted = per-router OQLF; overrides DEFAULT when user targets that token',
-    );
   }
 
   console.log('\nDone.');
