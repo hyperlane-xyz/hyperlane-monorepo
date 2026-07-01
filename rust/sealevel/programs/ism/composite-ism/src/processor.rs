@@ -5,7 +5,7 @@ use account_utils::{
     create_pda_account, verify_account_uninitialized, AccountInfoExt, DiscriminatorDecode,
     SizedData,
 };
-use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
+use hyperlane_core::{Decode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -514,10 +514,17 @@ fn validate_config_inner(
         }
         IsmNode::RateLimited {
             max_capacity,
+            recipient,
             mailbox,
             ..
         } => {
             if *max_capacity == 0 || *mailbox == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            // Require a specific warp-route address: RateLimited parses a token
+            // amount from a fixed offset in the TokenMessage body, so applying it
+            // without a recipient would misinterpret arbitrary message bodies.
+            if recipient.map_or(true, |r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -556,10 +563,14 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
     match node {
         IsmNode::RateLimited {
             max_capacity,
+            recipient,
             mailbox,
             ..
         } => {
             if *max_capacity == 0 || *mailbox == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            if recipient.map_or(true, |r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -873,7 +884,7 @@ mod test {
     fn test_validate_config_rate_limited_zero_capacity() {
         let node = IsmNode::RateLimited {
             max_capacity: 0,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -888,10 +899,40 @@ mod test {
     fn test_validate_config_rate_limited_default_mailbox_rejected() {
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::default(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_no_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_zero_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: Some(H256::zero()),
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
         };
         assert_eq!(
             validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
@@ -1014,7 +1055,7 @@ mod test {
     fn test_validate_domain_ism_rate_limited_ok() {
         let node = IsmNode::RateLimited {
             max_capacity: 100,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 100,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -1023,10 +1064,40 @@ mod test {
     }
 
     #[test]
+    fn test_validate_domain_ism_rate_limited_no_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 100,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rate_limited_zero_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 100,
+            recipient: Some(H256::zero()),
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
     fn test_validate_domain_ism_rate_limited_zero_capacity() {
         let node = IsmNode::RateLimited {
             max_capacity: 0,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -1040,9 +1111,10 @@ mod test {
     #[test]
     fn test_normalize_node_rate_limited() {
         let mailbox = Pubkey::new_unique();
+        let recipient = Some(H256::from([1u8; 32]));
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient,
             filled_level: 0,
             last_updated: 999,
             mailbox,
@@ -1052,7 +1124,7 @@ mod test {
             node,
             IsmNode::RateLimited {
                 max_capacity: 1_000,
-                recipient: None,
+                recipient,
                 filled_level: 1_000,
                 last_updated: 0,
                 mailbox,
@@ -1063,11 +1135,12 @@ mod test {
     #[test]
     fn test_normalize_node_nested_in_aggregation() {
         let mailbox = Pubkey::new_unique();
+        let recipient = Some(H256::from([1u8; 32]));
         let mut node = IsmNode::Aggregation {
             threshold: 1,
             sub_isms: vec![IsmNode::RateLimited {
                 max_capacity: 500,
-                recipient: None,
+                recipient,
                 filled_level: 0,
                 last_updated: 42,
                 mailbox,
@@ -1079,7 +1152,7 @@ mod test {
                 sub_isms[0],
                 IsmNode::RateLimited {
                     max_capacity: 500,
-                    recipient: None,
+                    recipient,
                     filled_level: 500,
                     last_updated: 0,
                     mailbox,

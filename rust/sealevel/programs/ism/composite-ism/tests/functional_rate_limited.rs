@@ -14,7 +14,7 @@
 //! - After a partial time elapsed, partial refill allows additional transfers
 //! - After a full 24-hour window, capacity is fully restored
 //! - Verify fails with RecipientMismatch when recipient does not match the configured one
-//! - Verify succeeds for any recipient when no recipient is configured
+//! - Initialize fails when recipient is None (RateLimited requires a warp-route address)
 //! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
 //! - Verify fails with RateLimitExceeded when message amount overflows u64 (high bytes non-zero)
 //! - VerifyAccountMetas returns the storage PDA as writable (state is mutated on Verify)
@@ -40,17 +40,19 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message,
-    get_verify_account_metas, initialize, mock_mailbox_id, process_verify_via_mailbox,
-    program_test, simulate_verify, storage_pda_key, token_message_body,
+    assert_simulation_error, composite_ism_id, dummy_message, get_verify_account_metas, initialize,
+    mock_mailbox_id, process_verify_via_mailbox, program_test, simulate_verify, storage_pda_key,
+    token_message_body,
 };
 
 const MAX_CAPACITY: u64 = 1_000;
+// A fixed warp-route contract address used as the configured recipient in tests.
+const WARP_ROUTE: H256 = H256([0x11u8; 32]);
 
 fn rate_limited_node(max_capacity: u64) -> IsmNode {
     IsmNode::RateLimited {
         max_capacity,
-        recipient: None,
+        recipient: Some(WARP_ROUTE),
         filled_level: 0, // normalized to max_capacity on initialize
         last_updated: 0,
         mailbox: mock_mailbox_id(),
@@ -59,6 +61,7 @@ fn rate_limited_node(max_capacity: u64) -> IsmNode {
 
 fn verify_ixn(amount: u64) -> VerifyInstruction {
     let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     msg.body = token_message_body(amount);
     VerifyInstruction {
         metadata: vec![],
@@ -459,37 +462,39 @@ async fn test_verify_wrong_recipient() {
 }
 
 #[tokio::test]
-async fn test_verify_any_recipient_when_none() {
+async fn test_initialize_no_recipient_rejected() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
 
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        rate_limited_node(MAX_CAPACITY), // recipient: None
-    )
-    .await
-    .unwrap();
-
-    let mut msg = dummy_message();
-    msg.body = token_message_body(1);
-    msg.recipient = H256::from([0xAB; 32]); // arbitrary recipient
-    let ixn = VerifyInstruction {
-        metadata: vec![],
-        message: msg.to_vec(),
+    let node = IsmNode::RateLimited {
+        max_capacity: MAX_CAPACITY,
+        recipient: None,
+        filled_level: 0,
+        last_updated: 0,
+        mailbox: mock_mailbox_id(),
     };
-    let account_metas =
-        get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn.clone()).await;
-    let result = simulate_verify(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        ixn,
-        account_metas,
-    )
-    .await;
+    let result = initialize(&mut banks_client, &payer, recent_blockhash, node).await;
+    assert!(
+        result.is_err(),
+        "Initialize with recipient: None should be rejected"
+    );
+}
 
-    assert_simulation_ok(&result);
+#[tokio::test]
+async fn test_initialize_zero_recipient_rejected() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let node = IsmNode::RateLimited {
+        max_capacity: MAX_CAPACITY,
+        recipient: Some(H256::zero()),
+        filled_level: 0,
+        last_updated: 0,
+        mailbox: mock_mailbox_id(),
+    };
+    let result = initialize(&mut banks_client, &payer, recent_blockhash, node).await;
+    assert!(
+        result.is_err(),
+        "Initialize with recipient: Some(zero) should be rejected"
+    );
 }
 
 #[tokio::test]
@@ -506,7 +511,8 @@ async fn test_verify_body_too_short() {
     .unwrap();
 
     // dummy_message has body = vec![] (len 0 < 64)
-    let msg = dummy_message();
+    let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     let ixn = VerifyInstruction {
         metadata: vec![],
         message: msg.to_vec(),
@@ -548,6 +554,7 @@ async fn test_verify_amount_overflow() {
     let mut body = vec![0u8; 64];
     body[32] = 1; // high byte of the 32-byte amount field
     let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     msg.body = body;
     let ixn = VerifyInstruction {
         metadata: vec![],

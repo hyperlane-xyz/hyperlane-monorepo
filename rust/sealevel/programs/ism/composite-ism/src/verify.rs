@@ -870,15 +870,17 @@ mod test {
         let mailbox = Pubkey::new_unique();
         let victim_program_id = Pubkey::new_unique();
         let attacker_program_id = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(warp_route),
             filled_level: 1_000,
             last_updated: 0,
             mailbox,
         };
 
         let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
         msg.body = rate_limited_token_body(100);
 
         // Attacker has the authority for their own ISM (mailbox signed for them).
@@ -911,15 +913,17 @@ mod test {
     #[test]
     fn test_rate_limited_wrong_authority_rejected() {
         let mailbox = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(warp_route),
             filled_level: 1_000,
             last_updated: 0,
             mailbox,
         };
 
         let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
         msg.body = rate_limited_token_body(100);
 
         // Provide the WRONG authority (some random key, not the derived PDA).
@@ -949,15 +953,17 @@ mod test {
     #[test]
     fn test_rate_limited_authority_not_signer_rejected() {
         let mailbox = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(warp_route),
             filled_level: 1_000,
             last_updated: 0,
             mailbox,
         };
 
         let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
         msg.body = rate_limited_token_body(100);
 
         let program_id = no_program_id();

@@ -129,6 +129,13 @@ independent of the outer composite ISM's account space.
   contain `MultisigMessageId`, `Aggregation`, `AmountRouting`, `TrustedRelayer`,
   `RateLimited`, `Pausable`, and `Test` nodes only.
 
+- **`RateLimited` requires a specific warp-route recipient.** The node parses a
+  token amount from a fixed offset in the TokenMessage body, so it only makes
+  sense when bound to a known warp-route contract. Config validation rejects
+  `recipient: None` and `recipient: H256::zero()` (`InvalidConfig` error). The
+  configured address is checked on every `Verify` call — messages to any other
+  recipient are rejected with `RecipientMismatch`.
+
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
   marks the relevant PDA writable. Callers must pass that account as writable in
