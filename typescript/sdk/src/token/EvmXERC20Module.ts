@@ -9,7 +9,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -179,38 +178,12 @@ export class EvmXERC20Module extends HyperlaneModule<
    * matches on-chain state, so callers can apply repeatedly (idempotent).
    */
   protected generateOwnershipTransferTxs(
-    expectedConfig: XERC20ModuleConfig,
-    actualConfig: XERC20ModuleConfig,
+    _expectedConfig: XERC20ModuleConfig,
+    _actualConfig: XERC20ModuleConfig,
   ): AnnotatedEV5Transaction[] {
-    const chainId = this.multiProvider.getEvmChainId(this.chainName);
-    const xERC20Address = this.args.addresses.xERC20;
-    const transactions: AnnotatedEV5Transaction[] = [];
-
-    if (expectedConfig.owner && actualConfig.owner) {
-      transactions.push(
-        ...transferOwnershipTransactions(
-          chainId,
-          xERC20Address,
-          { owner: actualConfig.owner },
-          { owner: expectedConfig.owner },
-          `XERC20 ${xERC20Address}`,
-        ),
-      );
-    }
-
-    if (expectedConfig.proxyAdmin?.owner && actualConfig.proxyAdmin?.address) {
-      transactions.push(
-        ...transferOwnershipTransactions(
-          chainId,
-          actualConfig.proxyAdmin.address,
-          { owner: actualConfig.proxyAdmin.owner },
-          { owner: expectedConfig.proxyAdmin.owner },
-          `XERC20 ProxyAdmin ${actualConfig.proxyAdmin.address}`,
-        ),
-      );
-    }
-
-    return transactions;
+    // DISCRIMINATOR PROBE: neuter ownership-tx emission, keep extra reads.
+    // If xerc20 e2e goes green -> ownership tx is culprit; if still red -> reads are.
+    return [];
   }
 
   /**
