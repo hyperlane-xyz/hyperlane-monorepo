@@ -111,6 +111,7 @@ async function main(): Promise<void> {
   const {
     registry: registryUri,
     ttl,
+    signerKey: signerKeyArg,
     submitterKey: submitterKeyArg,
   } = await yargs(process.argv.slice(2))
     .option('registry', {
@@ -123,23 +124,38 @@ async function main(): Promise<void> {
       default: DEFAULT_TTL,
       describe: 'Standing quote TTL in seconds (default 24 h)',
     })
+    .option('signer-key', {
+      alias: 's',
+      type: 'string',
+      describe:
+        'Private key (0x…) of the EIP-712 quote signer. ' +
+        'Defaults to GCP secret hyperlane-mainnet3-key-quotesigner.',
+    })
     .option('submitter-key', {
       alias: 'k',
       type: 'string',
       describe:
         'Private key (0x…) of the gas-paying submitter account. ' +
         'Defaults to PRIVATE_KEY env var. ' +
-        'The quote signer (GCP secret) signs; this account pays gas.',
+        'The quote signer signs; this account pays gas.',
     })
     .parseAsync();
 
-  // Signing key: GCP secret, no ETH needed — only signs the EIP-712 data.
-  const secret = (await fetchGCPSecret(GCP_SIGNER_SECRET)) as {
-    privateKey: string;
-    address: string;
-  };
-  const signerKey = secret.privateKey;
-  console.log(`Signer:    ${secret.address}`);
+  // Signing key: custom if provided, else GCP secret. No ETH needed — only signs EIP-712.
+  let signerKey: string;
+  if (signerKeyArg) {
+    signerKey = signerKeyArg.startsWith('0x')
+      ? signerKeyArg
+      : `0x${signerKeyArg}`;
+    console.log(`Signer:    ${new Wallet(signerKey).address}`);
+  } else {
+    const secret = (await fetchGCPSecret(GCP_SIGNER_SECRET)) as {
+      privateKey: string;
+      address: string;
+    };
+    signerKey = secret.privateKey;
+    console.log(`Signer:    ${secret.address}`);
+  }
 
   // Submitter key: pays gas for submitQuote(). Anyone may submit since submitter=address(0).
   const submitterKeyRaw = submitterKeyArg ?? process.env.PRIVATE_KEY;

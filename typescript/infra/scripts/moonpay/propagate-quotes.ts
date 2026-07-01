@@ -97,6 +97,7 @@ function fmtBps(maxFee: bigint, halfAmount: bigint): string {
 async function main(): Promise<void> {
   const {
     registry: registryUri,
+    signerKey: signerKeyArg,
     submitterKey: submitterKeyArg,
     propose,
   } = await yargs(process.argv.slice(2))
@@ -104,6 +105,13 @@ async function main(): Promise<void> {
       alias: 'r',
       type: 'string',
       describe: 'Registry URI (local path or http://…)',
+    })
+    .option('signer-key', {
+      alias: 's',
+      type: 'string',
+      describe:
+        'Private key (0x…) of the EIP-712 quote signer. ' +
+        'Defaults to GCP secret hyperlane-mainnet3-key-quotesigner.',
     })
     .option('submitter-key', {
       alias: 'k',
@@ -119,13 +127,21 @@ async function main(): Promise<void> {
     })
     .parseAsync();
 
-  // Signing key: GCP secret, signs EIP-712 data (no ETH needed).
-  const signerSecret = (await fetchGCPSecret(GCP_SIGNER_SECRET)) as {
-    privateKey: string;
-    address: string;
-  };
-  const signerKey = signerSecret.privateKey;
-  console.log(`Signer:    ${signerSecret.address}`);
+  // Signing key: custom if provided, else GCP secret. No ETH needed — only signs EIP-712.
+  let signerKey: string;
+  if (signerKeyArg) {
+    signerKey = signerKeyArg.startsWith('0x')
+      ? signerKeyArg
+      : `0x${signerKeyArg}`;
+    console.log(`Signer:    ${new Wallet(signerKey).address}`);
+  } else {
+    const signerSecret = (await fetchGCPSecret(GCP_SIGNER_SECRET)) as {
+      privateKey: string;
+      address: string;
+    };
+    signerKey = signerSecret.privateKey;
+    console.log(`Signer:    ${signerSecret.address}`);
+  }
 
   let submitterWallet: Wallet | null = null;
   if (propose) {
