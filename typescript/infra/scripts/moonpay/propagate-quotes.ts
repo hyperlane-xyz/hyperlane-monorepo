@@ -207,12 +207,19 @@ async function main(): Promise<void> {
   await Promise.all(
     ROUTE_IDS.flatMap((routeId) => {
       const warpConfig = getWarpCoreConfig(routeId);
-      const evmTokens = warpConfig.tokens.filter(
-        (t) =>
-          t.addressOrDenom &&
-          t.chainName &&
-          /^0x[0-9a-f]{40}$/i.test(t.addressOrDenom),
-      );
+      const seenOriginAddrs = new Set<string>();
+      const evmTokens = warpConfig.tokens.filter((t) => {
+        if (
+          !t.addressOrDenom ||
+          !t.chainName ||
+          !/^0x[0-9a-f]{40}$/i.test(t.addressOrDenom)
+        )
+          return false;
+        const key = `${t.chainName}:${t.addressOrDenom.toLowerCase()}`;
+        if (seenOriginAddrs.has(key)) return false;
+        seenOriginAddrs.add(key);
+        return true;
+      });
       return evmTokens.map(async (originToken) => {
         const { chainName: origin, addressOrDenom: routerAddr } = originToken;
         if (!routerAddr || !origin) return;
@@ -248,7 +255,13 @@ async function main(): Promise<void> {
           ccrAddress,
           provider,
         );
-        const destTokens = warpConfig.tokens.filter((t) => !!t.chainName);
+        const seenDestChains = new Set<string>();
+        const destTokens = warpConfig.tokens.filter((t) => {
+          if (!t.chainName) return false;
+          if (seenDestChains.has(t.chainName)) return false;
+          seenDestChains.add(t.chainName);
+          return true;
+        });
 
         await Promise.all(
           destTokens.map(async (destToken) => {
@@ -286,7 +299,7 @@ async function main(): Promise<void> {
                 if (!oqlfAddress || oqlfAddress === constants.AddressZero)
                   return;
 
-                const slotId = `${oqlfAddress.toLowerCase()}:${destDomain}:${sourceToken}`;
+                const slotId = `${ccrAddress.toLowerCase()}:${destDomain}:${key}:${sourceToken}`;
                 if (seen.has(slotId)) return;
                 seen.add(slotId);
 

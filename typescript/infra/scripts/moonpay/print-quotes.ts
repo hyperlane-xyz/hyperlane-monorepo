@@ -203,12 +203,19 @@ async function main(): Promise<void> {
     console.log('═'.repeat(78));
 
     const warpConfig = getWarpCoreConfig(routeId);
-    const evmTokens = warpConfig.tokens.filter(
-      (t) =>
-        t.addressOrDenom &&
-        t.chainName &&
-        /^0x[0-9a-f]{40}$/i.test(t.addressOrDenom),
-    );
+    const seenOriginAddrs = new Set<string>();
+    const evmTokens = warpConfig.tokens.filter((t) => {
+      if (
+        !t.addressOrDenom ||
+        !t.chainName ||
+        !/^0x[0-9a-f]{40}$/i.test(t.addressOrDenom)
+      )
+        return false;
+      const key = `${t.chainName}:${t.addressOrDenom.toLowerCase()}`;
+      if (seenOriginAddrs.has(key)) return false;
+      seenOriginAddrs.add(key);
+      return true;
+    });
 
     // Process all origins concurrently.
     const originRows = await Promise.all(
@@ -251,9 +258,14 @@ async function main(): Promise<void> {
           provider,
         );
 
-        // Process all destinations concurrently, including same-chain
-        // (e.g. arbitrum USDC → arbitrum USDT cross-collateral swap).
-        const destTokens = warpConfig.tokens.filter((t) => !!t.chainName);
+        // One entry per unique destination chain (routers already deduped in routersByChain).
+        const seenDestChains = new Set<string>();
+        const destTokens = warpConfig.tokens.filter((t) => {
+          if (!t.chainName) return false;
+          if (seenDestChains.has(t.chainName)) return false;
+          seenDestChains.add(t.chainName);
+          return true;
+        });
 
         const destRows = await Promise.all(
           destTokens.map(async (destToken): Promise<Row[]> => {
@@ -328,6 +340,7 @@ async function main(): Promise<void> {
       target: Math.max(6, ...rows.map((r) => r.target.length)),
       bps: Math.max(3, ...rows.map((r) => (r.quote.bps + ' bps').length)),
       source: 8,
+      oqlf: 42, // "0x" + 40 hex chars
     };
     const header =
       pad('origin', W.origin) +
@@ -341,8 +354,19 @@ async function main(): Promise<void> {
       pad('bps', W.bps) +
       '   ' +
       pad('source', W.source) +
+      '   ' +
+      pad('fee contract', W.oqlf) +
       '   expires';
-    const divider = [W.origin, W.src, W.dest, W.target, W.bps, W.source, 30]
+    const divider = [
+      W.origin,
+      W.src,
+      W.dest,
+      W.target,
+      W.bps,
+      W.source,
+      W.oqlf,
+      30,
+    ]
       .map((w) => '─'.repeat(w))
       .join('   ');
 
@@ -362,6 +386,8 @@ async function main(): Promise<void> {
           pad(r.quote.bps + ' bps', W.bps) +
           '   ' +
           pad(r.quote.source, W.source) +
+          '   ' +
+          pad(r.oqlf, W.oqlf) +
           '   ' +
           formatExpiry(r.quote.expiry),
       );
