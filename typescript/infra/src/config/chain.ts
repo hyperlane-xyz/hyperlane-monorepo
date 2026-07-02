@@ -103,6 +103,14 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
+  // Swell network sunset 2026-06-30 (registry marks it disabled; kept explicit
+  // until the pinned .registryrc is bumped past the disable commit).
+  'swell',
+
+  // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
+  // pinned registry, so kept explicit here.
+  'miraclechain',
+
   ...getDisabledChains(),
 ];
 
