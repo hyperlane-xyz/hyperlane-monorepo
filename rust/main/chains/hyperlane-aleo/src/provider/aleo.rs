@@ -9,6 +9,7 @@ use std::{
 
 use aleo_std::StorageMode;
 use async_trait::async_trait;
+use rand::rngs::SysRng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use snarkvm::{
     ledger::{
@@ -16,13 +17,13 @@ use snarkvm::{
         ConfirmedTransaction,
     },
     prelude::{
-        cost_in_microcredits_v3, execution_cost_for_authorization, Authorization, CanaryV0,
+        execution_cost_for_authorization, minimum_cost_in_microcredits_v3, Authorization, CanaryV0,
         Identifier, MainnetV0, Network, ProgramID, TestnetV0, Value, VM,
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
 use tokio::sync::RwLock;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -202,9 +203,8 @@ impl<C: AleoClient> AleoProvider<C> {
         }
 
         debug!("Adding program: {} to VM", program_id);
-        let vm_process = vm.process();
-        let mut process_guard = vm_process.write();
-        process_guard
+        vm.process()
+            .lock()
             .add_program_with_edition(&program, latest_edition)
             .map_err(HyperlaneAleoError::from)?;
 
@@ -223,7 +223,6 @@ impl<C: AleoClient> AleoProvider<C> {
         // Get the stack for the program.
         let stack = vm
             .process()
-            .read()
             .get_stack(program_id)
             .map_err(HyperlaneAleoError::from)?;
 
@@ -231,15 +230,12 @@ impl<C: AleoClient> AleoProvider<C> {
         let consensus_version = N::CONSENSUS_VERSION(height).map_err(HyperlaneAleoError::from)?;
 
         // Get the finalize cost.
-        let finalize_cost =
-            cost_in_microcredits_v3(&stack, function_name).map_err(HyperlaneAleoError::from)?;
-        let execution_cost = execution_cost_for_authorization(
-            &vm.process().read(),
-            authorization,
-            consensus_version,
-        )
-        .map_err(HyperlaneAleoError::from)?
-        .0;
+        let finalize_cost = minimum_cost_in_microcredits_v3(&stack, function_name)
+            .map_err(HyperlaneAleoError::from)?;
+        let execution_cost =
+            execution_cost_for_authorization(vm.process(), authorization, consensus_version)
+                .map_err(HyperlaneAleoError::from)?
+                .0;
 
         // Return the function cost, which is the sum of the finalize and execution costs.
         Ok(finalize_cost.saturating_add(execution_cost))
@@ -301,7 +297,7 @@ impl<C: AleoClient> AleoProvider<C> {
             Identifier::<N>::from_str(function_name).map_err(HyperlaneAleoError::from)?;
         let signer = self.get_signer()?;
         let private_key = signer.get_private_key()?;
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha20Rng::try_from_rng(&mut SysRng).expect("RNG seeding failed");
         // Load program + dependencies.
         self.load_program(vm, &program_id_parsed, 0).await?;
 
@@ -319,7 +315,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 input.into_iter(),
                 &mut rng,
             )
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
@@ -443,7 +439,6 @@ impl<C: AleoClient> AleoProvider<C> {
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
             .await?;
 
-        let start = Instant::now();
         // Calculate fees
         let base_fee = self
             .calculate_function_costs::<N>(
@@ -454,6 +449,7 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .await?;
         let priority_fee = self.get_priority_fee(base_fee);
+        debug!(base_fee, priority_fee, "Calculated fees");
 
         // Authorize fee payment.
         let fee = vm
@@ -466,11 +462,16 @@ impl<C: AleoClient> AleoProvider<C> {
                     .map_err(HyperlaneAleoError::from)?,
                 &mut rng,
             )
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
 
         // Either use the proving service (with local fallback) or generate the proof locally
+        let start = Instant::now();
         let transaction = match self.proving_service {
             Some(ref client) => {
+                info!(
+                    program_id,
+                    function_name, "Starting delegated ZK proof generation"
+                );
                 match client
                     .proving_request(authorization.clone(), fee.clone())
                     .await
@@ -480,6 +481,10 @@ impl<C: AleoClient> AleoProvider<C> {
                         warn!(
                             error = %e,
                             "Delegated proving failed, falling back to local proving"
+                        );
+                        info!(
+                            program_id,
+                            function_name, "Starting local ZK proof generation (fallback)"
                         );
                         Ok(vm
                             .execute_authorization(
@@ -492,16 +497,25 @@ impl<C: AleoClient> AleoProvider<C> {
                     }
                 }
             }
-            None => Ok(vm
-                .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
-                .map_err(HyperlaneAleoError::from)?),
+            None => {
+                info!(
+                    program_id,
+                    function_name, "Starting local ZK proof generation"
+                );
+                Ok(vm
+                    .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
+                    .map_err(HyperlaneAleoError::from)?)
+            }
         }?;
 
-        let time = Instant::now().duration_since(start);
-        debug!("ZK Proof generation took: {:.2}s", time.as_secs_f32());
+        let elapsed = start.elapsed();
+        info!(
+            elapsed_secs = elapsed.as_secs_f32(),
+            program_id, function_name, "ZK proof generation complete"
+        );
 
         let id = transaction.id();
-        debug!("Submitting tx: {}", id);
+        info!(tx_id = %id, "Broadcasting Aleo transaction");
         let output = self.broadcast_transaction(transaction).await?;
         if output != id.to_string() {
             return Err(HyperlaneAleoError::Other(format!(
