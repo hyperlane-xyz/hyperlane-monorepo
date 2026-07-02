@@ -4,6 +4,7 @@ import {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  AgentSealevelUrReveal,
   ChainMap,
   ChainName,
   GasPaymentEnforcement,
@@ -525,6 +526,18 @@ const sealevelTransactionSubmitterConfigGetter = (
   };
 };
 
+const sealevelUrRevealConfigGetter = (
+  chain: ChainName,
+): AgentSealevelUrReveal => {
+  if (chain === 'solanamainnet') {
+    return {
+      ccsUrl: 'https://offchain-lookup.services.hyperlane.xyz/callCommitments',
+      programId: '2CttnaLkYbNHbaFDFnQ8PMCnzUwTGrKnskBxPM4TRWGp',
+    };
+  }
+  return undefined;
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -535,6 +548,7 @@ const contextBase = {
   sealevel: {
     priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
     transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
+    urRevealConfigGetter: sealevelUrRevealConfigGetter,
   },
 } as const;
 
