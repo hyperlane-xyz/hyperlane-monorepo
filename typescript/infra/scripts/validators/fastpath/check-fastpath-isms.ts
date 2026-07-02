@@ -1,6 +1,6 @@
 /**
- * Verify deployed fastpath aggregation ISMs on each destination chain.
- * Reads each ISM's on-chain sub-modules, validators, and thresholds.
+ * Verify deployed fastpath messageId multisig ISMs on each destination chain.
+ * Reads each ISM's on-chain validators and threshold.
  *
  * Usage:
  *   yarn tsx scripts/validators/fastpath/check-fastpath-isms.ts \
@@ -11,7 +11,6 @@
 import { ethers } from 'ethers';
 
 import {
-  IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -60,10 +59,9 @@ function getArgs() {
     .alias('f', 'ismsFile');
 }
 
-type SubIsmRow = {
+type IsmRow = {
   destination: string;
   ismAddress: string;
-  subIsmType: string;
   validators: string;
   threshold: number;
   ok: string;
@@ -80,7 +78,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
-  const rows: SubIsmRow[] = [];
+  const rows: IsmRow[] = [];
 
   for (const destination of destinations) {
     const ismAddress = ismAddresses[destination];
@@ -100,64 +98,40 @@ async function main() {
     );
     const moduleType = await topIsm.moduleType();
 
-    if (moduleType !== ModuleType.AGGREGATION) {
+    if (moduleType !== ModuleType.MESSAGE_ID_MULTISIG) {
       rootLogger.warn(
         { destination, ismAddress, moduleType },
-        'Expected aggregation ISM',
+        'Expected messageId multisig ISM',
       );
       continue;
     }
 
-    const aggIsm = IAggregationIsm__factory.connect(ismAddress, provider);
-    const [subModuleAddresses, aggThreshold] =
-      await aggIsm.modulesAndThreshold(dummyMsg);
+    const multisigIsm = IMultisigIsm__factory.connect(ismAddress, provider);
+    const [validators, threshold] =
+      await multisigIsm.validatorsAndThreshold(dummyMsg);
 
-    for (const subAddress of subModuleAddresses) {
-      const subIsm = IInterchainSecurityModule__factory.connect(
-        subAddress,
-        provider,
+    const validatorsMatch =
+      validators.length === DEFAULT_FASTPATH_VALIDATORS.length &&
+      DEFAULT_FASTPATH_VALIDATORS.every((v) =>
+        validators.some((w) => w.toLowerCase() === v.toLowerCase()),
       );
-      const subType = await subIsm.moduleType();
-      const isMultisig =
-        subType === ModuleType.MERKLE_ROOT_MULTISIG ||
-        subType === ModuleType.MESSAGE_ID_MULTISIG;
+    const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
+    rows.push({
+      destination,
+      ismAddress,
+      validators: [...validators].join(', '),
+      threshold,
+      ok: validatorsMatch && thresholdMatch ? '✅' : '❌',
+    });
 
-      let validators: string[] = [];
-      let threshold = 0;
-      if (isMultisig) {
-        const multisigIsm = IMultisigIsm__factory.connect(subAddress, provider);
-        const [v, t] = await multisigIsm.validatorsAndThreshold(dummyMsg);
-        validators = [...v];
-        threshold = t;
-      }
-
-      const validatorsMatch =
-        validators.length === DEFAULT_FASTPATH_VALIDATORS.length &&
-        DEFAULT_FASTPATH_VALIDATORS.every((v) =>
-          validators.some((w) => w.toLowerCase() === v.toLowerCase()),
-        );
-      const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
-      rows.push({
-        destination,
-        ismAddress,
-        subIsmType: ModuleType[subType],
-        validators: validators.join(', '),
-        threshold,
-        ok: isMultisig && validatorsMatch && thresholdMatch ? '✅' : '❌',
-      });
-    }
-
-    rootLogger.info(
-      { destination, aggThreshold, subModules: subModuleAddresses.length },
-      'Aggregation ISM checked',
-    );
+    rootLogger.info({ destination }, 'MessageId multisig ISM checked');
   }
 
   console.table(rows);
 
   const failures = rows.filter((r) => r.ok === '❌');
   if (failures.length > 0) {
-    rootLogger.error({ count: failures.length }, 'Some sub-ISMs failed checks');
+    rootLogger.error({ count: failures.length }, 'Some ISMs failed checks');
     process.exit(1);
   } else {
     rootLogger.info('All ISMs ok ✅');

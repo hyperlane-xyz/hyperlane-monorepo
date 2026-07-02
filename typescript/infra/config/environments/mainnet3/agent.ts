@@ -46,6 +46,7 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
+import fastpathTestRecipients from './fastpath/test-recipients.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
@@ -1020,50 +1021,12 @@ const fastPathUsdtMatchingList = chainMapMatchingList({
 // must be in the same matching list to cover cross-type transfers (e.g. ethereum USDC → arbitrum USDT).
 // Match any sender → fastpath test recipient. No senderAddress restriction so
 // real-world messages (not just test-to-test) get picked up by the fastpath relayer.
-const fastPathTestRecipientMatchingList: MatchingList = [
-  {
-    destinationDomain: getDomainId('arbitrum'),
-    recipientAddress: addressToBytes32(
-      '0xD8a8DD2Ae23778CEeac851E3eA07001b4cddEf0F',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('base'),
-    recipientAddress: addressToBytes32(
-      '0x98Ecc75ddce93401Dc8ADF19e3Ea38A7752b5D33',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('bsc'),
-    recipientAddress: addressToBytes32(
-      '0x9561921E048CE0ce9aa0eba87302515AF23E7E49',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('citrea'),
-    recipientAddress: addressToBytes32(
-      '0x0cDD3CbDf29B0AE10eE738Da530C1CDDA49f0190',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('ethereum'),
-    recipientAddress: addressToBytes32(
-      '0x40229693f00649180d0206Bf381FAA28BB83A818',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('katana'),
-    recipientAddress: addressToBytes32(
-      '0x7682a3fC86734C2c45eFD34dAC4E0ce47869ba27',
-    ),
-  },
-  {
-    destinationDomain: getDomainId('polygon'),
-    recipientAddress: addressToBytes32(
-      '0x0019270d8A7b44b23D8Abae7CBa22b78b3060b8b',
-    ),
-  },
-];
+const fastPathTestRecipientMatchingList: MatchingList = Object.entries(
+  fastpathTestRecipients,
+).map(([chain, address]) => ({
+  destinationDomain: getDomainId(chain),
+  recipientAddress: addressToBytes32(address),
+}));
 
 const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
   arbitrum: [

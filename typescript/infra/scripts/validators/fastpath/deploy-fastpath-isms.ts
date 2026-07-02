@@ -1,6 +1,6 @@
 /**
- * Deploy fastpath aggregation ISMs (merkleRootMultisig + messageIdMultisig, 2-of-3)
- * on each fastpath chain. Chains default to those in the fastpath agent config.
+ * Deploy fastpath messageId multisig ISMs (2-of-3) on each fastpath chain.
+ * Chains default to those in the fastpath agent config.
  *
  * Dry-run:  prints ISM config per chain, no on-chain calls.
  * Live run: deploys via the proxy factory using the provided --key.
@@ -21,7 +21,6 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  AggregationIsmConfig,
   HyperlaneIsmFactory,
   IsmType,
   MultisigIsmConfig,
@@ -82,21 +81,11 @@ function getArgs() {
 function buildIsmConfig(
   validators: string[],
   threshold: number,
-): AggregationIsmConfig {
-  const merkleRoot: MultisigIsmConfig = {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    validators,
-    threshold,
-  };
-  const messageId: MultisigIsmConfig = {
+): MultisigIsmConfig {
+  return {
     type: IsmType.MESSAGE_ID_MULTISIG,
     validators,
     threshold,
-  };
-  return {
-    type: IsmType.AGGREGATION,
-    modules: [merkleRoot, messageId],
-    threshold: 1,
   };
 }
 
@@ -137,7 +126,7 @@ async function main() {
       validators: DEFAULT_FASTPATH_VALIDATORS,
       threshold: DEFAULT_FASTPATH_THRESHOLD,
     },
-    'Deploying fastpath aggregation ISMs',
+    'Deploying fastpath messageId multisig ISMs',
   );
 
   const envConfig = getEnvironmentConfig(environment);
@@ -173,7 +162,7 @@ async function main() {
   const deployedIsms: Record<string, string> = {};
 
   for (const chain of targetChains) {
-    rootLogger.info({ chain }, 'Deploying aggregation ISM');
+    rootLogger.info({ chain }, 'Deploying messageId multisig ISM');
     const ism = await ismFactory.deploy({
       destination: chain,
       config: ismConfig,

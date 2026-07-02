@@ -15,9 +15,11 @@
  *     -e mainnet3 --key 0x<key>
  *
  * Pass --timeout 0 to skip delivery polling and exit immediately after dispatch.
+ * Pass -r http://localhost:3333 to use an HTTP registry instead of the local filesystem.
  */
 import { ethers } from 'ethers';
 
+import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
 import { DispatchedMessage, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
@@ -57,6 +59,11 @@ function getArgs() {
       type: 'number',
       default: 120,
       describe: 'Seconds to wait for delivery (0 = dispatch only, no polling)',
+    })
+    .option('registry', {
+      alias: 'r',
+      type: 'string',
+      describe: 'HTTP registry URL (e.g. http://localhost:3333)',
     });
 }
 
@@ -79,8 +86,15 @@ async function getBlockTimestamp(
 }
 
 async function main() {
-  const { environment, origin, chains, key, recipientsFile, timeout } =
-    await getArgs().argv;
+  const {
+    environment,
+    origin,
+    chains,
+    key,
+    recipientsFile,
+    timeout,
+    registry: registryUrl,
+  } = await getArgs().argv;
 
   const recipientsFilePath =
     recipientsFile ??
@@ -128,10 +142,14 @@ async function main() {
     );
   }
 
-  const core = HyperlaneCore.fromAddressesMap(
-    getChainAddresses(),
-    multiProvider,
-  );
+  const chainAddresses = registryUrl
+    ? await getMergedRegistry({
+        registryUris: [registryUrl],
+        enableProxy: false,
+      }).getAddresses()
+    : getChainAddresses();
+
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   // Track both the display result and the data needed for latency measurement.
   type Pending = {
