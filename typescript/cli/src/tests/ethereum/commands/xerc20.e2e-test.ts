@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, utils } from 'ethers';
 import { $ } from 'zx';
 
 import {
@@ -130,6 +130,31 @@ describe('xerc20 e2e tests', function () {
     bufferCap: '1000000000000000000000',
     rateLimitPerSecond: '1000000000000000000',
   };
+
+  // xERC20VS tokens are shared across tests (deployed once in `before`), and the
+  // owner-gated addBridge in every `beforeEach` reverts if ownership is stranded
+  // on a throwaway wallet. Fund the current owner for gas and hand ownership back
+  // to the deployer so subsequent tests keep working.
+  async function restoreTokenOwnership(
+    token: XERC20VSTest,
+    currentOwnerWallet: Wallet,
+  ): Promise<void> {
+    // If the apply/assertion failed before the handoff landed, the deployer is
+    // still the owner and there is nothing to restore.
+    const currentOwner = await token.owner();
+    if (currentOwner === ownerAddress) return;
+
+    await token.signer
+      .sendTransaction({
+        to: currentOwnerWallet.address,
+        value: utils.parseEther('1'),
+      })
+      .then((tx) => tx.wait());
+    await token
+      .connect(currentOwnerWallet)
+      .transferOwnership(ownerAddress)
+      .then((tx) => tx.wait());
+  }
 
   async function deployWarpRoutesAndSetupBridges(): Promise<void> {
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
@@ -285,7 +310,70 @@ describe('xerc20 e2e tests', function () {
     });
   });
 
+  describe('ownership transfer', function () {
+    it('transfers XERC20 token ownership when config owner differs', async function () {
+      const newOwnerWallet = Wallet.createRandom().connect(xERC20VS2.provider);
+      const newOwner = newOwnerWallet.address;
+
+      const configWithNewOwner: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.XERC20,
+          token: xERC20VS2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: newOwner,
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              ...BRIDGE_LIMITS,
+            },
+          },
+        },
+      };
+      writeYamlOrJson(XERC20_VS_REGISTRY_DEPLOY_PATH, configWithNewOwner);
+
+      const ownerBefore = await xERC20VS2.owner();
+      expect(ownerBefore).to.equal(ownerAddress);
+
+      try {
+        await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
+          --registry ${REGISTRY_PATH} \
+          --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+          --chains ${CHAIN_NAME_2} \
+          --key ${ANVIL_KEY} \
+          --verbosity debug`;
+
+        const ownerAfter = await xERC20VS2.owner();
+        expect(ownerAfter).to.equal(newOwner);
+      } finally {
+        // Runs even if the apply or assertion throws, so a failure here doesn't
+        // strand ownership and cascade into every subsequent test's beforeEach.
+        await restoreTokenOwnership(xERC20VS2, newOwnerWallet);
+      }
+    });
+
+    it('reports no updates when token owner already matches config', async function () {
+      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+        --chains ${CHAIN_NAME_2} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug`;
+
+      expect(result.stdout).to.include('No updates needed');
+    });
+  });
+
   describe('read', function () {
+    it('displays the XERC20 token owner', async function () {
+      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
+        --registry ${REGISTRY_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+        --chains ${CHAIN_NAME_2} \
+        --verbosity debug`;
+
+      expect(result.stdout).to.include(ownerAddress);
+    });
+
     it('displays current limits for Velodrome XERC20', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
