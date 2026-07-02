@@ -23,7 +23,7 @@ use snarkvm::{
 };
 use snarkvm_console_account::{Address, PrivateKey};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -468,7 +468,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let start = Instant::now();
         let transaction = match self.proving_service {
             Some(ref client) => {
-                info!(
+                debug!(
                     program_id,
                     function_name, "Starting delegated ZK proof generation"
                 );
@@ -482,7 +482,7 @@ impl<C: AleoClient> AleoProvider<C> {
                             error = %e,
                             "Delegated proving failed, falling back to local proving"
                         );
-                        info!(
+                        debug!(
                             program_id,
                             function_name, "Starting local ZK proof generation (fallback)"
                         );
@@ -498,7 +498,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 }
             }
             None => {
-                info!(
+                debug!(
                     program_id,
                     function_name, "Starting local ZK proof generation"
                 );
@@ -509,13 +509,13 @@ impl<C: AleoClient> AleoProvider<C> {
         }?;
 
         let elapsed = start.elapsed();
-        info!(
+        debug!(
             elapsed_secs = elapsed.as_secs_f32(),
             program_id, function_name, "ZK proof generation complete"
         );
 
         let id = transaction.id();
-        info!(tx_id = %id, "Broadcasting Aleo transaction");
+        debug!(tx_id = %id, "Broadcasting Aleo transaction");
         let output = self.broadcast_transaction(transaction).await?;
         if output != id.to_string() {
             return Err(HyperlaneAleoError::Other(format!(
