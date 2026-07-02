@@ -73,7 +73,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['litchain', 'artela', 'molten'],
+  chainsToSkip: ['litchain', 'artela', 'molten', 'swell', 'miraclechain'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
