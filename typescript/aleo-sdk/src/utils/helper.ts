@@ -609,3 +609,11 @@ export function formatHookAddress(
 
   return `${hookManagerProgramId}/${hookAddress}`;
 }
+
+export function isV2WarpToken(programId: string): boolean {
+  return programId.endsWith('_v2.aleo');
+}
+
+export function isArc20ProgramId(denom: string): boolean {
+  return denom.endsWith('.aleo');
+}
