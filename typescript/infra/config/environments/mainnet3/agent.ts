@@ -1018,6 +1018,53 @@ const fastPathUsdtMatchingList = chainMapMatchingList({
 // CROSS Moonpay - https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/deployments/warp_routes/CROSS/moonpay-config.yaml
 // Single route with mixed underlying token types (USDC/USDT per chain), so both addresses per chain
 // must be in the same matching list to cover cross-type transfers (e.g. ethereum USDC → arbitrum USDT).
+// Match any sender → fastpath test recipient. No senderAddress restriction so
+// real-world messages (not just test-to-test) get picked up by the fastpath relayer.
+const fastPathTestRecipientMatchingList: MatchingList = [
+  {
+    destinationDomain: getDomainId('arbitrum'),
+    recipientAddress: addressToBytes32(
+      '0xD8a8DD2Ae23778CEeac851E3eA07001b4cddEf0F',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('base'),
+    recipientAddress: addressToBytes32(
+      '0x98Ecc75ddce93401Dc8ADF19e3Ea38A7752b5D33',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('bsc'),
+    recipientAddress: addressToBytes32(
+      '0x9561921E048CE0ce9aa0eba87302515AF23E7E49',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('citrea'),
+    recipientAddress: addressToBytes32(
+      '0x0cDD3CbDf29B0AE10eE738Da530C1CDDA49f0190',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('ethereum'),
+    recipientAddress: addressToBytes32(
+      '0x40229693f00649180d0206Bf381FAA28BB83A818',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('katana'),
+    recipientAddress: addressToBytes32(
+      '0x7682a3fC86734C2c45eFD34dAC4E0ce47869ba27',
+    ),
+  },
+  {
+    destinationDomain: getDomainId('polygon'),
+    recipientAddress: addressToBytes32(
+      '0x0019270d8A7b44b23D8Abae7CBa22b78b3060b8b',
+    ),
+  },
+];
+
 const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
   arbitrum: [
     '0xeBC079D41C41a0ef7e54aa7Af867df9a621C9bE0', // USDC
@@ -1083,6 +1130,7 @@ const fastPath: RootAgentConfig = {
       ...fastPathUsdcMatchingList,
       ...fastPathUsdtMatchingList,
       ...fastPathCrossMoonpayMatchingList,
+      ...fastPathTestRecipientMatchingList,
     ],
     blacklist,
     gasPaymentEnforcement,

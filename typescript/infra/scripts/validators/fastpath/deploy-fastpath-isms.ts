@@ -160,7 +160,10 @@ async function main() {
   // chain-specific gas overrides (e.g. katana's maxFeePerGas) are picked up
   // without any extra code here.
   const chainAddresses = registryUrl
-    ? await getMergedRegistry({ registryUris: [registryUrl] }).getAddresses()
+    ? await getMergedRegistry({
+        registryUris: [registryUrl],
+        enableProxy: false,
+      }).getAddresses()
     : getChainAddresses();
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     chainAddresses,
