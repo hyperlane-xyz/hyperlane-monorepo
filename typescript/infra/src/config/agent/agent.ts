@@ -2,6 +2,7 @@ import {
   AgentChainMetadata,
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
+  AgentSealevelUrReveal,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -96,6 +97,7 @@ export interface SealevelAgentConfig {
   transactionSubmitterConfigGetter?: (
     chain: ChainName,
   ) => AgentSealevelTransactionSubmitter;
+  urRevealConfigGetter?: (chain: ChainName) => AgentSealevelUrReveal;
 }
 
 // An ugly way to mark a URL as a the secret Helius URL when Helm templating

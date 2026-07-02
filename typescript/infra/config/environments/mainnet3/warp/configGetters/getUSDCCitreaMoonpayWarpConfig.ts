@@ -26,6 +26,7 @@ import { getDomainId, getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
+  getCrossCollateralTargetRoutersByChain,
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
@@ -279,25 +280,41 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   return buildFastRouteHook(local, owner);
 }
 
+// Target routers (destination tokens) priced per destination, keyed by chain.
+// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
+const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
+  WarpRouteIds.USDCCitreaMoonpay,
+  WarpRouteIds.USDTCitreaMoonpay,
+]);
+
 function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
 ): TokenFeeConfigInput {
+  const offchainFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedLinearFee,
+    owner,
+    bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+
   return {
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner,
     feeContracts: Object.fromEntries(
-      destinations.map((dest) => [
-        dest,
-        {
-          [DEFAULT_ROUTER_KEY]: {
-            type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
-            bps: 3,
-            quoteSigners: QUOTE_SIGNERS,
+      destinations.map((dest) => {
+        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
+        return [
+          dest,
+          {
+            // Per-destination-token fee slots, plus a default fallback.
+            ...Object.fromEntries(
+              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
+            ),
+            [DEFAULT_ROUTER_KEY]: offchainFee(),
           },
-        },
-      ]),
+        ];
+      }),
     ),
   };
 }
