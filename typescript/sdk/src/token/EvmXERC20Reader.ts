@@ -182,13 +182,24 @@ export class EvmXERC20Reader extends HyperlaneReader {
   /**
    * Read the owner of the XERC20 token contract.
    * This owner controls limit/bridge management (setBufferCap, addBridge, etc.).
+   * Returns undefined if the XERC20 does not expose `owner()` (e.g. a
+   * third-party token using AccessControl instead of Ownable) so callers on the
+   * warp read/apply path don't break on non-Ownable tokens.
    */
-  async readOwner(xERC20Address: Address): Promise<Address> {
-    const owner = await Ownable__factory.connect(
-      xERC20Address,
-      this.provider,
-    ).owner();
-    return normalizeAddress(owner);
+  async readOwner(xERC20Address: Address): Promise<Address | undefined> {
+    try {
+      const owner = await Ownable__factory.connect(
+        xERC20Address,
+        this.provider,
+      ).owner();
+      return normalizeAddress(owner);
+    } catch (error) {
+      this.logger.debug(
+        { xERC20Address, error },
+        'XERC20 does not expose owner(); treating owner as undefined',
+      );
+      return undefined;
+    }
   }
 
   /**
