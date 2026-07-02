@@ -1,5 +1,5 @@
 /**
- * Deploy fastpath aggregation ISMs (merkleRootMultisig + messageIdMultisig, threshold 1-of-2)
+ * Deploy fastpath aggregation ISMs (merkleRootMultisig + messageIdMultisig, 2-of-3)
  * on each fastpath chain. Chains default to those in the fastpath agent config.
  *
  * Dry-run:  prints ISM config per chain, no on-chain calls.
@@ -7,19 +7,19 @@
  *
  * Usage (dry-run):
  *   yarn tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
- *     -e mainnet3 --dry-run --validators 0x...
+ *     -e mainnet3 --dry-run
  *
  * Usage (deploy):
  *   yarn tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
  *     -e mainnet3 --key 0x<deployer-private-key> \
  *     [--chains arbitrum base ...] \
- *     --validators 0x... [0x...] \
- *     [--threshold N] \             # defaults to validator count
+ *     [-r http://localhost:3333] \
  *     [--outFile ./fastpath-isms.json]
  */
 import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
+import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   AggregationIsmConfig,
   HyperlaneIsmFactory,
@@ -43,6 +43,18 @@ import {
 } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
+// Fastpath validator addresses (AW, Enigma, Luganodes)
+const AW_FASTPATH_VALIDATOR = '0xa9c4c16a4e2cf4628e1bb045cfee9de2f1c3c24a';
+const ENIGMA_FASTPATH_VALIDATOR = '0x93911a19cd8914220f6287d515187e7751817683';
+const LUGANODES_FASTPATH_VALIDATOR =
+  '0xf9c6519dbd9a42bc6a60ea8daec3fa3830f40241';
+const DEFAULT_FASTPATH_VALIDATORS = [
+  AW_FASTPATH_VALIDATOR,
+  ENIGMA_FASTPATH_VALIDATOR,
+  LUGANODES_FASTPATH_VALIDATOR,
+];
+const DEFAULT_FASTPATH_THRESHOLD = 2;
+
 function getArgs() {
   return withOutputFile(withChains(getBaseArgs()))
     .option('key', {
@@ -54,15 +66,11 @@ function getArgs() {
       default: false,
       describe: 'Print ISM configs without deploying',
     })
-    .describe('validators', 'fastpath validator addresses')
-    .string('validators')
-    .array('validators')
-    .demandOption('validators')
-    .describe(
-      'threshold',
-      'threshold for each sub-ISM (defaults to validator count)',
-    )
-    .number('threshold')
+    .option('registry', {
+      alias: 'r',
+      type: 'string',
+      describe: 'HTTP registry URL (e.g. http://localhost:3333)',
+    })
     .check((argv) => {
       if (!argv['dry-run'] && !argv.key) {
         throw new Error('--key is required when not using --dry-run');
@@ -98,8 +106,7 @@ async function main() {
     chains,
     key,
     'dry-run': dryRun,
-    validators,
-    threshold,
+    registry: registryUrl,
     outFile,
   } = await getArgs().argv;
 
@@ -107,9 +114,10 @@ async function main() {
   const fastPathChains = fastPathAgentConfig.contextChainNames.validator;
   const targetChains = chains && chains.length > 0 ? chains : fastPathChains;
 
-  const validatorList = validators;
-  const resolvedThreshold = threshold ?? validatorList.length;
-  const ismConfig = buildIsmConfig(validatorList, resolvedThreshold);
+  const ismConfig = buildIsmConfig(
+    DEFAULT_FASTPATH_VALIDATORS,
+    DEFAULT_FASTPATH_THRESHOLD,
+  );
 
   if (dryRun) {
     rootLogger.info(
@@ -124,7 +132,11 @@ async function main() {
   assert(key, '--key is required');
 
   rootLogger.info(
-    { targetChains, validators: validatorList, threshold: resolvedThreshold },
+    {
+      targetChains,
+      validators: DEFAULT_FASTPATH_VALIDATORS,
+      threshold: DEFAULT_FASTPATH_THRESHOLD,
+    },
     'Deploying fastpath aggregation ISMs',
   );
 
@@ -143,8 +155,15 @@ async function main() {
     multiProvider.setSigner(chain, wallet);
   }
 
+  // ismFactory.deploy() goes through MultiProvider.handleDeploy() internally,
+  // which automatically merges getTransactionOverrides(chain) into every tx —
+  // chain-specific gas overrides (e.g. katana's maxFeePerGas) are picked up
+  // without any extra code here.
+  const chainAddresses = registryUrl
+    ? await getMergedRegistry({ registryUris: [registryUrl] }).getAddresses()
+    : getChainAddresses();
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    getChainAddresses(),
+    chainAddresses,
     multiProvider,
   );
 

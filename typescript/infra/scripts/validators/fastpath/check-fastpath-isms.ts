@@ -22,6 +22,18 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 import { getArgs as getBaseArgs, withChains } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
+// Fastpath validator addresses (AW, Enigma, Luganodes)
+const AW_FASTPATH_VALIDATOR = '0xa9c4c16a4e2cf4628e1bb045cfee9de2f1c3c24a';
+const ENIGMA_FASTPATH_VALIDATOR = '0x93911a19cd8914220f6287d515187e7751817683';
+const LUGANODES_FASTPATH_VALIDATOR =
+  '0xf9c6519dbd9a42bc6a60ea8daec3fa3830f40241';
+const DEFAULT_FASTPATH_VALIDATORS = [
+  AW_FASTPATH_VALIDATOR,
+  ENIGMA_FASTPATH_VALIDATOR,
+  LUGANODES_FASTPATH_VALIDATOR,
+];
+const DEFAULT_FASTPATH_THRESHOLD = 2;
+
 // Non-zero dummy address — avoids the addressToBytes zero-check in formatMessage.
 const DUMMY_ADDRESS_BYTES32 = ethers.utils.hexZeroPad('0x01', 32);
 
@@ -119,13 +131,19 @@ async function main() {
         threshold = t;
       }
 
+      const validatorsMatch =
+        validators.length === DEFAULT_FASTPATH_VALIDATORS.length &&
+        DEFAULT_FASTPATH_VALIDATORS.every((v) =>
+          validators.some((w) => w.toLowerCase() === v.toLowerCase()),
+        );
+      const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
       rows.push({
         destination,
         ismAddress,
         subIsmType: ModuleType[subType],
         validators: validators.join(', '),
         threshold,
-        ok: isMultisig && threshold > 0 ? '✅' : '❌',
+        ok: isMultisig && validatorsMatch && thresholdMatch ? '✅' : '❌',
       });
     }
 
