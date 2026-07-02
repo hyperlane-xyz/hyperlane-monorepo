@@ -348,10 +348,9 @@ async function main(): Promise<void> {
                 if (!oqlfAddress || oqlfAddress === constants.AddressZero)
                   return;
 
-                // Each (oqlfAddress, destDomain) is a unique on-chain storage slot.
-                // Include sourceToken in the key because two CCRs on the same chain
-                // (one USDC, one USDT) each own separate OQLF instances.
-                const slotId = `${oqlfAddress.toLowerCase()}:${destDomain}:${sourceToken}`;
+                // Dedup key: include origin so that multiple origin-chain CCRs that
+                // share the same OQLF instance don't suppress each other's slots.
+                const slotId = `${oqlfAddress.toLowerCase()}:${destDomain}:${origin}:${sourceToken}`;
                 if (seenSlots.has(slotId)) return;
                 seenSlots.add(slotId);
 
