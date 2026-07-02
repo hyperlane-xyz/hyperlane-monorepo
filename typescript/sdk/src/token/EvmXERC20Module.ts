@@ -484,21 +484,15 @@ export class EvmXERC20Module extends HyperlaneModule<
           xERC20Address,
         );
 
-    // Expected owners are config-driven. `ownerOverrides.collateralToken`
-    // overrides the token `Ownable` owner and `ownerOverrides.collateralProxyAdmin`
-    // overrides the ProxyAdmin owner; both otherwise default to the top-level owner.
-    const expectedTokenOwner =
-      warpRouteConfig.ownerOverrides?.collateralToken ?? warpRouteConfig.owner;
-    const expectedProxyAdminOwner =
-      warpRouteConfig.ownerOverrides?.collateralProxyAdmin ??
-      warpRouteConfig.owner;
+    // Both the token `Ownable` owner and the ProxyAdmin owner derive from the
+    // top-level config `owner`.
+    const expectedOwner = warpRouteConfig.owner;
 
     const config: XERC20ModuleConfig = {
       type,
       limits,
-      ...(expectedTokenOwner ? { owner: expectedTokenOwner } : {}),
-      ...(expectedProxyAdminOwner
-        ? { proxyAdmin: { owner: expectedProxyAdminOwner } }
+      ...(expectedOwner
+        ? { owner: expectedOwner, proxyAdmin: { owner: expectedOwner } }
         : {}),
     };
     const module = new EvmXERC20Module(multiProvider, {

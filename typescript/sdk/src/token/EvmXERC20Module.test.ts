@@ -589,35 +589,6 @@ describe('EvmXERC20Module', () => {
       expect(config.proxyAdmin).to.deep.equal({ owner: OWNER_ADDRESS });
     });
 
-    it('ownerOverrides take precedence over config.owner', async () => {
-      const warpRouteConfig = {
-        type: TokenType.XERC20,
-        token: XERC20_ADDRESS,
-        owner: OWNER_ADDRESS,
-        ownerOverrides: {
-          collateralToken: NEW_OWNER_ADDRESS,
-          collateralProxyAdmin: PROXY_ADMIN_ADDRESS,
-        },
-        xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            bufferCap: '1000000000000000000',
-            rateLimitPerSecond: '100000000000000000',
-          },
-        },
-      };
-
-      const { config } = await EvmXERC20Module.fromWarpRouteConfig(
-        multiProvider,
-        TestChainName.test1,
-        warpRouteConfig,
-        WARP_ROUTE_ADDRESS,
-      );
-
-      expect(config.owner).to.equal(NEW_OWNER_ADDRESS);
-      expect(config.proxyAdmin).to.deep.equal({ owner: PROXY_ADMIN_ADDRESS });
-    });
-
     it('derives type from chain when limits missing', async () => {
       const typeStub = sandbox
         .stub(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')

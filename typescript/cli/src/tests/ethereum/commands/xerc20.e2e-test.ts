@@ -311,7 +311,7 @@ describe('xerc20 e2e tests', function () {
   });
 
   describe('ownership transfer', function () {
-    it('transfers XERC20 token ownership when ownerOverrides.collateralToken differs', async function () {
+    it('transfers XERC20 token ownership when config owner differs', async function () {
       const newOwnerWallet = Wallet.createRandom().connect(xERC20VS2.provider);
       const newOwner = newOwnerWallet.address;
 
@@ -320,10 +320,7 @@ describe('xerc20 e2e tests', function () {
           type: TokenType.XERC20,
           token: xERC20VS2.address,
           mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-          ownerOverrides: {
-            collateralToken: newOwner,
-          },
+          owner: newOwner,
           xERC20: {
             warpRouteLimits: {
               type: XERC20Type.Velo,
