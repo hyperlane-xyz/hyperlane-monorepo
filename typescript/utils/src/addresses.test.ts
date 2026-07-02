@@ -7,6 +7,7 @@ import {
   isAddressStarknet,
   isValidAddressStarknet,
   isZeroishAddress,
+  normalizeAddressEvm,
   padBytesToLength,
 } from './addresses.js';
 import { ProtocolType } from './types.js';
@@ -174,6 +175,34 @@ describe('Address utilities', () => {
       const outOfBoundsAddress =
         '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
       expect(isValidAddressStarknet(outOfBoundsAddress)).to.be.false;
+    });
+  });
+
+  describe('normalizeAddressEvm', () => {
+    // Run-1 ICA strategy incident: correct hex digits, bad EIP-55 casing.
+    const BAD_CHECKSUM = '0x3f13C1351aC66CA0f4827c607A94C93C82AD0913';
+    const CANONICAL = '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913';
+
+    it('Canonicalizes an address with a bad EIP-55 checksum', () => {
+      expect(normalizeAddressEvm(BAD_CHECKSUM)).to.equal(CANONICAL);
+    });
+
+    it('Canonicalizes an all-lowercase address', () => {
+      expect(normalizeAddressEvm(CANONICAL.toLowerCase())).to.equal(CANONICAL);
+    });
+
+    it('Leaves an already-canonical address unchanged', () => {
+      expect(normalizeAddressEvm(CANONICAL)).to.equal(CANONICAL);
+    });
+
+    it('Returns zeroish addresses unchanged', () => {
+      expect(normalizeAddressEvm(ETH_ZERO_ADDR)).to.equal(ETH_ZERO_ADDR);
+    });
+
+    it('Returns non-EVM input unchanged', () => {
+      expect(normalizeAddressEvm(SOL_NON_ZERO_ADDR)).to.equal(
+        SOL_NON_ZERO_ADDR,
+      );
     });
   });
 });

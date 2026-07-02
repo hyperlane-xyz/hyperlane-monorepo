@@ -104,7 +104,7 @@ strategy:
         tolerance: 3
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
-      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      bridge: '0x92dFEB6f7Daa532de0F3c75c2091e1607c6593b7'
       override:
         bsc:
           executionType: inventory
