@@ -673,60 +673,79 @@ async function main(): Promise<void> {
 
   // ── Sign and submit ────────────────────────────────────────────────────────
 
+  const MAX_ATTEMPTS = 3;
+
   for (const { slot, maxFee, halfAmount, newBpsStr } of toSubmit) {
     const provider = multiProvider.getProvider(slot.origin);
-    // signerWallet: signs the EIP-712 data (no gas needed).
     const signerWallet = new Wallet(signerKey, provider);
-    // submitter: connected to provider so it can pay gas.
     const submitter_wallet = submitterWallet.connect(provider);
     const { chainId } = await provider.getNetwork();
 
-    const issuedAt = Math.floor(Date.now() / 1000);
-    const expiry = issuedAt + effectiveTtl;
-    const salt = ethers.utils.hexlify(ethers.utils.randomBytes(32));
-    const submitter = constants.AddressZero; // unrestricted for standing quotes
-
-    // FeeQuoteContext.encode(destDomain, WILDCARD_RECIPIENT, WILDCARD_AMOUNT)
     const context = ethers.utils.solidityPack(
       ['uint32', 'bytes32', 'uint256'],
       [slot.destDomain, WILDCARD_RECIPIENT, constants.MaxUint256],
     );
-    // FeeQuoteData.encode(maxFee, halfAmount)
     const data = ethers.utils.solidityPack(
       ['uint256', 'uint256'],
       [maxFee, halfAmount],
     );
-
     const domain = {
       name: EIP712_NAME,
       version: EIP712_VERSION,
       chainId,
       verifyingContract: slot.oqlfAddress,
     };
-    const message = { context, data, issuedAt, expiry, salt, submitter };
-    const signature = await signerWallet._signTypedData(
-      domain,
-      SIGNED_QUOTE_TYPES,
-      message,
-    );
-
-    process.stdout.write(
-      `Submitting ${slot.origin} (${slot.sourceToken}) → ${slot.destination} / ${slot.target} (${newBpsStr} bps)... `,
-    );
-    // Submitter wallet pays gas; anyone may submit since submitter field = address(0).
     const oqlf = OffchainQuotedLinearFee__factory.connect(
       slot.oqlfAddress,
       submitter_wallet,
     );
     const txOverrides = multiProvider.getTransactionOverrides(slot.origin);
-    const tx = await oqlf.submitQuote(
-      { context, data, issuedAt, expiry, salt, submitter },
-      signature,
-      txOverrides,
-    );
-    process.stdout.write(`${tx.hash.slice(0, 14)}… `);
-    await tx.wait(1);
-    console.log('confirmed.');
+
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        // Regenerate timestamps and salt on each attempt so the signature is fresh.
+        const issuedAt = Math.floor(Date.now() / 1000);
+        const expiry = issuedAt + effectiveTtl;
+        const salt = ethers.utils.hexlify(ethers.utils.randomBytes(32));
+        const submitter = constants.AddressZero;
+
+        const message = { context, data, issuedAt, expiry, salt, submitter };
+        const signature = await signerWallet._signTypedData(
+          domain,
+          SIGNED_QUOTE_TYPES,
+          message,
+        );
+
+        const attemptSuffix = attempt > 1 ? ` (attempt ${attempt})` : '';
+        process.stdout.write(
+          `Submitting ${slot.origin} (${slot.sourceToken}) → ${slot.destination} / ${slot.target} (${newBpsStr} bps)${attemptSuffix}... `,
+        );
+
+        const tx = await oqlf.submitQuote(
+          { context, data, issuedAt, expiry, salt, submitter },
+          signature,
+          txOverrides,
+        );
+        process.stdout.write(`${tx.hash.slice(0, 14)}… `);
+        await tx.wait(1);
+        console.log('confirmed.');
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+        const msg =
+          err instanceof Error ? err.message.slice(0, 120) : String(err);
+        if (attempt < MAX_ATTEMPTS) {
+          console.warn(`\n  attempt ${attempt} failed: ${msg} — retrying...`);
+        } else {
+          console.error(`\n  failed after ${MAX_ATTEMPTS} attempts: ${msg}`);
+        }
+      }
+    }
+
+    if (lastErr !== undefined)
+      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
 
   console.log('\nAll quotes submitted.');
