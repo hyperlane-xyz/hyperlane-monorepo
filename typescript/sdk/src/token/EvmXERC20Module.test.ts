@@ -283,9 +283,8 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.update(config);
 
-      expect(
-        txs.every((tx) => !tx.annotation?.includes('Transferring ownership')),
-      ).to.equal(true);
+      // No limit drift and ownership gated off, so nothing should be emitted.
+      expect(txs).to.have.lengthOf(0);
     });
 
     it('appends a token ownership transfer tx when expected owner differs', async () => {
@@ -345,6 +344,26 @@ describe('EvmXERC20Module', () => {
       ).to.equal(true);
     });
 
+    it('does not emit a ProxyAdmin transfer when the token is unproxied', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        proxyAdmin: { owner: NEW_OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      // Unproxied token: no on-chain ProxyAdmin to transfer.
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs).to.have.lengthOf(0);
+    });
+
     it('no-ops ownership transfer when owners already match', async () => {
       const config: XERC20ModuleConfig = {
         ...createStandardConfig(),
@@ -398,7 +417,12 @@ describe('EvmXERC20Module', () => {
       // Limit update tx(s) come first; the ownership transfer is last.
       const lastTx = txs[txs.length - 1];
       expect(lastTx.to).to.equal(XERC20_ADDRESS);
-      expect(lastTx.annotation).to.include('Transferring ownership');
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(lastTx.data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
       expect(txs.length).to.be.greaterThan(1);
     });
   });

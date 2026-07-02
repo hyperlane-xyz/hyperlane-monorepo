@@ -17,7 +17,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, OwnableConfig } from '../types.js';
+import { ChainName, DeployedOwnableConfig, OwnableConfig } from '../types.js';
 
 import {
   EvmXERC20Reader,
@@ -50,10 +50,7 @@ export interface XERC20ModuleConfig {
    * fields are populated; on an expected config only `owner` is meaningful and
    * `address` may be omitted.
    */
-  proxyAdmin?: {
-    address?: Address;
-    owner: Address;
-  };
+  proxyAdmin?: DeployedOwnableConfig;
 }
 
 /**
@@ -487,9 +484,9 @@ export class EvmXERC20Module extends HyperlaneModule<
           xERC20Address,
         );
 
-    // Expected owners are config-driven. ownerOverrides take precedence over the
-    // top-level owner; collateralToken -> token Ownable, collateralProxyAdmin ->
-    // ProxyAdmin owner. Keys mirror the warp checker's ownerOverrides convention.
+    // Expected owners are config-driven. `ownerOverrides.collateralToken`
+    // overrides the token `Ownable` owner and `ownerOverrides.collateralProxyAdmin`
+    // overrides the ProxyAdmin owner; both otherwise default to the top-level owner.
     const expectedTokenOwner =
       warpRouteConfig.ownerOverrides?.collateralToken ?? warpRouteConfig.owner;
     const expectedProxyAdminOwner =

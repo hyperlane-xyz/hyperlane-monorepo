@@ -131,6 +131,31 @@ describe('xerc20 e2e tests', function () {
     rateLimitPerSecond: '1000000000000000000',
   };
 
+  // xERC20VS tokens are shared across tests (deployed once in `before`), and the
+  // owner-gated addBridge in every `beforeEach` reverts if ownership is stranded
+  // on a throwaway wallet. Fund the current owner for gas and hand ownership back
+  // to the deployer so subsequent tests keep working.
+  async function restoreTokenOwnership(
+    token: XERC20VSTest,
+    currentOwnerWallet: Wallet,
+  ): Promise<void> {
+    // If the apply/assertion failed before the handoff landed, the deployer is
+    // still the owner and there is nothing to restore.
+    const currentOwner = await token.owner();
+    if (currentOwner === ownerAddress) return;
+
+    await token.signer
+      .sendTransaction({
+        to: currentOwnerWallet.address,
+        value: utils.parseEther('1'),
+      })
+      .then((tx) => tx.wait());
+    await token
+      .connect(currentOwnerWallet)
+      .transferOwnership(ownerAddress)
+      .then((tx) => tx.wait());
+  }
+
   async function deployWarpRoutesAndSetupBridges(): Promise<void> {
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
@@ -312,26 +337,21 @@ describe('xerc20 e2e tests', function () {
       const ownerBefore = await xERC20VS2.owner();
       expect(ownerBefore).to.equal(ownerAddress);
 
-      await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug`;
+      try {
+        await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
+          --registry ${REGISTRY_PATH} \
+          --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
+          --chains ${CHAIN_NAME_2} \
+          --key ${ANVIL_KEY} \
+          --verbosity debug`;
 
-      const ownerAfter = await xERC20VS2.owner();
-      expect(ownerAfter).to.equal(newOwner);
-
-      // xERC20VS2 is shared across tests; the owner-gated addBridge in every
-      // beforeEach deploy would revert if we left ownership with this throwaway
-      // wallet. Fund it for gas and hand ownership back to the deployer.
-      await xERC20VS2.signer
-        .sendTransaction({ to: newOwner, value: utils.parseEther('1') })
-        .then((tx) => tx.wait());
-      await xERC20VS2
-        .connect(newOwnerWallet)
-        .transferOwnership(ownerAddress)
-        .then((tx) => tx.wait());
+        const ownerAfter = await xERC20VS2.owner();
+        expect(ownerAfter).to.equal(newOwner);
+      } finally {
+        // Runs even if the apply or assertion throws, so a failure here doesn't
+        // strand ownership and cascade into every subsequent test's beforeEach.
+        await restoreTokenOwnership(xERC20VS2, newOwnerWallet);
+      }
     });
 
     it('reports no updates when token owner already matches config', async function () {
