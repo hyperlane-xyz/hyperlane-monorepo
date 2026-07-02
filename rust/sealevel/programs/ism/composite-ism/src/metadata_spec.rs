@@ -95,7 +95,12 @@ pub(crate) fn spec_and_accounts_for_node(
                             });
                         }
                     },
-                    Err(Error::NoRouteForDomain) => sub_specs.push(MetadataSpec::CannotVerify),
+                    Err(
+                        Error::NoRouteForDomain
+                        | Error::InvalidMessageBody
+                        | Error::ThresholdNotMet
+                        | Error::FallbackIsmCallFailed,
+                    ) => sub_specs.push(MetadataSpec::CannotVerify),
                     Err(e) => return Err(e),
                 }
             }
