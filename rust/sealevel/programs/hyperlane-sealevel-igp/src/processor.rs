@@ -974,6 +974,7 @@ fn set_igp_quote_config(
         }
     }
 
+    let new_min_issued_at = config.as_ref().map(|c| c.min_issued_at);
     igp.fee_config = config;
 
     let igp_account = IgpAccount::new(igp.into());
@@ -984,6 +985,10 @@ fn set_igp_quote_config(
         system_program_info,
     )?;
 
+    match new_min_issued_at {
+        Some(min) => msg!("Set IGP quote config (min_issued_at {})", min),
+        None => msg!("Cleared IGP quote config"),
+    }
     Ok(())
 }
 
@@ -1018,12 +1023,12 @@ fn set_igp_quote_signer(
         .as_mut()
         .ok_or(ProgramError::InvalidArgument)?;
 
-    match operation {
+    match &operation {
         SetIgpQuoteSignerOperation::Add(signer) => {
-            fee_config.signers.insert(signer);
+            fee_config.signers.insert(*signer);
         }
         SetIgpQuoteSignerOperation::Remove(signer) => {
-            if !fee_config.signers.remove(&signer) {
+            if !fee_config.signers.remove(signer) {
                 return Err(ProgramError::InvalidArgument);
             }
         }
@@ -1037,6 +1042,11 @@ fn set_igp_quote_signer(
         system_program_info,
     )?;
 
+    msg!(
+        "{} IGP quote signer: {:?}",
+        operation.action_to_str(),
+        operation.signer()
+    );
     Ok(())
 }
 
@@ -1086,6 +1096,7 @@ fn set_igp_min_issued_at(
         system_program_info,
     )?;
 
+    msg!("Set IGP min_issued_at: {}", min_issued_at);
     Ok(())
 }
 
