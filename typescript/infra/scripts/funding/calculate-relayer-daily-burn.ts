@@ -50,11 +50,18 @@ async function main() {
 
   validateTokenPrices();
 
-  const sealevelDomainIds: ChainMap<string> = await getSealevelDomainIds();
+  const [sealevelDomainIds, nativeDecimalsMap] = await Promise.all([
+    getSealevelDomainIds(),
+    getNativeTokenDecimalsMap(),
+  ]);
 
   let burnData: ChainMap<number>;
   try {
-    burnData = await calculateDailyRelayerBurn(sealevelDomainIds, skipReview);
+    burnData = await calculateDailyRelayerBurn(
+      sealevelDomainIds,
+      nativeDecimalsMap,
+      skipReview,
+    );
   } catch (err) {
     rootLogger.error('Error fetching daily burn data:', err);
     process.exit(1);
@@ -87,8 +94,22 @@ async function getReadOnlyScraperDb() {
   return postgres(credentialsUrl, { ssl: 'require' });
 }
 
+async function getNativeTokenDecimalsMap(): Promise<ChainMap<number>> {
+  const registry = await getRegistry();
+  const allMetadata = await registry.getMetadata();
+  const result: ChainMap<number> = {};
+  for (const [chain, meta] of Object.entries(allMetadata)) {
+    const decimals = meta.nativeToken?.decimals ?? 18;
+    if (decimals !== 18) {
+      result[chain] = decimals;
+    }
+  }
+  return result;
+}
+
 async function getDailyRelayerBurnScraperDB(
   sealevelDomainIds: ChainMap<string>,
+  nativeDecimalsMap: ChainMap<number>,
 ) {
   const sealevelDomainIdsArr = Object.values(sealevelDomainIds);
 
@@ -135,7 +156,11 @@ async function getDailyRelayerBurnScraperDB(
 
   const burnData: ChainMap<number> = {};
   for (const row of results) {
-    burnData[row.chain] = row.daily_burn;
+    const decimals = nativeDecimalsMap[row.chain];
+    // SQL uses POWER(10, 18); correct for non-18 decimal native tokens
+    const correctionFactor =
+      decimals !== undefined ? Math.pow(10, 18 - decimals) : 1;
+    burnData[row.chain] = row.daily_burn * correctionFactor;
   }
 
   return burnData;
@@ -212,10 +237,11 @@ async function getSealevelBurnProm(
 
 async function calculateDailyRelayerBurn(
   sealevelDomainIds: ChainMap<string>,
+  nativeDecimalsMap: ChainMap<number>,
   skipReview: boolean,
 ): Promise<ChainMap<number>> {
   const [dbBurnData, sealevelBurnData] = await Promise.all([
-    getDailyRelayerBurnScraperDB(sealevelDomainIds),
+    getDailyRelayerBurnScraperDB(sealevelDomainIds, nativeDecimalsMap),
     getSealevelBurnProm(sealevelDomainIds),
   ]);
 

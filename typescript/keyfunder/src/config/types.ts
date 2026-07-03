@@ -67,10 +67,16 @@ export const SweepConfigSchema = z
     },
   );
 
+export const Erc20GasTokenSchema = z.object({
+  address: AddressSchema,
+  decimals: z.number().int().min(0).max(18),
+});
+
 export const ChainConfigSchema = z.object({
   balances: z.record(z.string(), BalanceStringSchema).optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),
+  erc20GasToken: Erc20GasTokenSchema.optional(),
 });
 
 export const MetricsConfigSchema = z.object({
@@ -108,6 +114,7 @@ export const KeyFunderConfigSchema = z
 export type RoleConfig = z.infer<typeof RoleConfigSchema>;
 export type IgpConfig = z.infer<typeof IgpConfigSchema>;
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
+export type Erc20GasTokenConfig = z.infer<typeof Erc20GasTokenSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
 export type KeyFunderConfig = z.infer<typeof KeyFunderConfigSchema>;

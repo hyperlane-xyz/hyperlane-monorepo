@@ -141,6 +141,11 @@ export const NativeTokenSchema = z.object({
   symbol: z.string(),
   decimals: ZUint.lt(256),
   denom: z.string().optional(),
+  // If set, the native gas token is an ERC20 contract at this address rather
+  // than a protocol-level token. Tools that fund addresses or read balances
+  // must use balanceOf / ERC20 transfers instead of eth_getBalance / native
+  // sends. Omit for standard EVM chains where gas is the protocol native token.
+  address: z.string().optional(),
 });
 
 export const GasPriceSchema = z.object({
