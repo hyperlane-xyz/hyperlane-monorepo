@@ -13,6 +13,7 @@ use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
+    msg,
     program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -293,6 +294,7 @@ fn update_config(
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
+    msg!("Updated ISM root config: {}", root.kind_to_str());
     storage.root = Some(root);
 
     CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
@@ -342,6 +344,7 @@ fn set_domain_ism(
         return Err(Error::InvalidSystemProgram.into());
     }
 
+    msg!("Set domain {} ISM: {}", domain, ism.kind_to_str());
     let domain_storage = DomainIsmAccount::from(DomainIsmStorage {
         bump_seed: bump,
         domain,
@@ -403,6 +406,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
 
     domain_pda_account.close_account(owner_account)?;
 
+    msg!("Removed domain {} ISM", domain);
     Ok(())
 }
 
@@ -427,9 +431,15 @@ fn transfer_ownership(
     let storage_pda_account = next_account_info(accounts_iter)?;
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
+    let old_owner = storage.owner;
     storage.transfer_ownership(owner_account, new_owner)?;
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
+    msg!(
+        "Transferred ownership from {:?} to {:?}",
+        old_owner,
+        new_owner
+    );
     Ok(())
 }
 
@@ -681,6 +691,8 @@ fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> Pr
     }
 
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
+
+    msg!("Set paused: {}", paused);
     Ok(())
 }
 
