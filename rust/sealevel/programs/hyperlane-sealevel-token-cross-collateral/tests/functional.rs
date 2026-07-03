@@ -37,7 +37,7 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -100,6 +100,10 @@ fn second_cc_program_id() -> Pubkey {
 
 fn fee_program_id() -> Pubkey {
     pubkey!("Fee1111111111111111111111111111111111111111")
+}
+
+fn mailbox_outbox() -> Pubkey {
+    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_id()).0
 }
 
 async fn setup_client() -> (BanksClient, Keypair) {
@@ -3486,6 +3490,7 @@ async fn test_cc_remote_transfer_with_fee() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -3729,6 +3734,7 @@ async fn test_cc_local_transfer_with_fee() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -3962,6 +3968,7 @@ async fn test_cc_remote_transfer_with_fee_routing_mode() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -4177,6 +4184,7 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -4449,6 +4457,7 @@ async fn test_cc_remote_transfer_with_default_router_transient_quote() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -4798,6 +4807,7 @@ async fn test_cc_remote_transfer_with_default_router_transient_rejected_when_spe
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -5079,6 +5089,7 @@ async fn test_set_fee_config() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_config.fee_program, false),
                     AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -5314,6 +5325,7 @@ async fn setup_cc_fee_test_context() -> CcFeeTestContext {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -6685,6 +6697,7 @@ async fn test_cc_remote_transfer_igp_new_flow_with_fee() {
                     AccountMeta::new(ctx.payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),

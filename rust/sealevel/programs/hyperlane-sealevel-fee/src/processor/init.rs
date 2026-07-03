@@ -65,9 +65,9 @@ pub(super) fn process_init_fee(
             bump_seed: fee_account_bump,
             owner: Some(*payer_info.key),
             beneficiary: data.beneficiary,
-            fee_data: data.fee_data,
             domain_id: data.domain_id,
             min_issued_at: 0,
+            fee_data: data.fee_data,
         }
         .into(),
     );

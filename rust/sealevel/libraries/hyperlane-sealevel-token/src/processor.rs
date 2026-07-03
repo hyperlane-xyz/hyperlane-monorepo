@@ -21,6 +21,7 @@ use hyperlane_sealevel_igp::{
     instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
 };
 use hyperlane_sealevel_mailbox::{
+    accounts::Outbox,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
@@ -1283,6 +1284,7 @@ where
     ///
     /// 3. `[executable]` The fee program.
     /// 4. `[]` The fee account (owned by fee program).
+    /// 5. `[]` The mailbox outbox PDA account (to read local_domain).
     pub fn set_fee_config(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -1320,7 +1322,15 @@ where
             {
                 return Err(ProgramError::InvalidArgument);
             }
-            FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+            let fee_account_prefix = FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+
+            // Account 5: Mailbox outbox PDA - read local_domain from mailbox.
+            let mailbox_outbox_account = next_account_info(accounts_iter)?;
+            let outbox =
+                Outbox::verify_account_and_fetch_inner(&token.mailbox, mailbox_outbox_account)?;
+            if fee_account_prefix.domain_id != outbox.local_domain {
+                return Err(Error::InvalidFeeAccountDomain.into());
+            }
         }
 
         ensure_no_extraneous_accounts(accounts_iter)?;
