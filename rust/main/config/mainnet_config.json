@@ -8437,10 +8437,10 @@
       "gnosisSafeTransactionServiceUrl": "https://safe.igralabs.com/txs",
       "interchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "minimalInterchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
+      "quotedCalls": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
       "transactionOverrides": {
         "gasPrice": 1000000000000
-      },
-      "quotedCalls": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8"
+      }
     },
     "tron": {
       "blockExplorers": [
@@ -8994,8 +8994,8 @@
       "name": "tempo",
       "nativeToken": {
         "decimals": 6,
-        "name": "USD",
-        "symbol": "USD"
+        "name": "pathUSD",
+        "symbol": "pathUSD"
       },
       "protocol": "ethereum",
       "rpcUrls": [
