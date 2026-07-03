@@ -39,14 +39,14 @@ Destinations include all the above chains plus `solanamainnet`.
 
 ## Parsing Natural Language → CLI Flags
 
-| Concept in request           | Flag              | Value                               |
-| ---------------------------- | ----------------- | ----------------------------------- |
-| origin chain(s)              | `--origins`       | comma-separated names or `all`      |
-| source token(s) on origin    | `--source-tokens` | `USDC`, `USDT`, `ctUSD`, or `all`   |
-| destination chain(s)         | `--destinations`  | comma-separated names or `all`      |
-| destination router target(s) | `--targets`       | `DEFAULT`, `USDC`, `USDT`, or `all` |
-| fee amount                   | `--bps`           | number (e.g. `3`, `5`, `0.5`)       |
-| quote lifetime               | `--ttl`           | seconds (86400 = 24h, 604800 = 7d)  |
+| Concept in request           | Flag              | Value                                             |
+| ---------------------------- | ----------------- | ------------------------------------------------- |
+| origin chain(s)              | `--origins`       | comma-separated names or `all`                    |
+| source token(s) on origin    | `--source-tokens` | `USDC`, `USDT`, `ctUSD`, or `all`                 |
+| destination chain(s)         | `--destinations`  | comma-separated names or `all`                    |
+| destination router target(s) | `--targets`       | `DEFAULT`, `USDC`, `USDT`, or `all`               |
+| fee amount                   | `--bps`           | number (e.g. `3`, `5`, `0.5`)                     |
+| quote lifetime               | `--ttl`           | duration with unit suffix (`24h`, `2d`, `86400s`) |
 
 **Heuristics:**
 
@@ -56,22 +56,22 @@ Destinations include all the above chains plus `solanamainnet`.
 - "USDT destinations" / "USDC targets" → `--targets USDT/USDC`
 - target not mentioned → `--targets DEFAULT`
 - "all ..." → `all`
-- TTL not mentioned → `--ttl 86400` (24h)
+- TTL not mentioned → `--ttl 24h`
 
 **Examples:**
 
-```
+```test
 "update all fees from arbitrum usdc to all usdt destinations to 5bps"
-→ --origins arbitrum --source-tokens USDC --destinations all --targets USDT --bps 5 --ttl 86400
+→ --origins arbitrum --source-tokens USDC --destinations all --targets USDT --bps 5 --ttl 24h
 
 "set katana to arbitrum default fee to 3bps"
-→ --origins katana --source-tokens all --destinations arbitrum --targets DEFAULT --bps 3 --ttl 86400
+→ --origins katana --source-tokens all --destinations arbitrum --targets DEFAULT --bps 3 --ttl 24h
 
 "update all moonpay fees to 3bps"
-→ --origins all --source-tokens all --destinations all --targets all --bps 3 --ttl 86400
+→ --origins all --source-tokens all --destinations all --targets all --bps 3 --ttl 24h
 
 "set ethereum USDT → base and polygon DEFAULT to 4.5bps with 7d TTL"
-→ --origins ethereum --source-tokens USDT --destinations base,polygon --targets DEFAULT --bps 4.5 --ttl 604800
+→ --origins ethereum --source-tokens USDT --destinations base,polygon --targets DEFAULT --bps 4.5 --ttl 7d
 ```
 
 ## Ambiguity
@@ -86,25 +86,7 @@ Ask ONE clarifying question before proceeding if any dimension is unclear:
 
 **Step 1 — Derive flags** from the request.
 
-**Step 2 — Enumerate affected lanes** from the route topology above (do NOT run any script yet).
-Cross-product the selected origins × source-tokens × destinations × targets and list them in a compact table:
-
-```
-origin      src    → dest        target    new bps
-arbitrum    USDC   → base        DEFAULT   5.00
-arbitrum    USDC   → bsc         DEFAULT   5.00
-...
-```
-
-Include the total count. Show TTL.
-
-**Step 3 — Ask the user to confirm** before running anything:
-
-> "This will update N lanes to X bps (TTL Yh). Proceed?"
-
-Wait for the user to reply. Do NOT run the script yet.
-
-**Step 4 — On confirmation**, run the script with `--yes`, the HTTP registry, and no explicit signer/submitter keys (GCP defaults are used automatically):
+**Step 2 — Preview with `--dry-run`** to confirm the exact lanes and current→new bps against live on-chain state (no signer/submitter keys are needed for this):
 
 ```bash
 cd <monorepo-root> && pnpm tsx typescript/infra/scripts/moonpay/set-quotes.ts \
@@ -114,15 +96,38 @@ cd <monorepo-root> && pnpm tsx typescript/infra/scripts/moonpay/set-quotes.ts \
   --destinations <destinations> \
   --targets <targets> \
   --bps <bps> \
-  --ttl <seconds> \
+  --ttl <duration, e.g. 24h> \
+  --dry-run
+```
+
+Find the monorepo root with `git rev-parse --show-toplevel` if needed. The HTTP registry (`-r http://localhost:3333`) provides private RPC URL overrides — start it first with `/start-http-registry` if it isn't running.
+
+**Step 3 — Run it for real**, immediately and without asking for approval: re-run the same command with `--dry-run` swapped for `--yes` (GCP defaults are used automatically for signer/submitter keys):
+
+```bash
+cd <monorepo-root> && pnpm tsx typescript/infra/scripts/moonpay/set-quotes.ts \
+  -r http://localhost:3333 \
+  --origins <origins> \
+  --source-tokens <source-tokens> \
+  --destinations <destinations> \
+  --targets <targets> \
+  --bps <bps> \
+  --ttl <duration, e.g. 24h> \
   --yes
 ```
 
-Find the monorepo root with `git rev-parse --show-toplevel` if needed.
+**Step 4 — Summarize the result** in plain language, grouped by lane, before showing raw output. For each lane report old→new bps, or `(unchanged, was already correct)` when the current value already matched the target — plus the TTL used:
 
-The HTTP registry (`-r http://localhost:3333`) provides private RPC URL overrides. If it is not running, start it first using the `/start-http-registry` skill.
+```test
+Done. Katana↔katana quotes now:
 
-**Step 5** — Show the script output so the user can verify submissions. Surface any errors clearly without retrying silently.
+- USDC→USDC: 3bps (unchanged, was already correct)
+- USDT→USDT: 3bps (unchanged, was already correct)
+- USDC→USDT: 3→30bps, 7-day TTL
+- USDT→USDC: 18→30bps, 7-day TTL
+```
+
+Then show the script's raw output below the summary so the user can verify the actual submissions. Surface any errors clearly without retrying silently.
 
 ## Reading Current Standing Quotes
 
