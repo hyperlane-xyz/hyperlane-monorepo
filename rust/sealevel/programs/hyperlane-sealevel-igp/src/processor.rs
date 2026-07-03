@@ -942,6 +942,12 @@ fn set_gas_oracle_configs(
 
 /// Sets or removes the IGP quote configuration.
 ///
+/// `min_issued_at` is only guaranteed monotonic while the config stays present:
+/// clearing the config (Some -> None) and re-adding it (None -> Some) resets the
+/// revocation floor to the new config's `min_issued_at`, which may be lower than
+/// a previously-set floor. To revoke quotes, advance `min_issued_at` via
+/// SetIgpMinIssuedAt rather than removing and re-adding the config.
+///
 /// Accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[writeable]` The IGP account.
@@ -1052,6 +1058,10 @@ fn set_igp_quote_signer(
 
 /// Sets the min_issued_at threshold on the IGP.
 /// Monotonic: new value must be >= current value.
+///
+/// This is the revocation control for IGP quotes: advancing `min_issued_at`
+/// invalidates every quote issued at or before it. Quote expiry has no upper
+/// bound, so prefer short expiries to keep revocation windows bounded.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
