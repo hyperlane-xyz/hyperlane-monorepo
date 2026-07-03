@@ -120,6 +120,9 @@ impl<T> DiscriminatorEncode for T where T: DiscriminatorData + borsh::BorshSeria
 /// Decodes the given data with a discriminator prefix.
 pub trait DiscriminatorDecode: DiscriminatorData + borsh::BorshDeserialize {
     fn decode(data: &[u8]) -> Result<Self, ProgramError> {
+        if data.len() < Discriminator::LENGTH {
+            return Err(ProgramError::InvalidInstructionData);
+        }
         let (discriminator, rest) = data.split_at(Discriminator::LENGTH);
         if discriminator != Self::DISCRIMINATOR_SLICE {
             return Err(ProgramError::InvalidInstructionData);
@@ -160,5 +163,26 @@ mod test {
             serialized_prefixed_foo[0..Discriminator::LENGTH],
             Foo::DISCRIMINATOR
         );
+    }
+
+    #[derive(BorshSerialize, BorshDeserialize, Default, Debug)]
+    struct Bar {
+        a: u64,
+    }
+
+    impl DiscriminatorData for Bar {
+        const DISCRIMINATOR: [u8; 8] = [3, 3, 3, 3, 3, 3, 3, 3];
+    }
+
+    #[test]
+    fn test_decode_rejects_short_input() {
+        // Fewer than DISCRIMINATOR_LENGTH bytes must error, not panic in split_at.
+        for len in 0..Discriminator::LENGTH {
+            let short = vec![3u8; len];
+            assert_eq!(
+                Bar::decode(&short).unwrap_err(),
+                ProgramError::InvalidInstructionData,
+            );
+        }
     }
 }
