@@ -1325,7 +1325,8 @@ where
 
         ensure_no_extraneous_accounts(accounts_iter)?;
 
-        token.fee_config = fee_config;
+        let previous_fee_config = token.fee_config.clone();
+        token.fee_config = fee_config.clone();
 
         // Store with realloc since fee_config may change the account size.
         HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
@@ -1335,6 +1336,11 @@ where
             system_program,
         )?;
 
+        msg!(
+            "Set fee config: {:?} -> {:?}",
+            previous_fee_config,
+            fee_config
+        );
         Ok(())
     }
 }
