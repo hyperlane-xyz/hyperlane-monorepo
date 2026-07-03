@@ -8,6 +8,7 @@ import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {ICollateralBackedToken} from "./interfaces/ICollateralBackedToken.sol";
 import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 import {IRebalancingBridge} from "./interfaces/IRebalancingBridge.sol";
 
@@ -122,9 +123,9 @@ contract AtomicLocalRebalancingBridge is
             domain,
             sourceRouter
         );
-        MovableCollateralRouter destination = _validateAndParseDestinationRouter(
-                destinationRecipient
-            );
+        ICollateralBackedToken destination = _validateAndParseDestination(
+            destinationRecipient
+        );
 
         // Resolve the source and destination collateral tokens; both must be a
         // non-native ERC20 (token() != address(0)).
@@ -265,10 +266,10 @@ contract AtomicLocalRebalancingBridge is
     }
 
     /// @dev Validates `destinationRecipient` against the source's rebalance targets
-    /// and returns the destination router it encodes.
-    function _validateAndParseDestinationRouter(
+    /// and returns the destination it encodes.
+    function _validateAndParseDestination(
         bytes32 destinationRecipient
-    ) internal view returns (MovableCollateralRouter) {
+    ) internal view returns (ICollateralBackedToken) {
         if (
             !IRebalanceTargets(allowedSourceRouter).isRebalanceTarget(
                 localDomain,
@@ -279,7 +280,7 @@ contract AtomicLocalRebalancingBridge is
         }
 
         return
-            MovableCollateralRouter(
+            ICollateralBackedToken(
                 TypeCasts.bytes32ToAddress(destinationRecipient)
             );
     }
