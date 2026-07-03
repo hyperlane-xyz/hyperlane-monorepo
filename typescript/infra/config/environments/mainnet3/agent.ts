@@ -4,6 +4,7 @@ import {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  AgentSealevelUrReveal,
   ChainMap,
   ChainName,
   GasPaymentEnforcement,
@@ -136,7 +137,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
@@ -180,7 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: false,
     subtensor: true,
     superseed: true,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
@@ -269,7 +270,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
@@ -313,7 +314,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     subtensor: true,
     superseed: true,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
     taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
@@ -402,7 +403,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     megaeth: true,
     metal: true,
     metis: true,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
@@ -446,7 +447,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     subtensor: true,
     superseed: true,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
     taiko: true,
     tea: true,
@@ -528,6 +529,18 @@ const sealevelTransactionSubmitterConfigGetter = (
   };
 };
 
+const sealevelUrRevealConfigGetter = (
+  chain: ChainName,
+): AgentSealevelUrReveal => {
+  if (chain === 'solanamainnet') {
+    return {
+      ccsUrl: 'https://offchain-lookup.services.hyperlane.xyz/callCommitments',
+      programId: '2CttnaLkYbNHbaFDFnQ8PMCnzUwTGrKnskBxPM4TRWGp',
+    };
+  }
+  return undefined;
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -538,6 +551,7 @@ const contextBase = {
   sealevel: {
     priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
     transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
+    urRevealConfigGetter: sealevelUrRevealConfigGetter,
   },
 } as const;
 

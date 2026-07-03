@@ -24,7 +24,10 @@ import {
 } from '../../../../../src/config/warp.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import {
+  getCrossCollateralTargetRoutersByChain,
+  getRebalancingBridgesConfigFor,
+} from './utils.js';
 
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 // Threshold in message units (6-decimal normalized via scale); BSC's 18-dec token is
@@ -98,25 +101,41 @@ function getUsdcCrossCollateralRouters(): Record<string, string[]> {
   );
 }
 
+// Target routers (destination tokens) priced per destination, keyed by chain.
+// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
+const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
+  WarpRouteIds.USDCCitreaMoonpay,
+  WarpRouteIds.USDTCitreaMoonpay,
+]);
+
 function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
 ): TokenFeeConfigInput {
+  const offchainFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedLinearFee,
+    owner,
+    bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+
   return {
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner,
     feeContracts: Object.fromEntries(
-      destinations.map((dest) => [
-        dest,
-        {
-          [DEFAULT_ROUTER_KEY]: {
-            type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
-            bps: 3,
-            quoteSigners: QUOTE_SIGNERS,
+      destinations.map((dest) => {
+        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
+        return [
+          dest,
+          {
+            // Per-destination-token fee slots, plus a default fallback.
+            ...Object.fromEntries(
+              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
+            ),
+            [DEFAULT_ROUTER_KEY]: offchainFee(),
           },
-        },
-      ]),
+        ];
+      }),
     ),
   };
 }

@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
-    rpc_client::SerializableTransaction,
+    rpc_client::{GetConfirmedSignaturesForAddress2Config, SerializableTransaction},
     rpc_config::{
         RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
         RpcSimulateTransactionConfig, RpcTransactionConfig,
     },
-    rpc_response::{Response, RpcSimulateTransactionResult},
+    rpc_response::{
+        Response, RpcConfirmedTransactionStatusWithSignature, RpcSimulateTransactionResult,
+    },
 };
 use solana_commitment_config::CommitmentConfig;
 use solana_program::clock::Slot;
@@ -190,6 +192,23 @@ impl SealevelRpcClient {
     ) -> ChainResult<Vec<(Pubkey, Account)>> {
         self.0
             .get_program_accounts_with_config(pubkey, config)
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    /// Returns up to `limit` transaction signatures that reference `address`,
+    /// ordered newest-first. Returns an empty vec if the address has no history.
+    pub async fn get_signatures_for_address_with_limit(
+        &self,
+        address: &Pubkey,
+        limit: usize,
+    ) -> ChainResult<Vec<RpcConfirmedTransactionStatusWithSignature>> {
+        let config = GetConfirmedSignaturesForAddress2Config {
+            limit: Some(limit),
+            ..Default::default()
+        };
+        self.0
+            .get_signatures_for_address_with_config(address, config)
             .await
             .map_err(ChainCommunicationError::from_other)
     }

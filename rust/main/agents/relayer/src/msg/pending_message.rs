@@ -283,6 +283,7 @@ impl PendingOperation for PendingMessage {
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
@@ -496,6 +497,9 @@ impl PendingOperation for PendingMessage {
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit).await;
+                self.ctx
+                    .destination_mailbox
+                    .on_submitted_success(&self.message);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -536,6 +540,7 @@ impl PendingOperation for PendingMessage {
                 return self
                     .on_reconfirm(Some(err), "Error when recording message process success");
             }
+            self.ctx.destination_mailbox.on_delivered(&self.message);
             info!(
                 submission=?self.submission_outcome,
                 "Message successfully processed"
@@ -622,6 +627,12 @@ impl PendingOperation for PendingMessage {
 
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         Some(self.ctx.destination_mailbox.clone())
+    }
+
+    fn on_submitted_success(&self) {
+        self.ctx
+            .destination_mailbox
+            .on_submitted_success(&self.message);
     }
 
     fn get_metric(&self) -> Option<Arc<IntGauge>> {
