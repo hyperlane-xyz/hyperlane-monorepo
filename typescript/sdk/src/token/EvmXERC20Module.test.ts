@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { IXERC20Lockbox__factory, Ownable__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -21,6 +22,24 @@ const BRIDGE_ADDRESS_1 = '0x2222222222222222222222222222222222222222';
 const EXTRA_BRIDGE_ADDRESS = '0x4444444444444444444444444444444444444444';
 const LOCKBOX_ADDRESS = '0x3333333333333333333333333333333333333333';
 const XERC20_FROM_LOCKBOX = '0x7777777777777777777777777777777777777777';
+const OWNER_ADDRESS = '0x8888888888888888888888888888888888888888';
+const NEW_OWNER_ADDRESS = '0x9999999999999999999999999999999999999999';
+const PROXY_ADMIN_ADDRESS = '0xaaaaAAaaaaaAAAAaAaaaAaAaAAAaaAAaaaAAAAAa';
+
+const ownableInterface = Ownable__factory.createInterface();
+
+// Decode the transferOwnership(address) argument so tests assert the tx actually
+// hands ownership to the expected address, not just that the annotation says so.
+function decodeTransferOwnershipTarget(data: string | undefined): string {
+  if (data == null) {
+    expect.fail('ownership tx must carry calldata');
+  }
+  const [newOwner] = ownableInterface.decodeFunctionData(
+    'transferOwnership',
+    data,
+  );
+  return newOwner;
+}
 
 describe('EvmXERC20Module', () => {
   let multiProvider: MultiProvider;
@@ -186,6 +205,8 @@ describe('EvmXERC20Module', () => {
       sandbox
         .stub(module.reader, 'deriveXERC20TokenType')
         .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
       sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
 
       const txs = await module.update(config);
@@ -200,6 +221,8 @@ describe('EvmXERC20Module', () => {
       sandbox
         .stub(module.reader, 'deriveXERC20TokenType')
         .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
           type: XERC20Type.Standard,
@@ -220,6 +243,8 @@ describe('EvmXERC20Module', () => {
       sandbox
         .stub(module.reader, 'deriveXERC20TokenType')
         .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
           type: XERC20Type.Standard,
@@ -236,6 +261,169 @@ describe('EvmXERC20Module', () => {
       const txs = await module.update(config);
 
       expect(txs.length).to.be.greaterThan(0);
+    });
+
+    it('does not emit ownership transfer txs by default', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: NEW_OWNER_ADDRESS,
+        proxyAdmin: { owner: NEW_OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves({
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      });
+
+      const txs = await module.update(config);
+
+      // No limit drift and ownership gated off, so nothing should be emitted.
+      expect(txs).to.have.lengthOf(0);
+    });
+
+    it('appends a token ownership transfer tx when expected owner differs', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: NEW_OWNER_ADDRESS,
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs).to.have.lengthOf(1);
+      expect(txs[0].to).to.equal(XERC20_ADDRESS);
+      expect(txs[0].annotation).to.include('Transferring ownership');
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(txs[0].data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
+    });
+
+    it('appends a ProxyAdmin ownership transfer tx when expected proxyAdmin owner differs', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        proxyAdmin: { owner: NEW_OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves({
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      });
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs).to.have.lengthOf(1);
+      expect(txs[0].to).to.equal(PROXY_ADMIN_ADDRESS);
+      expect(txs[0].annotation).to.include('Transferring ownership');
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(txs[0].data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
+    });
+
+    it('does not emit a ProxyAdmin transfer when the token is unproxied', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        proxyAdmin: { owner: NEW_OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      // Unproxied token: no on-chain ProxyAdmin to transfer.
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs).to.have.lengthOf(0);
+    });
+
+    it('no-ops ownership transfer when owners already match', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: OWNER_ADDRESS,
+        proxyAdmin: { owner: OWNER_ADDRESS },
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves({
+        address: PROXY_ADMIN_ADDRESS,
+        owner: OWNER_ADDRESS,
+      });
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs).to.have.lengthOf(0);
+    });
+
+    it('applies limit updates before ownership transfer', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: NEW_OWNER_ADDRESS,
+      };
+      const module = createModule(config);
+
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
+      sandbox.stub(module.reader, 'readLimits').resolves({
+        [WARP_ROUTE_ADDRESS]: {
+          type: XERC20Type.Standard,
+          mint: '999999999999999999',
+          burn: '500000000000000000',
+        },
+        [EXTRA_BRIDGE_ADDRESS]: {
+          type: XERC20Type.Standard,
+          mint: '2000000000000000000',
+          burn: '1000000000000000000',
+        },
+      });
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      // Limit update tx(s) come first; the ownership transfer is last.
+      const lastTx = txs[txs.length - 1];
+      expect(lastTx.to).to.equal(XERC20_ADDRESS);
+      expect(
+        eqAddress(
+          decodeTransferOwnershipTarget(lastTx.data),
+          NEW_OWNER_ADDRESS,
+        ),
+      ).to.equal(true);
+      expect(txs.length).to.be.greaterThan(1);
     });
   });
 
@@ -374,6 +562,31 @@ describe('EvmXERC20Module', () => {
         mint: '1',
         burn: '2',
       });
+    });
+
+    it('populates expected owner and proxyAdmin owner from config.owner', async () => {
+      const warpRouteConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+        owner: OWNER_ADDRESS,
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Velo,
+            bufferCap: '1000000000000000000',
+            rateLimitPerSecond: '100000000000000000',
+          },
+        },
+      };
+
+      const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+
+      expect(config.owner).to.equal(OWNER_ADDRESS);
+      expect(config.proxyAdmin).to.deep.equal({ owner: OWNER_ADDRESS });
     });
 
     it('derives type from chain when limits missing', async () => {
