@@ -68,7 +68,10 @@ abstract contract MovableCollateralRouter is TokenRouter {
         return allowed.bridges[domain].values();
     }
 
-    function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+    function setRecipient(
+        uint32 domain,
+        bytes32 recipient
+    ) external virtual onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         allowed.recipient[domain] = recipient;
@@ -78,7 +81,10 @@ abstract contract MovableCollateralRouter is TokenRouter {
         delete allowed.recipient[domain];
     }
 
-    function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
+    function addBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) external virtual onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         _addBridge(domain, bridge);

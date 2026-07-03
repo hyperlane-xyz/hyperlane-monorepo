@@ -87,6 +87,14 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     ) external {
         if (sq.expiry < sq.issuedAt) revert InvalidQuote();
         if (uint48(block.timestamp) > sq.expiry) revert QuoteExpired();
+        // Standing quotes (expiry != issuedAt) must not be future-dated.
+        // Prevents a malicious signer from locking the monotonic issuedAt
+        // barrier near uint48 max with an indefinite expiry; a future legitimate
+        // quote can always overwrite by virtue of having a strictly larger
+        // issuedAt at submission time.
+        if (sq.expiry != sq.issuedAt && sq.issuedAt > uint48(block.timestamp)) {
+            revert InvalidQuote();
+        }
         // submitter field restricts who can submit (e.g. QuotedCalls only).
         // address(0) means unrestricted — any caller may submit.
         if (sq.submitter != address(0) && msg.sender != sq.submitter) {
