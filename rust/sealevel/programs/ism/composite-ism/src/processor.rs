@@ -134,7 +134,14 @@ fn verify(
         if !storage_info.is_writable {
             return Err(Error::DomainPdaNotWritable.into());
         }
-        CompositeIsmAccount::from(storage).store(storage_info, true)?;
+        // Realloc is disallowed here because `verify` has no payer account to
+        // fund a rent-exempt growth; an unfunded resize would fail closed with
+        // InsufficientFundsForRent (HLSVM-2026Q2-014). This is safe today because
+        // the only verify-time mutation is `RateLimited`, which updates
+        // fixed-size fields in place and never changes the serialized length.
+        // Any future growing mutation must instead route through
+        // `store_with_rent_exempt_realloc` with a payer.
+        CompositeIsmAccount::from(storage).store(storage_info, false)?;
     }
     Ok(())
 }
