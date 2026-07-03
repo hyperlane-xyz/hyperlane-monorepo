@@ -2121,12 +2121,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   tempo: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
