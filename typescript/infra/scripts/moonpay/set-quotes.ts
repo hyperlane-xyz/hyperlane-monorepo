@@ -18,7 +18,6 @@ import yargs from 'yargs';
 
 import { checkbox, confirm, input } from '@inquirer/prompts';
 
-import { OffchainQuotedLinearFee__factory } from '@hyperlane-xyz/core';
 import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -35,6 +34,7 @@ import {
   fmtBps,
   resolveGcpKey,
   submitQuoteWithRetry,
+  verifySignerAuthorization,
 } from './oqlf-lib.js';
 
 const DEFAULT_TTL = 86_400; // 24 hours
@@ -44,7 +44,8 @@ const DEFAULT_TTL = 86_400; // 24 hours
 /**
  * Parses a TTL string with a mandatory unit suffix (s/h/d) — a bare number
  * is rejected so the same input can never be interpreted as seconds in one
- * code path and hours in another.
+ * code path and hours in another. Only whole seconds are accepted since the
+ * on-chain expiry is a uint48 of seconds.
  */
 function parseTtl(v: string): number | null {
   const t = v.trim().toLowerCase();
@@ -52,8 +53,10 @@ function parseTtl(v: string): number | null {
   if (!m) return null;
   const n = parseFloat(m[1]);
   if (!Number.isFinite(n) || n <= 0) return null;
-  const multiplier = { s: 1, h: 3600, d: 86_400 }[m[2] as 's' | 'h' | 'd'];
-  return n * multiplier;
+  const unit = m[2];
+  const multiplier = unit === 's' ? 1 : unit === 'h' ? 3600 : 86_400;
+  const seconds = n * multiplier;
+  return Number.isInteger(seconds) ? seconds : null;
 }
 
 // Resolve a comma-separated flag value ("all" = every available item).
@@ -203,53 +206,13 @@ async function main(): Promise<void> {
 
   console.log(`Found ${allSlots.length} OQLF slots.\n`);
 
-  // ── Verify signer authorization on every unique OQLF contract ──────────────
+  // ── Verify signer authorization on every unique (origin, OQLF) pair ────────
   if (!dryRun) {
     assert(
       signerKey !== undefined,
       'signer key is required when not --dry-run',
     );
-    const signerAddress = new Wallet(signerKey).address;
-    const uniqueOqlfOrigins = new Map<string, string>(); // oqlfAddress(lower) → origin
-    for (const slot of allSlots) {
-      uniqueOqlfOrigins.set(slot.oqlfAddress.toLowerCase(), slot.origin);
-    }
-    const unauthorized = (
-      await Promise.all(
-        [...uniqueOqlfOrigins].map(async ([oqlfAddress, origin]) => {
-          const provider = multiProvider.getProvider(origin);
-          const oqlf = OffchainQuotedLinearFee__factory.connect(
-            oqlfAddress,
-            provider,
-          );
-          const authorized = await oqlf.isQuoteSigner(signerAddress);
-          return authorized ? null : { oqlfAddress, origin };
-        }),
-      )
-    ).filter((r): r is { oqlfAddress: string; origin: string } => r !== null);
-
-    if (unauthorized.length > 0) {
-      for (const { oqlfAddress, origin } of unauthorized) {
-        const provider = multiProvider.getProvider(origin);
-        const oqlf = OffchainQuotedLinearFee__factory.connect(
-          oqlfAddress,
-          provider,
-        );
-        const authorizedSigners = await oqlf.quoteSigners();
-        console.error(
-          `\nError: signer ${signerAddress} is NOT authorized on OQLF ${oqlfAddress} (origin ${origin}).`,
-        );
-        console.error(
-          authorizedSigners.length === 0
-            ? 'No authorized signers found — contract may not be configured.'
-            : `Authorized signers: ${authorizedSigners.join(', ')}`,
-        );
-      }
-      process.exit(1);
-    }
-    console.log(
-      `Signer ${signerAddress} is authorized on all ${uniqueOqlfOrigins.size} OQLF contract(s). Proceeding.\n`,
-    );
+    await verifySignerAuthorization(multiProvider, signerKey, allSlots);
   }
 
   // ── TTL ───────────────────────────────────────────────────────────────────
@@ -421,7 +384,7 @@ async function main(): Promise<void> {
         validate: (v) => {
           const t = v.trim();
           if (t === '' || t === 'd') return true;
-          const n = parseFloat(t);
+          const n = Number(t);
           if (Number.isFinite(n) && n > 0) return true;
           return 'Enter a positive number, ↵ to skip, or "d" for on-chain default.';
         },
@@ -445,7 +408,7 @@ async function main(): Promise<void> {
         ({ maxFee, halfAmount } = bpsToParams(
           multiProvider,
           slot.origin,
-          parseFloat(trimmed),
+          Number(trimmed),
         ));
         newBpsStr = fmtBps(maxFee, halfAmount);
       }

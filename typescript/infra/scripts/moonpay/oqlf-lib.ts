@@ -25,6 +25,14 @@ import { fetchGCPSecret } from '../../src/utils/gcloud.js';
 
 const logger = rootLogger.child({ module: 'moonpay-quotes' });
 
+// Provider/RPC errors can embed the full request (including RPC URLs, which
+// often carry API keys in the path/query) — log a truncated message only,
+// never the raw error object.
+function errMsg(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.slice(0, 200);
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const GCP_SIGNER_SECRET = 'hyperlane-mainnet3-key-quotesigner';
@@ -117,10 +125,13 @@ export function bpsToParams(
 // ── GCP secret handling ───────────────────────────────────────────────────────
 
 export function isGcpKeySecret(secret: unknown): secret is GcpKeySecret {
-  if (typeof secret !== 'object' || secret === null) return false;
-  const record = secret as Record<string, unknown>;
   return (
-    typeof record.privateKey === 'string' && typeof record.address === 'string'
+    typeof secret === 'object' &&
+    secret !== null &&
+    'privateKey' in secret &&
+    'address' in secret &&
+    typeof secret.privateKey === 'string' &&
+    typeof secret.address === 'string'
   );
 }
 
@@ -129,6 +140,11 @@ export async function resolveGcpKey(secretName: string): Promise<GcpKeySecret> {
   assert(
     isGcpKeySecret(secret),
     `Malformed GCP secret payload for ${secretName}: expected {privateKey, address}`,
+  );
+  const walletAddress = new Wallet(secret.privateKey).address;
+  assert(
+    walletAddress.toLowerCase() === secret.address.toLowerCase(),
+    `Malformed GCP secret payload for ${secretName}: address does not match privateKey`,
   );
   return secret;
 }
@@ -221,7 +237,7 @@ export async function discoverOqlfSlots(
           ).feeRecipient();
         } catch (error) {
           logger.warn(
-            { origin, routerAddr, error },
+            { origin, routerAddr, error: errMsg(error) },
             'Failed to read feeRecipient; skipping origin token',
           );
           return;
@@ -236,7 +252,7 @@ export async function discoverOqlfSlots(
           ).feeType();
         } catch (error) {
           logger.warn(
-            { origin, ccrAddress, error },
+            { origin, ccrAddress, error: errMsg(error) },
             'Failed to read feeType; skipping origin token',
           );
           return;
@@ -254,7 +270,7 @@ export async function discoverOqlfSlots(
           defaultRouterKey = await ccr.DEFAULT_ROUTER();
         } catch (error) {
           logger.warn(
-            { origin, ccrAddress, error },
+            { origin, ccrAddress, error: errMsg(error) },
             'Failed to read DEFAULT_ROUTER; skipping origin token',
           );
           return;
@@ -277,7 +293,7 @@ export async function discoverOqlfSlots(
               destDomain = getDomainId(destination);
             } catch (error) {
               logger.warn(
-                { destination, error },
+                { destination, error: errMsg(error) },
                 'Failed to resolve domain id; skipping destination',
               );
               return;
@@ -304,7 +320,12 @@ export async function discoverOqlfSlots(
                   oqlfAddress = await ccr.feeContracts(destDomain, key);
                 } catch (error) {
                   logger.warn(
-                    { origin, destination, target: label, error },
+                    {
+                      origin,
+                      destination,
+                      target: label,
+                      error: errMsg(error),
+                    },
                     'Failed to read feeContracts slot; skipping',
                   );
                   return;
@@ -312,11 +333,14 @@ export async function discoverOqlfSlots(
                 if (!oqlfAddress || oqlfAddress === constants.AddressZero)
                   return;
 
-                // Dedup key includes the target label: a per-router slot can
-                // legitimately point at the same OQLF instance as DEFAULT,
-                // and both logical targets must still surface separately so
-                // --targets filtering (set-quotes.ts) sees every alias.
-                const slotId = `${oqlfAddress.toLowerCase()}:${destDomain}:${origin}:${sourceToken}:${label}`;
+                // Dedup key includes the target's on-chain identity (key, not
+                // the display label): a per-router slot can legitimately
+                // point at the same OQLF instance as DEFAULT, and both
+                // logical targets must still surface separately so --targets
+                // filtering (set-quotes.ts) sees every alias. Using the raw
+                // key instead of label avoids any (extremely unlikely) label
+                // collision between distinct target identities.
+                const slotId = `${oqlfAddress.toLowerCase()}:${destDomain}:${origin}:${sourceToken}:${key}`;
                 if (seenSlots.has(slotId)) return;
                 seenSlots.add(slotId);
 
@@ -389,6 +413,71 @@ export async function discoverOqlfSlots(
   return allSlots;
 }
 
+// ── Signer authorization ──────────────────────────────────────────────────────
+
+/**
+ * Verifies the signer is an authorized quote signer on every unique
+ * (origin, OQLF contract) pair among the given slots, exiting the process
+ * with a clear error if any are unauthorized. Keyed by (origin, oqlfAddress)
+ * rather than just oqlfAddress, since deterministic (CREATE2) deployments can
+ * put the same OQLF address on multiple chains with different authorized
+ * signer sets.
+ */
+export async function verifySignerAuthorization(
+  multiProvider: MultiProvider,
+  signerKey: string,
+  slots: OqlfSlot[],
+): Promise<void> {
+  const signerAddress = new Wallet(signerKey).address;
+  const uniqueOqlfs = new Map<
+    string,
+    { oqlfAddress: string; origin: string }
+  >();
+  for (const slot of slots) {
+    uniqueOqlfs.set(`${slot.origin}:${slot.oqlfAddress.toLowerCase()}`, {
+      oqlfAddress: slot.oqlfAddress,
+      origin: slot.origin,
+    });
+  }
+
+  const unauthorized = (
+    await Promise.all(
+      [...uniqueOqlfs.values()].map(async ({ oqlfAddress, origin }) => {
+        const provider = multiProvider.getProvider(origin);
+        const oqlf = OffchainQuotedLinearFee__factory.connect(
+          oqlfAddress,
+          provider,
+        );
+        const authorized = await oqlf.isQuoteSigner(signerAddress);
+        return authorized ? null : { oqlfAddress, origin };
+      }),
+    )
+  ).filter((r): r is { oqlfAddress: string; origin: string } => r !== null);
+
+  if (unauthorized.length > 0) {
+    for (const { oqlfAddress, origin } of unauthorized) {
+      const provider = multiProvider.getProvider(origin);
+      const oqlf = OffchainQuotedLinearFee__factory.connect(
+        oqlfAddress,
+        provider,
+      );
+      const authorizedSigners = await oqlf.quoteSigners();
+      console.error(
+        `\nError: signer ${signerAddress} is NOT authorized on OQLF ${oqlfAddress} (origin ${origin}).`,
+      );
+      console.error(
+        authorizedSigners.length === 0
+          ? 'No authorized signers found — contract may not be configured.'
+          : `Authorized signers: ${authorizedSigners.join(', ')}`,
+      );
+    }
+    process.exit(1);
+  }
+  console.log(
+    `Signer ${signerAddress} is authorized on all ${uniqueOqlfs.size} OQLF contract(s). Proceeding.\n`,
+  );
+}
+
 // ── Sign + submit ─────────────────────────────────────────────────────────────
 
 export interface QuoteSubmission {
@@ -410,6 +499,12 @@ export async function submitQuoteWithRetry(
   ttlSeconds: number,
   maxAttempts = 3,
 ): Promise<void> {
+  assert(
+    Number.isFinite(ttlSeconds) && ttlSeconds > 0,
+    `ttlSeconds must be a positive number, got ${ttlSeconds}`,
+  );
+  assert(maxAttempts > 0, `maxAttempts must be positive, got ${maxAttempts}`);
+
   const { slot, maxFee, halfAmount, bpsLabel } = submission;
   const provider = multiProvider.getProvider(slot.origin);
   const signerWallet = new Wallet(signerKey, provider);

@@ -41,6 +41,7 @@ import {
   fmtBps,
   resolveGcpKey,
   submitQuoteWithRetry,
+  verifySignerAuthorization,
 } from './oqlf-lib.js';
 
 const TTL_7D = 7 * 86_400;
@@ -259,6 +260,12 @@ async function main(): Promise<void> {
   assert(
     signerKey !== undefined && submitterWallet !== undefined,
     'signer/submitter keys are required when --propose is set',
+  );
+
+  await verifySignerAuthorization(
+    multiProvider,
+    signerKey,
+    toSubmit.map((t) => t.submission.slot),
   );
 
   const confirmed = await confirm({
