@@ -7,7 +7,10 @@ test = 'test'
 cache_path = 'forge-cache'
 solc_version = '0.8.33'
 evm_version= 'cancun'
-optimizer_runs = 9_990
+# Stopgap: lowered from 9_990 to keep CrossCollateralRouter under the EIP-170
+# 24576-byte limit. Restore once its bytecode is trimmed (e.g. rebalance-target
+# logic moved to a linked library).
+optimizer_runs = 5_800
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
