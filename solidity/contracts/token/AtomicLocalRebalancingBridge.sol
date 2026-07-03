@@ -122,16 +122,15 @@ contract AtomicLocalRebalancingBridge is
             domain,
             sourceRouter
         );
-        address destinationRouter = _validateAndParseDestinationAddress(
-            destinationRecipient
-        );
+        MovableCollateralRouter destination = _validateAndParseDestinationRouter(
+                destinationRecipient
+            );
 
         // Resolve the source and destination collateral tokens; both must be a
         // non-native ERC20 (token() != address(0)).
         address sourceToken = source.token();
         if (sourceToken == address(0)) revert InvalidToken();
-        address destinationToken = MovableCollateralRouter(destinationRouter)
-            .token();
+        address destinationToken = destination.token();
         if (destinationToken == address(0)) revert InvalidToken();
         uint256 requiredOutputAmount = _requiredOutputAmount(
             sourceToken,
@@ -164,7 +163,7 @@ contract AtomicLocalRebalancingBridge is
 
         // Fund the destination with the output the calls produced.
         IERC20(destinationToken).safeTransfer(
-            destinationRouter,
+            address(destination),
             requiredOutputAmount
         );
 
@@ -172,10 +171,55 @@ contract AtomicLocalRebalancingBridge is
         _refundAccruedBalances(sourceToken, destinationToken, selfBefore);
 
         emit LocalRebalanceExecuted(
-            destinationRouter,
+            address(destination),
             amount,
             requiredOutputAmount
         );
+    }
+
+    /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
+    function quoteTransferRemote(
+        uint32 destination,
+        bytes32,
+        uint256 amount
+    ) external view override(ITokenFee) returns (Quote[] memory quotes) {
+        if (destination != localDomain) revert InvalidCallback();
+        address sourceToken = MovableCollateralRouter(msg.sender).token();
+        if (sourceToken == address(0)) revert InvalidToken();
+
+        // Match router rebalance quote semantics: no native fee, exact source
+        // token amount pulled by transferRemote.
+        quotes = new Quote[](2);
+        quotes[0] = Quote({token: address(0), amount: 0});
+        quotes[1] = Quote({token: sourceToken, amount: amount});
+    }
+
+    /// @notice Router callback. Pulls input into escrow for the active local
+    /// rebalance. The `recipient` argument is ignored; the destination is the
+    /// validated `destinationRecipient` from `rebalance`.
+    function transferRemote(
+        uint32 destination,
+        bytes32,
+        uint256 amount
+    ) external payable override returns (bytes32) {
+        bytes32 activeSourceRouter = _CALLBACK_ACTIVE_SLOT.loadBytes32();
+        if (activeSourceRouter == bytes32(0)) revert NoActiveRebalance();
+        if (destination != localDomain) revert InvalidCallback();
+        if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
+            revert InvalidCallback();
+        }
+
+        // Consume the callback before the external transfer (checks-effects-
+        // interactions): enforces exactly one escrow and ensures any reentry
+        // triggered by the transfer sees no active callback.
+        _CALLBACK_ACTIVE_SLOT.clear();
+
+        IERC20(MovableCollateralRouter(msg.sender).token()).safeTransferFrom(
+            msg.sender,
+            address(this),
+            amount
+        );
+        return bytes32(0);
     }
 
     /// @notice Recovers an ERC20 balance accidentally sent to this bridge.
@@ -221,10 +265,10 @@ contract AtomicLocalRebalancingBridge is
     }
 
     /// @dev Validates `destinationRecipient` against the source's rebalance targets
-    /// and returns the destination router address it encodes.
-    function _validateAndParseDestinationAddress(
+    /// and returns the destination router it encodes.
+    function _validateAndParseDestinationRouter(
         bytes32 destinationRecipient
-    ) internal view returns (address) {
+    ) internal view returns (MovableCollateralRouter) {
         if (
             !IRebalanceTargets(allowedSourceRouter).isRebalanceTarget(
                 localDomain,
@@ -234,7 +278,10 @@ contract AtomicLocalRebalancingBridge is
             revert InvalidRecipient();
         }
 
-        return TypeCasts.bytes32ToAddress(destinationRecipient);
+        return
+            MovableCollateralRouter(
+                TypeCasts.bytes32ToAddress(destinationRecipient)
+            );
     }
 
     /// @dev Snapshots the balances this contract holds before escrow. The post-call
@@ -349,51 +396,6 @@ contract AtomicLocalRebalancingBridge is
                 nativeBalance - selfBefore.native
             );
         }
-    }
-
-    /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
-    function quoteTransferRemote(
-        uint32 destination,
-        bytes32,
-        uint256 amount
-    ) external view override(ITokenFee) returns (Quote[] memory quotes) {
-        if (destination != localDomain) revert InvalidCallback();
-        address sourceToken = MovableCollateralRouter(msg.sender).token();
-        if (sourceToken == address(0)) revert InvalidToken();
-
-        // Match router rebalance quote semantics: no native fee, exact source
-        // token amount pulled by transferRemote.
-        quotes = new Quote[](2);
-        quotes[0] = Quote({token: address(0), amount: 0});
-        quotes[1] = Quote({token: sourceToken, amount: amount});
-    }
-
-    /// @notice Router callback. Pulls input into escrow for the active local
-    /// rebalance. The `recipient` argument is ignored; the destination is the
-    /// validated `destinationRecipient` from `rebalance`.
-    function transferRemote(
-        uint32 destination,
-        bytes32,
-        uint256 amount
-    ) external payable override returns (bytes32) {
-        bytes32 activeSourceRouter = _CALLBACK_ACTIVE_SLOT.loadBytes32();
-        if (activeSourceRouter == bytes32(0)) revert NoActiveRebalance();
-        if (destination != localDomain) revert InvalidCallback();
-        if (TypeCasts.bytes32ToAddress(activeSourceRouter) != msg.sender) {
-            revert InvalidCallback();
-        }
-
-        // Consume the callback before the external transfer (checks-effects-
-        // interactions): enforces exactly one escrow and ensures any reentry
-        // triggered by the transfer sees no active callback.
-        _CALLBACK_ACTIVE_SLOT.clear();
-
-        IERC20(MovableCollateralRouter(msg.sender).token()).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-        return bytes32(0);
     }
 
     /// @dev Converts `amountIn` from source-token units to destination-token
