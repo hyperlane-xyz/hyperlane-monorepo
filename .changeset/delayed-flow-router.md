@@ -1,0 +1,5 @@
+---
+'@hyperlane-xyz/core': minor
+---
+
+`DelayedFlowRouter` was added: an amount-sensitive hook + ISM that pairs with a warp route to delay cross-chain withdrawals proportionally when net flow exceeds a configurable fraction of the pool. It extends `TimelockRouter` + `RateLimited`, crediting its bucket 1:1 on local dispatches and deriving a per-message delay (capped at `maxDelay`) from a soft-consume at preverify time. `TimelockRouter` was refactored for extension: `postDispatch`, `quoteDispatch`, and `verify` enforce `_isLatestDispatched`, and subclasses customize behavior through the internal hooks `_TimelockRouter_onDispatch`, `_encodePayload` (shared by `postDispatch` and `quoteDispatch`), `_handle` (via `_TimelockRouter_commitReadyAt`), and `_TimelockRouter_verify`. `RateLimited` exposes `maxCapacity()` as virtual so subclasses may back it dynamically (with the refill rate derived automatically), adds `_credit` / `_consume` primitives, and uses `Math.mulDiv` for the token-bucket math.

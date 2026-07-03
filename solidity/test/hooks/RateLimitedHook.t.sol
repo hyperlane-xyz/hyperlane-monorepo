@@ -139,7 +139,8 @@ contract RateLimitedHookTest is Test {
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's filled level, and try to transfer more than the target max
+        // Warp forward from deploy time; refill math underflows on warp-back.
+        vm.assume(_time >= block.timestamp);
         vm.warp(_time);
         uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount > filledLevelBefore);
@@ -157,7 +158,8 @@ contract RateLimitedHookTest is Test {
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's filled level, and try to transfer less than the target max
+        // Warp forward from deploy time; refill math underflows on warp-back.
+        vm.assume(_time >= block.timestamp);
         vm.warp(_time);
         uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount <= filledLevelBefore);
