@@ -4,12 +4,14 @@ import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
 import {
+  getFileOverrideProgramId,
+  loadProgramsInDeployOrder,
+} from '../utils/helper.node.js';
+import {
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
   SUFFIX_LENGTH_LONG,
-  getFileOverrideProgramId,
   getProgramSuffix,
-  loadProgramsInDeployOrder,
 } from '../utils/helper.js';
 import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
