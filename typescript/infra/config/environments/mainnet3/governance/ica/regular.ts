@@ -161,4 +161,8 @@ export const regularIcas: ChainMap<Address> = {
   nexus: '0xCc00d7F9aa7124ee0D9Ad366dd8C632266075A53',
   robinhood: '0x0e7E5D38695d7939303244AD56ace1eeA263DcE8',
   tea: '0x561B8D19712dB57cd52bbD8dc3F3327Ce0A1aF49',
+
+  // Jul 3, 2026
+  // ----------------------------------------------------------
+  tempo: '0x889524709d5c1D58254d62e6dc031069EEd67A80',
 } as const;

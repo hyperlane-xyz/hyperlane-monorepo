@@ -9,6 +9,7 @@ import {
   LogFormat,
   LogLevel,
   assert,
+  bytes32ToAddress,
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
@@ -22,6 +23,7 @@ import {
   chainsToSkip,
   legacyEthIcaRouter,
   legacyIcaChains,
+  minimalIcaChains,
 } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
@@ -134,22 +136,56 @@ async function main() {
         : ownerChainInterchainAccountRouter;
 
       try {
-        const account = await ica.getAccount(chain, {
-          ...ownerConfig,
-          localRouter: icaRouter,
-        });
-        const result: { ICA: Address; Deployed?: string } = { ICA: account };
+        const destinationRouter =
+          ica.contractsMap[chain].interchainAccountRouter;
+        const originDomain = multiProvider.getDomainId(ownerConfig.origin);
 
-        if (deploy) {
-          const deployedAccount = await ica.deployAccount(chain, {
+        let account: Address;
+        if (minimalIcaChains.includes(chain)) {
+          const destinationIsm = bytes32ToAddress(
+            await destinationRouter.isms(originDomain),
+          );
+          account = await destinationRouter[
+            'getLocalInterchainAccount(uint32,address,address,address)'
+          ](originDomain, ownerConfig.owner, icaRouter, destinationIsm);
+        } else {
+          account = await ica.getAccount(chain, {
             ...ownerConfig,
             localRouter: icaRouter,
           });
-          result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
-          if (result.Deployed === '❌') {
-            rootLogger.warn(
-              `Mismatch between account and deployed account for ${chain}`,
+        }
+
+        const result: { ICA: Address; Deployed?: string } = { ICA: account };
+
+        if (deploy) {
+          if (minimalIcaChains.includes(chain)) {
+            const destinationIsm = bytes32ToAddress(
+              await destinationRouter.isms(originDomain),
             );
+            await multiProvider.handleTx(
+              chain,
+              destinationRouter[
+                'getDeployedInterchainAccount(uint32,address,address,address)'
+              ](
+                originDomain,
+                ownerConfig.owner,
+                icaRouter,
+                destinationIsm,
+                multiProvider.getTransactionOverrides(chain),
+              ),
+            );
+            result.Deployed = '✅';
+          } else {
+            const deployedAccount = await ica.deployAccount(chain, {
+              ...ownerConfig,
+              localRouter: icaRouter,
+            });
+            result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
+            if (result.Deployed === '❌') {
+              rootLogger.warn(
+                `Mismatch between account and deployed account for ${chain}`,
+              );
+            }
           }
         }
 
