@@ -25,7 +25,12 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
+import {
+  getCrossCollateralTargetRoutersByChain,
+  getRebalancingBridgesConfigFor,
+  getUSDCRebalancingBridgesConfigFor,
+  mergeAllowedBridges,
+} from './utils.js';
 
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 
@@ -56,7 +61,7 @@ const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
-  bsc: awSafes.bsc,
+  bsc: awIcas.bsc,
   citrea: awIcas.citrea,
   ethereum: awSafes.ethereum,
   katana: awIcas.katana,
@@ -275,25 +280,41 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   return buildFastRouteHook(local, owner);
 }
 
+// Target routers (destination tokens) priced per destination, keyed by chain.
+// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
+const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
+  WarpRouteIds.USDCCitreaMoonpay,
+  WarpRouteIds.USDTCitreaMoonpay,
+]);
+
 function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
 ): TokenFeeConfigInput {
+  const offchainFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedLinearFee,
+    owner,
+    bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+
   return {
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner,
     feeContracts: Object.fromEntries(
-      destinations.map((dest) => [
-        dest,
-        {
-          [DEFAULT_ROUTER_KEY]: {
-            type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
-            bps: 3,
-            quoteSigners: QUOTE_SIGNERS,
+      destinations.map((dest) => {
+        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
+        return [
+          dest,
+          {
+            // Per-destination-token fee slots, plus a default fallback.
+            ...Object.fromEntries(
+              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
+            ),
+            [DEFAULT_ROUTER_KEY]: offchainFee(),
           },
-        },
-      ]),
+        ];
+      }),
     ),
   };
 }
@@ -304,6 +325,16 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'ethereum', 'polygon'],
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
+  );
+
+  const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
+    [
+      WarpRouteIds.EclipseUSDC,
+      WarpRouteIds.ParadexUSDC,
+      WarpRouteIds.IgraUSDC,
+      WarpRouteIds.RadixUSDC,
+    ],
   );
 
   const tbda = getTBDAAddresses();
@@ -330,6 +361,11 @@ export async function getUSDCCitreaMoonpayWarpConfig(
 
   const crossCollateralRouters = getUsdtCrossCollateralRouters();
 
+  assert(
+    additionalRebalancingConfigByChain.bsc,
+    'missing rebalancing config for bsc',
+  );
+
   return {
     solanamainnet: {
       type: TokenType.crossCollateral,
@@ -349,10 +385,11 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.arbitrum.mailbox,
       owner: arbitrumOwner,
       ...cctpRebalancingConfigByChain.arbitrum,
-      allowedRebalancingBridges: {
-        ...cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
-        [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }],
-      },
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }] },
+      ),
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
@@ -367,10 +404,11 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.base.mailbox,
       owner: baseOwner,
       ...cctpRebalancingConfigByChain.base,
-      allowedRebalancingBridges: {
-        ...cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
-        [String(getDomainId('citrea'))]: [{ bridge: tbda.base }],
-      },
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.base }] },
+      ),
       hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'base',
@@ -384,6 +422,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       token: tokens.bsc.USDC,
       mailbox: routerConfig.bsc.mailbox,
       owner: bscOwner,
+      ...additionalRebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
@@ -431,10 +470,11 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.ethereum.mailbox,
       owner: ethereumOwner,
       ...cctpRebalancingConfigByChain.ethereum,
-      allowedRebalancingBridges: {
-        ...cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
-        [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }],
-      },
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }] },
+      ),
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',
@@ -449,10 +489,11 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.polygon.mailbox,
       owner: polygonOwner,
       ...cctpRebalancingConfigByChain.polygon,
-      allowedRebalancingBridges: {
-        ...cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
-        [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }],
-      },
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }] },
+      ),
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'polygon',

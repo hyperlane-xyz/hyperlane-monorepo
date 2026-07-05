@@ -190,9 +190,24 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<DerivedHookConfig | string> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedHook
-      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+    if (typeof this.args.config === 'string') {
+      return this.args.addresses.deployedHook;
+    }
+
+    // For IGP hooks with tokenOracleConfig, pass fee tokens to the reader
+    if (
+      typeof this.args.config === 'object' &&
+      this.args.config.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      this.args.config.tokenOracleConfig
+    ) {
+      const feeTokens = Object.keys(this.args.config.tokenOracleConfig);
+      return this.reader.deriveIgpConfig(
+        this.args.addresses.deployedHook,
+        feeTokens,
+      );
+    }
+
+    return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
   public async update(
@@ -1442,7 +1457,8 @@ export class EvmHookModule extends HyperlaneModule<
       config,
     });
 
-    // Deploy the InterchainGasPaymaster
+    // Deploy the InterchainGasPaymaster (handles token gas oracle wiring
+    // via updateIgpTokenGasOracles before transferring ownership)
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster({
       storageGasOracle,
       config,

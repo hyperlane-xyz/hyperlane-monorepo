@@ -11,6 +11,7 @@ import { DockerImageRepos } from '../../config/docker.js';
 import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
+import stableswapInventoryRebalancerAddresses from '../../config/stableswapInventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
@@ -300,6 +301,11 @@ export class KeyFunderHelmManager extends HelmManager {
           DeployEnvironment,
           Record<Contexts, string>
         >;
+      case Role.StableswapInventoryRebalancer:
+        return stableswapInventoryRebalancerAddresses as Record<
+          DeployEnvironment,
+          Record<Contexts, string>
+        >;
       default:
         return undefined;
     }
@@ -316,6 +322,9 @@ export class KeyFunderHelmManager extends HelmManager {
         return this.config.desiredRebalancerBalancePerChain?.[chain];
       case Role.InventoryRebalancer:
         return this.config.desiredInventoryRebalancerBalancePerChain?.[chain];
+      case Role.StableswapInventoryRebalancer:
+        return this.config
+          .desiredStableswapInventoryRebalancerBalancePerChain?.[chain];
       default:
         return undefined;
     }

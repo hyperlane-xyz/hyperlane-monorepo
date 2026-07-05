@@ -826,6 +826,31 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setFeeHooks(
+    configMap: ChainMap<HypTokenRouterConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!config.feeHook || isOftTokenConfig(config)) return;
+
+        const routerAddress = this.router(deployedContractsMap[chain]).address;
+        const router = TokenRouter__factory.connect(
+          routerAddress,
+          this.multiProvider.getSigner(chain),
+        );
+
+        this.logger.info(`Setting feeHook on ${chain} to ${config.feeHook}`);
+        await this.multiProvider.handleTx(
+          chain,
+          router.setFeeHook(config.feeHook, {
+            ...this.multiProvider.getTransactionOverrides(chain),
+          }),
+        );
+      }),
+    );
+  }
+
   protected async enrollCrossCollateralRouters(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -1076,6 +1101,8 @@ abstract class TokenDeployer<
         deployedContractsMap,
       );
     }
+
+    await this.setFeeHooks(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

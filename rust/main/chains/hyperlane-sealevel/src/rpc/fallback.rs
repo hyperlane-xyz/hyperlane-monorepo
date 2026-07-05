@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use derive_new::new;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
-use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
+use solana_client::rpc_response::{
+    Response, RpcConfirmedTransactionStatusWithSignature, RpcSimulateTransactionResult,
+};
 use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use solana_sdk::pubkey::Pubkey;
@@ -398,6 +400,24 @@ impl SealevelFallbackRpcClient {
             SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
             SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
         }
+    }
+
+    /// Returns up to `limit` transaction signatures that reference `address`.
+    pub async fn get_signatures_for_address_with_limit(
+        &self,
+        address: Pubkey,
+        limit: usize,
+    ) -> ChainResult<Vec<RpcConfirmedTransactionStatusWithSignature>> {
+        self.fallback_provider
+            .call(move |client| {
+                let future = async move {
+                    client
+                        .get_signatures_for_address_with_limit(&address, limit)
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
     }
 
     /// get statuses based on signatures

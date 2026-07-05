@@ -80,6 +80,7 @@
     "borsh": "catalog:",
     "bs58": "^6.0.0",
     "chalk": "catalog:",
+    "compare-versions": "catalog:",
     "deep-object-diff": "^1.1.9",
     "dotenv": "catalog:",
     "json-stable-stringify": "^1.1.1",

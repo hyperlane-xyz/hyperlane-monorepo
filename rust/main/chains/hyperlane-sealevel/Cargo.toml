@@ -34,6 +34,7 @@ solana-stake-interface.workspace = true
 solana-system-interface.workspace = true
 solana-transaction-status.workspace = true
 solana-vote-interface.workspace = true
+hex.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true

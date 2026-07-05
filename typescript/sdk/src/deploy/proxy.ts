@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, ChainId, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -36,10 +36,18 @@ async function assertCodeExists(
   provider: EthersLikeProvider,
   contract: Address,
 ): Promise<void> {
-  const code = await provider.getCode(contract);
-  if (code === '0x') {
-    throw new Error(`Contract at ${contract} has no code`);
-  }
+  // Retry to handle RPC lag where a just-confirmed tx isn't yet visible on
+  // all nodes in a load-balanced pool.
+  await retryAsync(
+    async () => {
+      const code = await provider.getCode(contract);
+      if (code === '0x') {
+        throw new Error(`Contract at ${contract} has no code`);
+      }
+    },
+    5,
+    500,
+  );
 }
 
 export async function proxyImplementation(

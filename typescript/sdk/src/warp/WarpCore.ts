@@ -560,9 +560,13 @@ export class WarpCore {
       },
     };
 
+    // Include the ERC20 fee (tokenFeeQuote) in the approval threshold so that
+    // allowance checks account for hookFee charged by the feeHook contract.
+    const feeQuote = tokenFeeQuote?.amount ?? 0n;
+
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
-        originTokenAmount,
+        originTokenAmount: originTokenAmount.plus(feeQuote),
         owner: sender,
       }),
       hypAdapter.isRevokeApprovalRequired(
@@ -581,8 +585,6 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      // feeQuote is required to be approved for routes that have fees set
-      const feeQuote = tokenFeeQuote?.amount ?? 0n;
       const amountToApprove = amount + feeQuote;
       preTransferRemoteTxs.push([
         amountToApprove.toString(),

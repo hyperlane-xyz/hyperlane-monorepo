@@ -16,6 +16,7 @@ import {
 // subset of `chainsToSkip` in src/config/chain.ts.
 const ADDITIONAL_NO_ALERT_CHAINS: ChainName[] = [
   // downtime
+  'artela',
   'molten',
 ];
 

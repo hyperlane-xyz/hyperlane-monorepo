@@ -1903,7 +1903,11 @@
       "validatorAnnounce": "pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8",
       "interchainSecurityModule": "LwNfVYMDzAe5dCJgA5CipTZcT34Eyf74zLr81K91jxk",
       "technicalStack": "other",
-      "mailboxProcessAlt": "5iPyGCTQ2xHaCxv9A8GDJzt2tHWL8t9FK8UwG3KoQsYo"
+      "mailboxProcessAlt": "5iPyGCTQ2xHaCxv9A8GDJzt2tHWL8t9FK8UwG3KoQsYo",
+      "urReveal": {
+        "ccsUrl": "https://offchain-lookup.services.hyperlane.xyz/callCommitments",
+        "programId": "2CttnaLkYbNHbaFDFnQ8PMCnzUwTGrKnskBxPM4TRWGp"
+      }
     },
     "taiko": {
       "aggregationHook": "0xeD3990D594ceA77b3b9b23378d8527534b6B3779",
