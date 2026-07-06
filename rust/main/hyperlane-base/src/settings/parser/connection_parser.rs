@@ -273,7 +273,7 @@ fn build_dango_connection_conf(
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain_id"));
+            local_err.push((&chain.cwp).add("chain_id"), eyre!("Missing chain_id"));
             None
         });
 
@@ -311,7 +311,7 @@ fn build_dango_connection_conf(
         .parse_f64()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "gas_scale", eyre!("Missing gas_scale"));
+            local_err.push((&chain.cwp).add("gas_scale"), eyre!("Missing gas_scale"));
             None
         });
 
@@ -322,7 +322,7 @@ fn build_dango_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "flat_gas_increase",
+                (&chain.cwp).add("flat_gas_increase"),
                 eyre!("Missing flat_gas_increase"),
             );
             None
@@ -335,7 +335,7 @@ fn build_dango_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "search_retry_attempts",
+                (&chain.cwp).add("search_retry_attempts"),
                 eyre!("Missing search_retry_attempts"),
             );
             None
@@ -746,7 +746,7 @@ fn parse_duration(
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + key, eyre!("Missing {key}"));
+            local_err.push((&chain.cwp).add(key), eyre!("Missing {key}"));
             None
         })
         .and_then(|str| {
@@ -754,7 +754,7 @@ fn parse_duration(
                 .map(Some)
                 .unwrap_or_else(|e| {
                     local_err.push(
-                        &chain.cwp + key,
+                        (&chain.cwp).add(key),
                         eyre!("Invalid search sleep duration: {e}"),
                     );
                     None
