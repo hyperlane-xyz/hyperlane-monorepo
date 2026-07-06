@@ -778,16 +778,26 @@ pub(crate) mod test {
         async fn test_normal_indexing() {
             let mut cursor = get_cursor().await;
 
-            // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
-            // expect no range to index.
+            // The latest sequence count is 5 and the current indexing snapshot is sequence 5,
+            // but the current block (90) is behind the tip (100). Expect to scan the remaining
+            // blocks in case a message was dispatched during downtime.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(90..=100));
+
+            // Update the cursor with no logs; it advances to the tip, after which there is
+            // nothing left to index.
+            cursor.update(vec![], 90..=100).await.unwrap();
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
 
-            // Update the tip, expect to still not index anything.
+            // Update the tip; expect to scan the new blocks, then nothing again.
             cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
                 latest_sequence_count: Some(5),
                 tip: 110,
             });
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(100..=110));
+            cursor.update(vec![], 100..=110).await.unwrap();
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
 
