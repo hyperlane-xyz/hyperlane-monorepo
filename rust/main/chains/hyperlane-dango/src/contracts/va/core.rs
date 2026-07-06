@@ -8,8 +8,8 @@ use {
     dango_hyperlane_types::va::{
         ExecuteMsg, QueryAnnounceFeePerByteRequest, QueryAnnouncedStorageLocationsRequest,
     },
-    grug::{Coin, Inner, Message, QueryClientExt},
-    grug_math::{Number, Uint128},
+    dango_math::{Number, Uint128},
+    dango_primitives::{Coin, Inner, Message, QueryClientExt},
     hyperlane_core::{
         Announcement, ChainResult, ContractLocator, SignedType, TxOutcome, ValidatorAnnounce, H256,
         U256,
@@ -42,7 +42,6 @@ impl DangoValidatorAnnounce {
             .query_wasm_smart(
                 self.address.try_convert()?,
                 QueryAnnounceFeePerByteRequest {},
-                None,
             )
             .await?;
 
@@ -62,7 +61,7 @@ impl DangoValidatorAnnounce {
 
         let balance = self
             .provider
-            .query_balance(signer.try_convert()?, coins.denom, None)
+            .query_balance(signer.try_convert()?, coins.denom)
             .await?;
 
         Ok(coins.amount.saturating_sub(balance).into_inner().into())
@@ -88,7 +87,6 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
             .query_wasm_smart(
                 self.address.try_convert()?,
                 QueryAnnouncedStorageLocationsRequest { validators },
-                None,
             )
             .await?;
 

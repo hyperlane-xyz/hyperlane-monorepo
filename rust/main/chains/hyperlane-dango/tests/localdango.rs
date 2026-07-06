@@ -6,6 +6,11 @@ use {
         isms::{multisig::ValidatorSet, HYPERLANE_DOMAIN_KEY},
         mailbox, multisig_hash, Addr32,
     },
+    dango_primitives::{
+        __private::hex_literal::hex, addr, btree_map, btree_set, Addr, Api, BroadcastClientExt,
+        CheckedContractEvent, Coins, EventName, FlatCommitmentStatus, GasOption, Hash256, Inner,
+        JsonDeExt, MockApi, QueryClientExt, ResultExt, SearchEvent, SearchTxClient,
+    },
     dango_sdk::HttpClient,
     dango_sdk::{Secp256k1, Secret, SingleSigner},
     dango_testing::{user5, Preset},
@@ -13,11 +18,6 @@ use {
         config::AppConfig,
         constants::dango,
         gateway::{self, Origin, Remote},
-    },
-    grug::{
-        __private::hex_literal::hex, addr, btree_map, btree_set, Addr, Api, BroadcastClientExt,
-        CheckedContractEvent, Coins, EventName, FlatCommitmentStatus, GasOption, Hash256, Inner,
-        JsonDeExt, MockApi, QueryClientExt, ResultExt, SearchEvent, SearchTxClient,
     },
     manual_relay::get_checkpoint_from_s3,
     std::time::Duration,
@@ -72,7 +72,7 @@ async fn run_dango() -> anyhow::Result<()> {
 
     DangoBuilder::new("localdango", local_domain)
         .with_block_creation(dango_testing::BlockCreation::Timed)
-        .with_block_time(grug::Duration::from_seconds(1))
+        .with_block_time(dango_primitives::Duration::from_seconds(1))
         .with_port(PORT)
         .with_genesis_option(GenesisOption {
             gateway: GatewayOption {
@@ -114,8 +114,8 @@ async fn transfer_remote() -> anyhow::Result<()> {
 
     let dango_client = HttpClient::new(url)?;
 
-    let cfg: AppConfig = dango_client.query_app_config(None).await?;
-    let chain_id = dango_client.query_status(None).await?.chain_id;
+    let cfg: AppConfig = dango_client.query_app_config().await?;
+    let chain_id = dango_client.query_status().await?.chain_id;
 
     let mut user5 = SingleSigner::new_first_account(
         &dango_client,

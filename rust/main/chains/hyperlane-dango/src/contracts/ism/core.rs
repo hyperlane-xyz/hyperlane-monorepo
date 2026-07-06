@@ -5,7 +5,7 @@ use {
     },
     async_trait::async_trait,
     dango_hyperlane_types::isms,
-    grug::QueryClientExt,
+    dango_primitives::QueryClientExt,
     hyperlane_core::{
         ChainResult, ContractLocator, HyperlaneMessage, InterchainSecurityModule, Metadata,
         ModuleType, RawHyperlaneMessage, H256, U256,
@@ -51,7 +51,6 @@ impl InterchainSecurityModule for DangoIsm {
                     raw_message: RawHyperlaneMessage::from(message).into(),
                     raw_metadata: metadata.to_vec().into(),
                 }),
-                None,
             )
             .await?;
 

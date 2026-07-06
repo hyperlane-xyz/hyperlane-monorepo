@@ -1,5 +1,5 @@
 use {
-    grug::{HashExt, HexByteArray},
+    dango_primitives::{HashExt, HexByteArray},
     hyperlane_core::H256,
     k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng},
 };

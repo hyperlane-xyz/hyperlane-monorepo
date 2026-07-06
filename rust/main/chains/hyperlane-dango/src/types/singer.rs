@@ -1,8 +1,8 @@
 use {
     crate::DangoResult,
+    dango_primitives::{Addr, Defined, QueryClient},
     dango_sdk::{Secp256k1, Secret, SingleSigner},
     dango_types::auth::Nonce,
-    grug::{Addr, Defined, QueryClient},
     std::sync::Arc,
     tokio::sync::RwLock,
 };

@@ -3,7 +3,7 @@ use {
     crate::{DangoConvertor, SearchLog, SearchTxOutcomeExt, TryDangoConvertor},
     async_trait::async_trait,
     dango_hyperlane_types::mailbox::PostDispatch,
-    grug::SearchTxClient,
+    dango_primitives::SearchTxClient,
     hyperlane_core::{
         ChainResult, HyperlaneContract, Indexed, Indexer, LogMeta, MerkleTreeInsertion,
         SequenceAwareIndexer, H512,

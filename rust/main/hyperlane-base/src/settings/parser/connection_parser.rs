@@ -302,7 +302,7 @@ fn build_dango_connection_conf(
     let gas_price = chain
         .chain(&mut local_err)
         .get_key("gas_price")
-        .parse_value::<grug::Coin>("fails to deserialize grug::Coin")
+        .parse_value::<dango_primitives::Coin>("fails to deserialize dango_primitives::Coin")
         .end();
 
     let gas_scale = chain

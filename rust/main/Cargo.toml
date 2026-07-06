@@ -223,19 +223,13 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 hyperlane-cosmos-rs = "0.1.4"
 
 ## dango
-# The `grug` meta-crate was removed upstream (left-curve #2088); `grug-types` is
-# now the umbrella crate (types + client + testing + macros), so we alias it as `grug`.
-grug = { git = "https://github.com/left-curve/left-curve.git", package = "grug-types", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-grug-math = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-# `dango-client` + `indexer-client` were consolidated into `dango-sdk` (left-curve #1939).
-dango-sdk = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-# `dango-mock-httpd` was collapsed into `dango-testing` (left-curve #2089).
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "c2950a3cbe5e83a9b1944ee0de920f8cddd85fe6" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-math = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-primitives = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-sdk = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

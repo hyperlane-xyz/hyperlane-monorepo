@@ -1,9 +1,9 @@
 use {
     crate::utils::{dango_helper::ChainHelper, get_free_port, try_for},
     dango_genesis::GenesisOption,
+    dango_primitives::{ClientWrapper, QueryClientExt},
     dango_sdk::HttpClient,
     dango_testing::{BlockCreation, Preset, TestOption},
-    grug::{ClientWrapper, QueryClientExt},
     std::{
         sync::{Arc, Mutex},
         thread,
@@ -15,7 +15,7 @@ pub struct DangoBuilder {
     chain_id: String,
     hyperlane_domain: u32,
     block_creation: BlockCreation,
-    block_time: grug::Duration,
+    block_time: dango_primitives::Duration,
     port: Option<u16>,
     genesis_option: Option<GenesisOption>,
 }
@@ -37,7 +37,7 @@ impl DangoBuilder {
         self
     }
 
-    pub fn with_block_time(mut self, block_time: grug::Duration) -> Self {
+    pub fn with_block_time(mut self, block_time: dango_primitives::Duration) -> Self {
         self.block_time = block_time;
         self
     }
@@ -106,7 +106,7 @@ impl DangoBuilder {
         try_for(
             Duration::from_secs(10),
             Duration::from_millis(500),
-            || async { client.query_status(None).await },
+            || async { client.query_status().await },
         )
         .await?;
 

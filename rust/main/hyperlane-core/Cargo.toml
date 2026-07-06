@@ -21,6 +21,7 @@ bech32.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
+dango-primitives = { workspace = true }
 derive-new.workspace = true
 derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }
@@ -30,7 +31,6 @@ eyre.workspace = true
 fixed-hash.workspace = true
 futures = { workspace = true, optional = true }
 getrandom.workspace = true
-grug = { workspace = true}
 hex.workspace = true
 regex = { workspace = true, optional = true }
 itertools.workspace = true

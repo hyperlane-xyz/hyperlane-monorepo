@@ -1,6 +1,6 @@
 use {
     crate::{DangoProvider, DangoResult, DangoSigner},
-    grug::Coin,
+    dango_primitives::Coin,
     hyperlane_core::{config::OpSubmissionConfig, HyperlaneDomain, HyperlaneProvider},
     std::time::Duration,
     url::Url,

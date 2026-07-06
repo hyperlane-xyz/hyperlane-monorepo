@@ -3,9 +3,9 @@ use {
         build_agents, get_free_port, startup_tests, try_for, Agent, CheckpointSyncer, DangoBuilder,
         DangoSettings, HexKey, Location, Relayer, SetupChain, Validator, ValidatorSigner,
     },
+    dango_primitives::{btree_set, Coin, Denom, Part, QueryClientExt, ResultExt},
     dango_testing::{setup_tracing_subscriber, BlockCreation},
     dango_types::{constants::dango, gateway::Origin},
-    grug::{btree_set, Coin, Denom, Part, QueryClientExt, ResultExt},
     std::time::Duration,
     tracing::Level,
 };
@@ -123,7 +123,6 @@ async fn dango_one_way() -> anyhow::Result<()> {
                 .query_balance(
                     ch2.accounts.user3.address.into_inner(),
                     Denom::new_unchecked(["bridge", "foo"]),
-                    None,
                 )
                 .await?;
             if balance.0 == 100 {
@@ -178,7 +177,6 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
                 .query_balance(
                     ch2.accounts.user1.address.into_inner(),
                     remote_denom.clone(),
-                    None,
                 )
                 .await?;
 
@@ -196,7 +194,6 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
         .query_balance(
             ch1.accounts.user1.address.into_inner(),
             dango::DENOM.clone(),
-            None,
         )
         .await?;
 
@@ -221,7 +218,6 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
                 .query_balance(
                     ch1.accounts.user1.address.into_inner(),
                     dango::DENOM.clone(),
-                    None,
                 )
                 .await?;
 

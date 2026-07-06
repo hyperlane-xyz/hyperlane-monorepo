@@ -8,7 +8,7 @@ use {
     dango_hyperlane_types::{
         mailbox::QueryTreeRequest, IncrementalMerkleTree as DangoIncrementalMerkleTree,
     },
-    grug::{QueryClientExt, QueryResponse},
+    dango_primitives::{QueryClientExt, QueryResponse},
     hyperlane_core::{
         accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult,
         Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneContract,
@@ -155,7 +155,7 @@ impl DangoMerkleTree {
 
     pub async fn dango_tree(&self) -> ChainResult<DangoIncrementalMerkleTree> {
         self.provider
-            .query_wasm_smart(self.address.try_convert()?, QueryTreeRequest {}, None)
+            .query_wasm_smart(self.address.try_convert()?, QueryTreeRequest {})
             .await
     }
 

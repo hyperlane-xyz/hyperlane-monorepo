@@ -6,7 +6,7 @@ use {
         crate::{DangoConvertor, SearchLog, TryDangoConvertor},
         async_trait::async_trait,
         dango_hyperlane_types::mailbox,
-        grug::{Inner, SearchTxClient},
+        dango_primitives::{Inner, SearchTxClient},
         hyperlane_core::{
             ChainResult, HyperlaneContract, HyperlaneMessage, Indexed, Indexer, LogMeta,
             SequenceAwareIndexer, H256, H512,

@@ -5,6 +5,11 @@ use {
         mailbox::Message,
         multisig_hash, Addr32,
     },
+    dango_primitives::{
+        __private::hex_literal::hex, addr, btree_set, Addr, AddrEncoder, Api, BroadcastClientExt,
+        Coins, EncodedBytes, GasOption, Hash256, HexByteArray, Inner, Json, JsonDeExt, JsonSerExt,
+        MockApi, QueryClientExt,
+    },
     dango_sdk::HttpClient,
     dango_sdk::{Secp256k1, Secret, SingleSigner},
     dango_testing::user4,
@@ -14,11 +19,6 @@ use {
         providers::{Http, Provider},
         types::H160,
         utils::keccak256,
-    },
-    grug::{
-        __private::hex_literal::hex, addr, btree_set, Addr, AddrEncoder, Api, BroadcastClientExt,
-        Coins, EncodedBytes, GasOption, Hash256, HexByteArray, Inner, Json, JsonDeExt, JsonSerExt,
-        MockApi, QueryClientExt,
     },
     serde::{Deserialize, Serialize},
     std::{
@@ -194,8 +194,8 @@ async fn manual_relay() -> anyhow::Result<()> {
 
     let dango_client = HttpClient::new(DANGO_URL)?;
 
-    let app_config: AppConfig = dango_client.query_app_config(None).await?;
-    let chain_id = dango_client.query_status(None).await?.chain_id;
+    let app_config: AppConfig = dango_client.query_app_config().await?;
+    let chain_id = dango_client.query_status().await?.chain_id;
 
     let mut dango_signer =
         SingleSigner::new(DANGO_ADDRESS, Secp256k1::from_bytes(DANGO_PRIVATE_KEY)?)

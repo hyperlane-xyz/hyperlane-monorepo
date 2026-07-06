@@ -5,15 +5,15 @@ use {
     },
     anyhow::anyhow,
     async_trait::async_trait,
-    dango_sdk::HttpClient,
-    dango_types::{account, auth::Metadata},
-    futures_util::future::try_join_all,
-    grug::{
-        Addr, Binary, Block, BlockClient, BlockOutcome, BroadcastClient, BroadcastClientExt,
+    dango_primitives::{
+        Addr, Block, BlockClient, BlockOutcome, BroadcastClient, BroadcastClientExt,
         BroadcastTxOutcome, Defined, GasOption, Hash256, Inner, JsonDeExt, JsonSerExt, Message,
         MsgExecute, NonEmpty, Query, QueryClient, QueryClientExt, QueryRequest, QueryResponse,
         SearchTxClient, SearchTxOutcome, Signer, Tx, TxOutcome, UnsignedTx,
     },
+    dango_sdk::HttpClient,
+    dango_types::{account, auth::Metadata},
+    futures_util::future::try_join_all,
     hyperlane_core::{
         rpc_clients::{BlockNumberGetter, FallbackProvider},
         BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
@@ -46,8 +46,9 @@ impl DangoProvider {
             .httpd_urls
             .iter()
             .map(|url| {
-                HttpClient::new(url.clone())
-                    .map(|client| ClientWrapper::new(grug::ClientWrapper::new(Arc::new(client))))
+                HttpClient::new(url.clone()).map(|client| {
+                    ClientWrapper::new(dango_primitives::ClientWrapper::new(Arc::new(client)))
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -155,7 +156,6 @@ impl DangoProvider {
             .query_wasm_smart(
                 signer.r#use(self).await?.read().await.deref().address,
                 account::QuerySeenNoncesRequest {},
-                None,
             )
             .await?
             .last()
@@ -230,7 +230,7 @@ impl DangoProvider {
 
     /// Get the latest block number
     pub async fn latest_block(&self) -> ChainResult<u64> {
-        self.query_status(None)
+        self.query_status()
             .await
             .map(|res| res.last_finalized_block.height)
     }
@@ -248,7 +248,7 @@ impl DangoProvider {
         let msg = R::Message::from(req);
 
         let [wasm_smart_response, status_response] = self
-            .query_multi([Query::wasm_smart(contract, &msg)?, Query::status()], None)
+            .query_multi([Query::wasm_smart(contract, &msg)?, Query::status()])
             .await?;
 
         Ok((
@@ -324,7 +324,7 @@ impl HyperlaneProvider for DangoProvider {
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        match self.query_contract(address.try_convert()?, None).await {
+        match self.query_contract(address.try_convert()?).await {
             Ok(_) => Ok(true),
             Err(_) => Ok(false),
         }
@@ -335,7 +335,7 @@ impl HyperlaneProvider for DangoProvider {
         let address = Addr::from_str(&address)?;
 
         let balance = self
-            .query_balance(address, self.connection_conf.gas_price.denom.clone(), None)
+            .query_balance(address, self.connection_conf.gas_price.denom.clone())
             .await?;
 
         Ok(balance.into_inner().into())
@@ -365,32 +365,13 @@ impl BlockNumberGetter for DangoProvider {
 #[async_trait]
 impl QueryClient for DangoProvider {
     type Error = ChainCommunicationError;
-    type Proof = grug::Proof;
+    type Proof = dango_primitives::Proof;
 
-    async fn query_app(
-        &self,
-        query: Query,
-        height: Option<u64>,
-    ) -> Result<QueryResponse, Self::Error> {
+    async fn query_app(&self, query: Query) -> Result<QueryResponse, Self::Error> {
         self.client
             .call(|client| {
                 let query = query.clone();
-                let future = async move { Ok(client.query_app(query, height).await?) };
-                Box::pin(future)
-            })
-            .await
-    }
-
-    async fn query_store(
-        &self,
-        key: Binary,
-        height: Option<u64>,
-        prove: bool,
-    ) -> Result<(Option<Binary>, Option<Self::Proof>), Self::Error> {
-        self.client
-            .call(|client| {
-                let key = key.clone();
-                let future = async move { Ok(client.query_store(key, height, prove).await?) };
+                let future = async move { Ok(client.query_app(query).await?) };
                 Box::pin(future)
             })
             .await

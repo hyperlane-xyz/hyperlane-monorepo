@@ -1,8 +1,8 @@
 use {
     crate::utils::{agents::traits::Args, ChainSettings},
+    dango_primitives::{btree_map, JsonSerExt},
     dango_types::config::AppConfig,
     ethers::types::H160,
-    grug::{btree_map, JsonSerExt},
     std::collections::BTreeMap,
 };
 

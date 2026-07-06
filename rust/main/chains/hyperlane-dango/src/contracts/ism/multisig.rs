@@ -3,7 +3,7 @@ use {
     crate::{DangoConvertor, TryDangoConvertor},
     async_trait::async_trait,
     dango_hyperlane_types::isms,
-    grug::QueryClientExt,
+    dango_primitives::QueryClientExt,
     hyperlane_core::{ChainResult, HyperlaneMessage, MultisigIsm, H256},
 };
 
@@ -20,7 +20,6 @@ impl MultisigIsm for DangoIsm {
                 isms::multisig::QueryValidatorSetRequest {
                     domain: message.origin,
                 },
-                None,
             )
             .await?;
 

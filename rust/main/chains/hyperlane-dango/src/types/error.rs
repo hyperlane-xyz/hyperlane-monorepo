@@ -1,4 +1,4 @@
-use {grug::Hash256, hyperlane_core::ChainCommunicationError, std::fmt::Debug};
+use {dango_primitives::Hash256, hyperlane_core::ChainCommunicationError, std::fmt::Debug};
 
 pub type DangoResult<T> = Result<T, DangoError>;
 
@@ -14,7 +14,7 @@ pub enum DangoError {
     Anyhow(#[from] anyhow::Error),
 
     #[error(transparent)]
-    StdError(#[from] grug::StdError),
+    StdError(#[from] dango_primitives::StdError),
 
     #[error("failed to convert {ty_from} to {ty_to}: from {from}, reason: {reason}")]
     WrongConversion {

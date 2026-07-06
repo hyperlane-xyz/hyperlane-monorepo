@@ -1,7 +1,7 @@
 use {
     crate::{DangoConvertor, DangoProvider, DangoResult},
     async_trait::async_trait,
-    grug::{
+    dango_primitives::{
         Addr, Addressable, BlockClient, CheckedContractEvent, CronOutcome, EventFilter, EventId,
         Hash256, HashExt, JsonDeExt, SearchEvent, SearchTxOutcome, Tx,
     },
@@ -140,7 +140,7 @@ impl SearchLog for BlockLogs {
     {
         let filter_closure = |filter: EventFilter<CheckedContractEvent>| {
             filter
-                .with_commitment_status(grug::FlatCommitmentStatus::Committed)
+                .with_commitment_status(dango_primitives::FlatCommitmentStatus::Committed)
                 .with_predicate(move |e| e.contract == contract)
                 .take()
                 .all()

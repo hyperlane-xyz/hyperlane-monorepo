@@ -743,16 +743,21 @@ impl PendingMessage {
         origin_db: Arc<dyn HyperlaneDb>,
         message: &HyperlaneMessage,
     ) -> PendingOperationStatus {
+        // tracing >= 0.1.44 requires the event level to live for 'static; an
+        // inline `if` expression creates a temporary that is dropped too early,
+        // so hoist it into a const.
+        const STATUS_LOG_LEVEL: Level = if cfg!(feature = "test-utils") {
+            Level::DEBUG
+        } else {
+            Level::TRACE
+        };
+
         // Attempt to fetch status about message from database
         if let Ok(Some(status)) = origin_db.retrieve_status_by_message_id(&message.id()) {
             // This event is used for E2E tests to ensure message statuses
             // are being properly loaded from the db
             tracing::event!(
-                if cfg!(feature = "test-utils") {
-                    Level::DEBUG
-                } else {
-                    Level::TRACE
-                },
+                STATUS_LOG_LEVEL,
                 ?status,
                 id=?message.id(),
                 RETRIEVED_MESSAGE_LOG,
@@ -760,14 +765,8 @@ impl PendingMessage {
             return status;
         }
 
-        tracing::event!(
-            if cfg!(feature = "test-utils") {
-                Level::DEBUG
-            } else {
-                Level::TRACE
-            },
-            "Message status not found in db"
-        );
+        tracing::event!(STATUS_LOG_LEVEL, "Message status not found in db");
+
         PendingOperationStatus::FirstPrepareAttempt
     }
 
