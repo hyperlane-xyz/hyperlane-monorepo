@@ -123,15 +123,23 @@ export async function getTokenMetadata(
   symbol: string;
   decimals: number;
 }> {
-  const mappingValue = await aleoClient.getProgramMappingValue(
-    'token_registry.aleo',
-    'registered_tokens',
-    tokenId,
-  );
-
-  assert(
-    mappingValue,
-    `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after registration) is retried, not treated as absent.
+  const mappingValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        'token_registry.aleo',
+        'registered_tokens',
+        tokenId,
+      );
+      assert(
+        value,
+        `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const tokenMetadata = Plaintext.fromString(mappingValue).toObject();
@@ -170,15 +178,23 @@ export async function getAleoWarpTokenType(
 ): Promise<AleoTokenType> {
   const { programId } = fromAleoAddress(tokenAddress);
 
-  const metadataValue = await aleoClient.getProgramMappingValue(
-    programId,
-    'app_metadata',
-    'true',
-  );
-
-  assert(
-    metadataValue,
-    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after deployment) is retried, not treated as absent.
+  const metadataValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        programId,
+        'app_metadata',
+        'true',
+      );
+      assert(
+        value,
+        `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const metadata = Plaintext.fromString(metadataValue).toObject();
@@ -276,15 +292,23 @@ async function getWarpTokenMetadata(
 ): Promise<AleoWarpTokenMetadata> {
   const { programId } = fromAleoAddress(tokenAddress);
 
-  const metadataValue = await aleoClient.getProgramMappingValue(
-    programId,
-    'app_metadata',
-    'true',
-  );
-
-  assert(
-    metadataValue,
-    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after deployment) is retried, not treated as absent.
+  const metadataValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        programId,
+        'app_metadata',
+        'true',
+      );
+      assert(
+        value,
+        `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const metadata = Plaintext.fromString(metadataValue).toObject();
