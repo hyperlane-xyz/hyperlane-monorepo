@@ -82,6 +82,16 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         maxDelay = _maxDelay;
     }
 
+    /// @dev Delay-mode override: a 100% threshold is permitted. Over-limit
+    /// messages are delayed (capped at `maxDelay`), not reverted, so the
+    /// synthetic post-burn discontinuity that bars 100% for reject-mode
+    /// limiters does not apply here.
+    function _validateThresholdBps(
+        uint256 _thresholdBps
+    ) internal view override {
+        if (_thresholdBps > BPS_DENOMINATOR) revert InvalidThresholdBps();
+    }
+
     // ============ TimelockRouter overrides ============
 
     /// @dev Origin-side side effects for `postDispatch`. Sender binding

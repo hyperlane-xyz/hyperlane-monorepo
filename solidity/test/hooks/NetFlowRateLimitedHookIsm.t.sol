@@ -303,6 +303,17 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         );
     }
 
+    // Reject-mode: a 100% threshold is rejected (strict), unlike the delay-mode
+    // DelayedFlowRouter which permits it.
+    function test_constructorRevertsIfMaxFlowBpsIs100Percent() external {
+        vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
+        new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(localRouter),
+            10_000
+        );
+    }
+
     function _processInbound(uint256 amount) internal {
         localMailbox.process(bytes(""), _inboundMessage(amount));
     }

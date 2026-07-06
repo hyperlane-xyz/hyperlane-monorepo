@@ -165,6 +165,26 @@ contract DelayedFlowRouterTest is Test {
         );
     }
 
+    // Delay-mode permits a 100% threshold (over-limit is delayed, not
+    // reverted), unlike the reject-mode default.
+    function test_thresholdBps_allows100Percent() public {
+        DelayedFlowRouter full = new DelayedFlowRouter(
+            TokenRouter(payable(address(collateralRouter))),
+            10_000,
+            MAX_DELAY
+        );
+        assertEq(full.thresholdBps(), 10_000);
+    }
+
+    function test_thresholdBps_revertsAbove100Percent() public {
+        vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
+        new DelayedFlowRouter(
+            TokenRouter(payable(address(collateralRouter))),
+            10_001,
+            MAX_DELAY
+        );
+    }
+
     // ============ Happy path: under-threshold withdrawal ============
 
     function test_underThreshold_passesImmediately() public {

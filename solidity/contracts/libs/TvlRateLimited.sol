@@ -81,7 +81,7 @@ abstract contract TvlRateLimited is RateLimited {
 
     constructor(TokenRouter _warpRouter, uint256 _thresholdBps) RateLimited(0) {
         if (address(_warpRouter) == address(0)) revert InvalidRouter();
-        if (_thresholdBps >= BPS_DENOMINATOR) revert InvalidThresholdBps();
+        _validateThresholdBps(_thresholdBps);
 
         warpRouter = address(_warpRouter);
         capacityToken = _warpRouter.token();
@@ -89,6 +89,17 @@ abstract contract TvlRateLimited is RateLimited {
         // The bucket starts full at the current capacity on first use (see
         // `_RateLimited_isInitialized`), so no deploy-time bootstrap is needed
         // — capacity is derived live from `warpRouter`'s balance / supply.
+    }
+
+    /// @dev Validates the configured threshold at construction. Default: strictly
+    /// below 100% — for reject-mode limiters a 100% cap is degenerate (in the
+    /// synthetic-outbound case the router burns supply before metering, so
+    /// `totalSupply()` and thus capacity collapse below the amount, gating the
+    /// dispatch with no usable headroom). Delay-mode subclasses may relax this.
+    function _validateThresholdBps(
+        uint256 _thresholdBps
+    ) internal view virtual {
+        if (_thresholdBps >= BPS_DENOMINATOR) revert InvalidThresholdBps();
     }
 
     // ============ Capacity ============
