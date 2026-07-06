@@ -16,6 +16,9 @@ pub fn url_to_host_info(url: &Url) -> Option<String> {
     }
 }
 
+// Writing into a String is infallible; clippy >= 1.89 flags the `unwrap` under
+// the crate-level `deny(clippy::unwrap_used)`, clippy 1.88 does not.
+#[allow(clippy::unwrap_used)]
 fn schemed_url_to_host_info(url: &Url) -> Option<String> {
     if let Some(host) = url.host_str() {
         let mut s = String::new();

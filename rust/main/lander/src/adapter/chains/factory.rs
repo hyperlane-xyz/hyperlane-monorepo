@@ -69,6 +69,7 @@ impl AdapterFactory {
                 let adapter = TronAdapter::from_conf(conf, core_metrics, &connection_conf).await?;
                 Arc::new(adapter)
             }
+            ChainConnectionConf::Dango(_) => todo!(),
         };
         Ok(adapter)
     }

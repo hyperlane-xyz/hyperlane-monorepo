@@ -14,6 +14,7 @@ members = [
   "chains/hyperlane-sealevel",
   "chains/hyperlane-tron",
   "chains/hyperlane-starknet",
+  "chains/hyperlane-dango",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -61,7 +62,8 @@ borsh = { version = "1.5", features = ["derive"] }
 bs58 = "0.5.0"
 bytes = "1"
 byteorder = "1.5.0"
-cainome = { version = "0.8.0", features = ["abigen-rs"] }
+cainome = { version = "0.10.1", features = ["abigen-rs"] }
+cargo_metadata = "0.22.0"
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
@@ -83,6 +85,7 @@ derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
 dhat = "0.3.3"
+dotenvy = "0.15"
 ed25519-dalek = "~2.1"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
@@ -102,6 +105,7 @@ http-body-util = "0.1"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
+humantime = "2"
 ibc-proto = "0.51.1"
 injective-protobuf = "0.2.2"
 moka = "0.12.8"
@@ -160,7 +164,10 @@ solana-client = "3.0"
 solana-rpc-client = "3.0"
 solana-commitment-config = "3.0"
 solana-compute-budget-interface = { version = "3.0", features = ["borsh"] }
-solana-loader-v3-interface = { version = "3.0", features = ["serde", "bincode"] }
+solana-loader-v3-interface = { version = "3.0", features = [
+  "serde",
+  "bincode",
+] }
 solana-program = "3.0"
 solana-pubsub-client = "3.0"
 solana-sdk = "3.0"
@@ -169,12 +176,12 @@ solana-stake-interface = "1.2"
 solana-system-interface = { version = "2.0", features = ["bincode"] }
 solana-transaction-status = "3.0"
 solana-vote-interface = "3.0"
-starknet = "0.15.0"
+starknet = "0.17.0"
 static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.40.1"
+tendermint = "0.40.4"
 tendermint-rpc = { version = "0.40.1", features = ["http-client", "tokio"] }
 testcontainers = "0.23.3"
 testcontainers-modules = { version = "0.11.6", features = ["postgres"] }
@@ -215,6 +222,14 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 hyperlane-cosmos-rs = "0.1.4"
 
+## dango
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-math = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-primitives = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-sdk = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "11bdf76" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
@@ -309,4 +324,3 @@ version = "=0.12.1"
 branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
-

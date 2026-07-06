@@ -1,0 +1,39 @@
+[package]
+name = "hyperlane-dango"
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+dango-hyperlane-types = { workspace = true }
+dango-math = { workspace = true }
+dango-primitives = { workspace = true }
+dango-sdk = { workspace = true }
+dango-types = { workspace = true }
+futures-util = { workspace = true }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+serde = { workspace = true }
+tendermint = { workspace = true }
+tendermint-rpc = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+cargo_metadata = { workspace = true }
+dango-genesis = { workspace = true }
+dango-testing = { workspace = true }
+hyperlane-base = { path = "../../hyperlane-base" }
+k256 = { workspace = true }
+tempfile = { workspace = true }
+ethers = { workspace = true }
+reqwest = { workspace = true }
+dotenvy = { workspace = true }
+tracing-subscriber = { workspace = true }

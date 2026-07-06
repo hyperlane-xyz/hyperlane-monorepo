@@ -312,6 +312,7 @@ fn parse_chain(
         .to_owned();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
+
     let connection = build_connection_conf(
         domain.domain_protocol(),
         &rpcs,
@@ -522,6 +523,24 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 suffix: suffix.to_owned(),
             })
         }};
+        (dangoKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_value::<dango_primitives::HexByteArray<32>>("fail deserialize dango key")
+                .end();
+
+            let address = signer
+                .chain(&mut err)
+                .get_key("address")
+                .parse_value::<dango_primitives::Addr>("fail deserialize dango address")
+                .end();
+
+            err.into_result(SignerConf::Dango {
+                key: key.unwrap(),
+                address: address.unwrap(),
+            })
+        }};
     }
 
     match signer_type {
@@ -530,6 +549,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),
+        Some("dangoKey") => parse_signer!(dangoKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }

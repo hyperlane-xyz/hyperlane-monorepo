@@ -10,6 +10,7 @@ publish = { workspace = true }
 version = { workspace = true }
 
 [dependencies]
+anyhow.workspace = true
 async-trait.workspace = true
 async-rwlock.workspace = true
 auto_impl.workspace = true
@@ -20,6 +21,7 @@ bech32.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
+dango-primitives = { workspace = true }
 derive-new.workspace = true
 derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }

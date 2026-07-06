@@ -1,3 +1,7 @@
+// rustc >= 1.90 no longer counts derive(Deserialize) as construction; these
+// types mirror the CosmWasm API shape.
+#![allow(dead_code)]
+
 use super::general::EmptyStruct;
 use serde::{Deserialize, Serialize};
 

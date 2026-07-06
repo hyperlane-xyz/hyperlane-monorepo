@@ -234,6 +234,7 @@ pub enum KnownHyperlaneDomain {
     Zeronetwork = 543210,
     Zksync = 324,
     Zircuit = 48900,
+    Dango = 88888888,
 
     // -- Test chains --
     //
@@ -257,6 +258,7 @@ pub enum KnownHyperlaneDomain {
     SolanaTestnet = 1399811150,
     SonicSvmTestnet = 15153042,
     StarknetSepolia = 23448591,
+    DangoTestnet = 88888887,
 
     // -- Local chains --
     //
@@ -275,6 +277,8 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
+    LocalDango1 = 88888867,
+    LocalDango2 = 88888877,
 }
 
 #[derive(Clone, Serialize)]
@@ -345,6 +349,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Grug based chain type
+    Dango,
     /// A Raidx based chain
     Radix,
     /// Aleo chain
@@ -413,12 +419,12 @@ impl KnownHyperlaneDomain {
             | Sepolia
             | SolanaTestnet
             | SonicSvmTestnet
-            | StarknetSepolia => HyperlaneDomainType::Testnet,
+            | StarknetSepolia
+            | DangoTestnet => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
             | RadixTest0 | RadixTest1 | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1
-            | CosmosTestNative2 | StarknetTest23448593 | StarknetTest23448594 => {
-                HyperlaneDomainType::LocalTestChain
-            }
+            | CosmosTestNative2 | StarknetTest23448593 | StarknetTest23448594 | LocalDango1
+            | LocalDango2 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -456,6 +462,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet | RadixTest0 | RadixTest1 => HyperlaneDomainProtocol::Radix,
+            Dango | DangoTestnet | LocalDango1 | LocalDango2 => HyperlaneDomainProtocol::Dango,
             Aleo | AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
@@ -667,7 +674,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet | Tron => IndexMode::Block,
+            Ethereum | Cosmos | CosmosNative | Starknet | Dango | Tron => IndexMode::Block,
             Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
