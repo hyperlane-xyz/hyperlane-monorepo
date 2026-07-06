@@ -1,3 +1,7 @@
+// rustc >= 1.90 no longer counts derive(Deserialize) as construction; these
+// types mirror the CosmWasm API shape.
+#![allow(dead_code)]
+
 use cometbft::abci::v0_34;
 use cometbft::abci::v0_37;
 use serde::{Deserialize, Serialize};

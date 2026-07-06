@@ -37,6 +37,9 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
+    // rustc >= 1.91 flags this unused method; introduced by the dango-side
+    // toolchain bump, not an upstream problem.
+    #[allow(dead_code)]
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;

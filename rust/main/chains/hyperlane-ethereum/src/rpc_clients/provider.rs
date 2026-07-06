@@ -347,6 +347,9 @@ where
         .await
     }
 
+    // rustc >= 1.91 flags this unused private helper; introduced by the dango-side
+    // toolchain bump, not an upstream problem.
+    #[allow(dead_code)]
     #[instrument(err, skip(self))]
     async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
         let storage = self

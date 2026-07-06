@@ -202,9 +202,9 @@ impl DangoProvider {
         // Currently we support only None reorg period
 
         if let ReorgPeriod::None = reorg_period {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(DangoError::InvalidReorgPeriod(reorg_period.clone()).into());
+            Err(DangoError::InvalidReorgPeriod(reorg_period.clone()).into())
         }
 
         // let block_height = match reorg_period {
