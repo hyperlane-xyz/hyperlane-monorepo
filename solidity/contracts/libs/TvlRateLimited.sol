@@ -34,6 +34,13 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
  * (or `selfdestruct` for HypNative) inflate it. This is by design — growing
  * the balance to raise the cap also funds the pool the cap is gating, so an
  * attacker pays for any drain-headroom they unlock.
+ *
+ * @dev TVL is assumed to change only via Hyperlane operations (inbound process
+ * / outbound dispatch), each of which touches the bucket. Under this assumption
+ * `maxCapacity()` is constant between touches, so `calculateCurrentLevel`'s
+ * time-based replenishment never mixes two capacity epochs. Donations only grow
+ * TVL, never shrink it, so the level clamp is defensive — it only fires under
+ * externally-driven shrinks, which are out of scope for warp routes.
  */
 abstract contract TvlRateLimited is RateLimited {
     // ============ Errors ============

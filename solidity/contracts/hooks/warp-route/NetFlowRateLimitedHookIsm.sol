@@ -133,14 +133,11 @@ contract NetFlowRateLimitedHookIsm is
     }
 
     /// @inheritdoc IInterchainSecurityModule
-    /// @dev `processedAt(id) == block.number` confirms that `Mailbox.process()`
-    ///      is the active caller (it writes `deliveries[id].blockNumber` just
-    ///      before invoking `ism.verify(...)` — see `Mailbox.sol::process`).
-    ///      This binds the rate-limit consumption to the message being processed
-    ///      *in this same transaction* and prevents callers from invoking
-    ///      `verify()` directly to consume the bucket without going through the
-    ///      mailbox. (Note: this is NOT authentication — see contract-level
-    ///      docstring on composition with an authenticating ISM.)
+    /// @dev Binds consumption to the message being delivered by `Mailbox`
+    ///      *in this transaction* via `_isProcessing` — callers cannot invoke
+    ///      `verify()` directly to move the bucket. (This is flow binding, NOT
+    ///      authentication — see the contract-level docstring on composition
+    ///      with an authenticating ISM.)
     function verify(
         bytes calldata,
         bytes calldata _message
@@ -150,9 +147,7 @@ contract NetFlowRateLimitedHookIsm is
         validateMessageOnce(_message)
         returns (bool)
     {
-        uint48 processedBlock = mailbox.processedAt(_message.id());
-        // processedAt(id) == 0 means undelivered, so this also enforces delivery.
-        if (processedBlock != block.number) {
+        if (!_isProcessing(_message.id())) {
             revert InvalidDeliveredMessage(_message.id());
         }
 
