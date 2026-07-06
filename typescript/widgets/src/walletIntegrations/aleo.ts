@@ -11,7 +11,7 @@ import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
-import { getAdapter } from './aleo/utils.js';
+import { getAdapter, setAleoNetwork } from './aleo/utils.js';
 import {
   ChainTransactionFns,
   SwitchNetworkFns,
@@ -27,6 +27,8 @@ export {
   useAleoDisconnectFn,
   useAleoWalletDetails,
 } from './aleoWallet.js';
+export { Network as AleoNetwork } from '@provablehq/aleo-types';
+export { setAleoNetwork };
 
 export function useAleoSwitchNetwork(
   multiProvider: MultiProviderAdapter,
