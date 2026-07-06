@@ -15,9 +15,9 @@ use {
         gateway::{self, Origin, Remote},
     },
     grug::{
-        addr, btree_map, btree_set, Addr, Api, BroadcastClientExt, CheckedContractEvent, Coins,
-        EventName, FlatCommitmentStatus, GasOption, Hash256, Inner, JsonDeExt, MockApi,
-        QueryClientExt, ResultExt, SearchEvent, SearchTxClient, __private::hex_literal::hex,
+        __private::hex_literal::hex, addr, btree_map, btree_set, Addr, Api, BroadcastClientExt,
+        CheckedContractEvent, Coins, EventName, FlatCommitmentStatus, GasOption, Hash256, Inner,
+        JsonDeExt, MockApi, QueryClientExt, ResultExt, SearchEvent, SearchTxClient,
     },
     manual_relay::get_checkpoint_from_s3,
     std::time::Duration,

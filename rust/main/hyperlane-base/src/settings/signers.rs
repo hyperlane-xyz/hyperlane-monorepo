@@ -345,11 +345,7 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_dango::DangoSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::Dango {
-            key,
-            address,
-        } = conf
-        {
+        if let SignerConf::Dango { key, address } = conf {
             Ok(hyperlane_dango::DangoSigner::new(
                 key.into_inner(),
                 *address,

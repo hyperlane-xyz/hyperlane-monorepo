@@ -20,9 +20,7 @@ impl DangoIGP {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for DangoIGP {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let height = self
-            .provider
-            .latest_block().await?;
+        let height = self.provider.latest_block().await?;
         Ok((None, height as u32))
     }
 }

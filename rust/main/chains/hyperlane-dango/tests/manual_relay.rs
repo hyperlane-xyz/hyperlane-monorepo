@@ -16,9 +16,9 @@ use {
         utils::keccak256,
     },
     grug::{
-        Addr, AddrEncoder, Api, BroadcastClientExt, Coins, EncodedBytes, GasOption, Hash256,
-        HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, QueryClientExt,
-        __private::hex_literal::hex, addr, btree_set,
+        __private::hex_literal::hex, addr, btree_set, Addr, AddrEncoder, Api, BroadcastClientExt,
+        Coins, EncodedBytes, GasOption, Hash256, HexByteArray, Inner, Json, JsonDeExt, JsonSerExt,
+        MockApi, QueryClientExt,
     },
     serde::{Deserialize, Serialize},
     std::{
