@@ -37,6 +37,9 @@ pub enum Filter<T> {
     Enumerated(Vec<T>),
 }
 
+// clippy >= 1.90 wants this derived; keep the manual impl to avoid churning
+// upstream code (`derive(Default)` requires a `#[default]` variant attribute).
+#[allow(clippy::derivable_impls)]
 impl<T> Default for Filter<T> {
     fn default() -> Self {
         Self::Wildcard

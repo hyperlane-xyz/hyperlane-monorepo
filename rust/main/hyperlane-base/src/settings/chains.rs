@@ -1569,6 +1569,8 @@ impl ChainConf {
         cfg
     }
 
+    // rustc >= 1.90 wants `ContractLocator<'_>` here; keep upstream signature.
+    #[allow(mismatched_lifetime_syntaxes)]
     fn locator(&self, address: H256) -> ContractLocator {
         ContractLocator {
             domain: &self.domain,

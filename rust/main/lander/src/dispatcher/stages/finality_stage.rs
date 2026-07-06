@@ -247,6 +247,8 @@ impl FinalityStage {
                 .flatten()
             {
                 // update payload status in db
+                // clippy >= 1.90 suggests `std::slice::from_ref`; keep upstream expression.
+                #[allow(clippy::cloned_ref_to_slice_refs)]
                 state
                     .update_status_for_payloads(&[payload.clone()], PayloadStatus::ReadyToSubmit)
                     .await;
