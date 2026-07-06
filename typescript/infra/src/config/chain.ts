@@ -111,6 +111,15 @@ export const chainsToSkip: ChainName[] = [
   // pinned registry, so kept explicit here.
   'miraclechain',
 
+  // Expired Conduit RPC key — re-enable once key is rotated.
+  'ancient8',
+
+  // RPC down — re-enable once RPC is restored.
+  'oortmainnet',
+
+  // EIP-1559 not supported — maxFeePerGas returns 0, breaking fee estimation.
+  'chilizmainnet',
+
   ...getDisabledChains(),
 ];
 

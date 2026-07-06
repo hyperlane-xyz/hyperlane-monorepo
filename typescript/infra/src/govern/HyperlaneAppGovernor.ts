@@ -1,3 +1,5 @@
+import { writeFileSync } from 'fs';
+
 import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
@@ -30,7 +32,11 @@ import {
 import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
 import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
-import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
+import {
+  chainsToSkip,
+  legacyEthIcaRouter,
+  legacyIcaChainRouters,
+} from '../config/chain.js';
 import { Owner, determineGovernanceType } from '../governance.js';
 import { GovernanceType } from '../governanceTypes.js';
 
@@ -66,7 +72,9 @@ export abstract class HyperlaneAppGovernor<
   }
 
   async check(chainsToCheck?: ChainName[]) {
-    await this.checker.check(chainsToCheck);
+    const allChains = chainsToCheck ?? this.checker.app.chains();
+    const filtered = allChains.filter((c) => !chainsToSkip.includes(c));
+    await this.checker.check(filtered);
   }
 
   async checkChain(chain: ChainName) {
@@ -77,7 +85,7 @@ export abstract class HyperlaneAppGovernor<
     return this.checker.violations;
   }
 
-  async govern(confirm = true, chain?: ChainName) {
+  async govern(confirm = true, chain?: ChainName, outputFile?: string) {
     if (this.checker.violations.length === 0) return;
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
@@ -85,11 +93,70 @@ export abstract class HyperlaneAppGovernor<
     // 2. For each call, infer how it should be submitted on-chain.
     await this.inferCallSubmissionTypes();
 
+    const chains = chain ? [chain] : Object.keys(this.calls);
+
+    if (outputFile) {
+      const output: Record<string, object[]> = {};
+      for (const c of chains) {
+        const calls = this.calls[c] ?? [];
+        if (calls.length > 0) {
+          output[c] = calls.map((call) => ({
+            submissionType:
+              call.submissionType !== undefined
+                ? SubmissionType[call.submissionType]
+                : 'UNKNOWN',
+            to: call.to,
+            data: call.data,
+            value: call.value?.toString() ?? '0',
+            description: call.description,
+          }));
+        }
+      }
+      writeFileSync(outputFile, JSON.stringify(output, null, 2));
+      rootLogger.info(
+        `Wrote proposed transactions for ${Object.keys(output).length} chain(s) to ${outputFile}`,
+      );
+      return;
+    }
+
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
-    const chains = chain ? [chain] : Object.keys(this.calls);
+    const skippedChains: ChainName[] = [];
     for (const chain of chains) {
-      await this.sendCalls(chain, confirm);
+      let lastError: unknown;
+      let succeeded = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await this.sendCalls(chain, confirm);
+          succeeded = true;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3) {
+            const msg = error instanceof Error ? error.message : String(error);
+            rootLogger.warn(
+              chalk.yellow(
+                `Attempt ${attempt}/3 failed for chain ${chain}: ${msg}. Retrying...`,
+              ),
+            );
+          }
+        }
+      }
+      if (!succeeded) {
+        const msg =
+          lastError instanceof Error ? lastError.message : String(lastError);
+        rootLogger.error(
+          chalk.red(`Skipping chain ${chain} after 3 failed attempts: ${msg}`),
+        );
+        skippedChains.push(chain);
+      }
+    }
+    if (skippedChains.length > 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `\nSkipped chains after 3 retries:\n${skippedChains.map((c) => `  - ${c}`).join('\n')}`,
+        ),
+      );
     }
   }
 
@@ -293,15 +360,23 @@ export abstract class HyperlaneAppGovernor<
   }
 
   protected async mapViolationsToCalls(): Promise<void> {
-    const callObjs = await Promise.all(
+    const results = await Promise.allSettled(
       this.checker.violations.map((violation) =>
         this.mapViolationToCall(violation),
       ),
     );
 
-    for (const callObj of callObjs) {
-      if (callObj) {
-        this.pushCall(callObj.chain, callObj.call);
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'rejected') {
+        const violation = this.checker.violations[i];
+        rootLogger.warn(
+          chalk.yellow(
+            `Failed to map violation to call for chain ${violation.chain}: ${result.reason}`,
+          ),
+        );
+      } else if (result.value) {
+        this.pushCall(result.value.chain, result.value.call);
       }
     }
   }

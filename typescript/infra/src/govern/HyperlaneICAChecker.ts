@@ -48,15 +48,13 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
    * and that remote chains have the correct router enrolled.
    */
   async checkIcaRouterEnrollment(chain: ChainName): Promise<void> {
-    // If the chain should be fully connected, do the regular full check.
+    // If the chain should be fully connected, check ALL configured chains so that
+    // newly added chains are detected as missing (not just already-enrolled ones).
     if (FULLY_CONNECTED_ICA_CHAINS.has(chain)) {
-      // don't try to enroll legacy ica chains
-      const actualRemoteChains = await this.app.remoteChains(chain);
-      // .remoteChains() already filters out the origin chain itself
-      const filteredRemoteChains = actualRemoteChains.filter(
-        (c) => !legacyIcaChains.includes(c) && c !== 'eden',
+      const expectedRemoteChains = Object.keys(this.configMap).filter(
+        (c) => c !== chain && !legacyIcaChains.includes(c) && c !== 'eden',
       );
-      return super.checkEnrolledRouters(chain, filteredRemoteChains);
+      return super.checkEnrolledRouters(chain, expectedRemoteChains);
     }
     // Otherwise only do a partial check to ensure that only fully-connected chains
     // are enrolled. This is so any fresh deployments are always controllable from

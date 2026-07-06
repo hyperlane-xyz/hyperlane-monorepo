@@ -4,6 +4,7 @@ import {
   CheckerViolation,
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  MissingEnrolledRouterViolation,
   OwnerViolation,
   ProxyAdminViolation,
   RouterApp,
@@ -12,7 +13,7 @@ import {
   RouterViolationType,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { stringifyObject } from '@hyperlane-xyz/utils';
+import { addressToBytes32, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 
@@ -26,6 +27,10 @@ export class ProxiedRouterGovernor<
         return this.handleIsmViolation(violation as ConnectionClientViolation);
       case RouterViolationType.MisconfiguredEnrolledRouter:
         return this.handleEnrolledRouterViolation(violation as RouterViolation);
+      case RouterViolationType.MissingEnrolledRouter:
+        return this.handleMissingEnrolledRouterViolation(
+          violation as MissingEnrolledRouterViolation,
+        );
       case ViolationType.Owner:
         return this.handleOwnerViolation(violation as OwnerViolation);
       case ViolationType.ProxyAdmin:
@@ -50,6 +55,33 @@ export class ProxiedRouterGovernor<
         ),
         value: BigNumber.from(0),
         description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
+      },
+    };
+  }
+
+  protected handleMissingEnrolledRouterViolation(
+    violation: MissingEnrolledRouterViolation,
+  ) {
+    const expectedDomains: number[] = [];
+    const expectedAddresses: string[] = [];
+
+    for (const remoteChain of violation.missingChains) {
+      const remoteDomain = this.checker.multiProvider.getDomainId(remoteChain);
+      const remoteRouterAddress = this.checker.app.routerAddress(remoteChain);
+      expectedDomains.push(remoteDomain);
+      expectedAddresses.push(addressToBytes32(remoteRouterAddress));
+    }
+
+    return {
+      chain: violation.chain,
+      call: {
+        to: violation.contract.address,
+        data: violation.contract.interface.encodeFunctionData(
+          'enrollRemoteRouters',
+          [expectedDomains, expectedAddresses],
+        ),
+        value: BigNumber.from(0),
+        description: `Enroll ${violation.missingChains.length} missing ICA remote router(s) on ${violation.chain}: ${violation.missingChains.join(', ')}`,
       },
     };
   }

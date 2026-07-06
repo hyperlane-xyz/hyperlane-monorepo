@@ -37,6 +37,7 @@ import {
   withAsDeployer,
   withChains,
   withContext,
+  withFile,
   withFork,
   withGovern,
   withModule,
@@ -56,10 +57,14 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withModule(getCheckBaseArgs()));
+  return withRegistryUris(withFile(withModule(getCheckBaseArgs())));
 }
 
-const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
+const ICA_ENABLED_MODULES = [
+  Modules.CORE,
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.HAAS,
+];
 
 const HAAS_SMART_PROVIDER_OPTIONS = {
   maxRetries: 4,
@@ -206,7 +211,33 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
-    governor = new HyperlaneCoreGovernor(checker);
+    const icaChecker = ica
+      ? (() => {
+          const icaConfig = Object.entries(routerConfig).reduce<
+            Record<string, InterchainAccountConfig>
+          >((acc, [chain, conf]) => {
+            if (icaChainAddresses[chain]) {
+              const isMinimal = minimalIcaChains.includes(chain);
+              acc[chain] = {
+                ...conf,
+                ...(isMinimal
+                  ? { routerType: IcaRouterType.MINIMAL }
+                  : {
+                      commitmentIsm: {
+                        type: IsmType.OFFCHAIN_LOOKUP,
+                        owner: conf.owner,
+                        ownerOverrides: conf.ownerOverrides,
+                        urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+                      },
+                    }),
+              };
+            }
+            return acc;
+          }, {});
+          return new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+        })()
+      : undefined;
+    governor = new HyperlaneCoreGovernor(checker, ica, icaChecker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);

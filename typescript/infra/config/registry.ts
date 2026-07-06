@@ -75,8 +75,10 @@ export function getRegistry(): FileSystemRegistry {
 }
 
 function getRegistryFromUris(registryUris?: string[]): IRegistry {
-  if (registryUris && registryUris.length > 0) {
-    return getMergedRegistry({ registryUris, enableProxy: true });
+  const uris =
+    registryUris ?? process.env.REGISTRY_URIS?.split(',').filter(Boolean) ?? [];
+  if (uris.length > 0) {
+    return getMergedRegistry({ registryUris: uris, enableProxy: true });
   } else {
     return getRegistry();
   }
@@ -193,7 +195,7 @@ export function getRegistryWithOverrides(
   chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
   chainAddressesOverrides: ChainMap<Partial<ChainAddresses>> = {},
 ): MergedRegistry {
-  const baseRegistry = getRegistry();
+  const baseRegistry = getRegistryFromUris();
 
   const overrideRegistry = new PartialRegistry({
     chainMetadata: chainMetadataOverrides,
