@@ -31,11 +31,6 @@ contract RateLimited is OwnableUpgradeable {
     uint256 public refillRate;
     /// @notice Timestamp of the last time an action has been taken
     uint256 public lastUpdated;
-    /// @notice Whether the bucket has been touched (consumed/credited) at least
-    /// once. While false, the bucket reports full at the *current* capacity, so
-    /// a limiter deployed before its pool is funded starts full on first use
-    /// rather than snapshotting a stale (possibly zero) deploy-time capacity.
-    bool public isInitialized;
 
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
@@ -85,6 +80,21 @@ contract RateLimited is OwnableUpgradeable {
         return (elapsed * maxCapacity()) / DURATION;
     }
 
+    /// @dev Whether the bucket has been set up and is metering flow. Base
+    /// limiters bootstrap a full bucket in the constructor, so they are
+    /// initialized from birth. Dynamic-capacity subclasses override this (and
+    /// `_RateLimited_initialize`) to defer initialization until first use, so a
+    /// limiter deployed before its pool is funded starts full at the live
+    /// capacity instead of snapshotting a zero deploy-time capacity.
+    function _RateLimited_isInitialized() internal view virtual returns (bool) {
+        return true;
+    }
+
+    /// @dev Hook invoked by the consume/credit path to record first use.
+    /// No-op for base limiters; overridden by subclasses that defer
+    /// initialization (see `_RateLimited_isInitialized`).
+    function _RateLimited_initialize() internal virtual {}
+
     /**
      * Calculates the adjusted fill level based on time
      */
@@ -92,10 +102,8 @@ contract RateLimited is OwnableUpgradeable {
         uint256 _capacity = maxCapacity();
         if (_capacity == 0) return 0;
 
-        // Untouched buckets start full at the current capacity.
-        if (!isInitialized) {
-            return _capacity;
-        }
+        // Uninitialized buckets report full at the current capacity.
+        if (!_RateLimited_isInitialized()) return _capacity;
 
         if (block.timestamp > lastUpdated + DURATION) {
             // If last update is in the previous window, return the max capacity
@@ -140,7 +148,7 @@ contract RateLimited is OwnableUpgradeable {
         uint256 _filledLevel = adjustedFilledLevel - _consumedAmount;
         filledLevel = _filledLevel;
         lastUpdated = block.timestamp;
-        isInitialized = true;
+        _RateLimited_initialize();
 
         emit ConsumedFilledLevel(filledLevel, lastUpdated);
 
@@ -152,16 +160,13 @@ contract RateLimited is OwnableUpgradeable {
      * No-op when capacity is zero.
      */
     function _credit(uint256 _amount) internal returns (uint256 newLevel) {
-        uint256 maxCap = maxCapacity();
-        if (maxCap == 0) return 0;
-
-        uint256 totalCredited = calculateCurrentLevel() + _amount;
-        newLevel = totalCredited > maxCap ? maxCap : totalCredited;
-
+        uint256 cap = maxCapacity();
+        if (cap == 0) return 0;
+        uint256 credited = calculateCurrentLevel() + _amount;
+        newLevel = credited > cap ? cap : credited;
         filledLevel = newLevel;
         lastUpdated = block.timestamp;
-        isInitialized = true;
-
+        _RateLimited_initialize();
         emit Credited(_amount, newLevel);
     }
 
@@ -182,7 +187,7 @@ contract RateLimited is OwnableUpgradeable {
                 : ((_amount - level) * DURATION) / cap;
         }
         lastUpdated = block.timestamp;
-        isInitialized = true;
+        _RateLimited_initialize();
         emit ConsumedFilledLevel(filledLevel, lastUpdated);
     }
 }

@@ -15,6 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // ============ Internal Imports ============
 import {RateLimited} from "./RateLimited.sol";
@@ -43,6 +44,8 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
  * externally-driven shrinks, which are out of scope for warp routes.
  */
 abstract contract TvlRateLimited is RateLimited {
+    using StorageSlot for bytes32;
+
     // ============ Errors ============
     error InvalidRouter();
     error InvalidThresholdBps();
@@ -68,6 +71,12 @@ abstract contract TvlRateLimited is RateLimited {
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
+    /// @dev Persistent "has the bucket been used yet" flag. Kept in a hashed
+    /// slot rather than a contiguous state variable so this base can be mixed
+    /// into contracts without shifting their storage layout.
+    bytes32 private constant IS_INITIALIZED_SLOT =
+        keccak256("hyperlane.storage.TvlRateLimited.isInitialized");
+
     // ============ Constructor ============
 
     constructor(TokenRouter _warpRouter, uint256 _thresholdBps) RateLimited(0) {
@@ -78,8 +87,8 @@ abstract contract TvlRateLimited is RateLimited {
         capacityToken = _warpRouter.token();
         thresholdBps = _thresholdBps;
         // The bucket starts full at the current capacity on first use (see
-        // `RateLimited.isInitialized`), so no deploy-time bootstrap is needed —
-        // capacity is derived live from `warpRouter`'s balance / supply.
+        // `_RateLimited_isInitialized`), so no deploy-time bootstrap is needed
+        // — capacity is derived live from `warpRouter`'s balance / supply.
     }
 
     // ============ Capacity ============
@@ -111,5 +120,25 @@ abstract contract TvlRateLimited is RateLimited {
         uint256 /*_capacity*/
     ) public override onlyOwner returns (uint256) {
         revert UseThresholdBps();
+    }
+
+    // ============ Initialization ============
+
+    /// @inheritdoc RateLimited
+    /// @dev Initialization is deferred to first use and recorded in the hashed
+    /// `IS_INITIALIZED_SLOT`, so the bucket reports full at the live capacity
+    /// until then.
+    function _RateLimited_isInitialized()
+        internal
+        view
+        override
+        returns (bool)
+    {
+        return IS_INITIALIZED_SLOT.getBooleanSlot().value;
+    }
+
+    /// @inheritdoc RateLimited
+    function _RateLimited_initialize() internal override {
+        IS_INITIALIZED_SLOT.getBooleanSlot().value = true;
     }
 }

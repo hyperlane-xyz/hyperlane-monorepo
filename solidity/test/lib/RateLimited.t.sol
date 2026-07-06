@@ -14,12 +14,14 @@ contract TestRateLimited is RateLimited {
     }
 }
 
-/// @dev The real `RateLimited` with a settable, dynamic `maxCapacity()` —
-/// stands in for a TVL-derived cap (as `TvlRateLimited` subclasses do) so the
+/// @dev The real `RateLimited` with a settable, dynamic `maxCapacity()` and
+/// deferred initialization — stands in for a `TvlRateLimited` subclass so the
 /// bucket behavior can be driven directly through the public interface. Only
-/// the capacity source is overridden; all bucket math is the shipped code.
+/// the capacity source and init state are overridden; all bucket math is the
+/// shipped code.
 contract DynamicRateLimited is RateLimited {
     uint256 private _capacity;
+    bool private _initialized;
 
     constructor() RateLimited(0) {}
 
@@ -29,6 +31,24 @@ contract DynamicRateLimited is RateLimited {
 
     function maxCapacity() public view override returns (uint256) {
         return _capacity;
+    }
+
+    function _RateLimited_isInitialized()
+        internal
+        view
+        override
+        returns (bool)
+    {
+        return _initialized;
+    }
+
+    function _RateLimited_initialize() internal override {
+        _initialized = true;
+    }
+
+    /// @dev Exposes the internal init hook so tests can assert on it.
+    function isInitialized() external view returns (bool) {
+        return _RateLimited_isInitialized();
     }
 
     function consume(uint256 _amount) external returns (uint256) {
