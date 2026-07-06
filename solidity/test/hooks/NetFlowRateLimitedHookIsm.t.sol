@@ -10,7 +10,7 @@ import {HypNative} from "contracts/token/HypNative.sol";
 import {NetFlowRateLimitedHookIsm} from "contracts/hooks/warp-route/NetFlowRateLimitedHookIsm.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {NetFlowRateLimited} from "contracts/libs/NetFlowRateLimited.sol";
+import {TvlRateLimited} from "contracts/libs/TvlRateLimited.sol";
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -89,11 +89,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     }
 
     function test_initialCapacity_isTvlBps() external view {
-        assertEq(netFlow.token(), address(token));
-        assertEq(
-            uint8(netFlow.tvlSource()),
-            uint8(NetFlowRateLimited.TvlSource.BALANCE)
-        );
+        assertEq(netFlow.capacityToken(), address(token));
         assertEq(
             uint8(netFlow.outboundFlow()),
             uint8(NetFlowRateLimitedHookIsm.FlowDirection.CREDIT)
@@ -138,14 +134,24 @@ contract NetFlowRateLimitedHookIsmTest is Test {
             TokenMessage.format(BOB.addressToBytes32(), 1 ether, bytes(""))
         );
 
-        vm.expectRevert("InvalidRecipient");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.WrongRecipient.selector,
+                address(0xdead)
+            )
+        );
         netFlow.verify(bytes(""), message);
     }
 
     function test_verifyRevertsIfMessageNotDelivered() external {
         bytes memory message = _inboundMessage(1 ether);
 
-        vm.expectRevert("InvalidDeliveredMessage");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.InvalidDeliveredMessage.selector,
+                message.id()
+            )
+        );
         netFlow.verify(bytes(""), message);
     }
 
@@ -182,7 +188,12 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         vm.expectRevert("Mailbox: already delivered");
         localMailbox.process(bytes(""), message);
 
-        vm.expectRevert("MessageAlreadyValidated");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.MessageAlreadyValidated.selector,
+                message.id()
+            )
+        );
         netFlow.verify(bytes(""), message);
     }
 
@@ -197,7 +208,12 @@ contract NetFlowRateLimitedHookIsmTest is Test {
             MAX_FLOW_BPS
         );
 
-        vm.expectRevert("InvalidDeliveredMessage");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.InvalidDeliveredMessage.selector,
+                message.id()
+            )
+        );
         newNetFlow.verify(bytes(""), message);
     }
 
@@ -207,7 +223,12 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         token.approve(address(localRouter), 5 ether);
         localRouter.transferRemote(ORIGIN, BOB.addressToBytes32(), 5 ether);
 
-        vm.expectRevert("MessageAlreadyValidated");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.MessageAlreadyValidated.selector,
+                message.id()
+            )
+        );
         netFlow.postDispatch(bytes(""), message);
     }
 
@@ -225,14 +246,24 @@ contract NetFlowRateLimitedHookIsmTest is Test {
             MAX_FLOW_BPS
         );
 
-        vm.expectRevert("InvalidDispatchedMessage");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.InvalidDispatchedMessage.selector,
+                message.id()
+            )
+        );
         newNetFlow.postDispatch(bytes(""), message);
     }
 
     function test_revertsFakeOutboundCredit() external {
         bytes memory message = _outboundMessage(5 ether);
 
-        vm.expectRevert("InvalidDispatchedMessage");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.InvalidDispatchedMessage.selector,
+                message.id()
+            )
+        );
         netFlow.postDispatch(bytes(""), message);
     }
 
@@ -245,12 +276,17 @@ contract NetFlowRateLimitedHookIsmTest is Test {
 
         localMailbox.updateLatestDispatchedId(message.id());
 
-        vm.expectRevert("InvalidSender");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NetFlowRateLimitedHookIsm.WrongSender.selector,
+                address(this)
+            )
+        );
         netFlow.postDispatch(bytes(""), message);
     }
 
     function test_constructorRevertsIfRouterIsZero() external {
-        vm.expectRevert("InvalidRouter");
+        vm.expectRevert(TvlRateLimited.InvalidRouter.selector);
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(0),
@@ -259,7 +295,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     }
 
     function test_constructorRevertsIfMaxFlowBpsTooHigh() external {
-        vm.expectRevert("InvalidMaxFlowBps");
+        vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
@@ -368,11 +404,7 @@ contract NetFlowRateLimitedHookIsmSyntheticTest is Test {
     }
 
     function test_syntheticInitialCapacity_isSupplyBps() external view {
-        assertEq(netFlow.token(), address(localRouter));
-        assertEq(
-            uint8(netFlow.tvlSource()),
-            uint8(NetFlowRateLimited.TvlSource.TOTAL_SUPPLY)
-        );
+        assertEq(netFlow.capacityToken(), address(localRouter));
         assertEq(
             uint8(netFlow.outboundFlow()),
             uint8(NetFlowRateLimitedHookIsm.FlowDirection.CONSUME)
@@ -486,11 +518,7 @@ contract NetFlowRateLimitedHookIsmNativeTest is Test {
     }
 
     function test_nativeInitialCapacity_isBalanceBps() external view {
-        assertEq(netFlow.token(), address(0));
-        assertEq(
-            uint8(netFlow.tvlSource()),
-            uint8(NetFlowRateLimited.TvlSource.BALANCE)
-        );
+        assertEq(netFlow.capacityToken(), address(0));
         assertEq(
             uint8(netFlow.outboundFlow()),
             uint8(NetFlowRateLimitedHookIsm.FlowDirection.CREDIT)

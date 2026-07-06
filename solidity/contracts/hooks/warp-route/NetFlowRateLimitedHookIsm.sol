@@ -7,8 +7,9 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Message} from "../../libs/Message.sol";
-import {NetFlowRateLimited} from "../../libs/NetFlowRateLimited.sol";
+import {TvlRateLimited} from "../../libs/TvlRateLimited.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
+import {TokenRouter} from "../../token/libs/TokenRouter.sol";
 
 /**
  * @title NetFlowRateLimitedHookIsm
@@ -17,7 +18,7 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
  * @dev Mechanic: the same contract is installed as both the router's hook and
  * its ISM. Outbound dispatches run through `_postDispatch`, inbound deliveries
  * through `verify()`. Each direction either consumes or credits a token bucket
- * sized at `maxFlowBps` of live TVL (see `NetFlowRateLimited`), so only the
+ * sized at `thresholdBps` of live TVL (see `TvlRateLimited`), so only the
  * *net* amount leaving the router is rate limited — symmetric flow nets out.
  * The consume/credit direction is derived from `TokenRouter.token()`: if
  * `token() == router` the route is synthetic (outbound burns supply → consume
@@ -39,7 +40,7 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 contract NetFlowRateLimitedHookIsm is
     AbstractPostDispatchHook,
     MailboxClient,
-    NetFlowRateLimited,
+    TvlRateLimited,
     IInterchainSecurityModule
 {
     enum FlowDirection {
@@ -50,8 +51,6 @@ contract NetFlowRateLimitedHookIsm is
     using Message for bytes;
     using TokenMessage for bytes;
 
-    /// @notice The warp router this contract guards (its hook AND ISM).
-    address public immutable router;
     /// @notice Mailbox nonce at deploy time. Outbound messages with a lower
     /// nonce predate this hook, were never metered, and are rejected by
     /// `_postDispatch` so already-dispatched history cannot be replayed through
@@ -70,21 +69,33 @@ contract NetFlowRateLimitedHookIsm is
     /// or `_postDispatch`). Provides an event trail for replay-bit transitions.
     event MessageValidated(bytes32 indexed messageId);
 
+    error WrongSender(address sender);
+    error WrongRecipient(address recipient);
+    error MessageAlreadyValidated(bytes32 messageId);
+    error InvalidDeliveredMessage(bytes32 messageId);
+    error InvalidDispatchedMessage(bytes32 messageId);
+
     modifier validateMessageOnce(bytes calldata _message) {
         bytes32 messageId = _message.id();
-        require(!messageValidated[messageId], "MessageAlreadyValidated");
+        if (messageValidated[messageId]) {
+            revert MessageAlreadyValidated(messageId);
+        }
         messageValidated[messageId] = true;
         emit MessageValidated(messageId);
         _;
     }
 
     modifier onlyRouterSender(bytes calldata _message) {
-        require(_message.senderAddress() == router, "InvalidSender");
+        if (_message.senderAddress() != warpRouter) {
+            revert WrongSender(_message.senderAddress());
+        }
         _;
     }
 
     modifier onlyRouterRecipient(bytes calldata _message) {
-        require(_message.recipientAddress() == router, "InvalidRecipient");
+        if (_message.recipientAddress() != warpRouter) {
+            revert WrongRecipient(_message.recipientAddress());
+        }
         _;
     }
 
@@ -99,12 +110,14 @@ contract NetFlowRateLimitedHookIsm is
         address _mailbox,
         address _router,
         uint256 _maxFlowBps
-    ) MailboxClient(_mailbox) NetFlowRateLimited(_router, _maxFlowBps) {
-        // _router != address(0) is enforced by NetFlowRateLimited's constructor.
-        router = _router;
+    )
+        MailboxClient(_mailbox)
+        TvlRateLimited(TokenRouter(_router), _maxFlowBps)
+    {
+        // _router != address(0) is enforced by TvlRateLimited's constructor.
         minOutboundNonce = mailbox.nonce();
         deployedAtBlock = uint48(block.number);
-        outboundFlow = token == _router
+        outboundFlow = capacityToken == _router
             ? FlowDirection.CONSUME
             : FlowDirection.CREDIT;
     }
@@ -139,13 +152,15 @@ contract NetFlowRateLimitedHookIsm is
     {
         uint48 processedBlock = mailbox.processedAt(_message.id());
         // processedAt(id) == 0 means undelivered, so this also enforces delivery.
-        require(processedBlock == block.number, "InvalidDeliveredMessage");
+        if (processedBlock != block.number) {
+            revert InvalidDeliveredMessage(_message.id());
+        }
 
         uint256 amount = _message.body().amount();
         if (outboundFlow == FlowDirection.CREDIT) {
-            _validateAndConsumeNetFlow(amount);
+            _validateAndConsumeFilledLevel(amount);
         } else {
-            _creditNetFlow(amount);
+            _credit(amount);
         }
 
         return true;
@@ -161,17 +176,19 @@ contract NetFlowRateLimitedHookIsm is
         onlyRouterSender(_message)
         validateMessageOnce(_message)
     {
-        require(_isLatestDispatched(_message.id()), "InvalidDispatchedMessage");
-        require(
-            _message.nonce() >= minOutboundNonce,
-            "InvalidDispatchedMessage"
-        );
+        bytes32 messageId = _message.id();
+        if (!_isLatestDispatched(messageId)) {
+            revert InvalidDispatchedMessage(messageId);
+        }
+        if (_message.nonce() < minOutboundNonce) {
+            revert InvalidDispatchedMessage(messageId);
+        }
 
         uint256 amount = _message.body().amount();
         if (outboundFlow == FlowDirection.CONSUME) {
-            _validateAndConsumeNetFlow(amount);
+            _validateAndConsumeFilledLevel(amount);
         } else {
-            _creditNetFlow(amount);
+            _credit(amount);
         }
     }
 
