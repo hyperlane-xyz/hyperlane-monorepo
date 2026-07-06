@@ -10,14 +10,12 @@ version = { workspace = true }
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+dango-hyperlane-types = { workspace = true }
+dango-math = { workspace = true }
+dango-primitives = { workspace = true }
 dango-sdk = { workspace = true }
 dango-types = { workspace = true }
-dango-hyperlane-types = { workspace = true }
 futures-util = { workspace = true }
-grug = { workspace = true }
-grug-app = { workspace = true }
-grug-jmt = { workspace = true }
-grug-math = { workspace = true }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 serde = { workspace = true }

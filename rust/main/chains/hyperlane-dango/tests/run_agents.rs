@@ -3,11 +3,11 @@ use {
         build_agents, workspace, Agent, CheckpointSyncer, DangoSettings, EvmSettings, Location,
         LogLevel, Relayer, SingleSignerExt, Validator, ValidatorSigner,
     },
+    dango_primitives::{HexByteArray, QueryClientExt},
     dango_sdk::HttpClient,
     dango_sdk::{Secp256k1, Secret, SingleSigner},
     dango_testing::{user4, user6},
     dango_types::config::AppConfig,
-    grug::{HexByteArray, QueryClientExt},
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
     std::str::FromStr,
@@ -33,7 +33,7 @@ async fn run_relayer() -> anyhow::Result<()> {
     build_agents();
 
     let dango_client = HttpClient::new(HTTPD_URL)?;
-    let app_cfg: AppConfig = dango_client.query_app_config(None).await?;
+    let app_cfg: AppConfig = dango_client.query_app_config().await?;
 
     let dango_chain_signer_address = SingleSigner::new_first_account(
         &dango_client,
@@ -80,8 +80,8 @@ async fn run_dango_validator() -> anyhow::Result<()> {
     build_agents();
 
     let dango_client = HttpClient::new(HTTPD_URL)?;
-    let chain_id = dango_client.query_status(None).await?.chain_id;
-    let app_cfg: AppConfig = dango_client.query_app_config(None).await?;
+    let chain_id = dango_client.query_status().await?.chain_id;
+    let app_cfg: AppConfig = dango_client.query_app_config().await?;
     let path = workspace().join("val-1");
 
     let dango_chain_signer_address = SingleSigner::new_first_account(

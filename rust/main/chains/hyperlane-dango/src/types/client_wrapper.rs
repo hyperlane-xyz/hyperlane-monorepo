@@ -1,15 +1,15 @@
 use {
     async_trait::async_trait,
-    grug::BlockClient,
+    dango_primitives::BlockClient,
     hyperlane_core::{rpc_clients::BlockNumberGetter, ChainResult},
     std::ops::Deref,
 };
 
-/// We need to define a wrapper around grug::ClientWrapper because we need to implement
+/// We need to define a wrapper around dango_primitives::ClientWrapper because we need to implement
 /// BlockNumberGetter in order to use FallbackProvider for DangoProvider.
 #[derive(Clone)]
 pub struct ClientWrapper {
-    inner: grug::ClientWrapper<anyhow::Error>,
+    inner: dango_primitives::ClientWrapper<anyhow::Error>,
 }
 
 impl std::fmt::Debug for ClientWrapper {
@@ -19,7 +19,7 @@ impl std::fmt::Debug for ClientWrapper {
 }
 
 impl ClientWrapper {
-    pub fn new(inner: grug::ClientWrapper<anyhow::Error>) -> Self {
+    pub fn new(inner: dango_primitives::ClientWrapper<anyhow::Error>) -> Self {
         Self { inner }
     }
 }
@@ -35,7 +35,7 @@ impl BlockNumberGetter for ClientWrapper {
 }
 
 impl Deref for ClientWrapper {
-    type Target = grug::ClientWrapper<anyhow::Error>;
+    type Target = dango_primitives::ClientWrapper<anyhow::Error>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

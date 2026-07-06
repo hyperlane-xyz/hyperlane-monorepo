@@ -1,7 +1,7 @@
 use {
     crate::{DangoError, DangoResult},
     dango_hyperlane_types::Addr32,
-    grug::{EncodedBytes, Encoder, Hash256, Inner},
+    dango_primitives::{EncodedBytes, Encoder, Hash256, Inner},
     hyperlane_core::{H160, H256, H512},
     tendermint::Hash as TmHash,
 };

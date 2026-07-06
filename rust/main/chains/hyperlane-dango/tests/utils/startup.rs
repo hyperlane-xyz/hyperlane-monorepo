@@ -3,9 +3,9 @@ use {
         dango_helper::ChainHelper, get_free_port, Agent, CheckpointSyncer, DangoBuilder,
         DangoSettings, HexKey, Location, Relayer, Validator, ValidatorSigner,
     },
+    dango_primitives::{HexByteArray, ResultExt},
     dango_types::gateway::Origin,
     futures_util::try_join,
-    grug::{HexByteArray, ResultExt},
     std::collections::BTreeSet,
 };
 

@@ -1,12 +1,12 @@
 use {
     async_trait::async_trait,
+    dango_primitives::{Defined, QueryClient, QueryClientExt, Undefined},
     dango_sdk::{Secret, SingleSigner},
     dango_types::{
         account_factory::{self, UserIndex, UserIndexOrName},
         auth::Nonce,
         config::AppConfig,
     },
-    grug::{Defined, QueryClient, QueryClientExt, Undefined},
 };
 
 #[async_trait]
@@ -41,7 +41,7 @@ where
             Some(cfg) => cfg.addresses.account_factory,
             None => {
                 client
-                    .query_app_config::<AppConfig>(None)
+                    .query_app_config::<AppConfig>()
                     .await?
                     .addresses
                     .account_factory
@@ -56,7 +56,6 @@ where
                     start_after: None,
                     limit: None,
                 },
-                None,
             )
             .await?
             .first()
@@ -67,7 +66,6 @@ where
             .query_wasm_smart(
                 factory_addr,
                 account_factory::QueryUserRequest(UserIndexOrName::Index(user_index)),
-                None,
             )
             .await?
             .accounts

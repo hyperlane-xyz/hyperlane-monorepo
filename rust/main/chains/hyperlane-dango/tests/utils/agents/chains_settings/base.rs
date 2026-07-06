@@ -1,6 +1,6 @@
 use {
     crate::utils::{agents::traits::Args, dango_helper::IntoSignerConf},
-    grug::btree_map,
+    dango_primitives::btree_map,
     hyperlane_base::settings::SignerConf,
     std::collections::BTreeMap,
 };

@@ -5,7 +5,7 @@ use {
     },
     async_trait::async_trait,
     dango_hyperlane_types::{mailbox, recipients::RecipientQuery},
-    grug::{Coins, HexBinary, Message, QueryClientExt},
+    dango_primitives::{Coins, HexBinary, Message, QueryClientExt},
     hyperlane_core::{
         ChainResult, ContractLocator, HyperlaneMessage, Mailbox, Metadata, RawHyperlaneMessage,
         ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
@@ -39,11 +39,7 @@ impl Mailbox for DangoMailbox {
         self.provider.validate_reorg_period(reorg_period).await?;
         Ok(self
             .provider
-            .query_wasm_smart(
-                self.address.try_convert()?,
-                mailbox::QueryNonceRequest {},
-                None,
-            )
+            .query_wasm_smart(self.address.try_convert()?, mailbox::QueryNonceRequest {})
             .await?)
     }
 
@@ -56,7 +52,6 @@ impl Mailbox for DangoMailbox {
                 mailbox::QueryDeliveredRequest {
                     message_id: id.convert(),
                 },
-                None,
             )
             .await?)
     }
@@ -65,11 +60,7 @@ impl Mailbox for DangoMailbox {
     async fn default_ism(&self) -> ChainResult<H256> {
         Ok(self
             .provider
-            .query_wasm_smart(
-                self.address.try_convert()?,
-                mailbox::QueryConfigRequest {},
-                None,
-            )
+            .query_wasm_smart(self.address.try_convert()?, mailbox::QueryConfigRequest {})
             .await?
             .default_ism
             .convert())
@@ -84,7 +75,6 @@ impl Mailbox for DangoMailbox {
                 dango_hyperlane_types::recipients::QueryRecipientRequest(
                     RecipientQuery::InterchainSecurityModule {},
                 ),
-                None,
             )
             .await?
             .into_interchain_security_module()

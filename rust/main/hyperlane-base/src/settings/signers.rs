@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use dango_primitives::{Addr, HexByteArray, Inner};
 use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
-use grug::{Addr, HexByteArray, Inner};
 use hyperlane_dango::DangoConvertor;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;

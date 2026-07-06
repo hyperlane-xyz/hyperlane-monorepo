@@ -527,13 +527,13 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
             let key = signer
                 .chain(&mut err)
                 .get_key("key")
-                .parse_value::<grug::HexByteArray<32>>("fail deserialize dango key")
+                .parse_value::<dango_primitives::HexByteArray<32>>("fail deserialize dango key")
                 .end();
 
             let address = signer
                 .chain(&mut err)
                 .get_key("address")
-                .parse_value::<grug::Addr>("fail deserialize dango address")
+                .parse_value::<dango_primitives::Addr>("fail deserialize dango address")
                 .end();
 
             err.into_result(SignerConf::Dango {

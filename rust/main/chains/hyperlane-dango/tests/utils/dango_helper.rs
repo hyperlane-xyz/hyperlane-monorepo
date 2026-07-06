@@ -1,14 +1,14 @@
 use {
     async_trait::async_trait,
     dango_hyperlane_types::isms,
+    dango_primitives::{
+        btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
+        Message, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
+    },
     dango_testing::{TestAccount, TestAccounts},
     dango_types::{
         config::AppConfig,
         gateway::{self, Origin, Remote},
-    },
-    grug::{
-        btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
-        Message, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
     },
     hyperlane_base::settings::SignerConf,
     std::{collections::BTreeSet, time::Duration},
@@ -36,7 +36,7 @@ impl ChainHelper {
         hyperlane_domain: u32,
         httpd_urls: Vec<String>,
     ) -> anyhow::Result<Self> {
-        let cfg = client.query_app_config(None).await?;
+        let cfg = client.query_app_config().await?;
 
         Ok(Self {
             cfg,

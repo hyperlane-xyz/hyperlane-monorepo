@@ -171,13 +171,13 @@ pub enum ChainCommunicationError {
     SimulationFailed(String),
     /// Dango error
     #[error(transparent)]
-    DangoError(#[from] grug::StdError),
+    DangoError(#[from] dango_primitives::StdError),
     /// Anyhow error
     #[error(transparent)]
     AnyhowError(#[from] anyhow::Error),
     /// Grug error
     #[error(transparent)]
-    GrugGasEstimateError(#[from] grug::GasEstimateError),
+    GrugGasEstimateError(#[from] dango_primitives::GasEstimateError),
 }
 
 impl ChainCommunicationError {
