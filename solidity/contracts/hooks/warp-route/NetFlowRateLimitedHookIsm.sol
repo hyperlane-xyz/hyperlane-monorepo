@@ -26,11 +26,12 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * consume on deliver).
  *
  * @dev Use for routes where `_message.body().amount()` is denominated in the
- * same units as `localCollateral()`: HypERC20, HypERC20Collateral, HypNative,
- * HypERC4626Collateral (shares-on-shares). Do NOT use for HypXERC20 /
- * HypXERC20Lockbox / HypFiatToken — those mint/burn external tokens, so
- * `balanceOf(router) == 0`, capacity collapses, and they already have
- * bridge-level rate limits.
+ * same units as `localCollateral()` AND `token()`'s balance at the router is
+ * the live TVL: HypERC20, HypERC20Collateral, HypNative. Do NOT use for
+ * HypXERC20 / HypXERC20Lockbox / HypFiatToken (they mint/burn an external
+ * token) or HypERC4626Collateral (it deposits collateral into a vault and
+ * holds shares) — in all of these `token()`'s `balanceOf(router) == 0`, so
+ * capacity collapses to zero and the route bricks.
  *
  * @dev This contract authenticates flow only, NOT message authenticity
  * (`moduleType()` is NULL). Deployers MUST compose it under an authenticating

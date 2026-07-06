@@ -7,6 +7,9 @@ import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "contracts/token/HypERC20.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
+import {HypERC4626Collateral} from "contracts/token/extensions/HypERC4626Collateral.sol";
+import {ERC4626Test} from "contracts/test/ERC4626/ERC4626Test.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {NetFlowRateLimitedHookIsm} from "contracts/hooks/warp-route/NetFlowRateLimitedHookIsm.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -312,6 +315,67 @@ contract NetFlowRateLimitedHookIsmTest is Test {
             address(localRouter),
             10_000
         );
+    }
+
+    /// @dev Documents the composition requirement (contract docstring): as a
+    /// route's SOLE ISM, NetFlow authenticates flow only (moduleType NULL), so
+    /// any caller can process a forged inbound message to an arbitrary
+    /// recipient, bounded only by the bucket capacity. Deployers MUST compose
+    /// it under an authenticating ISM.
+    function test_soleIsm_forgedMessageIsNotAuthenticated() external {
+        address attacker = address(0xBEEF);
+        address forgedRecipient = address(0xCAFE);
+
+        // No real cross-chain transfer happened; the attacker fabricates a
+        // message whose sender is the enrolled remote router.
+        bytes memory forged = localMailbox.buildInboundMessage(
+            ORIGIN,
+            address(localRouter).addressToBytes32(),
+            address(remoteRouter).addressToBytes32(),
+            TokenMessage.format(
+                forgedRecipient.addressToBytes32(),
+                10 ether, // == capacity (10% of 100 ether TVL)
+                bytes("")
+            )
+        );
+
+        vm.prank(attacker);
+        localMailbox.process(bytes(""), forged);
+
+        // Delivered purely on capacity: NetFlow never checked authenticity.
+        assertEq(token.balanceOf(forgedRecipient), 10 ether);
+    }
+
+    /// @dev Deploys a real vault-backed collateral route to confirm the
+    /// HypERC4626Collateral exclusion: assets are deposited into the vault, so
+    /// the router holds shares while `token().balanceOf(router)` stays 0 —
+    /// capacity (and thus the limiter) collapses to zero despite real TVL.
+    function test_hypERC4626Collateral_capacityCollapses() external {
+        ERC4626Test vault = new ERC4626Test(address(token), "Vault", "V");
+        HypERC4626Collateral vaultRouter = new HypERC4626Collateral(
+            ERC4626(address(vault)),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+
+        // Fund the router with real TVL, held as vault shares.
+        token.approve(address(vault), 100 ether);
+        vault.deposit(100 ether, address(vaultRouter));
+        assertGt(vault.balanceOf(address(vaultRouter)), 0);
+
+        NetFlowRateLimitedHookIsm vaultNetFlow = new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(vaultRouter),
+            MAX_FLOW_BPS
+        );
+
+        // token() is the vault asset, held at 0 by the router (it's in the
+        // vault as shares), so capacity collapses to zero.
+        assertEq(vaultRouter.token(), address(token));
+        assertEq(token.balanceOf(address(vaultRouter)), 0);
+        assertEq(vaultNetFlow.localCollateral(), 0);
+        assertEq(vaultNetFlow.maxCapacity(), 0);
     }
 
     function _processInbound(uint256 amount) internal {
