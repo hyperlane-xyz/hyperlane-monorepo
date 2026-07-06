@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
 
 import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "contracts/token/HypERC20.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
 import {HypERC4626Collateral} from "contracts/token/extensions/HypERC4626Collateral.sol";
+import {HypERC4626} from "contracts/token/extensions/HypERC4626.sol";
 import {ERC4626Test} from "contracts/test/ERC4626/ERC4626Test.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {NetFlowRateLimitedHookIsm} from "contracts/hooks/warp-route/NetFlowRateLimitedHookIsm.sol";
@@ -23,6 +24,7 @@ import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 contract NetFlowRateLimitedHookIsmTest is Test {
     using TypeCasts for address;
     using Message for bytes;
+    using stdStorage for StdStorage;
 
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
@@ -376,6 +378,156 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(token.balanceOf(address(vaultRouter)), 0);
         assertEq(vaultNetFlow.localCollateral(), 0);
         assertEq(vaultNetFlow.maxCapacity(), 0);
+    }
+
+    /// @dev The bucket is denominated in local units but the message carries a
+    /// wire amount. For any scale, NetFlow must meter — and the route must move
+    /// — the local equivalent (`wire * scaleDenominator / scaleNumerator`), not
+    /// the raw wire amount. Asserts the bucket consumption equals the collateral
+    /// the router actually releases.
+    function testFuzz_metersLocalUnits_forAnyScale(
+        uint256 scaleNumerator,
+        uint256 scaleDenominator,
+        uint256 wireAmount
+    ) external {
+        scaleNumerator = bound(scaleNumerator, 1, 1e12);
+        scaleDenominator = bound(scaleDenominator, 1, 1e12);
+
+        HypERC20Collateral scaledRouter = new HypERC20Collateral(
+            address(token),
+            scaleNumerator,
+            scaleDenominator,
+            address(localMailbox)
+        );
+        NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(scaledRouter),
+            MAX_FLOW_BPS
+        );
+        scaledRouter.initialize(
+            address(scaledNetFlow),
+            address(scaledNetFlow),
+            address(this)
+        );
+        scaledRouter.enrollRemoteRouter(
+            ORIGIN,
+            address(remoteRouter).addressToBytes32()
+        );
+        token.mintTo(address(scaledRouter), INITIAL_COLLATERAL);
+
+        uint256 cap = scaledNetFlow.maxCapacity(); // 10% of local TVL
+
+        // Keep the local equivalent within capacity so the consume doesn't
+        // revert (over-capacity is covered elsewhere). Bounds guarantee no
+        // intermediate overflow, so raw arithmetic matches the contract's
+        // mulDiv(Rounding.Down).
+        uint256 maxWire = (cap * scaleNumerator) / scaleDenominator;
+        wireAmount = bound(wireAmount, 0, maxWire);
+        uint256 expectedLocal = (wireAmount * scaleDenominator) /
+            scaleNumerator;
+
+        bytes memory message = localMailbox.buildInboundMessage(
+            ORIGIN,
+            address(scaledRouter).addressToBytes32(),
+            address(remoteRouter).addressToBytes32(),
+            TokenMessage.format(BOB.addressToBytes32(), wireAmount, bytes(""))
+        );
+        localMailbox.process(bytes(""), message);
+
+        // Metered exactly the local amount the router released.
+        assertEq(token.balanceOf(BOB), expectedLocal);
+        assertEq(cap - scaledNetFlow.calculateCurrentLevel(), expectedLocal);
+    }
+
+    /// @dev The outbound path (`_postDispatch`) must also meter local units.
+    /// Uses a scaled synthetic route (outbound consumes) driven via a direct
+    /// postDispatch, so TVL/capacity stay fixed and the consumption is
+    /// observable from a full bucket.
+    function testFuzz_outboundMetersLocalUnits_forAnyScale(
+        uint256 scaleNumerator,
+        uint256 scaleDenominator,
+        uint256 wireAmount
+    ) external {
+        scaleNumerator = bound(scaleNumerator, 1, 1e12);
+        scaleDenominator = bound(scaleDenominator, 1, 1e12);
+
+        HypERC20 scaledRouter = new HypERC20(
+            DECIMALS,
+            scaleNumerator,
+            scaleDenominator,
+            address(localMailbox)
+        );
+        NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(scaledRouter),
+            MAX_FLOW_BPS
+        );
+        scaledRouter.initialize(
+            INITIAL_COLLATERAL,
+            "S",
+            "S",
+            address(scaledNetFlow),
+            address(scaledNetFlow),
+            address(this)
+        );
+
+        uint256 cap = scaledNetFlow.maxCapacity(); // 10% of supply
+        wireAmount = bound(
+            wireAmount,
+            0,
+            (cap * scaleNumerator) / scaleDenominator
+        );
+
+        {
+            vm.prank(address(scaledRouter));
+            bytes memory message = localMailbox.buildOutboundMessage(
+                ORIGIN,
+                address(remoteRouter).addressToBytes32(),
+                TokenMessage.format(
+                    BOB.addressToBytes32(),
+                    wireAmount,
+                    bytes("")
+                )
+            );
+            localMailbox.updateLatestDispatchedId(message.id());
+            scaledNetFlow.postDispatch(bytes(""), message);
+        }
+
+        // Synthetic route → outbound consumes; metered in local units.
+        assertEq(
+            cap - scaledNetFlow.calculateCurrentLevel(),
+            (wireAmount * scaleDenominator) / scaleNumerator
+        );
+    }
+
+    /// @dev HypERC4626 (synthetic, rebasing) is `token() == router`, so it has
+    /// nonzero capacity and is NOT caught by the zero-capacity exclusion — yet
+    /// it scales by exchange rate, which `_toLocalAmount`'s fixed scale ignores.
+    /// Documents why it is unsupported.
+    function test_hypERC4626Synthetic_scalesByExchangeRate() external {
+        HypERC4626 rebasing = new HypERC4626(
+            DECIMALS,
+            SCALE,
+            SCALE,
+            address(localMailbox),
+            ORIGIN
+        );
+        stdstore.target(address(rebasing)).sig("exchangeRate()").checked_write(
+            uint256(2e10) // 1 share == 2 assets
+        );
+
+        NetFlowRateLimitedHookIsm rebasingNetFlow = new NetFlowRateLimitedHookIsm(
+                address(localMailbox),
+                address(rebasing),
+                MAX_FLOW_BPS
+            );
+
+        // Synthetic (nonzero capacity) → zero-capacity exclusion misses it.
+        assertEq(rebasingNetFlow.capacityToken(), address(rebasing));
+
+        // Messages meter shares while TVL (totalSupply) is in assets; the fixed
+        // scale in `_toLocalAmount` cannot reconcile the exchange rate.
+        assertEq(rebasing.sharesToAssets(1e18), 2e18);
     }
 
     function _processInbound(uint256 amount) internal {

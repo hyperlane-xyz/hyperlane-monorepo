@@ -114,16 +114,19 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         // `TokenMessage` slices `body[32:64]` for `amount`. Safe here: the
         // parent asserted `_isLatestDispatched` before invoking this hook, and
         // the sender binding above only passes for messages formatted by
-        // `warpRouter`, which only ever formats valid token messages.
-        uint256 amount = message.body().amount();
+        // `warpRouter`, which only ever formats valid token messages. Metered
+        // in this router's local units (the message carries the wire amount).
+        uint256 amount = _toLocalAmount(message.body().amount());
         _credit(amount);
         emit NetFlowCredited(message.id(), messageNonce, amount);
     }
 
-    /// @dev Carries `(id, amount)` so the destination can size the delay
-    /// against its current bucket. Shared by `postDispatch` and
-    /// `quoteDispatch` via the parent, so the quote can never drift from the
-    /// dispatched payload.
+    /// @dev Carries `(id, wireAmount)` so the destination can size the delay
+    /// against its current bucket. The wire (message) amount is carried as-is
+    /// and converted to local units on each side (`_toLocalAmount`), so origin
+    /// and destination each meter using their own router's scale. Shared by
+    /// `postDispatch` and `quoteDispatch` via the parent, so the quote can
+    /// never drift from the dispatched payload.
     function _encodePayload(
         bytes calldata message
     ) internal view override returns (bytes memory) {
@@ -153,8 +156,11 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         bytes32 /*_sender*/,
         bytes calldata payload
     ) internal override {
-        (bytes32 id, uint256 amount) = abi.decode(payload, (bytes32, uint256));
-        uint256 deficitSecs = _consume(amount);
+        (bytes32 id, uint256 wireAmount) = abi.decode(
+            payload,
+            (bytes32, uint256)
+        );
+        uint256 deficitSecs = _consume(_toLocalAmount(wireAmount));
         uint48 wait = deficitSecs > maxDelay ? maxDelay : uint48(deficitSecs);
         _TimelockRouter_commitReadyAt(id, wait);
     }

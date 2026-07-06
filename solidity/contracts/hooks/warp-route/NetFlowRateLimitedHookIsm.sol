@@ -25,13 +25,18 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * on dispatch); otherwise it is collateral (outbound moves balance out →
  * consume on deliver).
  *
- * @dev Use for routes where `_message.body().amount()` is denominated in the
- * same units as `localCollateral()` AND `token()`'s balance at the router is
- * the live TVL: HypERC20, HypERC20Collateral, HypNative. Do NOT use for
- * HypXERC20 / HypXERC20Lockbox / HypFiatToken (they mint/burn an external
- * token) or HypERC4626Collateral (it deposits collateral into a vault and
- * holds shares) — in all of these `token()`'s `balanceOf(router) == 0`, so
- * capacity collapses to zero and the route bricks.
+ * @dev Use only for routes where `token()`'s balance at the router is the live
+ * TVL AND the wire<->local conversion is `TokenRouter`'s fixed `scale` fraction
+ * (what `_toLocalAmount` reproduces to meter the message amount in local
+ * units): HypERC20, HypERC20Collateral, HypNative. Do NOT use for:
+ *   - HypXERC20 / HypXERC20Lockbox / HypFiatToken / HypERC4626Collateral —
+ *     `token()`'s `balanceOf(router) == 0` (they mint/burn an external token or
+ *     hold vault shares), so capacity collapses to zero and the route bricks.
+ *   - HypERC4626 (synthetic, rebasing) — `token() == router` gives a *nonzero*
+ *     capacity (so the zero-capacity check above does NOT catch it), but it
+ *     scales by exchange rate rather than the fixed `scale` fraction, so
+ *     `_toLocalAmount` meters the wrong units (message shares vs
+ *     asset-denominated TVL).
  *
  * @dev This contract authenticates flow only, NOT message authenticity
  * (`moduleType()` is NULL). Deployers MUST compose it under an authenticating
@@ -152,7 +157,7 @@ contract NetFlowRateLimitedHookIsm is
             revert InvalidDeliveredMessage(_message.id());
         }
 
-        uint256 amount = _message.body().amount();
+        uint256 amount = _toLocalAmount(_message.body().amount());
         if (outboundFlow == FlowDirection.CREDIT) {
             _validateAndConsumeFilledLevel(amount);
         } else {
@@ -180,7 +185,7 @@ contract NetFlowRateLimitedHookIsm is
             revert InvalidDispatchedMessage(messageId);
         }
 
-        uint256 amount = _message.body().amount();
+        uint256 amount = _toLocalAmount(_message.body().amount());
         if (outboundFlow == FlowDirection.CONSUME) {
             _validateAndConsumeFilledLevel(amount);
         } else {

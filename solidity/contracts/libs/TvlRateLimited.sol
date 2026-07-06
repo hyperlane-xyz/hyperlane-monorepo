@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============ Internal Imports ============
 import {RateLimited} from "./RateLimited.sol";
@@ -45,6 +46,7 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
  */
 abstract contract TvlRateLimited is RateLimited {
     using StorageSlot for bytes32;
+    using Math for uint256;
 
     // ============ Errors ============
     error InvalidRouter();
@@ -121,6 +123,24 @@ abstract contract TvlRateLimited is RateLimited {
     /// derives the refill rate from this, so no additional override is needed.
     function maxCapacity() public view override returns (uint256) {
         return (localCollateral() * thresholdBps) / BPS_DENOMINATOR;
+    }
+
+    /// @notice Converts a message (wire) amount to local token units so it is
+    /// commensurate with the bucket, which is denominated in `localCollateral()`
+    /// units.
+    /// @dev Mirrors `TokenRouter._inboundAmount` for fixed-scale routes (the
+    /// only supported ones) — same `mulDiv` and rounding — so the metered
+    /// amount matches the collateral the router actually moves.
+    function _toLocalAmount(
+        uint256 _wireAmount
+    ) internal view returns (uint256) {
+        TokenRouter router = TokenRouter(warpRouter);
+        return
+            _wireAmount.mulDiv(
+                router.scaleDenominator(),
+                router.scaleNumerator(),
+                Math.Rounding.Down
+            );
     }
 
     /// @inheritdoc RateLimited
