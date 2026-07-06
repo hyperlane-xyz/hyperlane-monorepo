@@ -19,6 +19,7 @@ import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainS
 import {PausableIsm} from "../../contracts/isms/PausableIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {TimelockRouter} from "../../contracts/isms/routing/TimelockRouter.sol";
+import {TvlRateLimited} from "../../contracts/libs/TvlRateLimited.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 
 contract DelayedFlowRouterTest is Test {
@@ -347,7 +348,7 @@ contract DelayedFlowRouterTest is Test {
     /// @dev Capacity is derived dynamically, so the inherited `setRefillRate`
     /// would write a dead slot. The override rejects it outright.
     function test_setRefillRate_reverts() public {
-        vm.expectRevert(DelayedFlowRouter.UseThresholdBps.selector);
+        vm.expectRevert(TvlRateLimited.UseThresholdBps.selector);
         destinationDelay.setRefillRate(1 ether);
     }
 
