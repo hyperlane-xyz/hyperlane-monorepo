@@ -446,7 +446,9 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 return Err(ProgramError::NotEnoughAccountKeys);
             }
 
-            let fee_token_mint = Pubkey::default();
+            // Fee token used for payment. Only lamports (default mint) today; will be
+            // derived from the payment token account once SPL fee tokens are supported.
+            let expected_fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
 
             // Require fee_config for new flow — prevents stale quotes after config removal.
@@ -469,6 +471,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     transient_info,
                     igp_info.key,
                     payer_info.key,
+                    &expected_fee_token_mint,
                     payment.destination_domain,
                     quoted_sender,
                     min_issued_at,
@@ -488,7 +491,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     program_id,
                     accounts_iter,
                     igp_info.key,
-                    &fee_token_mint,
+                    &expected_fee_token_mint,
                     cascade_levels,
                     min_issued_at,
                     &clock,
@@ -642,7 +645,9 @@ fn quote_gas_payment(
                 return Err(ProgramError::NotEnoughAccountKeys);
             }
 
-            let fee_token_mint = Pubkey::default();
+            // Fee token used for payment. Only lamports (default mint) today; will be
+            // derived from the payment token account once SPL fee tokens are supported.
+            let expected_fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
 
             // Require fee_config for new flow — prevents stale quotes after config removal.
@@ -660,7 +665,7 @@ fn quote_gas_payment(
                 program_id,
                 accounts_iter,
                 igp_info.key,
-                &fee_token_mint,
+                &expected_fee_token_mint,
                 cascade_levels,
                 min_issued_at,
                 &clock,
@@ -1184,6 +1189,7 @@ fn submit_igp_quote(
                     bump_seed: pda_bump,
                     payer: *payer_info.key,
                     scoped_salt,
+                    fee_token_mint: ctx.fee_token_mint,
                     destination_domain: ctx.destination_domain,
                     sender: ctx.sender,
                     token_exchange_rate: data.token_exchange_rate,
@@ -1365,6 +1371,7 @@ fn try_resolve_transient_quote(
     account_info: &AccountInfo,
     igp_key: &Pubkey,
     payer: &Pubkey,
+    expected_fee_token_mint: &Pubkey,
     dest_domain: u32,
     sender: &Pubkey,
     min_issued_at: i64,
@@ -1385,6 +1392,11 @@ fn try_resolve_transient_quote(
     // Verify payer binding — prevents another payer from using this quote.
     if transient.data.payer != *payer {
         return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Bind the quoted fee token to the token used for payment.
+    if transient.data.fee_token_mint != *expected_fee_token_mint {
+        return Err(QuoteValidationError::TransientContextMismatch.into());
     }
 
     // Verify stored context matches expected values. Wildcard fields match any value,
@@ -1662,4 +1674,97 @@ fn get_igp_quote_account_metas(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use hyperlane_core::H256;
+
+    /// Serializes a transient quote into the on-chain account byte layout.
+    fn transient_account_bytes(quote: &IgpTransientQuote) -> Vec<u8> {
+        let account = IgpTransientQuoteAccount::new(quote.clone().into());
+        let mut buf = vec![0u8; account.size()];
+        account.store_in_slice(&mut buf).unwrap();
+        buf
+    }
+
+    /// `try_resolve_transient_quote` must reject a quote whose stored fee_token_mint
+    /// differs from the mint used for payment, and accept any exact match (not just
+    /// the default mint). Guards HLSVM-2026Q2-013 for future SPL fee-token support.
+    #[test]
+    fn test_try_resolve_transient_quote_validates_fee_token_mint() {
+        let program_id = Pubkey::new_unique();
+        let igp_key = Pubkey::new_unique();
+        let payer = Pubkey::new_unique();
+        let sender = Pubkey::new_unique();
+        let dest_domain = 137u32;
+        let scoped_salt = H256::from_low_u64_be(42);
+        let non_default = Pubkey::new_unique();
+
+        let (pda_key, bump) = Pubkey::find_program_address(
+            igp_transient_quote_pda_seeds!(&igp_key, scoped_salt),
+            &program_id,
+        );
+
+        // (stored_mint, expected_mint, should_resolve)
+        let cases = [
+            (Pubkey::default(), Pubkey::default(), true),
+            (non_default, non_default, true),
+            (non_default, Pubkey::default(), false),
+            (Pubkey::default(), non_default, false),
+        ];
+
+        for (stored_mint, expected_mint, should_resolve) in cases {
+            let quote = IgpTransientQuote {
+                bump_seed: bump,
+                payer,
+                scoped_salt,
+                fee_token_mint: stored_mint,
+                destination_domain: dest_domain,
+                sender,
+                token_exchange_rate: 2_000_000_000_000_000_000,
+                gas_price: 1_000_000_000,
+                token_decimals: 9,
+                expiry: 1_000,
+            };
+            let mut data = transient_account_bytes(&quote);
+            let mut lamports = 1_000_000u64;
+            let account_info = AccountInfo::new(
+                &pda_key,
+                false,
+                true,
+                &mut lamports,
+                &mut data,
+                &program_id,
+                false,
+            );
+            let clock = Clock {
+                unix_timestamp: 500,
+                ..Default::default()
+            };
+
+            let result = try_resolve_transient_quote(
+                &program_id,
+                &account_info,
+                &igp_key,
+                &payer,
+                &expected_mint,
+                dest_domain,
+                &sender,
+                0,
+                &clock,
+            );
+
+            if should_resolve {
+                let resolved = result.expect("quote with matching mint should resolve");
+                assert_eq!(resolved.token_exchange_rate, 2_000_000_000_000_000_000);
+            } else {
+                assert_eq!(
+                    result.unwrap_err(),
+                    QuoteValidationError::TransientContextMismatch.into(),
+                );
+            }
+        }
+    }
 }

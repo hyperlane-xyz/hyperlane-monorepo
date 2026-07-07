@@ -2883,6 +2883,7 @@ async fn test_submit_transient_quote() {
     let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
     let transient = fetch_transient_quote(&account.data);
     assert_eq!(transient.payer, payer.pubkey());
+    assert_eq!(transient.fee_token_mint, Pubkey::default());
     assert_eq!(transient.destination_domain, dest_domain);
     assert_eq!(transient.sender, sender);
     assert_eq!(transient.token_exchange_rate, exchange_rate);

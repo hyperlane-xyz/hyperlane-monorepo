@@ -606,6 +606,8 @@ pub struct IgpTransientQuote {
     pub payer: Pubkey,
     /// Scoped salt: keccak256(payer || client_salt).
     pub scoped_salt: H256,
+    /// Fee token mint from the quote context (Pubkey::default() for SOL).
+    pub fee_token_mint: Pubkey,
     /// Destination domain from the quote context.
     pub destination_domain: u32,
     /// Sender (warp route program ID) from the quote context.
@@ -625,6 +627,7 @@ impl SizedData for IgpTransientQuote {
         std::mem::size_of::<u8>()       // bump_seed
             + PUBKEY_SIZE               // payer
             + H256_SIZE                 // scoped_salt
+            + PUBKEY_SIZE               // fee_token_mint
             + std::mem::size_of::<u32>() // destination_domain
             + PUBKEY_SIZE               // sender
             + std::mem::size_of::<u128>() // token_exchange_rate
@@ -780,6 +783,7 @@ mod test {
             bump_seed: 2,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
             destination_domain: 42,
             sender: Pubkey::new_unique(),
             token_exchange_rate: 1_000_000_000_000_000_000,
@@ -798,6 +802,7 @@ mod test {
             bump_seed: 2,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
             destination_domain: 42,
             sender: Pubkey::new_unique(),
             token_exchange_rate: 1_000_000_000_000_000_000,
