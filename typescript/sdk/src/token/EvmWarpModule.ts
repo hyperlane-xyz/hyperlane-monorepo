@@ -1,7 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish, constants, providers } from 'ethers';
-import { UINT_256_MAX } from 'starknet';
 
 import {
   CrossCollateralRouter__factory,
@@ -108,6 +107,25 @@ import {
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
 };
+
+// The last contract version where `approveTokenForBridge` granted max allowance
+// instead of revoking it. Hardcoded (not CONTRACTS_PACKAGE_VERSION) because the
+// package version moves to the next major at release and would wrongly match the
+// new revoke-semantics implementations.
+export const MAX_LEGACY_BRIDGE_APPROVAL_VERSION = '11.3.1';
+
+/**
+ * Whether `approveTokenForBridge` GRANTS a standing max allowance on the given
+ * contract version (legacy impls) rather than REVOKING it (new impls). The
+ * selector is overloaded by implementation version.
+ */
+export function bridgeApprovalGrantsMaxAllowance(
+  contractVersion: string,
+): boolean {
+  return (
+    compareVersions(contractVersion, MAX_LEGACY_BRIDGE_APPROVAL_VERSION) <= 0
+  );
+}
 
 const getAllowedRebalancingBridgesByDomain = (
   allowedRebalancingBridgesByDomain: NonNullable<
@@ -231,11 +249,13 @@ export class EvmWarpModule extends HyperlaneModule<
      * 3. createHookAndPredicateUpdateTxs() handles hook + predicate wrapper together so the
      *    pending new hook address is threaded through without leaking into other method signatures
      */
+    const upgradeTxs = await this.upgradeWarpRouteImplementationTx(
+      actualConfig,
+      expectedConfig,
+    );
+
     transactions.push(
-      ...(await this.upgradeWarpRouteImplementationTx(
-        actualConfig,
-        expectedConfig,
-      )),
+      ...upgradeTxs,
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
@@ -269,6 +289,11 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      ...(await this.createRevokeStaleBridgeAllowancesTxs(
+        actualConfig,
+        expectedConfig,
+        upgradeTxs.length > 0,
+      )),
 
       ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
       ...this.createRemoveRemoteOutputAssetsTxs(actualConfig, expectedConfig),
@@ -617,6 +642,15 @@ export class EvmWarpModule extends HyperlaneModule<
     return lower;
   }
 
+  /**
+   * Grants standing ERC20 allowances declared in `allowedRebalancingBridges[].approvedTokens`.
+   *
+   * Only legacy (pre-atomic-rebalancing) routers need explicit grants: their
+   * `approveTokenForBridge` sets max allowance. New impls grant an exact temporary
+   * allowance per rebalance and the same selector REVOKES, so emitting grants there
+   * would be wrong. Gated on the on-chain version being legacy, mirroring
+   * `createRevokeStaleBridgeAllowancesTxs`.
+   */
   async getAllowedBridgesApprovalTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -629,6 +663,15 @@ export class EvmWarpModule extends HyperlaneModule<
     }
 
     if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    // Only routers on a legacy impl grant max via `approveTokenForBridge`; on a new
+    // impl the same selector revokes, so there is nothing to grant ahead of time.
+    if (
+      !actualConfig.contractVersion ||
+      !bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion)
+    ) {
       return [];
     }
 
@@ -661,7 +704,7 @@ export class EvmWarpModule extends HyperlaneModule<
             bridge,
           );
 
-          if (allowance.toBigInt() !== UINT_256_MAX) {
+          if (!allowance.eq(constants.MaxUint256)) {
             filteredApprovals.push(token);
           }
         }
@@ -795,6 +838,144 @@ export class EvmWarpModule extends HyperlaneModule<
         });
       },
     );
+  }
+
+  /**
+   * Revokes legacy standing ERC20 allowances for bridges that remain allowlisted
+   * after an in-place upgrade.
+   *
+   * Pre-atomic-rebalancing routers granted `type(uint256).max` to every enrolled
+   * bridge in `_addBridge` (the collateral token) and, via the legacy
+   * `approvedTokens` grant path, to arbitrary tokens. After upgrading, bridges that
+   * are removed have their allowance revoked on-chain by `_removeBridge`, and
+   * newly-added bridges never received a legacy allowance. Bridges that REMAIN
+   * allowlisted, however, keep those stale max allowances until the next rebalance.
+   * This method emits txs that set the collateral token AND any configured
+   * `approvedTokens` allowances back to zero so an allowlisted bridge has no
+   * out-of-band transferFrom power over the router balance.
+   *
+   * `approveTokenForBridge` only has revoke semantics on the new implementation;
+   * on legacy impls the same selector GRANTS max. Revoke txs are therefore emitted
+   * unless the router is on a legacy impl that is not being upgraded this run, so
+   * they always execute against the new revoke-semantics impl — whether this run
+   * upgrades it in place or it was already upgraded (which keeps cleanup retryable
+   * if an earlier run upgraded but its revoke txs never executed).
+   */
+  async createRevokeStaleBridgeAllowancesTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+    upgradeScheduled: boolean,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    // `approveTokenForBridge` only revokes on the new implementation; on a legacy
+    // impl the same selector GRANTS max. Skip only when the router is on a legacy
+    // impl and is NOT being upgraded this run — emitting there would re-create the
+    // allowance. Otherwise the revoke executes against the new impl: either because
+    // this run upgrades it in place, or because it is already upgraded. The latter
+    // keeps cleanup retryable if a prior run upgraded but its revoke txs never
+    // executed; the non-zero on-chain allowance check below filters out routers
+    // with nothing stale left to clear.
+    if (
+      !actualConfig.contractVersion ||
+      (bridgeApprovalGrantsMaxAllowance(actualConfig.contractVersion) &&
+        !upgradeScheduled)
+    ) {
+      return [];
+    }
+
+    const provider = this.multiProvider.getProvider(this.chainId);
+
+    // The collateral token backing the router. Native routes (address(0)) have no
+    // ERC20 collateral, but may still carry stale `approvedTokens` grants.
+    const collateralToken = await MovableCollateralRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      provider,
+    ).token();
+
+    // Bridge addresses currently allowlisted on-chain (across all domains).
+    // Allowances are keyed by (router, bridge) and are domain-agnostic, so we match
+    // bridges by address rather than per domain — this catches a bridge moved between
+    // domains, whose stale allowance a per-domain comparison would miss.
+    const actualBridges = new Set<Address>();
+    for (const bridges of Object.values(
+      getAllowedRebalancingBridgesByDomain(
+        resolveRouterMapConfig(
+          this.multiProvider,
+          actualConfig.allowedRebalancingBridges ?? {},
+        ),
+      ),
+    )) {
+      for (const bridge of bridges) {
+        actualBridges.add(bridge);
+      }
+    }
+
+    // For each bridge that remains allowlisted (present in both configs by address),
+    // the tokens whose stale legacy allowance must be revoked: the collateral token
+    // plus any `approvedTokens` the legacy grant path could have approved. Removed
+    // bridges are revoked on-chain by `_removeBridge`; newly added bridges never held
+    // a legacy allowance. `actualConfig` does not derive approvedTokens, so the
+    // expected config is the signal of what was granted; each candidate is gated on a
+    // non-zero on-chain allowance below.
+    const tokensByBridge = new Map<Address, Set<Address>>();
+    for (const bridgeConfigs of Object.values(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
+    )) {
+      for (const { bridge, approvedTokens } of bridgeConfigs) {
+        const normalizedBridge = normalizeAddressEvm(bridge);
+        if (!actualBridges.has(normalizedBridge)) {
+          continue;
+        }
+        const tokens =
+          tokensByBridge.get(normalizedBridge) ?? new Set<Address>();
+        if (!isZeroishAddress(collateralToken)) {
+          tokens.add(normalizeAddressEvm(collateralToken));
+        }
+        for (const token of approvedTokens ?? []) {
+          tokens.add(normalizeAddressEvm(token));
+        }
+        tokensByBridge.set(normalizedBridge, tokens);
+      }
+    }
+
+    const revokeTxs: AnnotatedEV5Transaction[] = [];
+    for (const [bridge, tokensToRevoke] of tokensByBridge) {
+      for (const token of tokensToRevoke) {
+        const allowance = await IERC20__factory.connect(
+          token,
+          provider,
+        ).allowance(this.args.addresses.deployedTokenRoute, bridge);
+
+        if (allowance.isZero()) {
+          continue;
+        }
+
+        revokeTxs.push({
+          chainId: this.chainId,
+          annotation: `Revoking legacy bridge allowance for token "${token}" and bridge "${bridge}" on "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'approveTokenForBridge(address,address)',
+            [token, bridge],
+          ),
+        });
+      }
+    }
+
+    return revokeTxs;
   }
 
   createAddRemoteOutputAssetsTxs(

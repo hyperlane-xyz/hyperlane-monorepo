@@ -3,7 +3,6 @@ import { BigNumber, constants } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
-  ERC20__factory,
   MailboxClient__factory,
   EverclearTokenBridge__factory,
   GasRouter,
@@ -20,7 +19,6 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
   addressToBytes32,
   isEVMLike,
   assert,
@@ -618,84 +616,6 @@ abstract class TokenDeployer<
     );
   }
 
-  protected async setBridgesTokenApprovals(
-    configMap: ChainMap<HypTokenConfig>,
-    deployedContractsMap: HyperlaneContractsMap<Factories>,
-  ): Promise<void> {
-    await promiseObjAll(
-      objMap(configMap, async (chain, config) => {
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
-
-        const router = this.router(deployedContractsMap[chain]).address;
-        const movableToken = MovableCollateralRouter__factory.connect(
-          router,
-          this.multiProvider.getSigner(chain),
-        );
-
-        const tokenApprovalTxs = Object.values(
-          config.allowedRebalancingBridges ?? {},
-        ).flatMap((allowedBridgesToAdd) => {
-          return allowedBridgesToAdd.flatMap((bridgeToAdd) => {
-            return (bridgeToAdd.approvedTokens ?? []).map((token) => {
-              return {
-                bridge: bridgeToAdd.bridge,
-                token,
-              };
-            });
-          });
-        });
-
-        // Find which bridges already have the required approval to avoid
-        // safeApproval to fail because it requires approvals to be set to 0
-        // before setting a new value
-        const tokens = new Set(tokenApprovalTxs.map(({ token }) => token));
-        const bridgesWithAllowanceAlreadySet: Record<
-          Address,
-          Set<string>
-        > = Object.fromEntries(
-          Array.from(tokens).map((token) => [token, new Set()]),
-        );
-        await Promise.all(
-          tokenApprovalTxs.map(async ({ bridge, token }): Promise<void> => {
-            const tokenInstance = ERC20__factory.connect(
-              token,
-              this.multiProvider.getSigner(chain),
-            );
-
-            const currentAllowance = await tokenInstance.allowance(
-              movableToken.address,
-              bridge,
-            );
-
-            if (currentAllowance.gt(0)) {
-              bridgesWithAllowanceAlreadySet[token].add(bridge);
-            }
-          }),
-        );
-
-        const filteredTokenApprovalTxs = tokenApprovalTxs.filter(
-          ({ bridge, token }) =>
-            bridgesWithAllowanceAlreadySet[token] &&
-            !bridgesWithAllowanceAlreadySet[token].has(bridge),
-        );
-
-        const overrides = this.multiProvider.getTransactionOverrides(chain);
-        for (const bridgeConfig of filteredTokenApprovalTxs) {
-          await this.multiProvider.handleTx(
-            chain,
-            movableToken.approveTokenForBridge(
-              bridgeConfig.token,
-              bridgeConfig.bridge,
-              overrides,
-            ),
-          );
-        }
-      }),
-    );
-  }
-
   protected async setEverclearFeeParams(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -1054,8 +974,6 @@ abstract class TokenDeployer<
     await this.setRebalancers(configMap, deployedContractsMap);
 
     await this.setAllowedBridges(configMap, deployedContractsMap);
-
-    await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 

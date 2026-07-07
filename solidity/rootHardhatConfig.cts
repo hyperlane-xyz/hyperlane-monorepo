@@ -9,7 +9,11 @@ export const rootHardhatConfig = {
       evmVersion: 'cancun',
       optimizer: {
         enabled: true,
-        runs: 9_990,
+        // Stopgap: lowered from 9_990 to keep CrossCollateralRouter under the
+        // EIP-170 24576-byte limit. Kept in sync with foundry.toml. Restore
+        // once its bytecode is trimmed (e.g. rebalance-target logic moved to a
+        // linked library).
+        runs: 5_800,
       },
     },
   },

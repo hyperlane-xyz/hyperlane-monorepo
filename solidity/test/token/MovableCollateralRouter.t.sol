@@ -77,6 +77,33 @@ contract MockITokenBridge is ITokenBridge {
     }
 }
 
+contract UnderConsumingBridge is ITokenBridge {
+    ERC20Test token;
+
+    constructor(ERC20Test _token) {
+        token = _token;
+    }
+
+    function quoteTransferRemote(
+        uint32,
+        bytes32,
+        uint256 amountOut
+    ) public view override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote(address(token), amountOut);
+    }
+
+    function transferRemote(
+        uint32,
+        bytes32 recipient,
+        uint256 amountOut
+    ) external payable override returns (bytes32) {
+        // Pull less than the approved amount, leaving a residual allowance.
+        token.transferFrom(msg.sender, address(this), amountOut - 1);
+        return recipient;
+    }
+}
+
 contract MovableCollateralRouterTest is Test {
     using TypeCasts for address;
     using Quotes for Quote[];
@@ -117,8 +144,6 @@ contract MovableCollateralRouterTest is Test {
         // Setup
         token.mintTo(address(router), collateralBalance + collateralFee);
         router.addBridge(destinationDomain, vtb);
-        vm.prank(address(router));
-        token.approve(address(vtb), type(uint256).max);
 
         vtb.setCollateralFee(collateralFee);
         vtb.setNativeFee(nativeFee);
@@ -142,6 +167,7 @@ contract MovableCollateralRouterTest is Test {
         );
 
         assertEq(router.chargedToRebalancer(), collateralFee);
+        assertEq(token.allowance(address(router), address(vtb)), 0);
     }
 
     function testBadRebalancer() public {
@@ -149,6 +175,18 @@ contract MovableCollateralRouterTest is Test {
         vm.prank(address(1));
         // Execute
         router.rebalance(destinationDomain, 1e18, vtb);
+    }
+
+    function test_rebalance_revokesUnconsumedAllowance() public {
+        router.addRebalancer(address(this));
+        UnderConsumingBridge underBridge = new UnderConsumingBridge(token);
+        token.mintTo(address(router), 1e18);
+        router.addBridge(destinationDomain, underBridge);
+
+        // Bridge pulls 1e18 - 1, leaving a 1 wei allowance that must be revoked.
+        router.rebalance(destinationDomain, 1e18, underBridge);
+
+        assertEq(token.allowance(address(router), address(underBridge)), 0);
     }
 
     function testBadBridge() public {
@@ -167,16 +205,17 @@ contract MovableCollateralRouterTest is Test {
         router.rebalance(destinationDomain, 1e18, vtb);
     }
 
-    function testApproveTokenForBridge() public {
-        // Configuration
-        // Execute
-        router.approveTokenForBridge(token, vtb);
-
-        // Assert
+    function testApproveTokenForBridge_clearsLegacyApproval() public {
+        vm.prank(address(router));
+        token.approve(address(vtb), type(uint256).max);
         assertEq(
             token.allowance(address(router), address(vtb)),
             type(uint256).max
         );
+
+        router.approveTokenForBridge(token, vtb);
+
+        assertEq(token.allowance(address(router), address(vtb)), 0);
     }
 
     function testAddBridge() public {
@@ -198,10 +237,6 @@ contract MovableCollateralRouterTest is Test {
         // We re-enroll the router but don't re-add the bridge
         router.enrollRemoteRouter(destinationDomain, remote.addressToBytes32());
 
-        // Approvals
-        token.mintTo(address(router), 1e18);
-        vm.prank(address(router));
-        token.approve(address(vtb), 1e18);
         // Add rebalancer
         router.addRebalancer(address(this));
 
@@ -242,10 +277,7 @@ contract MovableCollateralRouterTest is Test {
         // Add the given bridge
         router.addBridge(destinationDomain, vtb);
 
-        // Approvals
         token.mintTo(address(router), 1e18);
-        vm.prank(address(router));
-        token.approve(address(vtb), 1e18);
 
         bytes32 defaultRecipient = router.routers(destinationDomain);
 
@@ -264,12 +296,14 @@ contract MovableCollateralRouterTest is Test {
         address rebalancer = address(1);
         router.addRebalancer(rebalancer);
         assertEq(router.allowedRebalancers()[0], rebalancer);
+        assertTrue(router.isAllowedRebalancer(rebalancer));
     }
 
     function testRemoveRebalancer() public {
         router.addRebalancer(address(1));
         router.removeRebalancer(address(1));
         assertEq(router.allowedRebalancers().length, 0);
+        assertFalse(router.isAllowedRebalancer(address(1)));
     }
 
     function testSetRecipient() public {

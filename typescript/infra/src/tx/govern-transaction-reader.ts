@@ -19,6 +19,7 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  PackageVersioned__factory,
   TokenBridgeCctpV2__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
@@ -36,6 +37,7 @@ import {
   EvmTokenFeeReader,
   InterchainAccount,
   MultiProvider,
+  bridgeApprovalGrantsMaxAllowance,
   TokenFeeType,
   TokenStandard,
   WarpCoreConfig,
@@ -1255,7 +1257,25 @@ export class GovernTransactionReader {
         .name
     ) {
       const [token, bridge] = decoded.args;
-      insight = `Approve token ${token} for bridge ${bridge}`;
+      // `approveTokenForBridge` is overloaded by impl version: legacy routers
+      // GRANT a max allowance, new routers REVOKE it. Read the target's version
+      // so the insight describes what actually executes.
+      let contractVersion: string | undefined;
+      try {
+        contractVersion = await PackageVersioned__factory.connect(
+          tx.to!,
+          this.multiProvider.getProvider(chain),
+        ).PACKAGE_VERSION();
+      } catch {
+        contractVersion = undefined;
+      }
+      if (contractVersion == null) {
+        insight = `approveTokenForBridge for token ${token} and bridge ${bridge} (could not read router version: grants a max allowance on legacy routers, revokes on newer ones)`;
+      } else if (bridgeApprovalGrantsMaxAllowance(contractVersion)) {
+        insight = `Grant max token approval for ${token} to bridge ${bridge} (legacy router v${contractVersion})`;
+      } else {
+        insight = `Clear legacy token approval for ${token} from bridge ${bridge} (router v${contractVersion})`;
+      }
     }
 
     if (

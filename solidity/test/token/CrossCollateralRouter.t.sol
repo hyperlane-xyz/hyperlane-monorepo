@@ -758,6 +758,86 @@ contract CrossCollateralRouterTest is Test {
         assertFalse(usdcRouterA.crossCollateralRouters(DESTINATION, router));
     }
 
+    // ============ Rebalance targets ============
+
+    function test_isRebalanceTarget_enrolledRemoteRouterAlwaysAllowed()
+        public
+        view
+    {
+        // The enrolled remote router for a domain is always a valid target.
+        assertTrue(
+            usdcRouterA.isRebalanceTarget(
+                DESTINATION,
+                address(usdcRouterB).addressToBytes32()
+            )
+        );
+    }
+
+    function test_isRebalanceTarget_unknownTargetRejected() public view {
+        assertFalse(
+            usdcRouterA.isRebalanceTarget(
+                ORIGIN,
+                address(0x42).addressToBytes32()
+            )
+        );
+    }
+
+    function test_isRebalanceTarget_zeroTargetRejected() public view {
+        // The zero address must not be a valid target, even on a domain with no
+        // enrolled router (where routers(_domain) is itself bytes32(0)).
+        assertFalse(usdcRouterA.isRebalanceTarget(ORIGIN, bytes32(0)));
+    }
+
+    function test_addRebalanceTarget_allowsExplicitTarget() public {
+        bytes32 target = address(usdtRouterA).addressToBytes32();
+        assertFalse(usdcRouterA.isRebalanceTarget(ORIGIN, target));
+
+        vm.expectEmit(true, true, false, true);
+        emit CrossCollateralRouter.RebalanceTargetAdded(ORIGIN, target);
+        usdcRouterA.addRebalanceTarget(ORIGIN, target);
+
+        assertTrue(usdcRouterA.isRebalanceTarget(ORIGIN, target));
+        bytes32[] memory targets = usdcRouterA.rebalanceTargets(ORIGIN);
+        assertEq(targets.length, 1);
+        assertEq(targets[0], target);
+    }
+
+    function test_removeRebalanceTarget_revokesTarget() public {
+        bytes32 target = address(usdtRouterA).addressToBytes32();
+        usdcRouterA.addRebalanceTarget(ORIGIN, target);
+
+        vm.expectEmit(true, true, false, true);
+        emit CrossCollateralRouter.RebalanceTargetRemoved(ORIGIN, target);
+        usdcRouterA.removeRebalanceTarget(ORIGIN, target);
+
+        assertFalse(usdcRouterA.isRebalanceTarget(ORIGIN, target));
+        assertEq(usdcRouterA.rebalanceTargets(ORIGIN).length, 0);
+    }
+
+    function test_rebalanceTargets_excludesEnrolledRemoteRouter() public view {
+        // The enrolled remote router is implicitly valid but not listed as an
+        // explicit target.
+        assertEq(usdcRouterA.rebalanceTargets(DESTINATION).length, 0);
+    }
+
+    function test_revert_addRebalanceTarget_nonOwner() public {
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdcRouterA.addRebalanceTarget(
+            ORIGIN,
+            address(0x42).addressToBytes32()
+        );
+    }
+
+    function test_revert_removeRebalanceTarget_nonOwner() public {
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdcRouterA.removeRebalanceTarget(
+            ORIGIN,
+            address(0x42).addressToBytes32()
+        );
+    }
+
     // ============ Quoting ============
 
     function test_quoteTransferRemoteTo() public view {
