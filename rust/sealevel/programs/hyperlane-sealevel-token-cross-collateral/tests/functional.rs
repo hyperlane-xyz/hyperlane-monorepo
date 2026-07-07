@@ -2029,6 +2029,57 @@ mod handle_instruction {
             TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
+
+    #[tokio::test]
+    async fn test_handle_from_mailbox_rejects_local_origin() {
+        let mut ctx = TestContext::new(false).await;
+        let escrow = ctx.cc.escrow;
+        let ata_payer = ctx.cc.ata_payer;
+        ctx.fund_escrow_and_ata_payer(escrow, ata_payer, 100 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+
+        // Enroll the sender as a CC router for the local domain, so the only
+        // thing rejecting the message is the same-domain guard.
+        let cc_router = H256::random();
+        set_cc_routers(
+            &mut ctx.banks_client,
+            &ctx.program_id,
+            &ctx.payer,
+            vec![CrossCollateralRouterUpdate::Add {
+                domain: LOCAL_DOMAIN,
+                router: cc_router,
+            }],
+        )
+        .await
+        .unwrap();
+
+        let recipient_pubkey = Pubkey::new_unique();
+        let recipient: H256 = recipient_pubkey.to_bytes().into();
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: LOCAL_DOMAIN,
+            sender: cc_router,
+            destination: LOCAL_DOMAIN,
+            recipient: ctx.program_id.to_bytes().into(),
+            body: TokenMessage::new(recipient, 1000u64.into(), vec![]).to_vec(),
+        };
+
+        let result = process(
+            &mut ctx.banks_client,
+            &ctx.payer,
+            &ctx.mailbox_accounts,
+            vec![],
+            &message,
+        )
+        .await;
+
+        // Custom(3618916391) = CcError::SameDomainViaMailbox
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(3618916391)),
+        );
+    }
 }
 
 mod handle_local_instruction {
@@ -2253,9 +2304,9 @@ mod handle_local_instruction {
     }
 
     #[tokio::test]
-    async fn test_handle_local_accepts_base_remote_router() {
-        // Base remote router enrollment also authorizes HandleLocal via
-        // is_authorized_router (checks both CC enrolled and base routers).
+    async fn test_handle_local_rejects_base_remote_router() {
+        // Same-chain HandleLocal authorizes CC-enrolled routers only; a base
+        // remote router enrolled for the local domain is rejected.
         let mut ctx = TestContext::new(false).await;
         let program_b = second_cc_program_id();
         let cc_b = ctx.init_second_cc_token().await;
@@ -2353,8 +2404,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Should succeed — is_authorized_router accepts base remote routers too
-        result.unwrap();
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
+        );
     }
 
     #[tokio::test]

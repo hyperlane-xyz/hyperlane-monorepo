@@ -732,6 +732,11 @@ fn transfer_from_remote_cc(
     // Verify mailbox process authority is a valid signer
     hyperlane_token.ensure_mailbox_process_authority_signer(process_authority_account)?;
 
+    // Same-domain releases must use the same-chain CPI path, not the mailbox.
+    if xfer.origin == cc_state.local_domain {
+        return Err(CcError::SameDomainViaMailbox.into());
+    }
+
     // Dual-router validation: check both CC enrolled routers and base remote routers
     if !cc_state.is_authorized_router(xfer.origin, &xfer.sender, &hyperlane_token.remote_routers) {
         return Err(CcError::UnauthorizedRouter.into());
@@ -884,8 +889,8 @@ fn handle_local(
     // unvalidated sender field (which would allow spoofing).
     let sender = H256::from(handle.sender_program_id.to_bytes());
 
-    // Validate sender is an authorized router (CC enrolled or base remote routers)
-    if !cc_state.is_authorized_router(cc_state.local_domain, &sender, &token.remote_routers) {
+    // Same-chain release is restricted to CC-enrolled routers.
+    if !cc_state.is_enrolled_router(cc_state.local_domain, &sender) {
         return Err(CcError::UnauthorizedRouter.into());
     }
 
