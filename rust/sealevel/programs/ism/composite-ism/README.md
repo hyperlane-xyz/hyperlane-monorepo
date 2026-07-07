@@ -136,6 +136,14 @@ independent of the outer composite ISM's account space.
   configured address is checked on every `Verify` call — messages to any other
   recipient are rejected with `RecipientMismatch`.
 
+- **`RateLimited` must live in the root ISM tree, not inside a fallback ISM.**
+  Capacity mutation is gated on the process authority PDA derived per ISM program
+  (`derive_process_authority(mailbox, program_id)`). The mailbox signs only the
+  authority of the ISM it invokes directly (the root composite ISM), never a
+  nested fallback ISM reached by CPI, so a `RateLimited` node inside a fallback
+  ISM demands a signer that can never be produced and its messages are
+  undeliverable.
+
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
   marks the relevant PDA writable. Callers must pass that account as writable in

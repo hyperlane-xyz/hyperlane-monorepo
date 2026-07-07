@@ -190,6 +190,13 @@ pub fn dummy_message() -> HyperlaneMessage {
     }
 }
 
+/// Non-zero warp-route recipient shared by the RateLimited tests. RateLimited
+/// requires a specific recipient, and the verified message's recipient must
+/// equal it (see `validate_domain_ism` / `verify_node`).
+pub fn rate_limited_recipient() -> H256 {
+    H256::from([0xAAu8; 32])
+}
+
 /// Builds a TokenMessage body with a given amount (big-endian u256 at bytes 32..64).
 pub fn token_message_body(amount: u64) -> Vec<u8> {
     let mut body = vec![0u8; 64];

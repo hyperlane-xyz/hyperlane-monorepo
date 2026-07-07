@@ -24,7 +24,7 @@ mod common;
 
 use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
-    accounts::{derive_domain_pda, CompositeIsmAccount, IsmNode},
+    accounts::{derive_domain_pda, derive_process_authority, CompositeIsmAccount, IsmNode},
     error::Error,
     instruction::{initialize_instruction, set_domain_ism_instruction},
     processor::process_instruction,
@@ -43,9 +43,9 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, domain_pda_key, dummy_message,
+    assert_simulation_error, assert_simulation_ok, composite_ism_id, domain_pda_key, dummy_message,
     get_all_verify_account_metas, get_metadata_spec, get_verify_account_metas, initialize,
-    mock_mailbox_id, process_verify_via_mailbox, program_test, remove_domain_ism, set_domain_ism,
+    mock_mailbox_id, program_test, rate_limited_recipient, remove_domain_ism, set_domain_ism,
     simulate_verify, storage_pda_key, token_message_body,
 };
 
@@ -939,18 +939,17 @@ async fn test_verify_fallback_with_inner_routing_and_trusted_relayer_accepts() {
     );
 }
 
-// ── Regression: FallbackRouting → RateLimited fallback preserves writable flag ──
+// ── RateLimited is unsupported inside a fallback ISM ───────────────────────────
 //
-// When the fallback ISM contains a RateLimited node, its all_verify_account_metas
-// returns the storage PDA as writable (it must be written during Verify to update
-// filled_level/last_updated).  The old dedup silently dropped the writable copy and
-// kept only the read-only sentinel, causing DomainPdaNotWritable at Verify time.
-//
-// The fix: merge is_writable/is_signer from the inner ISM's first element into the
-// retained sentinel instead of discarding it.
-
+// RateLimited gates capacity mutation on a per-ISM-program process authority PDA
+// (`derive_process_authority(mailbox, program_id)` in verify.rs, where program_id
+// is the executing program). The mailbox only signs the authority of the ISM it
+// invokes directly — the root composite ISM — never a nested fallback ISM, which
+// is a separate program reached by CPI. A RateLimited node inside a fallback ISM
+// therefore demands a signer the mailbox can never produce, so such messages are
+// undeliverable; RateLimited must live in the root tree.
 #[tokio::test]
-async fn test_vam_fallback_with_rate_limited_storage_is_writable() {
+async fn test_rate_limited_in_fallback_ism_requires_unsignable_authority() {
     let mut context = program_test_with_fallback().start_with_context().await;
     let payer = context.payer.insecure_clone();
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
@@ -961,7 +960,7 @@ async fn test_vam_fallback_with_rate_limited_storage_is_writable() {
         recent_blockhash,
         IsmNode::RateLimited {
             max_capacity: 1_000_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -983,6 +982,7 @@ async fn test_vam_fallback_with_rate_limited_storage_is_writable() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(100);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
@@ -998,72 +998,21 @@ async fn test_vam_fallback_with_rate_limited_storage_is_writable() {
     )
     .await;
 
-    // [storage_pda, domain_pda, fallback_storage_pda (writable), process_authority (signer), fallback_ism]
-    // The sentinel for fallback_storage_pda must be writable because RateLimited writes
-    // filled_level/last_updated to the storage PDA during Verify.
-    assert_eq!(metas.len(), 5);
-    assert_eq!(metas[0].pubkey, storage_pda_key());
-    assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
-    assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
+    // The RateLimited node in the fallback ISM demands the fallback ISM's OWN
+    // process authority as a signer — derived for `fallback_ism_id()`, not the root
+    // composite ISM. The mailbox only ever signs the root ISM's authority, so this
+    // required signer can never be satisfied and the message is undeliverable.
+    let fallback_authority = derive_process_authority(&mock_mailbox_id(), &fallback_ism_id()).0;
+    let root_authority = derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0;
+
     assert!(
-        metas[2].is_writable,
-        "fallback storage must be writable for RateLimited"
+        metas
+            .iter()
+            .any(|m| m.pubkey == fallback_authority && m.is_signer),
+        "RateLimited in a fallback ISM must demand the fallback ISM's own (unsignable) process authority as signer"
     );
-    assert!(metas[3].is_signer, "process authority must be signer");
-    assert_eq!(metas[4].pubkey, fallback_ism_id());
-}
-
-#[tokio::test]
-async fn test_verify_fallback_with_rate_limited_accepts_within_capacity() {
-    let mut context = program_test_with_fallback().start_with_context().await;
-    let payer = context.payer.insecure_clone();
-    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-
-    setup_fallback_ism(
-        &mut context.banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::RateLimited {
-            max_capacity: 1_000_000,
-            recipient: None,
-            filled_level: 0,
-            last_updated: 0,
-            mailbox: mock_mailbox_id(),
-        },
-    )
-    .await;
-
-    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-    initialize(
-        &mut context.banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::FallbackRouting {
-            fallback_ism: fallback_ism_id(),
-        },
-    )
-    .await
-    .unwrap();
-
-    let mut msg = dummy_message();
-    msg.origin = ORIGIN;
-    msg.body = token_message_body(100);
-    let verify_ixn = VerifyInstruction {
-        metadata: vec![],
-        message: msg.to_vec(),
-    };
-
-    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-    let metas = get_all_verify_account_metas(
-        &mut context.banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn.clone(),
-    )
-    .await;
-
-    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-    process_verify_via_mailbox(&mut context.banks_client, &payer, verify_ixn, metas)
-        .await
-        .unwrap();
+    assert!(
+        !metas.iter().any(|m| m.pubkey == root_authority),
+        "the root authority — the only process-authority PDA the mailbox can sign — must be absent, proving the demanded signer is unsignable"
+    );
 }

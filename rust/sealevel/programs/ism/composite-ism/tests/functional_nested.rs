@@ -39,8 +39,8 @@ use std::str::FromStr;
 use common::{
     assert_simulation_error, assert_simulation_ok, composite_ism_id, domain_pda_key, dummy_message,
     encode_aggregation_metadata, get_all_verify_account_metas, initialize, mock_mailbox_id,
-    process_verify_via_mailbox, program_test, set_domain_ism, simulate_verify, storage_pda_key,
-    token_message_body,
+    process_verify_via_mailbox, program_test, rate_limited_recipient, set_domain_ism,
+    simulate_verify, storage_pda_key, token_message_body,
 };
 
 const ORIGIN: u32 = 1234;
@@ -637,13 +637,6 @@ async fn process_verify_domain(
     account_metas: Vec<AccountMeta>,
 ) -> Result<(), solana_program_test::BanksClientError> {
     process_verify_via_mailbox(banks_client, payer, verify_ixn, account_metas).await
-}
-
-/// Non-zero warp-route recipient shared by the RateLimited domain-PDA tests.
-/// RateLimited requires a specific recipient, and the verified message's
-/// recipient must equal it (see `validate_domain_ism` / `verify_node`).
-fn rate_limited_recipient() -> H256 {
-    H256::from([0xAAu8; 32])
 }
 
 #[tokio::test]
