@@ -10,6 +10,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use serializable_account_meta::SimulationReturnData;
+use solana_loader_v3_interface::state::UpgradeableLoaderState;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -212,12 +213,37 @@ fn get_metadata_spec(
     })
 }
 
+/// Parses the upgrade authority from a BPF upgradeable loader ProgramData account's raw data.
+/// Manual parsing avoids a `bincode` dependency; offsets match `UpgradeableLoaderState`'s
+/// bincode layout (4-byte discriminant + 8-byte slot + Option<Pubkey>).
+fn parse_program_data_upgrade_authority(data: &[u8]) -> Result<Option<Pubkey>, ProgramError> {
+    // 4 (discriminant) + 8 (slot) = 12; then 1-byte Option tag + 32-byte Pubkey.
+    const OPTION_TAG_OFFSET: usize = 12;
+    const METADATA_SIZE: usize = UpgradeableLoaderState::size_of_programdata_metadata(); // 45
+
+    if data.len() < OPTION_TAG_OFFSET + 1 {
+        return Ok(None);
+    }
+    if data[OPTION_TAG_OFFSET] == 0 {
+        return Ok(None); // immutable — no upgrade authority
+    }
+    if data.len() < METADATA_SIZE {
+        return Err(ProgramError::InvalidAccountData);
+    }
+    Pubkey::try_from(&data[OPTION_TAG_OFFSET + 1..METADATA_SIZE])
+        .map(Some)
+        .map_err(|_| ProgramError::InvalidAccountData)
+}
+
 /// Initializes the program, creating the storage PDA.
 ///
 /// Accounts:
-/// 0. `[signer]` The new owner and payer.
+/// 0. `[signer]`   The new owner, payer, and (for upgradeable programs) upgrade authority.
 /// 1. `[writable]` The storage PDA account.
 /// 2. `[executable]` The system program.
+/// 3. `[readonly]` The BPF loader ProgramData account (`find_program_address(&[program_id],
+///    &bpf_loader_upgradeable::id())`). If owned by the upgradeable loader, account[0] must
+///    be the stored upgrade authority — closes the deploy-to-initialize ownership-seizure window.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) -> ProgramResult {
     validate_config(program_id, &root)?;
     normalize_node(&mut root);
@@ -245,6 +271,24 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
     let system_program_account = next_account_info(accounts_iter)?;
     if system_program_account.key != &system_program::ID {
         return Err(Error::InvalidSystemProgram.into());
+    }
+
+    // Require upgrade authority to sign — closes the deploy-to-initialize ownership-seizure window.
+    let program_data_account = next_account_info(accounts_iter)?;
+    let bpf_loader_upgradeable_id = solana_sdk_ids::bpf_loader_upgradeable::id();
+    let (program_data_key, _) =
+        Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable_id);
+    if *program_data_account.key != program_data_key {
+        return Err(Error::InvalidProgramDataAccount.into());
+    }
+    if *program_data_account.owner == bpf_loader_upgradeable_id {
+        if let Some(authority) =
+            parse_program_data_upgrade_authority(&program_data_account.data.borrow())?
+        {
+            if *owner_account.key != authority {
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+        }
     }
 
     let storage = CompositeIsmAccount::from(CompositeIsmStorage {

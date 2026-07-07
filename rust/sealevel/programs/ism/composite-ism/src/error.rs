@@ -60,6 +60,8 @@ pub enum Error {
     ProcessAuthorityNotSigner = 27,
     #[error("Pausable ISM is not allowed inside a domain PDA (pause propagation does not reach domain PDAs)")]
     PausableInDomainIsm = 28,
+    #[error("BPF loader ProgramData account does not match expected address for this program")]
+    InvalidProgramDataAccount = 29,
 }
 
 impl From<Error> for ProgramError {

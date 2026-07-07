@@ -20,9 +20,10 @@ pub enum Instruction {
     /// Initializes the program, creating the storage PDA.
     ///
     /// Accounts:
-    /// 0. `[signer]` The new owner and payer.
+    /// 0. `[signer]`   The new owner, payer, and (for upgradeable programs) upgrade authority.
     /// 1. `[writable]` The storage PDA account.
     /// 2. `[executable]` The system program.
+    /// 3. `[readonly]` The BPF upgradeable loader ProgramData account for this program.
     Initialize(IsmNode),
 
     /// Replaces the full ISM config tree. Owner-gated.
@@ -90,6 +91,8 @@ impl DiscriminatorData for Instruction {
 }
 
 /// Creates an Initialize instruction.
+///
+/// `payer` must be the BPF loader upgrade authority for `program_id` (if one exists).
 pub fn initialize_instruction(
     program_id: Pubkey,
     payer: Pubkey,
@@ -97,6 +100,10 @@ pub fn initialize_instruction(
 ) -> Result<SolanaInstruction, ProgramError> {
     let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
         .ok_or(ProgramError::InvalidSeeds)?;
+    let (program_data_key, _) = Pubkey::find_program_address(
+        &[program_id.as_ref()],
+        &solana_sdk_ids::bpf_loader_upgradeable::id(),
+    );
 
     Ok(SolanaInstruction {
         program_id,
@@ -105,6 +112,7 @@ pub fn initialize_instruction(
             AccountMeta::new(payer, true),
             AccountMeta::new(storage_pda_key, false),
             AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(program_data_key, false),
         ],
     })
 }
