@@ -640,7 +640,8 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             }
             Ok(())
         }
-        IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+        IsmNode::Test { .. } => Ok(()),
+        IsmNode::Pausable { .. } => Err(Error::PausableInDomainIsm.into()),
     }
 }
 
@@ -694,6 +695,9 @@ fn flip_pausable(node: &mut IsmNode, paused: bool) {
 }
 
 /// Sets every `Pausable` node in the ISM tree to `paused`. Owner-gated.
+///
+/// Only nodes in the root storage PDA are updated; `Pausable` is disallowed
+/// in domain PDAs — see README § Limitations.
 ///
 /// Accounts:
 /// 0. `[signer]`   The owner.
@@ -1056,6 +1060,27 @@ mod test {
             ],
         };
         assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rejects_pausable() {
+        let node = IsmNode::Pausable { paused: false };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rejects_pausable_nested_in_aggregation() {
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::Pausable { paused: true }],
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
     }
 
     #[test]
