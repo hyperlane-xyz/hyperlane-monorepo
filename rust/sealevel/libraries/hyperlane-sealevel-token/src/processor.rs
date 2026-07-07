@@ -36,7 +36,7 @@ use std::collections::HashMap;
 use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
-    instruction::{Init, TransferRemote},
+    instruction::{Init, TransferRemoteWithMemo},
 };
 
 /// Seeds relating to the PDA account with information about this warp route.
@@ -273,11 +273,12 @@ where
     /// - 13: `[writeable]` The IGP account.
     ///   ---- End if ----
     /// - 14..N: `[??..??]` Plugin-specific accounts.
-    pub fn transfer_remote(
+    pub fn transfer_remote_with_memo(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        xfer: TransferRemote,
+        transfer: TransferRemoteWithMemo,
     ) -> ProgramResult {
+        let TransferRemoteWithMemo { xfer, memo } = transfer;
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program.
@@ -454,7 +455,7 @@ where
 
         // The token message body, which specifies the remote_amount.
         let token_transfer_message =
-            TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
+            TokenMessage::new(xfer.recipient, remote_amount, memo).to_vec();
 
         if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
             // Dispatch the message and pay for gas.

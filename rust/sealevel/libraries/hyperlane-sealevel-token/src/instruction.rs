@@ -37,6 +37,8 @@ pub enum Instruction {
     SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
+    /// Transfer tokens to a remote recipient with a memo.
+    TransferRemoteWithMemo(TransferRemoteWithMemo),
 }
 
 impl DiscriminatorData for Instruction {
@@ -67,6 +69,15 @@ pub struct TransferRemote {
     pub recipient: H256,
     /// The amount or ID of the token to transfer.
     pub amount_or_id: U256,
+}
+
+/// Instruction data for transferring `amount_or_id` token to `recipient` on `destination` domain including a memo.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct TransferRemoteWithMemo {
+    /// The parameters for the remote transfer.
+    pub xfer: TransferRemote,
+    /// A memo to include in the message.
+    pub memo: Vec<u8>,
 }
 
 /// Gets an instruction to initialize the program. This provides only the
