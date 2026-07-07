@@ -125,10 +125,16 @@ pub fn process_instruction(
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => {
-            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(program_id, accounts, TransferRemoteWithMemo { xfer, memo: vec![]})
+            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(
+                program_id,
+                accounts,
+                TransferRemoteWithMemo { xfer, memo: vec![] },
+            )
         }
         TokenIxn::TransferRemoteWithMemo(transfer) => {
-            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(program_id, accounts, transfer)
+            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(
+                program_id, accounts, transfer,
+            )
         }
         TokenIxn::EnrollRemoteRouter(config) => {
             HyperlaneSealevelToken::<CollateralPlugin>::enroll_remote_router(

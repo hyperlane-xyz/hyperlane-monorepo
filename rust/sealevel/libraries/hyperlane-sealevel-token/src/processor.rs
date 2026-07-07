@@ -278,10 +278,7 @@ where
         accounts: &[AccountInfo],
         transfer: TransferRemoteWithMemo,
     ) -> ProgramResult {
-	let TransferRemoteWithMemo {
-	    xfer,
-	    memo
-	} = transfer;
+        let TransferRemoteWithMemo { xfer, memo } = transfer;
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program.
