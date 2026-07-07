@@ -30,7 +30,7 @@ use hyperlane_sealevel_igp::{
         GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType,
         TOKEN_EXCHANGE_RATE_SCALE,
     },
-    igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
         submit_igp_quote_instruction, SetIgpQuoteSignerOperation,
@@ -39,7 +39,7 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -147,6 +147,10 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
 fn fee_program_id() -> Pubkey {
     pubkey!("Fee1111111111111111111111111111111111111111")
+}
+
+fn mailbox_outbox() -> Pubkey {
+    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_id()).0
 }
 
 async fn initialize_mint(
@@ -276,6 +280,7 @@ struct HyperlaneTokenAccounts {
     mailbox_process_authority: Pubkey,
     dispatch_authority: Pubkey,
     dispatch_authority_bump: u8,
+    igp_quote_authority: Pubkey,
     escrow: Pubkey,
     escrow_bump: u8,
     ata_payer: Pubkey,
@@ -301,6 +306,9 @@ async fn initialize_hyperlane_token(
 
     let (dispatch_authority_key, dispatch_authority_seed) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+
+    let (igp_quote_authority_key, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
 
     let (escrow_account_key, escrow_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_escrow_pda_seeds!(), program_id);
@@ -370,6 +378,7 @@ async fn initialize_hyperlane_token(
         mailbox_process_authority: mailbox_process_authority_key,
         dispatch_authority: dispatch_authority_key,
         dispatch_authority_bump: dispatch_authority_seed,
+        igp_quote_authority: igp_quote_authority_key,
         escrow: escrow_account_key,
         escrow_bump: escrow_account_bump_seed,
         ata_payer: ata_payer_account_key,
@@ -522,7 +531,7 @@ async fn test_initialize() {
                 escrow_bump: hyperlane_token_accounts.escrow_bump,
                 ata_payer_bump: hyperlane_token_accounts.ata_payer_bump,
             },
-            fee_config: None,
+            fee_config: None.into(),
         }),
     );
 
@@ -1957,6 +1966,7 @@ async fn test_transfer_remote_with_fee_collateral() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2229,6 +2239,7 @@ async fn test_transfer_remote_with_fee_routing_mode() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2353,8 +2364,20 @@ async fn test_transfer_remote_with_fee_routing_mode() {
 #[tokio::test]
 async fn test_set_fee_config() {
     let program_id = hyperlane_sealevel_token_collateral_id();
+    let mailbox_program_id = mailbox_id();
     let spl_token_program_id = spl_token_2022::id();
     let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let (mint, _mint_authority) = initialize_mint(
         &mut banks_client,
@@ -2438,6 +2461,7 @@ async fn test_set_fee_config() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_config.fee_program, false),
                     AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2776,6 +2800,7 @@ async fn setup_collateral_fee_test_context() -> CollateralFeeTestContext {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -3388,7 +3413,7 @@ async fn test_transfer_remote_igp_new_flow_standing_collateral() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -3590,7 +3615,7 @@ async fn test_transfer_remote_igp_new_flow_transient_collateral() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
@@ -3756,7 +3781,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback_collateral() 
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -3884,7 +3909,7 @@ async fn test_transfer_remote_igp_new_flow_with_fee_collateral() {
                     AccountMeta::new(ctx.igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
                     AccountMeta::new_readonly(
-                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        ctx.hyperlane_token_accounts.igp_quote_authority,
                         false,
                     ),
                     AccountMeta::new_readonly(program_id, false),
@@ -4062,7 +4087,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_collateral() 
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -4231,7 +4256,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain_collateral() 
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -4424,7 +4449,7 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_collateral() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(hta.dispatch_authority, false),
+                    AccountMeta::new_readonly(hta.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),

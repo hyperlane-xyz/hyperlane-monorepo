@@ -188,12 +188,12 @@ pub struct FeeAccount {
     pub owner: Option<Pubkey>,
     /// Beneficiary who receives collected token fees.
     pub beneficiary: Pubkey,
-    /// Fee resolution strategy with variant-specific signer configuration.
-    pub fee_data: FeeData,
     /// Hyperlane domain ID of the local chain (used in quote signature verification).
     pub domain_id: u32,
     /// Emergency revocation threshold: standing quotes with issued_at < min_issued_at are rejected.
     pub min_issued_at: i64,
+    /// Fee resolution strategy with variant-specific signer configuration.
+    pub fee_data: FeeData,
 }
 
 impl AccessControl for FeeAccount {
@@ -212,13 +212,15 @@ impl AccessControl for FeeAccount {
 pub struct FeeAccountPrefix {
     /// Beneficiary who receives collected fees.
     pub beneficiary: Pubkey,
+    /// Hyperlane domain ID of the local chain.
+    pub domain_id: u32,
 }
 
 impl FeeAccountPrefix {
-    /// Parses the beneficiary from raw fee account data by reading fields
-    /// sequentially with Borsh — no fixed offsets.
+    /// Parses the prefix fields from raw fee account data by reading fields
+    /// sequentially with Borsh - no fixed offsets.
     ///
-    /// On-disk layout: `[initialized (1)][discriminator (8)][bump (1)][owner (Option<Pubkey>)][beneficiary (Pubkey)]...`
+    /// On-disk layout: `[initialized (1)][discriminator (8)][bump (1)][owner (Option<Pubkey>)][beneficiary (Pubkey)][domain_id (u32)]...`
     pub fn parse_from(data: &[u8]) -> Result<Self, ProgramError> {
         // Verify initialized flag + discriminator, then skip past them.
         let prefix_len = 1 + FeeAccount::DISCRIMINATOR.len();
@@ -241,8 +243,13 @@ impl FeeAccountPrefix {
             .map_err(|_| ProgramError::InvalidAccountData)?;
         let beneficiary = Pubkey::deserialize_reader(&mut reader)
             .map_err(|_| ProgramError::InvalidAccountData)?;
+        let domain_id =
+            u32::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
 
-        Ok(Self { beneficiary })
+        Ok(Self {
+            beneficiary,
+            domain_id,
+        })
     }
 }
 
@@ -260,9 +267,9 @@ impl SizedData for FeeAccount {
         std::mem::size_of::<u8>()                                                                   // bump
         + option_pubkey_size(&self.owner)                                                           // owner
         + PUBKEY_SIZE                                                                               // beneficiary
-        + SizedData::size(&self.fee_data)                                                           // fee_data
         + std::mem::size_of::<u32>()                                                                // domain_id
-        + std::mem::size_of::<i64>() // min_issued_at
+        + std::mem::size_of::<i64>()                                                                // min_issued_at
+        + SizedData::size(&self.fee_data) // fee_data
     }
 }
 
