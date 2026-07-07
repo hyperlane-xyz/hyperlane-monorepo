@@ -639,6 +639,13 @@ async fn process_verify_domain(
     process_verify_via_mailbox(banks_client, payer, verify_ixn, account_metas).await
 }
 
+/// Non-zero warp-route recipient shared by the RateLimited domain-PDA tests.
+/// RateLimited requires a specific recipient, and the verified message's
+/// recipient must equal it (see `validate_domain_ism` / `verify_node`).
+fn rate_limited_recipient() -> H256 {
+    H256::from([0xAAu8; 32])
+}
+
 #[tokio::test]
 async fn test_rate_limited_in_domain_pda_initializes_full() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
@@ -654,7 +661,7 @@ async fn test_rate_limited_in_domain_pda_initializes_full() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0, // normalized to max_capacity by SetDomainIsm
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -683,7 +690,7 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -694,6 +701,7 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(100);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
@@ -731,7 +739,7 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -743,6 +751,7 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
     let build_verify = |amount: u64| {
         let mut msg = dummy_message();
         msg.origin = ORIGIN;
+        msg.recipient = rate_limited_recipient();
         msg.body = token_message_body(amount);
         VerifyInstruction {
             metadata: vec![],
@@ -806,7 +815,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -817,6 +826,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(500);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
@@ -878,7 +888,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -889,6 +899,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(500);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],

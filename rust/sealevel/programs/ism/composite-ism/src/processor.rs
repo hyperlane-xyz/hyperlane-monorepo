@@ -524,7 +524,7 @@ fn validate_config_inner(
             // Require a specific warp-route address: RateLimited parses a token
             // amount from a fixed offset in the TokenMessage body, so applying it
             // without a recipient would misinterpret arbitrary message bodies.
-            if recipient.map_or(true, |r| r == H256::zero()) {
+            if recipient.is_none_or(|r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -570,7 +570,7 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             if *max_capacity == 0 || *mailbox == Pubkey::default() {
                 return Err(Error::InvalidConfig.into());
             }
-            if recipient.map_or(true, |r| r == H256::zero()) {
+            if recipient.is_none_or(|r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
