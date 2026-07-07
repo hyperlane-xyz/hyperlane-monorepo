@@ -230,28 +230,18 @@ where
                 return Ok(());
             }
 
-            // No domain ISM — CPI to the fallback ISM's standard Verify interface.
-            // The fallback program can be any ISM that implements the interface; it
-            // does not need to be a composite ISM.
-            //
-            // The VerifyAccountMetas fixpoint loop inserts the fallback ISM's VAM PDA
-            // as a sentinel before the actual Verify accounts so that the loop can
-            // detect convergence (see account_metas.rs Pass 3+).  Skip that sentinel
-            // here so the fallback ISM receives only the accounts it expects.
-            //
-            // Constraint: FallbackRouting must be account-terminal when taking the
-            // fallback path.  Placing it as a non-last sub-ISM inside Aggregation
-            // while using the fallback path is unsupported — subsequent sub-ISMs
-            // would find accounts_iter exhausted.
+            // No domain ISM — CPI to the fallback ISM's Verify interface.
+            // account_metas.rs places the fallback VAM PDA (sentinel) at accounts[0].
+            // Composite ISMs own their sentinel (it's their storage PDA) → keep it.
+            // External ISMs don't own it → skip so their real storage lands at [0].
+            // FallbackRouting must be account-terminal; validate_config enforces this.
             let all_remaining: Vec<AccountInfo> = accounts_iter.cloned().collect();
             let (fallback_storage_key, _) =
                 Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
-            let cpi_start =
-                if !all_remaining.is_empty() && *all_remaining[0].key == fallback_storage_key {
-                    1
-                } else {
-                    0
-                };
+            let skip_sentinel = !all_remaining.is_empty()
+                && *all_remaining[0].key == fallback_storage_key
+                && all_remaining[0].owner != fallback_ism;
+            let cpi_start = if skip_sentinel { 1 } else { 0 };
             let remaining_accounts = all_remaining[cpi_start..].to_vec();
             let remaining_metas: Vec<AccountMeta> = remaining_accounts
                 .iter()
