@@ -127,7 +127,40 @@ independent of the outer composite ISM's account space.
   `SetDomainIsm` rejects any ISM subtree that contains either variant
   (`RoutingInDomainIsm` / `FallbackRoutingInDomainIsm` error). Domain PDAs may
   contain `MultisigMessageId`, `Aggregation`, `AmountRouting`, `TrustedRelayer`,
-  `RateLimited`, `Pausable`, and `Test` nodes only.
+  `RateLimited`, and `Test` nodes only.
+
+- **`Pausable` is not allowed inside a domain PDA.**
+  `Pause` and `Unpause` traverse only the root storage PDA — all accounts a
+  Solana transaction touches must be declared upfront, so propagating pause
+  state to an unbounded number of domain PDAs would require enumerating every
+  domain and passing their accounts in one transaction. Solana's 1232-byte
+  packet limit (32 bytes per pubkey) makes this infeasible for deployments with
+  many domains, and splitting it across multiple transactions would mean the
+  pause is not atomic. `Pausable` is therefore restricted to the root tree where
+  it can be flipped in a single account, single transaction operation.
+  To freeze a specific domain route, call `SetDomainIsm` with
+  `Test { accept: false }` for that domain.
+
+  Additionally, `set_paused` does **not** affect the external `fallback_ism`
+  program referenced by a `FallbackRouting` node. The fallback ISM is an
+  independent program with its own state; pausing this composite ISM does not
+  pause it. To pause the fallback path, call the pause instruction on the
+  fallback ISM program directly.
+
+- **`RateLimited` requires a specific warp-route recipient.** The node parses a
+  token amount from a fixed offset in the TokenMessage body, so it only makes
+  sense when bound to a known warp-route contract. Config validation rejects
+  `recipient: None` and `recipient: H256::zero()` (`InvalidConfig` error). The
+  configured address is checked on every `Verify` call — messages to any other
+  recipient are rejected with `RecipientMismatch`.
+
+- **`RateLimited` must live in the root ISM tree, not inside a fallback ISM.**
+  Capacity mutation is gated on the process authority PDA derived per ISM program
+  (`derive_process_authority(mailbox, program_id)`). The mailbox signs only the
+  authority of the ISM it invokes directly (the root composite ISM), never a
+  nested fallback ISM reached by CPI, so a `RateLimited` node inside a fallback
+  ISM demands a signer that can never be produced and its messages are
+  undeliverable.
 
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`

@@ -42,7 +42,7 @@ pub fn mock_mailbox_id() -> Pubkey {
 
 /// The process authority PDA for the mock mailbox.
 pub fn mock_mailbox_process_authority() -> Pubkey {
-    derive_process_authority(&mock_mailbox_id()).0
+    derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0
 }
 
 /// In-process mock mailbox that forwards `Verify` / `VerifyAccountMetas` calls
@@ -57,8 +57,11 @@ fn mock_mailbox_process_instruction(
         program::invoke_signed,
     };
 
-    let (process_authority, bump) =
-        solana_program::pubkey::Pubkey::find_program_address(&[b"process_authority"], program_id);
+    let ism_id = composite_ism_id();
+    let (process_authority, bump) = solana_program::pubkey::Pubkey::find_program_address(
+        &[b"process_authority", ism_id.as_ref()],
+        program_id,
+    );
 
     // When forwarding accounts to the composite ISM via invoke_signed, we must
     // set is_signer: true for the process authority PDA in the CPI account metas.
@@ -76,7 +79,11 @@ fn mock_mailbox_process_instruction(
 
     let ix = SolInstruction::new_with_bytes(composite_ism_id(), data, account_metas);
 
-    invoke_signed(&ix, accounts, &[&[b"process_authority", &[bump]]])
+    invoke_signed(
+        &ix,
+        accounts,
+        &[&[b"process_authority", ism_id.as_ref(), &[bump]]],
+    )
 }
 
 pub fn program_test() -> ProgramTest {
@@ -181,6 +188,13 @@ pub fn dummy_message() -> HyperlaneMessage {
         recipient: H256::zero(),
         body: vec![],
     }
+}
+
+/// Non-zero warp-route recipient shared by the RateLimited tests. RateLimited
+/// requires a specific recipient, and the verified message's recipient must
+/// equal it (see `validate_domain_ism` / `verify_node`).
+pub fn rate_limited_recipient() -> H256 {
+    H256::from([0xAAu8; 32])
 }
 
 /// Builds a TokenMessage body with a given amount (big-endian u256 at bytes 32..64).

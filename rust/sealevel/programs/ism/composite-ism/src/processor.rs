@@ -5,7 +5,7 @@ use account_utils::{
     create_pda_account, verify_account_uninitialized, AccountInfoExt, DiscriminatorDecode,
     SizedData,
 };
-use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
+use hyperlane_core::{Decode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -14,6 +14,7 @@ use solana_loader_v3_interface::state::UpgradeableLoaderState;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
+    msg,
     program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -135,7 +136,14 @@ fn verify(
         if !storage_info.is_writable {
             return Err(Error::DomainPdaNotWritable.into());
         }
-        CompositeIsmAccount::from(storage).store(storage_info, true)?;
+        // Realloc is disallowed here because `verify` has no payer account to
+        // fund a rent-exempt growth; an unfunded resize would fail closed with
+        // InsufficientFundsForRent (HLSVM-2026Q2-014). This is safe today because
+        // the only verify-time mutation is `RateLimited`, which updates
+        // fixed-size fields in place and never changes the serialized length.
+        // Any future growing mutation must instead route through
+        // `store_with_rent_exempt_realloc` with a payer.
+        CompositeIsmAccount::from(storage).store(storage_info, false)?;
     }
     Ok(())
 }
@@ -306,6 +314,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
 
 /// Replaces the full ISM config tree. Owner-gated.
 ///
+/// **Domain PDA lifecycle**: per-domain ISM accounts created by [`set_domain_ism`] are
+/// stored at seeds `[DOMAIN_ISM_SEED, domain]` and are not tied to any particular root
+/// config. They are NOT closed by this instruction. Domain PDAs set under a previous
+/// `Routing` or `FallbackRouting` root remain on-chain and become active again if a
+/// later `update_config` call restores a routing-type root. Operators must call
+/// [`remove_domain_ism`] for every configured domain before switching away from a
+/// routing root, and should audit existing domain PDAs (via off-chain
+/// `getProgramAccounts`) before enabling routing.
+///
 /// Accounts:
 /// 0. `[signer]`     The owner (also payer for any rent top-up).
 /// 1. `[writable]`   The storage PDA account.
@@ -330,6 +347,7 @@ fn update_config(
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
+    msg!("Updated ISM root config: {}", root.kind_to_str());
     storage.root = Some(root);
 
     CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
@@ -379,6 +397,7 @@ fn set_domain_ism(
         return Err(Error::InvalidSystemProgram.into());
     }
 
+    msg!("Set domain {} ISM: {}", domain, ism.kind_to_str());
     let domain_storage = DomainIsmAccount::from(DomainIsmStorage {
         bump_seed: bump,
         domain,
@@ -440,6 +459,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
 
     domain_pda_account.close_account(owner_account)?;
 
+    msg!("Removed domain {} ISM", domain);
     Ok(())
 }
 
@@ -464,9 +484,15 @@ fn transfer_ownership(
     let storage_pda_account = next_account_info(accounts_iter)?;
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
+    let old_owner = storage.owner;
     storage.transfer_ownership(owner_account, new_owner)?;
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
+    msg!(
+        "Transferred ownership from {:?} to {:?}",
+        old_owner,
+        new_owner
+    );
     Ok(())
 }
 
@@ -558,10 +584,17 @@ fn validate_config_inner(
         }
         IsmNode::RateLimited {
             max_capacity,
+            recipient,
             mailbox,
             ..
         } => {
             if *max_capacity == 0 || *mailbox == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            // Require a specific warp-route address: RateLimited parses a token
+            // amount from a fixed offset in the TokenMessage body, so applying it
+            // without a recipient would misinterpret arbitrary message bodies.
+            if recipient.is_none_or(|r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -600,10 +633,14 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
     match node {
         IsmNode::RateLimited {
             max_capacity,
+            recipient,
             mailbox,
             ..
         } => {
             if *max_capacity == 0 || *mailbox == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            if recipient.is_none_or(|r| r == H256::zero()) {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -647,7 +684,8 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             }
             Ok(())
         }
-        IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+        IsmNode::Test { .. } => Ok(()),
+        IsmNode::Pausable { .. } => Err(Error::PausableInDomainIsm.into()),
     }
 }
 
@@ -702,6 +740,9 @@ fn flip_pausable(node: &mut IsmNode, paused: bool) {
 
 /// Sets every `Pausable` node in the ISM tree to `paused`. Owner-gated.
 ///
+/// Only nodes in the root storage PDA are updated; `Pausable` is disallowed
+/// in domain PDAs — see README § Limitations.
+///
 /// Accounts:
 /// 0. `[signer]`   The owner.
 /// 1. `[writable]` The storage PDA.
@@ -718,6 +759,8 @@ fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> Pr
     }
 
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
+
+    msg!("Set paused: {}", paused);
     Ok(())
 }
 
@@ -917,7 +960,7 @@ mod test {
     fn test_validate_config_rate_limited_zero_capacity() {
         let node = IsmNode::RateLimited {
             max_capacity: 0,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -932,10 +975,40 @@ mod test {
     fn test_validate_config_rate_limited_default_mailbox_rejected() {
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::default(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_no_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_zero_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: Some(H256::zero()),
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
         };
         assert_eq!(
             validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
@@ -1034,6 +1107,27 @@ mod test {
     }
 
     #[test]
+    fn test_validate_domain_ism_rejects_pausable() {
+        let node = IsmNode::Pausable { paused: false };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rejects_pausable_nested_in_aggregation() {
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::Pausable { paused: true }],
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::PausableInDomainIsm.into()
+        );
+    }
+
+    #[test]
     fn test_validate_domain_ism_rejects_routing() {
         let node = IsmNode::Routing;
         assert_eq!(
@@ -1058,7 +1152,7 @@ mod test {
     fn test_validate_domain_ism_rate_limited_ok() {
         let node = IsmNode::RateLimited {
             max_capacity: 100,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 100,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -1067,10 +1161,40 @@ mod test {
     }
 
     #[test]
+    fn test_validate_domain_ism_rate_limited_no_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 100,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rate_limited_zero_recipient_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 100,
+            recipient: Some(H256::zero()),
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_domain_ism(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
     fn test_validate_domain_ism_rate_limited_zero_capacity() {
         let node = IsmNode::RateLimited {
             max_capacity: 0,
-            recipient: None,
+            recipient: Some(H256::from([1u8; 32])),
             filled_level: 0,
             last_updated: 0,
             mailbox: Pubkey::new_unique(),
@@ -1084,9 +1208,10 @@ mod test {
     #[test]
     fn test_normalize_node_rate_limited() {
         let mailbox = Pubkey::new_unique();
+        let recipient = Some(H256::from([1u8; 32]));
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient,
             filled_level: 0,
             last_updated: 999,
             mailbox,
@@ -1096,7 +1221,7 @@ mod test {
             node,
             IsmNode::RateLimited {
                 max_capacity: 1_000,
-                recipient: None,
+                recipient,
                 filled_level: 1_000,
                 last_updated: 0,
                 mailbox,
@@ -1107,11 +1232,12 @@ mod test {
     #[test]
     fn test_normalize_node_nested_in_aggregation() {
         let mailbox = Pubkey::new_unique();
+        let recipient = Some(H256::from([1u8; 32]));
         let mut node = IsmNode::Aggregation {
             threshold: 1,
             sub_isms: vec![IsmNode::RateLimited {
                 max_capacity: 500,
-                recipient: None,
+                recipient,
                 filled_level: 0,
                 last_updated: 42,
                 mailbox,
@@ -1123,7 +1249,7 @@ mod test {
                 sub_isms[0],
                 IsmNode::RateLimited {
                     max_capacity: 500,
-                    recipient: None,
+                    recipient,
                     filled_level: 500,
                     last_updated: 0,
                     mailbox,

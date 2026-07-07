@@ -14,7 +14,7 @@
 //! - After a partial time elapsed, partial refill allows additional transfers
 //! - After a full 24-hour window, capacity is fully restored
 //! - Verify fails with RecipientMismatch when recipient does not match the configured one
-//! - Verify succeeds for any recipient when no recipient is configured
+//! - Initialize fails when recipient is None (RateLimited requires a warp-route address)
 //! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
 //! - Verify fails with RateLimitExceeded when message amount overflows u64 (high bytes non-zero)
 //! - VerifyAccountMetas returns the storage PDA as writable (state is mutated on Verify)
@@ -40,17 +40,19 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message,
-    get_verify_account_metas, initialize, mock_mailbox_id, process_verify_via_mailbox,
-    program_test, simulate_verify, storage_pda_key, token_message_body,
+    assert_simulation_error, composite_ism_id, dummy_message, get_verify_account_metas, initialize,
+    mock_mailbox_id, process_verify_via_mailbox, program_test, simulate_verify, storage_pda_key,
+    token_message_body,
 };
 
 const MAX_CAPACITY: u64 = 1_000;
+// A fixed warp-route contract address used as the configured recipient in tests.
+const WARP_ROUTE: H256 = H256([0x11u8; 32]);
 
 fn rate_limited_node(max_capacity: u64) -> IsmNode {
     IsmNode::RateLimited {
         max_capacity,
-        recipient: None,
+        recipient: Some(WARP_ROUTE),
         filled_level: 0, // normalized to max_capacity on initialize
         last_updated: 0,
         mailbox: mock_mailbox_id(),
@@ -59,6 +61,7 @@ fn rate_limited_node(max_capacity: u64) -> IsmNode {
 
 fn verify_ixn(amount: u64) -> VerifyInstruction {
     let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     msg.body = token_message_body(amount);
     VerifyInstruction {
         metadata: vec![],
@@ -459,37 +462,39 @@ async fn test_verify_wrong_recipient() {
 }
 
 #[tokio::test]
-async fn test_verify_any_recipient_when_none() {
+async fn test_initialize_no_recipient_rejected() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
 
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        rate_limited_node(MAX_CAPACITY), // recipient: None
-    )
-    .await
-    .unwrap();
-
-    let mut msg = dummy_message();
-    msg.body = token_message_body(1);
-    msg.recipient = H256::from([0xAB; 32]); // arbitrary recipient
-    let ixn = VerifyInstruction {
-        metadata: vec![],
-        message: msg.to_vec(),
+    let node = IsmNode::RateLimited {
+        max_capacity: MAX_CAPACITY,
+        recipient: None,
+        filled_level: 0,
+        last_updated: 0,
+        mailbox: mock_mailbox_id(),
     };
-    let account_metas =
-        get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn.clone()).await;
-    let result = simulate_verify(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        ixn,
-        account_metas,
-    )
-    .await;
+    let result = initialize(&mut banks_client, &payer, recent_blockhash, node).await;
+    assert!(
+        result.is_err(),
+        "Initialize with recipient: None should be rejected"
+    );
+}
 
-    assert_simulation_ok(&result);
+#[tokio::test]
+async fn test_initialize_zero_recipient_rejected() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let node = IsmNode::RateLimited {
+        max_capacity: MAX_CAPACITY,
+        recipient: Some(H256::zero()),
+        filled_level: 0,
+        last_updated: 0,
+        mailbox: mock_mailbox_id(),
+    };
+    let result = initialize(&mut banks_client, &payer, recent_blockhash, node).await;
+    assert!(
+        result.is_err(),
+        "Initialize with recipient: Some(zero) should be rejected"
+    );
 }
 
 #[tokio::test]
@@ -506,7 +511,8 @@ async fn test_verify_body_too_short() {
     .unwrap();
 
     // dummy_message has body = vec![] (len 0 < 64)
-    let msg = dummy_message();
+    let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     let ixn = VerifyInstruction {
         metadata: vec![],
         message: msg.to_vec(),
@@ -548,6 +554,7 @@ async fn test_verify_amount_overflow() {
     let mut body = vec![0u8; 64];
     body[32] = 1; // high byte of the 32-byte amount field
     let mut msg = dummy_message();
+    msg.recipient = WARP_ROUTE;
     msg.body = body;
     let ixn = VerifyInstruction {
         metadata: vec![],
@@ -591,7 +598,8 @@ async fn test_verify_account_metas_writable_pda() {
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn).await;
 
     use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
-    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+    let expected_process_authority =
+        derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0;
 
     // Storage PDA must be writable so the rate limit state can be written back on Verify.
     // Process authority PDA must also be present as a signer.
@@ -643,4 +651,128 @@ async fn test_update_config_resets_state() {
     let (filled_level, last_updated) = read_rate_limited_state(&mut banks_client).await;
     assert_eq!(filled_level, new_max);
     assert_eq!(last_updated, 0);
+}
+
+// ── Regression: zero-amount messages must not update state ───────────────────
+//
+// A zero-amount message passes the capacity check (0 <= filled_level) but
+// must NOT update last_updated or filled_level.  Without the guard, every
+// accepted zero-amount message resets the refill timer while consuming no
+// capacity — on low-capacity routes this defers the 24-hour full reset
+// indefinitely, blocking legitimate non-zero transfers.
+
+#[tokio::test]
+async fn test_verify_zero_amount_does_not_update_state() {
+    let mut ctx = program_test().start_with_context().await;
+    let payer = ctx.payer.insecure_clone();
+
+    let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut ctx.banks_client,
+        &payer,
+        bh,
+        rate_limited_node(MAX_CAPACITY),
+    )
+    .await
+    .unwrap();
+
+    ctx.warp_to_slot(2).unwrap();
+    ctx.set_sysvar(&clock_at(0));
+
+    // Drain full capacity.
+    let ixn = verify_ixn(MAX_CAPACITY);
+    let metas = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, metas)
+        .await
+        .unwrap();
+
+    let (filled_level, last_updated) = read_rate_limited_state(&mut ctx.banks_client).await;
+    assert_eq!(filled_level, 0);
+    assert_eq!(last_updated, 0);
+
+    // Advance clock to 1 second and send a zero-amount message.
+    ctx.warp_to_slot(3).unwrap();
+    ctx.set_sysvar(&clock_at(1));
+
+    let ixn_zero = verify_ixn(0);
+    let metas_zero = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_zero.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_zero, metas_zero)
+        .await
+        .unwrap();
+
+    // State must be unchanged: last_updated still 0, not advanced to 1.
+    // Without the fix it would have been updated to 1, deferring the refill timer.
+    let (filled_level_after, last_updated_after) =
+        read_rate_limited_state(&mut ctx.banks_client).await;
+    assert_eq!(filled_level_after, 0);
+    assert_eq!(
+        last_updated_after, 0,
+        "zero-amount must not update last_updated"
+    );
+}
+
+#[tokio::test]
+async fn test_verify_zero_amount_does_not_defer_refill() {
+    // Low-capacity route: max_capacity = 1 means partial refill is always 0
+    // (integer division: elapsed * 1 / 86400 = 0 unless elapsed >= 86400).
+    // Only the full-window reset at >= 86400 s restores capacity.
+    //
+    // Bug scenario: zero-amount messages at T=43200 reset last_updated to 43200.
+    // A non-zero message at T=86401 then sees elapsed = 43201 < 86400 → no reset → fails.
+    //
+    // After fix: last_updated stays at 0; elapsed at T=86401 is 86401 >= 86400 → full reset → succeeds.
+    let mut ctx = program_test().start_with_context().await;
+    let payer = ctx.payer.insecure_clone();
+
+    let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(&mut ctx.banks_client, &payer, bh, rate_limited_node(1))
+        .await
+        .unwrap();
+
+    ctx.warp_to_slot(2).unwrap();
+    ctx.set_sysvar(&clock_at(0));
+
+    // Drain the single unit of capacity.
+    let ixn = verify_ixn(1);
+    let metas = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, metas)
+        .await
+        .unwrap();
+
+    // At 12 hours: send a zero-amount message.
+    // Without fix: last_updated → 43200; elapsed at 86401 would be only 43201 < 86400.
+    // With fix: last_updated stays 0; elapsed at 86401 is 86401 >= 86400 (full reset).
+    ctx.warp_to_slot(3).unwrap();
+    ctx.set_sysvar(&clock_at(43200));
+
+    let ixn_zero = verify_ixn(0);
+    let metas_zero = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_zero.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_zero, metas_zero)
+        .await
+        .unwrap();
+
+    // At 24 h + 1 s: the non-zero transfer must succeed (full reset from T0=0).
+    ctx.warp_to_slot(4).unwrap();
+    ctx.set_sysvar(&clock_at(86_401));
+
+    let ixn_real = verify_ixn(1);
+    let metas_real = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_real.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_real, metas_real)
+        .await
+        .unwrap();
 }

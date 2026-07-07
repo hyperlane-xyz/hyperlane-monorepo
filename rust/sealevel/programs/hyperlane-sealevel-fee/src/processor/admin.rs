@@ -109,6 +109,10 @@ pub(super) fn process_update_fee_params(
 
 /// Set the minimum issued_at threshold for standing quote validation (owner-only).
 ///
+/// This is the revocation control for signed quotes: advancing `min_issued_at`
+/// invalidates every quote issued at or before it. Quote expiry has no upper
+/// bound, so prefer short expiries to keep revocation windows bounded.
+///
 /// Accounts:
 /// 0. `[writable]` Fee account.
 /// 1. `[signer]` Owner.

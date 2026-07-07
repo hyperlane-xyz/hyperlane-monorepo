@@ -58,8 +58,10 @@ pub enum Error {
     InvalidProcessAuthority = 26,
     #[error("Process authority must be a signer (Verify must be called via Mailbox.process)")]
     ProcessAuthorityNotSigner = 27,
+    #[error("Pausable ISM is not allowed inside a domain PDA (pause propagation does not reach domain PDAs)")]
+    PausableInDomainIsm = 28,
     #[error("BPF loader ProgramData account does not match expected address for this program")]
-    InvalidProgramDataAccount = 28,
+    InvalidProgramDataAccount = 29,
 }
 
 impl From<Error> for ProgramError {
