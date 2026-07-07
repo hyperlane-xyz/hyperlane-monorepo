@@ -26,7 +26,7 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * consume on deliver).
  *
  * @dev Use only for routes where `token()`'s balance at the router is the live
- * TVL AND the wire<->local conversion is `TokenRouter`'s fixed `scale` fraction
+ * TVL AND the message<->local conversion is `TokenRouter`'s fixed `scale`
  * (what `_toLocalAmount` reproduces to meter the message amount in local
  * units): HypERC20, HypERC20Collateral, HypNative. Do NOT use for:
  *   - HypXERC20 / HypXERC20Lockbox / HypFiatToken / HypERC4626Collateral —

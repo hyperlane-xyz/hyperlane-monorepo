@@ -125,18 +125,18 @@ abstract contract TvlRateLimited is RateLimited {
         return (localCollateral() * thresholdBps) / BPS_DENOMINATOR;
     }
 
-    /// @notice Converts a message (wire) amount to local token units so it is
+    /// @notice Converts a message amount to local token units so it is
     /// commensurate with the bucket, which is denominated in `localCollateral()`
     /// units.
     /// @dev Mirrors `TokenRouter._inboundAmount` for fixed-scale routes (the
     /// only supported ones) — same `mulDiv` and rounding — so the metered
     /// amount matches the collateral the router actually moves.
     function _toLocalAmount(
-        uint256 _wireAmount
+        uint256 _messageAmount
     ) internal view returns (uint256) {
         TokenRouter router = TokenRouter(warpRouter);
         return
-            _wireAmount.mulDiv(
+            _messageAmount.mulDiv(
                 router.scaleDenominator(),
                 router.scaleNumerator(),
                 Math.Rounding.Down

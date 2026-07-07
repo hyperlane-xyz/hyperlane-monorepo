@@ -380,15 +380,15 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(vaultNetFlow.maxCapacity(), 0);
     }
 
-    /// @dev The bucket is denominated in local units but the message carries a
-    /// wire amount. For any scale, NetFlow must meter — and the route must move
-    /// — the local equivalent (`wire * scaleDenominator / scaleNumerator`), not
-    /// the raw wire amount. Asserts the bucket consumption equals the collateral
-    /// the router actually releases.
+    /// @dev The bucket meters in the token's local units, but a message amount
+    /// is in the route's scaled units. NetFlow must convert by the router's
+    /// scale before metering (a no-op only when scaleNumerator ==
+    /// scaleDenominator). Asserts the bucket consumption equals the collateral
+    /// the router releases.
     function testFuzz_metersLocalUnits_forAnyScale(
         uint256 scaleNumerator,
         uint256 scaleDenominator,
-        uint256 wireAmount
+        uint256 messageAmount
     ) external {
         scaleNumerator = bound(scaleNumerator, 1, 1e12);
         scaleDenominator = bound(scaleDenominator, 1, 1e12);
@@ -421,16 +421,20 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         // revert (over-capacity is covered elsewhere). Bounds guarantee no
         // intermediate overflow, so raw arithmetic matches the contract's
         // mulDiv(Rounding.Down).
-        uint256 maxWire = (cap * scaleNumerator) / scaleDenominator;
-        wireAmount = bound(wireAmount, 0, maxWire);
-        uint256 expectedLocal = (wireAmount * scaleDenominator) /
+        uint256 maxMessage = (cap * scaleNumerator) / scaleDenominator;
+        messageAmount = bound(messageAmount, 0, maxMessage);
+        uint256 expectedLocal = (messageAmount * scaleDenominator) /
             scaleNumerator;
 
         bytes memory message = localMailbox.buildInboundMessage(
             ORIGIN,
             address(scaledRouter).addressToBytes32(),
             address(remoteRouter).addressToBytes32(),
-            TokenMessage.format(BOB.addressToBytes32(), wireAmount, bytes(""))
+            TokenMessage.format(
+                BOB.addressToBytes32(),
+                messageAmount,
+                bytes("")
+            )
         );
         localMailbox.process(bytes(""), message);
 
@@ -446,7 +450,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     function testFuzz_outboundMetersLocalUnits_forAnyScale(
         uint256 scaleNumerator,
         uint256 scaleDenominator,
-        uint256 wireAmount
+        uint256 messageAmount
     ) external {
         scaleNumerator = bound(scaleNumerator, 1, 1e12);
         scaleDenominator = bound(scaleDenominator, 1, 1e12);
@@ -472,8 +476,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         );
 
         uint256 cap = scaledNetFlow.maxCapacity(); // 10% of supply
-        wireAmount = bound(
-            wireAmount,
+        messageAmount = bound(
+            messageAmount,
             0,
             (cap * scaleNumerator) / scaleDenominator
         );
@@ -485,7 +489,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
                 address(remoteRouter).addressToBytes32(),
                 TokenMessage.format(
                     BOB.addressToBytes32(),
-                    wireAmount,
+                    messageAmount,
                     bytes("")
                 )
             );
@@ -496,7 +500,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         // Synthetic route → outbound consumes; metered in local units.
         assertEq(
             cap - scaledNetFlow.calculateCurrentLevel(),
-            (wireAmount * scaleDenominator) / scaleNumerator
+            (messageAmount * scaleDenominator) / scaleNumerator
         );
     }
 

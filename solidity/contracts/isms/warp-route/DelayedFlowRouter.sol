@@ -115,15 +115,15 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         // parent asserted `_isLatestDispatched` before invoking this hook, and
         // the sender binding above only passes for messages formatted by
         // `warpRouter`, which only ever formats valid token messages. Metered
-        // in this router's local units (the message carries the wire amount).
+        // in this router's local units (converted from the message amount).
         uint256 amount = _toLocalAmount(message.body().amount());
         _credit(amount);
         emit NetFlowCredited(message.id(), messageNonce, amount);
     }
 
-    /// @dev Carries `(id, wireAmount)` so the destination can size the delay
-    /// against its current bucket. The wire (message) amount is carried as-is
-    /// and converted to local units on each side (`_toLocalAmount`), so origin
+    /// @dev Carries `(id, messageAmount)` so the destination can size the delay
+    /// against its current bucket. The message amount is carried as-is and
+    /// converted to local units on each side (`_toLocalAmount`), so origin
     /// and destination each meter using their own router's scale. Shared by
     /// `postDispatch` and `quoteDispatch` via the parent, so the quote can
     /// never drift from the dispatched payload.
@@ -156,11 +156,11 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         bytes32 /*_sender*/,
         bytes calldata payload
     ) internal override {
-        (bytes32 id, uint256 wireAmount) = abi.decode(
+        (bytes32 id, uint256 messageAmount) = abi.decode(
             payload,
             (bytes32, uint256)
         );
-        uint256 deficitSecs = _consume(_toLocalAmount(wireAmount));
+        uint256 deficitSecs = _consume(_toLocalAmount(messageAmount));
         uint48 wait = deficitSecs > maxDelay ? maxDelay : uint48(deficitSecs);
         _TimelockRouter_commitReadyAt(id, wait);
     }

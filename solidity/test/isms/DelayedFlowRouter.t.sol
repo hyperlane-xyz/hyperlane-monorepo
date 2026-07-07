@@ -258,14 +258,14 @@ contract DelayedFlowRouterTest is Test {
         );
     }
 
-    /// @dev The payload carries a wire amount; the destination bucket is in
-    /// local units. For any scale, the delay must be sized against the local
-    /// equivalent (`wire * scaleDenominator / scaleNumerator`), not the raw
-    /// wire amount. Uses a fresh scaled collateral route + DFR.
+    /// @dev The bucket is in the destination token's local units, but the
+    /// payload amount is in the route's scaled units. For any scale, the delay
+    /// must be sized against the amount converted to local units by the
+    /// router's scale. Uses a fresh scaled collateral route + DFR.
     function testFuzz_delaySizedInLocalUnits_forAnyScale(
         uint256 scaleNumerator,
         uint256 scaleDenominator,
-        uint256 wireAmount
+        uint256 messageAmount
     ) public {
         scaleNumerator = bound(scaleNumerator, 1, 1e12);
         scaleDenominator = bound(scaleDenominator, 1, 1e12);
@@ -291,16 +291,17 @@ contract DelayedFlowRouterTest is Test {
 
         // Cover both under- and over-capacity (up to ~3x cap local). Bounds
         // keep raw arithmetic equal to the contract's mulDiv(Rounding.Down).
-        uint256 maxWire = ((cap * 3) * scaleNumerator) / scaleDenominator;
-        wireAmount = bound(wireAmount, 0, maxWire);
-        uint256 localAmount = (wireAmount * scaleDenominator) / scaleNumerator;
+        uint256 maxMessage = ((cap * 3) * scaleNumerator) / scaleDenominator;
+        messageAmount = bound(messageAmount, 0, maxMessage);
+        uint256 localAmount = (messageAmount * scaleDenominator) /
+            scaleNumerator;
 
-        bytes32 id = keccak256(abi.encode(wireAmount, cap));
+        bytes32 id = keccak256(abi.encode(messageAmount, cap));
         vm.prank(address(destinationMailbox));
         scaledDelay.handle(
             ORIGIN_DOMAIN,
             address(originDelay).addressToBytes32(),
-            abi.encode(id, wireAmount)
+            abi.encode(id, messageAmount)
         );
 
         // Expected delay derived from the LOCAL amount (mirrors _consume).
@@ -318,11 +319,11 @@ contract DelayedFlowRouterTest is Test {
     /// @dev The origin credit path (`_TimelockRouter_onDispatch`) must also
     /// meter local units. Drains a scaled route to zero via a consume, then
     /// credits via a direct postDispatch and asserts the bucket rose by the
-    /// local equivalent of the wire amount.
+    /// message amount converted to local units.
     function testFuzz_creditMetersLocalUnits_forAnyScale(
         uint256 scaleNumerator,
         uint256 scaleDenominator,
-        uint256 creditWire
+        uint256 creditMessage
     ) public {
         scaleNumerator = bound(scaleNumerator, 1, 1e12);
         scaleDenominator = bound(scaleDenominator, 1, 1e12);
@@ -361,8 +362,8 @@ contract DelayedFlowRouterTest is Test {
 
         // Credit a local amount within capacity (no clamp) so the delta is
         // exact.
-        creditWire = bound(
-            creditWire,
+        creditMessage = bound(
+            creditMessage,
             0,
             (cap * scaleNumerator) / scaleDenominator
         );
@@ -377,7 +378,7 @@ contract DelayedFlowRouterTest is Test {
                 address(originDelay).addressToBytes32(),
                 TokenMessage.format(
                     user.addressToBytes32(),
-                    creditWire,
+                    creditMessage,
                     bytes("")
                 )
             );
@@ -391,7 +392,7 @@ contract DelayedFlowRouterTest is Test {
 
         assertEq(
             scaledDelay.calculateCurrentLevel(),
-            (creditWire * scaleDenominator) / scaleNumerator
+            (creditMessage * scaleDenominator) / scaleNumerator
         );
     }
 
