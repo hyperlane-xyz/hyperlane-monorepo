@@ -98,6 +98,11 @@ pub enum IsmNode {
     ///
     /// Returns `NoRouteForDomain` if no domain PDA is configured for the origin.
     ///
+    /// **Lifecycle note**: domain PDAs are global to the program and survive
+    /// `update_config` calls that change the root to a non-routing type.  They
+    /// become active again if the root is later set back to a routing-type node.
+    /// Operators should call `remove_domain_ism` for every configured domain
+    /// before switching away from a routing root.
     Routing,
 
     /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
@@ -121,6 +126,23 @@ pub enum IsmNode {
         /// at verify time — no mailbox inbox PDA is required.
         fallback_ism: Pubkey,
     },
+}
+
+impl IsmNode {
+    /// Static label for the node variant, for concise config-change logs.
+    pub fn kind_to_str(&self) -> &'static str {
+        match self {
+            IsmNode::TrustedRelayer { .. } => "TrustedRelayer",
+            IsmNode::MultisigMessageId { .. } => "MultisigMessageId",
+            IsmNode::Aggregation { .. } => "Aggregation",
+            IsmNode::Test { .. } => "Test",
+            IsmNode::Pausable { .. } => "Pausable",
+            IsmNode::AmountRouting { .. } => "AmountRouting",
+            IsmNode::RateLimited { .. } => "RateLimited",
+            IsmNode::Routing => "Routing",
+            IsmNode::FallbackRouting { .. } => "FallbackRouting",
+        }
+    }
 }
 
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).
@@ -179,14 +201,13 @@ pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id)
 }
 
-/// Derives the process authority PDA for a given mailbox program ID.
-///
-/// The mailbox signs with this PDA via `invoke_signed` when it calls
-/// `Verify` on behalf of a message delivery.  By requiring this account to be
-/// a signer, the `RateLimited` node ensures only the mailbox can drain the
-/// rate-limit bucket.
-pub fn derive_process_authority(mailbox: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[PROCESS_AUTHORITY_SEED], mailbox)
+/// Derives the per-ISM process authority PDA. The mailbox signs with this PDA
+/// via `invoke_signed` when calling `Verify`; `RateLimited` requires it as a
+/// signer so only the mailbox can drain the bucket. `ism_program_id` is
+/// included in the seeds so each ISM gets a distinct PDA, preventing a
+/// malicious ISM from forwarding the signer to a victim ISM via a nested CPI.
+pub fn derive_process_authority(mailbox: &Pubkey, ism_program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[PROCESS_AUTHORITY_SEED, ism_program_id.as_ref()], mailbox)
 }
 
 /// Loads and validates a domain ISM account, returning the full storage.

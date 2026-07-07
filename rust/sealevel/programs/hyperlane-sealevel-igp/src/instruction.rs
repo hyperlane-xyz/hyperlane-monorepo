@@ -83,6 +83,24 @@ pub enum SetIgpQuoteSignerOperation {
     Remove(H160),
 }
 
+impl SetIgpQuoteSignerOperation {
+    /// Static label for the operation, for config-change logs.
+    pub fn action_to_str(&self) -> &'static str {
+        match self {
+            SetIgpQuoteSignerOperation::Add(_) => "Added",
+            SetIgpQuoteSignerOperation::Remove(_) => "Removed",
+        }
+    }
+
+    /// The signer this operation adds or removes.
+    pub fn signer(&self) -> &H160 {
+        match self {
+            SetIgpQuoteSignerOperation::Add(signer)
+            | SetIgpQuoteSignerOperation::Remove(signer) => signer,
+        }
+    }
+}
+
 impl Instruction {
     /// Deserializes an instruction from a slice.
     pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {

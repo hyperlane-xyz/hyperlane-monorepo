@@ -359,15 +359,16 @@ fn inbox_process(
         });
     }
 
-    // Derive the global process-authority PDA so that ISMs that require the
+    // Derive a per-ISM process-authority PDA so that ISMs that require the
     // Mailbox to co-sign (e.g. RateLimited) receive a proper signer account.
-    // The PDA is derived under the Mailbox's own program ID with a single
-    // well-known seed so any ISM configured with this mailbox can verify it.
+    // Including the ISM program ID in the seeds binds this authority to the
+    // specific ISM being called, preventing a malicious recipient-selected ISM
+    // from forwarding the signer to a victim ISM via a nested CPI.
     let (process_authority_key, process_authority_bump) =
-        Pubkey::find_program_address(&[b"process_authority"], program_id);
+        Pubkey::find_program_address(&[b"process_authority", ism.as_ref()], program_id);
 
-    // If the ISM requested the global process-authority PDA, mark it as a
-    // signer in the CPI so that invoke_signed can grant signing authority.
+    // If the ISM requested its process-authority PDA, mark it as a signer in
+    // the CPI so that invoke_signed can grant signing authority.
     for meta in &mut ism_verify_account_metas {
         if meta.pubkey == process_authority_key {
             meta.is_signer = true;
@@ -384,7 +385,11 @@ fn inbox_process(
     invoke_signed(
         &verify,
         &ism_verify_infos,
-        &[&[b"process_authority", &[process_authority_bump]]],
+        &[&[
+            b"process_authority",
+            ism.as_ref(),
+            &[process_authority_bump],
+        ]],
     )?;
 
     // Mark the message as delivered by creating the processed message account.
@@ -804,7 +809,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
         .expect("Too many messages in outbox tree");
 
     let mut ret_buf = [0; 36];
-    ret_buf[0..31].copy_from_slice(root.as_ref());
+    ret_buf[0..32].copy_from_slice(root.as_ref());
     ret_buf[32..].copy_from_slice(&count.to_le_bytes());
 
     // Wrap it in the SimulationReturnData because serialized ret_buf

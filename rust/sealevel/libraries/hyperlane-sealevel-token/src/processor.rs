@@ -18,9 +18,11 @@ use hyperlane_sealevel_fee::{
 };
 use hyperlane_sealevel_igp::{
     accounts::{igp_quote_mode, IgpQuoteMode, InterchainGasPaymasterType},
+    igp_quote_authority_pda_seeds,
     instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
 };
 use hyperlane_sealevel_mailbox::{
+    accounts::Outbox,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
@@ -49,10 +51,12 @@ enum IgpPaymentAccounts<'b> {
         account_metas: Vec<AccountMeta>,
         account_infos: Vec<AccountInfo<'b>>,
     },
-    /// New flow: offchain quote pricing, `invoke_signed` with dispatch_authority PDA.
+    /// New flow: offchain quote pricing, `invoke_signed` with the IGP quote authority PDA.
     Quoted {
         account_metas: Vec<AccountMeta>,
         account_infos: Vec<AccountInfo<'b>>,
+        /// Canonical bump for the route's IGP quote authority, reused at the CPI.
+        igp_quote_authority_bump: u8,
     },
 }
 
@@ -255,7 +259,7 @@ where
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
-            fee_config: None,
+            fee_config: None.into(),
         };
         let token_account_data = HyperlaneTokenAccount::<T>::from(token);
 
@@ -561,10 +565,31 @@ where
 
             // Determine quoting mode from the IGP account's on-chain state.
             let quote_mode = igp_quote_mode(&igp_account_info.data.borrow())?;
-            match quote_mode {
+            let is_overhead_igp =
+                matches!(igp_account_type, InterchainGasPaymasterType::OverheadIgp(_));
+
+            // Account [N+3]: OverheadIgp appends the configured IGP again at the end.
+            let append_overhead_igp =
+                |metas: &mut Vec<AccountMeta>, infos: &mut Vec<AccountInfo<'b>>| {
+                    if is_overhead_igp {
+                        metas.push(AccountMeta::new_readonly(
+                            *configured_igp_account.key,
+                            false,
+                        ));
+                        infos.push(configured_igp_account.clone());
+                    }
+                };
+
+            Some(match quote_mode {
                 IgpQuoteMode::Quoted => {
-                    // Account [5]: sender_authority (dispatch_authority PDA, signed via invoke_signed).
+                    // Account [5]: sender_authority — must be this route's IGP quote authority.
+                    // Derive once here; the bump is reused to sign the PayForGas CPI.
+                    let (igp_quote_authority_key, igp_quote_authority_bump) =
+                        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
                     if let Some(sender_authority) = pre_igp_accounts.get_mut(0) {
+                        if *sender_authority.0.key != igp_quote_authority_key {
+                            return Err(ProgramError::InvalidArgument);
+                        }
                         sender_authority.1 =
                             AccountMeta::new_readonly(*sender_authority.0.key, true);
                     } else {
@@ -586,33 +611,34 @@ where
                         igp_payment_account_infos.push(info);
                         igp_payment_account_metas.push(meta);
                     }
+
+                    append_overhead_igp(
+                        &mut igp_payment_account_metas,
+                        &mut igp_payment_account_infos,
+                    );
+
+                    IgpPaymentAccounts::Quoted {
+                        account_metas: igp_payment_account_metas,
+                        account_infos: igp_payment_account_infos,
+                        igp_quote_authority_bump,
+                    }
                 }
                 IgpQuoteMode::Legacy => {
                     // Legacy: no pre-IGP accounts expected.
                     if !pre_igp_accounts.is_empty() {
                         return Err(ProgramError::InvalidArgument);
                     }
+
+                    append_overhead_igp(
+                        &mut igp_payment_account_metas,
+                        &mut igp_payment_account_infos,
+                    );
+
+                    IgpPaymentAccounts::Legacy {
+                        account_metas: igp_payment_account_metas,
+                        account_infos: igp_payment_account_infos,
+                    }
                 }
-            }
-
-            // Account [N+3]: OverheadIgp appended at end (OverheadIgp only).
-            if matches!(igp_account_type, InterchainGasPaymasterType::OverheadIgp(_)) {
-                igp_payment_account_metas.push(AccountMeta::new_readonly(
-                    *configured_igp_account.key,
-                    false,
-                ));
-                igp_payment_account_infos.push(configured_igp_account.clone());
-            }
-
-            Some(match quote_mode {
-                IgpQuoteMode::Quoted => IgpPaymentAccounts::Quoted {
-                    account_metas: igp_payment_account_metas,
-                    account_infos: igp_payment_account_infos,
-                },
-                IgpQuoteMode::Legacy => IgpPaymentAccounts::Legacy {
-                    account_metas: igp_payment_account_metas,
-                    account_infos: igp_payment_account_infos,
-                },
             })
         } else {
             None
@@ -713,6 +739,7 @@ where
                 IgpPaymentAccounts::Quoted {
                     account_metas,
                     account_infos,
+                    igp_quote_authority_bump,
                 } => {
                     let igp_ixn = Instruction::new_with_borsh(
                         *igp_program_id,
@@ -724,7 +751,11 @@ where
                         account_metas,
                     );
 
-                    invoke_signed(&igp_ixn, &account_infos, &[dispatch_authority_seeds])?;
+                    // Sign with the IGP quote authority, not the dispatch authority.
+                    let igp_quote_authority_seeds: &[&[u8]] =
+                        igp_quote_authority_pda_seeds!(igp_quote_authority_bump);
+
+                    invoke_signed(&igp_ixn, &account_infos, &[igp_quote_authority_seeds])?;
                 }
             }
         }
@@ -1283,6 +1314,7 @@ where
     ///
     /// 3. `[executable]` The fee program.
     /// 4. `[]` The fee account (owned by fee program).
+    /// 5. `[]` The mailbox outbox PDA account (to read local_domain).
     pub fn set_fee_config(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -1320,12 +1352,21 @@ where
             {
                 return Err(ProgramError::InvalidArgument);
             }
-            FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+            let fee_account_prefix = FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+
+            // Account 5: Mailbox outbox PDA - read local_domain from mailbox.
+            let mailbox_outbox_account = next_account_info(accounts_iter)?;
+            let outbox =
+                Outbox::verify_account_and_fetch_inner(&token.mailbox, mailbox_outbox_account)?;
+            if fee_account_prefix.domain_id != outbox.local_domain {
+                return Err(Error::InvalidFeeAccountDomain.into());
+            }
         }
 
         ensure_no_extraneous_accounts(accounts_iter)?;
 
-        token.fee_config = fee_config;
+        let previous_fee_config = token.fee_config.clone();
+        token.fee_config = fee_config.clone().into();
 
         // Store with realloc since fee_config may change the account size.
         HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
@@ -1335,6 +1376,11 @@ where
             system_program,
         )?;
 
+        msg!(
+            "Set fee config: {:?} -> {:?}",
+            previous_fee_config,
+            fee_config
+        );
         Ok(())
     }
 }

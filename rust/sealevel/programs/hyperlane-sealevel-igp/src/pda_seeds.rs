@@ -124,6 +124,28 @@ macro_rules! igp_transient_quote_pda_seeds {
     }};
 }
 
+/// Gets the PDA seeds for the IGP quote authority.
+///
+/// Derived under the warp route program id and used to authorize quoted IGP
+/// gas payments. Distinct from the mailbox dispatch authority
+/// (`["hyperlane_dispatcher", "-", "dispatch_authority"]`) so a malicious
+/// configured IGP cannot replay the forwarded signer into a Mailbox dispatch.
+#[macro_export]
+macro_rules! igp_quote_authority_pda_seeds {
+    () => {{
+        &[b"hyperlane_dispatcher", b"-", b"igp_quote_authority"]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"hyperlane_dispatcher",
+            b"-",
+            b"igp_quote_authority",
+            &[$bump_seed],
+        ]
+    }};
+}
+
 /// Gets the PDA seeds for an IGP gas payment account that's based upon
 /// the pubkey of a unique message account for uniqueness.
 #[macro_export]
