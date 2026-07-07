@@ -31,7 +31,7 @@ use hyperlane_sealevel_igp::{
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         close_igp_standing_quote_instruction, close_igp_transient_quote_instruction,
         get_igp_quote_account_metas_instruction, set_igp_min_issued_at_instruction,
@@ -3916,7 +3916,7 @@ async fn test_pay_for_gas_new_flow_rejects_sender_authority_not_signer() {
 
     let quoted_sender = Pubkey::new_unique();
     let (sender_authority, _) = Pubkey::find_program_address(
-        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"],
+        &[b"hyperlane_dispatcher", b"-", b"igp_quote_authority"],
         &quoted_sender,
     );
 
@@ -4530,6 +4530,18 @@ async fn test_get_igp_quote_account_metas_roundtrip_with_quote() {
 
     // sender_authority is a signer (signed via invoke_signed).
     assert!(metas[6].is_signer);
+
+    // sender_authority is the dedicated IGP quote authority PDA, and must differ
+    // from the mailbox dispatch authority so a malicious configured IGP cannot
+    // replay the forwarded signer into a Mailbox dispatch.
+    let (expected_quote_authority, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), &quoted_sender);
+    assert_eq!(metas[6].pubkey, expected_quote_authority);
+    let (mailbox_dispatch_authority, _) = Pubkey::find_program_address(
+        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"],
+        &quoted_sender,
+    );
+    assert_ne!(metas[6].pubkey, mailbox_dispatch_authority);
 
     // Cascade PDAs match expected derivation.
     let exact_pda =

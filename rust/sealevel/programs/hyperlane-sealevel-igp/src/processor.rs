@@ -37,7 +37,7 @@ use crate::{
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         GasOracleConfig, GasOverheadConfig, GetIgpQuoteAccountMetas, InitIgp, InitOverheadIgp,
         Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
@@ -294,9 +294,8 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     Ok(*igp_info.key)
 }
 
-/// Dispatch authority PDA seeds for sender_authority verification.
-/// Same seeds as mailbox uses: ["hyperlane_dispatcher", "-", "dispatch_authority"].
-const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"];
+/// IGP quote authority PDA seeds for sender_authority verification.
+const IGP_QUOTE_AUTHORITY_SEEDS: &[&[u8]] = igp_quote_authority_pda_seeds!();
 
 /// Pay for gas.
 ///
@@ -317,7 +316,7 @@ const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"di
 /// 3. `[signer]` Unique gas payment account.
 /// 4. `[writeable]` Gas payment PDA.
 /// 5. `[writeable]` The IGP account (same position as old flow).
-/// 6. `[signer]` sender_authority (dispatch_authority PDA — must be signer).
+/// 6. `[signer]` sender_authority (IGP quote authority PDA — must be signer).
 /// 7. `[]` quoted_sender (warp route program ID).
 /// 8. `[]` Standing quote PDA (exact).
 /// 9. `[]` Standing quote PDA (wildcard-sender).
@@ -434,10 +433,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             let quoted_sender_info = next_account_info(accounts_iter)?;
             let quoted_sender = quoted_sender_info.key;
 
-            // Verify sender_authority is the dispatch authority PDA for quoted_sender.
+            // Verify sender_authority is the IGP quote authority PDA for quoted_sender.
             // This binds the authority to the actual message sender program.
             let (expected_authority, _) =
-                Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, quoted_sender);
+                Pubkey::find_program_address(IGP_QUOTE_AUTHORITY_SEEDS, quoted_sender);
             if *sender_authority_info.key != expected_authority {
                 return Err(ProgramError::InvalidSeeds);
             }
@@ -1596,9 +1595,9 @@ fn get_igp_quote_account_metas(
         });
 
         let (sender_authority, _) =
-            Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
+            Pubkey::find_program_address(IGP_QUOTE_AUTHORITY_SEEDS, &data.sender);
 
-        // [6] sender_authority (dispatch_authority PDA, signed via invoke_signed).
+        // [6] sender_authority (IGP quote authority PDA, signed via invoke_signed).
         metas.push(SerializableAccountMeta {
             pubkey: sender_authority,
             is_signer: true,
