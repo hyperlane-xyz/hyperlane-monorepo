@@ -855,6 +855,7 @@ mod init_fee {
         let account = banks_client.get_account(fee_key).await.unwrap().unwrap();
         let prefix = FeeAccountPrefix::parse_from(&account.data).unwrap();
         assert_eq!(prefix.beneficiary, beneficiary);
+        assert_eq!(prefix.domain_id, LOCAL_DOMAIN);
     }
 
     #[tokio::test]

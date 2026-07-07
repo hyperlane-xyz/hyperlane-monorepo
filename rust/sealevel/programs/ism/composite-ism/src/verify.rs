@@ -46,16 +46,23 @@ where
             if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
                 return Err(Error::DomainPdaNotWritable.into());
             }
-            let mut _did_mutate = false;
+            let mut did_mutate = false;
             verify_node(
                 &mut ism,
                 metadata,
                 message,
                 accounts_iter,
                 program_id,
-                &mut _did_mutate,
+                &mut did_mutate,
             )?;
-            if domain_pda_info.is_writable {
+            // Only rewrite the PDA when a node actually mutated state (i.e.
+            // `RateLimited`); this avoids a wasted re-serialize and account
+            // write on non-mutating verifies. A mutation requires a writable
+            // account, so error explicitly when it is missing.
+            if did_mutate {
+                if !domain_pda_info.is_writable {
+                    return Err(Error::DomainPdaNotWritable.into());
+                }
                 storage.ism = Some(ism);
                 DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
             }
