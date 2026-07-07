@@ -24,14 +24,15 @@ use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
-        compute_gas_fee, GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount,
-        IgpFeeConfig, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
-        IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
-        RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN, WILDCARD_SENDER,
+        compute_gas_fee, igp_quote_mode, GasOracle, GasPaymentAccount, GasPaymentData, Igp,
+        IgpAccount, IgpFeeConfig, IgpQuoteMode, IgpStandingQuote, IgpStandingQuoteAccount,
+        IgpTransientQuote, IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE,
+        WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         close_igp_standing_quote_instruction, close_igp_transient_quote_instruction,
         get_igp_quote_account_metas_instruction, set_igp_min_issued_at_instruction,
@@ -318,7 +319,7 @@ async fn test_initialize_igp() {
                 owner,
                 beneficiary,
                 gas_oracles: HashMap::new(),
-                fee_config: None,
+                fee_config: None.into(),
             }
             .into()
         ),
@@ -524,6 +525,13 @@ async fn test_set_gas_oracle_configs() {
             remaining_config.domain,
             remaining_config.gas_oracle.unwrap(),
         )]),
+    );
+
+    // HLSVM-2026Q2-010: a real gas-oracle removal must leave fee_config absent.
+    assert_eq!(igp.fee_config, None);
+    assert_eq!(
+        igp_quote_mode(&igp_account.data).unwrap(),
+        IgpQuoteMode::Legacy,
     );
 }
 
@@ -1845,7 +1853,7 @@ async fn test_set_igp_quote_config_rejects_lower_min_issued_at() {
     .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 2000);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 2000);
 }
 
 #[tokio::test]
@@ -2019,7 +2027,7 @@ async fn test_add_igp_quote_signer() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    let signers = &igp.fee_config.unwrap().signers;
+    let signers = &igp.fee_config.as_ref().unwrap().signers;
     assert!(signers.contains(&signer_addr));
     assert_eq!(signers.len(), 1);
 }
@@ -2218,7 +2226,7 @@ async fn test_set_igp_min_issued_at() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 500);
 
     // Increase is allowed.
     let ix =
@@ -2228,7 +2236,7 @@ async fn test_set_igp_min_issued_at() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 1000);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 1000);
 }
 
 #[tokio::test]
@@ -2250,7 +2258,7 @@ async fn test_set_igp_min_issued_at_equal_allowed() {
         .unwrap();
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
-    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+    assert_eq!(igp.fee_config.as_ref().unwrap().min_issued_at, 500);
 }
 
 #[tokio::test]
@@ -2883,8 +2891,50 @@ async fn test_submit_transient_quote() {
     let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
     let transient = fetch_transient_quote(&account.data);
     assert_eq!(transient.payer, payer.pubkey());
+    assert_eq!(transient.fee_token_mint, Pubkey::default());
     assert_eq!(transient.destination_domain, dest_domain);
     assert_eq!(transient.sender, sender);
+    assert_eq!(transient.token_exchange_rate, exchange_rate);
+    assert_eq!(transient.gas_price, gas_price);
+    assert_eq!(transient.token_decimals, token_decimals);
+    assert_eq!(transient.expiry, 100);
+}
+
+#[tokio::test]
+async fn test_submit_transient_quote_allows_fully_wildcarded() {
+    // Fully-wildcarded transient quotes are payer-scoped and consumed once, so allowed.
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let exchange_rate = 2_000_000_000_000_000_000u128;
+    let gas_price = 50_000_000_000u128;
+    let token_decimals = 18u8;
+
+    let context = encode_igp_context(&Pubkey::default(), WILDCARD_DOMAIN, &WILDCARD_SENDER);
+    let data = encode_igp_data(exchange_rate, gas_price, token_decimals);
+
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
+    let transient = fetch_transient_quote(&account.data);
+    assert_eq!(transient.payer, payer.pubkey());
+    assert_eq!(transient.destination_domain, WILDCARD_DOMAIN);
+    assert_eq!(transient.sender, WILDCARD_SENDER);
     assert_eq!(transient.token_exchange_rate, exchange_rate);
     assert_eq!(transient.gas_price, gas_price);
     assert_eq!(transient.token_decimals, token_decimals);
@@ -3916,7 +3966,7 @@ async fn test_pay_for_gas_new_flow_rejects_sender_authority_not_signer() {
 
     let quoted_sender = Pubkey::new_unique();
     let (sender_authority, _) = Pubkey::find_program_address(
-        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"],
+        &[b"hyperlane_dispatcher", b"-", b"igp_quote_authority"],
         &quoted_sender,
     );
 
@@ -4530,6 +4580,18 @@ async fn test_get_igp_quote_account_metas_roundtrip_with_quote() {
 
     // sender_authority is a signer (signed via invoke_signed).
     assert!(metas[6].is_signer);
+
+    // sender_authority is the dedicated IGP quote authority PDA, and must differ
+    // from the mailbox dispatch authority so a malicious configured IGP cannot
+    // replay the forwarded signer into a Mailbox dispatch.
+    let (expected_quote_authority, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), &quoted_sender);
+    assert_eq!(metas[6].pubkey, expected_quote_authority);
+    let (mailbox_dispatch_authority, _) = Pubkey::find_program_address(
+        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"],
+        &quoted_sender,
+    );
+    assert_ne!(metas[6].pubkey, mailbox_dispatch_authority);
 
     // Cascade PDAs match expected derivation.
     let exact_pda =

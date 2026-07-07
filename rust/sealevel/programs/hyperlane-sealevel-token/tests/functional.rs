@@ -20,7 +20,7 @@ use hyperlane_sealevel_igp::{
         GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType,
         TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN as IGP_WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
-    igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
         submit_igp_quote_instruction, GasOverheadConfig, Instruction as IgpProgramInstruction,
@@ -30,7 +30,7 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -42,6 +42,7 @@ use hyperlane_sealevel_token::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
+    error::Error as TokenError,
     hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
 };
@@ -148,12 +149,17 @@ fn fee_program_id() -> Pubkey {
     pubkey!("Fee1111111111111111111111111111111111111111")
 }
 
+fn mailbox_outbox() -> Pubkey {
+    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_id()).0
+}
+
 struct HyperlaneTokenAccounts {
     token: Pubkey,
     token_bump: u8,
     mailbox_process_authority: Pubkey,
     dispatch_authority: Pubkey,
     dispatch_authority_bump: u8,
+    igp_quote_authority: Pubkey,
     mint: Pubkey,
     mint_bump: u8,
     ata_payer: Pubkey,
@@ -177,6 +183,9 @@ async fn initialize_hyperlane_token(
 
     let (dispatch_authority_key, dispatch_authority_seed) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+
+    let (igp_quote_authority_key, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
 
     let (mint_account_key, mint_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
@@ -259,6 +268,7 @@ async fn initialize_hyperlane_token(
         mailbox_process_authority: mailbox_process_authority_key,
         dispatch_authority: dispatch_authority_key,
         dispatch_authority_bump: dispatch_authority_seed,
+        igp_quote_authority: igp_quote_authority_key,
         mint: mint_account_key,
         mint_bump: mint_account_bump_seed,
         ata_payer: ata_payer_account_key,
@@ -394,7 +404,7 @@ async fn test_initialize() {
                 mint_bump: hyperlane_token_accounts.mint_bump,
                 ata_payer_bump: hyperlane_token_accounts.ata_payer_bump,
             },
-            fee_config: None,
+            fee_config: None.into(),
         }),
     );
 
@@ -935,6 +945,67 @@ async fn test_enroll_remote_router() {
         token.remote_routers,
         vec![(REMOTE_DOMAIN, remote_router)].into_iter().collect(),
     );
+}
+
+#[tokio::test]
+async fn test_remote_router_removal_keeps_fee_config_absent() {
+    // HLSVM-2026Q2-010: a real remote-router removal must leave fee_config absent.
+    let program_id = hyperlane_sealevel_token_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    // Enroll two routers, then unenroll one (router: None) — the real shrink path.
+    for domain in [REMOTE_DOMAIN, REMOTE_DOMAIN + 1] {
+        enroll_remote_router(
+            &mut banks_client,
+            &program_id,
+            &payer,
+            &hyperlane_token_accounts.token,
+            domain,
+            H256::random(),
+        )
+        .await
+        .unwrap();
+    }
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain: REMOTE_DOMAIN + 1,
+                router: None,
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.remote_routers.len(), 1);
+    assert!(token.remote_routers.contains_key(&REMOTE_DOMAIN));
+    assert_eq!(token.fee_config, None);
 }
 
 #[tokio::test]
@@ -1515,6 +1586,7 @@ async fn test_transfer_remote_with_fee_synthetic() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1781,6 +1853,7 @@ async fn test_transfer_remote_with_fee_routing_mode() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1910,7 +1983,19 @@ async fn test_transfer_remote_with_fee_routing_mode() {
 #[tokio::test]
 async fn test_set_fee_config() {
     let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
     let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
@@ -1980,6 +2065,7 @@ async fn test_set_fee_config() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_config.fee_program, false),
                     AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2153,6 +2239,96 @@ async fn test_set_fee_config_wrong_fee_account_owner() {
     );
 }
 
+#[tokio::test]
+async fn test_set_fee_config_wrong_fee_account_domain_fails() {
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let fee_salt = H256::zero();
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            payer.pubkey(),
+            fee_salt,
+            Pubkey::new_unique(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: FEE_MAX,
+                    half_amount: FEE_HALF_AMOUNT,
+                }),
+                signers: None,
+            }),
+            REMOTE_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&payer.pubkey()),
+                &[&payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: fee_account_key,
+    };
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(fee_config.clone()))
+                    .encode()
+                    .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_config.fee_program, false),
+                    AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
+                ],
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(TokenError::InvalidFeeAccountDomain as u32),
+        ),
+    );
+}
+
 /// Shared setup for synthetic negative fee tests.
 struct SyntheticFeeTestContext {
     banks_client: BanksClient,
@@ -2268,6 +2444,7 @@ async fn setup_synthetic_fee_test_context() -> SyntheticFeeTestContext {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2903,8 +3080,8 @@ async fn test_transfer_remote_igp_new_flow_standing_exact() {
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
                 AccountMeta::new(gas_payment_pda_key, false),
-                // sender_authority = dispatch_authority
-                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                // sender_authority = igp_quote_authority
+                AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                 // quoted_sender = program_id
                 AccountMeta::new_readonly(program_id, false),
                 // variable: all 3 cascade standing quote PDAs
@@ -3150,7 +3327,7 @@ async fn test_transfer_remote_igp_new_flow_transient_synthetic() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3339,7 +3516,7 @@ async fn test_transfer_remote_igp_new_flow_transient_wildcard_domain() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3526,7 +3703,7 @@ async fn test_transfer_remote_igp_new_flow_transient_wildcard_sender() {
                     AccountMeta::new_readonly(igp_accounts.program, false),
                     AccountMeta::new(igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
@@ -3602,7 +3779,7 @@ fn build_igp_new_flow_transfer_remote_accounts(
         AccountMeta::new_readonly(igp_accounts.program, false),
         AccountMeta::new(igp_accounts.program_data, false),
         AccountMeta::new(*gas_payment_pda_key, false),
-        AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+        AccountMeta::new_readonly(hyperlane_token_accounts.igp_quote_authority, false),
         AccountMeta::new_readonly(*program_id, false),
     ];
     // Variable quote PDAs
@@ -4339,7 +4516,7 @@ async fn test_transfer_remote_igp_new_flow_with_fee() {
                     AccountMeta::new(ctx.igp_accounts.program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
                     AccountMeta::new_readonly(
-                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        ctx.hyperlane_token_accounts.igp_quote_authority,
                         false,
                     ),
                     AccountMeta::new_readonly(program_id, false),

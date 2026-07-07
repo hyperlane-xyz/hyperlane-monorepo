@@ -876,10 +876,10 @@ async fn test_vms_composite_fallback_null_root_returns_null() {
 }
 
 /// VAM with composite fallback (MultisigMessageId root) converges to:
-/// [storage_pda, domain_pda, fallback_storage_pda (sentinel), fallback_storage_pda (from CPI), fallback_ism_id]
+/// [storage_pda, domain_pda, fallback_storage_pda (sentinel/storage), fallback_ism_id]
 ///
-/// The composite fallback's own VAM always prepends its storage PDA, so both the
-/// sentinel and the CPI-returned PDA are the same key.
+/// The composite fallback's own VAM prepends its storage PDA (= the sentinel), which
+/// is deduped by account_metas.rs so it appears exactly once.
 #[tokio::test]
 async fn test_vam_composite_fallback_converges() {
     let mut context = program_test_with_composite_fallback()
@@ -922,13 +922,13 @@ async fn test_vam_composite_fallback_converges() {
     let metas =
         get_all_verify_account_metas(&mut context.banks_client, &payer, bh, verify_ixn).await;
 
-    // sentinel == CPI-returned PDA because composite VAM always prepends its storage PDA.
-    assert_eq!(metas.len(), 5);
+    // Sentinel (= composite fallback's storage PDA) appears exactly once; duplicate
+    // is eliminated by the conditional dedup in account_metas.rs.
+    assert_eq!(metas.len(), 4);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
-    assert_eq!(metas[2].pubkey, fallback_composite_storage_pda_key()); // sentinel
-    assert_eq!(metas[3].pubkey, fallback_composite_storage_pda_key()); // from CPI
-    assert_eq!(metas[4].pubkey, fallback_composite_ism_id());
+    assert_eq!(metas[2].pubkey, fallback_composite_storage_pda_key()); // sentinel/storage
+    assert_eq!(metas[3].pubkey, fallback_composite_ism_id());
 }
 
 /// Verify with composite fallback (MultisigMessageId root) and valid ECDSA sigs.

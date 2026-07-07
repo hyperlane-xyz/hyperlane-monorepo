@@ -98,6 +98,11 @@ pub enum IsmNode {
     ///
     /// Returns `NoRouteForDomain` if no domain PDA is configured for the origin.
     ///
+    /// **Lifecycle note**: domain PDAs are global to the program and survive
+    /// `update_config` calls that change the root to a non-routing type.  They
+    /// become active again if the root is later set back to a routing-type node.
+    /// Operators should call `remove_domain_ism` for every configured domain
+    /// before switching away from a routing root.
     Routing,
 
     /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
@@ -121,6 +126,23 @@ pub enum IsmNode {
         /// at verify time — no mailbox inbox PDA is required.
         fallback_ism: Pubkey,
     },
+}
+
+impl IsmNode {
+    /// Static label for the node variant, for concise config-change logs.
+    pub fn kind_to_str(&self) -> &'static str {
+        match self {
+            IsmNode::TrustedRelayer { .. } => "TrustedRelayer",
+            IsmNode::MultisigMessageId { .. } => "MultisigMessageId",
+            IsmNode::Aggregation { .. } => "Aggregation",
+            IsmNode::Test { .. } => "Test",
+            IsmNode::Pausable { .. } => "Pausable",
+            IsmNode::AmountRouting { .. } => "AmountRouting",
+            IsmNode::RateLimited { .. } => "RateLimited",
+            IsmNode::Routing => "Routing",
+            IsmNode::FallbackRouting { .. } => "FallbackRouting",
+        }
+    }
 }
 
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).

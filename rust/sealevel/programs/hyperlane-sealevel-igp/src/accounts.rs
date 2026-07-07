@@ -7,7 +7,7 @@ use std::{
 
 use access_control::AccessControl;
 use account_utils::{
-    read_optional_trailing, AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData,
+    AccountData, DiscriminatorData, DiscriminatorPrefixed, OptionalDiscriminatedData, SizedData,
     BORSH_LEN_PREFIX, H160_SIZE, H256_SIZE, PUBKEY_SIZE,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -172,11 +172,7 @@ impl DiscriminatorData for Igp {
 }
 
 /// IGP account data.
-/// `BorshSerialize` and `BorshDeserialize` are implemented manually to support
-/// backward-compatible (de)serialization of accounts created before `fee_config`
-/// was added. When `fee_config` is `None`, no trailing bytes are written so the
-/// serialized size matches the pre-upgrade layout exactly.
-#[derive(Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Igp {
     /// The bump seed for the IGP PDA.
     pub bump_seed: u8,
@@ -190,43 +186,7 @@ pub struct Igp {
     pub gas_oracles: HashMap<u32, GasOracle>,
     /// Offchain quoting configuration. None = quoting disabled (oracle-only).
     /// Managed via SetIgpQuoteConfig. Trailing field for backward compat.
-    pub fee_config: Option<IgpFeeConfig>,
-}
-
-impl BorshSerialize for Igp {
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        self.bump_seed.serialize(writer)?;
-        self.salt.serialize(writer)?;
-        self.owner.serialize(writer)?;
-        self.beneficiary.serialize(writer)?;
-        self.gas_oracles.serialize(writer)?;
-        // Only write the Option tag + payload when Some; write nothing for None
-        // so the serialized size matches the pre-upgrade layout.
-        if let Some(cfg) = &self.fee_config {
-            1u8.serialize(writer)?;
-            cfg.serialize(writer)?;
-        }
-        Ok(())
-    }
-}
-
-impl BorshDeserialize for Igp {
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let bump_seed = u8::deserialize_reader(reader)?;
-        let salt = H256::deserialize_reader(reader)?;
-        let owner = Option::<Pubkey>::deserialize_reader(reader)?;
-        let beneficiary = Pubkey::deserialize_reader(reader)?;
-        let gas_oracles = HashMap::<u32, GasOracle>::deserialize_reader(reader)?;
-        let fee_config = read_optional_trailing::<_, IgpFeeConfig>(reader)?;
-        Ok(Self {
-            bump_seed,
-            salt,
-            owner,
-            beneficiary,
-            gas_oracles,
-            fee_config,
-        })
-    }
+    pub fee_config: OptionalDiscriminatedData<IgpFeeConfig>,
 }
 
 impl SizedData for Igp {
@@ -242,10 +202,8 @@ impl SizedData for Igp {
             + 32
             + 4
             + (self.gas_oracles.len() * (4 + 1 + 33))
-            + match &self.fee_config {
-                Some(cfg) => 1 + cfg.size(),
-                None => 0,
-            }
+            // fee_config: 0 when None, DISCRIMINATOR (8) + payload when Some.
+            + self.fee_config.size()
     }
 }
 
@@ -335,29 +293,21 @@ pub fn igp_quote_mode(data: &[u8]) -> Result<IgpQuoteMode, ProgramError> {
     }
     reader = &reader[skip..];
 
-    // No trailing bytes → fee_config is absent (pre-upgrade account).
-    if reader.is_empty() {
+    // Present only if the tail begins with the discriminator; any other tail
+    // (incl. stale pre-zero-fill bytes) is Legacy, never an error. Mirrors
+    // OptionalDiscriminatedData.
+    let discriminator_len = IgpFeeConfig::DISCRIMINATOR_LENGTH;
+    if reader.len() < discriminator_len
+        || reader[..discriminator_len] != IgpFeeConfig::DISCRIMINATOR
+    {
         return Ok(IgpQuoteMode::Legacy);
     }
 
-    // None tag (0) → fee_config explicitly set to None.
-    if reader[0] == 0 {
-        return Ok(IgpQuoteMode::Legacy);
-    }
-
-    // Some tag (1) → fee_config must deserialize successfully.
-    // Use deserialize_reader (not try_from_slice / try_from_reader) so any
-    // trailing bytes after a valid IgpFeeConfig — e.g. stale padding from a
-    // future shrink path — don't make this probe spuriously reject and block
-    // dispatch.
-    if reader[0] == 1 {
-        IgpFeeConfig::deserialize_reader(&mut &reader[1..])
-            .map_err(|_| ProgramError::InvalidAccountData)?;
-        return Ok(IgpQuoteMode::Quoted);
-    }
-
-    // Unexpected tag byte.
-    Err(ProgramError::InvalidAccountData)
+    // deserialize_reader (not try_from_slice) tolerates trailing bytes after a
+    // valid config, matching the full Igp read path.
+    IgpFeeConfig::deserialize_reader(&mut &reader[discriminator_len..])
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+    Ok(IgpQuoteMode::Quoted)
 }
 
 /// Remote gas data.
@@ -530,6 +480,10 @@ impl SizedData for IgpFeeConfig {
     }
 }
 
+impl DiscriminatorData for IgpFeeConfig {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPFEEV1";
+}
+
 // --- Standing quote PDA ---
 
 /// AccountData wrapper for IgpStandingQuote.
@@ -606,6 +560,8 @@ pub struct IgpTransientQuote {
     pub payer: Pubkey,
     /// Scoped salt: keccak256(payer || client_salt).
     pub scoped_salt: H256,
+    /// Fee token mint from the quote context (Pubkey::default() for SOL).
+    pub fee_token_mint: Pubkey,
     /// Destination domain from the quote context.
     pub destination_domain: u32,
     /// Sender (warp route program ID) from the quote context.
@@ -625,6 +581,7 @@ impl SizedData for IgpTransientQuote {
         std::mem::size_of::<u8>()       // bump_seed
             + PUBKEY_SIZE               // payer
             + H256_SIZE                 // scoped_salt
+            + PUBKEY_SIZE               // fee_token_mint
             + std::mem::size_of::<u32>() // destination_domain
             + PUBKEY_SIZE               // sender
             + std::mem::size_of::<u128>() // token_exchange_rate
@@ -780,6 +737,7 @@ mod test {
             bump_seed: 2,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
             destination_domain: 42,
             sender: Pubkey::new_unique(),
             token_exchange_rate: 1_000_000_000_000_000_000,
@@ -798,6 +756,7 @@ mod test {
             bump_seed: 2,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
             destination_domain: 42,
             sender: Pubkey::new_unique(),
             token_exchange_rate: 1_000_000_000_000_000_000,
@@ -822,7 +781,8 @@ mod test {
                 signers: BTreeSet::from([H160::random()]),
                 domain_id: 42,
                 min_issued_at: 1000,
-            }),
+            })
+            .into(),
         };
         let encoded = borsh::to_vec(&igp).unwrap();
         let decoded: Igp = borsh::from_slice(&encoded).unwrap();
@@ -837,7 +797,7 @@ mod test {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles: HashMap::new(),
-            fee_config: None,
+            fee_config: None.into(),
         };
         let encoded = borsh::to_vec(&igp).unwrap();
         let decoded: Igp = borsh::from_slice(&encoded).unwrap();
@@ -846,15 +806,15 @@ mod test {
 
     #[test]
     fn test_igp_backward_compat_deserialize_without_fee_config() {
-        // Custom BorshSerialize writes nothing for fee_config: None,
-        // producing the same byte layout as pre-upgrade accounts.
+        // fee_config: None writes no trailing bytes, producing the same byte
+        // layout as pre-upgrade accounts.
         let igp = Igp {
             bump_seed: 1,
             salt: H256::random(),
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles: HashMap::new(),
-            fee_config: None,
+            fee_config: None.into(),
         };
         let encoded = borsh::to_vec(&igp).unwrap();
         // No trailing Option tag — matches old format exactly.
@@ -877,7 +837,8 @@ mod test {
                 signers: BTreeSet::from([H160::random(), H160::random()]),
                 domain_id: 42,
                 min_issued_at: 1000,
-            }),
+            })
+            .into(),
         };
         assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
     }
@@ -890,7 +851,7 @@ mod test {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles: HashMap::new(),
-            fee_config: None,
+            fee_config: None.into(),
         };
         assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
     }
@@ -906,7 +867,7 @@ mod test {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles,
-            fee_config: None,
+            fee_config: None.into(),
         };
         assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
     }
@@ -1073,7 +1034,7 @@ mod test {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles: HashMap::new(),
-            fee_config,
+            fee_config: fee_config.into(),
         }
     }
 
@@ -1122,7 +1083,8 @@ mod test {
                 signers: BTreeSet::from([H160::random()]),
                 domain_id: 42,
                 min_issued_at: 1000,
-            }),
+            })
+            .into(),
         };
         let data = make_igp_account_data(igp);
         assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
@@ -1131,10 +1093,10 @@ mod test {
     #[test]
     fn test_igp_quote_mode_garbage_trailing_bytes() {
         let mut data = make_igp_account_data(default_igp(None));
-        // Append garbage with Some tag — should error, not return Legacy.
-        data.push(1); // Some tag
-        data.extend_from_slice(&[0xFF; 5]); // invalid IgpFeeConfig
-        assert!(igp_quote_mode(&data).is_err());
+        // Trailing bytes that don't begin with IgpFeeConfig::DISCRIMINATOR are
+        // stale/absent, not a present config: classified Legacy, never an error.
+        data.extend_from_slice(&[0xFF; 16]);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
     }
 
     #[test]
@@ -1156,5 +1118,127 @@ mod test {
     fn test_igp_quote_mode_truncated_data() {
         assert!(igp_quote_mode(&[]).is_err());
         assert!(igp_quote_mode(&[0u8; 50]).is_err());
+    }
+
+    // HLSVM-2026Q2-010 regression guards: a stale gas_oracles tail must not create
+    // a false fee_config (`*_stale_oracle_tail_*`), and a genuine fee_config must
+    // survive stale trailing bytes (`*_real_fee_config_*`).
+
+    fn igp_with(domains: &[u32], fee_config: Option<IgpFeeConfig>) -> Igp {
+        let mut gas_oracles = HashMap::new();
+        for &domain in domains {
+            gas_oracles.insert(
+                domain,
+                GasOracle::RemoteGasData(RemoteGasData {
+                    token_exchange_rate: 1_000_000_000,
+                    gas_price: 50_000_000_000,
+                    token_decimals: 18,
+                }),
+            );
+        }
+        Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_from_array([7u8; 32])),
+            beneficiary: Pubkey::new_from_array([9u8; 32]),
+            gas_oracles,
+            fee_config: fee_config.into(),
+        }
+    }
+
+    // Overlays `keep` (post-shrink) onto `before` (pre-shrink) — a pre-#8698 store
+    // that left the removed entry's bytes as a stale tail. borsh sorts the map by
+    // key, so a removed domain > 0 lands at the tail boundary.
+    fn overlay_shrunk(before: Vec<u8>, keep: Vec<u8>) -> Vec<u8> {
+        assert!(keep.len() < before.len());
+        let mut buf = before;
+        buf[..keep.len()].copy_from_slice(&keep);
+        buf
+    }
+
+    /// Stale 0x02 tail must not reject the account.
+    #[test]
+    fn test_igp_stale_oracle_tail_does_not_reject_account() {
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 0xFF02], None)).unwrap(),
+            borsh::to_vec(&igp_with(&[0], None)).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..])
+            .expect("stale removed-oracle tail must not make a legacy IGP unreadable");
+        assert_eq!(
+            decoded.fee_config, None,
+            "stale bytes must not be read as fee_config",
+        );
+    }
+
+    /// Stale 0x01 tail that decodes as a plausible IgpFeeConfig must not be read
+    /// as Some.
+    #[test]
+    fn test_igp_stale_oracle_tail_not_misread_as_fee_config() {
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 1], None)).unwrap(),
+            borsh::to_vec(&igp_with(&[0], None)).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..]).unwrap();
+        assert_eq!(
+            decoded.fee_config, None,
+            "stale tail starting with 0x01 must not be misread as Some(IgpFeeConfig)",
+        );
+    }
+
+    /// Dispatch-path probe must not reject on a 0x02 stale tail.
+    #[test]
+    fn test_igp_quote_mode_stale_oracle_tail_stays_legacy() {
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 0xFF02], None)),
+            make_igp_account_data(igp_with(&[0], None)),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    /// Dispatch-path probe must not classify a legacy IGP as Quoted on a 0x01
+    /// stale tail.
+    #[test]
+    fn test_igp_quote_mode_stale_oracle_tail_not_false_quoted() {
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 1], None)),
+            make_igp_account_data(igp_with(&[0], None)),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    /// A genuine fee_config must survive stale oracle bytes trailing after it.
+    #[test]
+    fn test_igp_real_fee_config_survives_stale_map_tail() {
+        let fee_config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 0xFF02], Some(fee_config.clone()))).unwrap(),
+            borsh::to_vec(&igp_with(&[0], Some(fee_config.clone()))).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..]).unwrap();
+        assert_eq!(
+            decoded.fee_config,
+            Some(fee_config),
+            "real quote settings must survive a stale gas_oracles tail",
+        );
+    }
+
+    /// Dispatch-path probe reports Quoted for a genuine fee_config behind a tail.
+    #[test]
+    fn test_igp_quote_mode_real_fee_config_with_stale_map_tail() {
+        let fee_config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 0xFF02], Some(fee_config.clone()))),
+            make_igp_account_data(igp_with(&[0], Some(fee_config))),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
     }
 }
