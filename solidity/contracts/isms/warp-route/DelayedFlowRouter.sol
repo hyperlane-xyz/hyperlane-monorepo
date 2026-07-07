@@ -117,8 +117,9 @@ contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
         // `warpRouter`, which only ever formats valid token messages. Metered
         // in this router's local units (converted from the message amount).
         uint256 amount = _toLocalAmount(message.body().amount());
+        bytes32 messageId = message.id();
         _credit(amount);
-        emit NetFlowCredited(message.id(), messageNonce, amount);
+        emit NetFlowCredited(messageId, messageNonce, amount);
     }
 
     /// @dev Carries `(id, messageAmount)` so the destination can size the delay
