@@ -212,6 +212,14 @@ pub trait ValidatableQuote {
 
     /// Validates that the quote is still usable given the clock and min_issued_at threshold.
     /// Used at consumption time (cascade resolution).
+    ///
+    /// Deliberately does not require `now >= issued_at`. The on-chain
+    /// `Clock::unix_timestamp` drifts and can lag the signer's real clock, and
+    /// submission already bounds forward-dating to
+    /// `MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS`. A strict consume-time `now >= issued_at`
+    /// check would reject legitimate quotes whenever the on-chain clock trails
+    /// `issued_at` — most notably transient quotes submitted and consumed in the
+    /// same slot with a forward-skewed `issued_at`.
     fn validate_quote(
         &self,
         min_issued_at: i64,

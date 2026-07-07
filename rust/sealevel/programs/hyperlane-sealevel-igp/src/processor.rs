@@ -946,6 +946,12 @@ fn set_gas_oracle_configs(
 
 /// Sets or removes the IGP quote configuration.
 ///
+/// `min_issued_at` is only guaranteed monotonic while the config stays present:
+/// clearing the config (Some -> None) and re-adding it (None -> Some) resets the
+/// revocation floor to the new config's `min_issued_at`, which may be lower than
+/// a previously-set floor. To revoke quotes, advance `min_issued_at` via
+/// SetIgpMinIssuedAt rather than removing and re-adding the config.
+///
 /// Accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[writeable]` The IGP account.
@@ -978,6 +984,7 @@ fn set_igp_quote_config(
         }
     }
 
+    let new_min_issued_at = config.as_ref().map(|c| c.min_issued_at);
     igp.fee_config = config.into();
 
     let igp_account = IgpAccount::new(igp.into());
@@ -988,6 +995,10 @@ fn set_igp_quote_config(
         system_program_info,
     )?;
 
+    match new_min_issued_at {
+        Some(min) => msg!("Set IGP quote config (min_issued_at {})", min),
+        None => msg!("Cleared IGP quote config"),
+    }
     Ok(())
 }
 
@@ -1022,12 +1033,12 @@ fn set_igp_quote_signer(
         .as_mut()
         .ok_or(ProgramError::InvalidArgument)?;
 
-    match operation {
+    match &operation {
         SetIgpQuoteSignerOperation::Add(signer) => {
-            fee_config.signers.insert(signer);
+            fee_config.signers.insert(*signer);
         }
         SetIgpQuoteSignerOperation::Remove(signer) => {
-            if !fee_config.signers.remove(&signer) {
+            if !fee_config.signers.remove(signer) {
                 return Err(ProgramError::InvalidArgument);
             }
         }
@@ -1041,11 +1052,20 @@ fn set_igp_quote_signer(
         system_program_info,
     )?;
 
+    msg!(
+        "{} IGP quote signer: {:?}",
+        operation.action_to_str(),
+        operation.signer()
+    );
     Ok(())
 }
 
 /// Sets the min_issued_at threshold on the IGP.
 /// Monotonic: new value must be >= current value.
+///
+/// This is the revocation control for IGP quotes: advancing `min_issued_at`
+/// invalidates every quote issued at or before it. Quote expiry has no upper
+/// bound, so prefer short expiries to keep revocation windows bounded.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
@@ -1090,6 +1110,7 @@ fn set_igp_min_issued_at(
         system_program_info,
     )?;
 
+    msg!("Set IGP min_issued_at: {}", min_issued_at);
     Ok(())
 }
 

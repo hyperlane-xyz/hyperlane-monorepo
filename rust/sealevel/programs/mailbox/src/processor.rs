@@ -804,7 +804,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
         .expect("Too many messages in outbox tree");
 
     let mut ret_buf = [0; 36];
-    ret_buf[0..31].copy_from_slice(root.as_ref());
+    ret_buf[0..32].copy_from_slice(root.as_ref());
     ret_buf[32..].copy_from_slice(&count.to_le_bytes());
 
     // Wrap it in the SimulationReturnData because serialized ret_buf

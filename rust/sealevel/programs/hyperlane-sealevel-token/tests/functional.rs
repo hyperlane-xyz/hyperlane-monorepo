@@ -30,7 +30,7 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -42,6 +42,7 @@ use hyperlane_sealevel_token::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
+    error::Error as TokenError,
     hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
 };
@@ -146,6 +147,10 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
 fn fee_program_id() -> Pubkey {
     pubkey!("Fee1111111111111111111111111111111111111111")
+}
+
+fn mailbox_outbox() -> Pubkey {
+    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_id()).0
 }
 
 struct HyperlaneTokenAccounts {
@@ -1581,6 +1586,7 @@ async fn test_transfer_remote_with_fee_synthetic() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1847,6 +1853,7 @@ async fn test_transfer_remote_with_fee_routing_mode() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1976,7 +1983,19 @@ async fn test_transfer_remote_with_fee_routing_mode() {
 #[tokio::test]
 async fn test_set_fee_config() {
     let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
     let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
@@ -2046,6 +2065,7 @@ async fn test_set_fee_config() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_config.fee_program, false),
                     AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2219,6 +2239,96 @@ async fn test_set_fee_config_wrong_fee_account_owner() {
     );
 }
 
+#[tokio::test]
+async fn test_set_fee_config_wrong_fee_account_domain_fails() {
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let fee_salt = H256::zero();
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            payer.pubkey(),
+            fee_salt,
+            Pubkey::new_unique(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: FEE_MAX,
+                    half_amount: FEE_HALF_AMOUNT,
+                }),
+                signers: None,
+            }),
+            REMOTE_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&payer.pubkey()),
+                &[&payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: fee_account_key,
+    };
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(fee_config.clone()))
+                    .encode()
+                    .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_config.fee_program, false),
+                    AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
+                ],
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(TokenError::InvalidFeeAccountDomain as u32),
+        ),
+    );
+}
+
 /// Shared setup for synthetic negative fee tests.
 struct SyntheticFeeTestContext {
     banks_client: BanksClient,
@@ -2334,6 +2444,7 @@ async fn setup_synthetic_fee_test_context() -> SyntheticFeeTestContext {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),

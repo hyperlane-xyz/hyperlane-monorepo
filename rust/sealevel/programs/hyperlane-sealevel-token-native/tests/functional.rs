@@ -44,7 +44,7 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -143,6 +143,10 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
 fn fee_program_id() -> Pubkey {
     pubkey!("Fee1111111111111111111111111111111111111111")
+}
+
+fn mailbox_outbox() -> Pubkey {
+    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_id()).0
 }
 
 struct HyperlaneTokenAccounts {
@@ -1384,7 +1388,19 @@ const FEE_HALF_AMOUNT: u64 = 500_000_000;
 #[tokio::test]
 async fn test_set_fee_config() {
     let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
     let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
@@ -1455,6 +1471,7 @@ async fn test_set_fee_config() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_config.fee_program, false),
                     AccountMeta::new_readonly(fee_config.fee_account, false),
+                    AccountMeta::new_readonly(mailbox_accounts.outbox, false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1605,6 +1622,7 @@ async fn test_transfer_remote_with_fee_native() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -1873,6 +1891,7 @@ async fn test_transfer_remote_with_transient_quote_native() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2196,6 +2215,7 @@ async fn setup_fee_test_context() -> FeeTestContext {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -2647,6 +2667,7 @@ async fn test_transfer_remote_with_fee_routing_mode() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
@@ -3438,6 +3459,7 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
                     AccountMeta::new(payer.pubkey(), true),
                     AccountMeta::new_readonly(fee_program_id(), false),
                     AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(mailbox_outbox(), false),
                 ],
             )],
             Some(&payer.pubkey()),
