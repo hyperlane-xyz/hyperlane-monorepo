@@ -19,6 +19,7 @@ import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainS
 import {PausableIsm} from "../../contracts/isms/PausableIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {TimelockRouter} from "../../contracts/isms/routing/TimelockRouter.sol";
+import {TvlRateLimited} from "../../contracts/libs/TvlRateLimited.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 
 contract DelayedFlowRouterTest is Test {
@@ -161,6 +162,26 @@ contract DelayedFlowRouterTest is Test {
         assertEq(
             nativeDelay.maxCapacity(),
             (INITIAL_COLLATERAL * 2 * THRESHOLD_BPS) / 10_000
+        );
+    }
+
+    // Delay-mode permits a 100% threshold (over-limit is delayed, not
+    // reverted), unlike the reject-mode default.
+    function test_thresholdBps_allows100Percent() public {
+        DelayedFlowRouter full = new DelayedFlowRouter(
+            TokenRouter(payable(address(collateralRouter))),
+            10_000,
+            MAX_DELAY
+        );
+        assertEq(full.thresholdBps(), 10_000);
+    }
+
+    function test_thresholdBps_revertsAbove100Percent() public {
+        vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
+        new DelayedFlowRouter(
+            TokenRouter(payable(address(collateralRouter))),
+            10_001,
+            MAX_DELAY
         );
     }
 
@@ -347,7 +368,7 @@ contract DelayedFlowRouterTest is Test {
     /// @dev Capacity is derived dynamically, so the inherited `setRefillRate`
     /// would write a dead slot. The override rejects it outright.
     function test_setRefillRate_reverts() public {
-        vm.expectRevert(DelayedFlowRouter.UseThresholdBps.selector);
+        vm.expectRevert(TvlRateLimited.UseThresholdBps.selector);
         destinationDelay.setRefillRate(1 ether);
     }
 
