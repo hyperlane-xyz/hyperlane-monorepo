@@ -6,6 +6,7 @@ const DEFAULT_MAX_BATCH_SIZE = 64;
 
 const CHAIN_BATCH_SIZE_OVERRIDES: Partial<Record<ChainName, number>> = {
   citrea: 16,
+  tempo: 16,
 };
 
 export function getTxConfigBatchSize(chain: ChainName): number {

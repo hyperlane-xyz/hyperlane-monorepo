@@ -12,7 +12,7 @@ import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import stableswapInventoryRebalancerAddresses from '../../config/stableswapInventoryRebalancer.json' with { type: 'json' };
-import { getEnvAddresses } from '../../config/registry.js';
+import { getChainMetadata, getEnvAddresses } from '../../config/registry.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { relayerAddresses } from '../agents/key-utils.js';
@@ -138,6 +138,7 @@ export class KeyFunderHelmManager extends HelmManager {
     const roles: Record<string, RoleYamlConfig> = {};
     const chains: Record<string, ChainYamlConfig> = {};
     const envAddresses = getEnvAddresses(environment);
+    const allChainMetadata = getChainMetadata();
 
     const roleAddressMap = this.buildRoleAddressMap(environment);
     for (const [roleName, address] of Object.entries(roleAddressMap)) {
@@ -149,18 +150,31 @@ export class KeyFunderHelmManager extends HelmManager {
 
       const chainConfig: ChainYamlConfig = {};
 
+      const nativeToken = allChainMetadata[chain]?.nativeToken;
+      const erc20GasTokenAddress = nativeToken?.address;
+      if (erc20GasTokenAddress) {
+        chainConfig.erc20GasToken = {
+          address: erc20GasTokenAddress,
+          decimals: nativeToken!.decimals,
+        };
+      }
+
       const balances = this.getBalancesForChain(chain, roleAddressMap);
       if (Object.keys(balances).length > 0) {
         chainConfig.balances = balances;
       }
 
-      const igpAddress = envAddresses[chain]?.interchainGasPaymaster;
-      const igpThreshold = this.getIgpClaimThreshold(chain);
-      if (igpAddress && igpThreshold) {
-        chainConfig.igp = {
-          address: igpAddress,
-          claimThreshold: igpThreshold,
-        };
+      // Skip IGP claiming for ERC20 gas token chains — no protocol-level native
+      // token accumulates in the IGP on those chains.
+      if (!erc20GasTokenAddress) {
+        const igpAddress = envAddresses[chain]?.interchainGasPaymaster;
+        const igpThreshold = this.getIgpClaimThreshold(chain);
+        if (igpAddress && igpThreshold) {
+          chainConfig.igp = {
+            address: igpAddress,
+            claimThreshold: igpThreshold,
+          };
+        }
       }
 
       // Add sweep config only for chains in CHAINS_TO_SWEEP with valid thresholds
@@ -372,6 +386,10 @@ interface ChainYamlConfig {
     threshold: string;
     targetMultiplier: number;
     triggerMultiplier: number;
+  };
+  erc20GasToken?: {
+    address: string;
+    decimals: number;
   };
 }
 

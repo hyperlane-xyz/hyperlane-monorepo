@@ -1,3 +1,4 @@
+import { BigNumber, Contract } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import { Contexts } from '../config/contexts.js';
@@ -11,6 +12,10 @@ import {
   withContext,
 } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
+
+const ERC20_BALANCE_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+];
 
 const MainnetDeployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const MainnetRelayer = '0x74Cae0ECC47B02Ed9B9D32E000Fd70B9417970C5';
@@ -41,7 +46,11 @@ async function main() {
     chainsToCheck.map(async (chain) => {
       try {
         const provider = multiProvider.getProvider(chain);
-        const { decimals, symbol } = await multiProvider.getNativeToken(chain);
+        const {
+          decimals,
+          symbol,
+          address: tokenAddress,
+        } = await multiProvider.getNativeToken(chain);
         const roleBalances = await Promise.all(
           roles.map(async (role) => {
             try {
@@ -70,9 +79,19 @@ async function main() {
                 address = keys[chain]?.address;
               }
 
-              // Fetch balance
+              // Fetch balance — use ERC20 balanceOf for chains whose gas token is an ERC20
               if (address) {
-                const balance = await provider.getBalance(address);
+                let balance: BigNumber;
+                if (tokenAddress) {
+                  const token = new Contract(
+                    tokenAddress,
+                    ERC20_BALANCE_ABI,
+                    provider,
+                  );
+                  balance = await token.balanceOf(address);
+                } else {
+                  balance = await provider.getBalance(address);
+                }
                 const formattedBalance = formatUnits(balance, decimals);
                 return Number(formattedBalance).toFixed(3);
               }

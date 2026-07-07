@@ -56,9 +56,8 @@ async function main() {
 
           const oracleConfig = igpConfig.oracleConfig[destination];
           if (!oracleConfig) {
-            throw new Error(
-              `No oracle config found for ${origin} -> ${destination}`,
-            );
+            // Chain has a restricted connected-chains list (e.g. eden, tron)
+            return destAcc;
           }
 
           if (oracleConfig.tokenDecimals === undefined) {

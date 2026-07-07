@@ -140,6 +140,15 @@ export function withGovern<T>(args: Argv<T>) {
   return args.boolean('govern').default('govern', false).alias('g', 'govern');
 }
 
+export function withFile<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'file',
+      'Write proposed transactions to a JSON file instead of submitting',
+    )
+    .string('file');
+}
+
 export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }

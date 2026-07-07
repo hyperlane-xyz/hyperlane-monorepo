@@ -13,5 +13,13 @@
       "isProxy": true,
       "expectedimplementation": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9"
     }
+  ],
+  "tempo": [
+    {
+      "name": "StorageGasOracle",
+      "address": "0x1EFDaEe5DEb8D539AF9D31FDF26e7244C7B98e24",
+      "constructorArguments": "",
+      "isProxy": false
+    }
   ]
 }

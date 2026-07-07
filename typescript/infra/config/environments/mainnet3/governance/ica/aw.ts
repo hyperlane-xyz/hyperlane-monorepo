@@ -135,4 +135,8 @@ export const awIcas: ChainMap<Address> = {
   nexus: '0x488d1a010318941bF420FfcDc7aa8312b943C21E',
   robinhood: '0xaE3B79d7c9FBE5905fc5638Bb070dd356513d6fc',
   tea: '0xD7CfFFE7B51B2113B959A8EbA6c40F338eD8A4d5',
+
+  // Jul 3, 2026
+  // ----------------------------------------------------------
+  tempo: '0x51998040f0f4E78c867c3138437Ae88eE0A66050',
 } as const;

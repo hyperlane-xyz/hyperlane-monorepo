@@ -319,12 +319,12 @@
     "amount": "0.1",
     "decimals": 1
   },
-  "oortmainnet": {
-    "amount": "100.0",
-    "decimals": 9
-  },
   "ontology": {
     "amount": "2500.0",
+    "decimals": 9
+  },
+  "oortmainnet": {
+    "amount": "100.0",
     "decimals": 9
   },
   "opbnb": {
@@ -462,6 +462,10 @@
   "tea": {
     "amount": "0.0011",
     "decimals": 9
+  },
+  "tempo": {
+    "amount": "1",
+    "decimals": 6
   },
   "tron": {
     "amount": "0.0000001",

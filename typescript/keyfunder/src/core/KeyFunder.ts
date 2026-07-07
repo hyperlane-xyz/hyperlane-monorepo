@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
@@ -9,6 +9,11 @@ import type {
   ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
+
+const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+];
 
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
@@ -119,15 +124,27 @@ export class KeyFunder {
   }
 
   private async recordFunderBalance(chain: string): Promise<void> {
+    const chainConfig = this.config.chains[chain];
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
-    const funderBalance = await signer.getBalance();
-    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+
+    let balanceInNative: number;
+    if (chainConfig.erc20GasToken) {
+      const { address: tokenAddress, decimals } = chainConfig.erc20GasToken;
+      const provider = this.multiProvider.getProvider(chain);
+      const token = new Contract(tokenAddress, ERC20_ABI, provider);
+      const balance: BigNumber = await token.balanceOf(funderAddress);
+      balanceInNative = parseFloat(ethers.utils.formatUnits(balance, decimals));
+    } else {
+      const funderBalance = await signer.getBalance();
+      balanceInNative = parseFloat(ethers.utils.formatEther(funderBalance));
+    }
+
     this.options.metrics?.recordUnifiedWalletBalance(
       chain,
       funderAddress,
       'key-funder',
-      balanceInEther,
+      balanceInNative,
     );
   }
 
@@ -171,6 +188,12 @@ export class KeyFunder {
       return;
     }
 
+    // IGP collects fees in the chain's native token; ERC20 gas token chains
+    // have no protocol-level native token so there is nothing to claim.
+    if (chainConfig.erc20GasToken) {
+      return;
+    }
+
     const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
     const provider = this.multiProvider.getProvider(chain);
     const igpContract =
@@ -211,85 +234,122 @@ export class KeyFunder {
   }
 
   private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
+    const chainConfig = this.config.chains[chain];
+    const erc20GasToken = chainConfig.erc20GasToken;
+    const tokenDecimals = erc20GasToken?.decimals ?? 18;
+
     const logger = this.options.logger.child({
       chain,
       address: key.address,
       role: key.role,
     });
 
-    const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
+    const desiredBalance = ethers.utils.parseUnits(
+      key.desiredBalance,
+      tokenDecimals,
+    );
     const fundingAmount = await this.calculateFundingAmount(
       chain,
       key.address,
       desiredBalance,
+      erc20GasToken,
     );
 
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
+    let currentBalance: BigNumber;
+    if (erc20GasToken) {
+      const provider = this.multiProvider.getProvider(chain);
+      const token = new Contract(erc20GasToken.address, ERC20_ABI, provider);
+      currentBalance = await token.balanceOf(key.address);
+    } else {
+      currentBalance = await this.multiProvider
+        .getProvider(chain)
+        .getBalance(key.address);
+    }
 
     this.options.metrics?.recordWalletBalance(
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(currentBalance)),
+      parseFloat(ethers.utils.formatUnits(currentBalance, tokenDecimals)),
     );
 
     if (fundingAmount.eq(0)) {
       logger.debug(
-        { currentBalance: ethers.utils.formatEther(currentBalance) },
+        {
+          currentBalance: ethers.utils.formatUnits(
+            currentBalance,
+            tokenDecimals,
+          ),
+        },
         'Key balance sufficient, skipping',
       );
       return;
     }
 
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+
+    let funderBalance: BigNumber;
+    if (erc20GasToken) {
+      const provider = this.multiProvider.getProvider(chain);
+      const token = new Contract(erc20GasToken.address, ERC20_ABI, provider);
+      funderBalance = await token.balanceOf(funderAddress);
+    } else {
+      funderBalance = await this.multiProvider.getSigner(chain).getBalance();
+    }
 
     if (funderBalance.lt(fundingAmount)) {
       logger.error(
         {
-          funderBalance: ethers.utils.formatEther(funderBalance),
-          requiredAmount: ethers.utils.formatEther(fundingAmount),
+          funderBalance: ethers.utils.formatUnits(funderBalance, tokenDecimals),
+          requiredAmount: ethers.utils.formatUnits(
+            fundingAmount,
+            tokenDecimals,
+          ),
         },
         'Funder balance insufficient to cover funding amount',
       );
       throw new Error(
-        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
+        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatUnits(funderBalance, tokenDecimals)}, needs ${ethers.utils.formatUnits(fundingAmount, tokenDecimals)}`,
       );
     }
 
     logger.info(
       {
-        amount: ethers.utils.formatEther(fundingAmount),
-        currentBalance: ethers.utils.formatEther(currentBalance),
-        desiredBalance: ethers.utils.formatEther(desiredBalance),
+        amount: ethers.utils.formatUnits(fundingAmount, tokenDecimals),
+        currentBalance: ethers.utils.formatUnits(currentBalance, tokenDecimals),
+        desiredBalance: ethers.utils.formatUnits(desiredBalance, tokenDecimals),
         funderAddress,
-        funderBalance: ethers.utils.formatEther(funderBalance),
+        funderBalance: ethers.utils.formatUnits(funderBalance, tokenDecimals),
       },
       'Funding key',
     );
 
-    const tx = await this.multiProvider.sendTransaction(chain, {
-      to: key.address,
-      value: fundingAmount,
-    });
+    let txHash: string;
+    if (erc20GasToken) {
+      const signer = this.multiProvider.getSigner(chain);
+      const token = new Contract(erc20GasToken.address, ERC20_ABI, signer);
+      const tx = await token.transfer(key.address, fundingAmount);
+      const receipt = await tx.wait();
+      txHash = receipt.transactionHash;
+    } else {
+      const tx = await this.multiProvider.sendTransaction(chain, {
+        to: key.address,
+        value: fundingAmount,
+      });
+      txHash = tx.transactionHash;
+    }
 
     this.options.metrics?.recordFundingAmount(
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(fundingAmount)),
+      parseFloat(ethers.utils.formatUnits(fundingAmount, tokenDecimals)),
     );
 
     logger.info(
       {
-        txHash: tx.transactionHash,
-        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-          hash: tx.transactionHash,
-        }),
+        txHash,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, { hash: txHash }),
       },
       'Funding transaction completed',
     );
@@ -299,10 +359,19 @@ export class KeyFunder {
     chain: string,
     address: string,
     desiredBalance: BigNumber,
+    erc20GasToken?: { address: string; decimals: number },
   ): Promise<BigNumber> {
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(address);
+    let currentBalance: BigNumber;
+    if (erc20GasToken) {
+      const provider = this.multiProvider.getProvider(chain);
+      const token = new Contract(erc20GasToken.address, ERC20_ABI, provider);
+      currentBalance = await token.balanceOf(address);
+    } else {
+      currentBalance = await this.multiProvider
+        .getProvider(chain)
+        .getBalance(address);
+    }
+
     if (currentBalance.gte(desiredBalance)) {
       return BigNumber.from(0);
     }

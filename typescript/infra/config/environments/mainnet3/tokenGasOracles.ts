@@ -1,21 +1,76 @@
-import { ChainMap, IgpConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainGasOracleParams,
+  ChainMap,
+  ChainName,
+  GasPriceConfig,
+  IgpConfig,
+  ProtocolAgnositicGasOracleConfig,
+  getLocalStorageGasOracleConfig,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { EXCHANGE_RATE_MARGIN_PCT } from '../../../src/config/gas-oracle.js';
+import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
+
+import rawGasPrices from './gasPrices.json' with { type: 'json' };
+import { supportedChainNames } from './supportedChainNames.js';
+import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
+
+const gasPrices: ChainMap<GasPriceConfig> = rawGasPrices;
+const tokenPrices: ChainMap<string> = rawTokenPrices;
+
+function buildTokenOracleConfig(
+  chain: ChainName,
+  feeTokenPrice: string,
+  feeTokenDecimals: number,
+): ChainMap<ProtocolAgnositicGasOracleConfig> {
+  const oracleRemotes = supportedChainNames.filter(
+    (c) => c !== chain && gasPrices[c] && tokenPrices[c],
+  );
+
+  const gasOracleParams: ChainMap<ChainGasOracleParams> = {
+    // Substitute the ERC20 fee token as the "local native token" so the
+    // exchange rate resolves to: remote-native priced in fee-token.
+    [chain]: {
+      gasPrice: gasPrices[chain] ?? { amount: '1', decimals: 9 },
+      nativeToken: { price: feeTokenPrice, decimals: feeTokenDecimals },
+    },
+  };
+  for (const remote of oracleRemotes) {
+    gasOracleParams[remote] = {
+      gasPrice: gasPrices[remote],
+      nativeToken: {
+        price: tokenPrices[remote],
+        decimals: mustGetChainNativeToken(remote).decimals,
+      },
+    };
+  }
+
+  return getLocalStorageGasOracleConfig({
+    local: chain,
+    localProtocolType: ProtocolType.Ethereum,
+    gasOracleParams,
+    exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+  });
+}
 
 /**
- * Per-fee-token IGP gas oracle configs for ERC20-denominated interchain gas
- * payments, keyed by:
- *
+ * Per-fee-token IGP gas oracle configs, keyed by:
  *   local chain -> fee token address -> remote chain -> oracle config
  *
- * The wiring in `igp.ts` merges the entry for each local chain into that
- * chain's `IgpConfig.tokenOracleConfig`, which the SDK turns into per-fee-token
- * `StorageGasOracle` deployments + `setTokenGasOracles` calls on the IGP.
- *
- * Empty by default — keeping all token-IGP rollout changes contained to this
- * file. To enable a token on a chain, add an entry here. Only applies to
- * non-legacy IGPs (>= 11.3.0, EIP-1153 transient storage); legacy chains reject
- * it. The exchange rate is denominated in the fee token (price of the remote
- * native token quoted in the fee token), not the local native token.
+ * Merged into each chain's IgpConfig.tokenOracleConfig in igp.ts, which
+ * deploys a StorageGasOracle per fee token and calls setTokenGasOracles.
+ * Only applies to non-legacy IGPs (>= 11.3.0).
  */
 export const tokenGasOracleConfigs: ChainMap<
   NonNullable<IgpConfig['tokenOracleConfig']>
-> = {};
+> = {
+  // Tempo uses pathUSD ($1 USD stablecoin, 6 decimals) for gas payments.
+  tempo: {
+    '0x20c0000000000000000000000000000000000000': buildTokenOracleConfig(
+      'tempo',
+      '1',
+      6,
+    ),
+  },
+};

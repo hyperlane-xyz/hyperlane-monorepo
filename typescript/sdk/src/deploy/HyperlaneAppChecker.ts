@@ -69,13 +69,26 @@ export abstract class HyperlaneAppChecker<
     // If no chains were requested, check all app chains
     const chains =
       !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
-    return Promise.all(
-      chains
-        .filter((chain) =>
-          isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
-        )
-        .map((chain) => this.checkChain(chain)),
+    const chainsToRun = chains.filter((chain) =>
+      isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
     );
+    const results = await Promise.allSettled(
+      chainsToRun.map((chain) => this.checkChain(chain)),
+    );
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'rejected') {
+        rootLogger.warn(
+          { chain: chainsToRun[i], error: result.reason },
+          'Chain check failed, skipping',
+        );
+      }
+    }
+    return results
+      .filter(
+        (r): r is PromiseFulfilledResult<void> => r.status === 'fulfilled',
+      )
+      .map((r) => r.value);
   }
 
   getEvmChains(): ChainName[] {

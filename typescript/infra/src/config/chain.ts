@@ -50,7 +50,7 @@ export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
 // Chains that require MinimalInterchainAccountRouter due to deployment size limits
-export const minimalIcaChains: ChainName[] = ['igra'];
+export const minimalIcaChains: ChainName[] = ['igra', 'tempo'];
 
 // Chains marked as disabled in registry metadata.
 // Derived programmatically from chain availability status.
@@ -110,6 +110,15 @@ export const chainsToSkip: ChainName[] = [
   // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
   // pinned registry, so kept explicit here.
   'miraclechain',
+
+  // Expired Conduit RPC key — re-enable once key is rotated.
+  'ancient8',
+
+  // RPC down — re-enable once RPC is restored.
+  'oortmainnet',
+
+  // EIP-1559 not supported — maxFeePerGas returns 0, breaking fee estimation.
+  'chilizmainnet',
 
   ...getDisabledChains(),
 ];

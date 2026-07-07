@@ -7,8 +7,22 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { module, context, environment, asDeployer, chains, fork, govern } =
-    await getCheckDeployArgs().argv;
+  const {
+    module,
+    context,
+    environment,
+    asDeployer,
+    chains,
+    fork,
+    govern,
+    file,
+    registry,
+  } = await getCheckDeployArgs().argv;
+  if (registry?.length) {
+    process.env.REGISTRY_URIS = (
+      Array.isArray(registry) ? registry : [registry]
+    ).join(',');
+  }
   assert(module, 'Module is required');
 
   const governor = await getGovernor(
@@ -24,12 +38,12 @@ async function main() {
   if (fork) {
     await governor.checkChain(fork);
     if (govern) {
-      await governor.govern(false, fork);
+      await governor.govern(false, fork, file);
     }
   } else {
     await governor.check(chains);
     if (govern) {
-      await governor.govern();
+      await governor.govern(true, undefined, file);
     }
   }
 
