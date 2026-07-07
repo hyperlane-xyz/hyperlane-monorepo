@@ -28,7 +28,8 @@ use hyperlane_sealevel_igp::{
     accounts::{
         GasPaymentAccount, IgpFeeConfig, InterchainGasPaymasterType, TOKEN_EXCHANGE_RATE_SCALE,
     },
-    igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds,
+    igp_transient_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
         submit_igp_quote_instruction, SetIgpQuoteSignerOperation,
@@ -288,6 +289,7 @@ struct CcTokenAccounts {
     mailbox_process_authority: Pubkey,
     dispatch_authority: Pubkey,
     dispatch_authority_bump: u8,
+    igp_quote_authority: Pubkey,
     escrow: Pubkey,
     escrow_bump: u8,
     ata_payer: Pubkey,
@@ -316,6 +318,9 @@ async fn initialize_cc_token(
 
     let (dispatch_authority_key, dispatch_authority_bump) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+
+    let (igp_quote_authority_key, _) =
+        Pubkey::find_program_address(igp_quote_authority_pda_seeds!(), program_id);
 
     let (escrow_account_key, escrow_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_escrow_pda_seeds!(), program_id);
@@ -372,6 +377,7 @@ async fn initialize_cc_token(
         mailbox_process_authority: mailbox_process_authority_key,
         dispatch_authority: dispatch_authority_key,
         dispatch_authority_bump,
+        igp_quote_authority: igp_quote_authority_key,
         escrow: escrow_account_key,
         escrow_bump: escrow_account_bump_seed,
         ata_payer: ata_payer_account_key,
@@ -689,7 +695,7 @@ mod init_instruction {
                     escrow_bump: ctx.cc.escrow_bump,
                     ata_payer_bump: ctx.cc.ata_payer_bump,
                 },
-                fee_config: None,
+                fee_config: None.into(),
             }),
         );
 
@@ -2033,6 +2039,57 @@ mod handle_instruction {
             TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
+
+    #[tokio::test]
+    async fn test_handle_from_mailbox_rejects_local_origin() {
+        let mut ctx = TestContext::new(false).await;
+        let escrow = ctx.cc.escrow;
+        let ata_payer = ctx.cc.ata_payer;
+        ctx.fund_escrow_and_ata_payer(escrow, ata_payer, 100 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+
+        // Enroll the sender as a CC router for the local domain, so the only
+        // thing rejecting the message is the same-domain guard.
+        let cc_router = H256::random();
+        set_cc_routers(
+            &mut ctx.banks_client,
+            &ctx.program_id,
+            &ctx.payer,
+            vec![CrossCollateralRouterUpdate::Add {
+                domain: LOCAL_DOMAIN,
+                router: cc_router,
+            }],
+        )
+        .await
+        .unwrap();
+
+        let recipient_pubkey = Pubkey::new_unique();
+        let recipient: H256 = recipient_pubkey.to_bytes().into();
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: LOCAL_DOMAIN,
+            sender: cc_router,
+            destination: LOCAL_DOMAIN,
+            recipient: ctx.program_id.to_bytes().into(),
+            body: TokenMessage::new(recipient, 1000u64.into(), vec![]).to_vec(),
+        };
+
+        let result = process(
+            &mut ctx.banks_client,
+            &ctx.payer,
+            &ctx.mailbox_accounts,
+            vec![],
+            &message,
+        )
+        .await;
+
+        // Custom(3618916391) = CcError::SameDomainViaMailbox
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(3618916391)),
+        );
+    }
 }
 
 mod handle_local_instruction {
@@ -2257,9 +2314,9 @@ mod handle_local_instruction {
     }
 
     #[tokio::test]
-    async fn test_handle_local_accepts_base_remote_router() {
-        // Base remote router enrollment also authorizes HandleLocal via
-        // is_authorized_router (checks both CC enrolled and base routers).
+    async fn test_handle_local_rejects_base_remote_router() {
+        // Same-chain HandleLocal authorizes CC-enrolled routers only; a base
+        // remote router enrolled for the local domain is rejected.
         let mut ctx = TestContext::new(false).await;
         let program_b = second_cc_program_id();
         let cc_b = ctx.init_second_cc_token().await;
@@ -2357,8 +2414,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Should succeed — is_authorized_router accepts base remote routers too
-        result.unwrap();
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
+        );
     }
 
     #[tokio::test]
@@ -5888,7 +5947,7 @@ async fn test_cc_remote_transfer_igp_new_flow_standing() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -6042,7 +6101,7 @@ async fn test_cc_remote_transfer_igp_new_flow_transient() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new(igp_transient_pda, false),
                     AccountMeta::new_readonly(igp_overhead_igp, false),
@@ -6167,7 +6226,7 @@ async fn test_cc_remote_transfer_igp_new_flow_cascade_oracle_fallback() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -6299,7 +6358,7 @@ async fn test_cc_remote_transfer_igp_new_flow_cascade_wildcard_sender() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -6431,7 +6490,7 @@ async fn test_cc_remote_transfer_igp_new_flow_cascade_wildcard_domain() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -6588,7 +6647,7 @@ async fn test_cc_remote_transfer_igp_new_flow_with_overhead() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gp, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
@@ -6837,7 +6896,7 @@ async fn test_cc_remote_transfer_igp_new_flow_with_fee() {
                     AccountMeta::new_readonly(igp_program, false),
                     AccountMeta::new(igp_program_data, false),
                     AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new_readonly(ctx.cc.igp_quote_authority, false),
                     AccountMeta::new_readonly(ctx.program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),

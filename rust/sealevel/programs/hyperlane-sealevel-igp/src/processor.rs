@@ -37,7 +37,7 @@ use crate::{
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
+    igp_quote_authority_pda_seeds, igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         GasOracleConfig, GasOverheadConfig, GetIgpQuoteAccountMetas, InitIgp, InitOverheadIgp,
         Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
@@ -199,7 +199,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
                 owner: data.owner,
                 beneficiary: data.beneficiary,
                 gas_oracles: HashMap::new(),
-                fee_config: None,
+                fee_config: None.into(),
             }
             .into()
         },
@@ -294,9 +294,8 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     Ok(*igp_info.key)
 }
 
-/// Dispatch authority PDA seeds for sender_authority verification.
-/// Same seeds as mailbox uses: ["hyperlane_dispatcher", "-", "dispatch_authority"].
-const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"];
+/// IGP quote authority PDA seeds for sender_authority verification.
+const IGP_QUOTE_AUTHORITY_SEEDS: &[&[u8]] = igp_quote_authority_pda_seeds!();
 
 /// Pay for gas.
 ///
@@ -317,7 +316,7 @@ const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"di
 /// 3. `[signer]` Unique gas payment account.
 /// 4. `[writeable]` Gas payment PDA.
 /// 5. `[writeable]` The IGP account (same position as old flow).
-/// 6. `[signer]` sender_authority (dispatch_authority PDA — must be signer).
+/// 6. `[signer]` sender_authority (IGP quote authority PDA — must be signer).
 /// 7. `[]` quoted_sender (warp route program ID).
 /// 8. `[]` Standing quote PDA (exact).
 /// 9. `[]` Standing quote PDA (wildcard-sender).
@@ -434,10 +433,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             let quoted_sender_info = next_account_info(accounts_iter)?;
             let quoted_sender = quoted_sender_info.key;
 
-            // Verify sender_authority is the dispatch authority PDA for quoted_sender.
+            // Verify sender_authority is the IGP quote authority PDA for quoted_sender.
             // This binds the authority to the actual message sender program.
             let (expected_authority, _) =
-                Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, quoted_sender);
+                Pubkey::find_program_address(IGP_QUOTE_AUTHORITY_SEEDS, quoted_sender);
             if *sender_authority_info.key != expected_authority {
                 return Err(ProgramError::InvalidSeeds);
             }
@@ -447,7 +446,9 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 return Err(ProgramError::NotEnoughAccountKeys);
             }
 
-            let fee_token_mint = Pubkey::default();
+            // Fee token used for payment. Only lamports (default mint) today; will be
+            // derived from the payment token account once SPL fee tokens are supported.
+            let expected_fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
 
             // Require fee_config for new flow — prevents stale quotes after config removal.
@@ -470,6 +471,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     transient_info,
                     igp_info.key,
                     payer_info.key,
+                    &expected_fee_token_mint,
                     payment.destination_domain,
                     quoted_sender,
                     min_issued_at,
@@ -489,7 +491,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     program_id,
                     accounts_iter,
                     igp_info.key,
-                    &fee_token_mint,
+                    &expected_fee_token_mint,
                     cascade_levels,
                     min_issued_at,
                     &clock,
@@ -643,7 +645,9 @@ fn quote_gas_payment(
                 return Err(ProgramError::NotEnoughAccountKeys);
             }
 
-            let fee_token_mint = Pubkey::default();
+            // Fee token used for payment. Only lamports (default mint) today; will be
+            // derived from the payment token account once SPL fee tokens are supported.
+            let expected_fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
 
             // Require fee_config for new flow — prevents stale quotes after config removal.
@@ -661,7 +665,7 @@ fn quote_gas_payment(
                 program_id,
                 accounts_iter,
                 igp_info.key,
-                &fee_token_mint,
+                &expected_fee_token_mint,
                 cascade_levels,
                 min_issued_at,
                 &clock,
@@ -974,14 +978,14 @@ fn set_igp_quote_config(
 
     // min_issued_at must not move backward when overwriting an existing config,
     // mirroring the SetIgpMinIssuedAt monotonic guarantee.
-    if let (Some(existing), Some(new_config)) = (&igp.fee_config, &config) {
+    if let (Some(existing), Some(new_config)) = (igp.fee_config.as_ref(), config.as_ref()) {
         if new_config.min_issued_at < existing.min_issued_at {
             return Err(ProgramError::InvalidArgument);
         }
     }
 
     let new_min_issued_at = config.as_ref().map(|c| c.min_issued_at);
-    igp.fee_config = config;
+    igp.fee_config = config.into();
 
     let igp_account = IgpAccount::new(igp.into());
     igp_account.store_with_rent_exempt_realloc(
@@ -1186,11 +1190,6 @@ fn submit_igp_quote(
 
     // --- Business logic ---
 
-    // Reject fully-wildcarded.
-    if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
-        return Err(QuoteValidationError::FullyWildcardedQuote.into());
-    }
-
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     if quote.is_transient() {
@@ -1211,6 +1210,7 @@ fn submit_igp_quote(
                     bump_seed: pda_bump,
                     payer: *payer_info.key,
                     scoped_salt,
+                    fee_token_mint: ctx.fee_token_mint,
                     destination_domain: ctx.destination_domain,
                     sender: ctx.sender,
                     token_exchange_rate: data.token_exchange_rate,
@@ -1243,6 +1243,13 @@ fn submit_igp_quote(
         }
     } else {
         // --- Standing path ---
+
+        // Reject fully-wildcarded standing quotes (shared across payers, would
+        // override the cascade). Transient quotes are payer-scoped, so allowed.
+        if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
+            return Err(QuoteValidationError::FullyWildcardedQuote.into());
+        }
+
         let dest_domain_le = ctx.destination_domain.to_le_bytes();
         let (expected_pda, pda_bump) = Pubkey::find_program_address(
             igp_standing_quote_pda_seeds!(
@@ -1385,6 +1392,7 @@ fn try_resolve_transient_quote(
     account_info: &AccountInfo,
     igp_key: &Pubkey,
     payer: &Pubkey,
+    expected_fee_token_mint: &Pubkey,
     dest_domain: u32,
     sender: &Pubkey,
     min_issued_at: i64,
@@ -1405,6 +1413,11 @@ fn try_resolve_transient_quote(
     // Verify payer binding — prevents another payer from using this quote.
     if transient.data.payer != *payer {
         return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Bind the quoted fee token to the token used for payment.
+    if transient.data.fee_token_mint != *expected_fee_token_mint {
+        return Err(QuoteValidationError::TransientContextMismatch.into());
     }
 
     // Verify stored context matches expected values. Wildcard fields match any value,
@@ -1617,9 +1630,9 @@ fn get_igp_quote_account_metas(
         });
 
         let (sender_authority, _) =
-            Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
+            Pubkey::find_program_address(IGP_QUOTE_AUTHORITY_SEEDS, &data.sender);
 
-        // [6] sender_authority (dispatch_authority PDA, signed via invoke_signed).
+        // [6] sender_authority (IGP quote authority PDA, signed via invoke_signed).
         metas.push(SerializableAccountMeta {
             pubkey: sender_authority,
             is_signer: true,
@@ -1682,4 +1695,97 @@ fn get_igp_quote_account_metas(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use hyperlane_core::H256;
+
+    /// Serializes a transient quote into the on-chain account byte layout.
+    fn transient_account_bytes(quote: &IgpTransientQuote) -> Vec<u8> {
+        let account = IgpTransientQuoteAccount::new(quote.clone().into());
+        let mut buf = vec![0u8; account.size()];
+        account.store_in_slice(&mut buf).unwrap();
+        buf
+    }
+
+    /// `try_resolve_transient_quote` must reject a quote whose stored fee_token_mint
+    /// differs from the mint used for payment, and accept any exact match (not just
+    /// the default mint). Guards HLSVM-2026Q2-013 for future SPL fee-token support.
+    #[test]
+    fn test_try_resolve_transient_quote_validates_fee_token_mint() {
+        let program_id = Pubkey::new_unique();
+        let igp_key = Pubkey::new_unique();
+        let payer = Pubkey::new_unique();
+        let sender = Pubkey::new_unique();
+        let dest_domain = 137u32;
+        let scoped_salt = H256::from_low_u64_be(42);
+        let non_default = Pubkey::new_unique();
+
+        let (pda_key, bump) = Pubkey::find_program_address(
+            igp_transient_quote_pda_seeds!(&igp_key, scoped_salt),
+            &program_id,
+        );
+
+        // (stored_mint, expected_mint, should_resolve)
+        let cases = [
+            (Pubkey::default(), Pubkey::default(), true),
+            (non_default, non_default, true),
+            (non_default, Pubkey::default(), false),
+            (Pubkey::default(), non_default, false),
+        ];
+
+        for (stored_mint, expected_mint, should_resolve) in cases {
+            let quote = IgpTransientQuote {
+                bump_seed: bump,
+                payer,
+                scoped_salt,
+                fee_token_mint: stored_mint,
+                destination_domain: dest_domain,
+                sender,
+                token_exchange_rate: 2_000_000_000_000_000_000,
+                gas_price: 1_000_000_000,
+                token_decimals: 9,
+                expiry: 1_000,
+            };
+            let mut data = transient_account_bytes(&quote);
+            let mut lamports = 1_000_000u64;
+            let account_info = AccountInfo::new(
+                &pda_key,
+                false,
+                true,
+                &mut lamports,
+                &mut data,
+                &program_id,
+                false,
+            );
+            let clock = Clock {
+                unix_timestamp: 500,
+                ..Default::default()
+            };
+
+            let result = try_resolve_transient_quote(
+                &program_id,
+                &account_info,
+                &igp_key,
+                &payer,
+                &expected_mint,
+                dest_domain,
+                &sender,
+                0,
+                &clock,
+            );
+
+            if should_resolve {
+                let resolved = result.expect("quote with matching mint should resolve");
+                assert_eq!(resolved.token_exchange_rate, 2_000_000_000_000_000_000);
+            } else {
+                assert_eq!(
+                    result.unwrap_err(),
+                    QuoteValidationError::TransientContextMismatch.into(),
+                );
+            }
+        }
+    }
 }
