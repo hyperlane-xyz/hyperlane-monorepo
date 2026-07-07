@@ -1164,11 +1164,6 @@ fn submit_igp_quote(
 
     // --- Business logic ---
 
-    // Reject fully-wildcarded.
-    if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
-        return Err(QuoteValidationError::FullyWildcardedQuote.into());
-    }
-
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     if quote.is_transient() {
@@ -1221,6 +1216,13 @@ fn submit_igp_quote(
         }
     } else {
         // --- Standing path ---
+
+        // Reject fully-wildcarded standing quotes (shared across payers, would
+        // override the cascade). Transient quotes are payer-scoped, so allowed.
+        if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
+            return Err(QuoteValidationError::FullyWildcardedQuote.into());
+        }
+
         let dest_domain_le = ctx.destination_domain.to_le_bytes();
         let (expected_pda, pda_bump) = Pubkey::find_program_address(
             igp_standing_quote_pda_seeds!(
