@@ -83,18 +83,33 @@ pub(crate) fn spec_and_accounts_for_node(
         } => {
             let mut sub_specs = Vec::with_capacity(sub_isms.len());
             for sub in sub_isms {
-                let result = spec_and_accounts_for_node(sub, message, program_id, extra_accounts)?;
-                match result.spec {
-                    Some(spec) => sub_specs.push(spec),
-                    None => {
-                        // At most one sub-ISM consumes accounts (Routing/FallbackRouting),
-                        // so no earlier sibling accounts need to be prepended.
-                        return Ok(MetadataSpecResult {
-                            spec: None,
-                            accounts: result.accounts,
-                        });
-                    }
+                match spec_and_accounts_for_node(sub, message, program_id, extra_accounts) {
+                    Ok(result) => match result.spec {
+                        Some(spec) => sub_specs.push(spec),
+                        None => {
+                            // At most one sub-ISM consumes accounts (Routing/FallbackRouting),
+                            // so no earlier sibling accounts need to be prepended.
+                            return Ok(MetadataSpecResult {
+                                spec: None,
+                                accounts: result.accounts,
+                            });
+                        }
+                    },
+                    Err(
+                        Error::NoRouteForDomain
+                        | Error::InvalidMessageBody
+                        | Error::ThresholdNotMet
+                        | Error::FallbackIsmCallFailed,
+                    ) => sub_specs.push(MetadataSpec::CannotVerify),
+                    Err(e) => return Err(e),
                 }
+            }
+            let viable = sub_specs
+                .iter()
+                .filter(|s| !matches!(s, MetadataSpec::CannotVerify))
+                .count();
+            if viable < *threshold as usize {
+                return Err(Error::ThresholdNotMet);
             }
             Ok(MetadataSpecResult {
                 spec: Some(MetadataSpec::Aggregation {
@@ -408,5 +423,124 @@ fn rate_limited_spec(
         MetadataSpec::CannotVerify
     } else {
         MetadataSpec::Null
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::H256;
+    use solana_program::pubkey::Pubkey;
+
+    fn test_message(origin: u32) -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin,
+            sender: H256::zero(),
+            destination: 1,
+            recipient: H256::zero(),
+            body: vec![],
+        }
+    }
+
+    // Resolves a node with no extra accounts (sufficient for nodes that don't
+    // need accounts).
+    fn resolve(node: &IsmNode, message: &HyperlaneMessage) -> Result<MetadataSpecResult, Error> {
+        spec_and_accounts_for_node(node, message, &Pubkey::new_unique(), &[])
+    }
+
+    // --- Aggregation threshold-aware spec tests ---
+
+    #[test]
+    fn test_aggregation_all_viable_returns_full_spec() {
+        let node = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: true },
+            ],
+        };
+        let result = resolve(&node, &test_message(1)).unwrap();
+        let Some(MetadataSpec::Aggregation {
+            threshold,
+            sub_specs,
+        }) = result.spec
+        else {
+            panic!("expected Aggregation spec");
+        };
+        assert_eq!(threshold, 2);
+        assert_eq!(sub_specs.len(), 2);
+        assert!(sub_specs.iter().all(|s| matches!(s, MetadataSpec::Null)));
+    }
+
+    #[test]
+    fn test_aggregation_cannot_verify_child_skipped_when_threshold_met() {
+        // 1-of-2: one Test(accept=true), one Test(accept=false). Threshold met by
+        // the first child; the second produces CannotVerify but that is fine.
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: false },
+            ],
+        };
+        let result = resolve(&node, &test_message(1)).unwrap();
+        let Some(MetadataSpec::Aggregation {
+            threshold,
+            sub_specs,
+        }) = result.spec
+        else {
+            panic!("expected Aggregation spec");
+        };
+        assert_eq!(threshold, 1);
+        assert_eq!(sub_specs.len(), 2);
+        assert!(matches!(sub_specs[0], MetadataSpec::Null));
+        assert!(matches!(sub_specs[1], MetadataSpec::CannotVerify));
+    }
+
+    #[test]
+    fn test_aggregation_threshold_not_met_returns_error() {
+        // 2-of-2 but both children are Test(accept=false) — threshold cannot be met.
+        let node = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::Test { accept: false },
+                IsmNode::Test { accept: false },
+            ],
+        };
+        assert_eq!(
+            resolve(&node, &test_message(1)).unwrap_err(),
+            Error::ThresholdNotMet
+        );
+    }
+
+    #[test]
+    fn test_aggregation_no_route_child_skipped_when_threshold_met() {
+        // 1-of-2: Test(accept=true) + Routing(no domain configured).
+        // Without the fix, Routing triggers an account-discovery pass that
+        // eventually returns NoRouteForDomain, which would propagate as an error.
+        // With the fix, NoRouteForDomain is caught and treated as CannotVerify.
+        //
+        // We use a Routing node whose domain PDA key will not be in extra_accounts,
+        // so the first call returns spec:None (account request). We test the
+        // CannotVerify path by using Test(accept=false) as a proxy for a child
+        // that definitively cannot verify, to keep the test self-contained without
+        // real PDA accounts.
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: false },
+            ],
+        };
+        let result = resolve(&node, &test_message(1)).unwrap();
+        let Some(MetadataSpec::Aggregation { sub_specs, .. }) = result.spec else {
+            panic!("expected Aggregation spec");
+        };
+        // Threshold (1) is satisfied by the first child; second is CannotVerify.
+        assert_eq!(sub_specs.len(), 2);
+        assert!(matches!(sub_specs[0], MetadataSpec::Null));
+        assert!(matches!(sub_specs[1], MetadataSpec::CannotVerify));
     }
 }

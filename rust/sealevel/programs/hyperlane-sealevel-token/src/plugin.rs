@@ -351,7 +351,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // After potentially paying for the ATA creation, we need to make sure
         // the ATA payer still meets the rent-exemption requirements.
-        verify_rent_exempt(recipient_ata, &Rent::get()?)?;
+        verify_rent_exempt(ata_payer_account, &Rent::get()?)?;
 
         let mint_ixn = mint_to_checked(
             &spl_token_2022::id(),

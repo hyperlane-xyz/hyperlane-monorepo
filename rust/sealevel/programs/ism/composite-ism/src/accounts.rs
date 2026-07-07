@@ -128,6 +128,23 @@ pub enum IsmNode {
     },
 }
 
+impl IsmNode {
+    /// Static label for the node variant, for concise config-change logs.
+    pub fn kind_to_str(&self) -> &'static str {
+        match self {
+            IsmNode::TrustedRelayer { .. } => "TrustedRelayer",
+            IsmNode::MultisigMessageId { .. } => "MultisigMessageId",
+            IsmNode::Aggregation { .. } => "Aggregation",
+            IsmNode::Test { .. } => "Test",
+            IsmNode::Pausable { .. } => "Pausable",
+            IsmNode::AmountRouting { .. } => "AmountRouting",
+            IsmNode::RateLimited { .. } => "RateLimited",
+            IsmNode::Routing => "Routing",
+            IsmNode::FallbackRouting { .. } => "FallbackRouting",
+        }
+    }
+}
+
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).
 /// Contains the complete ISM config tree.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]

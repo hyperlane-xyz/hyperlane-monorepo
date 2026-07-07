@@ -34,6 +34,10 @@ pub enum Error {
     /// IGP has offchain quoting configured but caller used legacy (oracle-only) flow.
     #[error("IGP requires new quoting flow")]
     IgpNewFlowRequired = 7,
+
+    /// Fee account domain does not match the token mailbox local domain.
+    #[error("Fee account domain mismatch")]
+    InvalidFeeAccountDomain = 8,
 }
 
 impl From<Error> for ProgramError {

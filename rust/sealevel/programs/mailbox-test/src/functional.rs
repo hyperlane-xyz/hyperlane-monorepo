@@ -1465,3 +1465,83 @@ async fn test_get_program_version() {
         .expect("failed to deserialize");
     assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
 }
+
+#[tokio::test]
+async fn test_outbox_get_latest_checkpoint() {
+    use serializable_account_meta::SimulationReturnData;
+
+    let program_id = mailbox_id();
+    let (mut banks_client, payer, _, _) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        MAX_PROTOCOL_FEE,
+        test_protocol_fee_config(),
+    )
+    .await
+    .unwrap();
+
+    // Dispatch a message so the outbox tree holds a real, non-default root.
+    let recipient = H256::random();
+    let message_body = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    dispatch_from_payer(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        OutboxDispatch {
+            sender: payer.pubkey(),
+            destination_domain: REMOTE_DOMAIN,
+            recipient,
+            message_body: message_body.clone(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let dispatched_message = HyperlaneMessage {
+        version: 3,
+        nonce: 0,
+        origin: LOCAL_DOMAIN,
+        sender: payer.pubkey().to_bytes().into(),
+        destination: REMOTE_DOMAIN,
+        recipient,
+        body: message_body,
+    };
+    let mut expected_tree = MerkleTree::default();
+    expected_tree.ingest(dispatched_message.id());
+
+    let ix = Instruction::new_with_borsh(
+        program_id,
+        &MailboxInstruction::OutboxGetLatestCheckpoint,
+        vec![AccountMeta::new_readonly(mailbox_accounts.outbox, false)],
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[ix],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+
+    // Regression: the getter copied the 32-byte root into a 31-byte slice,
+    // panicking before any return data was set.
+    assert!(simulation.result.unwrap().is_ok());
+
+    let return_data = simulation
+        .simulation_details
+        .unwrap()
+        .return_data
+        .expect("no return data");
+    let result = SimulationReturnData::<Vec<u8>>::try_from_slice(&return_data.data)
+        .expect("failed to deserialize");
+
+    assert_eq!(result.return_data.len(), 36);
+    assert_eq!(&result.return_data[0..32], expected_tree.root().as_ref());
+    assert_eq!(&result.return_data[32..36], &1u32.to_le_bytes());
+}

@@ -17,6 +17,11 @@ pub enum Error {
     /// The CC dispatch authority PDA is invalid.
     #[error("Invalid dispatch authority")]
     InvalidDispatchAuthority = 1001,
+
+    /// A mailbox-delivered message claims the local domain as its origin.
+    /// fnv1a("Error::SameDomainViaMailbox")
+    #[error("Same-domain delivery via mailbox not allowed")]
+    SameDomainViaMailbox = 3618916391,
 }
 
 impl From<Error> for ProgramError {
