@@ -644,3 +644,127 @@ async fn test_update_config_resets_state() {
     assert_eq!(filled_level, new_max);
     assert_eq!(last_updated, 0);
 }
+
+// ── Regression: zero-amount messages must not update state ───────────────────
+//
+// A zero-amount message passes the capacity check (0 <= filled_level) but
+// must NOT update last_updated or filled_level.  Without the guard, every
+// accepted zero-amount message resets the refill timer while consuming no
+// capacity — on low-capacity routes this defers the 24-hour full reset
+// indefinitely, blocking legitimate non-zero transfers.
+
+#[tokio::test]
+async fn test_verify_zero_amount_does_not_update_state() {
+    let mut ctx = program_test().start_with_context().await;
+    let payer = ctx.payer.insecure_clone();
+
+    let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut ctx.banks_client,
+        &payer,
+        bh,
+        rate_limited_node(MAX_CAPACITY),
+    )
+    .await
+    .unwrap();
+
+    ctx.warp_to_slot(2).unwrap();
+    ctx.set_sysvar(&clock_at(0));
+
+    // Drain full capacity.
+    let ixn = verify_ixn(MAX_CAPACITY);
+    let metas = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, metas)
+        .await
+        .unwrap();
+
+    let (filled_level, last_updated) = read_rate_limited_state(&mut ctx.banks_client).await;
+    assert_eq!(filled_level, 0);
+    assert_eq!(last_updated, 0);
+
+    // Advance clock to 1 second and send a zero-amount message.
+    ctx.warp_to_slot(3).unwrap();
+    ctx.set_sysvar(&clock_at(1));
+
+    let ixn_zero = verify_ixn(0);
+    let metas_zero = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_zero.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_zero, metas_zero)
+        .await
+        .unwrap();
+
+    // State must be unchanged: last_updated still 0, not advanced to 1.
+    // Without the fix it would have been updated to 1, deferring the refill timer.
+    let (filled_level_after, last_updated_after) =
+        read_rate_limited_state(&mut ctx.banks_client).await;
+    assert_eq!(filled_level_after, 0);
+    assert_eq!(
+        last_updated_after, 0,
+        "zero-amount must not update last_updated"
+    );
+}
+
+#[tokio::test]
+async fn test_verify_zero_amount_does_not_defer_refill() {
+    // Low-capacity route: max_capacity = 1 means partial refill is always 0
+    // (integer division: elapsed * 1 / 86400 = 0 unless elapsed >= 86400).
+    // Only the full-window reset at >= 86400 s restores capacity.
+    //
+    // Bug scenario: zero-amount messages at T=43200 reset last_updated to 43200.
+    // A non-zero message at T=86401 then sees elapsed = 43201 < 86400 → no reset → fails.
+    //
+    // After fix: last_updated stays at 0; elapsed at T=86401 is 86401 >= 86400 → full reset → succeeds.
+    let mut ctx = program_test().start_with_context().await;
+    let payer = ctx.payer.insecure_clone();
+
+    let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(&mut ctx.banks_client, &payer, bh, rate_limited_node(1))
+        .await
+        .unwrap();
+
+    ctx.warp_to_slot(2).unwrap();
+    ctx.set_sysvar(&clock_at(0));
+
+    // Drain the single unit of capacity.
+    let ixn = verify_ixn(1);
+    let metas = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, metas)
+        .await
+        .unwrap();
+
+    // At 12 hours: send a zero-amount message.
+    // Without fix: last_updated → 43200; elapsed at 86401 would be only 43201 < 86400.
+    // With fix: last_updated stays 0; elapsed at 86401 is 86401 >= 86400 (full reset).
+    ctx.warp_to_slot(3).unwrap();
+    ctx.set_sysvar(&clock_at(43200));
+
+    let ixn_zero = verify_ixn(0);
+    let metas_zero = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_zero.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_zero, metas_zero)
+        .await
+        .unwrap();
+
+    // At 24 h + 1 s: the non-zero transfer must succeed (full reset from T0=0).
+    ctx.warp_to_slot(4).unwrap();
+    ctx.set_sysvar(&clock_at(86_401));
+
+    let ixn_real = verify_ixn(1);
+    let metas_real = {
+        let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn_real.clone()).await
+    };
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn_real, metas_real)
+        .await
+        .unwrap();
+}
