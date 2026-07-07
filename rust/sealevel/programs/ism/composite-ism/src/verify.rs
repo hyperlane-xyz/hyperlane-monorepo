@@ -278,7 +278,7 @@ where
             // calls Verify during message delivery.  Direct calls (not through the
             // mailbox) cannot produce a valid signer for this PDA, so attackers
             // cannot drain the rate-limit bucket without delivering a real message.
-            let (expected_authority, _) = derive_process_authority(mailbox);
+            let (expected_authority, _) = derive_process_authority(mailbox, program_id);
             let authority_info = next_account_info(accounts_iter)?;
             if authority_info.key != &expected_authority {
                 return Err(Error::InvalidProcessAuthority.into());
@@ -862,19 +862,70 @@ mod test {
         body
     }
 
-    /// `RateLimited` rejects when the process authority key is wrong.
+    /// `RateLimited` rejects an authority derived for a different ISM program.
+    ///
+    /// This is the core security property: a malicious ISM that received the
+    /// mailbox's `invoke_signed` authority cannot forward it to a victim ISM
+    /// because the PDA is bound to the calling ISM's program ID.
     #[test]
-    fn test_rate_limited_wrong_authority_rejected() {
+    fn test_rate_limited_cross_ism_authority_rejected() {
         let mailbox = Pubkey::new_unique();
+        let victim_program_id = Pubkey::new_unique();
+        let attacker_program_id = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(warp_route),
             filled_level: 1_000,
             last_updated: 0,
             mailbox,
         };
 
         let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
+        msg.body = rate_limited_token_body(100);
+
+        // Attacker has the authority for their own ISM (mailbox signed for them).
+        let (attacker_authority, _) = derive_process_authority(&mailbox, &attacker_program_id);
+        let owner = Pubkey::default();
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        // Signer = true, simulating the forwarded is_signer flag from a nested CPI.
+        let attacker_acc =
+            make_fake_account_info(&attacker_authority, true, &mut lamports, &mut data, &owner);
+
+        let accounts = vec![attacker_acc];
+        let mut iter = accounts.iter();
+        // Victim ISM uses victim_program_id — derived PDA differs → rejected.
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &victim_program_id,
+                &mut false,
+            )
+            .unwrap_err(),
+            Error::InvalidProcessAuthority.into()
+        );
+    }
+
+    /// `RateLimited` rejects when the process authority key is wrong.
+    #[test]
+    fn test_rate_limited_wrong_authority_rejected() {
+        let mailbox = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
+        let mut node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: Some(warp_route),
+            filled_level: 1_000,
+            last_updated: 0,
+            mailbox,
+        };
+
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
         msg.body = rate_limited_token_body(100);
 
         // Provide the WRONG authority (some random key, not the derived PDA).
@@ -904,18 +955,21 @@ mod test {
     #[test]
     fn test_rate_limited_authority_not_signer_rejected() {
         let mailbox = Pubkey::new_unique();
+        let warp_route = H256::from([0xAAu8; 32]);
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(warp_route),
             filled_level: 1_000,
             last_updated: 0,
             mailbox,
         };
 
         let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.recipient = warp_route;
         msg.body = rate_limited_token_body(100);
 
-        let (authority_key, _) = derive_process_authority(&mailbox);
+        let program_id = no_program_id();
+        let (authority_key, _) = derive_process_authority(&mailbox, &program_id);
         let owner = Pubkey::default();
         let mut lamports = 0u64;
         let mut data = vec![];
@@ -926,15 +980,7 @@ mod test {
         let accounts = vec![authority_acc];
         let mut iter = accounts.iter();
         assert_eq!(
-            verify_node(
-                &mut node,
-                &[],
-                &msg,
-                &mut iter,
-                &no_program_id(),
-                &mut false,
-            )
-            .unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter, &program_id, &mut false,).unwrap_err(),
             Error::ProcessAuthorityNotSigner.into()
         );
     }

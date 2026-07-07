@@ -39,8 +39,8 @@ use std::str::FromStr;
 use common::{
     assert_simulation_error, assert_simulation_ok, composite_ism_id, domain_pda_key, dummy_message,
     encode_aggregation_metadata, get_all_verify_account_metas, initialize, mock_mailbox_id,
-    process_verify_via_mailbox, program_test, set_domain_ism, simulate_verify, storage_pda_key,
-    token_message_body,
+    process_verify_via_mailbox, program_test, rate_limited_recipient, set_domain_ism,
+    simulate_verify, storage_pda_key, token_message_body,
 };
 
 const ORIGIN: u32 = 1234;
@@ -654,7 +654,7 @@ async fn test_rate_limited_in_domain_pda_initializes_full() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0, // normalized to max_capacity by SetDomainIsm
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -683,7 +683,7 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -694,6 +694,7 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(100);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
@@ -705,7 +706,8 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
         get_all_verify_account_metas(&mut banks_client, &payer, recent_blockhash, verify_ixn).await;
 
     use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
-    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+    let expected_process_authority =
+        derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0;
 
     assert_eq!(account_metas.len(), 3);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
@@ -730,7 +732,7 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -742,6 +744,7 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
     let build_verify = |amount: u64| {
         let mut msg = dummy_message();
         msg.origin = ORIGIN;
+        msg.recipient = rate_limited_recipient();
         msg.body = token_message_body(amount);
         VerifyInstruction {
             metadata: vec![],
@@ -805,7 +808,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -816,6 +819,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(500);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
@@ -877,7 +881,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
         ORIGIN,
         IsmNode::RateLimited {
             max_capacity: 1_000,
-            recipient: None,
+            recipient: Some(rate_limited_recipient()),
             filled_level: 0,
             last_updated: 0,
             mailbox: mock_mailbox_id(),
@@ -888,6 +892,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
 
     let mut msg = dummy_message();
     msg.origin = ORIGIN;
+    msg.recipient = rate_limited_recipient();
     msg.body = token_message_body(500);
     let verify_ixn = VerifyInstruction {
         metadata: vec![],
