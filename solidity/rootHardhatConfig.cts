@@ -4,16 +4,31 @@
  */
 export const rootHardhatConfig = {
   solidity: {
-    version: '0.8.33',
-    settings: {
-      evmVersion: 'cancun',
-      optimizer: {
-        enabled: true,
-        // Stopgap: lowered from 9_990 to keep CrossCollateralRouter under the
-        // EIP-170 24576-byte limit. Kept in sync with foundry.toml. Restore
-        // once its bytecode is trimmed (e.g. rebalance-target logic moved to a
-        // linked library).
-        runs: 5_800,
+    compilers: [
+      {
+        version: '0.8.33',
+        settings: {
+          evmVersion: 'cancun',
+          optimizer: {
+            enabled: true,
+            runs: 10_000,
+          },
+        },
+      },
+    ],
+    overrides: {
+      // Pinned below the suite-wide runs to keep the runtime bytecode under the
+      // EIP-170 24576-byte limit. Mirrors the Foundry compilation_restrictions
+      // entry in foundry.toml; keep the two in sync.
+      'contracts/token/CrossCollateralRouter.sol': {
+        version: '0.8.33',
+        settings: {
+          evmVersion: 'cancun',
+          optimizer: {
+            enabled: true,
+            runs: 5_800,
+          },
+        },
       },
     },
   },
