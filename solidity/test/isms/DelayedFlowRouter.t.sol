@@ -246,6 +246,156 @@ contract DelayedFlowRouterTest is Test {
         );
     }
 
+    /// @dev A raw `(amount - level) * DURATION` would overflow for a huge
+    /// amount; `_consume` uses `mulDiv`, so it stays overflow-safe and the
+    /// result clamps to `MAX_DELAY`.
+    function test_hugeAmount_clampsToMaxDelayWithoutOverflow() public {
+        bytes32 id = keccak256("huge");
+        _simulateWithdrawal(id, type(uint256).max / 2);
+        assertEq(
+            destinationDelay.readyAt(id),
+            uint48(block.timestamp + MAX_DELAY)
+        );
+    }
+
+    /// @dev The bucket is in the destination token's local units, but the
+    /// payload amount is in the route's scaled units. For any scale, the delay
+    /// must be sized against the amount converted to local units by the
+    /// router's scale. Uses a fresh scaled collateral route + DFR.
+    function testFuzz_delaySizedInLocalUnits_forAnyScale(
+        uint256 scaleNumerator,
+        uint256 scaleDenominator,
+        uint256 messageAmount
+    ) public {
+        scaleNumerator = bound(scaleNumerator, 1, 1e12);
+        scaleDenominator = bound(scaleDenominator, 1, 1e12);
+
+        HypERC20Collateral scaledRouter = new HypERC20Collateral(
+            address(underlying),
+            scaleNumerator,
+            scaleDenominator,
+            address(destinationMailbox)
+        );
+        underlying.mintTo(address(scaledRouter), INITIAL_COLLATERAL);
+        DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
+            TokenRouter(payable(address(scaledRouter))),
+            THRESHOLD_BPS,
+            MAX_DELAY
+        );
+        scaledDelay.enrollRemoteRouter(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32()
+        );
+
+        uint256 cap = scaledDelay.maxCapacity(); // local units
+
+        // Cover both under- and over-capacity (up to ~3x cap local). Bounds
+        // keep raw arithmetic equal to the contract's mulDiv(Rounding.Down).
+        uint256 maxMessage = ((cap * 3) * scaleNumerator) / scaleDenominator;
+        messageAmount = bound(messageAmount, 0, maxMessage);
+        uint256 localAmount = (messageAmount * scaleDenominator) /
+            scaleNumerator;
+
+        bytes32 id = keccak256(abi.encode(messageAmount, cap));
+        vm.prank(address(destinationMailbox));
+        scaledDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(id, messageAmount)
+        );
+
+        // Expected delay derived from the LOCAL amount (mirrors _consume).
+        uint256 expectedWait;
+        if (localAmount > cap) {
+            expectedWait = ((localAmount - cap) * scaledDelay.DURATION()) / cap;
+            if (expectedWait > MAX_DELAY) expectedWait = MAX_DELAY;
+        }
+        assertEq(
+            scaledDelay.readyAt(id),
+            uint48(block.timestamp + expectedWait)
+        );
+    }
+
+    /// @dev The origin credit path (`_TimelockRouter_onDispatch`) must also
+    /// meter local units. Drains a scaled route to zero via a consume, then
+    /// credits via a direct postDispatch and asserts the bucket rose by the
+    /// message amount converted to local units.
+    function testFuzz_creditMetersLocalUnits_forAnyScale(
+        uint256 scaleNumerator,
+        uint256 scaleDenominator,
+        uint256 creditMessage
+    ) public {
+        scaleNumerator = bound(scaleNumerator, 1, 1e12);
+        scaleDenominator = bound(scaleDenominator, 1, 1e12);
+
+        HypERC20Collateral scaledRouter = new HypERC20Collateral(
+            address(underlying),
+            scaleNumerator,
+            scaleDenominator,
+            address(destinationMailbox)
+        );
+        underlying.mintTo(address(scaledRouter), INITIAL_COLLATERAL);
+        DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
+            TokenRouter(payable(address(scaledRouter))),
+            THRESHOLD_BPS,
+            MAX_DELAY
+        );
+        scaledDelay.enrollRemoteRouter(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32()
+        );
+
+        uint256 cap = scaledDelay.maxCapacity();
+
+        // Over-drain (>capacity) so `_consume` clamps the level to zero
+        // regardless of scale rounding.
+        vm.prank(address(destinationMailbox));
+        scaledDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(
+                keccak256("drain"),
+                (cap * 2 * scaleNumerator) / scaleDenominator
+            )
+        );
+        assertEq(scaledDelay.calculateCurrentLevel(), 0);
+
+        // Credit a local amount within capacity (no clamp) so the delta is
+        // exact.
+        creditMessage = bound(
+            creditMessage,
+            0,
+            (cap * scaleNumerator) / scaleDenominator
+        );
+
+        {
+            bytes memory message = MessageUtils.formatMessage(
+                3,
+                1, // nonce > lastCreditedNonce (0)
+                DESTINATION_DOMAIN,
+                address(scaledRouter).addressToBytes32(),
+                ORIGIN_DOMAIN,
+                address(originDelay).addressToBytes32(),
+                TokenMessage.format(
+                    user.addressToBytes32(),
+                    creditMessage,
+                    bytes("")
+                )
+            );
+            vm.mockCall(
+                address(destinationMailbox),
+                abi.encodeWithSignature("latestDispatchedId()"),
+                abi.encode(keccak256(message))
+            );
+            scaledDelay.postDispatch(bytes(""), message);
+        }
+
+        assertEq(
+            scaledDelay.calculateCurrentLevel(),
+            (creditMessage * scaleDenominator) / scaleNumerator
+        );
+    }
+
     // ============ Deposit replenishment ============
 
     function test_depositCreditsBucket() public {

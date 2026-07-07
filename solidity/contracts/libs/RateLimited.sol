@@ -15,6 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title RateLimited
@@ -184,7 +185,7 @@ contract RateLimited is OwnableUpgradeable {
             filledLevel = 0;
             deficitSecs = cap == 0
                 ? type(uint256).max
-                : ((_amount - level) * DURATION) / cap;
+                : Math.mulDiv(_amount - level, DURATION, cap);
         }
         lastUpdated = block.timestamp;
         _RateLimited_initialize();
