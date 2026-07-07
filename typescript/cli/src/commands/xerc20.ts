@@ -11,7 +11,12 @@ import {
   type XERC20ModuleConfig,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  normalizeAddressEvm,
+  objFilter,
+} from '@hyperlane-xyz/utils';
 
 import { runSubmit } from '../config/submit.js';
 import {
@@ -182,7 +187,9 @@ const read: CommandModuleWithContext<
         const onChainBridges = Object.keys(onChainConfig.limits);
         const expectedBridges = Object.keys(config.limits);
         const allBridges = [
-          ...new Set([...onChainBridges, ...expectedBridges]),
+          ...new Set(
+            [...onChainBridges, ...expectedBridges].map(normalizeAddressEvm),
+          ),
         ];
 
         const { xERC20 } = module.serialize();
