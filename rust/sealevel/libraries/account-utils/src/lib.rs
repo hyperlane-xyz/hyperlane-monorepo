@@ -17,28 +17,6 @@ pub mod error;
 pub use discriminator::*;
 pub use error::*;
 
-/// Reads an optional trailing field from a Borsh reader. Treats EOF as
-/// `None` so that accounts serialized before the field existed still
-/// deserialize correctly. All future trailing-optional fields must use
-/// this helper to preserve backward compatibility.
-pub fn read_optional_trailing<R: std::io::Read, V: BorshDeserialize>(
-    reader: &mut R,
-) -> std::io::Result<Option<V>> {
-    let mut tag = [0u8; 1];
-    match reader.read_exact(&mut tag) {
-        Ok(()) => match tag[0] {
-            0 => Ok(None),
-            1 => V::deserialize_reader(reader).map(Some),
-            v => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Invalid Option tag: {v}"),
-            )),
-        },
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
-        Err(e) => Err(e),
-    }
-}
-
 /// Verifies that no additional accounts remain in the iterator.
 pub fn ensure_no_extraneous_accounts(
     accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,

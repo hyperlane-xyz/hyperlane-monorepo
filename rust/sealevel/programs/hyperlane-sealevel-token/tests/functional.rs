@@ -399,7 +399,7 @@ async fn test_initialize() {
                 mint_bump: hyperlane_token_accounts.mint_bump,
                 ata_payer_bump: hyperlane_token_accounts.ata_payer_bump,
             },
-            fee_config: None,
+            fee_config: None.into(),
         }),
     );
 
@@ -940,6 +940,67 @@ async fn test_enroll_remote_router() {
         token.remote_routers,
         vec![(REMOTE_DOMAIN, remote_router)].into_iter().collect(),
     );
+}
+
+#[tokio::test]
+async fn test_remote_router_removal_keeps_fee_config_absent() {
+    // HLSVM-2026Q2-010: a real remote-router removal must leave fee_config absent.
+    let program_id = hyperlane_sealevel_token_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    // Enroll two routers, then unenroll one (router: None) — the real shrink path.
+    for domain in [REMOTE_DOMAIN, REMOTE_DOMAIN + 1] {
+        enroll_remote_router(
+            &mut banks_client,
+            &program_id,
+            &payer,
+            &hyperlane_token_accounts.token,
+            domain,
+            H256::random(),
+        )
+        .await
+        .unwrap();
+    }
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain: REMOTE_DOMAIN + 1,
+                router: None,
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.remote_routers.len(), 1);
+    assert!(token.remote_routers.contains_key(&REMOTE_DOMAIN));
+    assert_eq!(token.fee_config, None);
 }
 
 #[tokio::test]

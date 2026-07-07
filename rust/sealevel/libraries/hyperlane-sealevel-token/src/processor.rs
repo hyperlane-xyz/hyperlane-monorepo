@@ -258,7 +258,7 @@ where
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
-            fee_config: None,
+            fee_config: None.into(),
         };
         let token_account_data = HyperlaneTokenAccount::<T>::from(token);
 
@@ -1355,7 +1355,7 @@ where
 
         ensure_no_extraneous_accounts(accounts_iter)?;
 
-        token.fee_config = fee_config;
+        token.fee_config = fee_config.into();
 
         // Store with realloc since fee_config may change the account size.
         HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
