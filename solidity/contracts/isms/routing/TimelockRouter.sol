@@ -37,7 +37,7 @@ import {Message} from "../../libs/Message.sol";
  *   replay guards, etc.)
  * - `_handle` — compute a per-message wait and call `_TimelockRouter_commitReadyAt`
  * - `_TimelockRouter_verify` — extend destination-side verification
- * See `DelayedFlowRouter` for an amount-sensitive extension.
+ * See `DelayedFlowRouterHookIsm` for an amount-sensitive extension.
  */
 contract TimelockRouter is
     Router,
