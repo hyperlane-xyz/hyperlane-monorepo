@@ -38,7 +38,7 @@ export async function runAleoNode(
           'leo',
           'devnode',
           'start',
-          '--listener-addr',
+          '--socket-addr',
           '0.0.0.0:3030',
         ])
         .withWaitStrategy(Wait.forLogMessage(/connection is ready/))

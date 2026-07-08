@@ -443,16 +443,7 @@ jobs:
 
   cli-aleo-e2e-smoke:
     runs-on: depot-ubuntu-24.04
-    # Disabled: @provablehq/sdk 0.11.3 (bumped in bdf6582826) requires a 17-entry
-    # consensus-version-heights table, but the pinned devnode image
-    # (ghcr.io/hyperlane-xyz/hyperlane-aleo-tools:v1.0.1) only supports 12 — its
-    # source (ProvableHQ/leo, feat/leo-devnode branch) was abandoned mid-refactor
-    # before reaching a snarkVM version with the newer table, and doesn't even
-    # compile past that point. Any deploy past ~block height 11 in a test run
-    # fails with "Deployment has an incorrect number of verifying keys". Re-enable
-    # once the devnode image is rebuilt against a compatible snarkVM, or
-    # @provablehq/sdk is downgraded to a version matching the 12-height table.
-    if: false && (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'smoke'
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'smoke'
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -480,9 +471,7 @@ jobs:
 
   cli-aleo-e2e-matrix:
     runs-on: depot-ubuntu-24.04
-    # Disabled: see cli-aleo-e2e-smoke above for details on the
-    # @provablehq/sdk / devnode-image consensus-version-heights mismatch.
-    if: false && (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'full'
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'full'
     timeout-minutes: 15
     strategy:
       fail-fast: false
