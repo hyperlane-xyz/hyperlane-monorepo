@@ -295,7 +295,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         contract = await this.deployer.deployContract(
           destination,
           IsmType.RATE_LIMITED,
-          [mailbox, rateLimitedConfig.maxCapacity, rateLimitedConfig.recipient],
+          [
+            mailbox,
+            rateLimitedConfig.maxCapacity,
+            rateLimitedConfig.duration,
+            rateLimitedConfig.recipient,
+          ],
         );
         if (rateLimitedConfig.owner) {
           const signer = this.multiProvider.getSigner(destination);

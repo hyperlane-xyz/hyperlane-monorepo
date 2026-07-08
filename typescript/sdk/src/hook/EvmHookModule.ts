@@ -197,11 +197,21 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
+    // Special case: RATE_LIMITED duration is immutable (set in the
+    // constructor) — must redeploy a fresh hook if it changes.
+    const rateLimitedDurationChanged =
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === HookType.RATE_LIMITED &&
+      normalizedTargetConfig.type === HookType.RATE_LIMITED &&
+      normalizedCurrentConfig.duration !== normalizedTargetConfig.duration;
+
     // Conditions for deploying a new hook:
     // - If updating from an address/custom config to a proper hook config.
     // - If updating a proper hook config whose types are different.
     // - If it is not a mutable Hook.
+    // - If an immutable RATE_LIMITED field (duration) changed.
     if (
+      rateLimitedDurationChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
@@ -417,6 +427,8 @@ export class EvmHookModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
+    // Duration changes are handled upstream in `update()` by redeploying a
+    // fresh hook (duration is immutable), so it never differs here.
     if (currentConfig.maxCapacity !== targetConfig.maxCapacity) {
       updateTxs.push({
         annotation: `Setting refill rate on RateLimitedHook on chain "${this.chain}" and address "${this.args.addresses.deployedHook}"`,
@@ -913,7 +925,12 @@ export class EvmHookModule extends HyperlaneModule<
     const hook = await deployer.deployContract(
       this.chain,
       HookType.RATE_LIMITED,
-      [this.args.addresses.mailbox, config.maxCapacity, sender],
+      [
+        this.args.addresses.mailbox,
+        config.maxCapacity,
+        config.duration,
+        sender,
+      ],
     );
 
     if (config.owner) {

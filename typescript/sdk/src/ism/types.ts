@@ -24,7 +24,7 @@ import type {
 } from '@hyperlane-xyz/utils';
 import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZBigNumberish, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -308,19 +308,29 @@ export const RateLimitedIsmConfigSchema = z
     maxCapacity: z
       .string()
       .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+    /**
+     * Refill window in seconds — must match the on-chain immutable
+     * `DURATION`. Provide explicitly per deployment.
+     */
+    duration: ZBigNumberish,
     recipient: ZHash.optional(),
     owner: ZHash.optional(),
   })
-  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
-    message: 'maxCapacity must be at least 86400',
+  .refine((val) => val.duration > 0n, {
+    message: 'duration must be greater than 0',
+    path: ['duration'],
+  })
+  .refine((val) => BigInt(val.maxCapacity) >= val.duration, {
+    message: 'maxCapacity must be at least duration',
     path: ['maxCapacity'],
   })
   .transform((val) => {
     const capacity = BigInt(val.maxCapacity);
-    if (capacity % 86400n !== 0n) {
-      const rounded = ((capacity / 86400n) * 86400n).toString();
+    const duration = val.duration;
+    if (capacity % duration !== 0n) {
+      const rounded = ((capacity / duration) * duration).toString();
       rootLogger.warn(
-        `RateLimitedIsm maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+        `RateLimitedIsm maxCapacity ${val.maxCapacity} is not divisible by duration ${val.duration}; rounding down to ${rounded}`,
       );
       return { ...val, maxCapacity: rounded };
     }
@@ -378,28 +388,35 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
   }),
 );
 
-export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
-  () =>
-    z.discriminatedUnion('type', [
-      z.object({
-        type: z.literal(IsmType.AMOUNT_ROUTING),
-        lowerIsm: IsmConfigSchema,
-        upperIsm: IsmConfigSchema,
-        threshold: z.number(),
-      }),
-      OwnableSchema.extend({
-        type: z.enum([
-          IsmType.ROUTING,
-          IsmType.FALLBACK_ROUTING,
-          IsmType.INCREMENTAL_ROUTING,
-        ]),
-        domains: z.record(IsmConfigSchema),
-      }),
-      InterchainAccountRouterIsmSchema,
-    ]),
+export const RoutingIsmConfigSchema: z.ZodType<
+  RoutingIsmConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal(IsmType.AMOUNT_ROUTING),
+      lowerIsm: IsmConfigSchema,
+      upperIsm: IsmConfigSchema,
+      threshold: z.number(),
+    }),
+    OwnableSchema.extend({
+      type: z.enum([
+        IsmType.ROUTING,
+        IsmType.FALLBACK_ROUTING,
+        IsmType.INCREMENTAL_ROUTING,
+      ]),
+      domains: z.record(IsmConfigSchema),
+    }),
+    InterchainAccountRouterIsmSchema,
+  ]),
 );
 
-export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
+export const AggregationIsmConfigSchema: z.ZodType<
+  AggregationIsmConfig,
+  z.ZodTypeDef,
+  unknown
+> = z
   .lazy(() =>
     z.object({
       type: z.union([

@@ -112,13 +112,16 @@ contract NetFlowRateLimitedHookIsm is
     ///        same router that has this contract installed as its hook AND ISM.
     /// @param _maxFlowBps Net outflow allowed per `DURATION` window, expressed
     ///        as basis points of the live TVL. Strictly less than 10_000.
+    /// @param _duration Refill window (seconds) over which the net flow cap
+    ///        replenishes. Set once at construction (see `RateLimited`).
     constructor(
         address _mailbox,
         address _router,
-        uint256 _maxFlowBps
+        uint256 _maxFlowBps,
+        uint256 _duration
     )
         MailboxClient(_mailbox)
-        TvlRateLimited(TokenRouter(_router), _maxFlowBps)
+        TvlRateLimited(TokenRouter(_router), _maxFlowBps, _duration)
     {
         // _router != address(0) is enforced by TvlRateLimited's constructor.
         minOutboundNonce = mailbox.nonce();

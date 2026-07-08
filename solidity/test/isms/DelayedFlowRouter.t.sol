@@ -29,7 +29,7 @@ contract DelayedFlowRouterTest is Test {
     uint32 constant ORIGIN_DOMAIN = 1;
     uint32 constant DESTINATION_DOMAIN = 2;
     uint256 constant THRESHOLD_BPS = 1000; // 10%
-    uint48 constant REFILL_WINDOW = 1 days;
+    uint256 constant REFILL_WINDOW = 1 days;
     uint48 constant MAX_DELAY = 1 days;
     uint256 constant INITIAL_COLLATERAL = 1_000_000 ether;
 
@@ -82,12 +82,14 @@ contract DelayedFlowRouterTest is Test {
         originDelay = new DelayedFlowRouter(
             TokenRouter(payable(address(syntheticRouter))),
             THRESHOLD_BPS,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
         destinationDelay = new DelayedFlowRouter(
             TokenRouter(payable(address(collateralRouter))),
             THRESHOLD_BPS,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
 
         // 4. Wire delay routers as hook + ISM
@@ -171,7 +173,8 @@ contract DelayedFlowRouterTest is Test {
         DelayedFlowRouter full = new DelayedFlowRouter(
             TokenRouter(payable(address(collateralRouter))),
             10_000,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
         assertEq(full.thresholdBps(), 10_000);
     }
@@ -181,7 +184,8 @@ contract DelayedFlowRouterTest is Test {
         new DelayedFlowRouter(
             TokenRouter(payable(address(collateralRouter))),
             10_001,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
     }
 
@@ -280,7 +284,8 @@ contract DelayedFlowRouterTest is Test {
         DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
             TokenRouter(payable(address(scaledRouter))),
             THRESHOLD_BPS,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
         scaledDelay.enrollRemoteRouter(
             ORIGIN_DOMAIN,
@@ -338,7 +343,8 @@ contract DelayedFlowRouterTest is Test {
         DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
             TokenRouter(payable(address(scaledRouter))),
             THRESHOLD_BPS,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
         scaledDelay.enrollRemoteRouter(
             ORIGIN_DOMAIN,
@@ -706,6 +712,49 @@ contract DelayedFlowRouterTest is Test {
         assertEq(underlying.balanceOf(user), amount);
     }
 
+    // ============ Custom refill window ============
+
+    /// @dev Every other test runs against the default 1-day window; this
+    /// deploys a router with a non-default window and asserts the delay scales
+    /// with that window rather than the old hardcoded `1 days`.
+    function test_customRefillWindow_scalesDelay() public {
+        uint256 customWindow = 2 hours;
+
+        DelayedFlowRouter customDelay = new DelayedFlowRouter(
+            TokenRouter(payable(address(collateralRouter))),
+            THRESHOLD_BPS,
+            MAX_DELAY,
+            customWindow
+        );
+        customDelay.enrollRemoteRouter(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32()
+        );
+
+        assertEq(customDelay.DURATION(), customWindow);
+
+        uint256 cap = customDelay.maxCapacity();
+        uint256 amount = cap + cap / 2; // 1.5x capacity, bucket starts full
+
+        bytes32 id = keccak256("custom-window");
+        vm.prank(address(destinationMailbox));
+        customDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(id, amount)
+        );
+
+        // wait = (amount - cap) * DURATION / cap == (cap/2) * window / cap
+        uint256 expectedWait = ((amount - cap) * customWindow) / cap;
+        if (expectedWait > MAX_DELAY) expectedWait = MAX_DELAY;
+
+        assertEq(expectedWait, customWindow / 2);
+        assertEq(
+            customDelay.readyAt(id),
+            uint48(block.timestamp + expectedWait)
+        );
+    }
+
     // ============ Helpers ============
 
     function _simulateWithdrawal(bytes32 _id, uint256 _amount) internal {
@@ -741,7 +790,8 @@ contract DelayedFlowRouterTest is Test {
         DelayedFlowRouter nativeDelay = new DelayedFlowRouter(
             TokenRouter(payable(address(nativeRouter))),
             THRESHOLD_BPS,
-            MAX_DELAY
+            MAX_DELAY,
+            REFILL_WINDOW
         );
         return (nativeRouter, nativeDelay);
     }

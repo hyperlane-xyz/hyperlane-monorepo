@@ -20,12 +20,15 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @title RateLimited
  * @notice A contract used to keep track of an address sender's token amount limits.
- * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
+ * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills.
+ *      `DURATION` is set at construction so each instance can pick its own refill window.
  * See: https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
  *
  */
 contract RateLimited is OwnableUpgradeable {
-    uint256 public constant DURATION = 1 days; // 86400
+    /// @notice Refill window. The bucket refills from 0 to `maxCapacity`
+    /// linearly over this many seconds. Set once in the constructor.
+    uint256 public immutable DURATION;
     /// @notice Current filled level
     uint256 public filledLevel;
     /// @notice Tokens per second refill rate
@@ -38,10 +41,12 @@ contract RateLimited is OwnableUpgradeable {
     event ConsumedFilledLevel(uint256 filledLevel, uint256 lastUpdated);
     event Credited(uint256 amount, uint256 newLevel);
 
-    constructor(uint256 _capacity) {
+    constructor(uint256 _capacity, uint256 _duration) {
+        require(_duration > 0, "DURATION must be greater than 0");
+        DURATION = _duration;
         // `_capacity == 0` is permitted for subclasses with a dynamic cap.
         require(
-            _capacity == 0 || _capacity >= DURATION,
+            _capacity == 0 || _capacity >= _duration,
             "Capacity must be greater than DURATION"
         );
         _transferOwnership(msg.sender);

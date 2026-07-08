@@ -30,6 +30,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     uint32 constant DESTINATION = 12;
     uint256 constant INITIAL_COLLATERAL = 100 ether;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
@@ -71,7 +72,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(
@@ -185,6 +187,63 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(netFlow.calculateCurrentLevel(), 4.5 ether);
     }
 
+    // `test_refillsOverTimeAgainstCurrentTvl` covers the default 1-day window;
+    // this deploys a fresh route/limiter with a non-default window and asserts
+    // the TVL-based refill tracks that window rather than the old `1 days`.
+    function test_customDuration_refillsOverWindow() external {
+        uint256 customDuration = 2 hours;
+
+        HypERC20Collateral customRouter = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+        NetFlowRateLimitedHookIsm customNetFlow = new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(customRouter),
+            MAX_FLOW_BPS,
+            customDuration
+        );
+        customRouter.initialize(
+            address(customNetFlow),
+            address(customNetFlow),
+            address(this)
+        );
+        customRouter.enrollRemoteRouter(
+            ORIGIN,
+            address(remoteRouter).addressToBytes32()
+        );
+        token.mintTo(address(customRouter), INITIAL_COLLATERAL);
+
+        assertEq(customNetFlow.DURATION(), customDuration);
+        assertEq(customNetFlow.maxCapacity(), 10 ether);
+        assertEq(customNetFlow.calculateCurrentLevel(), 10 ether);
+
+        // Drain the full 10% net-flow capacity.
+        bytes memory message = localMailbox.buildInboundMessage(
+            ORIGIN,
+            address(customRouter).addressToBytes32(),
+            address(remoteRouter).addressToBytes32(),
+            TokenMessage.format(BOB.addressToBytes32(), 10 ether, bytes(""))
+        );
+        localMailbox.process(bytes(""), message);
+        assertEq(customNetFlow.calculateCurrentLevel(), 0);
+
+        // Half the custom window → half the post-drain capacity refilled.
+        // The drain drops TVL to 90 ether, so maxCapacity == 9 ether.
+        vm.warp(block.timestamp + customDuration / 2);
+        assertEq(customNetFlow.maxCapacity(), 9 ether);
+        assertEq(customNetFlow.calculateCurrentLevel(), 4.5 ether);
+
+        // A full window past the drain → back to max capacity.
+        vm.warp(block.timestamp + customDuration);
+        assertEq(
+            customNetFlow.calculateCurrentLevel(),
+            customNetFlow.maxCapacity()
+        );
+    }
+
     function test_preventsDuplicateInboundValidation() external {
         bytes memory message = _inboundMessage(1 ether);
 
@@ -210,7 +269,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm newNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         vm.expectRevert(
@@ -248,7 +308,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm newNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         vm.expectRevert(
@@ -295,7 +356,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(0),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
     }
 
@@ -304,7 +366,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            10_001
+            10_001,
+            DURATION
         );
     }
 
@@ -315,7 +378,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            10_000
+            10_000,
+            DURATION
         );
     }
 
@@ -369,7 +433,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm vaultNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(vaultRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         // token() is the vault asset, held at 0 by the router (it's in the
@@ -402,7 +467,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(scaledRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
         scaledRouter.initialize(
             address(scaledNetFlow),
@@ -464,7 +530,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm scaledNetFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(scaledRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
         scaledRouter.initialize(
             INITIAL_COLLATERAL,
@@ -523,7 +590,8 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         NetFlowRateLimitedHookIsm rebasingNetFlow = new NetFlowRateLimitedHookIsm(
                 address(localMailbox),
                 address(rebasing),
-                MAX_FLOW_BPS
+                MAX_FLOW_BPS,
+                DURATION
             );
 
         // Synthetic (nonzero capacity) → zero-capacity exclusion misses it.
@@ -567,6 +635,7 @@ contract NetFlowRateLimitedHookIsmSyntheticTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint8 internal constant DECIMALS = 18;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
@@ -604,7 +673,8 @@ contract NetFlowRateLimitedHookIsmSyntheticTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(
@@ -700,6 +770,7 @@ contract NetFlowRateLimitedHookIsmNativeTest is Test {
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     uint256 constant MAX_FLOW_BPS = 1_000; // 10%
+    uint256 constant DURATION = 1 days;
     uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
 
@@ -726,7 +797,8 @@ contract NetFlowRateLimitedHookIsmNativeTest is Test {
         netFlow = new NetFlowRateLimitedHookIsm(
             address(localMailbox),
             address(localRouter),
-            MAX_FLOW_BPS
+            MAX_FLOW_BPS,
+            DURATION
         );
 
         localRouter.initialize(
