@@ -63,9 +63,9 @@ function decodeFeeAccountInner(cursor: ByteCursor): FeeAccountData {
   const bumpSeed = cursor.readU8();
   const owner = readOptionAddress(cursor);
   const beneficiary = readAddress(cursor);
-  const feeData = decodeFeeData(cursor);
   const domainId = cursor.readU32LE();
   const minIssuedAt = cursor.readI64LE();
+  const feeData = decodeFeeData(cursor);
 
   return { bumpSeed, owner, beneficiary, feeData, domainId, minIssuedAt };
 }
