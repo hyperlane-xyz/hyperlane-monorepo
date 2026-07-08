@@ -80,6 +80,7 @@ mod tests {
                 transaction_submitter: Default::default(),
                 mailbox_process_alt: None,
                 process_alt_overrides: vec![],
+                ur_reveal: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
