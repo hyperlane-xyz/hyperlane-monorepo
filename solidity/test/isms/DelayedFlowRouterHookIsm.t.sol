@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {DelayedFlowRouter} from "../../contracts/isms/warp-route/DelayedFlowRouter.sol";
+import {DelayedFlowRouterHookIsm} from "../../contracts/isms/warp-route/DelayedFlowRouterHookIsm.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -22,7 +22,7 @@ import {TimelockRouter} from "../../contracts/isms/routing/TimelockRouter.sol";
 import {TvlRateLimited} from "../../contracts/libs/TvlRateLimited.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 
-contract DelayedFlowRouterTest is Test {
+contract DelayedFlowRouterHookIsmTest is Test {
     using TypeCasts for address;
     using Message for bytes;
 
@@ -40,8 +40,8 @@ contract DelayedFlowRouterTest is Test {
     HypERC20 syntheticRouter;
     HypERC20Collateral collateralRouter;
 
-    DelayedFlowRouter originDelay;
-    DelayedFlowRouter destinationDelay;
+    DelayedFlowRouterHookIsm originDelay;
+    DelayedFlowRouterHookIsm destinationDelay;
 
     address user = makeAddr("user");
 
@@ -64,7 +64,7 @@ contract DelayedFlowRouterTest is Test {
         );
         syntheticRouter = new HypERC20(18, 1, 1, address(originMailbox));
 
-        // 2. Fund pools BEFORE deploying DelayedFlowRouters so their
+        // 2. Fund pools BEFORE deploying DelayedFlowRouterHookIsms so their
         //    constructors read a non-zero capacity base and bootstrap the
         //    bucket at maxCapacity.
         underlying.mintTo(address(collateralRouter), INITIAL_COLLATERAL);
@@ -78,14 +78,14 @@ contract DelayedFlowRouterTest is Test {
         );
         collateralRouter.initialize(address(0), address(0), address(this));
 
-        // 3. Deploy DelayedFlowRouters (bucket bootstraps to maxCapacity)
-        originDelay = new DelayedFlowRouter(
+        // 3. Deploy DelayedFlowRouterHookIsms (bucket bootstraps to maxCapacity)
+        originDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(syntheticRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,
             REFILL_WINDOW
         );
-        destinationDelay = new DelayedFlowRouter(
+        destinationDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(collateralRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,
@@ -120,7 +120,7 @@ contract DelayedFlowRouterTest is Test {
         syntheticRouter.transfer(user, INITIAL_COLLATERAL);
 
         // 7. Warm up the mailboxes with a throwaway dispatch each.
-        //    `DelayedFlowRouter` requires `message.nonce > lastCreditedNonce`,
+        //    `DelayedFlowRouterHookIsm` requires `message.nonce > lastCreditedNonce`,
         //    and a fresh `MockMailbox` starts at nonce 0 — real mailboxes
         //    have dispatched many messages before a router is deployed.
         //    Each warmup occupies `inboundMessages[0]` on the remote side;
@@ -139,7 +139,7 @@ contract DelayedFlowRouterTest is Test {
         assertEq(originDelay.capacityToken(), address(syntheticRouter));
 
         // HypNative: token() returns address(0) → NATIVE_BALANCE
-        (, DelayedFlowRouter nativeDelay) = _deployNativeDelay(
+        (, DelayedFlowRouterHookIsm nativeDelay) = _deployNativeDelay(
             INITIAL_COLLATERAL
         );
         assertEq(nativeDelay.capacityToken(), address(0));
@@ -153,7 +153,7 @@ contract DelayedFlowRouterTest is Test {
     function test_maxCapacity_tracksNativeBalance() public {
         (
             HypNative nativeRouter,
-            DelayedFlowRouter nativeDelay
+            DelayedFlowRouterHookIsm nativeDelay
         ) = _deployNativeDelay(INITIAL_COLLATERAL);
         assertEq(
             nativeDelay.maxCapacity(),
@@ -170,7 +170,7 @@ contract DelayedFlowRouterTest is Test {
     // Delay-mode permits a 100% threshold (over-limit is delayed, not
     // reverted), unlike the reject-mode default.
     function test_thresholdBps_allows100Percent() public {
-        DelayedFlowRouter full = new DelayedFlowRouter(
+        DelayedFlowRouterHookIsm full = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(collateralRouter))),
             10_000,
             MAX_DELAY,
@@ -181,7 +181,7 @@ contract DelayedFlowRouterTest is Test {
 
     function test_thresholdBps_revertsAbove100Percent() public {
         vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
-        new DelayedFlowRouter(
+        new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(collateralRouter))),
             10_001,
             MAX_DELAY,
@@ -281,7 +281,7 @@ contract DelayedFlowRouterTest is Test {
             address(destinationMailbox)
         );
         underlying.mintTo(address(scaledRouter), INITIAL_COLLATERAL);
-        DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
+        DelayedFlowRouterHookIsm scaledDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(scaledRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,
@@ -340,7 +340,7 @@ contract DelayedFlowRouterTest is Test {
             address(destinationMailbox)
         );
         underlying.mintTo(address(scaledRouter), INITIAL_COLLATERAL);
-        DelayedFlowRouter scaledDelay = new DelayedFlowRouter(
+        DelayedFlowRouterHookIsm scaledDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(scaledRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,
@@ -479,7 +479,7 @@ contract DelayedFlowRouterTest is Test {
         _mockLatestDispatched(message);
         vm.expectRevert(
             abi.encodeWithSelector(
-                DelayedFlowRouter.WrongSender.selector,
+                DelayedFlowRouterHookIsm.WrongSender.selector,
                 makeAddr("imposter")
             )
         );
@@ -498,7 +498,7 @@ contract DelayedFlowRouterTest is Test {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                DelayedFlowRouter.WrongRecipient.selector,
+                DelayedFlowRouterHookIsm.WrongRecipient.selector,
                 makeAddr("imposter")
             )
         );
@@ -550,7 +550,7 @@ contract DelayedFlowRouterTest is Test {
         _mockLatestDispatched(message);
         vm.expectRevert(
             abi.encodeWithSelector(
-                DelayedFlowRouter.AlreadyCredited.selector,
+                DelayedFlowRouterHookIsm.AlreadyCredited.selector,
                 uint32(0)
             )
         );
@@ -673,7 +673,7 @@ contract DelayedFlowRouterTest is Test {
     // ============ Aggregation with PausableIsm ============
 
     function test_pausable_blocksReadyMessage() public {
-        // Deploy aggregation of [PausableIsm, DelayedFlowRouter] w/ threshold=2.
+        // Deploy aggregation of [PausableIsm, DelayedFlowRouterHookIsm] w/ threshold=2.
         // Order matters: PausableIsm first so a paused state short-circuits
         // the aggregation with `Pausable: paused` rather than whatever the
         // delay ISM would surface.
@@ -720,7 +720,7 @@ contract DelayedFlowRouterTest is Test {
     function test_customRefillWindow_scalesDelay() public {
         uint256 customWindow = 2 hours;
 
-        DelayedFlowRouter customDelay = new DelayedFlowRouter(
+        DelayedFlowRouterHookIsm customDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(collateralRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,
@@ -779,7 +779,7 @@ contract DelayedFlowRouterTest is Test {
 
     function _deployNativeDelay(
         uint256 fund
-    ) internal returns (HypNative, DelayedFlowRouter) {
+    ) internal returns (HypNative, DelayedFlowRouterHookIsm) {
         HypNative nativeRouter = new HypNative(
             1,
             1,
@@ -787,7 +787,7 @@ contract DelayedFlowRouterTest is Test {
         );
         vm.deal(address(nativeRouter), fund);
         nativeRouter.initialize(address(0), address(0), address(this));
-        DelayedFlowRouter nativeDelay = new DelayedFlowRouter(
+        DelayedFlowRouterHookIsm nativeDelay = new DelayedFlowRouterHookIsm(
             TokenRouter(payable(address(nativeRouter))),
             THRESHOLD_BPS,
             MAX_DELAY,

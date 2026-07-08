@@ -21,7 +21,7 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {TokenRouter} from "../../token/libs/TokenRouter.sol";
 
 /**
- * @title DelayedFlowRouter
+ * @title DelayedFlowRouterHookIsm
  * @notice Amount-sensitive extension of `TimelockRouter`: the `wait` for each
  * preverified message is derived from a token-bucket sized as a fraction of
  * the paired warp router's current balance or supply. Deposits credit the
@@ -40,7 +40,7 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * Compose with `PausableIsm` via `StaticAggregationIsm` so watchers can kill
  * delivery during the delay window.
  */
-contract DelayedFlowRouter is TimelockRouter, TvlRateLimited {
+contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     using Message for bytes;
     using TokenMessage for bytes;
 

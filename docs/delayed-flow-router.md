@@ -1,4 +1,4 @@
-# DelayedFlowRouter
+# DelayedFlowRouterHookIsm
 
 Amount-sensitive hook + ISM that pairs with a warp route to slow cross-chain
 withdrawals when net flow on the paired pool exceeds a configurable fraction.
@@ -30,10 +30,10 @@ sequenceDiagram
   autonumber
   actor U as User
   participant SR as Synthetic Router<br/>(origin)
-  participant OD as origin<br/>DelayedFlowRouter
+  participant OD as origin<br/>DelayedFlowRouterHookIsm
   participant OM as Origin Mailbox
   participant DM as Dest Mailbox
-  participant DD as destination<br/>DelayedFlowRouter
+  participant DD as destination<br/>DelayedFlowRouterHookIsm
   participant CR as Collateral Router<br/>(destination)
 
   Note over U,CR: maxCapacity() = pool × thresholdBps / BPS (always read live)
