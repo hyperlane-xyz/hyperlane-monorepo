@@ -12,10 +12,12 @@ import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { sleep } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
+import { SvmMailboxWriter } from '../core/mailbox.js';
 import { SvmLinearFeeWriter } from '../fee/linear-fee.js';
 import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
+import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { LEGACY_SVM_PROGRAM_BYTES } from '../testing/legacy/legacy-program-bytes.js';
@@ -80,11 +82,49 @@ describe('SVM Program Upgrade E2E Tests', function () {
       } satisfies IgpHookConfig,
     });
 
+    const testIsmAddress = TEST_PROGRAM_IDS.testIsm;
+    const ismWriter = new SvmTestIsmWriter(
+      { program: { programId: testIsmAddress } },
+      rpc,
+      signer,
+    );
+    await ismWriter.create({
+      artifactState: ArtifactState.NEW,
+      config: { type: 'testIsm' },
+    });
+
+    // Initialize mailbox — SetFeeConfig reads localDomain from the outbox PDA
+    const mailboxWriter = new SvmMailboxWriter(
+      {
+        program: { programId: mailboxAddress },
+        domainId: TEST_SVM_CHAIN_METADATA.domainId,
+      },
+      rpc,
+      signer,
+    );
+    await mailboxWriter.create({
+      config: {
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: testIsmAddress },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: mailboxAddress },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: mailboxAddress },
+        },
+      },
+    });
+
     // Deploy a fee program for post-upgrade fee config test
     const feeWriter = new SvmLinearFeeWriter(
       { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
       rpc,
-      1,
+      TEST_SVM_CHAIN_METADATA.domainId,
       signer,
       DEFAULT_FEE_SALT,
     );
