@@ -606,7 +606,8 @@ describe('GitLeaks CLI Integration Tests', function () {
       failureTestCases: [
         {
           name: 'should not detect Base58 key too short',
-          content: `const invalidKey = "${generateSvmPrivateKey().slice(0, -2)}";`,
+          // 84 chars: one below the rule's 85-char lower bound.
+          content: `const invalidKey = "${generateSvmPrivateKey().slice(0, 84)}";`,
         },
         {
           name: 'should not detect Base58 key too long',

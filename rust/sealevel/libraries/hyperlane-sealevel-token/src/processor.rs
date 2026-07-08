@@ -63,7 +63,7 @@ enum IgpPaymentAccounts<'b> {
 use crate::{
     accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
-    instruction::{Init, TransferRemote},
+    instruction::{Init, TransferRemoteWithMemo},
 };
 
 /// Seeds relating to the PDA account with information about this warp route.
@@ -318,11 +318,12 @@ where
     /// - `[writeable]` The IGP account.
     ///   ---- End if ----
     /// - `[??..??]` Plugin-specific accounts.
-    pub fn transfer_remote(
+    pub fn transfer_remote_with_memo(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        xfer: TransferRemote,
+        transfer: TransferRemoteWithMemo,
     ) -> ProgramResult {
+        let TransferRemoteWithMemo { xfer, memo } = transfer;
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program.
@@ -366,6 +367,7 @@ where
             xfer.recipient,
             router,
             xfer.amount_or_id,
+            memo,
         )?;
 
         msg!(
@@ -404,6 +406,7 @@ where
         recipient: H256,
         router: H256,
         amount_or_id: U256,
+        memo: Vec<u8>,
     ) -> Result<U256, ProgramError> {
         // Mailbox program
         let mailbox_info = next_account_info(accounts_iter)?;
@@ -658,7 +661,7 @@ where
         }
 
         // The token message body, which specifies the remote_amount.
-        let token_transfer_message = TokenMessage::new(recipient, remote_amount, vec![]).to_vec();
+        let token_transfer_message = TokenMessage::new(recipient, remote_amount, memo).to_vec();
 
         // Build mailbox dispatch CPI with explicit router as recipient.
         let dispatch_instruction = MailboxInstruction::OutboxDispatch(MailboxOutboxDispatch {

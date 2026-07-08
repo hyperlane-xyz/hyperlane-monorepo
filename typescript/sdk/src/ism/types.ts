@@ -12,6 +12,7 @@ import {
   InterchainAccountRouter,
   OPStackIsm,
   PausableIsm,
+  RateLimitedIsm,
   TestIsm,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
@@ -21,7 +22,7 @@ import type {
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
-import { isNullish } from '@hyperlane-xyz/utils';
+import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -72,6 +73,7 @@ export const IsmType = {
   WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
   CCIP: 'ccipIsm',
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
+  RATE_LIMITED: 'rateLimitedIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -89,6 +91,7 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.PAUSABLE,
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
+  IsmType.RATE_LIMITED,
 ];
 
 /**
@@ -139,6 +142,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
     case IsmType.CCIP:
+    case IsmType.RATE_LIMITED:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -175,6 +179,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 >;
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+export type RateLimitedIsmConfig = z.infer<typeof RateLimitedIsmConfigSchema>;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -185,7 +190,8 @@ export type NullIsmConfig =
   | PausableIsmConfig
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig
-  | CCIPIsmConfig;
+  | CCIPIsmConfig
+  | RateLimitedIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -258,6 +264,7 @@ export type DeployedIsmType = {
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
+  [IsmType.RATE_LIMITED]: RateLimitedIsm;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -295,6 +302,31 @@ export const TrustedRelayerIsmConfigSchema = z.object({
   relayer: z.string(),
 });
 
+export const RateLimitedIsmConfigSchema = z
+  .object({
+    type: z.literal(IsmType.RATE_LIMITED),
+    maxCapacity: z
+      .string()
+      .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+    recipient: ZHash.optional(),
+    owner: ZHash.optional(),
+  })
+  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
+    message: 'maxCapacity must be at least 86400',
+    path: ['maxCapacity'],
+  })
+  .transform((val) => {
+    const capacity = BigInt(val.maxCapacity);
+    if (capacity % 86400n !== 0n) {
+      const rounded = ((capacity / 86400n) * 86400n).toString();
+      rootLogger.warn(
+        `RateLimitedIsm maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
+      );
+      return { ...val, maxCapacity: rounded };
+    }
+    return val;
+  });
+
 export const CCIPIsmConfigSchema = z.object({
   type: z.literal(IsmType.CCIP),
   originChain: z.string(),
@@ -325,6 +357,14 @@ export const PausableIsmConfigSchema = PausableSchema.and(
     type: z.literal(IsmType.PAUSABLE),
   }),
 );
+export const DerivedPausableIsmConfigSchema = PausableIsmConfigSchema.and(
+  z.object({
+    address: ZHash,
+  }),
+);
+export type DerivedPausableIsmConfig = z.infer<
+  typeof DerivedPausableIsmConfigSchema
+>;
 
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({
@@ -432,9 +472,11 @@ export const IsmConfigSchema = z.union([
   ZHash,
   TestIsmConfigSchema,
   OpStackIsmConfigSchema,
+  DerivedPausableIsmConfigSchema,
   PausableIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
   CCIPIsmConfigSchema,
+  RateLimitedIsmConfigSchema,
   MultisigIsmConfigSchema,
   WeightedMultisigIsmConfigSchema,
   RoutingIsmConfigSchema,

@@ -1,7 +1,11 @@
 // Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
 #![allow(clippy::blocks_in_conditions)]
 
-use std::{collections::HashMap, str::FromStr as _, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr as _,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -34,6 +38,7 @@ use hyperlane_core::{
 
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
+use crate::universal_router_reveal::{maybe_spawn_reveal, UniversalRouterRevealConfig};
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
     ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
@@ -42,6 +47,10 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
+// Maximum entries in seen_reveal_commitments before evicting the oldest half.
+const SEEN_REVEAL_MAX: usize = 1_000;
+/// Expected byte length of a Universal Router COMMIT message body.
+const COMMIT_BODY_LEN: usize = 96;
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -103,6 +112,10 @@ pub struct SealevelMailbox {
 
     system_program: Pubkey,
     spl_noop: Pubkey,
+    ur_reveal: Option<UniversalRouterRevealConfig>,
+    /// Tracks commitments for which a reveal task has already been spawned,
+    /// preventing duplicate tasks across repeated `process_estimate_costs` calls.
+    seen_reveal_commitments: Arc<Mutex<HashSet<[u8; 32]>>>,
 }
 
 impl SealevelMailbox {
@@ -141,9 +154,10 @@ impl SealevelMailbox {
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
             provider,
-
             system_program,
             spl_noop,
+            ur_reveal: conf.ur_reveal.clone(),
+            seen_reveal_commitments: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -654,6 +668,82 @@ impl Mailbox for SealevelMailbox {
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
+    }
+
+    fn on_submitted_success(&self, message: &HyperlaneMessage) {
+        self.maybe_spawn_reveal_for_message(message);
+    }
+
+    /// Restart-recovery path: fires when the relayer detects a message was already
+    /// delivered on a previous run.  Deduplication via `seen_reveal_commitments`
+    /// prevents double-spawning if `on_submitted_success` already ran this session.
+    fn on_delivered(&self, message: &HyperlaneMessage) {
+        self.maybe_spawn_reveal_for_message(message);
+    }
+}
+
+impl SealevelMailbox {
+    fn maybe_spawn_reveal_for_message(&self, message: &HyperlaneMessage) {
+        if let Some(ref cfg) = self.ur_reveal {
+            if message.body.len() != COMMIT_BODY_LEN {
+                return;
+            }
+            // Gate on recipient == UR program before touching seen_reveal_commitments,
+            // so a non-UR 96-byte message can't poison a slot for a real commitment.
+            let program_id = match Pubkey::from_str(&cfg.program_id) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(error = ?e, "Invalid UR program ID in config; skipping reveal");
+                    return;
+                }
+            };
+            let message_recipient = Pubkey::new_from_array(message.recipient.0);
+            if message_recipient != program_id {
+                return;
+            }
+
+            let commitment: [u8; 32] = message.body[0..32]
+                .try_into()
+                .expect("body is exactly COMMIT_BODY_LEN bytes");
+            match self.seen_reveal_commitments.lock() {
+                Err(e) => {
+                    tracing::warn!(error = ?e, "seen_reveal_commitments mutex poisoned; skipping reveal");
+                }
+                Ok(mut set) => {
+                    if !set.contains(&commitment) {
+                        match self.get_payer() {
+                            Ok(payer) => {
+                                // Evict oldest half when the set grows large to bound memory.
+                                if set.len() >= SEEN_REVEAL_MAX {
+                                    let keep: std::collections::HashSet<_> =
+                                        set.iter().cloned().skip(set.len() / 2).collect();
+                                    *set = keep;
+                                }
+                                // Insert here — after recipient validation — so only genuine UR
+                                // COMMIT messages occupy a slot. If the reveal task times out or
+                                // fails, this commitment stays seen for the process lifetime
+                                // (until the 1000-entry eviction). A relayer restart will re-fire
+                                // it via the is_already_delivered → on_delivered path.
+                                set.insert(commitment);
+                                // Release the lock before spawning so on_delivered callbacks
+                                // can acquire the mutex immediately without blocking on the spawn.
+                                drop(set);
+                                maybe_spawn_reveal(
+                                    message,
+                                    cfg,
+                                    self.provider.rpc_client().clone(),
+                                    self.priority_fee_oracle.clone(),
+                                    payer.clone(),
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = ?e, "get_payer failed; skipping reveal");
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -1,5 +1,69 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 28.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@35.2.0
+- @hyperlane-xyz/utils@35.2.0
+- @hyperlane-xyz/provider-sdk@6.1.1
+
+## 28.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- a911f17: Starknet read calls defaulted to the latest accepted block instead of the pending block, so warp token reads no longer fail against RPC providers that reject `block_id: "pending"`.
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/starknet-core@35.1.0
+  - @hyperlane-xyz/utils@35.1.0
+
+## 28.0.9
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+  - @hyperlane-xyz/starknet-core@35.0.1
+
+## 28.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@35.0.0
+- @hyperlane-xyz/utils@35.0.0
+- @hyperlane-xyz/provider-sdk@6.0.3
+
+## 28.0.7
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@34.0.0
+- @hyperlane-xyz/utils@34.0.0
+- @hyperlane-xyz/provider-sdk@6.0.2
+
+## 28.0.6
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@33.1.1
+- @hyperlane-xyz/utils@33.1.1
+- @hyperlane-xyz/provider-sdk@6.0.1
+
+## 28.0.5
+
+### Patch Changes
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/starknet-core@33.1.0
+  - @hyperlane-xyz/utils@33.1.0
+
 ## 28.0.4
 
 ### Patch Changes

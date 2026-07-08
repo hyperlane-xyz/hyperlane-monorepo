@@ -43,6 +43,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
@@ -55,19 +56,24 @@ import {
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import {
-  AggregationHookConfig,
-  DerivedHookConfig,
-  HookType,
-} from '../hook/types.js';
+import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import {
+  isMissingSelectorCallException,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
-import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
+import {
+  isProxy,
+  isStorageEmpty,
+  proxyAdmin,
+  proxyImplementation,
+} from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
@@ -86,6 +92,7 @@ import {
   OpL2TokenConfig,
   OwnerStatus,
   TokenMetadata,
+  XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
@@ -324,6 +331,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         : undefined,
     );
 
+    // Read feeHook (IGP address for ERC20 gas payments)
+    const feeHook = await this.fetchFeeHook(warpRouteAddress);
+
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (
@@ -335,6 +345,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const predicateWrapper = await this.derivePredicateWrapperConfig(
       routerConfig.hook as DerivedHookConfig | string | undefined,
+      warpRouteAddress,
     );
 
     const derivedConfig = {
@@ -345,6 +356,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
+      feeHook,
       ...(predicateWrapper && { predicateWrapper }),
     };
     return derivedConfig;
@@ -353,11 +365,48 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   /**
    * Searches the derived hook tree for a PredicateRouterWrapper and, if found,
    * reads its on-chain config (registry, policyId, owner).
+   *
+   * EvmHookReader.preserveUnredeployable() stores PREDICATE sub-hooks as bare address
+   * strings (to survive normalizeConfig and deploy's string branch). The sync
+   * findPredicateAddressInHook() returns undefined for bare strings, so we fall back to
+   * an on-chain hookType() probe on bare string sub-hooks of aggregation hooks.
    */
   private async derivePredicateWrapperConfig(
     hook: DerivedHookConfig | string | undefined,
+    warpRouteAddress: Address,
   ): Promise<PredicateWrapperConfig | undefined> {
-    const predicateAddress = this.findPredicateAddressInHook(hook);
+    let predicateAddress = this.findPredicateAddressInHook(hook);
+
+    if (
+      !predicateAddress &&
+      typeof hook !== 'string' &&
+      hook?.type === HookType.AGGREGATION
+    ) {
+      for (const sub of hook.hooks) {
+        if (typeof sub !== 'string') continue;
+        try {
+          const candidate = PredicateRouterWrapper__factory.connect(
+            sub,
+            this.provider,
+          );
+          const [hookType, warpRoute] = await Promise.all([
+            candidate.hookType(),
+            candidate.warpRoute(),
+          ]);
+          if (
+            hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER &&
+            eqAddress(warpRoute, warpRouteAddress)
+          ) {
+            predicateAddress = sub;
+            break;
+          }
+        } catch (error) {
+          throwIfNotMissingSelector(error);
+          // Not a PredicateRouterWrapper — continue
+        }
+      }
+    }
+
     if (!predicateAddress) return undefined;
 
     const wrapper = PredicateRouterWrapper__factory.connect(
@@ -378,12 +427,30 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     if (!hook || typeof hook === 'string') return undefined;
     if (hook.type === HookType.PREDICATE) return hook.address;
     if (hook.type === HookType.AGGREGATION) {
-      for (const sub of (hook as AggregationHookConfig).hooks) {
+      for (const sub of hook.hooks) {
         const found = this.findPredicateAddressInHook(
           sub as DerivedHookConfig | string,
         );
         if (found) return found;
       }
+    }
+    return undefined;
+  }
+
+  public async fetchFeeHook(
+    routerAddress: Address,
+  ): Promise<Address | undefined> {
+    try {
+      const router = TokenRouter__factory.connect(routerAddress, this.provider);
+      const feeHookAddress = await router.feeHook();
+      if (!isZeroishAddress(feeHookAddress)) {
+        return feeHookAddress;
+      }
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        `Token at "${routerAddress}" on chain "${this.chain}" does not support feeHook`,
+      );
     }
     return undefined;
   }
@@ -401,6 +468,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
       TokenRouter.feeRecipient().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
           error,
@@ -429,6 +497,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const routingDestinations =
       destinations ??
       (await TokenRouter.domains().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           `Failed to derive token router domains for routing fee config on "${this.chain}"`,
           error,
@@ -613,10 +682,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     this.setSmartProviderLogLevel('silent');
 
     try {
+      // Fetch implementation bytecode once; scanning selectors locally avoids
+      // reverted eth_calls for methods that don't exist on the contract.
+      // Read the EIP-1967 impl slot directly so UUPS proxies (which have
+      // an empty admin slot) are resolved correctly alongside TransparentProxy.
+      // Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
+      // will be '0x' and the selector guard falls through to probes as pre-PR.
+      let implAddress = warpRouteAddress;
+      try {
+        const impl = await proxyImplementation(this.provider, warpRouteAddress);
+        if (!isZeroishAddress(impl)) implAddress = impl;
+      } catch {
+        // not a proxy or address has no code — use warpRouteAddress directly
+      }
+      const bytecode = await this.provider.getCode(implAddress);
+
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
       )) {
+        // Skip if selector absent from bytecode — avoids reverted eth_calls.
+        // When bytecode is unavailable ('0x'), fall through to the probe anyway
+        // to preserve pre-optimization behavior on zero-impl / flaky-RPC paths.
+        const selector = factory.createInterface().getSighash(method);
+        if (!isStorageEmpty(bytecode) && !bytecode.includes(strip0x(selector)))
+          continue;
+
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
           const result = await warpRoute[method]();
@@ -633,6 +724,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
               return TokenType.XERC20;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
                 error,
@@ -689,6 +781,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
               return everclearTokenType;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
                 error,
@@ -704,6 +797,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await crossCollateralRouter.getCrossCollateralRouters(0);
               return TokenType.crossCollateral;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
                 error,
@@ -712,7 +806,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           }
 
           return tokenType as TokenType;
-        } catch {
+        } catch (error) {
+          throwIfNotMissingSelector(error);
           continue;
         }
       }
@@ -825,15 +920,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+    let extraBridgesLimits: XERC20TokenExtraBridgesLimits[] | undefined;
 
     try {
-      const extraBridgesLimits = await getExtraLockBoxConfigs({
+      extraBridgesLimits = await getExtraLockBoxConfigs({
         chain: this.chain,
         multiProvider: this.multiProvider,
         xERC20Address,
         logger: this.logger,
       });
+    } catch (error) {
+      if (!isMissingSelectorCallException(error)) throw error;
+      this.logger.warn(
+        `Skipping extra xERC20 lockbox configs after missing-selector error for token at ${xERC20Address} on chain ${this.chain}`,
+        error,
+      );
+    }
 
+    try {
       // TODO: fix this such that it fetches from WL's values too
       return {
         xERC20: {
@@ -845,15 +949,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
           },
           extraBridges:
-            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
+            extraBridgesLimits && extraBridgesLimits.length > 0
+              ? extraBridgesLimits
+              : undefined,
         },
       };
     } catch (error) {
+      if (isMissingSelectorCallException(error)) return {};
       this.logger.error(
         `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
         error,
       );
-      return {};
+      throw error;
     }
   }
 
@@ -1513,15 +1620,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     try {
       return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err: any) {
-      if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
+    } catch (err) {
+      if (isMissingSelectorCallException(err)) {
         // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
         // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
         // The real version of a contract without this function is below 5.4.0
         return '5.3.9';
       } else {
         this.logger.error(`Error when fetching package version ${err}`);
-        return '0.0.0';
+        throw err;
       }
     }
   }

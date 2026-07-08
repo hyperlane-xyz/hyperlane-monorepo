@@ -67,7 +67,9 @@ describe('hyperlane warp apply ISM updates (Aleo E2E tests)', async function () 
   });
 
   beforeEach(() => {
-    // Generate unique short suffix for each test to avoid program name collisions
+    // Generate unique short suffix for each test to avoid program name collisions.
+    // Native tokens use a fixed program name (no suffix) and can only be initialized once,
+    // so ISM update tests use synthetic tokens to get a fresh program per beforeEach call.
     const uniqueSuffix = Math.random().toString(36).substring(2, 8);
     process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
   });
@@ -79,7 +81,7 @@ describe('hyperlane warp apply ISM updates (Aleo E2E tests)', async function () 
       get baseWarpConfig() {
         return {
           [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
-            type: TokenType.native,
+            type: TokenType.synthetic,
             mailbox: chain1CoreAddress.mailbox,
             owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
             name: nativeTokenData.name,

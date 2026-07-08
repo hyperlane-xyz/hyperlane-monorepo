@@ -38,7 +38,10 @@ import {
   RelayerAppContextConfig,
   RelayerConfigHelper,
 } from '../../src/config/agent/relayer.js';
-import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
+import {
+  buildCcrRoutersConfig,
+  getCombinedChainsToScrape,
+} from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
   envNameToAgentEnv,
@@ -248,6 +251,12 @@ export async function writeAgentConfig(
     additionalConfig,
   );
 
+  const ccrRouters = buildCcrRoutersConfig(agentConfigChains);
+  const fullConfig = {
+    ...agentConfig,
+    ...(Object.keys(ccrRouters).length > 0 && { ccrRouters }),
+  };
+
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
@@ -261,12 +270,15 @@ export async function writeAgentConfig(
       }
       delete chainConfig.transactionOverrides;
     }
+    // Replace ccrRouters with the freshly computed value so removed routers
+    // don't persist across regenerations (objMerge would otherwise keep stale entries).
+    delete (currentAgentConfig as Record<string, unknown>).ccrRouters;
     writeAndFormatJsonAtPath(
       filepath,
-      objMerge(currentAgentConfig, agentConfig),
+      objMerge(currentAgentConfig, fullConfig),
     );
   } else {
-    writeAndFormatJsonAtPath(filepath, agentConfig);
+    writeAndFormatJsonAtPath(filepath, fullConfig);
   }
 }
 

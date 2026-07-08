@@ -42,6 +42,7 @@ export interface ValidatorBaseConfig {
 export interface ValidatorConfig {
   interval: number;
   originChainName: ChainName;
+  reorgPeriod: string | number;
   validators: Array<{
     checkpointSyncer: CheckpointSyncerConfig;
     // The key that signs checkpoints
@@ -110,6 +111,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return {
       interval: this.#chainConfig.interval,
       originChainName: this.chainName!,
+      reorgPeriod: this.#chainConfig.reorgPeriod,
       validators: await Promise.all(
         this.#chainConfig.validators.map((val, i) =>
           this.#configForValidator(val, i),
@@ -158,7 +160,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       }
     } else {
       console.warn(
-        `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+        `Validator ${cfg.address || cfg.name}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
       );
     }
 

@@ -20,6 +20,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import { TokenType } from '../token/config.js';
 import { ChainName } from '../types.js';
 
 import { encodeAbiParameters, zeroAddress } from 'viem';
@@ -41,6 +42,7 @@ const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 d
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
+const MOCK_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
 
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
@@ -100,6 +102,41 @@ describe('WarpCore', () => {
     expect(fromArgs).to.be.instanceOf(WarpCore);
     expect(fromConfig).to.be.instanceOf(WarpCore);
     expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
+  });
+
+  it('Preserves warp route deploy token type in token metadata', () => {
+    const fromConfig = WarpCore.FromConfig(multiProvider, {
+      tokens: [
+        {
+          chainName: test1.name,
+          standard: TokenStandard.EvmHypCollateral,
+          tokenType: TokenType.collateralOft,
+          decimals: 6,
+          symbol: 'USDT',
+          name: 'Tether USD',
+          addressOrDenom: MOCK_ADDRESS,
+          collateralAddressOrDenom: MOCK_ADDRESS,
+          connections: [
+            {
+              token: `ethereum|${test2.name}|${MOCK_ADDRESS_2}`,
+            },
+          ],
+        },
+        {
+          chainName: test2.name,
+          standard: TokenStandard.EvmHypCollateral,
+          tokenType: TokenType.collateralOft,
+          decimals: 6,
+          symbol: 'USDT',
+          name: 'Tether USD',
+          addressOrDenom: MOCK_ADDRESS_2,
+          collateralAddressOrDenom: MOCK_ADDRESS_2,
+        },
+      ],
+    });
+
+    expect(fromConfig.tokens[0].tokenType).to.equal(TokenType.collateralOft);
+    expect(fromConfig.tokens[1].tokenType).to.equal(TokenType.collateralOft);
   });
 
   it('Finds tokens', () => {
@@ -239,6 +276,103 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
 
     stubs.forEach((s) => s.restore());
+  });
+
+  [TokenType.collateralCctp, TokenType.collateralOft].forEach((tokenType) => {
+    it(`Skips destination collateral checks for ${tokenType}`, async () => {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: TokenStandard.EvmHypCollateral,
+        tokenType,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard: TokenStandard.EvmHypCollateral,
+        tokenType,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+      const protocolBackedWarpCore = new WarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const destinationAdapterStub = sinon
+        .stub(destinationToken, 'getAdapter')
+        .throws(new Error('destination collateral should not be read'));
+      const destinationHypAdapterStub = sinon
+        .stub(destinationToken, 'getHypAdapter')
+        .throws(new Error('destination collateral should not be read'));
+
+      const result =
+        await protocolBackedWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(BIG_TRANSFER_AMOUNT),
+          destination: test2.name,
+        });
+
+      expect(result).to.be.true;
+      sinon.assert.notCalled(destinationAdapterStub);
+      sinon.assert.notCalled(destinationHypAdapterStub);
+    });
+  });
+
+  it('Checks destination collateral for non-exempt collateral token types', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      tokenType: TokenType.collateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MOCK_ADDRESS,
+      collateralAddressOrDenom: MOCK_ADDRESS,
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      tokenType: TokenType.collateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MOCK_ADDRESS_2,
+      collateralAddressOrDenom: MOCK_ADDRESS_2,
+      connections: [],
+    });
+    originToken.addConnection({ token: destinationToken });
+    const collateralWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const getBalanceStub = sinon.stub().resolves(MOCK_BALANCE);
+    const destinationAdapterStub = sinon
+      .stub(destinationToken, 'getAdapter')
+      .returns({
+        getBalance: getBalanceStub,
+      } as any);
+    const destinationHypAdapterStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .throws(new Error('destination hyp adapter should not be read'));
+
+    const result = await collateralWarpCore.isDestinationCollateralSufficient({
+      originTokenAmount: originToken.amount(BIG_TRANSFER_AMOUNT),
+      destination: test2.name,
+    });
+
+    expect(result).to.be.false;
+    sinon.assert.calledOnce(destinationAdapterStub);
+    sinon.assert.calledOnceWithExactly(getBalanceStub, MOCK_ADDRESS_2);
+    sinon.assert.notCalled(destinationHypAdapterStub);
   });
 
   it('Checks for destination collateral with scaling factors', async () => {
@@ -1493,5 +1627,246 @@ describe('WarpCore', () => {
     expect(result[0].category).to.equal(WarpTxCategory.Transfer);
 
     adapterStubs.forEach((s) => s.restore());
+  });
+
+  it('Routes ERC4626 collateral tokens through getBridgedSupply in getTokenCollateral', async () => {
+    const ownerCollateralToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypOwnerCollateral,
+    );
+    const rebaseCollateralToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypRebaseCollateral,
+    );
+    const nativeToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypNative,
+    );
+
+    expect(ownerCollateralToken, 'EvmHypOwnerCollateral token missing').to
+      .exist;
+    expect(rebaseCollateralToken, 'EvmHypRebaseCollateral token missing').to
+      .exist;
+
+    const ERC4626_COLLATERAL_BALANCE = BigInt('5000000000000000000');
+    const REGULAR_COLLATERAL_BALANCE = BigInt('3000000000000000000');
+
+    const getBridgedSupplyStub = sinon
+      .stub()
+      .resolves(ERC4626_COLLATERAL_BALANCE);
+    const getBalanceStub = sinon.stub().resolves(REGULAR_COLLATERAL_BALANCE);
+
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBridgedSupply: getBridgedSupplyStub,
+      } as any),
+    );
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getAdapter').returns({
+        getBalance: getBalanceStub,
+      } as any),
+    );
+
+    const ownerCollateralResult = await warpCore.getTokenCollateral(
+      ownerCollateralToken!,
+    );
+    expect(ownerCollateralResult).to.equal(ERC4626_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(1);
+    expect(getBalanceStub.callCount).to.equal(0);
+
+    getBridgedSupplyStub.resetHistory();
+    getBalanceStub.resetHistory();
+
+    const rebaseCollateralResult = await warpCore.getTokenCollateral(
+      rebaseCollateralToken!,
+    );
+    expect(rebaseCollateralResult).to.equal(ERC4626_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(1);
+    expect(getBalanceStub.callCount).to.equal(0);
+
+    getBridgedSupplyStub.resetHistory();
+    getBalanceStub.resetHistory();
+
+    const nativeResult = await warpCore.getTokenCollateral(nativeToken!);
+    expect(nativeResult).to.equal(REGULAR_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(0);
+    expect(getBalanceStub.callCount).to.equal(1);
+
+    stubs.forEach((s) => s.restore());
+    adapterStubs.forEach((s) => s.restore());
+  });
+
+  describe('estimateTransferRemoteFees / estimateCrossCollateralFees attestation gating', () => {
+    // Regression: amount must only be forwarded to getLocalTransferFeeAmount when attestation is present.
+    // Without this gate, simulating large balances on native routes causes eth_estimateGas failures.
+
+    it('does not forward amount to getLocalTransferFeeAmount when no attestation', async () => {
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('forwards amount to getLocalTransferFeeAmount when attestation is present', async () => {
+      const mockAttestation = { signature: '0xdeadbeef' } as any;
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          attestation: mockAttestation,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.equal(MOCK_BALANCE);
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('does not forward amount in estimateCrossCollateralFees without attestation', async () => {
+      const originCrossStub = sinon
+        .stub(evmHypNative, 'isCrossCollateralToken')
+        .returns(true);
+      const destCrossStub = sinon
+        .stub(evmHypSynthetic, 'isCrossCollateralToken')
+        .returns(true);
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        await warpCore.estimateTransferRemoteFees({
+          originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          destinationToken: evmHypSynthetic,
+        });
+
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        originCrossStub.restore();
+        destCrossStub.restore();
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+  });
+
+  describe('getMaxTransferAmount fee calculation', () => {
+    // Regression: getInterchainTransferFee must receive the full balance (for percentage-based fees),
+    // and getLocalTransferFeeAmount must receive no amount (to avoid eth_estimateGas failures on
+    // native routes where the full balance leaves nothing to cover gas).
+
+    it('calls getInterchainTransferFee with full balance and getLocalTransferFeeAmount with no amount', async () => {
+      const interchainFeeStub = sinon
+        .stub(warpCore as any, 'getInterchainTransferFee')
+        .resolves({
+          igpQuote: evmHypNative.amount(20_000n),
+          tokenFeeQuote: undefined,
+        });
+      const localFeeStub = sinon
+        .stub(warpCore as any, 'getLocalTransferFeeAmount')
+        .resolves(evmHypNative.amount(200_000n));
+
+      try {
+        const balance = evmHypNative.amount(MOCK_BALANCE);
+        await warpCore.getMaxTransferAmount({
+          balance,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+        });
+
+        // First call: fee calculation pass with full balance
+        sinon.assert.calledWithMatch(interchainFeeStub.firstCall, {
+          originTokenAmount: sinon.match(
+            (v: TokenAmount) => v.amount === MOCK_BALANCE,
+          ),
+        });
+
+        // getLocalTransferFeeAmount called without amount
+        sinon.assert.calledOnce(localFeeStub);
+        const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.amount).to.be.undefined;
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
+
+    it('skips fee calculation and uses provided feeEstimate', async () => {
+      const interchainFeeStub = sinon.stub(
+        warpCore as any,
+        'getInterchainTransferFee',
+      );
+      const localFeeStub = sinon.stub(
+        warpCore as any,
+        'getLocalTransferFeeAmount',
+      );
+
+      try {
+        const balance = evmHypNative.amount(MOCK_BALANCE);
+        const feeEstimate = {
+          interchainQuote: evmHypNative.amount(20_000n),
+          localQuote: evmHypNative.amount(200_000n),
+          tokenFeeQuote: undefined,
+        };
+        const result = await warpCore.getMaxTransferAmount({
+          balance,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          feeEstimate,
+        });
+
+        sinon.assert.notCalled(interchainFeeStub);
+        sinon.assert.notCalled(localFeeStub);
+        expect(result.amount).to.equal(MOCK_BALANCE - 20_000n - 200_000n);
+      } finally {
+        interchainFeeStub.restore();
+        localFeeStub.restore();
+      }
+    });
   });
 });

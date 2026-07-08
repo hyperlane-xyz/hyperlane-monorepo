@@ -1,5 +1,189 @@
 # @hyperlane-xyz/sdk
 
+## 35.2.0
+
+### Minor Changes
+
+- 88e51ed: Removed the deprecated chains (milkyway, fluence, everclear, polynomialfi, story, merlin, degenchain, dogechain, tangle, b3, harmony, superpositionmainnet, arbitrumnova, fantom, moonbeam, aurora, polygonzkevm, zoramainnet, scroll, torus, redstone) from the default multisig ISM validator configs, the CCIP ISM chain consts, and the ISM gas-override destination list.
+- f0b325a: Upgraded Safe SDK packages (api-kit 4.2.0, protocol-kit 7.2.0, safe-deployments 1.37.56), replaced the deprecated safe-core-sdk-types with types-kit, and added an explicit `getSafe` option for offline/read-only Safe construction when a chain's Safe transaction service is unavailable.
+- 6db4aee: Added Seismic signed-read support for gas estimation. A new `ChainTechnicalStack.Seismic` value and a `SeismicSigner` were introduced so that, on Seismic chains, gas estimation for owner-gated functions is performed via a signed `eth_estimateGas` (a signed raw transaction from which the node recovers `msg.sender`) rather than an unsigned request where the `from` field is zeroed. Signers for chains with the Seismic technical stack are automatically wrapped by the MultiProvider.
+- 867ce3c: A fee submitter strategy was added to `warp apply` allowing a separate Safe or signer to submit fee-contract transactions. Same-chain Safe TX Builder payloads are now bundled into a single combined file per (chainId, safeAddress) pair. Transaction ordering was fixed so fee-recipient updates execute before ownership transfers. Router-owner `setFeeRecipient` calls were moved into the main submitter batch so a dedicated feeSubmitter only ever sees fee-contract-owner transactions. Safe TX Builder bundles from successful chains are now written before surfacing any partial-failure errors.
+
+### Patch Changes
+
+- fb63f5f: The relayer agent config schema was updated to recognize `feeToken` gas payment enforcement config and reject non-native exact-token enforcement until token-aware IGP indexing is available. ERC20 IGP payments can still satisfy token-agnostic `onChainFeeQuoting` checks through the indexed destination gas amount.
+- 889c68a: The precision-rebalance warning in `getLocalStorageGasOracleConfig` now names the local -> remote chain pair it applies to, so it is possible to tell which gas oracle config underflowed without correlating raw gas price / exchange rate values. An optional `onPrecisionFallback` callback was also added: when supplied it is invoked instead of logging per pair, letting callers aggregate the fallbacks into a single summary line across many chain pairs.
+- fb63f5f: The SDK core and IGP deployers were updated to support recover-only legacy IGP configurations and opt out of QuotedCalls deployments. An `igpVersion` switch (`legacy`/`latest`) was added to the IGP hook config and a `deployQuotedCalls` switch to the core config; legacy IGP deploy paths are kept recover-only by requiring cached `proxyAdmin`, `storageGasOracle`, and `interchainGasPaymaster` addresses. `CoreConfigSchema` now rejects configs that pair a legacy IGP (`igpVersion: legacy`) with `deployQuotedCalls` left enabled, since QuotedCalls and the offchain-quoting IGP both require EIP-1153 transient storage and must ship together on the same chains.
+
+  Legacy IGP configs that include `quoteSigners` now fail fast instead of silently skipping signer updates, because legacy IGP contracts do not expose the offchain-quoting signer interface.
+
+- 92ef474: EvmTokenFeeDeployer caching is disabled so each sub-fee contract (e.g. every OffchainQuotedLinearFee inside a RoutingFee) receives its own deployment instead of sharing an address.
+
+  HyperlaneJsonRpcProvider normalizes an empty-string `to` field to null on GetTransaction/GetTransactionReceipt responses, fixing an "invalid address" error thrown by ethers.js for contract-creation transactions on RPCs that return `""` instead of `null`.
+
+  deriveTokenMetadata now propagates the `scale` field from the warp route config.
+
+  sortArraysInConfig is fixed to handle non-object array elements (e.g. plain strings) without throwing when accessing `.type`.
+
+- babb3d0: Fixed rate limit return values to not include recipient anymore
+- b77faf4: The default Starknet provider builder now reads at the `latest` block instead of starknet.js's `pending` default, so balance and view calls no longer fail on RPC providers that reject `block_id: "pending"`.
+- fb63f5f: The gas oracle exchange-rate computation in `getLocalStorageGasOracleConfig` was generalized to handle low-decimal fee tokens. When the fee token has fewer decimals than the remote native token (e.g. a 6-decimal ERC20 fee token paying for an 18-decimal native chain), the scaled exchange rate could fall below 1 and floor to a coarse integer, badly mispricing the quote. The existing precision-loss adjustment now also rebalances in this direction, shifting magnitude from the gas price into the exchange rate (their product, and thus the quote, is preserved) so the on-chain exchange rate keeps its precision. Same-decimal native pairs are unaffected.
+- fb63f5f: The IGP hook config gained an optional `tokenOracleConfig` (keyed by fee token then remote chain) that wires per-fee-token gas oracles via `setTokenGasOracles` for ERC20-denominated interchain gas payments. Each fee token is backed by its own `StorageGasOracle`, oracle addresses are resolved from the on-chain `tokenGasOracles` mapping (no off-chain bookkeeping), and the path is gated behind non-legacy IGPs at contract version >= 11.3.0. The wiring was added to both the module path (`EvmHookModule`) and the deployer path (`HyperlaneIgpDeployer`, also used by `HyperlaneHookDeployer`) so infra deployments pick it up.
+  - @hyperlane-xyz/aleo-sdk@35.2.0
+  - @hyperlane-xyz/starknet-core@35.2.0
+  - @hyperlane-xyz/cosmos-sdk@35.2.0
+  - @hyperlane-xyz/radix-sdk@35.2.0
+  - @hyperlane-xyz/utils@35.2.0
+  - @hyperlane-xyz/deploy-sdk@6.1.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.1.1
+  - @hyperlane-xyz/tron-sdk@23.1.1
+
+## 35.1.0
+
+### Minor Changes
+
+- 830ce1d: Added a new `Seismic` value to the `ChainTechnicalStack` enum.
+
+### Patch Changes
+
+- 9cdf9eb: Warp core configs preserved warp route deploy token types, and destination collateral checks were skipped for CCTP and OFT collateral routes that settle through their protocol bridge rather than on-chain escrow.
+
+  Existing CCTP and OFT registry routes require token type backfills in hyperlane-registry#1550 to use the exemption.
+
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/cosmos-sdk@35.1.0
+  - @hyperlane-xyz/radix-sdk@35.1.0
+  - @hyperlane-xyz/aleo-sdk@35.1.0
+  - @hyperlane-xyz/tron-sdk@23.1.0
+  - @hyperlane-xyz/deploy-sdk@6.1.0
+  - @hyperlane-xyz/starknet-core@35.1.0
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 35.0.1
+
+### Patch Changes
+
+- 06a5b6b: Fixed EVM ISM, hook, ICA, and warp-route derivation to rethrow transient RPC failures during interface probes instead of silently returning incorrect derived configs. Configured routing hook children now fail fast when child hook derivation fails instead of being silently omitted.
+- da1cfb1: A `syntheticCcrSwapMessageId` helper was added to `@hyperlane-xyz/utils` for deterministically computing the synthetic message ID of a same-chain CCR swap given its transaction hash and log index. The scraper agent config schema in `@hyperlane-xyz/sdk` was extended with an optional `ccrRouters` field mapping domain IDs to their CCR router-to-collateral address pairs.
+- 4bb1c3e: Fixed solana fee estimation
+- 93c2290: Fixed max transfer simulation and fee display for native-token warp routes by reverting to the minimal-amount fallback in getLocalTransferFee for non-predicate flows.
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/aleo-sdk@35.0.1
+  - @hyperlane-xyz/cosmos-sdk@35.0.1
+  - @hyperlane-xyz/deploy-sdk@6.0.4
+  - @hyperlane-xyz/provider-sdk@6.0.4
+  - @hyperlane-xyz/radix-sdk@35.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.9
+  - @hyperlane-xyz/starknet-core@35.0.1
+
+## 35.0.0
+
+### Major Changes
+
+- 631d7e7: `ICoreAdapter.extractMessageIds` was made async (returns `Promise`). Callers must add `await` at call sites.
+
+  `AleoCoreAdapter` extracted message IDs by querying on-chain mappings. Because Aleo's mailbox nonce counter is a single shared mapping entry, at most one dispatch is accepted per block; a confirmed transaction with type `"execute"` was the accepted dispatch, and the dispatched nonce is `mailbox.nonce - 1`. Unlike EVM/SVM adapters that parsed receipt logs, Aleo extraction required on-chain mapping queries. Callers constructing `MultiProtocolCore` for an Aleo origin chain had to supply a real mailbox address (not a stub); passing no address caused extraction to return an empty result rather than throw.
+
+  Aleo warp token writers (native, collateral, synthetic) verified that the mailbox is initialized before deploying warp tokens. Previously, running `warp deploy` against an uninitialized mailbox produced a cryptic "transaction rejected" error from the on-chain finalize assertion; now a clear error is thrown immediately.
+
+### Minor Changes
+
+- 44aa432: Added a new `hyperlane warp balances` CLI command that displays token balances for each leg of a warp route. Fixed `EvmHypRebaseCollateralAdapter.getBridgedSupply` to return the underlying asset amount (previously returned raw vault shares). Added `EvmHypOwnerCollateralAdapter` that reads `assetDeposited` directly from `HypERC4626OwnerCollateral`, and routed `WarpCore.getTokenCollateral` through `getBridgedSupply` for ERC4626 collateral standards so destination-collateral checks and balance display no longer report zero for yield-bearing vault routes.
+- a8c9430: Enabled warp send for Aleo. When Aleo is the origin chain, the CLI now skips delivery confirmation (message ID extraction from Aleo receipts is not yet supported) instead of throwing an error.
+
+### Patch Changes
+
+- 38479d0: The EvmIcaTxSubmitter now dynamically estimates destination-chain handle() gas via estimateIcaHandleGas instead of relying on the 50k default, so the encoded gasLimit matches the IGP payment and is sufficient for multi-call ICA transactions.
+- 4adf279: Fixed warp apply when trying to remove warp fees from a warp route
+- 7089676: Fixed offchain lookup ISM updates, cross-collateral fee updates, and CCTP/PREDICATE hook address preservation during on-chain config derivation.
+- 6c687ee: Safe API Kit requests to Safe's hosted gateway were updated to use the SDK's authenticated default service resolution instead of forcing an explicit transaction service URL.
+- Updated dependencies [631d7e7]
+- Updated dependencies [f3851a3]
+  - @hyperlane-xyz/aleo-sdk@35.0.0
+  - @hyperlane-xyz/deploy-sdk@6.0.3
+  - @hyperlane-xyz/starknet-core@35.0.0
+  - @hyperlane-xyz/cosmos-sdk@35.0.0
+  - @hyperlane-xyz/radix-sdk@35.0.0
+  - @hyperlane-xyz/utils@35.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.8
+
+## 34.0.0
+
+### Major Changes
+
+- 2151352: Move ICA call helper exports from the SDK root and `middleware/account/InterchainAccount` to `middleware/account/icaCalls`, and expose fee, middleware account, and utility modules through package subpath exports.
+
+### Minor Changes
+
+- f758a70: Added rate-limited ISM support.
+- b8a600c: Added rate-limited hook support.
+
+### Patch Changes
+
+- 9a1ce26: Cosmos fee estimation clients were cached by reusing Stargate client connections across repeated estimates, with cache eviction on failures.
+- Updated dependencies [9a1ce26]
+  - @hyperlane-xyz/cosmos-sdk@34.0.0
+  - @hyperlane-xyz/deploy-sdk@6.0.2
+  - @hyperlane-xyz/aleo-sdk@34.0.0
+  - @hyperlane-xyz/starknet-core@34.0.0
+  - @hyperlane-xyz/radix-sdk@34.0.0
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.7
+
+## 33.1.1
+
+### Patch Changes
+
+- 9ad1bd0: The `parseCustomRpcHeaders` utility is now exported from the SDK barrel so consumers outside `SmartProvider` can apply the `custom_rpc_header` URL convention to their own RPC clients.
+- 530f02e: The IGP fee assertion is relaxed for Sealevel cross-collateral transfers; OffchainQuotedLinearFee is supported as a sub-fee of routing fees; warp deployment errors now surface their cause chain and Solana preflight logs.
+- 9670e43: Fixed warp check for collateralDepositAddress routes
+- cc90a8f: Improved derive token type by only fetching code once
+  - @hyperlane-xyz/aleo-sdk@33.1.1
+  - @hyperlane-xyz/starknet-core@33.1.1
+  - @hyperlane-xyz/cosmos-sdk@33.1.1
+  - @hyperlane-xyz/radix-sdk@33.1.1
+  - @hyperlane-xyz/utils@33.1.1
+  - @hyperlane-xyz/deploy-sdk@6.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.6
+
+## 33.1.0
+
+### Minor Changes
+
+- 47649b7: Added CCTP hook type
+- d9dec53: Relay API configuration fields were added to RelayerAgentConfigSchema (relayApiEnabled, relayApiPort, relayApiRateLimitMaxRequests, relayApiRateLimitWindowSecs, relayApiCorsOrigins). All fields are optional for backward compatibility.
+
+### Patch Changes
+
+- 6f4b790: Added batched transaction submission for hook, IGP, and routing ISM deployments to avoid hitting gas limits on chains with lower block gas caps. Chain-specific batch size overrides were added (e.g. citrea). Routing ISM deployment was refactored to deploy with an initial batch of domains and enroll the remainder individually, with per-chain initialization sizes; the final `transferOwnership` call is skipped when the deployer is already the configured owner. The gas buffer multiplier was increased for ISM factory deployments. A configurable `minConfirmationTimeoutMs` option was added to `MultiProvider`. The `defaultEthersV5ProviderBuilder` `retryOverride` parameter was widened from `ProviderRetryOptions` to `SmartProviderOptions` so callers can pass `fallbackStaggerMs`.
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- 6929388: Fixed cctp transfer validation
+- 0b1c1d1: Fixed two `WarpCore` issues for `QuotedCalls` flows:
+  - Updated `resolveQuotedCallsParams` to treat `EvmHypNative` routes as native (zero-address token) by also checking `isHypNative()`. Previously, native warp routers were misidentified — `getQuotedTransferFee` returned `msg.value` (transfer amount + fee) as the IGP quote, so UIs displayed the bridged amount itself as "Interchain Gas".
+  - Added an optional `quotedCalls` param to `getLocalTransferFee` and `getLocalTransferFeeAmount`, forwarded to `getTransferRemoteTxs`. Internal gas estimation now builds the actual `QuotedCalls.execute(...)` multicall instead of plain `transferRemote`, giving accurate pre-sign gas estimates for the QuotedCalls path. Callers were previously hardcoding `localQuote = 0`.
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/aleo-sdk@33.1.0
+  - @hyperlane-xyz/cosmos-sdk@33.1.0
+  - @hyperlane-xyz/deploy-sdk@6.0.0
+  - @hyperlane-xyz/radix-sdk@33.1.0
+  - @hyperlane-xyz/tron-sdk@23.0.5
+  - @hyperlane-xyz/starknet-core@33.1.0
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 33.0.2
 
 ### Patch Changes

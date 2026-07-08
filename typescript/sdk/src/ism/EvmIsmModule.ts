@@ -3,8 +3,11 @@ import { Logger } from 'pino';
 
 import {
   AbstractCcipReadIsm__factory,
+  AmountRoutingIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
+  StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -14,6 +17,7 @@ import {
   arrayEqual,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   isZeroishAddress,
   rootLogger,
@@ -45,6 +49,7 @@ import {
   MUTABLE_ISM_TYPE,
   OffchainLookupIsmConfig,
   PausableIsmConfig,
+  RateLimitedIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -52,6 +57,8 @@ type IsmModuleAddresses = {
   deployedIsm: Address;
   mailbox: Address;
 };
+
+type ContainerSubModuleEntry = { address: Address; targetConfig: IsmConfig };
 
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -75,7 +82,7 @@ export class EvmIsmModule extends HyperlaneModule<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
-    ccipContractCache?: CCIPContractCache,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
@@ -143,11 +150,50 @@ export class EvmIsmModule extends HyperlaneModule<
     // - If it is not a mutable ISM.
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
+    //
+    // Special case: RATE_LIMITED recipient is immutable — must redeploy if it changes.
+    // read() omits recipient (immutable constructor arg), so fetch on-chain to compare.
+    let rateLimitedRecipientChanged = false;
     if (
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.recipient !== undefined
+    ) {
+      const onChainRecipient = (
+        await RateLimitedIsm__factory.connect(
+          this.args.addresses.deployedIsm,
+          this.multiProvider.getProvider(this.chain),
+        ).recipient()
+      ).toLowerCase();
+      rateLimitedRecipientChanged =
+        onChainRecipient !== normalizedTargetConfig.recipient;
+    }
+    if (
+      rateLimitedRecipientChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
     ) {
+      // For container ISM types (AGGREGATION, AMOUNT_ROUTING), attempt to update
+      // sub-modules in-place before falling back to full redeployment. If all
+      // sub-module addresses stay the same after updates, the container address is
+      // preserved (no parent redeploy needed).
+      if (
+        typeof normalizedCurrentConfig !== 'string' &&
+        normalizedCurrentConfig.type === normalizedTargetConfig.type &&
+        (normalizedTargetConfig.type === IsmType.AGGREGATION ||
+          normalizedTargetConfig.type === IsmType.AMOUNT_ROUTING)
+      ) {
+        const inPlaceTxs = await this.tryUpdateContainerIsm(
+          normalizedCurrentConfig,
+          normalizedTargetConfig,
+        );
+        if (inPlaceTxs !== null) {
+          return inPlaceTxs;
+        }
+      }
+
       const contract = await this.deploy({
         config: normalizedTargetConfig,
       });
@@ -241,6 +287,13 @@ export class EvmIsmModule extends HyperlaneModule<
           target,
         }),
       );
+    } else if (
+      current.type === IsmType.RATE_LIMITED &&
+      target.type === IsmType.RATE_LIMITED
+    ) {
+      // owner is optional on RateLimitedIsmConfig — handle ownership here
+      // rather than falling through to the generic transferOwnershipTransactions call
+      return this.updateRateLimitedIsm({ current, target });
     } else {
       throw new Error(
         `Unsupported update to mutable ISM of type ${target.type}`,
@@ -412,6 +465,45 @@ export class EvmIsmModule extends HyperlaneModule<
     ];
   }
 
+  protected updateRateLimitedIsm({
+    current,
+    target,
+  }: {
+    current: RateLimitedIsmConfig;
+    target: RateLimitedIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+
+    if (current.maxCapacity !== target.maxCapacity) {
+      txs.push({
+        annotation: `Setting maxCapacity on RateLimitedIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chain),
+        to: this.args.addresses.deployedIsm,
+        data: RateLimitedIsm__factory.createInterface().encodeFunctionData(
+          'setRefillRate',
+          [target.maxCapacity],
+        ),
+      });
+    }
+
+    if (current.owner != null && target.owner == null) {
+      this.logger.warn(
+        `target.owner is undefined for RateLimitedIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"; ownership transfer will be skipped`,
+      );
+    } else if (current.owner != null && target.owner != null) {
+      txs.push(
+        ...transferOwnershipTransactions(
+          this.chainId,
+          this.args.addresses.deployedIsm,
+          { owner: current.owner },
+          { owner: target.owner },
+        ),
+      );
+    }
+
+    return txs;
+  }
+
   protected async deploy({
     config,
   }: {
@@ -424,5 +516,216 @@ export class EvmIsmModule extends HyperlaneModule<
       config,
       mailbox: this.mailbox,
     });
+  }
+
+  // Attempts to update AGGREGATION or AMOUNT_ROUTING sub-modules in-place.
+  // Returns accumulated transactions if all sub-module addresses are unchanged
+  // (container address preserved), or null to fall back to full redeployment.
+  private async tryUpdateContainerIsm(
+    current: DerivedIsmConfig,
+    target: DerivedIsmConfig,
+  ): Promise<AnnotatedEV5Transaction[] | null> {
+    const subModules = await this.containerSubModules(
+      this.args.addresses.deployedIsm,
+      current,
+      target,
+    );
+    if (subModules === null) return null;
+
+    for (const { address: origAddress, targetConfig } of subModules) {
+      if (!(await this.canUpdateSubModuleInPlace(origAddress, targetConfig))) {
+        return null;
+      }
+    }
+
+    const allUpdateTxs: AnnotatedEV5Transaction[] = [];
+    for (const { address: origAddress, targetConfig } of subModules) {
+      const subModule = new EvmIsmModule(
+        this.multiProvider,
+        {
+          chain: this.chain,
+          config: targetConfig,
+          addresses: { ...this.args.addresses, deployedIsm: origAddress },
+        },
+        this.ccipContractCache,
+        this.contractVerifier,
+      );
+      allUpdateTxs.push(...(await subModule.update(targetConfig)));
+      if (!eqAddress(origAddress, subModule.serialize().deployedIsm)) {
+        return null;
+      }
+    }
+    return allUpdateTxs;
+  }
+
+  private async containerSubModules(
+    containerAddress: Address,
+    current: DerivedIsmConfig,
+    target: DerivedIsmConfig,
+  ): Promise<ContainerSubModuleEntry[] | null> {
+    const provider = this.multiProvider.getProvider(this.chain);
+
+    if (
+      current.type === IsmType.AGGREGATION &&
+      target.type === IsmType.AGGREGATION
+    ) {
+      if (
+        current.threshold !== target.threshold ||
+        current.modules.length !== target.modules.length
+      ) {
+        return null;
+      }
+      const aggregationIsm = StaticAggregationIsm__factory.connect(
+        containerAddress,
+        provider,
+      );
+      const [onChainAddresses] = await aggregationIsm.modulesAndThreshold(
+        ethers.constants.AddressZero,
+      );
+      if (onChainAddresses.length !== target.modules.length) return null;
+
+      const onChainTyped = await Promise.all(
+        onChainAddresses.map(async (addr) => {
+          const cfg = await this.reader.deriveIsmConfig(addr);
+          return { address: addr, key: this.ismConfigSortKey(cfg) };
+        }),
+      );
+
+      const targetTyped = target.modules.map((targetConfig) => ({
+        targetConfig,
+        key: this.ismConfigSortKey(targetConfig),
+      }));
+
+      if (
+        this.hasDuplicateSortKeys(onChainTyped.map(({ key }) => key)) ||
+        this.hasDuplicateSortKeys(targetTyped.map(({ key }) => key))
+      ) {
+        return null;
+      }
+
+      onChainTyped.sort((a, b) => a.key.localeCompare(b.key));
+      targetTyped.sort((a, b) => a.key.localeCompare(b.key));
+
+      const subModules: ContainerSubModuleEntry[] = [];
+      for (const [i, { address, key }] of onChainTyped.entries()) {
+        if (key !== targetTyped[i].key) return null;
+        subModules.push({
+          address,
+          targetConfig: targetTyped[i].targetConfig,
+        });
+      }
+      return subModules;
+    } else if (
+      current.type === IsmType.AMOUNT_ROUTING &&
+      target.type === IsmType.AMOUNT_ROUTING
+    ) {
+      if (current.threshold !== target.threshold) return null;
+      const amountRoutingIsm = AmountRoutingIsm__factory.connect(
+        containerAddress,
+        provider,
+      );
+      const [lowerAddr, upperAddr] = await Promise.all([
+        amountRoutingIsm.lower(),
+        amountRoutingIsm.upper(),
+      ]);
+      return [
+        { address: lowerAddr, targetConfig: target.lowerIsm },
+        { address: upperAddr, targetConfig: target.upperIsm },
+      ];
+    } else {
+      return null;
+    }
+  }
+
+  private async canUpdateSubModuleInPlace(
+    address: Address,
+    targetConfig: IsmConfig,
+  ): Promise<boolean> {
+    const normalizedCurrentConfig = normalizeConfig(
+      await this.reader.deriveIsmConfig(address),
+    );
+    const normalizedTargetConfig = normalizeConfig(
+      await this.reader.deriveIsmConfig(targetConfig),
+    );
+
+    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
+      return true;
+    }
+
+    if (typeof normalizedTargetConfig === 'string') {
+      return eqAddress(address, normalizedTargetConfig);
+    }
+
+    if (
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedCurrentConfig.type !== normalizedTargetConfig.type
+    ) {
+      return false;
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.AGGREGATION ||
+      normalizedCurrentConfig.type === IsmType.AMOUNT_ROUTING
+    ) {
+      const subModules = await this.containerSubModules(
+        address,
+        normalizedCurrentConfig,
+        normalizedTargetConfig,
+      );
+      if (subModules === null) return false;
+
+      for (const {
+        address: subModuleAddress,
+        targetConfig: subModuleTarget,
+      } of subModules) {
+        if (
+          !(await this.canUpdateSubModuleInPlace(
+            subModuleAddress,
+            subModuleTarget,
+          ))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (!MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)) {
+      return false;
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.INCREMENTAL_ROUTING &&
+      normalizedTargetConfig.type === IsmType.INCREMENTAL_ROUTING
+    ) {
+      return (
+        calculateDomainRoutingDelta(
+          normalizedCurrentConfig,
+          normalizedTargetConfig,
+        ).domainsToUpdate.length === 0
+      );
+    }
+
+    if (
+      normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
+      normalizedTargetConfig.recipient !== undefined
+    ) {
+      const onChainRecipient = await RateLimitedIsm__factory.connect(
+        address,
+        this.multiProvider.getProvider(this.chain),
+      ).recipient();
+      return eqAddress(onChainRecipient, normalizedTargetConfig.recipient);
+    }
+
+    return true;
+  }
+
+  private ismConfigSortKey(config: IsmConfig): string {
+    return typeof config === 'string' ? config : config.type;
+  }
+
+  private hasDuplicateSortKeys(keys: string[]): boolean {
+    return new Set(keys).size !== keys.length;
   }
 }

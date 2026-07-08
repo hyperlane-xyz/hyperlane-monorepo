@@ -15,6 +15,8 @@ import {
   HypERC4626,
   HypERC4626Collateral,
   HypERC4626Collateral__factory,
+  HypERC4626OwnerCollateral,
+  HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypXERC20,
   HypXERC20Lockbox,
@@ -59,7 +61,11 @@ import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.j
 import { OnchainHookType } from '../../hook/types.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
-import { isValidContractVersion } from '../../utils/contract.js';
+import {
+  isMissingSelectorCallException,
+  isValidContractVersion,
+  throwIfNotMissingSelector,
+} from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -441,9 +447,12 @@ export class EvmHypSyntheticAdapter
     try {
       return await this.contract.PACKAGE_VERSION();
     } catch (err) {
-      // PACKAGE_VERSION was introduced in v5.4.0
+      if (isMissingSelectorCallException(err)) {
+        // PACKAGE_VERSION was introduced in v5.4.0
+        return '5.3.9';
+      }
       this.logger.error(`Error when fetching package version ${err}`);
-      return '5.3.9';
+      throw err;
     }
   }
 
@@ -470,30 +479,50 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract[
+    const rawQuotes: RawTupleQuote[] = await this.contract[
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, amount.toString());
-    const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
-      addressOrDenom: quote[0],
-      amount: BigInt(quote[1].toString()),
+    // Per the TokenRouter.quoteTransferRemote convention the contract returns:
+    //   [0] gas payment (native when feeToken()==address(0), else token())
+    //   [1] transfer amount + internal warp route fee (denominated in token())
+    //   [2] external bridging fee (denominated in token())
+    // Subtract the transfer amount from index 1 so only the fee portion remains.
+    // This must happen before classifying quotes by denom: for native routes
+    // (token()==address(0)) index 1 is denominated in address(0), so leaving the
+    // bridged amount in would miscount it as a native fee and inflate the IGP quote.
+    const feeQuotes = rawQuotes.map((q, i) => ({
+      addressOrDenom: q[0],
+      amount: BigInt(q[1].toString()) - (i === 1 ? amount : 0n),
     }));
 
-    // Because the amount is added on  the fees, we need to subtract it from the actual fees
+    // Native fees (denom == address(0)) → msg.value sent with transferRemote.
+    const nativeAmount = feeQuotes
+      .filter((q) => isZeroishAddress(q.addressOrDenom))
+      .reduce((sum, q) => sum + q.amount, 0n);
+
+    // ERC20 fees → must be approved before transferRemote.
+    const erc20Quotes = feeQuotes.filter(
+      (q) => !isZeroishAddress(q.addressOrDenom),
+    );
+    const erc20Denoms = new Set(
+      erc20Quotes.map((q) => q.addressOrDenom.toLowerCase()),
+    );
+    assert(
+      erc20Denoms.size <= 1,
+      `Unexpected multi-token ERC20 fee quotes: ${[...erc20Denoms].join(', ')}`,
+    );
+    const tokenFeeAmount = erc20Quotes.reduce((sum, q) => sum + q.amount, 0n);
     const tokenFeeQuote: Quote | undefined =
-      tokenFeeQuotes.length > 0
+      tokenFeeAmount > 0n
         ? {
-            addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
-            amount:
-              tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
+            addressOrDenom: erc20Quotes[0].addressOrDenom,
+            amount: tokenFeeAmount,
           }
         : undefined;
 
     return {
-      igpQuote: {
-        amount: BigInt(igpAmount.toString()),
-      },
+      igpQuote: { amount: nativeAmount },
       tokenFeeQuote,
     };
   }
@@ -893,7 +922,8 @@ export class EvmHypCollateralFiatAdapter
       const limit = await fiatToken.minterAllowance(this.addresses.token);
 
       return limit.toBigInt();
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       return UIN256_MAX_VALUE;
     }
   }
@@ -929,8 +959,36 @@ export class EvmHypRebaseCollateralAdapter
       this.getProvider(),
     );
     const overrides = buildBlockTagOverrides(options?.blockTag);
-    const balance = await vault.balanceOf(this.addresses.token, overrides);
-    return balance.toBigInt();
+    const assets = await vault.maxWithdraw(this.addresses.token, overrides);
+    return assets.toBigInt();
+  }
+}
+
+export class EvmHypOwnerCollateralAdapter
+  extends EvmHypRebaseCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public override collateralContract: HypERC4626OwnerCollateral;
+
+  constructor(
+    chainName: ChainName,
+    multiProvider: MultiProviderAdapter,
+    addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC4626OwnerCollateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const assetDeposited =
+      await this.collateralContract.assetDeposited(overrides);
+    return assetDeposited.toBigInt();
   }
 }
 

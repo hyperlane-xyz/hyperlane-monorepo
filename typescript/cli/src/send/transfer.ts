@@ -57,7 +57,7 @@ import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { runSelfRelay } from '../utils/relay.js';
+import { logDeliveryTime, runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -72,6 +72,7 @@ const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.CosmosNative,
   ProtocolType.Starknet,
   ProtocolType.Radix,
+  ProtocolType.Aleo,
 ]);
 
 const EXPLORER_GRAPHQL_URL =
@@ -678,7 +679,7 @@ async function executeDelivery({
     throw new Error('No transfer transaction receipt found');
   }
 
-  const extracted = core.extractMessageIds(origin, transferReceipt);
+  const extracted = await core.extractMessageIds(origin, transferReceipt);
   const messageId = extracted[0]?.messageId;
   if (!messageId) {
     // Same-chain transfers don't dispatch an interchain message.
@@ -724,12 +725,21 @@ async function executeDelivery({
     if (!evmTransferReceipt) {
       throw new Error('Missing EVM transfer receipt required for self-relay');
     }
-    return runSelfRelay({
+    await runSelfRelay({
       txReceipt: evmTransferReceipt,
       multiProvider: multiProvider,
       registry: registry,
       successMessage: WarpSendLogs.SUCCESS,
     });
+    await logDeliveryTime(
+      origin,
+      destination,
+      evmTransferReceipt.blockNumber,
+      messageId,
+      chainAddresses,
+      multiProvider,
+    );
+    return;
   }
 
   if (skipWaitForDelivery) return;
@@ -745,6 +755,16 @@ async function executeDelivery({
       delayMs,
       maxAttempts,
     );
+    if (evmTransferReceipt) {
+      await logDeliveryTime(
+        origin,
+        destination,
+        evmTransferReceipt.blockNumber,
+        messageId,
+        chainAddresses,
+        multiProvider,
+      );
+    }
   } else {
     try {
       await waitForExplorerDelivery(messageId, timeoutMs);

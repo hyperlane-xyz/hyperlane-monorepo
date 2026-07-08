@@ -46,3 +46,23 @@ export function stripCustomRpcHeaders(url: string): {
   parsed.searchParams.delete('custom_rpc_header');
   return { url: parsed.toString(), headers };
 }
+
+/**
+ * Derive the Tron HTTP API base host from an RPC URL.
+ *
+ * TronWeb needs the base HTTP API host (serving `/wallet/*`), which differs
+ * from the ethers JSON-RPC endpoint. This strips any `custom_rpc_header` query
+ * params (they are auth headers, not part of the host) and a trailing
+ * `/jsonrpc` path segment.
+ *
+ * e.g. "https://node.example.com/jsonrpc?custom_rpc_header=x-api-key:abc"
+ * returns "https://node.example.com/"
+ */
+export function toHttpApiUrl(url: string): string {
+  const { url: clean } = stripCustomRpcHeaders(url);
+  const parsed = new URL(clean);
+  if (parsed.pathname.endsWith('/jsonrpc')) {
+    parsed.pathname = parsed.pathname.slice(0, -'/jsonrpc'.length);
+  }
+  return parsed.toString();
+}

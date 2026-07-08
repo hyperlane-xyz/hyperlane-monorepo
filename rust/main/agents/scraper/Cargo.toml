@@ -33,6 +33,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 reqwest.workspace = true
 testcontainers.workspace = true
 testcontainers-modules.workspace = true

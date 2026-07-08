@@ -1,6 +1,7 @@
-import { WithAddress, pick } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, pick } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 
 type ChainAddresses = Record<string, string>;
 
@@ -9,6 +10,95 @@ type ChainAddresses = Record<string, string>;
  * @param registryAddresses The registry addresses for a specific chain
  * @returns The extracted ISM and Hook factory addresses
  */
+export function ismTreeContainsRateLimited(ism: unknown): boolean {
+  if (typeof ism !== 'object' || ism === null) return false;
+  const node = ism as Record<string, unknown>;
+  if (node.type === IsmType.RATE_LIMITED) return true;
+  if (Array.isArray(node.modules)) {
+    if (node.modules.some(ismTreeContainsRateLimited)) return true;
+  }
+  if (node.domains !== null && typeof node.domains === 'object') {
+    if (
+      Object.values(node.domains as Record<string, unknown>).some(
+        ismTreeContainsRateLimited,
+      )
+    )
+      return true;
+  }
+  if (ismTreeContainsRateLimited(node.lowerIsm)) return true;
+  if (ismTreeContainsRateLimited(node.upperIsm)) return true;
+  return false;
+}
+
+/**
+ * Recursively sets `recipient` on all RATE_LIMITED ISM nodes in the config tree.
+ * Pass `undefined` to strip the field.
+ * `defaultOwner` is set on nodes that don't have an explicit owner.
+ */
+export function setRateLimitedIsmRecipient(
+  ismConfig: IsmConfig,
+  recipient: Address | undefined,
+  defaultOwner?: string,
+): IsmConfig {
+  if (typeof ismConfig === 'string') return ismConfig;
+
+  if (ismConfig.type === IsmType.RATE_LIMITED) {
+    return {
+      ...ismConfig,
+      recipient,
+      ...(defaultOwner != null && ismConfig.owner == null
+        ? { owner: defaultOwner }
+        : {}),
+    };
+  }
+
+  if (
+    ismConfig.type === IsmType.AGGREGATION ||
+    ismConfig.type === IsmType.STORAGE_AGGREGATION
+  ) {
+    return {
+      ...ismConfig,
+      modules: ismConfig.modules.map((m) =>
+        setRateLimitedIsmRecipient(m, recipient, defaultOwner),
+      ),
+    };
+  }
+
+  if (
+    ismConfig.type === IsmType.ROUTING ||
+    ismConfig.type === IsmType.FALLBACK_ROUTING ||
+    ismConfig.type === IsmType.INCREMENTAL_ROUTING
+  ) {
+    const newDomains: Record<string, IsmConfig> = {};
+    for (const [domain, domainIsm] of Object.entries(ismConfig.domains)) {
+      newDomains[domain] = setRateLimitedIsmRecipient(
+        domainIsm,
+        recipient,
+        defaultOwner,
+      );
+    }
+    return { ...ismConfig, domains: newDomains };
+  }
+
+  if (ismConfig.type === IsmType.AMOUNT_ROUTING) {
+    return {
+      ...ismConfig,
+      lowerIsm: setRateLimitedIsmRecipient(
+        ismConfig.lowerIsm,
+        recipient,
+        defaultOwner,
+      ),
+      upperIsm: setRateLimitedIsmRecipient(
+        ismConfig.upperIsm,
+        recipient,
+        defaultOwner,
+      ),
+    };
+  }
+
+  return ismConfig;
+}
+
 export function extractIsmAndHookFactoryAddresses(
   registryAddresses: ChainAddresses,
 ) {
@@ -79,8 +169,10 @@ export function sortArraysInConfig(config: any): any {
         Array.isArray(config[key])
       ) {
         sortedConfig[key] = [...config[key]].sort((a: any, b: any) => {
-          if (a.type < b.type) return -1;
-          if (a.type > b.type) return 1;
+          const aKey = typeof a === 'object' && a !== null ? a.type : String(a);
+          const bKey = typeof b === 'object' && b !== null ? b.type : String(b);
+          if (aKey < bKey) return -1;
+          if (aKey > bKey) return 1;
           return 0;
         });
       } else {

@@ -1,56 +1,122 @@
-import SafeApiKit from '@safe-global/api-kit';
+import SafeApiKit, { type SafeApiKitConfig } from '@safe-global/api-kit';
 import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
 import {
   getMultiSendCallOnlyDeployment,
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address, retryAsync } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 
 export const SAFE_API_RETRIES = 10;
 export const SAFE_API_BASE_RETRY_MS = 1000;
+
+type SafeApiKitInstance = SafeApiKit.default;
+
+type GetSafeOptions = {
+  allowUnresolvedSafeVersion?: boolean;
+};
+
+function isSafeApiKitConstructor(
+  value: unknown,
+): value is typeof SafeApiKit.default {
+  return typeof value === 'function';
+}
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
 }
 
+export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
+  const trimmedUrl = txServiceUrl.replace(/\/+$/, '');
+  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
+  return `${trimmedUrl}/api`;
+}
+
+export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
+  try {
+    const url = new URL(normalizeSafeTxServiceUrl(txServiceUrl));
+    return (
+      ['api.safe.global', 'api.5afe.dev'].includes(url.hostname) &&
+      /^\/tx-service\/[^/]+\/api$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getSafeApiKitConfig(
+  chainId: number,
+  txServiceUrl: string,
+  gnosisSafeApiKey?: string,
+): SafeApiKitConfig {
+  const normalizedTxServiceUrl = normalizeSafeTxServiceUrl(txServiceUrl);
+  const apiKey = safeApiKeyRequired(normalizedTxServiceUrl)
+    ? gnosisSafeApiKey
+    : undefined;
+  const baseConfig = {
+    chainId: BigInt(chainId),
+    apiKey,
+  };
+
+  // Safe's hosted gateway authenticates API-key traffic correctly when API Kit
+  // derives the service URL from chainId. Supplying txServiceUrl can hit lower
+  // unauthenticated rate limits on some endpoints.
+  if (apiKey && isSafeGlobalTxServiceUrl(normalizedTxServiceUrl)) {
+    return baseConfig;
+  }
+
+  return {
+    ...baseConfig,
+    txServiceUrl: normalizedTxServiceUrl,
+  };
+}
+
 export function getSafeService(
-  chain: ChainName,
+  chain: ChainNameOrId,
   multiProvider: MultiProvider,
-): SafeApiKit.default {
+): SafeApiKitInstance {
   const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
     multiProvider.getChainMetadata(chain);
-  let txServiceUrl = gnosisSafeTransactionServiceUrl;
-  if (!txServiceUrl) {
-    throw new Error(`must provide tx service url for ${chain}`);
-  }
-
-  // Ensure txServiceUrl ends with /api
-  if (
-    !txServiceUrl.endsWith('/api') &&
-    !txServiceUrl.endsWith('/api/') &&
-    !txServiceUrl.endsWith('api')
-  ) {
-    // Remove trailing slash if present to avoid double slashes
-    txServiceUrl = txServiceUrl.replace(/\/+$/, '');
-    txServiceUrl = `${txServiceUrl}/api`;
-  }
+  assert(
+    gnosisSafeTransactionServiceUrl,
+    `must provide tx service url for ${chain}`,
+  );
 
   const chainId = multiProvider.getEvmChainId(chain);
-  if (!chainId) {
-    throw new Error(`Chain is not an EVM chain: ${chain}`);
-  }
+  assert(chainId, `Chain is not an EVM chain: ${chain}`);
 
-  // @ts-ignore
-  return new SafeApiKit({
-    chainId: BigInt(chainId),
-    txServiceUrl,
-    // Only provide apiKey if the url contains safe.global or 5afe.dev
-    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
-  });
+  const config = getSafeApiKitConfig(
+    chainId,
+    gnosisSafeTransactionServiceUrl,
+    gnosisSafeApiKey,
+  );
+  assert(
+    isSafeApiKitConstructor(SafeApiKit),
+    '@safe-global/api-kit default export is not a constructor',
+  );
+  try {
+    return new SafeApiKit(config);
+  } catch (error) {
+    if (
+      error instanceof TypeError &&
+      error.message.includes(
+        'There is no transaction service available for chainId',
+      ) &&
+      !config.txServiceUrl &&
+      isSafeGlobalTxServiceUrl(gnosisSafeTransactionServiceUrl)
+    ) {
+      return new SafeApiKit({
+        ...config,
+        txServiceUrl: normalizeSafeTxServiceUrl(
+          gnosisSafeTransactionServiceUrl,
+        ),
+      });
+    }
+    throw error;
+  }
 }
 
 // This is the version of the Safe contracts that the SDK is compatible with.
@@ -110,20 +176,34 @@ export async function getSafe(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
+  options: GetSafeOptions = {},
 ): Promise<Safe.default> {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
-  // Get the safe version
-  const safeService = getSafeService(chain, multiProvider);
-
-  const { version: rawSafeVersion } = await retryAsync(
-    () => safeService.getSafeInfo(safeAddress),
-    SAFE_API_RETRIES,
-    SAFE_API_BASE_RETRY_MS,
-  );
-  // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
-  const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+  // Get the safe version from the transaction service if one is available.
+  // Fall back gracefully when the service is missing/unreachable so the Safe
+  // instance can still be built for read-only/offline use (e.g. generating a
+  // Safe Transaction Builder batch for chains without a usable tx service).
+  let safeVersion: string | undefined;
+  try {
+    const safeService = getSafeService(chain, multiProvider);
+    const { version: rawSafeVersion } = await retryAsync(
+      () => safeService.getSafeInfo(safeAddress),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
+    // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
+    safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+  } catch (error) {
+    if (!options.allowUnresolvedSafeVersion) {
+      throw error;
+    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    rootLogger.warn(
+      `Could not fetch Safe version for ${chain} (transaction service unavailable); falling back to default multiSend resolution: ${errorMessage}`,
+    );
+  }
 
   // Get the multiSend and multiSendCallOnly deployments for the given chain
   let multiSend, multiSendCallOnly;
@@ -136,7 +216,7 @@ export async function getSafe(
         [chainId]: chainOverrides[chainId].multiSendCallOnly,
       },
     };
-  } else if (safeDeploymentsVersions[safeVersion]) {
+  } else if (safeVersion && safeDeploymentsVersions[safeVersion]) {
     const { multiSendVersion, multiSendCallOnlyVersion } =
       safeDeploymentsVersions[safeVersion];
     multiSend = getMultiSendDeployment({
@@ -167,7 +247,7 @@ export async function getSafe(
 }
 
 export async function getSafeDelegates(
-  service: SafeApiKit.default,
+  service: SafeApiKitInstance,
   safeAddress: Address,
 ): Promise<string[]> {
   const delegateResponse = await retryAsync(
@@ -184,10 +264,16 @@ export async function canProposeSafeTransactions(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<boolean> {
-  let safeService: SafeApiKit.default;
+  let safeService: SafeApiKitInstance;
   try {
     safeService = getSafeService(chain, multiProvider);
-  } catch {
+  } catch (e: unknown) {
+    rootLogger.error('Failed to get Safe service for chain', {
+      chain,
+      chainName: multiProvider.tryGetChainName(chain),
+      knownChains: multiProvider.getKnownChainNames(),
+      error: e,
+    });
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);

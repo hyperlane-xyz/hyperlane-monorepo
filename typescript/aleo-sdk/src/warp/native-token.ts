@@ -116,10 +116,12 @@ export class AleoNativeTokenWriter
     const { programId: mailboxProgramId } = fromAleoAddress(config.mailbox);
     const mailboxSuffix = getProgramSuffix(mailboxProgramId);
 
-    // Resolve token suffix from preferred setting or generate a collision-free one
+    // Resolve token suffix from preferred setting or generate a collision-free one.
+    // Native tokens always use the fixed 'credits' suffix, so the program may
+    // already be deployed and initialized from a previous warp deploy run.
     const tokenSuffix = await this.signer.getWarpTokenSuffix('native');
 
-    // Deploy native token program
+    // Deploy native token program (idempotent if already on-chain)
     const programs = await this.signer
       .deployProgram('hyp_native', mailboxSuffix, tokenSuffix)
       .catch((error: unknown) => {
@@ -134,6 +136,18 @@ export class AleoNativeTokenWriter
       tokenProgramId,
       'Expected native token program to be deployed but none was found in deployment mapping',
     );
+    const tokenAddress = toAleoAddress(tokenProgramId);
+
+    // Native tokens use a fixed program name (no random suffix), so only one
+    // native warp token can exist per network. If it's already initialized,
+    // fail early with a clear message instead of letting init fail on-chain.
+    const existingArtifact = await this.read(tokenAddress).catch(() => null);
+    if (existingArtifact) {
+      throw new Error(
+        `Native warp token ${tokenProgramId} is already deployed at ${tokenAddress}. ` +
+          `Native tokens cannot be redeployed. Use \`hyperlane warp apply\` to update the existing deployment.`,
+      );
+    }
 
     // Initialize token
     const initTx = getCreateNativeTokenTx(tokenProgramId);
@@ -146,8 +160,6 @@ export class AleoNativeTokenWriter
         );
       });
     allReceipts.push(initReceipt);
-
-    const tokenAddress = toAleoAddress(tokenProgramId);
 
     // Perform post-deployment updates (ISM setup and router enrollment)
     const postDeploymentTxs = getPostDeploymentUpdateTxs(tokenAddress, config);

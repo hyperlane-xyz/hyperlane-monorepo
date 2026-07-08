@@ -8,8 +8,13 @@ import {
 } from './ProviderMethods.js';
 import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
-import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
+import {
+  BlockchainError,
+  getSmartProviderErrorMessage,
+  HyperlaneSmartProvider,
+} from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
+import { isMissingSelectorCallException } from '../../utils/contract.js';
 
 // Dummy provider for testing
 class MockProvider extends providers.BaseProvider implements IProviderMethods {
@@ -124,13 +129,23 @@ class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
   public readonly data?: string;
-  public readonly error?: { error?: { code?: number } };
+  public readonly error?: {
+    code?: string;
+    message?: string;
+    body?: string;
+    error?: { code?: number; message?: string };
+  };
 
   constructor(
     message: string,
     code: string,
     data?: string,
-    options?: { jsonRpcErrorCode?: number; hasNestedError?: boolean },
+    options?: {
+      jsonRpcErrorCode?: number;
+      jsonRpcErrorMessage?: string;
+      hasNestedError?: boolean;
+      nestedBody?: string;
+    },
   ) {
     super(message);
     this.reason = message;
@@ -138,10 +153,15 @@ class ProviderError extends Error {
     this.data = data;
     // Simulate ethers nested error structure for JSON-RPC errors
     if (options?.jsonRpcErrorCode !== undefined) {
-      this.error = { error: { code: options.jsonRpcErrorCode } };
+      this.error = {
+        error: {
+          code: options.jsonRpcErrorCode,
+          message: options.jsonRpcErrorMessage,
+        },
+      };
     } else if (options?.hasNestedError) {
       // Has nested error but no JSON-RPC code (e.g., RPC connection issue)
-      this.error = { error: {} };
+      this.error = { error: {}, body: options.nestedBody };
     }
     // If neither is set, error remains undefined (empty return decode failure)
   }
@@ -352,6 +372,26 @@ describe('SmartProvider', () => {
       expect(e.cause.code).to.equal(EthersError.SERVER_ERROR);
     });
 
+    it('ignores malformed errors when selecting SERVER_ERROR', () => {
+      const error = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [null, error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.cause).to.equal(error);
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+      );
+    });
+
     it('throws regular Error for TIMEOUT (not BlockchainError)', () => {
       const error = { status: ProviderStatus.Timeout };
       const CombinedError = provider.testGetCombinedProviderError(
@@ -449,8 +489,65 @@ describe('SmartProvider', () => {
       // With nested error but no code 3, this should NOT be a BlockchainError
       expect(e).to.be.instanceOf(Error);
       expect(e).to.not.be.instanceOf(BlockchainError);
-      // Falls through to generic error handler (unhandled case)
-      expect(e.message).to.equal('Test fallback message');
+      expect(e.message).to.equal(
+        getSmartProviderErrorMessage(EthersError.CALL_EXCEPTION),
+      );
+    });
+
+    it('surfaces nested provider message for CALL_EXCEPTION wrapping SERVER_ERROR body', () => {
+      const error = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          hasNestedError: true,
+          nestedBody: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 331,
+            error: { code: -32000, message: 'header not found' },
+          }),
+        },
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.message).to.equal('header not found');
+      expect(e.cause).to.equal(error);
+    });
+
+    it('preserves unhandled provider errors as causes', () => {
+      const error = new Error('Invalid response from provider');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e.cause).to.equal(error);
+      expect(isMissingSelectorCallException(e)).to.equal(true);
+    });
+
+    it('uses the most diagnostic unhandled provider error as the cause', () => {
+      const genericError = new Error('generic provider error');
+      const emptyResponseError = new Error('Invalid response from provider');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [genericError, emptyResponseError],
+        'Test fallback message',
+      );
+
+      const e = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e.cause).to.equal(emptyResponseError);
+      expect(isMissingSelectorCallException(e)).to.equal(true);
     });
 
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {

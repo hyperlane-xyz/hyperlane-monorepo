@@ -13,10 +13,12 @@ import {
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
 import { isContractAddress } from '../contracts/contracts.js';
+import { isProxy, proxyImplementation } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
@@ -181,7 +183,8 @@ async function getLockboxesFromLogs(
 
         await maybeXERC20Lockbox.callStatic.XERC20();
         return log;
-      } catch {
+      } catch (error) {
+        throwIfNotMissingSelector(error);
         logger.debug(
           `Contract at address ${log.args.bridge} on chain ${chain} is not a XERC20Lockbox contract.`,
         );
@@ -452,8 +455,7 @@ export async function deriveXERC20TokenType(
   }
 
   const provider = multiProvider.getProvider(chain);
-  const code = await provider.getCode(address);
-  const normalizedCode = code.toLowerCase();
+  let normalizedCode = (await provider.getCode(address)).toLowerCase();
   const setBufferCapSelector = ethers.utils
     .id('setBufferCap(address,uint256)')
     .slice(2, 10)
@@ -462,6 +464,17 @@ export async function deriveXERC20TokenType(
     .id('setLimits(address,uint256,uint256)')
     .slice(2, 10)
     .toLowerCase();
+
+  // xERC20 tokens are commonly deployed behind a proxy whose bytecode does not
+  // embed the implementation's selectors; inspect the implementation in that case.
+  if (
+    !normalizedCode.includes(setBufferCapSelector) &&
+    !normalizedCode.includes(setLimitsSelector) &&
+    (await isProxy(provider, address))
+  ) {
+    const implementation = await proxyImplementation(provider, address);
+    normalizedCode = (await provider.getCode(implementation)).toLowerCase();
+  }
 
   // Prefer Velodrome if both selectors are present.
   if (normalizedCode.includes(setBufferCapSelector)) {

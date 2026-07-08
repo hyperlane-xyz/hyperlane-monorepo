@@ -69,15 +69,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       },
     ],
   },
-  moonbeam: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x0df7140811e309dc69638352545151ebb9d5e0fd',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
   gnosis: {
     threshold: 1,
     validators: [

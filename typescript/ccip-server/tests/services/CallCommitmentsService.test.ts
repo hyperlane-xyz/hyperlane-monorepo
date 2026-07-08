@@ -6,7 +6,7 @@ import {
   commitmentFromIcaCalls,
   isPostCallsIca,
   normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 
@@ -135,7 +135,8 @@ describe('CallCommitmentsService.handleCommitment', () => {
     await service.handleCommitment(req, res);
 
     expect(icaApp.getAccount.called).to.be.true;
-    expect(res.sendStatus.calledWith(200)).to.be.true;
+    expect(res.status.calledWith(200)).to.be.true;
+    expect(res.json.calledWithMatch(sinon.match.has('commitment'))).to.be.true;
   });
 
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {

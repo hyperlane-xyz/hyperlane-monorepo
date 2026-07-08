@@ -104,6 +104,7 @@ export class StarknetProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: BigInt(3e7),
       AVS_GAS: BigInt(3e8),
       ISM_DEPLOY_GAS: BigInt(5e7),
+      HOOK_DEPLOY_GAS: BigInt(5e7),
     };
   }
 }

@@ -1,5 +1,56 @@
 # @hyperlane-xyz/provider-sdk
 
+## 6.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.2.0
+
+## 6.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.1.0
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+
+## 6.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.0.0
+
+## 6.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@34.0.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.1
+
+## 6.0.0
+
+### Major Changes
+
+- bfe4d2e: Breaking: the `./protocol` subpath no longer re-exports `ProtocolType`, `ProtocolTypeValue`, or `ProtocolSmallestUnit`. These were moved to the new `./protocolType` module to break an import cycle. Import them from the main `@hyperlane-xyz/provider-sdk` entry instead.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.0
+
 ## 5.1.0
 
 ### Minor Changes

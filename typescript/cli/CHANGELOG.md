@@ -1,5 +1,68 @@
 # @hyperlane-xyz/cli
 
+## 35.2.0
+
+### Minor Changes
+
+- b531fcd: Delivery time logging was added to `hyperlane warp send` and `hyperlane send message`, displaying elapsed seconds between dispatch and delivery for EVM chains.
+- 867ce3c: A fee submitter strategy was added to `warp apply` allowing a separate Safe or signer to submit fee-contract transactions. Same-chain Safe TX Builder payloads are now bundled into a single combined file per (chainId, safeAddress) pair. Transaction ordering was fixed so fee-recipient updates execute before ownership transfers. Router-owner `setFeeRecipient` calls were moved into the main submitter batch so a dedicated feeSubmitter only ever sees fee-contract-owner transactions. Safe TX Builder bundles from successful chains are now written before surfacing any partial-failure errors.
+
+### Patch Changes
+
+- 92ef474: resolveWarpConfigChains now includes chains referenced by the submission strategy (e.g. ICA origin chains) so signers are initialised for them before transaction submission.
+
+## 35.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- 9cdf9eb: Warp core configs preserved warp route deploy token types, and destination collateral checks were skipped for CCTP and OFT collateral routes that settle through their protocol bridge rather than on-chain escrow.
+
+  Existing CCTP and OFT registry routes require token type backfills in hyperlane-registry#1550 to use the exemption.
+
+## 35.0.1
+
+## 35.0.0
+
+### Minor Changes
+
+- 44aa432: Added a new `hyperlane warp balances` CLI command that displays token balances for each leg of a warp route. Fixed `EvmHypRebaseCollateralAdapter.getBridgedSupply` to return the underlying asset amount (previously returned raw vault shares). Added `EvmHypOwnerCollateralAdapter` that reads `assetDeposited` directly from `HypERC4626OwnerCollateral`, and routed `WarpCore.getTokenCollateral` through `getBridgedSupply` for ERC4626 collateral standards so destination-collateral checks and balance display no longer report zero for yield-bearing vault routes.
+- 631d7e7: `ICoreAdapter.extractMessageIds` was made async (returns `Promise`). Callers must add `await` at call sites.
+
+  `AleoCoreAdapter` extracted message IDs by querying on-chain mappings. Because Aleo's mailbox nonce counter is a single shared mapping entry, at most one dispatch is accepted per block; a confirmed transaction with type `"execute"` was the accepted dispatch, and the dispatched nonce is `mailbox.nonce - 1`. Unlike EVM/SVM adapters that parsed receipt logs, Aleo extraction required on-chain mapping queries. Callers constructing `MultiProtocolCore` for an Aleo origin chain had to supply a real mailbox address (not a stub); passing no address caused extraction to return an empty result rather than throw.
+
+  Aleo warp token writers (native, collateral, synthetic) verified that the mailbox is initialized before deploying warp tokens. Previously, running `warp deploy` against an uninitialized mailbox produced a cryptic "transaction rejected" error from the on-chain finalize assertion; now a clear error is thrown immediately.
+
+- a8c9430: Enabled warp send for Aleo. When Aleo is the origin chain, the CLI now skips delivery confirmation (message ID extraction from Aleo receipts is not yet supported) instead of throwing an error.
+
+## 34.0.0
+
+### Minor Changes
+
+- f758a70: Added rate-limited ISM support.
+- b8a600c: Added rate-limited hook support.
+
+## 33.1.1
+
+### Patch Changes
+
+- c59b182: Added warp check support for cross-collateral routes
+- 530f02e: The IGP fee assertion is relaxed for Sealevel cross-collateral transfers; OffchainQuotedLinearFee is supported as a sub-fee of routing fees; warp deployment errors now surface their cause chain and Solana preflight logs.
+
+## 33.1.0
+
+### Minor Changes
+
+- 21dee68: feat: added cli helper for message decoding and encoding
+
+### Patch Changes
+
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- 6929388: Fixed cctp transfer validation
+
 ## 33.0.2
 
 ## 33.0.1

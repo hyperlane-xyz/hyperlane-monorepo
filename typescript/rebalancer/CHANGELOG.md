@@ -1,5 +1,121 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.3.6
+
+### Patch Changes
+
+- Updated dependencies [88e51ed]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [889c68a]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [92ef474]
+- Updated dependencies [f0b325a]
+- Updated dependencies [6db4aee]
+- Updated dependencies [babb3d0]
+- Updated dependencies [867ce3c]
+- Updated dependencies [b77faf4]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [fb63f5f]
+  - @hyperlane-xyz/sdk@35.2.0
+  - @hyperlane-xyz/metrics@0.2.27
+  - @hyperlane-xyz/utils@35.2.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.1.1
+
+## 27.3.5
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+- Updated dependencies [830ce1d]
+- Updated dependencies [9cdf9eb]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/sdk@35.1.0
+  - @hyperlane-xyz/metrics@0.2.26
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 27.3.4
+
+### Patch Changes
+
+- Updated dependencies [06a5b6b]
+- Updated dependencies [da1cfb1]
+- Updated dependencies [4bb1c3e]
+- Updated dependencies [93c2290]
+  - @hyperlane-xyz/sdk@35.0.1
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/metrics@0.2.25
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+
+## 27.3.3
+
+### Patch Changes
+
+- Updated dependencies [38479d0]
+- Updated dependencies [4adf279]
+- Updated dependencies [7089676]
+- Updated dependencies [44aa432]
+- Updated dependencies [631d7e7]
+- Updated dependencies [6c687ee]
+- Updated dependencies [a8c9430]
+  - @hyperlane-xyz/sdk@35.0.0
+  - @hyperlane-xyz/metrics@0.2.24
+  - @hyperlane-xyz/utils@35.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.3
+
+## 27.3.2
+
+### Patch Changes
+
+- Updated dependencies [9a1ce26]
+- Updated dependencies [f758a70]
+- Updated dependencies [2151352]
+- Updated dependencies [b8a600c]
+  - @hyperlane-xyz/sdk@34.0.0
+  - @hyperlane-xyz/metrics@0.2.23
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.2
+
+## 27.3.1
+
+### Patch Changes
+
+- Updated dependencies [9ad1bd0]
+- Updated dependencies [530f02e]
+- Updated dependencies [9670e43]
+- Updated dependencies [cc90a8f]
+  - @hyperlane-xyz/sdk@33.1.1
+  - @hyperlane-xyz/metrics@0.2.22
+  - @hyperlane-xyz/utils@33.1.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.1
+
+## 27.3.0
+
+### Minor Changes
+
+- 054b178: Added Tron blockchain support to the rebalancer using ProtocolType.Tron. Tron chains were treated as EVM-like for signer creation, block tag resolution, gas estimation, and transaction receipt parsing. The LiFi bridge was updated to gracefully skip Tron chains as no Tron-compatible aggregator is available.
+
+### Patch Changes
+
+- 7756d0a: LiFi chain metadata resolution was fixed for non-EVM chain ID collisions during rebalancer bridge execution.
+- Updated dependencies [6f4b790]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [6929388]
+- Updated dependencies [47649b7]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [0b1c1d1]
+- Updated dependencies [d9dec53]
+  - @hyperlane-xyz/sdk@33.1.0
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/metrics@0.2.21
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 27.2.14
 
 ### Patch Changes

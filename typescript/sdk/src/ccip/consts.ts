@@ -371,46 +371,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  polygonzkevm: {
-    armProxy: {
-      address: '0x272fB92E5D43ffcCEb56bBE5b2D7B88a86235c48',
-      version: '1.0.0',
-    },
-    chainSelector: '4348158687435793198',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0xE97273AD89a082950e7C17c4593d7743c987B8bb',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0xA9999937159B293c72e2367Ce314cb3544e7C1a3',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0xe87fB6c46DCAADA001681819d2bD3c64f58D8963',
-      version: '1.5.0',
-    },
-  },
-  scroll: {
-    armProxy: {
-      address: '0x68B38980aD70650a6f3229BA156e5c1F88A21320',
-      version: '1.5.0',
-    },
-    chainSelector: '13204309965629103672',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0x80E3946A4d3306c903545fdfCEDB57639C00A99d',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x9a55E8Cab6564eb7bbd7124238932963B8Af71DC',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x846dEA1c1706FC35b4aa78B32d31F1599DAA47b4',
-      version: '1.5.0',
-    },
-  },
   worldchain: {
     armProxy: {
       address: '0x7DE7Ef73cF001ff15b3aA558855D7eeC439d43ab',

@@ -7,14 +7,15 @@ use ethers::prelude::Selector;
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod, RoutingIsm,
-    SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
+    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
+    Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod,
+    RoutingIsm, SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160,
+    H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -855,6 +856,47 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Build a CCR same-chain swap indexer for EVM chains.
+    /// Only supported for Ethereum connections; returns `Ok(None)` for other chain types.
+    pub async fn build_ccr_swap_indexer(
+        &self,
+        metrics: &CoreMetrics,
+        local_domain: u32,
+        ccr_to_erc20: std::collections::HashMap<H160, H160>,
+    ) -> Result<Option<Box<dyn Indexer<SameChainCcrSwap>>>> {
+        let ctx = "Building CCR swap indexer";
+        // Use a zero address as the locator — CcrSwapIndexer uses ccr_to_erc20 keys instead.
+        let locator = self.locator(H256::zero());
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
+                let indexer = self
+                    .build_ethereum(
+                        conf,
+                        &locator,
+                        metrics,
+                        h_eth::CcrSwapIndexerBuilder {
+                            local_domain,
+                            ccr_to_erc20,
+                            reorg_period,
+                        },
+                    )
+                    .await
+                    .context(ctx)?;
+                Ok(Some(indexer))
+            }
+            _ => {
+                warn!(
+                    domain = %self.domain.name(),
+                    "CCR swap indexer is only supported for Ethereum chains; skipping"
+                );
+                Ok(None)
+            }
+        }
+    }
+
     /// Try to convert the chain settings into a merkle tree hook indexer
     pub async fn build_merkle_tree_hook_indexer(
         &self,
@@ -1347,8 +1389,10 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Tron(_) => {
-                Err(eyre!("Tron does not support CCIP read ISM yet")).context(ctx)
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronCcipReadIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn CcipReadIsm>)
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),

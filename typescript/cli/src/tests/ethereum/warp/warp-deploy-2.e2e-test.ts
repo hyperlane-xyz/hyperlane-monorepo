@@ -13,7 +13,10 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
+  IsmType,
   type LinearFeeConfig,
+  type RateLimitedIsmConfig,
+  RateLimitedIsmConfigSchema,
   type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -176,6 +179,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
         (config) => config.chainName === CHAIN_NAME_2,
       );
       expect(chain2TokenConfig).to.exist;
+      expect(chain2TokenConfig.tokenType).to.equal(TokenType.collateral);
+
+      const [chain3TokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_3,
+      );
+      expect(chain3TokenConfig).to.exist;
+      expect(chain3TokenConfig.tokenType).to.equal(TokenType.synthetic);
 
       const movableToken = MovableCollateralRouter__factory.connect(
         chain2TokenConfig.addressOrDenom!,
@@ -670,6 +680,76 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(tokenFee.halfAmount).to.exist;
       expect(BigInt(tokenFee.maxFee) > 0n).to.be.true;
       expect(BigInt(tokenFee.halfAmount) > 0n).to.be.true;
+    });
+
+    it('should deploy a RateLimitedIsm on a synthetic token and auto-populate recipient', async () => {
+      const maxCapacity = (BigInt(86400) * 10n ** 18n).toString();
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+          interchainSecurityModule: {
+            type: IsmType.RATE_LIMITED,
+            maxCapacity,
+          },
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+      const syntheticTokenConfig = coreConfig.tokens.find(
+        (t) => t.chainName === CHAIN_NAME_3,
+      );
+      expect(syntheticTokenConfig).to.exist;
+
+      const syntheticDeployConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_3,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_3];
+
+      const ism =
+        syntheticDeployConfig.interchainSecurityModule as RateLimitedIsmConfig;
+      expect(ism).to.exist;
+      expect(ism.type).to.equal(IsmType.RATE_LIMITED);
+      expect(ism.maxCapacity).to.equal(maxCapacity);
+    });
+
+    it('should round down RateLimitedIsm maxCapacity to nearest multiple of 86400', () => {
+      const result = RateLimitedIsmConfigSchema.safeParse({
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '100000',
+      });
+      expect(result.success).to.be.true;
+      expect(result.data?.maxCapacity).to.equal(
+        ((100000n / 86400n) * 86400n).toString(), // '86400'
+      );
+    });
+
+    it('should reject a RateLimitedIsm config with maxCapacity below 86400', () => {
+      const result = RateLimitedIsmConfigSchema.safeParse({
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '1000',
+      });
+      expect(result.success).to.be.false;
     });
   });
 });

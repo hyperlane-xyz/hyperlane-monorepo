@@ -28,7 +28,10 @@ use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuil
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
+mod cached_checkpoint_syncer;
 mod validator_announced_storages;
+
+use cached_checkpoint_syncer::CachedCheckpointSyncer;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsmBuildMetricsParams {
@@ -285,7 +288,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        if let Some(syncer) = self.build_and_validate(&config, validator).await? {
+                        if let Some(syncer) = self
+                            .build_and_validate(&config, validator, storage_location)
+                            .await?
+                        {
                             // found the syncer for this validator
                             return Ok(Some((*validator, syncer)));
                         }
@@ -340,10 +346,18 @@ impl BaseMetadataBuilder {
         &self,
         config: &CheckpointSyncerConf,
         validator: &H256,
+        storage_location: &str,
     ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
         match config.build_and_validate(None).await {
             Ok(checkpoint_syncer) => {
-                return Ok(Some(checkpoint_syncer));
+                let checkpoint_syncer = CachedCheckpointSyncer::new(
+                    checkpoint_syncer,
+                    self.cache.clone(),
+                    self.origin_domain.name().to_string(),
+                    *validator,
+                    storage_location.to_string(),
+                );
+                return Ok(Some(Box::new(checkpoint_syncer)));
             }
             Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
                 if self.ignore_reorg_reports {

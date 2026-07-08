@@ -1,5 +1,103 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 6.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@35.2.0
+- @hyperlane-xyz/cosmos-sdk@35.2.0
+- @hyperlane-xyz/radix-sdk@35.2.0
+- @hyperlane-xyz/sealevel-sdk@35.2.0
+- @hyperlane-xyz/utils@35.2.0
+- @hyperlane-xyz/starknet-sdk@28.1.1
+- @hyperlane-xyz/provider-sdk@6.1.1
+- @hyperlane-xyz/tron-sdk@23.1.1
+
+## 6.1.0
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+- Updated dependencies [a911f17]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/starknet-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@35.1.0
+  - @hyperlane-xyz/radix-sdk@35.1.0
+  - @hyperlane-xyz/aleo-sdk@35.1.0
+  - @hyperlane-xyz/tron-sdk@23.1.0
+  - @hyperlane-xyz/sealevel-sdk@35.1.0
+  - @hyperlane-xyz/utils@35.1.0
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/aleo-sdk@35.0.1
+  - @hyperlane-xyz/cosmos-sdk@35.0.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+  - @hyperlane-xyz/radix-sdk@35.0.1
+  - @hyperlane-xyz/starknet-sdk@28.0.9
+  - @hyperlane-xyz/sealevel-sdk@35.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.9
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [631d7e7]
+- Updated dependencies [f3851a3]
+  - @hyperlane-xyz/aleo-sdk@35.0.0
+  - @hyperlane-xyz/cosmos-sdk@35.0.0
+  - @hyperlane-xyz/radix-sdk@35.0.0
+  - @hyperlane-xyz/sealevel-sdk@35.0.0
+  - @hyperlane-xyz/utils@35.0.0
+  - @hyperlane-xyz/starknet-sdk@28.0.8
+  - @hyperlane-xyz/provider-sdk@6.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.8
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [9a1ce26]
+  - @hyperlane-xyz/cosmos-sdk@34.0.0
+  - @hyperlane-xyz/aleo-sdk@34.0.0
+  - @hyperlane-xyz/radix-sdk@34.0.0
+  - @hyperlane-xyz/sealevel-sdk@34.0.0
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/starknet-sdk@28.0.7
+  - @hyperlane-xyz/provider-sdk@6.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.7
+
+## 6.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@33.1.1
+- @hyperlane-xyz/cosmos-sdk@33.1.1
+- @hyperlane-xyz/radix-sdk@33.1.1
+- @hyperlane-xyz/sealevel-sdk@33.1.1
+- @hyperlane-xyz/utils@33.1.1
+- @hyperlane-xyz/starknet-sdk@28.0.6
+- @hyperlane-xyz/provider-sdk@6.0.1
+- @hyperlane-xyz/tron-sdk@23.0.6
+
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/aleo-sdk@33.1.0
+  - @hyperlane-xyz/cosmos-sdk@33.1.0
+  - @hyperlane-xyz/radix-sdk@33.1.0
+  - @hyperlane-xyz/starknet-sdk@28.0.5
+  - @hyperlane-xyz/sealevel-sdk@33.1.0
+  - @hyperlane-xyz/tron-sdk@23.0.5
+  - @hyperlane-xyz/utils@33.1.0
+
 ## 5.1.0
 
 ### Minor Changes

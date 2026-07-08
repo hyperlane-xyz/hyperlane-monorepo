@@ -1,14 +1,20 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    panic::AssertUnwindSafe,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use futures::future::try_join_all;
+use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, H512,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
+    HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
 };
+use prometheus::IntGaugeVec;
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument, trace, Instrument};
+use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
@@ -16,9 +22,16 @@ use hyperlane_base::{
     CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
-use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+use crate::{
+    db::ScraperDb,
+    settings::ScraperSettings,
+    store::{HyperlaneDbStore, RawDispatchRetryBackoff},
+};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
+const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
+const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -33,6 +46,7 @@ pub struct Scraper {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
+    raw_dispatch_unenriched_max_age: IntGaugeVec,
 }
 
 #[derive(Debug)]
@@ -64,6 +78,13 @@ impl BaseAgent for Scraper {
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let raw_dispatch_unenriched_max_age = metrics
+            .new_int_gauge(
+                "raw_message_dispatch_unenriched_max_age_seconds",
+                "Maximum age in seconds of raw message dispatches pending reconciliation",
+                &["chain"],
+            )
+            .expect("failed to register raw dispatch reconciliation age metric");
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -85,6 +106,7 @@ impl BaseAgent for Scraper {
             agent_metrics,
             chain_metrics,
             runtime_metrics,
+            raw_dispatch_unenriched_max_age,
         })
     }
 
@@ -214,15 +236,34 @@ impl Scraper {
 
         let gas_payment_indexer = self
             .build_interchain_gas_payment_indexer(
-                domain,
+                domain.clone(),
                 self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
-                store,
+                store.clone(),
                 index_settings.clone(),
                 BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
             )
             .await?;
         tasks.push(gas_payment_indexer);
+
+        tasks.push(self.build_raw_dispatch_reconciler(
+            domain.clone(),
+            self.contract_sync_metrics.clone(),
+            self.raw_dispatch_unenriched_max_age.clone(),
+            store.clone(),
+        ));
+
+        if let Some(ccr_task) = self
+            .build_ccr_indexer(
+                domain,
+                self.core_metrics.clone(),
+                store,
+                index_settings.clone(),
+            )
+            .await?
+        {
+            tasks.push(ccr_task);
+        }
 
         Ok(tokio::spawn(
             async move {
@@ -342,6 +383,99 @@ impl Scraper {
         Ok((task, maybe_broadcaser))
     }
 
+    fn build_raw_dispatch_reconciler(
+        &self,
+        domain: HyperlaneDomain,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        raw_dispatch_unenriched_max_age: IntGaugeVec,
+        store: HyperlaneDbStore,
+    ) -> JoinHandle<()> {
+        let domain_name = domain.name().to_owned();
+        let span_domain_name = domain_name.clone();
+        tokio::spawn(
+            async move {
+                let stored_events_metric = contract_sync_metrics
+                    .stored_events
+                    .with_label_values(&["message_dispatch_reconciled", &domain_name]);
+                let liveness_metric = contract_sync_metrics.liveness_metrics.with_label_values(&[
+                    "raw_message_dispatch_reconciliation",
+                    &domain_name,
+                    "reconcile_task",
+                ]);
+                let max_age_metric =
+                    raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
+                let mut next_after_id = 0;
+                let mut retry_backoff = RawDispatchRetryBackoff::default();
+                let mut max_age_seen_this_scan = 0_u64;
+
+                loop {
+                    liveness_metric.set(
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map(|duration| duration.as_secs() as i64)
+                            .unwrap_or_default(),
+                    );
+
+                    let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
+                        next_after_id,
+                        RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                        &mut retry_backoff,
+                    ))
+                    .catch_unwind()
+                    .await;
+
+                    match result {
+                        Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
+                            next_after_id = 0;
+                            max_age_seen_this_scan = 0;
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Ok(Ok(result)) if result.candidate_count == 0 => {
+                            max_age_metric.set(0);
+                            max_age_seen_this_scan = 0;
+                            sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
+                        }
+                        Ok(Ok(result)) => {
+                            next_after_id = result.next_after_id;
+                            max_age_seen_this_scan =
+                                max_age_seen_this_scan.max(result.max_unenriched_age_seconds);
+                            max_age_metric
+                                .set(max_age_seen_this_scan.try_into().unwrap_or(i64::MAX));
+                            stored_events_metric.inc_by(result.stored_count.into());
+                            info!(
+                                candidates = result.candidate_count,
+                                attempted = result.attempted_count,
+                                skipped_backoff = result.skipped_backoff_count,
+                                stored = result.stored_count,
+                                next_after_id,
+                                max_unenriched_age_seconds = max_age_seen_this_scan,
+                                domain = domain_name,
+                                "Reconciled raw message dispatches"
+                            );
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Ok(Err(err)) => {
+                            warn!(
+                                ?err,
+                                domain = domain_name,
+                                "Failed to reconcile raw message dispatches"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                        Err(_) => {
+                            warn!(
+                                domain = domain_name,
+                                "Raw message dispatch reconciliation panicked; retrying"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                    }
+                }
+            }
+            .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),
+        )
+    }
+
     async fn build_delivery_indexer(
         &self,
         domain: HyperlaneDomain,
@@ -427,12 +561,107 @@ impl Scraper {
             .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         ))
     }
+
+    /// Build a CCR swap indexer for the given domain if it has CCR routers configured.
+    /// Returns `None` if the domain has no CCR config.
+    async fn build_ccr_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        store: HyperlaneDbStore,
+        index_settings: IndexSettings,
+    ) -> eyre::Result<Option<JoinHandle<()>>> {
+        let ccr_router_map = match self.settings.ccr_routers.get(&domain.id()) {
+            Some(m) if !m.is_empty() => m,
+            _ => return Ok(None),
+        };
+
+        let ccr_to_erc20 = ccr_router_map.clone();
+        let local_domain = domain.id();
+
+        let chain_setup = self.as_ref().settings.chain_setup(&domain)?;
+        let Some(indexer) = chain_setup
+            .build_ccr_swap_indexer(&metrics, local_domain, ccr_to_erc20)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let chunk_size = index_settings.chunk_size;
+        if chunk_size == 0 {
+            warn!(?domain, "index.chunk must be > 0 for CCR sync; skipping");
+            return Ok(None);
+        }
+        let default_from = index_settings.from.max(0) as u32;
+
+        // Create a dedicated BlockCursor for CCR swaps keyed by (domain, "ccr_swap").
+        // This is independent of the message/delivery/gas cursor so the two indexers
+        // don't race to read and overwrite each other's watermark.
+        let ccr_cursor = Arc::new(
+            store
+                .db
+                .block_cursor(local_domain, "ccr_swap", default_from.into())
+                .await?,
+        );
+
+        Ok(Some(tokio::spawn(
+            async move {
+                let mut from_block = ccr_cursor.height().await as u32;
+
+                loop {
+                    let tip = match indexer.get_finalized_block_number().await {
+                        Ok(tip) => tip,
+                        Err(err) => {
+                            warn!(?err, "Failed to get finalized block number for CCR indexer");
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                            continue;
+                        }
+                    };
+
+                    if from_block > tip {
+                        sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+
+                    let to_block = tip.min(from_block.saturating_add(chunk_size).saturating_sub(1));
+
+                    let logs = match indexer.fetch_logs_in_range(from_block..=to_block).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, from_block, to_block, "Failed to fetch CCR swap logs");
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                            continue;
+                        }
+                    };
+
+                    if !logs.is_empty() {
+                        if let Err(err) =
+                            HyperlaneLogStore::<SameChainCcrSwap>::store_logs(&store, &logs).await
+                        {
+                            warn!(
+                                ?err,
+                                from_block, to_block, "Failed to store CCR swaps; retrying range"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                            continue;
+                        }
+                    }
+
+                    ccr_cursor.update(to_block.into()).await;
+                    if let Err(e) = ccr_cursor.flush().await {
+                        warn!(?e, from_block, to_block, "Failed to flush CCR cursor; advancing anyway, next flush will catch up");
+                    }
+                    from_block = to_block.saturating_add(1);
+                }
+            }
+            .instrument(info_span!("CcrSwapSync", chain=%domain.name())),
+        )))
+    }
 }
 
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
-    use std::time::Duration;
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
@@ -546,6 +775,7 @@ mod test {
             },
             db: String::new(),
             chains_to_scrape: vec![],
+            ccr_routers: HashMap::new(),
         }
     }
 

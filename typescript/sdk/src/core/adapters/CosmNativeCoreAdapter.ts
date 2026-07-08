@@ -43,9 +43,9 @@ export class CosmNativeCoreAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
     assert(
       sourceTx.type === ProviderType.CosmJsNative,
       `Unsupported provider type for CosmNativeCoreAdapter ${sourceTx.type}`,

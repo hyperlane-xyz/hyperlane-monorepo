@@ -166,9 +166,9 @@ export class CosmWasmCoreAdapter
     return response.delivered;
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
     if (sourceTx.type !== ProviderType.CosmJsWasm) {
       throw new Error(
         `Unsupported provider type for CosmosCoreAdapter ${sourceTx.type}`,

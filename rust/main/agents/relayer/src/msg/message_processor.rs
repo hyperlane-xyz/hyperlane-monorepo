@@ -642,7 +642,6 @@ async fn submit_via_lander(
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
-
     if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![payload.details.uuid]) {
         let reason = ReprepareReason::ErrorStoringPayloadUuidsByMessageId;
         let msg = "Error storing mapping from message id to payload uuids";

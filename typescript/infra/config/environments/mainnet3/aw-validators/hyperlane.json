@@ -26,9 +26,6 @@
   "arcadia": {
     "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
   },
-  "artela": {
-    "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
-  },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
@@ -101,9 +98,6 @@
   "ethereum": {
     "validators": ["0x03c842db86a6a3e524d4a6615390c1ea8e2b9541"]
   },
-  "everclear": {
-    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
-  },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
@@ -112,9 +106,6 @@
   },
   "flowmainnet": {
     "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
-  },
-  "fluence": {
-    "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
@@ -206,9 +197,6 @@
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
-  "milkyway": {
-    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
-  },
   "miraclechain": {
     "validators": ["0x8fc655174e99194399822ce2d3a0f71d9fc2de7b"]
   },
@@ -221,17 +209,20 @@
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
   },
-  "molten": {
-    "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
-  },
   "monad": {
     "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
   },
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
   },
+  "nesa": {
+    "validators": ["0x990f548e766b830f69642d36cdd47fb20a2aa405"]
+  },
   "neutron": {
     "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
+  },
+  "nexus": {
+    "validators": ["0x4621452aeca3dcaf457a1ff9c68470bbfd6312b4"]
   },
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
@@ -266,9 +257,6 @@
   "polygon": {
     "validators": ["0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac"]
   },
-  "polynomialfi": {
-    "validators": ["0x23d348c2d365040e56f3fee07e6897122915f513"]
-  },
   "prom": {
     "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
   },
@@ -284,8 +272,8 @@
   "reactive": {
     "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
   },
-  "redstone": {
-    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
+  "robinhood": {
+    "validators": ["0x4b22d7b451e5ad05e91356ef847cc7c253533584"]
   },
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
@@ -338,8 +326,8 @@
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
-  "torus": {
-    "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
+  "tea": {
+    "validators": ["0xb442f3df246b8c7f067da15a6e390c253f6eaeb6"]
   },
   "tron": {
     "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
@@ -368,6 +356,9 @@
   "zerogravity": {
     "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
   },
+  "zeronetwork": {
+    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
+  },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   },
@@ -376,8 +367,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "zoramainnet": {
-    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }
 }

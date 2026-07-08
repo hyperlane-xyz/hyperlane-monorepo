@@ -14,6 +14,8 @@ mod m20230309_000004_create_table_delivered_message;
 mod m20230309_000004_create_table_gas_payment;
 mod m20230309_000005_create_table_message;
 mod m20250224_000006_create_table_raw_message_dispatch;
+mod m20250521_000007_add_cursor_event_type;
+mod m20260613_000008_add_msg_body_to_raw_message_dispatch;
 
 pub struct Migrator;
 
@@ -32,6 +34,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20230309_000004_create_table_delivered_message::Migration),
             Box::new(m20230309_000005_create_table_message::Migration),
             Box::new(m20250224_000006_create_table_raw_message_dispatch::Migration),
+            Box::new(m20250521_000007_add_cursor_event_type::Migration),
+            Box::new(m20260613_000008_add_msg_body_to_raw_message_dispatch::Migration),
         ]
     }
 }

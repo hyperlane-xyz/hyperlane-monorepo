@@ -1,5 +1,61 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 35.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.2.0
+- @hyperlane-xyz/provider-sdk@6.1.1
+
+## 35.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/utils@35.1.0
+
+## 35.0.1
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+
+## 35.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.0.0
+- @hyperlane-xyz/provider-sdk@6.0.3
+
+## 34.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@34.0.0
+- @hyperlane-xyz/provider-sdk@6.0.2
+
+## 33.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.1
+- @hyperlane-xyz/provider-sdk@6.0.1
+
+## 33.1.0
+
+### Patch Changes
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/utils@33.1.0
+
 ## 33.0.2
 
 ### Patch Changes

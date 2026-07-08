@@ -10,7 +10,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::FeeConfig,
-    instruction::{Init, Instruction as TokenIxn, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferRemoteWithMemo},
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
@@ -72,7 +72,17 @@ pub fn process_instruction(
     // Otherwise, try decoding a "normal" token instruction
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
-        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::TransferRemote(xfer) => transfer_remote_with_memo(
+            program_id,
+            accounts,
+            TransferRemoteWithMemo {
+                xfer,
+                memo: Vec::with_capacity(0),
+            },
+        ),
+        TokenIxn::TransferRemoteWithMemo(transfer) => {
+            transfer_remote_with_memo(program_id, accounts, transfer)
+        }
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
@@ -134,12 +144,14 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 14. `[executable]` The spl_token_2022 program.
 /// 15. `[writeable]` The mint / mint authority PDA account.
 /// 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.
-fn transfer_remote(
+fn transfer_remote_with_memo(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferRemote,
+    transfer: TransferRemoteWithMemo,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_remote(program_id, accounts, transfer)
+    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_remote_with_memo(
+        program_id, accounts, transfer,
+    )
 }
 
 // Accounts:

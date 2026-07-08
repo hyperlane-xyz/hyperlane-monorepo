@@ -1,5 +1,68 @@
 # @hyperlane-xyz/tron-sdk
 
+## 23.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.2.0
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@6.1.1
+
+## 23.1.0
+
+### Minor Changes
+
+- d1b6f0a: Added new hook deploy command
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 23.0.9
+
+### Patch Changes
+
+- Updated dependencies [da1cfb1]
+  - @hyperlane-xyz/utils@35.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.4
+
+## 23.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@35.0.0
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@6.0.3
+
+## 23.0.7
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@34.0.0
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@6.0.2
+
+## 23.0.6
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.1
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@6.0.1
+
+## 23.0.5
+
+### Patch Changes
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 23.0.4
 
 ### Patch Changes

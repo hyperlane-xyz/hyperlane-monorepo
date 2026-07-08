@@ -29,16 +29,17 @@ import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import { tokenIdentifiersEqual } from '../token/TokenMetadata.js';
 import {
+  ERC4626_COLLATERAL_STANDARDS,
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
+import { TokenType } from '../token/config.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
-  EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import {
   IHypXERC20Adapter,
@@ -74,6 +75,20 @@ export interface WarpCoreOptions {
   localFeeConstants?: FeeConstantConfig;
   interchainFeeConstants?: FeeConstantConfig;
   routeBlacklist?: RouteBlacklist;
+}
+
+const DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES = new Set<TokenType>([
+  TokenType.collateralCctp,
+  TokenType.collateralOft,
+]);
+
+// CCTP/OFT both map to EvmHypCollateral, so standard alone cannot distinguish
+// protocol-backed collateral from escrowed collateral.
+function isDestinationCollateralExemptToken(token: IToken): boolean {
+  return (
+    token.tokenType !== undefined &&
+    DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES.has(token.tokenType)
+  );
 }
 
 export class WarpCore {
@@ -282,6 +297,7 @@ export class WarpCore {
     attestation,
     amount,
     destinationToken,
+    quotedCalls,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -292,6 +308,7 @@ export class WarpCore {
     attestation?: PredicateAttestation;
     amount?: bigint;
     destinationToken?: IToken;
+    quotedCalls?: QuotedCallsParams;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -342,6 +359,7 @@ export class WarpCore {
       tokenFeeQuote,
       attestation,
       destinationToken,
+      quotedCalls,
     });
 
     // Starknet does not support gas estimation without starknet account
@@ -352,7 +370,7 @@ export class WarpCore {
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
       try {
-        return this.multiProvider.estimateTransactionFee({
+        return await this.multiProvider.estimateTransactionFee({
           chainNameOrId: originMetadata.name,
           transaction: txs[0],
           sender,
@@ -399,6 +417,7 @@ export class WarpCore {
     attestation,
     amount,
     destinationToken,
+    quotedCalls,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -409,6 +428,7 @@ export class WarpCore {
     attestation?: PredicateAttestation;
     amount?: bigint;
     destinationToken?: IToken;
+    quotedCalls?: QuotedCallsParams;
   }): Promise<TokenAmount<IToken>> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -431,6 +451,7 @@ export class WarpCore {
       attestation,
       amount,
       destinationToken,
+      quotedCalls,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -539,9 +560,13 @@ export class WarpCore {
       },
     };
 
+    // Include the ERC20 fee (tokenFeeQuote) in the approval threshold so that
+    // allowance checks account for hookFee charged by the feeHook contract.
+    const feeQuote = tokenFeeQuote?.amount ?? 0n;
+
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
-        originTokenAmount,
+        originTokenAmount: originTokenAmount.plus(feeQuote),
         owner: sender,
       }),
       hypAdapter.isRevokeApprovalRequired(
@@ -560,8 +585,6 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      // feeQuote is required to be approved for routes that have fees set
-      const feeQuote = tokenFeeQuote?.amount ?? 0n;
       const amountToApprove = amount + feeQuote;
       preTransferRemoteTxs.push([
         amountToApprove.toString(),
@@ -759,10 +782,10 @@ export class WarpCore {
         sender,
       });
     }
+    const igpDenom = transferQuote.igpQuote.addressOrDenom;
     assert(
-      !transferQuote.igpQuote.addressOrDenom ||
-        isZeroishAddress(transferQuote.igpQuote.addressOrDenom),
-      `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${transferQuote.igpQuote.addressOrDenom}`,
+      !igpDenom || isZeroishAddress(igpDenom) || igpDenom === 'lamport',
+      `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${igpDenom}`,
     );
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;
     const totalDebit = amount + tokenFeeAmount;
@@ -859,7 +882,7 @@ export class WarpCore {
     const tokenAddress = (
       collateral && !isZeroishAddress(collateral)
         ? collateral
-        : token.isNative()
+        : token.isNative() || token.isHypNative()
           ? '0x0000000000000000000000000000000000000000'
           : token.addressOrDenom
     ) as `0x${string}`;
@@ -1148,7 +1171,11 @@ export class WarpCore {
       interchainFee: igpQuote,
       tokenFeeQuote,
       attestation,
-      amount: originTokenAmount.amount,
+      // Only pass amount for predicate flows — it feeds the attested msg_value into
+      // eth_estimateGas. For non-predicate flows, let getLocalTransferFee use its
+      // minimal-amount fallback so simulation doesn't fail on large balances or
+      // placeholder senders (e.g. 0x...dead) that have no ETH.
+      amount: attestation ? originTokenAmount.amount : undefined,
     });
 
     return {
@@ -1202,7 +1229,7 @@ export class WarpCore {
       interchainFee: interchainQuote,
       tokenFeeQuote,
       attestation,
-      amount: originTokenAmount.amount,
+      amount: attestation ? originTokenAmount.amount : undefined,
       destinationToken: resolvedDestinationToken,
     });
 
@@ -1237,14 +1264,29 @@ export class WarpCore {
     const originToken = balance.token;
 
     if (!feeEstimate) {
-      feeEstimate = await this.estimateTransferRemoteFees({
-        originTokenAmount: balance,
+      // Get IGP and token fee quotes using the full balance so amount-dependent fees
+      // (e.g. percentage-based token fees) are correctly computed and subtracted.
+      const { igpQuote: interchainQuote, tokenFeeQuote } =
+        await this.getInterchainTransferFee({
+          originTokenAmount: balance,
+          destination,
+          recipient,
+          sender,
+          destinationToken,
+        });
+      // Estimate local gas with no amount so getLocalTransferFee uses its minimal-amount
+      // fallback — avoids eth_estimateGas failures on native token routes where simulating
+      // the full balance leaves nothing to cover gas.
+      const localQuote = await this.getLocalTransferFeeAmount({
+        originToken,
         destination,
-        recipient,
         sender,
         senderPubKey,
+        interchainFee: interchainQuote,
+        tokenFeeQuote,
         destinationToken,
       });
+      feeEstimate = { interchainQuote, localQuote, tokenFeeQuote };
     }
     const { localQuote, interchainQuote, tokenFeeQuote } = feeEstimate;
 
@@ -1276,11 +1318,16 @@ export class WarpCore {
   }
 
   async getTokenCollateral(token: IToken): Promise<bigint> {
-    if (LOCKBOX_STANDARDS.includes(token.standard)) {
-      const adapter = token.getAdapter(
-        this.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
+    if (
+      LOCKBOX_STANDARDS.includes(token.standard) ||
+      ERC4626_COLLATERAL_STANDARDS.includes(token.standard)
+    ) {
+      const adapter = token.getHypAdapter(this.multiProvider);
       const tokenCollateral = await adapter.getBridgedSupply();
+      assert(
+        tokenCollateral !== undefined,
+        `getBridgedSupply returned undefined for ${token.symbol} on ${token.chainName}`,
+      );
       return tokenCollateral;
     } else {
       const adapter = token.getAdapter(this.multiProvider);
@@ -1311,6 +1358,13 @@ export class WarpCore {
       destination,
       destinationToken,
     });
+
+    if (isDestinationCollateralExemptToken(resolvedDestinationToken)) {
+      this.logger.debug(
+        `${resolvedDestinationToken.symbol} uses ${resolvedDestinationToken.tokenType}, skipping destination collateral check`,
+      );
+      return true;
+    }
 
     if (
       !TOKEN_COLLATERALIZED_STANDARDS.includes(

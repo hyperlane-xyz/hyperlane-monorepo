@@ -9,11 +9,8 @@ import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 
-import {
-  InterchainAccount,
-  PostCallsSchema,
-  commitmentFromRevealMessage,
-} from './InterchainAccount.js';
+import { InterchainAccount } from './InterchainAccount.js';
+import { PostCallsSchema, commitmentFromRevealMessage } from './icaCalls.js';
 
 describe('commitmentFromRevealMessage', () => {
   // https://explorer.hyperlane.xyz/message/0xd123b9eb8fc8777adf50963b2ad283f05332c584a1e4002f9e4ad21bdafea069
@@ -331,6 +328,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   let app: InterchainAccount;
   let mockDestRouter: Record<string, any>;
   let mockProvider: Record<string, any>;
+  let destinationAccount: string;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
@@ -339,12 +337,18 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     mockProvider = {
       estimateGas: sandbox.stub(),
     };
+    destinationAccount = randomAddress();
 
     mockDestRouter = {
       address: randomAddress(),
       isms: sandbox.stub().resolves(randomAddress()),
       mailbox: sandbox.stub().resolves(randomAddress()),
       routers: sandbox.stub().resolves(randomAddress()),
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
+        sandbox.stub().resolves(destinationAccount),
+      'getLocalInterchainAccount(uint32,address,address,address)': sandbox
+        .stub()
+        .resolves(destinationAccount),
       estimateGas: {
         handle: sandbox.stub(),
       },
@@ -426,6 +430,42 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
 
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
+    expect(mockProvider.estimateGas.firstCall.args[0].from).to.equal(
+      destinationAccount,
+    );
+    expect(mockProvider.estimateGas.secondCall.args[0].from).to.equal(
+      destinationAccount,
+    );
+  });
+
+  it('falls back to legacy ICA account lookup for individual estimation', async () => {
+    mockDestRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ].rejects(new Error('missing overload'));
+    mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+    mockProvider.estimateGas.resolves(BigNumber.from(30_000));
+
+    const result = await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: [baseCalls[0]],
+      config: baseConfig,
+    });
+
+    const expectedBeforeBuffer = BigNumber.from(30_000)
+      .add(ICA_OVERHEAD)
+      .add(PER_CALL_OVERHEAD);
+    const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
+
+    expect(result.toString()).to.equal(expectedWithBuffer.toString());
+    sinon.assert.calledOnce(
+      mockDestRouter[
+        'getLocalInterchainAccount(uint32,address,address,address)'
+      ],
+    );
+    expect(mockProvider.estimateGas.firstCall.args[0].from).to.equal(
+      destinationAccount,
+    );
   });
 
   it('uses per-call fallback when individual call estimation fails', async () => {

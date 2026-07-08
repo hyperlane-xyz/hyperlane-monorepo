@@ -1,7 +1,15 @@
+import { ethers } from 'ethers';
 import { parseEventLogs } from 'viem';
 
-import { Address, normalizeAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import {
+  Address,
+  eqAddress,
+  normalizeAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
+import { proxyAdmin } from '../deploy/proxy.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
@@ -169,6 +177,53 @@ export class EvmXERC20Reader extends HyperlaneReader {
     }
 
     return activeBridges;
+  }
+
+  /**
+   * Read the owner of the XERC20 token contract.
+   * This owner controls limit/bridge management (setBufferCap, addBridge, etc.).
+   * Returns undefined if the XERC20 does not expose `owner()` (e.g. a
+   * third-party token using AccessControl instead of Ownable) so callers on the
+   * warp read/apply path don't break on non-Ownable tokens.
+   */
+  async readOwner(xERC20Address: Address): Promise<Address | undefined> {
+    try {
+      const owner = await Ownable__factory.connect(
+        xERC20Address,
+        this.provider,
+      ).owner();
+      return normalizeAddress(owner);
+    } catch (error) {
+      this.logger.debug(
+        { xERC20Address, error },
+        'XERC20 does not expose owner(); treating owner as undefined',
+      );
+      return undefined;
+    }
+  }
+
+  /**
+   * Read the ProxyAdmin for the XERC20 proxy and its owner.
+   * The ProxyAdmin owner controls upgrades. Returns undefined if the XERC20 is
+   * not behind a transparent proxy.
+   */
+  async readProxyAdmin(
+    xERC20Address: Address,
+  ): Promise<{ address: Address; owner: Address } | undefined> {
+    const proxyAdminAddress = await proxyAdmin(this.provider, xERC20Address);
+    if (eqAddress(proxyAdminAddress, ethers.constants.AddressZero)) {
+      return undefined;
+    }
+
+    const owner = await ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      this.provider,
+    ).owner();
+
+    return {
+      address: normalizeAddress(proxyAdminAddress),
+      owner: normalizeAddress(owner),
+    };
   }
 
   protected toStandardLimits(limits: xERC20Limits): StandardXERC20Limits {

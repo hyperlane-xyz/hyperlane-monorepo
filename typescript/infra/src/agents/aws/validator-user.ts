@@ -15,6 +15,7 @@ import type { AgentContextConfig } from '../../config/agent/agent.js';
 import type { DeployEnvironment } from '../../config/deploy-environment.js';
 import { Role } from '../../roles.js';
 
+import { getAwsS3Client } from './client.js';
 import { AgentAwsKey } from './key.js';
 import { AgentAwsUser } from './user.js';
 
@@ -30,7 +31,7 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
     public readonly bucket: string,
   ) {
     super(environment, context, Role.Validator, region, chainName);
-    this.adminS3Client = new S3Client({ region });
+    this.adminS3Client = getAwsS3Client(region);
   }
 
   async createBucketIfNotExists() {

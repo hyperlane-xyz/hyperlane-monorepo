@@ -2,8 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  compilerBuild = "small"
 }
 
 // DATABASE_URL is now configured in prisma.config.ts (Prisma 7 requirement)
@@ -19,4 +20,15 @@ model Commitment {
   ica          String
   originDomain Int
   createdAt    DateTime @default(now())
+}
+
+model Calldata {
+  commitment         String   @id
+  originDomain       Int
+  data               String
+  salt               String
+  relayers           Json
+  destinationAccount String
+  revealAccounts     Json?
+  createdAt          DateTime @default(now())
 }
