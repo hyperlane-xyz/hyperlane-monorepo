@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/core': minor
+'@hyperlane-xyz/core': major
 '@hyperlane-xyz/sdk': minor
 ---
 
