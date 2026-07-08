@@ -5,6 +5,8 @@ export enum Role {
   Deployer = 'deployer',
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
+  RebalancerStaging = 'rebalancerstaging',
+  InventoryRebalancerStaging = 'inventoryrebalancerstaging',
   QuoteSigner = 'quotesigner',
   // Funding-only role: the stableswap rebalancer's EVM inventory
   // signer. Has no managed agent key — keyfunder only needs the address to
@@ -24,6 +26,8 @@ export const ALL_KEY_ROLES = [
   Role.Deployer,
   Role.Rebalancer,
   Role.InventoryRebalancer,
+  Role.RebalancerStaging,
+  Role.InventoryRebalancerStaging,
   Role.QuoteSigner,
 ];
 

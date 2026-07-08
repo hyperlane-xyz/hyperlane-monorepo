@@ -165,6 +165,32 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setRebalancerStagingKeys = () => {
+    const rebalancerStagingKey = getRebalancerStagingKey(agentConfig);
+    // Assign the single staging rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.RebalancerStaging]: {
+          [rebalancerStagingKey.identifier]: rebalancerStagingKey,
+        },
+      };
+    }
+  };
+
+  const setInventoryRebalancerStagingKeys = () => {
+    const inventoryStagingKey = getInventoryRebalancerStagingKey(agentConfig);
+    // Assign the single staging inventory rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.InventoryRebalancerStaging]: {
+          [inventoryStagingKey.identifier]: inventoryStagingKey,
+        },
+      };
+    }
+  };
+
   const setQuoteSignerKeys = () => {
     const quoteSignerKey = getQuoteSignerKey(agentConfig);
     for (const chainName of agentConfig.contextChainNames.relayer) {
@@ -193,6 +219,12 @@ function getRoleKeyMapPerChain(
         break;
       case Role.InventoryRebalancer:
         setInventoryRebalancerKeys();
+        break;
+      case Role.RebalancerStaging:
+        setRebalancerStagingKeys();
+        break;
+      case Role.InventoryRebalancerStaging:
+        setInventoryRebalancerStagingKeys();
         break;
       case Role.QuoteSigner:
         setQuoteSignerKeys();
@@ -263,6 +295,10 @@ export function getCloudAgentKey(
       return getRebalancerKey(agentConfig);
     case Role.InventoryRebalancer:
       return getInventoryRebalancerKey(agentConfig);
+    case Role.RebalancerStaging:
+      return getRebalancerStagingKey(agentConfig);
+    case Role.InventoryRebalancerStaging:
+      return getInventoryRebalancerStagingKey(agentConfig);
     case Role.QuoteSigner:
       return getQuoteSignerKey(agentConfig);
     default:
@@ -332,6 +368,32 @@ export function getInventoryRebalancerKey(
     agentConfig.runEnv,
     Contexts.Hyperlane,
     Role.InventoryRebalancer,
+  );
+}
+
+// Returns the staging rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getRebalancerStagingKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  logger.debug('Retrieving staging rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.RebalancerStaging,
+  );
+}
+
+// Returns the staging inventory rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getInventoryRebalancerStagingKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  logger.debug('Retrieving staging inventory rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.InventoryRebalancerStaging,
   );
 }
 
