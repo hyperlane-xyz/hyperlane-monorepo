@@ -611,5 +611,37 @@ describe('EvmIsmModule', async () => {
         newOwner.toLowerCase(),
       );
     });
+
+    it('redeploys a new ISM on duration change (immutable)', async () => {
+      const recipient = randomAddress();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const rateLimitedConfig: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        duration: '86400',
+        recipient,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(rateLimitedConfig);
+
+      // duration is immutable on-chain; changing it must redeploy a fresh ISM.
+      // keep maxCapacity a multiple of the new duration (schema constraint).
+      rateLimitedConfig.duration = '3600';
+      rateLimitedConfig.maxCapacity = '3600';
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, rateLimitedConfig, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.DURATION()).toString()).to.equal('3600');
+    });
   });
 });

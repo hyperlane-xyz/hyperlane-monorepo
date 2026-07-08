@@ -146,14 +146,16 @@ export class EvmIsmModule extends HyperlaneModule<
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
     //
-    // Special case: RATE_LIMITED recipient is immutable — must redeploy if it changes.
-    const rateLimitedRecipientChanged =
+    // Special case: RATE_LIMITED recipient and duration are immutable (set in
+    // the constructor) — must redeploy a fresh ISM if either changes.
+    const rateLimitedImmutableChanged =
       typeof normalizedCurrentConfig !== 'string' &&
       normalizedCurrentConfig.type === IsmType.RATE_LIMITED &&
       normalizedTargetConfig.type === IsmType.RATE_LIMITED &&
-      normalizedCurrentConfig.recipient !== normalizedTargetConfig.recipient;
+      (normalizedCurrentConfig.recipient !== normalizedTargetConfig.recipient ||
+        normalizedCurrentConfig.duration !== normalizedTargetConfig.duration);
     if (
-      rateLimitedRecipientChanged ||
+      rateLimitedImmutableChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
@@ -438,12 +440,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }): AnnotatedEV5Transaction[] {
     const txs: AnnotatedEV5Transaction[] = [];
 
-    if (current.duration !== target.duration) {
-      this.logger.warn(
-        `RateLimitedIsm duration is immutable; ignoring change ${current.duration} -> ${target.duration} on "${this.chain}" at "${this.args.addresses.deployedIsm}". Redeploy to change duration.`,
-      );
-    }
-
+    // Duration changes are handled upstream in `update()` by redeploying a
+    // fresh ISM (duration is immutable), so it never differs here.
     if (current.maxCapacity !== target.maxCapacity) {
       txs.push({
         annotation: `Setting maxCapacity on RateLimitedIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
