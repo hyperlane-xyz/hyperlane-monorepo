@@ -372,7 +372,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     }
 
     // Reject-mode: a 100% threshold is rejected (strict), unlike the delay-mode
-    // DelayedFlowRouter which permits it.
+    // DelayedFlowRouterHookIsm which permits it.
     function test_constructorRevertsIfMaxFlowBpsIs100Percent() external {
         vm.expectRevert(TvlRateLimited.InvalidThresholdBps.selector);
         new NetFlowRateLimitedHookIsm(

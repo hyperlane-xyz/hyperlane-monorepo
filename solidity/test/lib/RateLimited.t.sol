@@ -247,7 +247,7 @@ contract RateLimitLibTest is Test {
 }
 
 /// @dev Behavioral contract for the dynamic-capacity bucket shared by
-/// `TvlRateLimited` consumers (`DelayedFlowRouter`, `NetFlowRateLimitedHookIsm`).
+/// `TvlRateLimited` consumers (`DelayedFlowRouterHookIsm`, `NetFlowRateLimitedHookIsm`).
 /// These lock the observable semantics through the public interface, so a
 /// future change to the internals that alters behavior is caught here.
 contract RateLimitBehaviorTest is Test {
@@ -339,7 +339,7 @@ contract RateLimitBehaviorTest is Test {
         assertEq(bucket.calculateCurrentLevel(), CAP);
     }
 
-    /// Soft-consume within the current level (the `DelayedFlowRouter` path):
+    /// Soft-consume within the current level (the `DelayedFlowRouterHookIsm` path):
     /// drains the bucket and owes zero delay.
     function test_softConsumeWithinLevel_owesNoDelay() public {
         bucket.setCapacity(100 ether);
