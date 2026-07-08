@@ -7,16 +7,24 @@ test = 'test'
 cache_path = 'forge-cache'
 solc_version = '0.8.33'
 evm_version= 'cancun'
-# Stopgap: lowered from 9_990 to keep CrossCollateralRouter under the EIP-170
-# 24576-byte limit. Restore once its bytecode is trimmed (e.g. rebalance-target
-# logic moved to a linked library).
-optimizer_runs = 5_800
+optimizer_runs = 10_000
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
     { access = "write", path = "./fixtures" },
 ]
 ignored_warnings_from = ['lib', 'test', 'contracts/test']
+
+# Pin CrossCollateralRouter below the suite-wide optimizer_runs to keep its
+# runtime bytecode under the EIP-170 24576-byte limit. Mirrors the Hardhat
+# overrides entry in rootHardhatConfig.cts; keep the two in sync.
+[[profile.default.additional_compiler_profiles]]
+name = "size-optimized"
+optimizer_runs = 5_800
+
+[[profile.default.compilation_restrictions]]
+paths = "contracts/token/CrossCollateralRouter.sol"
+optimizer_runs = 5_800
 
 [profile.ci]
 verbosity = 4

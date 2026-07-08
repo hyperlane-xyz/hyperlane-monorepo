@@ -3,17 +3,18 @@
  * @type import('hardhat/config').HardhatUserConfig
  */
 export const rootHardhatConfig = {
+  // Single-compiler shape: the Tron and zksync configs spread
+  // `solidity` and override only `version`, which relies on `settings`
+  // (notably `evmVersion`) living at this top level. The EIP-170 size pin for
+  // CrossCollateralRouter is an EVM-only concern and lives in the EVM
+  // `hardhat.config.cts` / `foundry.toml` instead.
   solidity: {
     version: '0.8.33',
     settings: {
       evmVersion: 'cancun',
       optimizer: {
         enabled: true,
-        // Stopgap: lowered from 9_990 to keep CrossCollateralRouter under the
-        // EIP-170 24576-byte limit. Kept in sync with foundry.toml. Restore
-        // once its bytecode is trimmed (e.g. rebalance-target logic moved to a
-        // linked library).
-        runs: 5_800,
+        runs: 10_000,
       },
     },
   },
