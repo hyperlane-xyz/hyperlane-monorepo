@@ -8,6 +8,11 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
+import {
+  getRebalancingBridgesConfigFor,
+  getUSDCRebalancingBridgesConfigFor,
+  mergeAllowedBridges,
+} from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDC route (getUSDCCitreaMoonpayWarpConfig).
 // Deliberately simplified for a deployer-owned test route:
@@ -15,8 +20,8 @@ import { WarpRouteIds } from '../warpIds.js';
 //   - default ISM everywhere (omit interchainSecurityModule -> mailbox default ISM)
 //   - default hook on EVM (omit hook); Solana keeps its IGP hook (required)
 //   - zero warp fee (omit tokenFee) -> no offchain-quote / CCR fee surface
-//   - no rebalancing config (no allowedRebalancers / allowedRebalancingBridges)
-// NOTE: this intentionally does NOT reproduce prod's anti-arb OffchainQuotedLinearFee design.
+// Rebalancing IS reproduced from prod: same allowedRebalancers (MCR signer) and the same
+// CCTP + Eclipse/Paradex/Igra/Radix + Iron (TBDA) bridge wiring per leg.
 
 // Troy's personal deployer keys for staging; to be transferred to the AW deployer later.
 const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
@@ -26,6 +31,32 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
+
+const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
+type EvmChain = (typeof EVM_CHAINS)[number];
+
+function getTBDAAddresses(): Record<
+  'arbitrum' | 'base' | 'ethereum' | 'citrea' | 'polygon',
+  string
+> {
+  const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaIronBridge);
+  assert(route, 'CROSS/ctusd-usdc-ironbridge route not found in registry');
+
+  const find = (chain: EvmChain | 'citrea') => {
+    const token = route.tokens.find((t) => t.chainName === chain);
+    assert(token?.addressOrDenom, `Missing TBDA address for ${chain}`);
+    return token.addressOrDenom;
+  };
+
+  return {
+    arbitrum: find('arbitrum'),
+    base: find('base'),
+    ethereum: find('ethereum'),
+    citrea: find('citrea'),
+    polygon: find('polygon'),
+  };
+}
 
 // Cross-collateral peers reference the sibling USDT staging route by deployed address.
 // On the first deploy that route does not exist yet, so return {} and wire the peers on a
@@ -51,6 +82,28 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const crossCollateralRouters = getSiblingCrossCollateralRouters();
 
+  const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+    ['arbitrum', 'base', 'ethereum', 'polygon'],
+    [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
+  );
+
+  const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
+    [
+      WarpRouteIds.EclipseUSDC,
+      WarpRouteIds.ParadexUSDC,
+      WarpRouteIds.IgraUSDC,
+      WarpRouteIds.RadixUSDC,
+    ],
+  );
+
+  const tbda = getTBDAAddresses();
+
+  assert(
+    additionalRebalancingConfigByChain.bsc,
+    'missing rebalancing config for bsc',
+  );
+
   return {
     solanamainnet: {
       type: TokenType.crossCollateral,
@@ -69,6 +122,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.arbitrum.USDC,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: DEPLOYER_EVM,
+      ...cctpRebalancingConfigByChain.arbitrum,
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }] },
+      ),
       crossCollateralRouters,
     },
     base: {
@@ -76,6 +135,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDC,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
+      ...cctpRebalancingConfigByChain.base,
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.base }] },
+      ),
       crossCollateralRouters,
     },
     bsc: {
@@ -83,6 +148,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.bsc.USDC,
       mailbox: routerConfig.bsc.mailbox,
       owner: DEPLOYER_EVM,
+      ...additionalRebalancingConfigByChain.bsc,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },
@@ -91,6 +157,13 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.citrea.ctUSD,
       mailbox: routerConfig.citrea.mailbox,
       owner: DEPLOYER_EVM,
+      allowedRebalancers: [REBALANCER],
+      allowedRebalancingBridges: Object.fromEntries(
+        EVM_CHAINS.map((dest) => [
+          String(getDomainId(dest)),
+          [{ bridge: tbda.citrea }],
+        ]),
+      ),
       crossCollateralRouters,
     },
     ethereum: {
@@ -98,6 +171,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.ethereum.USDC,
       mailbox: routerConfig.ethereum.mailbox,
       owner: DEPLOYER_EVM,
+      ...cctpRebalancingConfigByChain.ethereum,
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }] },
+      ),
       crossCollateralRouters,
     },
     katana: {
@@ -112,6 +191,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.polygon.USDC,
       mailbox: routerConfig.polygon.mailbox,
       owner: DEPLOYER_EVM,
+      ...cctpRebalancingConfigByChain.polygon,
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
+        { [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }] },
+      ),
       crossCollateralRouters,
     },
   };
