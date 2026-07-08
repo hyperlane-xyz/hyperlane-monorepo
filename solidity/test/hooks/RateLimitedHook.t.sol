@@ -181,6 +181,56 @@ contract RateLimitedHookTest is Test {
         assertApproxEqRel(limitAfter, filledLevelBefore - _amount, ONE_PERCENT);
     }
 
+    // The tests above all run against the default 1-day window; this wires a
+    // fresh route to a hook with a non-default window and asserts the refill
+    // tracks that window instead of the old hardcoded `1 days`.
+    function testRateLimitedHook_customDuration_refillsOverWindow() external {
+        uint256 customDuration = 1 hours;
+
+        HypERC20Collateral customRoute = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+        RateLimitedHook customHook = new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY,
+            customDuration,
+            address(customRoute)
+        );
+        customRoute.initialize(address(customHook), address(0), address(this));
+        customRoute.enrollRemoteRouter(
+            DESTINATION,
+            address(warpRouteRemote).addressToBytes32()
+        );
+
+        assertEq(customHook.DURATION(), customDuration);
+
+        // Drain the whole current level through a transfer.
+        uint256 level = customHook.calculateCurrentLevel();
+        token.mint(level);
+        token.approve(address(customRoute), level);
+        customRoute.transferRemote{value: 1}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            level
+        );
+        assertEq(customHook.calculateCurrentLevel(), 0);
+
+        // Half the custom window → ~half the capacity refilled.
+        vm.warp(block.timestamp + customDuration / 2);
+        assertApproxEqRel(
+            customHook.calculateCurrentLevel(),
+            level / 2,
+            ONE_PERCENT
+        );
+
+        // A full window past the last update → back to max capacity.
+        vm.warp(block.timestamp + customDuration);
+        assertEq(customHook.calculateCurrentLevel(), customHook.maxCapacity());
+    }
+
     function testRateLimitedHook_preventsDuplicateMessageFromValidating(
         uint128 _amount
     ) public {

@@ -187,6 +187,63 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(netFlow.calculateCurrentLevel(), 4.5 ether);
     }
 
+    // `test_refillsOverTimeAgainstCurrentTvl` covers the default 1-day window;
+    // this deploys a fresh route/limiter with a non-default window and asserts
+    // the TVL-based refill tracks that window rather than the old `1 days`.
+    function test_customDuration_refillsOverWindow() external {
+        uint256 customDuration = 2 hours;
+
+        HypERC20Collateral customRouter = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+        NetFlowRateLimitedHookIsm customNetFlow = new NetFlowRateLimitedHookIsm(
+            address(localMailbox),
+            address(customRouter),
+            MAX_FLOW_BPS,
+            customDuration
+        );
+        customRouter.initialize(
+            address(customNetFlow),
+            address(customNetFlow),
+            address(this)
+        );
+        customRouter.enrollRemoteRouter(
+            ORIGIN,
+            address(remoteRouter).addressToBytes32()
+        );
+        token.mintTo(address(customRouter), INITIAL_COLLATERAL);
+
+        assertEq(customNetFlow.DURATION(), customDuration);
+        assertEq(customNetFlow.maxCapacity(), 10 ether);
+        assertEq(customNetFlow.calculateCurrentLevel(), 10 ether);
+
+        // Drain the full 10% net-flow capacity.
+        bytes memory message = localMailbox.buildInboundMessage(
+            ORIGIN,
+            address(customRouter).addressToBytes32(),
+            address(remoteRouter).addressToBytes32(),
+            TokenMessage.format(BOB.addressToBytes32(), 10 ether, bytes(""))
+        );
+        localMailbox.process(bytes(""), message);
+        assertEq(customNetFlow.calculateCurrentLevel(), 0);
+
+        // Half the custom window → half the post-drain capacity refilled.
+        // The drain drops TVL to 90 ether, so maxCapacity == 9 ether.
+        vm.warp(block.timestamp + customDuration / 2);
+        assertEq(customNetFlow.maxCapacity(), 9 ether);
+        assertEq(customNetFlow.calculateCurrentLevel(), 4.5 ether);
+
+        // A full window past the drain → back to max capacity.
+        vm.warp(block.timestamp + customDuration);
+        assertEq(
+            customNetFlow.calculateCurrentLevel(),
+            customNetFlow.maxCapacity()
+        );
+    }
+
     function test_preventsDuplicateInboundValidation() external {
         bytes memory message = _inboundMessage(1 ether);
 

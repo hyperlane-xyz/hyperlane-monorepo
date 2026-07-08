@@ -185,7 +185,7 @@ describe('EvmIsmModule', async () => {
       const config: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
-        duration: '86400',
+        duration: 86400n,
         recipient,
         owner,
       };
@@ -585,7 +585,7 @@ describe('EvmIsmModule', async () => {
       const rateLimitedConfig: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
-        duration: '86400',
+        duration: 86400n,
         recipient,
         owner: signerAddress,
       };
@@ -618,7 +618,7 @@ describe('EvmIsmModule', async () => {
       const rateLimitedConfig: RateLimitedIsmConfig = {
         type: IsmType.RATE_LIMITED,
         maxCapacity: '86400',
-        duration: '86400',
+        duration: 86400n,
         recipient,
         owner: signerAddress,
       };
@@ -627,7 +627,7 @@ describe('EvmIsmModule', async () => {
 
       // duration is immutable on-chain; changing it must redeploy a fresh ISM.
       // keep maxCapacity a multiple of the new duration (schema constraint).
-      rateLimitedConfig.duration = '3600';
+      rateLimitedConfig.duration = 3600n;
       rateLimitedConfig.maxCapacity = '3600';
 
       // update() redeploys internally and emits no txs

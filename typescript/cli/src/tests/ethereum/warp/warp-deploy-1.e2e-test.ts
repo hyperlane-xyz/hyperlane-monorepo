@@ -687,7 +687,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const hook: RateLimitedHookConfig = {
         type: HookType.RATE_LIMITED,
         maxCapacity,
-        duration: '86400',
+        duration: 86400n,
         owner: ownerAddress,
       };
       const warpConfig: WarpRouteDeployConfig = {
@@ -735,7 +735,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
               {
                 type: HookType.RATE_LIMITED,
                 maxCapacity,
-                duration: '86400',
+                duration: 86400n,
                 owner: ownerAddress,
               } as RateLimitedHookConfig,
             ],

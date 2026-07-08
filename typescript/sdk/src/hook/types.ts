@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZBigNumberish, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -202,40 +202,52 @@ export const IgpSchema = OwnableSchema.extend({
   contractVersion: z.string().optional(),
 });
 
-export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.ROUTING),
-      domains: z.record(HookConfigSchema),
-    }),
-  );
+export const DomainRoutingHookConfigSchema: z.ZodType<
+  DomainRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  OwnableSchema.extend({
+    type: z.literal(HookType.ROUTING),
+    domains: z.record(HookConfigSchema),
+  }),
+);
 
-export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.FALLBACK_ROUTING),
-      domains: z.record(HookConfigSchema),
-      fallback: HookConfigSchema,
-    }),
-  );
+export const FallbackRoutingHookConfigSchema: z.ZodType<
+  FallbackRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  OwnableSchema.extend({
+    type: z.literal(HookType.FALLBACK_ROUTING),
+    domains: z.record(HookConfigSchema),
+    fallback: HookConfigSchema,
+  }),
+);
 
-export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AMOUNT_ROUTING),
-      threshold: z.number(),
-      lowerHook: HookConfigSchema,
-      upperHook: HookConfigSchema,
-    }),
-  );
+export const AmountRoutingHookConfigSchema: z.ZodType<
+  AmountRoutingHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.AMOUNT_ROUTING),
+    threshold: z.number(),
+    lowerHook: HookConfigSchema,
+    upperHook: HookConfigSchema,
+  }),
+);
 
-export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AGGREGATION),
-      hooks: z.array(HookConfigSchema),
-    }),
-  );
+export const AggregationHookConfigSchema: z.ZodType<
+  AggregationHookConfig,
+  z.ZodTypeDef,
+  unknown
+> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.AGGREGATION),
+    hooks: z.array(HookConfigSchema),
+  }),
+);
 
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
@@ -264,21 +276,19 @@ export const RateLimitedHookSchema = OwnableSchema.extend({
    * Refill window in seconds — must match the on-chain immutable
    * `DURATION`. Provide explicitly per deployment.
    */
-  duration: z
-    .string()
-    .regex(/^\d+$/, 'duration must be a base-10 integer string'),
+  duration: ZBigNumberish,
 })
-  .refine((val) => BigInt(val.duration) > 0n, {
+  .refine((val) => val.duration > 0n, {
     message: 'duration must be greater than 0',
     path: ['duration'],
   })
-  .refine((val) => BigInt(val.maxCapacity) >= BigInt(val.duration), {
+  .refine((val) => BigInt(val.maxCapacity) >= val.duration, {
     message: 'maxCapacity must be at least duration',
     path: ['maxCapacity'],
   })
   .transform((val) => {
     const capacity = BigInt(val.maxCapacity);
-    const duration = BigInt(val.duration);
+    const duration = val.duration;
     if (capacity % duration !== 0n) {
       const rounded = ((capacity / duration) * duration).toString();
       rootLogger.warn(

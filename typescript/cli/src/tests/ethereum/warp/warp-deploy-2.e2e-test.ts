@@ -687,7 +687,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           interchainSecurityModule: {
             type: IsmType.RATE_LIMITED,
             maxCapacity,
-            duration: '86400',
+            duration: 86400n,
           },
         },
       };
@@ -731,7 +731,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const result = RateLimitedIsmConfigSchema.safeParse({
         type: IsmType.RATE_LIMITED,
         maxCapacity: '100000',
-        duration: '86400',
+        duration: 86400n,
       });
       expect(result.success).to.be.true;
       expect(result.data?.maxCapacity).to.equal(
@@ -743,7 +743,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const result = RateLimitedIsmConfigSchema.safeParse({
         type: IsmType.RATE_LIMITED,
         maxCapacity: '1000',
-        duration: '86400',
+        duration: 86400n,
       });
       expect(result.success).to.be.false;
     });

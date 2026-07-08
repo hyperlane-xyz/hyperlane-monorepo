@@ -345,7 +345,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       type: HookType.RATE_LIMITED,
       maxCapacity: maxCapacity.toString(),
-      duration: duration.toString(),
+      duration: duration.toBigInt(),
       owner,
     };
 

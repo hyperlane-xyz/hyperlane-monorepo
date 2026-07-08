@@ -830,7 +830,7 @@ describe('EvmHookModule', async () => {
         owner,
         type: HookType.RATE_LIMITED,
         maxCapacity: (86400n * 100n).toString(),
-        duration: '86400',
+        duration: 86400n,
       };
 
       const { hook, initialHookAddress } = await createHook(config);
@@ -850,14 +850,14 @@ describe('EvmHookModule', async () => {
         owner,
         type: HookType.RATE_LIMITED,
         maxCapacity: '86400',
-        duration: '86400',
+        duration: 86400n,
       };
 
       const { hook, initialHookAddress } = await createHook(config);
 
       // duration is immutable on-chain; changing it must redeploy a fresh hook.
       // keep maxCapacity a multiple of the new duration (schema constraint).
-      config.duration = '3600';
+      config.duration = 3600n;
       config.maxCapacity = '3600';
 
       // update() redeploys internally and emits no txs

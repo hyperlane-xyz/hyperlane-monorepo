@@ -89,6 +89,40 @@ contract RateLimitedIsmTest is Test {
         rateLimitedIsm.verify(bytes(""), _message);
     }
 
+    // Everything above exercises the default 1-day window; the following
+    // deploys a limiter with a non-default window and asserts the refill
+    // math tracks that window rather than the old hardcoded `1 days`.
+    function testRateLimitedIsm_customDuration_refillsOverWindow() external {
+        uint256 customDuration = 1 hours;
+
+        RateLimitedIsm customIsm = new RateLimitedIsm(
+            address(localMailbox),
+            MAX_CAPACITY,
+            customDuration,
+            address(testRecipient)
+        );
+        testRecipient.setInterchainSecurityModule(address(customIsm));
+
+        assertEq(customIsm.DURATION(), customDuration);
+
+        // Drain the whole current level via a delivered message.
+        uint256 level = customIsm.calculateCurrentLevel();
+        localMailbox.process(bytes(""), _encodeTestMessage(level));
+        assertEq(customIsm.calculateCurrentLevel(), 0);
+
+        // Half the custom window → ~half the capacity refilled.
+        vm.warp(block.timestamp + customDuration / 2);
+        assertApproxEqRel(
+            customIsm.calculateCurrentLevel(),
+            level / 2,
+            0.01 ether
+        );
+
+        // A full window past the last update → back to max capacity.
+        vm.warp(block.timestamp + customDuration);
+        assertEq(customIsm.calculateCurrentLevel(), customIsm.maxCapacity());
+    }
+
     function _encodeTestMessage(
         uint256 _amount
     ) internal view returns (bytes memory) {
