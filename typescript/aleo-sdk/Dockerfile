@@ -1,17 +1,14 @@
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y build-essential pkg-config libssl-dev clang cmake lld binutils llvm curl
+RUN apt-get update && apt-get install -y ca-certificates curl unzip \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-RUN apt-get install -y git
-
-RUN git clone https://github.com/ProvableHQ/leo.git /opt/leo \
-    && cd /opt/leo \
-    && git checkout ba2c01722a48f84b4d90b93aeaf8305b7c03dbce \
-    && cargo build --release \
-    && cp /opt/leo/target/release/leo /usr/local/cargo/bin/
+# Official prebuilt leo CLI release (musl static binary, no glibc dependency).
+# See https://github.com/ProvableHQ/leo/releases
+ARG LEO_RELEASE=leo-lang-v4.3.2
+RUN curl --proto '=https' --tlsv1.2 -sSfL \
+      -o /tmp/leo.zip \
+      "https://github.com/ProvableHQ/leo/releases/download/${LEO_RELEASE}/${LEO_RELEASE}-x86_64-unknown-linux-musl.zip" \
+    && unzip /tmp/leo.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/leo \
+    && rm /tmp/leo.zip

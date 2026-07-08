@@ -29,6 +29,11 @@ export async function runAleoNode(
   const container = await retryAsync(
     () =>
       new GenericContainer(ALEO_DEVNODE_IMAGE)
+        // The image is only published for linux/amd64 (no official Linux
+        // arm64 leo binary exists). Requesting the platform explicitly lets
+        // Docker run it under emulation on arm64 hosts instead of failing
+        // to find a matching manifest.
+        .withPlatform('linux/amd64')
         .withExposedPorts({
           container: 3030,
           host: chainMetadata.rpcPort,

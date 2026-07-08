@@ -28,7 +28,8 @@ export const TEST_ALEO_BURN_ADDRESS =
 /**
  * Docker image for Aleo devnode
  */
-export const ALEO_DEVNODE_IMAGE = 'hyperlane-aleo-tools:official-master';
+export const ALEO_DEVNODE_IMAGE =
+  'gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.1.0';
 
 /**
  * Environment variables for Aleo devnode
