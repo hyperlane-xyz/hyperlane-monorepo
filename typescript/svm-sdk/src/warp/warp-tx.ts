@@ -197,7 +197,7 @@ export async function applyPostInitConfig(
   programId: Address,
   config: Pick<
     RawWarpArtifactConfig,
-    'remoteRouters' | 'destinationGas' | 'fee'
+    'mailbox' | 'remoteRouters' | 'destinationGas' | 'fee'
   >,
   feeSalt: Uint8Array = DEFAULT_FEE_SALT,
 ): Promise<SvmReceipt[]> {
@@ -268,6 +268,7 @@ export async function applyPostInitConfig(
           await getTokenSetFeeConfigInstruction(
             programId,
             signer.signer.address,
+            parseAddress(config.mailbox),
             { feeProgram, feeAccount: feeAccountPda },
           ),
         ],
@@ -433,6 +434,7 @@ export async function computeWarpTokenUpdateInstructions(
           await getTokenSetFeeConfigInstruction(
             programId,
             ownerAddress,
+            parseAddress(current.mailbox),
             expectedFeeConfig,
           ),
         ],
@@ -443,7 +445,12 @@ export async function computeWarpTokenUpdateInstructions(
     txs.push({
       feePayer: ownerAddress,
       instructions: [
-        await getTokenSetFeeConfigInstruction(programId, ownerAddress, null),
+        await getTokenSetFeeConfigInstruction(
+          programId,
+          ownerAddress,
+          parseAddress(current.mailbox),
+          null,
+        ),
       ],
       annotation: `Update ${label}: remove fee config`,
     });

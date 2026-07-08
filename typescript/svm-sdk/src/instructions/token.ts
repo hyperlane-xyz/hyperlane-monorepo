@@ -43,6 +43,7 @@ import {
 import {
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
+  deriveMailboxOutboxPda,
 } from '../pda.js';
 import {
   buildInstruction,
@@ -63,7 +64,8 @@ export enum TokenProgramInstructionKind {
   SetInterchainSecurityModule = 5,
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
-  SetFeeConfig = 8,
+  TransferRemoteWithMemo = 8,
+  SetFeeConfig = 9,
 }
 
 export interface TokenInitInstructionData {
@@ -503,6 +505,7 @@ function decodeVec<T>(
 export async function getTokenSetFeeConfigInstruction(
   programAddress: Address,
   owner: Address,
+  mailbox: Address,
   value: TokenFeeConfig | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
@@ -512,9 +515,11 @@ export async function getTokenSetFeeConfigInstruction(
     writableSignerAddress(owner),
   ];
   if (value) {
+    const outboxPda = await deriveMailboxOutboxPda(mailbox);
     accounts.push(
       readonlyAccount(value.feeProgram),
       readonlyAccount(value.feeAccount),
+      readonlyAccount(outboxPda.address),
     );
   }
   return buildInstruction(

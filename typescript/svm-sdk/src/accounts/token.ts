@@ -19,6 +19,7 @@ import {
 const IGP_PROGRAM_DATA_DISCRIMINATOR = ascii8('PRGMDATA');
 const IGP_ACCOUNT_DISCRIMINATOR = ascii8('IGP_____');
 const OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR = ascii8('OVRHDIGP');
+const TOKEN_FEE_CONFIG_DISCRIMINATOR = ascii8('TOKFEEV1');
 
 export interface TokenFeeConfig {
   feeProgram: Address;
@@ -136,12 +137,9 @@ function decodeHyperlaneTokenInner(
   const remoteRouters = decodeMapU32H256(cursor);
   const pluginData = cursor.readBytes(pluginSize);
 
-  // fee_config: Option<FeeConfig> — trailing field, backward-compatible.
-  // Pre-fee accounts have no trailing bytes; treat as None.
-  let feeConfig: TokenFeeConfig | null = null;
-  if (cursor.remaining() > 0) {
-    feeConfig = readOptionFeeConfig(cursor);
-  }
+  // fee_config: OptionalDiscriminatedData<FeeConfig> — trailing field,
+  // backward-compatible. Absent or non-matching tail means None.
+  const feeConfig = readOptionFeeConfig(cursor);
 
   return {
     bump,
@@ -241,9 +239,14 @@ function readOptionAddress(cursor: ByteCursor): Address | null {
 }
 
 function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
-  const tag = cursor.readU8();
-  if (tag === 0) return null;
-  assert(tag === 1, `Invalid FeeConfig option tag: ${tag}`);
+  if (cursor.remaining() < 8) return null;
+  const discriminator = cursor.readBytes(8);
+  // A trailing tail without the TOKFEEV1 discriminator is stale data left by
+  // an earlier layout; the on-chain program tolerates it as None, so do we.
+  const mismatch = discriminator.some(
+    (value, i) => value !== TOKEN_FEE_CONFIG_DISCRIMINATOR[i],
+  );
+  if (mismatch) return null;
   const feeProgram = readAddress(cursor);
   const feeAccount = readAddress(cursor);
   return { feeProgram, feeAccount };
