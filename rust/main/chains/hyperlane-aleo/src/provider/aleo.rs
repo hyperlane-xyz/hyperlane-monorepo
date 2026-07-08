@@ -462,7 +462,7 @@ impl<C: AleoClient> AleoProvider<C> {
                     .map_err(HyperlaneAleoError::from)?,
                 &mut rng,
             )
-            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
+            .map_err(HyperlaneAleoError::SnarkVmError)?;
 
         // Either use the proving service (with local fallback) or generate the proof locally
         let start = Instant::now();
