@@ -1091,7 +1091,7 @@ const fastPath: RootAgentConfig = {
     cache: {
       enabled: true,
     },
-    dynamicBlockIntervals: true,
+    interval: 1,
     resources: fastPathRelayerResources,
   },
   validators: {

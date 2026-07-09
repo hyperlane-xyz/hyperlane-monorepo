@@ -247,9 +247,8 @@ pub struct IndexSettings {
     /// The indexing mode.
     pub mode: IndexMode,
     /// How long a cursor sleeps when it's caught up and has nothing new to
-    /// index. Defaults to 5s. When `index.dynamicBlockIntervals` is enabled
-    /// in the chain config, this is `min(chain's estimateBlockTime, 5s)`
-    /// instead.
+    /// index. Defaults to 5s, overridable via `index.interval` (seconds) in
+    /// the chain config.
     pub idle_sleep_duration: Duration,
 }
 

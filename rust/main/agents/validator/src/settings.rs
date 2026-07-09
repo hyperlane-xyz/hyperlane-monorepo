@@ -49,7 +49,9 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints
+    /// How frequently to check for new checkpoints. Defaults to 5s, overridable
+    /// via `interval`, or via `chains.<originChainName>.index.interval` if
+    /// `interval` is unset.
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
@@ -137,13 +139,6 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .and_then(parse_checkpoint_syncer)
             .end();
 
-        let interval = p
-            .chain(&mut err)
-            .get_opt_key("interval")
-            .parse_u64()
-            .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(2));
-
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
         let reorg_period = p
@@ -154,6 +149,26 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("reorgPeriod")
             .parse_value("Invalid reorgPeriod")
             .unwrap_or(ReorgPeriod::from_blocks(1));
+
+        const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
+        let explicit_interval = p
+            .chain(&mut err)
+            .get_opt_key("interval")
+            .parse_u64()
+            .map(Duration::from_secs)
+            .end();
+        let chain_interval = p
+            .chain(&mut err)
+            .get_key("chains")
+            .get_key(origin_chain_name)
+            .get_opt_key("index")
+            .get_opt_key("interval")
+            .parse_u64()
+            .map(Duration::from_secs)
+            .end();
+        let interval = explicit_interval
+            .or(chain_interval)
+            .unwrap_or(DEFAULT_INTERVAL);
 
         let chain = p
             .chain(&mut err)

@@ -139,8 +139,8 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
                   maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
                 }
               : {}),
-            ...(this.config.rawConfig.relayer?.dynamicBlockIntervals
-              ? { index: { dynamicBlockIntervals: true } }
+            ...(this.config.rawConfig.relayer?.interval
+              ? { index: { interval: this.config.rawConfig.relayer.interval } }
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
@@ -402,6 +402,10 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     originChain.blocks = {
       ...originChain.blocks,
       reorgPeriod: cfg.reorgPeriod,
+    };
+    originChain.index = {
+      ...originChain.index,
+      interval: cfg.interval,
     };
 
     helmValues.hyperlane.validator = {
