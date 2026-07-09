@@ -19,6 +19,17 @@ import {
 const IGP_PROGRAM_DATA_DISCRIMINATOR = ascii8('PRGMDATA');
 const IGP_ACCOUNT_DISCRIMINATOR = ascii8('IGP_____');
 const OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR = ascii8('OVRHDIGP');
+const TOKEN_FEE_CONFIG_DISCRIMINATOR = ascii8('TOKFEEV1');
+
+export interface TokenFeeConfig {
+  feeProgram: Address;
+  feeAccount: Address;
+}
+
+/** Plugin data sizes per token type (bytes). */
+export const NATIVE_PLUGIN_SIZE = 1;
+export const SYNTHETIC_PLUGIN_SIZE = 34;
+export const COLLATERAL_PLUGIN_SIZE = 98;
 
 export interface HyperlaneTokenAccountData {
   bump: number;
@@ -36,6 +47,7 @@ export interface HyperlaneTokenAccountData {
   destinationGas: Map<number, bigint>;
   remoteRouters: Map<number, Uint8Array>;
   pluginData: Uint8Array;
+  feeConfig: TokenFeeConfig | null;
 }
 
 export interface IgpProgramData {
@@ -61,8 +73,11 @@ export interface OverheadIgpAccountData {
 
 export function decodeHyperlaneTokenAccount(
   raw: Uint8Array,
+  pluginSize: number,
 ): HyperlaneTokenAccountData | null {
-  const wrapped = decodeAccountData(raw, decodeHyperlaneTokenInner);
+  const wrapped = decodeAccountData(raw, (cursor) =>
+    decodeHyperlaneTokenInner(cursor, pluginSize),
+  );
   return wrapped.data;
 }
 
@@ -107,8 +122,8 @@ export function decodeOverheadIgpAccount(
 
 function decodeHyperlaneTokenInner(
   cursor: ByteCursor,
+  pluginSize: number,
 ): HyperlaneTokenAccountData {
-  // Kept manual because payload ends with trailing pluginData (remainder bytes).
   const bump = cursor.readU8();
   const mailbox = readAddress(cursor);
   const mailboxProcessAuthority = readAddress(cursor);
@@ -120,7 +135,11 @@ function decodeHyperlaneTokenInner(
   const interchainGasPaymaster = readOptionIgpConfig(cursor);
   const destinationGas = decodeMapU32U64(cursor);
   const remoteRouters = decodeMapU32H256(cursor);
-  const pluginData = cursor.readBytes(cursor.remaining());
+  const pluginData = cursor.readBytes(pluginSize);
+
+  // fee_config: OptionalDiscriminatedData<FeeConfig> — trailing field,
+  // backward-compatible. Absent or non-matching tail means None.
+  const feeConfig = readOptionFeeConfig(cursor);
 
   return {
     bump,
@@ -135,6 +154,7 @@ function decodeHyperlaneTokenInner(
     destinationGas,
     remoteRouters,
     pluginData,
+    feeConfig,
   };
 }
 
@@ -216,6 +236,20 @@ function readOptionAddress(cursor: ByteCursor): Address | null {
   const tag = cursor.readU8();
   assert(tag === 0 || tag === 1, `Invalid option tag: ${tag}`);
   return tag === 1 ? readAddress(cursor) : null;
+}
+
+function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
+  if (cursor.remaining() < 8) return null;
+  const discriminator = cursor.readBytes(8);
+  // A trailing tail without the TOKFEEV1 discriminator is stale data left by
+  // an earlier layout; the on-chain program tolerates it as None, so do we.
+  const mismatch = discriminator.some(
+    (value, i) => value !== TOKEN_FEE_CONFIG_DISCRIMINATOR[i],
+  );
+  if (mismatch) return null;
+  const feeProgram = readAddress(cursor);
+  const feeAccount = readAddress(cursor);
+  return { feeProgram, feeAccount };
 }
 
 function readOptionIgpConfig(cursor: ByteCursor): {

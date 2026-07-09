@@ -64,6 +64,13 @@ export type SvmProgramTarget =
   | { programId: Address }
   | { programBytes: Uint8Array };
 
+/** Type guard: target carries program bytes (deploy/upgrade case). */
+export function hasProgramBytes(
+  target: SvmProgramTarget,
+): target is { programBytes: Uint8Array } {
+  return 'programBytes' in target;
+}
+
 /** ISM deployed data — the address IS the program. */
 export interface SvmDeployedIsm extends DeployedIsmAddress {
   programId: Address;

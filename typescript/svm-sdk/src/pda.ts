@@ -9,6 +9,7 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { LOADER_V3_PROGRAM_ADDRESS } from './constants.js';
 import type { PdaWithBump } from './types.js';
 
 const utf8 = getUtf8Encoder();
@@ -319,4 +320,16 @@ export async function deriveCrossCollateralRoutePda(
     utf8.encode('-'),
     targetRouter,
   ]);
+}
+
+// ====== BPF Loader PDAs ======
+
+export async function deriveProgramDataAddress(
+  programAddress: Address,
+): Promise<Address> {
+  const pda = await getProgramDerivedAddress({
+    programAddress: LOADER_V3_PROGRAM_ADDRESS,
+    seeds: [addressEncoder.encode(programAddress)],
+  });
+  return pda[0];
 }

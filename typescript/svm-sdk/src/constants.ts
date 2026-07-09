@@ -46,3 +46,7 @@ export const COMPUTE_BUDGET_PROGRAM_ID = castAddress(
 
 // Default compute unit budget for SVM deployment transactions.
 export const DEFAULT_COMPUTE_UNITS = 400_000;
+
+// Solana per-transaction compute unit ceiling. Use for heavy txs (e.g. BPF
+// program upgrade + extend) where headroom matters more than priority cost.
+export const MAX_COMPUTE_UNITS = 1_400_000;
