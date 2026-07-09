@@ -14,7 +14,7 @@ import { warpViolationGroupings } from './check-utils.js';
 // series it actually observes, each under its own PushGateway group. This script
 // is the only way a series is removed, and it is meant to be invoked explicitly
 // (e.g. by Haggis) once a human confirms the underlying config/registry drift is
-// resolved. It DELETEs exactly the one group identified by the labels, leaving
+// resolved. It deletes exactly the one group identified by the labels, leaving
 // every other violation untouched.
 async function main() {
   const {
