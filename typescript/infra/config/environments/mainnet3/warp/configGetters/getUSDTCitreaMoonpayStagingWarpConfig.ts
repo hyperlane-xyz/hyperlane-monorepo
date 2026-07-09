@@ -15,9 +15,14 @@ import { getRebalancingBridgesConfigFor } from './utils.js';
 // on the USDC route, same as prod).
 // Rebalancing IS reproduced from prod: same allowedRebalancers (MCR signer) and the same
 // OFT + Eclipse USDT bridge wiring (arbitrum/bsc/ethereum/polygon; base + katana have none).
+// EXTRA_REBALANCER is additionally permitted on every leg for staging.
 
 // Troy's personal deployer key for staging; to be transferred to the AW deployer later.
 const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
+
+const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
+const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 
@@ -58,6 +63,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.arbitrum.mailbox,
       owner: DEPLOYER_EVM,
       ...oftRebalancingConfigByChain.arbitrum,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
     base: {
@@ -65,6 +71,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDT,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
+      allowedRebalancers: [EXTRA_REBALANCER],
       crossCollateralRouters,
     },
     bsc: {
@@ -73,6 +80,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.bsc.mailbox,
       owner: DEPLOYER_EVM,
       ...oftRebalancingConfigByChain.bsc,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },
@@ -82,6 +90,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.ethereum.mailbox,
       owner: DEPLOYER_EVM,
       ...oftRebalancingConfigByChain.ethereum,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
     katana: {
@@ -89,6 +98,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       token: tokens.katana.USDT,
       mailbox: routerConfig.katana.mailbox,
       owner: DEPLOYER_EVM,
+      allowedRebalancers: [EXTRA_REBALANCER],
       crossCollateralRouters,
     },
     polygon: {
@@ -97,6 +107,7 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.polygon.mailbox,
       owner: DEPLOYER_EVM,
       ...oftRebalancingConfigByChain.polygon,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
   };
