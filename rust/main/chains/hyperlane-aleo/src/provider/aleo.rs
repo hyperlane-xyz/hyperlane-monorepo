@@ -16,7 +16,7 @@ use snarkvm::{
         ConfirmedTransaction,
     },
     prelude::{
-        cost_in_microcredits_v3, execution_cost_for_authorization, Authorization, CanaryV0,
+        execution_cost_for_authorization, minimum_cost_in_microcredits_v3, Authorization, CanaryV0,
         Identifier, MainnetV0, Network, ProgramID, TestnetV0, Value, VM,
     },
 };
@@ -231,8 +231,8 @@ impl<C: AleoClient> AleoProvider<C> {
         let consensus_version = N::CONSENSUS_VERSION(height).map_err(HyperlaneAleoError::from)?;
 
         // Get the finalize cost.
-        let finalize_cost =
-            cost_in_microcredits_v3(&stack, function_name).map_err(HyperlaneAleoError::from)?;
+        let finalize_cost = minimum_cost_in_microcredits_v3(&stack, function_name)
+            .map_err(HyperlaneAleoError::from)?;
         let execution_cost = execution_cost_for_authorization(
             &vm.process().read(),
             authorization,
@@ -311,6 +311,8 @@ impl<C: AleoClient> AleoProvider<C> {
         );
 
         // Create authorization.
+        // `VM::authorize` returns a `VmAuthError` as of snarkvm 4.6; wrap through
+        // `anyhow::Error` so it flows into the existing `SnarkVmError` variant.
         let authorization = vm
             .authorize(
                 &private_key,
@@ -319,7 +321,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 input.into_iter(),
                 &mut rng,
             )
-            .map_err(HyperlaneAleoError::from)?;
+            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;

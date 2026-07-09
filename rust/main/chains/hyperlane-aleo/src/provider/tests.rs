@@ -4,8 +4,13 @@ use std::{ops::Deref, path::PathBuf, str::FromStr};
 
 use hyperlane_core::{HyperlaneProvider, H256, U256};
 use serde_json::{json, Value};
+use snarkvm::prelude::MainnetV0;
+use url::Url;
 
-use crate::{provider::mock::MockHttpClient, AleoProvider, AleoSigner};
+use crate::{
+    provider::{mock::MockHttpClient, BaseHttpClient, RpcClient},
+    AleoProvider, AleoSigner,
+};
 
 // Helper constructing provider with mock client
 fn mock_provider() -> AleoProvider<MockHttpClient> {
@@ -247,6 +252,40 @@ async fn test_estimate_tx_unknown_program() {
         !result.is_ok(),
         "Estimate TX with unknown program should fail"
     );
+}
+
+// Hits the live explorer API; ignored by default. Run with:
+//   cargo test -p hyperlane-aleo --all-features -- --ignored --nocapture provable_mainnet_get_block_range
+#[tokio::test]
+#[ignore = "hits live https://api.explorer.provable.com/v2/mainnet"]
+async fn provable_mainnet_get_block_range() {
+    let url = Url::parse("https://api.explorer.provable.com/v2/").unwrap();
+    let client = BaseHttpClient::new(url, 0).expect("build BaseHttpClient");
+    let rpc = RpcClient::new(client);
+
+    // Sanity check: confirm the RPC URL is reachable before fanning out over heights.
+    let latest = rpc
+        .get_latest_height()
+        .await
+        .expect("get_latest_height sanity check failed");
+    println!("latest height: {latest}");
+
+    // Second sanity check: confirm get_block works on a known-good (tip) block.
+    rpc.get_block::<MainnetV0>(latest)
+        .await
+        .unwrap_or_else(|e| {
+            panic!("get_block sanity check failed at latest height {latest}: {e:?}")
+        });
+    println!("block {latest}: ok (sanity)");
+
+    for height in 18077366u32..=18077376 {
+        match rpc.get_block::<MainnetV0>(height).await {
+            Ok(_) => println!("block {height}: ok"),
+            Err(err) => {
+                panic!("first error at block {height}: {err:?}");
+            }
+        }
+    }
 }
 
 #[tokio::test]
