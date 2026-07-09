@@ -13,6 +13,8 @@ export const TokenType = {
   collateralEverclear: 'collateralEverclear',
   collateralDepositAddress: 'collateralDepositAddress',
   collateralOft: 'collateralOft',
+  // Same-chain atomic local rebalancing bridge (bare ITokenBridge adapter)
+  atomicLocalRebalancing: 'atomicLocalRebalancing',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
@@ -50,6 +52,8 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralEverclear]: false,
   [TokenType.collateralDepositAddress]: false,
   [TokenType.collateralOft]: false,
+  // Bare ITokenBridge adapter, not a MovableCollateralRouter subclass
+  [TokenType.atomicLocalRebalancing]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
 } as const;

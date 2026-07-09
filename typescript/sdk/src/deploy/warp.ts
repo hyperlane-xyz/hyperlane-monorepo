@@ -766,7 +766,10 @@ export async function enrollCrossChainRouters(
       resolvedConfigMap,
       (_, config: any): config is any =>
         !config.foreignDeployment &&
-        config.type !== TokenType.collateralDepositAddress,
+        config.type !== TokenType.collateralDepositAddress &&
+        // Bare same-chain ITokenBridge adapter: not a cross-chain router, has no
+        // on-chain warp config to derive, so it is never enrolled (like deposit-address).
+        config.type !== TokenType.atomicLocalRebalancing,
     ),
   );
 

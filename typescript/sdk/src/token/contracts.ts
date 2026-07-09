@@ -1,6 +1,7 @@
 import { ContractFactory } from 'ethers';
 
 import {
+  AtomicLocalRebalancingBridge__factory,
   CrossCollateralRouter__factory,
   EverclearEthBridge__factory,
   EverclearTokenBridge__factory,
@@ -48,6 +49,7 @@ export const hypERC20contracts = {
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
   [TokenType.collateralDepositAddress]: 'TokenBridgeDepositAddress',
   [TokenType.collateralOft]: 'TokenBridgeOft',
+  [TokenType.atomicLocalRebalancing]: 'AtomicLocalRebalancingBridge',
   [TokenType.crossCollateral]: 'CrossCollateralRouter',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
@@ -79,6 +81,8 @@ export const hypERC20factories = {
   [TokenType.collateralDepositAddress]:
     new TokenBridgeDepositAddress__factory(),
   [TokenType.collateralOft]: new TokenBridgeOft__factory(),
+  [TokenType.atomicLocalRebalancing]:
+    new AtomicLocalRebalancingBridge__factory(),
   [TokenType.crossCollateral]: new CrossCollateralRouter__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;

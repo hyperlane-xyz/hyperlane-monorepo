@@ -72,6 +72,7 @@ import {
   PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
+  isAtomicLocalRebalancingBridgeTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
@@ -161,7 +162,7 @@ abstract class TokenDeployer<
   }
 
   async constructorArgs(
-    _: ChainName,
+    chain: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
@@ -211,6 +212,13 @@ abstract class TokenDeployer<
       return [config.oft, config.owner];
     } else if (isDepositAddressTokenConfig(config)) {
       return [config.token, config.owner];
+    } else if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      // constructor(uint32 _localDomain, address _sourceRouter, address _owner)
+      return [
+        this.multiProvider.getDomainId(chain),
+        config.sourceRouter,
+        config.owner,
+      ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -269,6 +277,9 @@ abstract class TokenDeployer<
       throw new Error('OFT does not use initialize');
     } else if (isDepositAddressTokenConfig(config)) {
       throw new Error('Direct bridge adapters do not use initialize');
+    } else if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+      // Deployed unproxied — owner is set in constructor, no initialize
+      throw new Error('AtomicLocalRebalancingBridge does not use initialize');
     } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
@@ -912,6 +923,21 @@ abstract class TokenDeployer<
           chain,
           contractKey,
           this.routerContractName(config),
+          constructorArgs,
+        );
+        directBridgeContracts[chain] = { [contractKey]: contract };
+        delete resolvedConfigMap[chain];
+        continue;
+      }
+      if (isAtomicLocalRebalancingBridgeTokenConfig(config)) {
+        // Bare ITokenBridge adapter: constructor-configured, unproxied.
+        // Skip the router pipeline (no proxy/initialize/enrollRemoteRouters/
+        // mailbox-client config) exactly like OFT/DepositAddress.
+        const contractKey = this.routerContractKey(config);
+        const constructorArgs = await this.constructorArgs(chain, config);
+        const contract = await this.deployContract(
+          chain,
+          contractKey,
           constructorArgs,
         );
         directBridgeContracts[chain] = { [contractKey]: contract };
