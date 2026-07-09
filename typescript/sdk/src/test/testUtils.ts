@@ -14,6 +14,7 @@ import { IgpConfig } from '../gas/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   AggregationIsmConfig,
+  BlacklistIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -408,6 +409,17 @@ export const randomIsmConfig = (
           duration: 86400n,
           recipient: randomAddress(),
           owner: randomAddress(),
+        };
+        return config;
+      }
+      if (providedIsmType === IsmType.BLACKLIST) {
+        const config: BlacklistIsmConfig = {
+          type: IsmType.BLACKLIST,
+          owner: randomAddress(),
+          blacklistedIds: [
+            ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+            ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+          ],
         };
         return config;
       }
