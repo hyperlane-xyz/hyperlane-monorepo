@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {IncrementalDomainRoutingIsm} from "../../contracts/isms/routing/IncrementalDomainRoutingIsm.sol";
 import {IncrementalDomainRoutingIsmFactory} from "../../contracts/isms/routing/IncrementalDomainRoutingIsmFactory.sol";
+import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DomainRoutingIsmTest} from "./DomainRoutingIsm.t.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestIsm} from "./IsmTestUtils.sol";
@@ -27,6 +28,19 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
 
         vm.expectRevert("IncrementalDomainRoutingIsm: removal not supported");
         ism.remove(domain);
+    }
+
+    function testRemoveIsms(uint32 domain, uint8 count) public override {
+        vm.assume(count > 0);
+        vm.assume(
+            uint256(domain) + uint256(count) <= uint256(type(uint32).max) + 1
+        );
+        uint32[] memory domains = new uint32[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            domains[i] = domain + i;
+        }
+        vm.expectRevert("IncrementalDomainRoutingIsm: removal not supported");
+        ism.removeIsms(domains);
     }
 
     function testSetTwiceReverts(uint32 domain) public {

@@ -18,6 +18,7 @@ const TRON_EXCLUDED_PATTERNS = [
   "/contracts/hooks/aggregation/ERC5164Hook.sol",
   "/contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol",
   "/contracts/token/CCTP",
+  "/contracts/token/TokenBridgeCctp",
   "/contracts/libs/CctpMessageV1.sol",
   "/contracts/AttributeCheckpointFraud.sol",
   "/contracts/CheckpointFraudProofs.sol",

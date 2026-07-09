@@ -32,6 +32,16 @@ contract DomainRoutingIsm is
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
+    // ============ Events ============
+    event ModuleSet(uint32 indexed domain, address indexed module);
+    event ModuleRemoved(uint32 indexed domain);
+
+    // ============ Structs ============
+    struct IsmConfig {
+        uint32 domain;
+        IInterchainSecurityModule ism;
+    }
+
     // ============ External Functions ============
 
     /**
@@ -75,11 +85,31 @@ contract DomainRoutingIsm is
     }
 
     /**
+     * @notice Sets the ISMs to be used for the specified origin domains
+     * @param _configs The origin domains and ISMs to enroll
+     */
+    function setIsms(IsmConfig[] calldata _configs) external onlyOwner {
+        for (uint256 i = 0; i < _configs.length; ++i) {
+            _set(_configs[i].domain, address(_configs[i].ism));
+        }
+    }
+
+    /**
      * @notice Removes the specified origin domain
      * @param _domain The origin domain
      */
     function remove(uint32 _domain) external onlyOwner {
         _remove(_domain);
+    }
+
+    /**
+     * @notice Removes the specified origin domains
+     * @param _domains The origin domains to remove
+     */
+    function removeIsms(uint32[] calldata _domains) external onlyOwner {
+        for (uint256 i = 0; i < _domains.length; ++i) {
+            _remove(_domains[i]);
+        }
     }
 
     function domains() external view returns (uint256[] memory) {
@@ -117,6 +147,7 @@ contract DomainRoutingIsm is
      */
     function _remove(uint32 _domain) internal virtual {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
+        emit ModuleRemoved(_domain);
     }
 
     function _originNotFoundError(
@@ -133,5 +164,6 @@ contract DomainRoutingIsm is
     function _set(uint32 _domain, address _module) internal virtual {
         require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
+        emit ModuleSet(_domain, _module);
     }
 }
