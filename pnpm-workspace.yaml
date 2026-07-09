@@ -107,9 +107,6 @@ catalog:
   '@turnkey/sdk-server': ^4.12.0
   '@turnkey/solana': ^1.1.12
 
-  # Versioning
-  compare-versions: ^6.1.1
-
   # Prometheus
   prom-client: ^14.0.1
 
