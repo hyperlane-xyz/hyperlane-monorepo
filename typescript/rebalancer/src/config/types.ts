@@ -36,6 +36,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  LayerZero = 'layerzero',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -126,8 +127,11 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const LayerZeroBridgeConfigSchema = z.object({});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  layerzero: LayerZeroBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -373,15 +377,6 @@ export const RebalancerConfigSchema = z
           // Other protocols: accept any non-empty string (future-proof)
         }
       }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
-      }
     }
 
     for (
@@ -407,9 +402,29 @@ export const RebalancerConfigSchema = z
           }
         };
 
+        const checkLayerZeroBridge = (
+          externalBridge: ExternalBridgeType | undefined,
+          path: (string | number)[],
+        ) => {
+          if (
+            externalBridge === ExternalBridgeType.LayerZero &&
+            !config.externalBridges?.layerzero
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' uses externalBridge: 'layerzero' but externalBridges.layerzero is not configured`,
+              path,
+            });
+          }
+        };
+
         checkLifiBridge(chainConfig.externalBridge, [
           'externalBridges',
           'lifi',
+        ]);
+        checkLayerZeroBridge(chainConfig.externalBridge, [
+          'externalBridges',
+          'layerzero',
         ]);
 
         if (chainConfig.override) {
@@ -421,6 +436,18 @@ export const RebalancerConfigSchema = z
               ...(overrideConfig as Record<string, unknown>),
             };
             checkLifiBridge(
+              merged.externalBridge as ExternalBridgeType | undefined,
+              [
+                'strategy',
+                strategyIndex,
+                'chains',
+                chainName,
+                'override',
+                destination,
+                'externalBridge',
+              ],
+            );
+            checkLayerZeroBridge(
               merged.externalBridge as ExternalBridgeType | undefined,
               [
                 'strategy',
