@@ -22,6 +22,8 @@ import {
 //   - zero warp fee (omit tokenFee) -> no offchain-quote / CCR fee surface
 // Rebalancing IS reproduced from prod: same allowedRebalancers (MCR signer) and the same
 // CCTP + Eclipse/Paradex/Igra/Radix + Iron (TBDA) bridge wiring per leg.
+// EXTRA_REBALANCER is additionally permitted on every EVM leg for staging (the Solana leg
+// has no rebalancer, matching prod).
 
 // Troy's personal deployer keys for staging; to be transferred to the AW deployer later.
 const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
@@ -33,6 +35,8 @@ const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
+const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
 
@@ -123,6 +127,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.arbitrum.mailbox,
       owner: DEPLOYER_EVM,
       ...cctpRebalancingConfigByChain.arbitrum,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
@@ -136,6 +141,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
       ...cctpRebalancingConfigByChain.base,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
@@ -149,6 +155,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.bsc.mailbox,
       owner: DEPLOYER_EVM,
       ...additionalRebalancingConfigByChain.bsc,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },
@@ -157,7 +164,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.citrea.ctUSD,
       mailbox: routerConfig.citrea.mailbox,
       owner: DEPLOYER_EVM,
-      allowedRebalancers: [REBALANCER],
+      allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: Object.fromEntries(
         EVM_CHAINS.map((dest) => [
           String(getDomainId(dest)),
@@ -172,6 +179,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.ethereum.mailbox,
       owner: DEPLOYER_EVM,
       ...cctpRebalancingConfigByChain.ethereum,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
@@ -184,6 +192,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.katana.USDC,
       mailbox: routerConfig.katana.mailbox,
       owner: DEPLOYER_EVM,
+      allowedRebalancers: [EXTRA_REBALANCER],
       crossCollateralRouters,
     },
     polygon: {
@@ -192,6 +201,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       mailbox: routerConfig.polygon.mailbox,
       owner: DEPLOYER_EVM,
       ...cctpRebalancingConfigByChain.polygon,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
