@@ -76,6 +76,8 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.nativeScaled]: '',
   [TokenType.collateralOft]:
     'A collateral token that bridges via LayerZero OFT',
+  [TokenType.atomicLocalRebalancing]:
+    'A same-chain atomic local rebalancing bridge bound to a source collateral router',
   [TokenType.crossCollateral]:
     'A collateral token that can route to multiple routers across chains',
 };
@@ -85,6 +87,8 @@ const YAML_ONLY_TYPES: TokenType[] = [
   TokenType.collateralOft,
   TokenType.collateralCctp,
   TokenType.collateralDepositAddress,
+  // Needs a sourceRouter arg the interactive prompt can't gather; YAML-only.
+  TokenType.atomicLocalRebalancing,
 ];
 
 const TYPE_CHOICES = Object.values(TokenType)
