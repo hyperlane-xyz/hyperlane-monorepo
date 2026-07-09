@@ -15,16 +15,20 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title RateLimited
  * @notice A contract used to keep track of an address sender's token amount limits.
- * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
+ * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills.
+ *      `DURATION` is set at construction so each instance can pick its own refill window.
  * See: https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
  *
  */
 contract RateLimited is OwnableUpgradeable {
-    uint256 public constant DURATION = 1 days; // 86400
+    /// @notice Refill window. The bucket refills from 0 to `maxCapacity`
+    /// linearly over this many seconds. Set once in the constructor.
+    uint256 public immutable DURATION;
     /// @notice Current filled level
     uint256 public filledLevel;
     /// @notice Tokens per second refill rate
@@ -35,15 +39,22 @@ contract RateLimited is OwnableUpgradeable {
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
     event ConsumedFilledLevel(uint256 filledLevel, uint256 lastUpdated);
+    event Credited(uint256 amount, uint256 newLevel);
 
-    constructor(uint256 _capacity) {
+    constructor(uint256 _capacity, uint256 _duration) {
+        require(_duration > 0, "DURATION must be greater than 0");
+        DURATION = _duration;
+        // `_capacity == 0` is permitted for subclasses with a dynamic cap.
         require(
-            _capacity >= DURATION,
+            _capacity == 0 || _capacity >= _duration,
             "Capacity must be greater than DURATION"
         );
         _transferOwnership(msg.sender);
-        setRefillRate(_capacity);
-        filledLevel = _capacity;
+        if (_capacity > 0) {
+            setRefillRate(_capacity);
+            filledLevel = _capacity;
+        }
+        lastUpdated = block.timestamp;
     }
 
     error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
@@ -51,7 +62,7 @@ contract RateLimited is OwnableUpgradeable {
     /**
      * @return The max capacity where the bucket will no longer refill
      */
-    function maxCapacity() public view returns (uint256) {
+    function maxCapacity() public view virtual returns (uint256) {
         return refillRate * DURATION;
     }
 
@@ -72,15 +83,33 @@ contract RateLimited is OwnableUpgradeable {
      */
     function calculateRefilledAmount() internal view returns (uint256) {
         uint256 elapsed = block.timestamp - lastUpdated;
-        return elapsed * refillRate;
+        return (elapsed * maxCapacity()) / DURATION;
     }
+
+    /// @dev Whether the bucket has been set up and is metering flow. Base
+    /// limiters bootstrap a full bucket in the constructor, so they are
+    /// initialized from birth. Dynamic-capacity subclasses override this (and
+    /// `_RateLimited_initialize`) to defer initialization until first use, so a
+    /// limiter deployed before its pool is funded starts full at the live
+    /// capacity instead of snapshotting a zero deploy-time capacity.
+    function _RateLimited_isInitialized() internal view virtual returns (bool) {
+        return true;
+    }
+
+    /// @dev Hook invoked by the consume/credit path to record first use.
+    /// No-op for base limiters; overridden by subclasses that defer
+    /// initialization (see `_RateLimited_isInitialized`).
+    function _RateLimited_initialize() internal virtual {}
 
     /**
      * Calculates the adjusted fill level based on time
      */
     function calculateCurrentLevel() public view returns (uint256) {
         uint256 _capacity = maxCapacity();
-        require(_capacity > 0, "RateLimitNotSet");
+        if (_capacity == 0) return 0;
+
+        // Uninitialized buckets report full at the current capacity.
+        if (!_RateLimited_isInitialized()) return _capacity;
 
         if (block.timestamp > lastUpdated + DURATION) {
             // If last update is in the previous window, return the max capacity
@@ -100,7 +129,7 @@ contract RateLimited is OwnableUpgradeable {
      */
     function setRefillRate(
         uint256 _capacity
-    ) public onlyOwner returns (uint256) {
+    ) public virtual onlyOwner returns (uint256) {
         uint256 _oldRefillRate = refillRate;
         uint256 _newRefillRate = _capacity / DURATION;
         refillRate = _newRefillRate;
@@ -125,9 +154,46 @@ contract RateLimited is OwnableUpgradeable {
         uint256 _filledLevel = adjustedFilledLevel - _consumedAmount;
         filledLevel = _filledLevel;
         lastUpdated = block.timestamp;
+        _RateLimited_initialize();
 
         emit ConsumedFilledLevel(filledLevel, lastUpdated);
 
         return _filledLevel;
+    }
+
+    /**
+     * Credit the bucket 1:1, clamped at maxCapacity.
+     * No-op when capacity is zero.
+     */
+    function _credit(uint256 _amount) internal returns (uint256 newLevel) {
+        uint256 cap = maxCapacity();
+        if (cap == 0) return 0;
+        uint256 credited = calculateCurrentLevel() + _amount;
+        newLevel = credited > cap ? cap : credited;
+        filledLevel = newLevel;
+        lastUpdated = block.timestamp;
+        _RateLimited_initialize();
+        emit Credited(_amount, newLevel);
+    }
+
+    /**
+     * Soft consume. Returns the seconds of refill needed to cover any
+     * overage — callers treat it as a delay rather than a hard reject.
+     * Returns type(uint256).max when capacity is zero.
+     */
+    function _consume(uint256 _amount) internal returns (uint256 deficitSecs) {
+        uint256 cap = maxCapacity();
+        uint256 level = calculateCurrentLevel();
+        if (_amount <= level) {
+            filledLevel = level - _amount;
+        } else {
+            filledLevel = 0;
+            deficitSecs = cap == 0
+                ? type(uint256).max
+                : Math.mulDiv(_amount - level, DURATION, cap);
+        }
+        lastUpdated = block.timestamp;
+        _RateLimited_initialize();
+        emit ConsumedFilledLevel(filledLevel, lastUpdated);
     }
 }

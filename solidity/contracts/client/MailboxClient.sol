@@ -124,4 +124,13 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     function _isDelivered(bytes32 id) internal view returns (bool) {
         return mailbox.delivered(id);
     }
+
+    /// @dev True only while `mailbox.process()` is delivering `id` in the
+    /// current transaction. `process(...)` writes `deliveries[id].blockNumber`
+    /// before invoking the ISM, so this binds a check to the message being
+    /// processed *now* — stricter than `_isDelivered`, which stays true for any
+    /// previously-delivered message.
+    function _isProcessing(bytes32 id) internal view returns (bool) {
+        return mailbox.processedAt(id) == block.number;
+    }
 }

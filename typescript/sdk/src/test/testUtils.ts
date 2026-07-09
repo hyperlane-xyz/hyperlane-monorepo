@@ -281,6 +281,7 @@ export function randomHookConfig(
         owner: randomAddress(),
         type: hookType,
         maxCapacity: ((1 + Math.floor(Math.random() * 100)) * 86400).toString(),
+        duration: 86400n,
       };
 
     default:
@@ -404,6 +405,7 @@ export const randomIsmConfig = (
         const config: RateLimitedIsmConfig = {
           type: IsmType.RATE_LIMITED,
           maxCapacity: '86400',
+          duration: 86400n,
           recipient: randomAddress(),
           owner: randomAddress(),
         };

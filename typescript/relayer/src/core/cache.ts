@@ -31,7 +31,11 @@ export type RelayerCache = {
   backlog: MessageBacklog;
 };
 
-export const RelayerCacheSchema: z.ZodType<RelayerCache> = z.object({
+export const RelayerCacheSchema: z.ZodType<
+  RelayerCache,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
   hook: z.record(
     z.record(z.object({ address: z.string() }).and(HookConfigSchema)),
   ),

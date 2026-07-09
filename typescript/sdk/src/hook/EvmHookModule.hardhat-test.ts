@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
+import {
+  CONTRACTS_PACKAGE_VERSION,
+  RateLimitedHook__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
@@ -827,6 +830,7 @@ describe('EvmHookModule', async () => {
         owner,
         type: HookType.RATE_LIMITED,
         maxCapacity: (86400n * 100n).toString(),
+        duration: 86400n,
       };
 
       const { hook, initialHookAddress } = await createHook(config);
@@ -838,6 +842,36 @@ describe('EvmHookModule', async () => {
 
       // address unchanged: in-place update, not a new deployment
       expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+    });
+
+    it('redeploys a new RateLimitedHook on duration change (immutable)', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: RateLimitedHookConfig = {
+        owner,
+        type: HookType.RATE_LIMITED,
+        maxCapacity: '86400',
+        duration: 86400n,
+      };
+
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // duration is immutable on-chain; changing it must redeploy a fresh hook.
+      // keep maxCapacity a multiple of the new duration (schema constraint).
+      config.duration = 3600n;
+      config.maxCapacity = '3600';
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(hook, config, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+
+      const rateLimitedHook = RateLimitedHook__factory.connect(
+        hook.serialize().deployedHook,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedHook.DURATION()).toString()).to.equal('3600');
     });
 
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {

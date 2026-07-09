@@ -332,9 +332,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   ): Promise<WithAddress<RateLimitedHookConfig>> {
     const hook = RateLimitedHook__factory.connect(address, this.provider);
 
-    const [hookType, maxCapacity, owner] = await Promise.all([
+    const [hookType, maxCapacity, duration, owner] = await Promise.all([
       hook.hookType(),
       hook.maxCapacity(),
+      hook.DURATION(),
       hook.owner(),
     ]);
 
@@ -344,6 +345,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       type: HookType.RATE_LIMITED,
       maxCapacity: maxCapacity.toString(),
+      duration: duration.toBigInt(),
       owner,
     };
 

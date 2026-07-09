@@ -366,10 +366,7 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         token.approve(address(router), feeAmount);
 
         assertEq(router.allowedRecipient(DESTINATION_DOMAIN), bytes32(0));
-        assertEq(
-            token.allowance(address(router), address(bridge)),
-            type(uint256).max
-        );
+        assertEq(token.allowance(address(router), address(bridge)), 0);
 
         vm.expectEmit(true, true, true, true, address(bridge));
         emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
@@ -395,6 +392,7 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(bridge)), 0);
         assertEq(token.balanceOf(address(this)), 0);
+        assertEq(token.allowance(address(router), address(bridge)), 0);
         assertEq(bridge.nonce(), 1);
     }
 }

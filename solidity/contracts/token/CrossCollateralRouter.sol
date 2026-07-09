@@ -18,13 +18,14 @@ import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Local Imports ============
 import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
+import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 
 /**
  * @title CrossCollateralRouter
@@ -42,7 +43,11 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  *    from enrolled routers on the same chain.
  */
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
-contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
+contract CrossCollateralRouter is
+    HypERC20Collateral,
+    ICrossCollateralFee,
+    IRebalanceTargets
+{
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
@@ -59,6 +64,8 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32 indexed domain,
         bytes32 indexed router
     );
+    event RebalanceTargetAdded(uint32 indexed domain, bytes32 indexed target);
+    event RebalanceTargetRemoved(uint32 indexed domain, bytes32 indexed target);
 
     // ============ Storage ============
 
@@ -70,6 +77,12 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     /// @notice Tracks which domains have at least one CrossCollateral-enrolled router,
     /// enabling on-chain enumeration for the SDK reader.
     EnumerableSet.UintSet private _crossCollateralDomains;
+
+    /// @notice Additional allowed rebalance targets by domain, beyond the
+    /// enrolled remote router. Consulted by `isRebalanceTarget`.
+    // solhint-disable-next-line hyperlane/enumerable-domain-mapping
+    mapping(uint32 domain => EnumerableSet.Bytes32Set targets)
+        private _rebalanceTargets;
 
     // ============ Constructor ============
 
@@ -138,6 +151,52 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         }
     }
 
+    // ============ Rebalance Targets (onlyOwner) ============
+
+    /// @notice Adds an allowed rebalance target for `_domain`.
+    function addRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external onlyOwner {
+        if (_rebalanceTargets[_domain].add(_target)) {
+            emit RebalanceTargetAdded(_domain, _target);
+        }
+    }
+
+    /// @notice Removes a previously allowed rebalance target for `_domain`.
+    function removeRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external onlyOwner {
+        if (_rebalanceTargets[_domain].remove(_target)) {
+            emit RebalanceTargetRemoved(_domain, _target);
+        }
+    }
+
+    /// @notice Returns the explicitly added rebalance targets for `_domain`.
+    /// @dev Excludes the enrolled remote router, which is always a valid target.
+    function rebalanceTargets(
+        uint32 _domain
+    ) external view returns (bytes32[] memory) {
+        return _rebalanceTargets[_domain].values();
+    }
+
+    /// @inheritdoc IRebalanceTargets
+    /// @dev The enrolled remote router is always a valid target; additional
+    /// targets are opt-in via `addRebalanceTarget`. Cross-collateral routers
+    /// (enrolled via `enrollCrossCollateralRouters`) are NOT automatically valid
+    /// targets and must be added explicitly with `addRebalanceTarget`. The zero
+    /// address is never a valid target, even when `_domain` has no enrolled router.
+    function isRebalanceTarget(
+        uint32 _domain,
+        bytes32 _target
+    ) external view override returns (bool) {
+        return
+            _target != bytes32(0) &&
+            (_target == routers(_domain) ||
+                _rebalanceTargets[_domain].contains(_target));
+    }
+
     // ============ Destination Gas Override ============
 
     /// @dev Overrides GasRouter._setDestinationGas to also accept CrossCollateral-enrolled
@@ -152,6 +211,47 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
+    }
+
+    // ============ Movable Collateral Overrides ============
+
+    /// @notice Emitted when the CCR override `setRecipient` writes the
+    /// per-domain rebalance recipient. Distinct from any base-contract event
+    /// so off-chain consumers can attribute changes to the CCR admin path.
+    event CCRRecipientSet(uint32 indexed domain, bytes32 recipient);
+
+    /// @notice Emitted when the CCR override `addBridge` registers a new
+    /// rebalance bridge for a CCR-enrolled domain.
+    event CCRBridgeAdded(uint32 indexed domain, address indexed bridge);
+
+    /// @dev Widens MovableCollateralRouter's rebalance-domain check to also
+    /// accept CCR-enrolled domains. For CCR-only domains, `setRecipient` must
+    /// be called to pin a target router — `_recipient`'s fallback would
+    /// otherwise revert in `_mustHaveRemoteRouter`.
+    function setRecipient(
+        uint32 domain,
+        bytes32 recipient
+    ) external override onlyOwner {
+        _requireEnrolledRouter(domain);
+        allowed.recipient[domain] = recipient;
+        emit CCRRecipientSet(domain, recipient);
+    }
+
+    function addBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) external override onlyOwner {
+        _requireEnrolledRouter(domain);
+        _addBridge(domain, bridge);
+        emit CCRBridgeAdded(domain, address(bridge));
+    }
+
+    function _requireEnrolledRouter(uint32 domain) internal view {
+        require(
+            routers(domain) != bytes32(0) ||
+                _crossCollateralRouters[domain].length() > 0,
+            "CCR: domain has no routers"
+        );
     }
 
     // ============ Internal Helpers ============

@@ -139,10 +139,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    const MAX_UINT256 =
-      115792089237316195423570985008687907853269984665640564039457584007913129639935n;
-
-    it('should set the allowed bridges and the related token approvals', async function () {
+    it('should set the allowed bridges without creating token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -190,7 +187,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance.toBigInt() === 0n).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(chain3DomainId);
@@ -263,7 +260,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance.toBigInt() === 0n).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(domain);
@@ -690,6 +687,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           interchainSecurityModule: {
             type: IsmType.RATE_LIMITED,
             maxCapacity,
+            duration: 86400n,
           },
         },
       };
@@ -729,10 +727,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    it('should round down RateLimitedIsm maxCapacity to nearest multiple of 86400', () => {
+    it('should round down RateLimitedIsm maxCapacity to nearest multiple of duration', () => {
       const result = RateLimitedIsmConfigSchema.safeParse({
         type: IsmType.RATE_LIMITED,
         maxCapacity: '100000',
+        duration: 86400n,
       });
       expect(result.success).to.be.true;
       expect(result.data?.maxCapacity).to.equal(
@@ -740,10 +739,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    it('should reject a RateLimitedIsm config with maxCapacity below 86400', () => {
+    it('should reject a RateLimitedIsm config with maxCapacity below duration', () => {
       const result = RateLimitedIsmConfigSchema.safeParse({
         type: IsmType.RATE_LIMITED,
         maxCapacity: '1000',
+        duration: 86400n,
       });
       expect(result.success).to.be.false;
     });

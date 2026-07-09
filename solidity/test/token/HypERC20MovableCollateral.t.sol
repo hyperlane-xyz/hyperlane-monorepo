@@ -56,7 +56,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
 
         uint256 amount = 1e18;
 
-        // Setup - approvals happen automatically
+        // Setup - approval happens during rebalance
         token.mintTo(address(router), amount);
 
         // Execute
@@ -73,7 +73,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
 
         _configure(recipient);
 
-        // Setup - approvals happen automatically
+        // Setup - approval happens during rebalance
         token.mintTo(address(router), amount);
 
         // Execute
@@ -97,28 +97,26 @@ contract HypERC20MovableCollateralRouterTest is Test {
             bytes32(uint256(uint160(alice)))
         );
 
-        // Should call approve to give max allowance to the bridge
         vm.expectCall(
             address(token),
-            abi.encodeCall(token.approve, (address(vtb), type(uint256).max))
+            abi.encodeWithSelector(token.approve.selector),
+            0
         );
         router.addBridge(destinationDomain, vtb);
 
-        // Verify allowance is set to max
         assertEq(
             token.allowance(address(router), address(vtb)),
-            type(uint256).max,
-            "Allowance should be max after first addBridge call"
+            0,
+            "Allowance should be 0 after first addBridge call"
         );
 
         // Second call to addBridge with the same address but different domain should work
         router.addBridge(otherDestinationDomain, vtb);
 
-        // Allowance should not have changed
         assertEq(
             token.allowance(address(router), address(vtb)),
-            type(uint256).max,
-            "Allowance should still be max after second addBridge call"
+            0,
+            "Allowance should still be 0 after second addBridge call"
         );
     }
 
@@ -138,11 +136,14 @@ contract HypERC20MovableCollateralRouterTest is Test {
 
         router.addBridge(destinationDomain, vtb);
 
-        // Verify allowance is set to max
+        vm.prank(address(router));
+        token.approve(address(vtb), type(uint256).max);
+
+        // Verify legacy allowance is set to max
         assertEq(
             token.allowance(address(router), address(vtb)),
             type(uint256).max,
-            "Allowance should be max after first addBridge call"
+            "Allowance should be max before removeBridge call"
         );
 
         // Allowance should be set to 0
@@ -177,11 +178,14 @@ contract HypERC20MovableCollateralRouterTest is Test {
         router.addBridge(destinationDomain, vtb);
         router.addBridge(otherDestinationDomain, vtb);
 
-        // Verify allowance is set to max
+        vm.prank(address(router));
+        token.approve(address(vtb), type(uint256).max);
+
+        // Verify legacy allowance is set to max
         assertEq(
             token.allowance(address(router), address(vtb)),
             type(uint256).max,
-            "Allowance should be max after addBridge call"
+            "Allowance should be max before removeBridge call"
         );
 
         // Should not call approve to revoke

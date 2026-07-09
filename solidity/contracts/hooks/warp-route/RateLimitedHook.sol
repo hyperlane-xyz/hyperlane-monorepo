@@ -60,8 +60,9 @@ contract RateLimitedHook is
     constructor(
         address _mailbox,
         uint256 _maxCapacity,
+        uint256 _duration,
         address _sender
-    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {
+    ) MailboxClient(_mailbox) RateLimited(_maxCapacity, _duration) {
         require(_sender != address(0), "InvalidSender");
         sender = _sender;
     }
