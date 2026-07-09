@@ -6,6 +6,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
+import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
@@ -16,8 +17,8 @@ import { getRebalancingBridgesConfigFor } from './utils.js';
 // Rebalancing IS reproduced from prod: same allowedRebalancers (MCR signer) and the same
 // OFT + Eclipse USDT bridge wiring (arbitrum/bsc/ethereum/polygon; base + katana have none).
 
-// Troy's personal deployer key for staging; to be transferred to the AW deployer later.
-const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
+// Owned by the shared Hyperlane deployer key (owners.ts DEPLOYER).
+const DEPLOYER_EVM = DEPLOYER;
 
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 
