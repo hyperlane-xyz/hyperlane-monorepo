@@ -207,9 +207,6 @@ catalogs:
     lodash-es:
       specifier: ^4.17.21
       version: 4.17.21
-    merkle-patricia-tree:
-      specifier: 4.2.4
-      version: 4.2.4
     mocha:
       specifier: ^11.5.0
       version: 11.7.5
@@ -1621,9 +1618,6 @@ importers:
       ethers:
         specifier: 'catalog:'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      merkle-patricia-tree:
-        specifier: 'catalog:'
-        version: 4.2.4
       pino:
         specifier: 'catalog:'
         version: 8.21.0

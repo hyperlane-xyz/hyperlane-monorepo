@@ -618,7 +618,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         address,
         type: IsmType.BLACKLIST,
         owner,
-        blacklistedIds: [],
+        blacklistedIds: await blacklistIsm.values(),
       };
     } catch {
       this.logger.debug(

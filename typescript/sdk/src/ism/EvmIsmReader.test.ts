@@ -177,10 +177,15 @@ describe('EvmIsmReader', () => {
   it('should derive blacklist ISM config correctly', async () => {
     const mockAddress = randomAddress();
     const mockOwner = randomAddress();
+    const mockBlacklistedIds = [
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
+      '0x2222222222222222222222222222222222222222222222222222222222222222',
+    ];
 
     const mockContract = {
       moduleType: sandbox.stub().resolves(ModuleType.NULL),
       blacklistedIds: sandbox.stub().resolves(false),
+      values: sandbox.stub().resolves(mockBlacklistedIds),
       owner: sandbox.stub().resolves(mockOwner),
     };
     sandbox
@@ -203,7 +208,7 @@ describe('EvmIsmReader', () => {
       address: mockAddress,
       type: IsmType.BLACKLIST,
       owner: mockOwner,
-      blacklistedIds: [],
+      blacklistedIds: mockBlacklistedIds,
     };
 
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
