@@ -142,7 +142,8 @@ export async function queryProgramVersion(
  *
  * The Rust SimulationReturnData::new(version) serializes as:
  *   - Borsh String: u32le length prefix + UTF-8 bytes
- *   - trailing u8 tag (always 0)
+ *   - trailing u8 tag set to u8::MAX (255), non-zero on purpose to avoid
+ *     Solana's return-data zero-truncation bug (solana-labs/solana#31391)
  */
 function decodeSimulationReturnDataString(raw: Uint8Array): string {
   assert(raw.length >= 5, 'SimulationReturnData<String> too short');
