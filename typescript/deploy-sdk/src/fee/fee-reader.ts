@@ -25,7 +25,7 @@ export function createFeeReader(
 ): FeeReader | null {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawFeeArtifactManager | null =
-    protocolProvider.createFeeArtifactManager(chainMetadata);
+    protocolProvider.createFeeArtifactManager(chainMetadata, context);
 
   if (!artifactManager) {
     return null;

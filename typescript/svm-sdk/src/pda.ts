@@ -7,6 +7,8 @@ import {
   type ReadonlyUint8Array,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import type { PdaWithBump } from './types.js';
 
 const utf8 = getUtf8Encoder();
@@ -239,5 +241,82 @@ export async function deriveCrossCollateralDispatchAuthorityPda(
     utf8.encode('hyperlane_cc'),
     utf8.encode('-'),
     utf8.encode('dispatch_authority'),
+  ]);
+}
+
+// ====== Fee Program PDAs ======
+
+export async function deriveFeeAccountPda(
+  programAddress: Address,
+  salt: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('fee'),
+    utf8.encode('-'),
+    salt,
+  ]);
+}
+
+export async function deriveRouteDomainPda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+  ]);
+}
+
+export async function deriveStandingQuotePda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+  targetRouter: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  assert(
+    targetRouter.length === 32,
+    `targetRouter must be 32 bytes, got ${targetRouter.length}`,
+  );
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('standing'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+    utf8.encode('-'),
+    targetRouter,
+  ]);
+}
+
+export async function deriveCrossCollateralRoutePda(
+  programAddress: Address,
+  feeAccount: Address,
+  destination: number,
+  targetRouter: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  assert(
+    targetRouter.length === 32,
+    `targetRouter must be 32 bytes, got ${targetRouter.length}`,
+  );
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('cc_route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(destination),
+    utf8.encode('-'),
+    targetRouter,
   ]);
 }

@@ -4,7 +4,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import {
   decodeAccountData,
-  decodeDiscriminatorPrefixed,
+  decodeDiscriminatedAccount,
 } from '../codecs/account-data.js';
 import { ByteCursor } from '../codecs/binary.js';
 import {
@@ -69,49 +69,40 @@ export function decodeHyperlaneTokenAccount(
 export function decodeIgpProgramDataAccount(
   raw: Uint8Array,
 ): IgpProgramData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(
-      cursor,
-      IGP_PROGRAM_DATA_DISCRIMINATOR,
-      (c) => ({
-        bumpSeed: c.readU8(),
-        paymentCount: c.readU64LE(),
-      }),
-    ),
+  return decodeDiscriminatedAccount(
+    raw,
+    IGP_PROGRAM_DATA_DISCRIMINATOR,
+    (c) => ({
+      bumpSeed: c.readU8(),
+      paymentCount: c.readU64LE(),
+    }),
   );
-  return wrapped.data;
 }
 
 export function decodeIgpAccount(raw: Uint8Array): IgpAccountData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(cursor, IGP_ACCOUNT_DISCRIMINATOR, (c) => ({
-      bumpSeed: c.readU8(),
-      salt: c.readBytes(32),
-      owner: readOptionAddress(c),
-      beneficiary: readAddress(c),
-      gasOracles: decodeMapU32GasOracle(c),
-    })),
-  );
-  return wrapped.data;
+  return decodeDiscriminatedAccount(raw, IGP_ACCOUNT_DISCRIMINATOR, (c) => ({
+    bumpSeed: c.readU8(),
+    salt: c.readBytes(32),
+    owner: readOptionAddress(c),
+    beneficiary: readAddress(c),
+    gasOracles: decodeMapU32GasOracle(c),
+  }));
 }
 
 export function decodeOverheadIgpAccount(
   raw: Uint8Array,
 ): OverheadIgpAccountData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(
-      cursor,
-      OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR,
-      (c) => ({
-        bumpSeed: c.readU8(),
-        salt: c.readBytes(32),
-        owner: readOptionAddress(c),
-        inner: readAddress(c),
-        gasOverheads: decodeMapU32U64(c),
-      }),
-    ),
+  return decodeDiscriminatedAccount(
+    raw,
+    OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR,
+    (c) => ({
+      bumpSeed: c.readU8(),
+      salt: c.readBytes(32),
+      owner: readOptionAddress(c),
+      inner: readAddress(c),
+      gasOverheads: decodeMapU32U64(c),
+    }),
   );
-  return wrapped.data;
 }
 
 function decodeHyperlaneTokenInner(

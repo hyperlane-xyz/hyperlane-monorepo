@@ -108,7 +108,7 @@ export interface BaseDerivedWarpConfig {
   mailbox: string;
   interchainSecurityModule: DerivedIsmConfig | string;
   hook: DerivedHookConfig | string;
-  fee?: DerivedFeeConfig | string;
+  tokenFee?: DerivedFeeConfig;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
   scale?: number;
@@ -534,13 +534,19 @@ export function warpArtifactToDerivedConfig(
     isNullish(config.fee) || !isArtifactNew(config.fee),
     'Expected fee to be a deployed or underived artifact',
   );
-  let feeConfig: DerivedWarpConfig['fee'];
+  let feeConfig: DerivedWarpConfig['tokenFee'];
   if (isNullish(config.fee)) {
     feeConfig = undefined;
-  } else if (isArtifactDeployed(config.fee)) {
-    feeConfig = feeArtifactToDerivedConfig(config.fee, chainLookup);
   } else {
-    feeConfig = config.fee.deployed.address;
+    assert(
+      isArtifactDeployed(config.fee),
+      'Expected fee to be a deployed artifact for derived config',
+    );
+    feeConfig = feeArtifactToDerivedConfig(
+      config.fee,
+      chainLookup,
+      getCollateralToken(config),
+    );
   }
 
   const baseDerivedConfig = {
@@ -548,7 +554,7 @@ export function warpArtifactToDerivedConfig(
     mailbox: config.mailbox,
     interchainSecurityModule: ismConfig,
     hook: hookConfig,
-    fee: feeConfig,
+    tokenFee: feeConfig,
     remoteRouters,
     destinationGas,
     name: config.name,
@@ -592,6 +598,32 @@ export function warpArtifactToDerivedConfig(
       const invalidConfig: never = config;
       throw new Error(
         `Unhandled warp token type: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
+  }
+}
+
+// Warp Config Utilities
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+/**
+ * Returns the collateral token address from a warp artifact config.
+ * Collateral and crossCollateral types have a token field;
+ * native and synthetic use the zero address (no collateral token).
+ */
+function getCollateralToken(config: WarpArtifactConfig): string {
+  switch (config.type) {
+    case TokenType.collateral:
+    case TokenType.crossCollateral:
+      return config.token;
+    case TokenType.native:
+    case TokenType.synthetic:
+      return ZERO_ADDRESS;
+    default: {
+      const _exhaustive: never = config;
+      throw new Error(
+        `Unhandled warp token type: ${JSON.stringify(_exhaustive)}`,
       );
     }
   }
