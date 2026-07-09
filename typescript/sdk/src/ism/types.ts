@@ -30,7 +30,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ZBigNumberish, ZHash } from '../metadata/customZodTypes.js';
+import {
+  ZBigNumberish,
+  ZBytes32String,
+  ZHash,
+} from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -353,7 +357,7 @@ export const TrustedRelayerIsmConfigSchema = z.object({
 
 export const BlacklistIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.BLACKLIST),
-  blacklistedIds: z.array(ZHash),
+  blacklistedIds: z.array(ZBytes32String),
 });
 
 export const RateLimitedIsmConfigSchema = z
