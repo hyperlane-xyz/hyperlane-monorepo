@@ -14,9 +14,11 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
-use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
+use hyperlane_sealevel_mailbox::{
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+};
 
-use crate::hyperlane_token_pda_seeds;
+use crate::{accounts::FeeConfig, hyperlane_token_pda_seeds};
 
 /// Instructions shared by all Hyperlane Sealevel Token programs.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -39,6 +41,8 @@ pub enum Instruction {
     TransferOwnership(Option<Pubkey>),
     /// Transfer tokens to a remote recipient with a memo.
     TransferRemoteWithMemo(TransferRemoteWithMemo),
+    /// Set the fee configuration. Only owner.
+    SetFeeConfig(Option<FeeConfig>),
 }
 
 impl DiscriminatorData for Instruction {
@@ -240,6 +244,48 @@ pub fn set_interchain_security_module_instruction(
     };
 
     Ok(instruction)
+}
+
+/// Sets the fee configuration for a warp route.
+pub fn set_fee_config_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    mailbox: Pubkey,
+    fee_config: Option<FeeConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The token PDA account.
+    // 2. `[signer]` The owner.
+    // When fee_config is Some:
+    // 3. `[executable]` The fee program.
+    // 4. `[]` The fee account (owned by fee program).
+    // 5. `[]` The mailbox outbox PDA account.
+    let mut accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(owner_payer, true),
+    ];
+    if let Some(ref cfg) = fee_config {
+        let (mailbox_outbox_key, _mailbox_outbox_bump) =
+            Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &mailbox)
+                .ok_or(ProgramError::InvalidSeeds)?;
+        accounts.push(AccountMeta::new_readonly(cfg.fee_program, false));
+        accounts.push(AccountMeta::new_readonly(cfg.fee_account, false));
+        accounts.push(AccountMeta::new_readonly(mailbox_outbox_key, false));
+    }
+
+    let ixn = Instruction::SetFeeConfig(fee_config);
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    })
 }
 
 /// Sets the igp for a warp route

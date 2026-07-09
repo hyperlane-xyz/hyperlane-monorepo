@@ -24,6 +24,7 @@ use super::{
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
+    sealevel_composite::SealevelCompositeIsmMetadataBuilder,
     MetadataBuilder,
 };
 
@@ -200,7 +201,18 @@ pub async fn build_message_metadata(
         ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_builder)),
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-        ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
+        ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder.clone())),
+        ModuleType::Composite => {
+            let composite_ism = message_builder
+                .base_builder()
+                .build_sealevel_composite_ism(ism_address)
+                .await
+                .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+            Box::new(SealevelCompositeIsmMetadataBuilder::new(
+                message_builder,
+                composite_ism,
+            ))
+        }
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;
