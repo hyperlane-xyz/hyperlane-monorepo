@@ -414,17 +414,21 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const { protocol, technicalStack } = metadata;
 
     let contract: Contract;
-    let estimatedGas: BigNumber;
 
-    // estimate gas for deploy
-    // deploy with buffer on gas limit
+    // Skip gas estimation when a manual gasLimit override is configured
+    // (e.g. for chains with unreliable eth_estimateGas responses).
+    // Otherwise estimate gas for deploy and deploy with buffer on gas limit.
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
       const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
-      estimatedGas = await deployer.estimateDeployGas(artifact, params);
+      const gasLimit = overrides.gasLimit
+        ? undefined
+        : addBufferToGasLimit(
+            await deployer.estimateDeployGas(artifact, params),
+          );
       contract = await deployer.deploy(artifact, params, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...(gasLimit ? { gasLimit } : {}),
         ...overrides,
       });
       // no need to `handleTx` for zkSync as the zksync deployer itself
@@ -437,9 +441,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       const contractFactory = resolved.connect(signer);
 
       const deployTx = contractFactory.getDeployTransaction(...params);
-      estimatedGas = await signer.estimateGas(deployTx);
+      const gasLimit = overrides.gasLimit
+        ? undefined
+        : addBufferToGasLimit(await signer.estimateGas(deployTx));
       contract = await contractFactory.deploy(...params, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...(gasLimit ? { gasLimit } : {}),
         ...overrides,
       });
       // manually wait for deploy tx to be confirmed

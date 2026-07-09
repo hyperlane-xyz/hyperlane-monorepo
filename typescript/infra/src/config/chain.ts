@@ -52,6 +52,13 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // Chains that require MinimalInterchainAccountRouter due to deployment size limits
 export const minimalIcaChains: ChainName[] = ['igra'];
 
+// Chains whose EVM doesn't support opcodes emitted by the SDK's default
+// (Cancun-targeted) solc build — e.g. Viction lacks PUSH0 (Shanghai+),
+// so deploying the regular InterchainAccountRouter there needs bytecode
+// compiled with an older evm_version (see solidity/foundry.toml
+// `[profile.viction]` and IcaRouterConfig.legacyEvmBytecode).
+export const legacyEvmIcaChains: ChainName[] = ['viction'];
+
 // Chains marked as disabled in registry metadata.
 // Derived programmatically from chain availability status.
 export function getDisabledChains(): ChainName[] {

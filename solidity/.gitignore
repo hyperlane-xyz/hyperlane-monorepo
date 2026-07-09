@@ -27,6 +27,9 @@ artifacts-tron
 cache-tron
 out-tron
 forge-cache-tron
+# Viction
+out-viction
+forge-cache-viction
 core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/

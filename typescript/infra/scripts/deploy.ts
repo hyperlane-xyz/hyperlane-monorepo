@@ -31,7 +31,11 @@ import { Contexts } from '../config/contexts.js';
 import { getCore as getCoreConfig } from '../config/environments/mainnet3/core.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
-import { chainsToSkip, minimalIcaChains } from '../src/config/chain.js';
+import {
+  chainsToSkip,
+  legacyEvmIcaChains,
+  minimalIcaChains,
+} from '../src/config/chain.js';
 import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -165,6 +169,9 @@ async function main() {
                   ownerOverrides: routerConfig.ownerOverrides,
                   urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
                 },
+                ...(legacyEvmIcaChains.includes(chain)
+                  ? { legacyEvmBytecode: true }
+                  : {}),
               }),
         };
       },

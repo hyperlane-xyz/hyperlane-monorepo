@@ -21,6 +21,7 @@ import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
+import { LEGACY_EVM_INTERCHAIN_ACCOUNT_ROUTER_BYTECODE } from './legacyEvmBytecode.js';
 
 export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
   InterchainAccountConfig,
@@ -71,17 +72,49 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     let interchainAccountRouter: InterchainAccountRouter;
 
     if (routerType === IcaRouterType.REGULAR) {
-      interchainAccountRouter = await this.deployContract(
-        chain,
-        'interchainAccountRouter',
-        [
-          config.mailbox,
-          ethers.constants.AddressZero,
-          owner,
-          50_000,
-          config.commitmentIsm!.urls,
-        ],
-      );
+      const constructorArgs: Parameters<
+        InterchainAccountFactories['interchainAccountRouter']['deploy']
+      > = [
+        config.mailbox,
+        ethers.constants.AddressZero,
+        owner,
+        50_000,
+        config.commitmentIsm!.urls,
+      ];
+
+      if (config.legacyEvmBytecode) {
+        this.logger.info(
+          `Deploying InterchainAccountRouter on ${chain} using legacy-EVM-compiled bytecode`,
+        );
+        // CAST: same ABI as the default build (verified identical at codegen
+        // time), just bytecode compiled for an older EVM version. The plain
+        // ethers.ContractFactory here doesn't carry the typed deploy() args,
+        // but the constructor signature is unchanged, so the cast is safe.
+        interchainAccountRouter = (await this.deployContractFromFactory(
+          chain,
+          new ethers.ContractFactory(
+            interchainAccountFactories.interchainAccountRouter.interface,
+            LEGACY_EVM_INTERCHAIN_ACCOUNT_ROUTER_BYTECODE,
+          ),
+          'interchainAccountRouter',
+          constructorArgs,
+        )) as unknown as InterchainAccountRouter;
+        // deployContractFromFactory doesn't write to cache (unlike
+        // deployContract), so persist the address for crash-recovery, using
+        // the same key deployContract would use so a retry without this
+        // flag still finds it.
+        this.writeCache(
+          chain,
+          'interchainAccountRouter',
+          interchainAccountRouter.address,
+        );
+      } else {
+        interchainAccountRouter = await this.deployContract(
+          chain,
+          'interchainAccountRouter',
+          constructorArgs,
+        );
+      }
     } else {
       this.logger.info(`Deploying MinimalInterchainAccountRouter on ${chain}`);
       // CAST: MinimalInterchainAccountRouter shares the same function selectors used

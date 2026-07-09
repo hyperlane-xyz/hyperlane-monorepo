@@ -34,6 +34,13 @@ export const IcaRouterConfigSchema = RouterConfigSchema.extend({
    * aggregation hooks containing an IGP as a child hook.
    */
   feeTokenApprovals: z.array(FeeTokenApprovalSchema).optional(),
+  /**
+   * Optional: deploy the regular router using bytecode compiled for an
+   * older EVM version, for chains whose runtime doesn't support the
+   * opcodes the SDK's default build emits (e.g. PUSH0 on Viction).
+   * Only applies when routerType is REGULAR (or unset).
+   */
+  legacyEvmBytecode: z.boolean().optional(),
 });
 
 export type IcaRouterConfig = z.infer<typeof IcaRouterConfigSchema>;
