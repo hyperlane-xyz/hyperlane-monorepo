@@ -30,6 +30,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import {
   getCheckWarpDeployArgs,
   getCheckerViolationsGaugeObj,
+  warpViolationGroupings,
 } from './check-utils.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -52,12 +53,6 @@ const ROUTES_TO_SKIP: string[] = [
 async function main() {
   const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
-
-  const metricsRegister = new Registry();
-  const checkerViolationsGauge = new Gauge(
-    getCheckerViolationsGaugeObj(metricsRegister),
-  );
-  metricsRegister.registerMetric(checkerViolationsGauge);
 
   const failedWarpRoutesChecks: string[] = [];
 
@@ -156,24 +151,10 @@ async function main() {
       if (result.violations.length > 0) {
         logWarpRouteCheckResult(result);
         if (pushMetrics) {
-          pushWarpViolationsMetrics(
-            checkerViolationsGauge,
-            result,
-            warpRouteId,
-          );
+          await pushWarpViolationsMetrics(result, warpRouteId, environment);
         }
       } else {
         console.info(chalk.green(`warp checker found no violations`));
-      }
-
-      if (pushMetrics) {
-        await submitMetrics(
-          metricsRegister,
-          `check-warp-deploy-${environment}`,
-          {
-            overwriteAllMetrics: true,
-          },
-        );
       }
     } catch (e) {
       console.error(
@@ -549,13 +530,23 @@ async function isTestnetRoute(
   return false;
 }
 
-function pushWarpViolationsMetrics(
-  checkerViolationsGauge: Gauge<string>,
+// Each violation is pushed to PushGateway under its own group, keyed by an
+// alert_key grouping label. This makes every violation an independently
+// addressable series that can be cleared on its own (DELETE / push 0) without
+// touching any other violation. We do NOT overwrite the whole job group: a run
+// that does not observe a given violation must leave that series untouched, so
+// stale RPCs or a partial run can never silently auto-clear a real alert.
+// Clearing is exclusively the human-confirmed action (see clear-warp-violation).
+async function pushWarpViolationsMetrics(
   result: WarpRouteCheckResult,
   warpRouteId: string,
+  environment: string,
 ) {
   for (const violation of result.violations) {
-    checkerViolationsGauge
+    const register = new Registry();
+    const gauge = new Gauge(getCheckerViolationsGaugeObj(register));
+    register.registerMetric(gauge);
+    gauge
       .labels({
         actual: violation.actual,
         chain: violation.chain,
@@ -568,6 +559,20 @@ function pushWarpViolationsMetrics(
         warp_route_id: warpRouteId,
       })
       .set(1);
+
+    const groupings = warpViolationGroupings(
+      warpRouteId,
+      violation.chain,
+      violation.name,
+      violation.type,
+    );
+
+    // PUT (overwriteAllMetrics) is safe here because this group holds exactly
+    // one series; it keeps the single-series group clean across refreshes.
+    await submitMetrics(register, `check-warp-deploy-${environment}`, {
+      groupings,
+      overwriteAllMetrics: true,
+    });
     console.log(
       `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
     );
