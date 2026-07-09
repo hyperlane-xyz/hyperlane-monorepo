@@ -148,6 +148,7 @@ export {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
+export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
 
 // Fee program
 export { SvmFeeArtifactManager } from './fee/fee-artifact-manager.js';

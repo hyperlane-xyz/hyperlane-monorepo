@@ -133,6 +133,7 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
       this.writerConfig.program,
       this.svmSigner,
       this.rpc,
+      true,
     );
 
     const strategyKind = feeStrategyTypeToKind(this.feeType);

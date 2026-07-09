@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from '@hyperlane-xyz/provider-sdk/warp';
+
 import {
   ZBigNumberish,
   ZBps,
@@ -55,9 +57,9 @@ export const onChainTypeToTokenFeeTypeMap: Record<
     TokenFeeType.OffchainQuotedLinearFee,
 };
 
-// keccak256("RoutingFee.DEFAULT_ROUTER")
-export const DEFAULT_ROUTER_KEY =
-  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
+// keccak256("RoutingFee.DEFAULT_ROUTER") — same wildcard slot as provider-sdk's
+// DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY; re-exported here to avoid duplication.
+export const DEFAULT_ROUTER_KEY = DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY;
 
 // ====== SHARED SCHEMAS ======
 
@@ -71,6 +73,7 @@ export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 // For input configs - token is NOT specified by user, resolved at deploy time based on token type
 export const BaseFeeConfigInputSchema = z.object({
   owner: ZHash,
+  beneficiary: ZHash.optional(),
 });
 
 export const FeeParametersSchema = z.object({

@@ -677,10 +677,23 @@ function convertCrossCollateralRoutersToDerived(
 // Fee Read Context Utilities
 
 /**
+ * `keccak256("RoutingFee.DEFAULT_ROUTER")` — wildcard target-router slot that
+ * cross-collateral routing fee programs may register under on every
+ * destination domain.
+ */
+export const DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY =
+  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
+
+/**
  * Builds a FeeReadContext by unioning domains/routers from the provided
  * WarpArtifactConfigs. Pass both expected and current configs so the fee
  * reader can discover routes from current state (for cleanup) and expected
  * state (for setup).
+ *
+ * `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` is automatically added to every discovered domain so
+ * CC routing fees configured under the wildcard slot are visible to the fee
+ * reader (those slots are never enumerated by `remoteRouters` /
+ * `crossCollateralRouters`).
  */
 export function buildFeeReadContextFromWarpArtifactConfig(
   ...configs: WarpArtifactConfig[]
@@ -691,7 +704,11 @@ export function buildFeeReadContextFromWarpArtifactConfig(
     for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
       const domain = Number(domainStr);
       const existing = knownRoutersPerDomain[domain] ?? new Set();
-      knownRoutersPerDomain[domain] = new Set([...existing, router.address]);
+      knownRoutersPerDomain[domain] = new Set([
+        ...existing,
+        router.address,
+        DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+      ]);
     }
 
     if (config.type === TokenType.crossCollateral) {
@@ -700,7 +717,11 @@ export function buildFeeReadContextFromWarpArtifactConfig(
       )) {
         const domain = Number(domainStr);
         const existing = knownRoutersPerDomain[domain] ?? new Set();
-        knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+        knownRoutersPerDomain[domain] = new Set([
+          ...existing,
+          ...routers,
+          DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+        ]);
       }
     }
   }

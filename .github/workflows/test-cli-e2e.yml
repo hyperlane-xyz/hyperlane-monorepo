@@ -548,6 +548,9 @@ jobs:
           - core-deploy
           - core-apply
           - warp-cross-collateral
+          - warp-fee
+          - warp-fee-apply
+          - warp-read
     steps:
       - uses: actions/checkout@v6
         with:

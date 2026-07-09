@@ -123,6 +123,7 @@ export class SvmOffchainQuotedLinearFeeWriter
       this.writerConfig.program,
       this.svmSigner,
       this.rpc,
+      true,
     );
 
     const resolved = resolveRawFeeParams(feeConfig.params);

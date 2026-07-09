@@ -50,6 +50,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
+import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
@@ -141,6 +142,9 @@ export function validateWarpConfigForAltVM(
     destinationGas: config.destinationGas,
     scale,
     contractVersion: config.contractVersion,
+    fee: config.tokenFee
+      ? tokenFeeInputToFeeConfig(config.tokenFee)
+      : undefined,
   };
 
   switch (config.type) {
