@@ -6,6 +6,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
+import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
@@ -17,8 +18,8 @@ import { getRebalancingBridgesConfigFor } from './utils.js';
 // OFT + Eclipse USDT bridge wiring (arbitrum/bsc/ethereum/polygon; base + katana have none).
 // EXTRA_REBALANCER is additionally permitted on every leg for staging.
 
-// Troy's personal deployer key for staging; to be transferred to the AW deployer later.
-const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
+// Owned by the shared Hyperlane deployer key (owners.ts DEPLOYER).
+const DEPLOYER_EVM = DEPLOYER;
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';

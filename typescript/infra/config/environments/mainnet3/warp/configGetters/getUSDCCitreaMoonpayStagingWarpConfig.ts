@@ -6,6 +6,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
+import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
@@ -25,9 +26,10 @@ import {
 // EXTRA_REBALANCER is additionally permitted on every EVM leg for staging (the Solana leg
 // has no rebalancer, matching prod).
 
-// Troy's personal deployer keys for staging; to be transferred to the AW deployer later.
-const DEPLOYER_EVM = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
-const DEPLOYER_SOLANA = 'D4jZ2sNktKgTrhWVMnjZb5BXP7MMh9N3y5ZLwkyKfozb';
+// Owned by the Hyperlane deployer key: EVM uses the shared DEPLOYER (owners.ts);
+// the Solana XO leg uses the mainnet3 sealevel deployer pubkey.
+const DEPLOYER_EVM = DEPLOYER;
+const DEPLOYER_SOLANA = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
