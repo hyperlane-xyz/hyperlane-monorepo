@@ -2,8 +2,6 @@ import {
   MailboxClient__factory,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
-
-import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
@@ -52,6 +50,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
+import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
