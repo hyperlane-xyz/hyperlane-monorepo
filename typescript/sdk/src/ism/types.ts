@@ -109,6 +109,7 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
   IsmType.RATE_LIMITED,
+  IsmType.BLACKLIST,
 ];
 
 /**
