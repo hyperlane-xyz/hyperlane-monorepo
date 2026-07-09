@@ -3,6 +3,7 @@ import { ethers, utils } from 'ethers';
 import {
   AbstractStorageMultisigIsm__factory,
   AmountRoutingIsm__factory,
+  BlacklistIsm__factory,
   CCIPIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
@@ -217,6 +218,8 @@ export async function moduleCanCertainlyVerify(
       case IsmType.TEST_ISM: {
         return true;
       }
+      case IsmType.BLACKLIST:
+        return true;
       default:
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
@@ -490,6 +493,26 @@ export async function moduleMatchesConfig(
         const onChainOwner = await rateLimitedIsm.owner();
         matches &&= eqAddress(onChainOwner, config.owner);
       }
+      break;
+    }
+    case IsmType.BLACKLIST: {
+      const blacklistIsm = BlacklistIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [owner, onChainIds] = await Promise.all([
+        blacklistIsm.owner(),
+        blacklistIsm.values(),
+      ]);
+      matches &&= eqAddress(owner, config.owner);
+      // Entries are append-only on-chain, so any on-chain ID missing from the
+      // config makes the config unreachable: require exact set equality.
+      const normalizeIds = (ids: readonly string[]) =>
+        [...new Set(ids.map((id) => id.toLowerCase()))].sort();
+      matches &&= deepEquals(
+        normalizeIds(onChainIds),
+        normalizeIds(config.blacklistedIds),
+      );
       break;
     }
     default: {

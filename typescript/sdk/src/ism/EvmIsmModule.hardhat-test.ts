@@ -3,7 +3,10 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+import {
+  BlacklistIsm__factory,
+  RateLimitedIsm__factory,
+} from '@hyperlane-xyz/core';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -24,6 +27,7 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  BlacklistIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
@@ -32,6 +36,9 @@ import {
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
+
+const randomBytes32 = () =>
+  hre.ethers.utils.hexlify(hre.ethers.utils.randomBytes(32));
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
@@ -198,6 +205,29 @@ describe('EvmIsmModule', async () => {
       expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
         owner.toLowerCase(),
       );
+    });
+
+    it('deploys a blacklist ism and transfers ownership to non-deployer', async () => {
+      const owner = randomAddress();
+      const blacklistedIds = [randomBytes32(), randomBytes32()];
+      const config: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds,
+      };
+
+      const { ism } = await createIsm(config);
+
+      const blacklistIsm = BlacklistIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await blacklistIsm.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+      for (const id of blacklistedIds) {
+        expect(await blacklistIsm.blacklistedIds(id)).to.be.true;
+      }
     });
 
     for (let i = 0; i < 16; i++) {
@@ -642,6 +672,63 @@ describe('EvmIsmModule', async () => {
         multiProvider.getProvider(chain),
       );
       expect((await rateLimitedIsm.DURATION()).toString()).to.equal('3600');
+    });
+
+    it('appends only the delta when adding blacklisted IDs', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const existingIds = [randomBytes32(), randomBytes32()];
+      const blacklistConfig: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: signerAddress,
+        blacklistedIds: [...existingIds],
+      };
+      const { ism, initialIsmAddress } = await createIsm(blacklistConfig);
+
+      const newId = randomBytes32();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      blacklistConfig.blacklistedIds = [...existingIds, newId];
+
+      // 1 tx blacklisting only the new ID
+      await expectTxsAndUpdate(ism, blacklistConfig, 1);
+
+      // same contract address — no redeploy
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const blacklistIsm = BlacklistIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect(await blacklistIsm.blacklistedIds(newId)).to.be.true;
+    });
+
+    it('redeploys a new ISM when a blacklisted ID is dropped (append-only)', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const idToKeep = randomBytes32();
+      const idToDrop = randomBytes32();
+      const blacklistConfig: BlacklistIsmConfig = {
+        type: IsmType.BLACKLIST,
+        owner: signerAddress,
+        blacklistedIds: [idToKeep, idToDrop],
+      };
+      const { ism, initialIsmAddress } = await createIsm(blacklistConfig);
+
+      // entries are append-only on-chain; dropping one must redeploy a fresh ISM
+      blacklistConfig.blacklistedIds = [idToKeep];
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, blacklistConfig, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const blacklistIsm = BlacklistIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect(await blacklistIsm.blacklistedIds(idToKeep)).to.be.true;
+      expect(await blacklistIsm.blacklistedIds(idToDrop)).to.be.false;
     });
   });
 });

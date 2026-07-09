@@ -326,6 +326,8 @@ export {
   SafeParseIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,
+  BlacklistIsmConfig,
+  BlacklistIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,

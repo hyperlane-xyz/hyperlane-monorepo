@@ -6,6 +6,7 @@ import {
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  BlacklistIsm__factory,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
@@ -266,7 +267,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         isms: await this.deriveRemoteIsmConfigs(
           domainIds,
           abstractRoutingIsm,
-          icaRouter.isms,
+          (domain) => icaRouter.isms(domain),
           // The isms here are deployed on remote chains and can't be derived
           false,
         ),
@@ -279,7 +280,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       await this.deriveRemoteIsmConfigs(
         domainIds,
         abstractRoutingIsm,
-        defaultFallbackIsmInstance.module,
+        (domain) => defaultFallbackIsmInstance.module(domain),
         true,
       );
 
@@ -370,7 +371,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         if (!chainName) {
           this.logger.warn(
-            `Unknown domain ID ${domainId}, skipping domain configuration`,
+            `Unknown domain ID ${domainId.toString()}, skipping domain configuration`,
           );
           return;
         }
@@ -605,6 +606,23 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
+        address,
+      );
+    }
+
+    const blacklistIsm = BlacklistIsm__factory.connect(address, this.provider);
+    try {
+      await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
+      const owner = await blacklistIsm.owner();
+      return {
+        address,
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds: await blacklistIsm.values(),
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "blacklistedIds" property, implying this is not a Blacklist ISM.',
         address,
       );
     }

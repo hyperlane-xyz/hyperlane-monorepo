@@ -19,6 +19,7 @@ import {
 
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  BlacklistIsmConfig,
   DomainRoutingIsmConfig,
   IsmType,
   MultisigIsmConfig,
@@ -107,6 +108,114 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  describe('blacklist ism', () => {
+    const randomBytes32 = () =>
+      hre.ethers.utils.hexlify(hre.ethers.utils.randomBytes(32));
+
+    function matchesConfig(
+      ismAddress: Address,
+      config: BlacklistIsmConfig,
+    ): Promise<boolean> {
+      return moduleMatchesConfig(
+        chain,
+        ismAddress,
+        config,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+    }
+
+    it('matches when config ids are permuted, case-shifted or duplicated', async () => {
+      const firstId = randomBytes32();
+      const secondId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId, secondId],
+        },
+      });
+
+      const matches = await matchesConfig(ism.address, {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds: [
+          `0x${secondId.slice(2).toUpperCase()}`,
+          firstId,
+          firstId,
+        ],
+      });
+
+      expect(matches).to.be.true;
+    });
+
+    it('does not match when the config adds an id', async () => {
+      const firstId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId],
+        },
+      });
+
+      const matches = await matchesConfig(ism.address, {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds: [firstId, randomBytes32()],
+      });
+
+      expect(matches).to.be.false;
+    });
+
+    it('does not match when an on-chain id is missing from the config (append-only)', async () => {
+      const firstId = randomBytes32();
+      const secondId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId, secondId],
+        },
+      });
+
+      const matches = await matchesConfig(ism.address, {
+        type: IsmType.BLACKLIST,
+        owner,
+        blacklistedIds: [firstId],
+      });
+
+      expect(matches).to.be.false;
+    });
+
+    it('does not match when the owner differs', async () => {
+      const firstId = randomBytes32();
+      const owner = await multiProvider.getSignerAddress(chain);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner,
+          blacklistedIds: [firstId],
+        },
+      });
+
+      const matches = await matchesConfig(ism.address, {
+        type: IsmType.BLACKLIST,
+        owner: randomAddress(),
+        blacklistedIds: [firstId],
+      });
+
+      expect(matches).to.be.false;
+    });
   });
 
   for (let i = 0; i < 16; i++) {
