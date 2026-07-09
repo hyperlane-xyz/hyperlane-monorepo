@@ -217,6 +217,19 @@ fn parse_chain(
                 })
                 .unwrap_or_default()
         });
+    let dynamic_block_intervals = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("dynamicBlockIntervals")
+        .parse_bool()
+        .unwrap_or(false);
+    // Off by default: idle-sleep stays the fixed 5s. When enabled, scale it to
+    // the chain's own block time instead, capped at 5s so slow chains are unaffected.
+    let idle_sleep_duration = if dynamic_block_intervals {
+        estimated_block_time.min(Duration::from_secs(5))
+    } else {
+        Duration::from_secs(5)
+    };
 
     let mailbox = chain
         .chain(&mut err)
@@ -363,6 +376,7 @@ fn parse_chain(
             from,
             chunk_size,
             mode,
+            idle_sleep_duration,
         },
         confirmations,
         chain_id,

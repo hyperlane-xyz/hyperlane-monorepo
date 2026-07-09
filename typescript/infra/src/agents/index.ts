@@ -139,6 +139,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
                   maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
                 }
               : {}),
+            ...(this.config.rawConfig.relayer?.dynamicBlockIntervals
+              ? { index: { dynamicBlockIntervals: true } }
+              : {}),
             priorityFeeOracle,
             transactionSubmitter,
             urReveal,

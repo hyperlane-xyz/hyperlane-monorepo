@@ -237,7 +237,7 @@ pub struct CoreContractAddresses {
 }
 
 /// Indexing settings
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
@@ -246,6 +246,22 @@ pub struct IndexSettings {
     pub chunk_size: u32,
     /// The indexing mode.
     pub mode: IndexMode,
+    /// How long a cursor sleeps when it's caught up and has nothing new to
+    /// index. Defaults to 5s. When `index.dynamicBlockIntervals` is enabled
+    /// in the chain config, this is `min(chain's estimateBlockTime, 5s)`
+    /// instead.
+    pub idle_sleep_duration: Duration,
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        Self {
+            from: 0,
+            chunk_size: 0,
+            mode: IndexMode::default(),
+            idle_sleep_duration: Duration::from_secs(5),
+        }
+    }
 }
 
 impl ChainConf {

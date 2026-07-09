@@ -252,6 +252,12 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
+        dynamicBlockIntervals: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, the idle poll interval scales with this chain’s estimateBlockTime (capped at 5s) instead of a fixed 5s. Defaults to false.',
+          ),
       })
       .optional(),
   })

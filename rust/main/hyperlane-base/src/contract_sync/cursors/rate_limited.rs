@@ -89,10 +89,12 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
     sync_state: SyncState,
     metrics: Arc<CursorMetrics>,
     domain: HyperlaneDomain,
+    idle_sleep_duration: Duration,
 }
 
 impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         indexer: Arc<dyn Indexer<T>>,
         metrics: Arc<CursorMetrics>,
@@ -101,6 +103,7 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         chunk_size: u32,
         initial_height: i64,
         watermark: Option<u32>,
+        idle_sleep_duration: Duration,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
 
@@ -140,6 +143,7 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
             ),
             metrics,
             domain: domain.to_owned(),
+            idle_sleep_duration,
         })
     }
 
@@ -226,8 +230,7 @@ where
         if let Some(range) = self.get_next_range().await? {
             return Ok((CursorAction::Query(range), eta));
         } else {
-            // TODO: Define the sleep time from interval flag
-            return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+            return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
         }
     }
 
@@ -403,6 +406,7 @@ pub(crate) mod test {
             chunk_size,
             initial_height,
             None,
+            Duration::from_secs(5),
         )
         .await
         .unwrap()
