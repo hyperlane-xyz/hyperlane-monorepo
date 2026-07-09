@@ -145,8 +145,10 @@ export enum WarpRouteIds {
   USDCCitreaMoonpaySTAGING = 'USDC/moonpay-staging',
   USDTCitreaMoonpaySTAGING = 'USDT/moonpay-staging',
   CROSSCitreaMoonpay = 'CROSS/moonpay',
-  // AtomicLocalRebalancingBridge (USDC-sourced) for the CROSS/moonpay-staging route
-  CROSSMoonpayStagingLocalBridge = 'CROSS/moonpay-staging-localbridge-usdc',
+  // AtomicLocalRebalancingBridge routes for CROSS/moonpay-staging (one per source
+  // direction; each bridge binds one immutable source router).
+  CROSSMoonpayStagingLocalBridgeUSDC = 'CROSS/moonpay-staging-localbridge-usdc',
+  CROSSMoonpayStagingLocalBridgeUSDT = 'CROSS/moonpay-staging-localbridge-usdt',
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
