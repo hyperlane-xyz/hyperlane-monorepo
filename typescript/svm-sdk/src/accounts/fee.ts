@@ -1,9 +1,6 @@
 import { type Address, getAddressDecoder } from '@solana/kit';
 
-import {
-  decodeAccountData,
-  decodeDiscriminatorPrefixed,
-} from '../codecs/account-data.js';
+import { decodeDiscriminatedAccount } from '../codecs/account-data.js';
 import type { ByteCursor } from '../codecs/binary.js';
 import {
   CC_ROUTE_DISCRIMINATOR,
@@ -47,14 +44,11 @@ export interface FeeAccountData {
 }
 
 export function decodeFeeAccount(raw: Uint8Array): FeeAccountData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(
-      cursor,
-      FEE_ACCT_DISCRIMINATOR,
-      decodeFeeAccountInner,
-    ),
+  return decodeDiscriminatedAccount(
+    raw,
+    FEE_ACCT_DISCRIMINATOR,
+    decodeFeeAccountInner,
   );
-  return wrapped.data;
 }
 
 // ====== Internal decoders ======
@@ -126,14 +120,11 @@ export interface RouteDomainData {
 }
 
 export function decodeRouteDomain(raw: Uint8Array): RouteDomainData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(cursor, ROUTEDOM_DISCRIMINATOR, (c) => ({
-      bumpSeed: c.readU8(),
-      feeData: decodeFeeDataStrategy(c),
-      signers: readOptionSigners(c),
-    })),
-  );
-  return wrapped.data;
+  return decodeDiscriminatedAccount(raw, ROUTEDOM_DISCRIMINATOR, (c) => ({
+    bumpSeed: c.readU8(),
+    feeData: decodeFeeDataStrategy(c),
+    signers: readOptionSigners(c),
+  }));
 }
 
 // ====== Cross-Collateral Route ======
@@ -147,14 +138,11 @@ export interface CrossCollateralRouteData {
 export function decodeCrossCollateralRoute(
   raw: Uint8Array,
 ): CrossCollateralRouteData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(cursor, CC_ROUTE_DISCRIMINATOR, (c) => ({
-      bumpSeed: c.readU8(),
-      feeData: decodeFeeDataStrategy(c),
-      signers: readOptionSigners(c),
-    })),
-  );
-  return wrapped.data;
+  return decodeDiscriminatedAccount(raw, CC_ROUTE_DISCRIMINATOR, (c) => ({
+    bumpSeed: c.readU8(),
+    feeData: decodeFeeDataStrategy(c),
+    signers: readOptionSigners(c),
+  }));
 }
 
 // ====== Standing Quote ======
@@ -173,13 +161,10 @@ export interface StandingQuotePdaData {
 export function decodeStandingQuotePda(
   raw: Uint8Array,
 ): StandingQuotePdaData | null {
-  const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(cursor, STDQUOTE_DISCRIMINATOR, (c) => ({
-      bumpSeed: c.readU8(),
-      quotes: decodeMapH256StandingQuoteEntry(c),
-    })),
-  );
-  return wrapped.data;
+  return decodeDiscriminatedAccount(raw, STDQUOTE_DISCRIMINATOR, (c) => ({
+    bumpSeed: c.readU8(),
+    quotes: decodeMapH256StandingQuoteEntry(c),
+  }));
 }
 
 // ====== Internal helpers ======

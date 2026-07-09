@@ -32,3 +32,13 @@ export function decodeDiscriminatorPrefixed<T>(
   }
   return decodeInner(cursor);
 }
+
+export function decodeDiscriminatedAccount<T>(
+  raw: Uint8Array,
+  discriminator: Uint8Array,
+  inner: (cursor: ByteCursor) => T,
+): T | null {
+  return decodeAccountData(raw, (cursor) =>
+    decodeDiscriminatorPrefixed(cursor, discriminator, inner),
+  ).data;
+}
