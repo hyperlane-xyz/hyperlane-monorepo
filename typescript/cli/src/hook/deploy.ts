@@ -7,11 +7,9 @@ import {
   EvmHookModule,
   ExplorerLicenseType,
   type HookConfig,
-  HookConfigSchema,
   HookType,
   altVmChainLookup,
   extractIsmAndHookFactoryAddresses,
-  isHookCompatible,
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
 
@@ -24,7 +22,9 @@ import {
   runPreflightChecksForChains,
 } from '../deploy/utils.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
-import { readYamlOrJson, writeFileAtPath } from '../utils/files.js';
+import { writeFileAtPath } from '../utils/files.js';
+
+import { validateAndParseHookConfig } from './config.js';
 
 const UNSUPPORTED_BY_DEPLOY_COMMAND = new Set<string>([
   HookType.RATE_LIMITED,
@@ -74,22 +74,12 @@ export async function runHookDeploy({
 
   const { multiProvider, registry, skipConfirmation, chainMetadata } = context;
 
-  // Read and validate hook config
-  const rawConfig = await readYamlOrJson(configPath);
-  const parseResult = HookConfigSchema.safeParse(rawConfig);
-  if (!parseResult.success) {
-    const firstIssue = parseResult.error.issues[0];
-    throw new Error(
-      `Invalid Hook config: ${firstIssue.path.join('.')} => ${firstIssue.message}`,
-    );
-  }
-  const hookConfig: HookConfig = parseResult.data;
-
-  // Validate that config is not just an address
-  assert(
-    typeof hookConfig !== 'string',
-    'Hook config must be an object, not an address string',
-  );
+  const { hookConfig, chainAddresses } = await validateAndParseHookConfig({
+    configPath,
+    chain,
+    multiProvider,
+    registry,
+  });
 
   for (const type of collectHookTypes(hookConfig)) {
     assert(
@@ -97,21 +87,6 @@ export async function runHookDeploy({
       `Hook type ${type} is not supported by 'hook deploy': it requires additional chain or contract context not wired up by this command`,
     );
   }
-
-  // Validate hook compatibility with chain technical stack
-  const { technicalStack } = multiProvider.getChainMetadata(chain);
-  assert(
-    isHookCompatible({
-      hookType: hookConfig.type,
-      chainTechnicalStack: technicalStack,
-    }),
-    `Hook type ${hookConfig.type} is not compatible with chain ${chain} (technical stack: ${technicalStack})`,
-  );
-
-  // Get registry addresses for the chain
-  const chainAddresses = await registry.getChainAddresses(chain);
-  assert(chainAddresses, `No registry addresses found for chain ${chain}`);
-  assert(chainAddresses.mailbox, `No mailbox address found for chain ${chain}`);
 
   // Request API keys for contract verification (unless skipping confirmation)
   let apiKeys: Record<string, string> = {};
