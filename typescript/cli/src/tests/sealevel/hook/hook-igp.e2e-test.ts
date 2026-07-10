@@ -34,6 +34,9 @@ const HOOK_DEPLOY_CONFIG_PATH = `${TEMP_PATH}/${CHAIN}/igp-hook-deploy.yaml`;
 const HOOK_DEPLOY_OUT_PATH = `${TEMP_PATH}/${CHAIN}/igp-hook-deployed.json`;
 const HOOK_READ_OUT_PATH = `${TEMP_PATH}/${CHAIN}/igp-hook-read.yaml`;
 const HOOK_APPLY_CONFIG_PATH = `${TEMP_PATH}/${CHAIN}/igp-hook-apply.yaml`;
+const HOOK_UNSUPPORTED_CONFIG_PATH = `${TEMP_PATH}/${CHAIN}/hook-unsupported-config.yaml`;
+const HOOK_INVALID_CONFIG_PATH = `${TEMP_PATH}/${CHAIN}/hook-invalid-config.yaml`;
+const HOOK_NEGATIVE_OUT_PATH = `${TEMP_PATH}/${CHAIN}/hook-negative-out.json`;
 
 describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
   this.timeout(SVM_DEPLOY_TIMEOUT);
@@ -114,5 +117,35 @@ describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
     expect(
       new Set((read.quoteSigners ?? []).map(normalizeAddressEvm)),
     ).to.deep.equal(new Set([SIGNER_A, SIGNER_B].map(normalizeAddressEvm)));
+  });
+
+  it('rejects a hook type unsupported on Alt-VM chains', async () => {
+    writeYamlOrJson(HOOK_UNSUPPORTED_CONFIG_PATH, {
+      type: HookType.AGGREGATION,
+      hooks: [{ type: HookType.MERKLE_TREE }],
+    });
+
+    const output = await hyperlaneHook
+      .deploy(HYP_KEY, HOOK_UNSUPPORTED_CONFIG_PATH, HOOK_NEGATIVE_OUT_PATH)
+      .nothrow();
+
+    expect(output.exitCode).to.not.equal(0);
+    expect(`${output.stdout}${output.stderr}`).to.include(
+      'is not supported on Alt-VM chain',
+    );
+  });
+
+  it('rejects a malformed hook config', async () => {
+    // protocolFee requires maxProtocolFee / protocolFee / beneficiary / owner.
+    writeYamlOrJson(HOOK_INVALID_CONFIG_PATH, { type: HookType.PROTOCOL_FEE });
+
+    const output = await hyperlaneHook
+      .deploy(HYP_KEY, HOOK_INVALID_CONFIG_PATH, HOOK_NEGATIVE_OUT_PATH)
+      .nothrow();
+
+    expect(output.exitCode).to.not.equal(0);
+    expect(`${output.stdout}${output.stderr}`).to.include(
+      'Invalid hook config',
+    );
   });
 });
