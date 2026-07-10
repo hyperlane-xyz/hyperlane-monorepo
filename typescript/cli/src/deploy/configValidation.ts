@@ -74,7 +74,7 @@ export function validateHookConfigForAltVM(
         `Supported types: ${[...ALT_VM_SUPPORTED_HOOK_TYPES].join(', ')}`,
     );
   }
-  // Type assertion is safe here because we've validated the type discriminator
-  // and provider-sdk hook types are a subset of SDK hook types.
+  // CAST: safe because the type discriminator was validated above and
+  // provider-sdk hook types are a subset of SDK hook types.
   return config as ProviderHookConfig;
 }
