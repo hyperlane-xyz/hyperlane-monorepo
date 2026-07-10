@@ -136,9 +136,12 @@ export class SvmCrossCollateralTokenAltReader extends SvmTokenAltReaderBase<Cros
         igpProgramId,
         DEFAULT_IGP_SALT,
       );
-      const enrolledDomains = Object.keys(deployed.config.remoteRouters).map(
-        Number,
-      );
+      const enrolledDomains = [
+        ...new Set([
+          ...Object.keys(deployed.config.remoteRouters),
+          ...Object.keys(deployed.config.crossCollateralRouters),
+        ]),
+      ].map(Number);
 
       const igpCascade = await deriveIgpQuoteCascadeAltAddresses({
         igpProgram: igpProgramId,

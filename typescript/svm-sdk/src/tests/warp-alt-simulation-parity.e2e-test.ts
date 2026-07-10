@@ -3,6 +3,7 @@ import { address, type Address, generateKeyPairSigner } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -42,8 +43,14 @@ import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
 } from '../instructions/token.js';
+import { WILDCARD_SENDER } from '../codecs/igp.js';
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
-import { deriveAssociatedTokenAddress, deriveIgpAccountPda } from '../pda.js';
+import {
+  deriveAssociatedTokenAddress,
+  deriveIgpAccountPda,
+  deriveIgpStandingQuotePda,
+} from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { ethAddressHexFromPrivateKey } from '../testing/quote-signer.js';
@@ -60,6 +67,14 @@ const TEST_PRIVATE_KEY =
 
 const DOMAIN_LOCAL = 1;
 const DOMAIN_REMOTE = 99;
+// A cross-collateral-only destination: present in crossCollateralRouters but
+// absent from remoteRouters. Its per-domain IGP standing quotes must still be
+// covered by the ALT.
+const DOMAIN_CC_ONLY = 77;
+const CC_ONLY_ROUTER = new Uint8Array(32).fill(0xcd);
+const CC_ONLY_ROUTER_HEX = `0x${Array.from(CC_ONLY_ROUTER)
+  .map((b) => b.toString(16).padStart(2, '0'))
+  .join('')}`;
 const REMOTE_ROUTER = new Uint8Array(32).fill(0xab);
 const REMOTE_ROUTER_HEX = `0x${Array.from(REMOTE_ROUTER)
   .map((b) => b.toString(16).padStart(2, '0'))
@@ -206,7 +221,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       secp256k1.utils.randomSecretKey(),
     );
     igpConfig = {
-      type: 'interchainGasPaymaster',
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
       owner: signer.getSignerAddress(),
       beneficiary: signer.getSignerAddress(),
       oracleKey: signer.getSignerAddress(),
@@ -529,4 +544,73 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
       ).to.have.length(0);
     });
   }
+
+  it('covers IGP standing quotes for cross-collateral-only destination domains', async () => {
+    // DOMAIN_CC_ONLY lives only in crossCollateralRouters, never in
+    // remoteRouters — the case where the two domain sets diverge. Its IGP
+    // standing-quote PDAs must still land in the ALT.
+    const expandedWarp: ArtifactDeployed<
+      CrossCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: TokenType.crossCollateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        remoteRouters: {
+          [DOMAIN_REMOTE]: { address: REMOTE_ROUTER_HEX },
+        },
+        destinationGas: { [DOMAIN_REMOTE]: REMOTE_GAS.toString() },
+        crossCollateralRouters: {
+          [DOMAIN_REMOTE]: new Set([REMOTE_ROUTER_HEX]),
+          [DOMAIN_CC_ONLY]: new Set([CC_ONLY_ROUTER_HEX]),
+        },
+        fee: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: ccRoutingFee.config,
+          deployed: { address: ccRoutingFee.programId },
+        },
+        hook: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: igpConfig,
+          deployed: { address: igpProgramId },
+        },
+      },
+      deployed: { address: warpProgramId },
+    };
+
+    const altReader = createWarpAltReader(TEST_SVM_CHAIN_METADATA);
+    const reader = altReader.createReader(TokenType.crossCollateral);
+    const warpSpecific = await reader.deriveWarpRouteAddresses(expandedWarp);
+    const altSet = new Set<string>(warpSpecific.map((entry) => entry.address));
+
+    // The IGP cascade emits, per enrolled domain, (domain, sender) and
+    // (domain, WILDCARD_SENDER) standing-quote PDAs against the native
+    // sentinel mint. Assert both for DOMAIN_CC_ONLY.
+    const perDest = await deriveIgpStandingQuotePda(
+      igpProgramId,
+      igpAccountPda,
+      SYSTEM_PROGRAM_ADDRESS,
+      DOMAIN_CC_ONLY,
+      warpProgramId,
+    );
+    const perDestWildcardSender = await deriveIgpStandingQuotePda(
+      igpProgramId,
+      igpAccountPda,
+      SYSTEM_PROGRAM_ADDRESS,
+      DOMAIN_CC_ONLY,
+      WILDCARD_SENDER,
+    );
+
+    expect(altSet.has(perDest.address)).to.equal(
+      true,
+      `ALT missing IGP standing quote for CC-only domain ${DOMAIN_CC_ONLY} (sender=self)`,
+    );
+    expect(altSet.has(perDestWildcardSender.address)).to.equal(
+      true,
+      `ALT missing IGP standing quote for CC-only domain ${DOMAIN_CC_ONLY} (sender=wildcard)`,
+    );
+  });
 });
