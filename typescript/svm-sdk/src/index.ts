@@ -138,6 +138,7 @@ export {
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
+  deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
   deriveIgpTransientQuotePda,
   deriveOverheadIgpAccountPda,

@@ -67,8 +67,8 @@ import {
   deriveIgpAccountPda,
   deriveIgpGasPaymentPda,
   deriveIgpProgramDataPda,
+  deriveIgpQuoteAuthorityPda,
   deriveIgpTransientQuotePda,
-  deriveMailboxDispatchAuthorityPda,
   deriveMailboxDispatchedMessagePda,
   deriveMailboxOutboxPda,
   deriveNativeCollateralPda,
@@ -723,9 +723,8 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
 
     // ---- Compose [SubmitFeeQuote, SubmitIgpQuote, TransferRemote] ----
     const uniqueMessageAccount = await generateKeyPairSigner();
-    const warpDispatchAuthority = (
-      await deriveMailboxDispatchAuthorityPda(warpProgramId)
-    ).address;
+    const igpQuoteAuthority = (await deriveIgpQuoteAuthorityPda(warpProgramId))
+      .address;
     const gasPaymentPda = (
       await deriveIgpGasPaymentPda(
         TEST_PROGRAM_IDS.igp,
@@ -766,7 +765,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         igpAccount: overheadIgpAccount,
         innerIgp: igpAccount,
         quoted: {
-          senderAuthority: warpDispatchAuthority,
+          senderAuthority: igpQuoteAuthority,
           senderProgramId: warpProgramId,
           cascadeQuotePdas: igpQuote.cascadeQuotePdas,
         },
@@ -799,7 +798,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           TEST_PROGRAM_IDS.mailbox,
           (await deriveMailboxOutboxPda(TEST_PROGRAM_IDS.mailbox)).address,
           (await deriveHyperlaneTokenPda(warpProgramId)).address,
-          warpDispatchAuthority,
+          igpQuoteAuthority,
           TEST_PROGRAM_IDS.igp,
           igpProgramData,
           igpAccount,
@@ -1034,12 +1033,12 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
 
     // ---- Compose [SubmitFeeQuote, SubmitIgpQuote, TransferRemoteTo] ----
     const uniqueMessageAccount = await generateKeyPairSigner();
-    // CC transfer_remote_to_remote uses the mailbox dispatch authority PDA
-    // (the same one used by the regular transfer_remote), NOT the CC dispatch
-    // authority — that one is only consumed on the local HandleLocal path.
-    const warpDispatchAuthority = (
-      await deriveMailboxDispatchAuthorityPda(warpProgramId)
-    ).address;
+    // Quoted-IGP requires the route's dedicated igp_quote_authority PDA as the
+    // sender_authority — distinct from both the mailbox dispatch authority and
+    // the CC dispatch authority (the latter is only consumed on the local
+    // HandleLocal path).
+    const igpQuoteAuthority = (await deriveIgpQuoteAuthorityPda(warpProgramId))
+      .address;
     const gasPaymentPda = (
       await deriveIgpGasPaymentPda(
         TEST_PROGRAM_IDS.igp,
@@ -1082,7 +1081,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           igpAccount: overheadIgpAccount,
           innerIgp: igpAccount,
           quoted: {
-            senderAuthority: warpDispatchAuthority,
+            senderAuthority: igpQuoteAuthority,
             senderProgramId: warpProgramId,
             cascadeQuotePdas: igpQuote.cascadeQuotePdas,
           },
@@ -1120,7 +1119,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           (await deriveMailboxOutboxPda(TEST_PROGRAM_IDS.mailbox)).address,
           (await deriveHyperlaneTokenPda(warpProgramId)).address,
           (await deriveCrossCollateralStatePda(warpProgramId)).address,
-          warpDispatchAuthority,
+          igpQuoteAuthority,
           TEST_PROGRAM_IDS.igp,
           igpProgramData,
           igpAccount,

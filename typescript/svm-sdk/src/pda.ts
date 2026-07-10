@@ -84,6 +84,16 @@ export async function deriveMailboxDispatchAuthorityPda(
   ]);
 }
 
+export async function deriveIgpQuoteAuthorityPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_dispatcher'),
+    utf8.encode('-'),
+    utf8.encode('igp_quote_authority'),
+  ]);
+}
+
 export async function deriveMailboxInboxPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

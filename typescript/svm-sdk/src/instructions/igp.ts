@@ -569,7 +569,7 @@ export async function getGetIgpQuoteAccountMetasInstruction(
  *   [3] unique gas-payment account
  *   [4] gas-payment PDA (== deriveIgpGasPaymentPda(igpAccount, slot[3]))
  *   [5] configured IGP (`Igp` or `OverheadIgp`)
- *   [6] dispatch authority
+ *   [6] sender_authority (the route's IGP quote authority PDA)
  *   [7] quoted sender (== `input.sender`, the warp program id)
  *   [8..] cascade route accounts
  *
