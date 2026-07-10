@@ -319,36 +319,26 @@ export class SvmIgpHookWriter
 
     if (!isNullish(config.quoteSigners)) {
       const ownerAddress = this.svmSigner.signer.address;
+      // Deployer just deployed the program and is funded, so probe strictly
+      // with it as payer; infra failures propagate as themselves.
       const contractVersion = await queryProgramVersion(
         this.rpc,
         programId,
         ownerAddress,
       );
-      assert(
-        supportsFeeConfig(contractVersion),
-        `Cannot initialize IGP ${programId} fee config: program version ${contractVersion ?? 'pre-PackageVersioned'} does not support fee config.`,
-      );
 
-      const initFeeConfigIx = await getSetIgpQuoteConfigInstruction(
+      const feeConfigTxs = await computeIgpFeeConfigUpdate({
         programId,
-        ownerAddress,
         igpPda,
-        { signers: [], domainId: this.config.domainId, minIssuedAt: 0n },
-      );
-      receipts.push(
-        await this.svmSigner.send({ instructions: [initFeeConfigIx] }),
-      );
-
-      for (const signer of config.quoteSigners) {
-        const addSignerIx = await getSetIgpQuoteSignerInstruction(
-          programId,
-          ownerAddress,
-          igpPda,
-          SetQuoteSignerOp.Add,
-          signer,
-        );
+        ownerAddress,
+        domainId: this.config.domainId,
+        expectedQuoteSigners: config.quoteSigners,
+        currentFeeConfig: undefined,
+        effectiveContractVersion: contractVersion ?? undefined,
+      });
+      for (const tx of feeConfigTxs) {
         receipts.push(
-          await this.svmSigner.send({ instructions: [addSignerIx] }),
+          await this.svmSigner.send({ instructions: tx.instructions }),
         );
       }
     }
@@ -401,6 +391,28 @@ export class SvmIgpHookWriter
         : undefined;
     }
 
+    // Gate against the version the fee-config txs will execute under:
+    // post-upgrade when an upgrade is queued earlier in this batch,
+    // current on-chain version otherwise.
+    // If the queued upgrade tx fails at submit time, the fee-config txs
+    // in the same batch fail on-chain with a "version does not support
+    // fee config" error rather than surfacing in the pre-submit diff.
+    let effectiveContractVersion =
+      upgradingToVersion ?? current.config.contractVersion;
+    // The read-path probe collapses infra failures into null. When
+    // fee-config txs are requested and no version is known, re-probe with
+    // allowFailure disabled so an RPC failure surfaces as itself instead
+    // of a misleading "does not support fee config" error.
+    if (
+      !isNullish(config.quoteSigners) &&
+      isNullish(effectiveContractVersion)
+    ) {
+      effectiveContractVersion =
+        (await fetchIgpProgramVersion(this.rpc, programId, ownerAddress, {
+          allowFailure: false,
+        })) ?? undefined;
+    }
+
     txs.push(
       ...(await computeIgpFeeConfigUpdate({
         programId,
@@ -409,14 +421,7 @@ export class SvmIgpHookWriter
         domainId: this.config.domainId,
         expectedQuoteSigners: config.quoteSigners,
         currentFeeConfig: current.deployed.feeConfig,
-        // Gate against the version the fee-config txs will execute under:
-        // post-upgrade when an upgrade is queued earlier in this batch,
-        // current on-chain version otherwise.
-        // If the queued upgrade tx fails at submit time, the fee-config txs
-        // in the same batch fail on-chain with a "version does not support
-        // fee config" error rather than surfacing in the pre-submit diff.
-        effectiveContractVersion:
-          upgradingToVersion ?? current.config.contractVersion,
+        effectiveContractVersion,
       })),
     );
 
