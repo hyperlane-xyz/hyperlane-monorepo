@@ -412,6 +412,9 @@ export class SvmIgpHookWriter
         // Gate against the version the fee-config txs will execute under:
         // post-upgrade when an upgrade is queued earlier in this batch,
         // current on-chain version otherwise.
+        // If the queued upgrade tx fails at submit time, the fee-config txs
+        // in the same batch fail on-chain with a "version does not support
+        // fee config" error rather than surfacing in the pre-submit diff.
         effectiveContractVersion:
           upgradingToVersion ?? current.config.contractVersion,
       })),
