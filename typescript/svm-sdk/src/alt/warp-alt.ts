@@ -36,6 +36,7 @@ import {
   deriveFeeAccountPda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
+  deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
   deriveMailboxOutboxPda,
   deriveOverheadIgpAccountPda,
@@ -323,11 +324,14 @@ async function deriveCrossCollateralFeeCascade(args: {
 }
 
 /**
- * Derives the per-destination IGP-quote cascade PDAs the on-chain
- * IGP `QuoteGasPayment` handler reads through. Mirrors the on-chain
- * standing-quote lookup: per-destination + per-sender, plus the
- * domain-wildcard PDA for the same sender, plus the fully-wildcard PDA
- * (domain + sender both wildcards) that any sender falls back to.
+ * Derives the IGP-quote cascade PDAs the on-chain IGP standing-quote
+ * lookup reads through. Per enrolled domain the on-chain read set is
+ * (domain, sender) then (domain, WILDCARD_SENDER); domain-independent it
+ * falls back to (WILDCARD_DOMAIN, sender). The fully-wildcard PDA
+ * (WILDCARD_DOMAIN, WILDCARD_SENDER) is never read and is rejected at
+ * init, so it is omitted. The IGP quote authority PDA (derived from the
+ * warp program id) is the `sender_authority` account the quoted-IGP
+ * `transfer_remote` requires.
  *
  * `feeTokenMint` is the IGP fee-token mint configured on chain.
  * Picked by the caller per warp type:
@@ -372,6 +376,20 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
           `igp.standing_quote(mint=${mintLabel}, domain=${domain}, sender=self)`,
         ),
       );
+
+      const perDestWildcardSender = await deriveIgpStandingQuotePda(
+        igpProgram,
+        igpAccount,
+        mint,
+        domain,
+        WILDCARD_SENDER,
+      );
+      out.push(
+        annotate(
+          perDestWildcardSender.address,
+          `igp.standing_quote(mint=${mintLabel}, domain=${domain}, sender=wildcard)`,
+        ),
+      );
     }
 
     const perSenderWildcard = await deriveIgpStandingQuotePda(
@@ -387,21 +405,12 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
         `igp.standing_quote(mint=${mintLabel}, domain=wildcard, sender=self)`,
       ),
     );
-
-    const fullyWildcard = await deriveIgpStandingQuotePda(
-      igpProgram,
-      igpAccount,
-      mint,
-      WILDCARD_DOMAIN,
-      WILDCARD_SENDER,
-    );
-    out.push(
-      annotate(
-        fullyWildcard.address,
-        `igp.standing_quote(mint=${mintLabel}, domain=wildcard, sender=wildcard)`,
-      ),
-    );
   }
+
+  const quoteAuthority = await deriveIgpQuoteAuthorityPda(sender);
+  out.push(
+    annotate(quoteAuthority.address, 'igp.quote_authority(sender=self)'),
+  );
 
   return canonicalize(out);
 }

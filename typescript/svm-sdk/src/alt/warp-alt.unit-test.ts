@@ -25,6 +25,7 @@ import {
   deriveFeeAccountPda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
+  deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
   deriveMailboxOutboxPda,
   deriveOverheadIgpAccountPda,
@@ -496,7 +497,7 @@ const SENDER_B: Address = address(
 );
 
 describe('deriveIgpQuoteCascadeAltAddresses', () => {
-  it('returns just the per-sender wildcard + fully wildcard when no domains are enrolled and mint is native', async () => {
+  it('returns just the per-sender wildcard + quote authority when no domains are enrolled and mint is native', async () => {
     const perSenderWildcard = await deriveIgpStandingQuotePda(
       IGP_PROGRAM,
       IGP_ACCOUNT,
@@ -504,13 +505,7 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       WILDCARD_DOMAIN,
       SENDER_A,
     );
-    const fullyWildcard = await deriveIgpStandingQuotePda(
-      IGP_PROGRAM,
-      IGP_ACCOUNT,
-      SYSTEM_PROGRAM_ADDRESS,
-      WILDCARD_DOMAIN,
-      WILDCARD_SENDER,
-    );
+    const quoteAuthority = await deriveIgpQuoteAuthorityPda(SENDER_A);
 
     const result = await deriveIgpQuoteCascadeAltAddresses({
       igpProgram: IGP_PROGRAM,
@@ -521,7 +516,7 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
     });
 
     expect(new Set(addressesOf(result))).to.deep.equal(
-      new Set([perSenderWildcard.address, fullyWildcard.address]),
+      new Set([perSenderWildcard.address, quoteAuthority.address]),
     );
     expect(result).to.have.lengthOf(2);
 
@@ -529,8 +524,8 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
     expect(byAddress.get(perSenderWildcard.address)).to.equal(
       'igp.standing_quote(mint=native, domain=wildcard, sender=self)',
     );
-    expect(byAddress.get(fullyWildcard.address)).to.equal(
-      'igp.standing_quote(mint=native, domain=wildcard, sender=wildcard)',
+    expect(byAddress.get(quoteAuthority.address)).to.equal(
+      'igp.quote_authority(sender=self)',
     );
   });
 
@@ -543,8 +538,8 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       enrolledDomains: [10, 20],
     });
 
-    // 2 per-D + 1 per-sender-wildcard + 1 fully-wildcard = 4
-    expect(result).to.have.lengthOf(4);
+    // (2 per-D × 2 domains) + 1 per-sender-wildcard + 1 quote-authority = 6
+    expect(result).to.have.lengthOf(6);
   });
 
   it('non-native mint: emits cascades for BOTH the configured mint AND the native sentinel', async () => {
@@ -556,8 +551,8 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       enrolledDomains: [10, 20],
     });
 
-    // 2 mints × (2 per-D + 1 per-sender-wildcard + 1 fully-wildcard) = 8
-    expect(result).to.have.lengthOf(8);
+    // 2 mints × ((2 per-D × 2 domains) + 1 per-sender-wildcard) + 1 quote-authority = 11
+    expect(result).to.have.lengthOf(11);
 
     // Spot-check: a per-D pda exists under each mint.
     const perD10Native = await deriveIgpStandingQuotePda(
@@ -574,9 +569,19 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       10,
       SENDER_A,
     );
+    const perD10WildcardSenderNative = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      SYSTEM_PROGRAM_ADDRESS,
+      10,
+      WILDCARD_SENDER,
+    );
+    const quoteAuthority = await deriveIgpQuoteAuthorityPda(SENDER_A);
     expect(addressesOf(result)).to.include.members([
       perD10Native.address,
       perD10Mint.address,
+      perD10WildcardSenderNative.address,
+      quoteAuthority.address,
     ]);
 
     const byAddress = new Map(result.map((e) => [e.address, e.description]));
@@ -585,6 +590,12 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
     );
     expect(byAddress.get(perD10Mint.address)).to.equal(
       `igp.standing_quote(mint=${NON_NATIVE_MINT}, domain=10, sender=self)`,
+    );
+    expect(byAddress.get(perD10WildcardSenderNative.address)).to.equal(
+      'igp.standing_quote(mint=native, domain=10, sender=wildcard)',
+    );
+    expect(byAddress.get(quoteAuthority.address)).to.equal(
+      'igp.quote_authority(sender=self)',
     );
   });
 
@@ -602,7 +613,7 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
     expect(new Set(addresses).size).to.equal(addresses.length);
   });
 
-  it('different senders produce disjoint per-destination + per-sender-wildcard entries; fully-wildcard pdas stay stable', async () => {
+  it('different senders produce disjoint per-destination + per-sender-wildcard + quote-authority entries; wildcard-sender pdas stay stable', async () => {
     const aResult = await deriveIgpQuoteCascadeAltAddresses({
       igpProgram: IGP_PROGRAM,
       igpAccount: IGP_ACCOUNT,
@@ -618,25 +629,25 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       enrolledDomains: [10],
     });
 
-    const fullyWildcard = await deriveIgpStandingQuotePda(
+    const perD10WildcardSender = await deriveIgpStandingQuotePda(
       IGP_PROGRAM,
       IGP_ACCOUNT,
       SYSTEM_PROGRAM_ADDRESS,
-      WILDCARD_DOMAIN,
+      10,
       WILDCARD_SENDER,
     );
 
     const aAddresses = addressesOf(aResult);
     const bAddresses = addressesOf(bResult);
-    expect(aAddresses).to.include(fullyWildcard.address);
-    expect(bAddresses).to.include(fullyWildcard.address);
+    expect(aAddresses).to.include(perD10WildcardSender.address);
+    expect(bAddresses).to.include(perD10WildcardSender.address);
 
     const aOnly = aAddresses.filter((addr) => !bAddresses.includes(addr));
     const bOnly = bAddresses.filter((addr) => !aAddresses.includes(addr));
 
-    // sender-A's per-D10 + per-sender-wildcard differ from sender-B's
-    expect(aOnly).to.have.lengthOf(2);
-    expect(bOnly).to.have.lengthOf(2);
+    // sender-A's per-D10-self + per-sender-wildcard + quote-authority differ from sender-B's
+    expect(aOnly).to.have.lengthOf(3);
+    expect(bOnly).to.have.lengthOf(3);
   });
 });
 
