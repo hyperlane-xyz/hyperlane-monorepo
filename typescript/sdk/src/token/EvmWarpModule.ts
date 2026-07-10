@@ -87,6 +87,7 @@ import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  CrossCollateralTokenConfig,
   DerivedTokenRouterConfig,
   EverclearCollateralTokenConfig,
   HypTokenRouterConfig,
@@ -151,6 +152,16 @@ export type WarpUpdateResult = {
   ownershipTxs: AnnotatedEV5Transaction[];
 };
 
+const getRebalanceTargetsByDomain = (
+  rebalanceTargetsByDomain: NonNullable<
+    CrossCollateralTokenConfig['rebalanceTargets']
+  >,
+): Record<string, Set<Address>> => {
+  return objMap(
+    rebalanceTargetsByDomain,
+    (_domainId, targets) => new Set(targets.map(normalizeAddressEvm)),
+  );
+};
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -313,6 +324,8 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      ...this.createAddRebalanceTargetsUpdateTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRebalanceTargetsTxs(actualConfig, expectedConfig),
       ...(await this.createRevokeStaleBridgeAllowancesTxs(
         actualConfig,
         expectedConfig,
@@ -886,6 +899,99 @@ export class EvmWarpModule extends HyperlaneModule<
           };
         });
       },
+    );
+  }
+
+  createAddRebalanceTargetsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.rebalanceTargets) {
+      return [];
+    }
+
+    const actualTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceTargets ?? {},
+      ),
+    );
+    const expectedTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.rebalanceTargets,
+      ),
+    );
+
+    const targetsToAddByDomain = objMap(expectedTargets, (domain, targets) => {
+      const actual = actualTargets[domain] ?? new Set();
+      return Array.from(difference(targets, actual));
+    });
+
+    return Object.entries(targetsToAddByDomain).flatMap(([domain, toAdd]) =>
+      toAdd.map((target) => ({
+        chainId: this.chainId,
+        annotation: `Adding rebalance target "${target}" for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'addRebalanceTarget(uint32,bytes32)',
+          [domain, addressToBytes32(target)],
+        ),
+      })),
+    );
+  }
+
+  createRemoveRebalanceTargetsTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.rebalanceTargets) {
+      return [];
+    }
+
+    const actualTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.rebalanceTargets ?? {},
+      ),
+    );
+    const expectedTargets = getRebalanceTargetsByDomain(
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.rebalanceTargets,
+      ),
+    );
+
+    const targetsToRemoveByDomain = objMap(actualTargets, (domain, targets) => {
+      const expected = expectedTargets[domain] ?? new Set();
+      return Array.from(difference(targets, expected));
+    });
+
+    return Object.entries(targetsToRemoveByDomain).flatMap(
+      ([domain, toRemove]) =>
+        toRemove.map((target) => ({
+          chainId: this.chainId,
+          annotation: `Removing rebalance target "${target}" for domain ${domain} on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+            'removeRebalanceTarget(uint32,bytes32)',
+            [domain, addressToBytes32(target)],
+          ),
+        })),
     );
   }
 

@@ -35,10 +35,12 @@ import {
   addressToBytes32,
   arrayToObject,
   assert,
+  bytes32ToAddress,
   eqAddress,
   getLogLevel,
   isZeroish,
   isZeroishAddress,
+  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -1549,13 +1551,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ]),
     ];
     const crossCollateralRouters: Record<string, string[]> = {};
+    const rebalanceTargets: Record<string, string[]> = {};
 
     await Promise.all(
       allDomains.map(async (domain) => {
-        const routers =
-          await crossCollateralRouter.getCrossCollateralRouters(domain);
+        const [routers, targets] = await Promise.all([
+          crossCollateralRouter.getCrossCollateralRouters(domain),
+          crossCollateralRouter.rebalanceTargets(domain),
+        ]);
         if (routers.length > 0) {
           crossCollateralRouters[domain.toString()] = [...routers];
+        }
+        if (targets.length > 0) {
+          // rebalanceTargets stores addresses (as bytes32); the config keeps
+          // plain addresses, so normalize for a clean apply/read round-trip.
+          rebalanceTargets[domain.toString()] = targets.map((t) =>
+            normalizeAddressEvm(bytes32ToAddress(t)),
+          );
         }
       }),
     );
@@ -1569,6 +1581,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         Object.keys(crossCollateralRouters).length > 0
           ? crossCollateralRouters
           : undefined,
+      rebalanceTargets:
+        Object.keys(rebalanceTargets).length > 0 ? rebalanceTargets : undefined,
     };
   }
 
