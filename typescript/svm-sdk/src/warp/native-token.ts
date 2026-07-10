@@ -27,7 +27,7 @@ import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
-import { prepareProgramUpgrade } from './warp-upgrade.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import {
   fetchNativeTokenAccount,
   fetchWarpProgramVersion,

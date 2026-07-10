@@ -37,6 +37,15 @@ export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/mu
 export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 
 // Low-level instruction builders
+export {
+  getCloseIgpStandingQuoteInstruction,
+  getCloseIgpTransientQuoteInstruction,
+  getGetIgpQuoteAccountMetasInstruction,
+  getSetIgpMinIssuedAtInstruction,
+  getSetIgpQuoteConfigInstruction,
+  getSetIgpQuoteSignerInstruction,
+  getSubmitIgpQuoteInstruction,
+} from './instructions/igp.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
@@ -112,6 +121,8 @@ export {
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
+  deriveIgpStandingQuotePda,
+  deriveIgpTransientQuotePda,
   deriveOverheadIgpAccountPda,
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
@@ -127,6 +138,19 @@ export {
   decodeIgpAccount,
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
+export {
+  decodeIgpStandingQuoteAccount,
+  decodeIgpTransientQuoteAccount,
+  WILDCARD_DOMAIN,
+  WILDCARD_SENDER,
+} from './codecs/igp.js';
+export type { SvmSignedQuote } from './codecs/fee.js';
+export type {
+  GetIgpQuoteAccountMetasInput,
+  IgpFeeConfig,
+  IgpStandingQuoteData,
+  IgpTransientQuoteData,
+} from './codecs/igp.js';
 export {
   decodeMultisigIsmAccessControlAccount,
   decodeMultisigIsmDomainDataAccount,

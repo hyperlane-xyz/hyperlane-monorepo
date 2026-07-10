@@ -91,7 +91,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     collateralMint = await createSplMint(rpc, signer, 9);
 
     const igpWriter = new SvmIgpHookWriter(
-      { program: { programId: TEST_PROGRAM_IDS.igp } },
+      { program: { programId: TEST_PROGRAM_IDS.igp }, domainId: 1 },
       rpc,
       DEFAULT_IGP_SALT,
       signer,

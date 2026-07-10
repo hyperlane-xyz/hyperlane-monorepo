@@ -10,6 +10,8 @@ import type {
 import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
 import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
 
+import type { IgpFeeConfig } from './codecs/igp.js';
+
 export type SvmInstruction = Instruction;
 
 export type SvmRpc = Rpc<SolanaRpcApi>;
@@ -85,6 +87,8 @@ export interface SvmDeployedHook extends DeployedHookAddress {
 export interface SvmDeployedIgpHook extends SvmDeployedHook {
   igpPda: Address;
   overheadIgpPda?: Address;
+  /** Full on-chain IgpFeeConfig (signers + domainId + minIssuedAt) when set. */
+  feeConfig?: IgpFeeConfig;
 }
 
 export interface PdaWithBump {

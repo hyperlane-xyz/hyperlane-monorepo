@@ -71,6 +71,7 @@ export async function resolveChains(
     case CommandType.ISM_DEPLOY:
     case CommandType.ISM_READ:
     case CommandType.HOOK_DEPLOY:
+    case CommandType.HOOK_APPLY:
     case CommandType.HOOK_READ:
       return resolveChain(argv);
     case CommandType.ICA_DEPLOY:

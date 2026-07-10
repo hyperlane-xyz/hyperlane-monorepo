@@ -1,12 +1,19 @@
-import { type Address, getAddressDecoder } from '@solana/kit';
+import type { Address } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
+  ascii8,
   decodeAccountData,
   decodeDiscriminatedAccount,
+  readAddress,
+  readOptionAddress,
 } from '../codecs/account-data.js';
 import { ByteCursor } from '../codecs/binary.js';
+import {
+  type IgpFeeConfig,
+  readOptionalTrailingIgpFeeConfig,
+} from '../codecs/igp.js';
 import {
   decodeMapU32GasOracle,
   decodeMapU32H256,
@@ -61,6 +68,7 @@ export interface IgpAccountData {
   owner: Address | null;
   beneficiary: Address;
   gasOracles: Map<number, GasOracle>;
+  feeConfig: IgpFeeConfig | undefined;
 }
 
 export interface OverheadIgpAccountData {
@@ -101,6 +109,7 @@ export function decodeIgpAccount(raw: Uint8Array): IgpAccountData | null {
     owner: readOptionAddress(c),
     beneficiary: readAddress(c),
     gasOracles: decodeMapU32GasOracle(c),
+    feeConfig: readOptionalTrailingIgpFeeConfig(c),
   }));
 }
 
@@ -218,24 +227,6 @@ export function decodeCollateralPlugin(
     escrowBump: cursor.readU8(),
     ataPayerBump: cursor.readU8(),
   };
-}
-
-function ascii8(value: string): Uint8Array {
-  if (value.length !== 8)
-    throw new Error(`Expected 8-char discriminator, got ${value}`);
-  return Uint8Array.from(value, (char) => char.charCodeAt(0));
-}
-
-const addressDecoder = getAddressDecoder();
-
-function readAddress(cursor: ByteCursor): Address {
-  return addressDecoder.decode(cursor.readBytes(32));
-}
-
-function readOptionAddress(cursor: ByteCursor): Address | null {
-  const tag = cursor.readU8();
-  assert(tag === 0 || tag === 1, `Invalid option tag: ${tag}`);
-  return tag === 1 ? readAddress(cursor) : null;
 }
 
 function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {

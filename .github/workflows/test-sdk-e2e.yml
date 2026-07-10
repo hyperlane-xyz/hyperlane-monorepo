@@ -175,6 +175,7 @@ jobs:
           - provider
           - read-token
           - program-upgrade
+          - igp-program-upgrade
           - warp-fee-config
         include:
           - test: read-token
