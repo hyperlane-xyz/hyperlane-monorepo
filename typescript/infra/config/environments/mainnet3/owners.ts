@@ -27,12 +27,15 @@ export const EDEN_CORE_OWNER = '0x260eDfa1d9f7Ec832E079f90c043360d394d2ce4';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
-      regularSafes[local] ??
-      regularIcas[local] ??
-      regularIcasLegacy[local] ??
-      awIcasLegacy[local] ??
-      awSafes[local] ??
-      DEPLOYER;
+      // TEMP OVERRIDE: force deployer ownership for viction ICA redeploy, revert after
+      local === 'viction'
+        ? DEPLOYER
+        : (regularSafes[local] ??
+          regularIcas[local] ??
+          regularIcasLegacy[local] ??
+          awIcasLegacy[local] ??
+          awSafes[local] ??
+          DEPLOYER);
 
     return [
       local,

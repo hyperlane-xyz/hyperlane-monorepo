@@ -34,18 +34,14 @@ import { DeployEnvironment } from './deploy-environment.js';
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
 // implementation.
+// viction removed: redeployed with a v2-compatible InterchainAccountRouter.
 export const legacyIcaChainRouters: Record<
   ChainName,
   {
     interchainAccountIsm: Address;
     interchainAccountRouter: Address;
   }
-> = {
-  viction: {
-    interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
-    interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
-  },
-};
+> = {};
 export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
@@ -117,6 +113,18 @@ export const chainsToSkip: ChainName[] = [
   // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
   // pinned registry, so kept explicit here.
   'miraclechain',
+
+  // TEMP: ancient8 RPC secret override (Conduit key) returning 401/unauthorized.
+  // Revert once the key is fixed/rotated - unrelated to viction ICA work.
+  'ancient8',
+
+  // TEMP: rarichain RPC (mainnet.rpc.rarichain.org) returning 404 on eth_call.
+  // Revert once fixed - unrelated to viction ICA work.
+  'rarichain',
+
+  // TEMP: oortmainnet RPC (mainnet-rpc.oortech.com) refusing connections (ECONNREFUSED).
+  // Revert once fixed - unrelated to viction ICA work.
+  'oortmainnet',
 
   ...getDisabledChains(),
 ];

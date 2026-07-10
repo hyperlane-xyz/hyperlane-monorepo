@@ -101,6 +101,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
+  // TEMP: viction ICA redeploy, revert after
+  viction: {
+    transactionOverrides: {
+      gasLimit: 16_000_000,
+    },
+  },
   // nexus: {
   //   transactionOverrides: {
   //     gasPrice: 2 * 10 ** 9, // 2 gwei
