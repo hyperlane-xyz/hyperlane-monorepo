@@ -9,7 +9,11 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { LOADER_V3_PROGRAM_ADDRESS } from './constants.js';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  LOADER_V3_PROGRAM_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
+} from './constants.js';
 import type { PdaWithBump } from './types.js';
 
 const utf8 = getUtf8Encoder();
@@ -80,6 +84,16 @@ export async function deriveMailboxDispatchAuthorityPda(
   ]);
 }
 
+export async function deriveIgpQuoteAuthorityPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_dispatcher'),
+    utf8.encode('-'),
+    utf8.encode('igp_quote_authority'),
+  ]);
+}
+
 export async function deriveMailboxInboxPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {
@@ -113,6 +127,19 @@ export async function deriveMailboxProcessAuthorityPda(
   ]);
 }
 
+export async function deriveMailboxDispatchedMessagePda(
+  mailboxProgramAddress: Address,
+  uniqueMessageAccount: Address,
+): Promise<PdaWithBump> {
+  return derive(mailboxProgramAddress, [
+    utf8.encode('hyperlane'),
+    utf8.encode('-'),
+    utf8.encode('dispatched_message'),
+    utf8.encode('-'),
+    addressEncoder.encode(uniqueMessageAccount),
+  ]);
+}
+
 export async function deriveIgpProgramDataPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {
@@ -120,6 +147,39 @@ export async function deriveIgpProgramDataPda(
     utf8.encode('hyperlane_igp'),
     utf8.encode('-'),
     utf8.encode('program_data'),
+  ]);
+}
+
+export async function deriveIgpGasPaymentPda(
+  igpProgramAddress: Address,
+  uniqueMessageAccount: Address,
+): Promise<PdaWithBump> {
+  return derive(igpProgramAddress, [
+    utf8.encode('hyperlane_igp'),
+    utf8.encode('-'),
+    utf8.encode('gas_payment'),
+    utf8.encode('-'),
+    addressEncoder.encode(uniqueMessageAccount),
+  ]);
+}
+
+export async function deriveFeeTransientQuotePda(
+  feeProgramAddress: Address,
+  feeAccount: Address,
+  scopedSalt: Uint8Array,
+): Promise<PdaWithBump> {
+  assert(
+    scopedSalt.length === 32,
+    `scopedSalt must be 32 bytes, got ${scopedSalt.length}`,
+  );
+  return derive(feeProgramAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('transient'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    scopedSalt,
   ]);
 }
 
@@ -256,6 +316,24 @@ export async function deriveAtaPayerPda(
     utf8.encode('hyperlane_token'),
     utf8.encode('-'),
     utf8.encode('ata_payer'),
+  ]);
+}
+
+/**
+ * Derives the SPL Associated Token Account address for a (wallet, mint)
+ * pair. `tokenProgram` defaults to the classic SPL Token program — pass
+ * Token-2022 explicitly for Token-2022 mints.
+ */
+export async function deriveAssociatedTokenAddress(args: {
+  wallet: Address;
+  mint: Address;
+  tokenProgram?: Address;
+}): Promise<PdaWithBump> {
+  const tokenProgram = args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS;
+  return derive(ASSOCIATED_TOKEN_PROGRAM_ADDRESS, [
+    addressEncoder.encode(args.wallet),
+    addressEncoder.encode(tokenProgram),
+    addressEncoder.encode(args.mint),
   ]);
 }
 

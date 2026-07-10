@@ -35,6 +35,10 @@ export const SPL_TOKEN_PROGRAM_ADDRESS =
 export const TOKEN_2022_PROGRAM_ADDRESS =
   'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
 
+// https://spl.solana.com/associated-token-account
+export const ASSOCIATED_TOKEN_PROGRAM_ADDRESS =
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL' as Address;
+
 // https://github.com/metaplex-foundation/mpl-token-metadata/blob/c314930196b6b16e1ba8fefdf206e9af7b0e4c37/programs/token-metadata/program/src/lib.rs#L25
 export const METAPLEX_METADATA_PROGRAM_ADDRESS =
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;

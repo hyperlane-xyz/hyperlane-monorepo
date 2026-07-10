@@ -45,7 +45,24 @@ export {
   getSetIgpQuoteConfigInstruction,
   getSetIgpQuoteSignerInstruction,
   getSubmitIgpQuoteInstruction,
+  simulateIgpQuoteAccountMetas,
 } from './instructions/igp.js';
+export {
+  getGetQuoteAccountMetasInstruction,
+  getGetSubmitQuoteAccountMetasInstruction,
+  getSubmitQuoteInstruction,
+  simulateFeeQuoteAccountMetas,
+  simulateSubmitQuoteAccountMetas,
+} from './instructions/fee.js';
+export type {
+  GetQuoteAccountMetasInput,
+  GetSubmitQuoteAccountMetasInput,
+} from './instructions/fee.js';
+export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
+export {
+  simulateInstructionAccountMetas,
+  simulateInstructionForReturnData,
+} from './simulation.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
@@ -121,6 +138,7 @@ export {
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
+  deriveIgpQuoteAuthorityPda,
   deriveIgpStandingQuotePda,
   deriveIgpTransientQuotePda,
   deriveOverheadIgpAccountPda,
@@ -129,7 +147,37 @@ export {
   deriveReplayProtectionPda,
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
+  deriveMailboxDispatchedMessagePda,
+  deriveIgpGasPaymentPda,
+  deriveFeeTransientQuotePda,
 } from './pda.js';
+
+// Warp token transfer-remote instruction builders
+export {
+  buildFeeTransferRemoteSectionAccounts,
+  buildIgpTransferRemoteSectionAccounts,
+  getTokenTransferRemoteInstruction,
+} from './instructions/token.js';
+export type {
+  FeeTransferRemoteSection,
+  IgpQuotedExtension,
+  IgpTransferRemoteSection,
+  TransferRemoteInstructionData,
+} from './instructions/token.js';
+export { getCrossCollateralTransferRemoteToInstruction } from './instructions/cross-collateral-token.js';
+export type { TransferRemoteToInstructionData } from './instructions/cross-collateral-token.js';
+
+// Address Lookup Table reader / writer pair. Wraps the on-chain ALT
+// program account behind the same ArtifactReader / ArtifactWriter
+// contract used by other SVM artifacts.
+export {
+  SvmAddressLookupTableReader as SealevelAddressLookupTableReader,
+  SvmAddressLookupTableWriter as SealevelAddressLookupTableWriter,
+} from './alt/address-lookup-table.js';
+export type {
+  SvmAltConfig as SealevelAltConfig,
+  SvmDeployedAlt as SealevelDeployedAlt,
+} from './alt/address-lookup-table.js';
 
 // Account decoders
 export {

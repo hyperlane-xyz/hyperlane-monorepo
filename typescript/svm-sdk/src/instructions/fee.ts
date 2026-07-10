@@ -1,4 +1,5 @@
 import type {
+  AccountMeta,
   Address,
   Instruction,
   ReadonlyUint8Array,
@@ -16,12 +17,14 @@ import {
   encodeFeeParams,
   encodeRouteKey,
   encodeSetQuoteSignerOperation,
+  encodeSvmSignedQuote,
   type SetQuoteSignerOp,
   type SvmFeeData,
   type SvmFeeDataStrategy,
   type SvmFeeParams,
   type SvmRouteKey,
   SvmRouteKeyKind,
+  type SvmSignedQuote,
 } from '../codecs/fee.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
@@ -30,8 +33,11 @@ import {
   deriveRouteDomainPda,
   deriveStandingQuotePda,
 } from '../pda.js';
+import { simulateInstructionAccountMetas } from '../simulation.js';
+import type { SvmRpc } from '../types.js';
 import {
   buildInstruction,
+  type InstructionAccountMeta,
   readonlyAccount,
   readonlySignerAddress,
   writableAccount,
@@ -347,5 +353,224 @@ export async function getSetQuoteSignerForRouteInstruction(
       encodeSetQuoteSignerOperation(operation, signer),
       option(route, encodeRouteKey),
     ),
+  );
+}
+
+// ====== GetQuoteAccountMetas (simulation-only) ======
+
+const H256_LEN = 32;
+const SCOPED_SALT_LEN = 32;
+
+/** Input for the simulation-only `GetQuoteAccountMetas` instruction. */
+export interface GetQuoteAccountMetasInput {
+  destinationDomain: number;
+  /** Remote warp route contract address (H256, 32 bytes). */
+  targetRouter: Uint8Array;
+  /** When set, the simulator includes the transient quote PDA for this scoped salt. */
+  scopedSalt?: Uint8Array;
+}
+
+export function encodeGetQuoteAccountMetasInput(
+  input: GetQuoteAccountMetasInput,
+): Uint8Array {
+  assert(
+    input.targetRouter.length === H256_LEN,
+    `targetRouter must be ${H256_LEN} bytes`,
+  );
+  if (input.scopedSalt !== undefined) {
+    assert(
+      input.scopedSalt.length === SCOPED_SALT_LEN,
+      `scopedSalt must be ${SCOPED_SALT_LEN} bytes`,
+    );
+  }
+  return Uint8Array.from(
+    concatBytes(
+      u32le(input.destinationDomain),
+      input.targetRouter,
+      option(input.scopedSalt ?? null, (salt) => salt),
+    ),
+  );
+}
+
+export function getGetQuoteAccountMetasInstruction(
+  programAddress: Address,
+  feeAccount: Address,
+  input: GetQuoteAccountMetasInput,
+): Instruction {
+  return buildInstruction(
+    programAddress,
+    [readonlyAccount(feeAccount)],
+    concatBytes(
+      u8(FeeInstructionKind.GetQuoteAccountMetas),
+      encodeGetQuoteAccountMetasInput(input),
+    ),
+  );
+}
+
+/**
+ * Runs the fee program's `GetQuoteAccountMetas` instruction via transaction
+ * simulation and parses the returned account-meta list — the variable
+ * pass-through accounts that go into the warp `transfer_remote` fee section
+ * for a given (destination domain, target router).
+ *
+ * The first returned meta is the fee account itself, followed by a payer
+ * placeholder (Pubkey::default) that callers should replace with the real
+ * payer before slotting the list into a transfer_remote instruction. Both
+ * slots are asserted before return so drift in the on-chain layout fails
+ * inside this helper instead of as an opaque runtime error downstream.
+ */
+export async function simulateFeeQuoteAccountMetas(args: {
+  rpc: SvmRpc;
+  programId: Address;
+  feeAccount: Address;
+  /** Funded address used as the simulation fee payer (signature not required). */
+  payer: Address;
+  input: GetQuoteAccountMetasInput;
+}): Promise<AccountMeta[]> {
+  const metas = await simulateInstructionAccountMetas({
+    rpc: args.rpc,
+    payer: args.payer,
+    ix: getGetQuoteAccountMetasInstruction(
+      args.programId,
+      args.feeAccount,
+      args.input,
+    ),
+  });
+  assert(
+    metas[0]?.address === args.feeAccount,
+    `simulateFeeQuoteAccountMetas: expected fee account (${args.feeAccount}) at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateFeeQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  return metas;
+}
+
+// ====== SubmitQuote ======
+
+/**
+ * Builds the SubmitQuote instruction. The account list is caller-assembled
+ * — typically by running `simulateSubmitQuoteAccountMetas`, replacing the
+ * payer placeholder (index 1) with the real payer signer, and translating
+ * the remaining sim metas to `InstructionAccountMeta`s.
+ *
+ * Wire layout consumed by the on-chain fee program:
+ *   [0] system program
+ *   [1] payer (signer + writable)
+ *   [2] fee account (readonly)
+ *   [3..N] route PDAs (readonly)
+ *   [N+1] transient or standing quote PDA (writable)
+ */
+export function getSubmitQuoteInstruction(
+  programAddress: Address,
+  accounts: InstructionAccountMeta[],
+  quote: SvmSignedQuote,
+): Instruction {
+  return buildInstruction(
+    programAddress,
+    accounts,
+    concatBytes(
+      u8(FeeInstructionKind.SubmitQuote),
+      encodeSvmSignedQuote(quote),
+    ),
+  );
+}
+
+// ====== GetSubmitQuoteAccountMetas (simulation-only) ======
+
+export interface GetSubmitQuoteAccountMetasInput {
+  destinationDomain: number;
+  /** Remote warp route contract address (H256, 32 bytes). */
+  targetRouter: Uint8Array;
+  /** When set, returns metas for a transient quote; otherwise standing. */
+  scopedSalt?: Uint8Array;
+}
+
+export function encodeGetSubmitQuoteAccountMetasInput(
+  input: GetSubmitQuoteAccountMetasInput,
+): Uint8Array {
+  assert(
+    input.targetRouter.length === H256_LEN,
+    `targetRouter must be ${H256_LEN} bytes`,
+  );
+  if (input.scopedSalt !== undefined) {
+    assert(
+      input.scopedSalt.length === SCOPED_SALT_LEN,
+      `scopedSalt must be ${SCOPED_SALT_LEN} bytes`,
+    );
+  }
+  return Uint8Array.from(
+    concatBytes(
+      u32le(input.destinationDomain),
+      input.targetRouter,
+      option(input.scopedSalt ?? null, (salt) => salt),
+    ),
+  );
+}
+
+export function getGetSubmitQuoteAccountMetasInstruction(
+  programAddress: Address,
+  feeAccount: Address,
+  input: GetSubmitQuoteAccountMetasInput,
+): Instruction {
+  return buildInstruction(
+    programAddress,
+    [readonlyAccount(feeAccount)],
+    concatBytes(
+      u8(FeeInstructionKind.GetSubmitQuoteAccountMetas),
+      encodeGetSubmitQuoteAccountMetasInput(input),
+    ),
+  );
+}
+
+/**
+ * Runs `GetSubmitQuoteAccountMetas` via simulation, parses the returned
+ * account-meta list, and substitutes the on-chain payer placeholder
+ * (Pubkey::default at slot 1) with `payerSubstitution` so the result is
+ * ready to feed into `getSubmitQuoteInstruction`.
+ *
+ * `payerSubstitution` is an `Address` (not a `TransactionSigner`) so the
+ * SDK can build instructions destined for offline / external signers; the
+ * substituted slot is marked `WRITABLE_SIGNER` and signed downstream.
+ *
+ * Asserts the placeholder's address before swapping — drift in the
+ * on-chain meta layout fails here loudly instead of as a confusing
+ * runtime error after submission.
+ */
+export async function simulateSubmitQuoteAccountMetas(args: {
+  rpc: SvmRpc;
+  programId: Address;
+  feeAccount: Address;
+  /** Funded address used as the simulation fee payer (signature not required). */
+  payer: Address;
+  input: GetSubmitQuoteAccountMetasInput;
+  /** Real submitter address; replaces the placeholder at slot 1. */
+  payerSubstitution: Address;
+}): Promise<InstructionAccountMeta[]> {
+  const metas = await simulateInstructionAccountMetas({
+    rpc: args.rpc,
+    payer: args.payer,
+    ix: getGetSubmitQuoteAccountMetasInstruction(
+      args.programId,
+      args.feeAccount,
+      args.input,
+    ),
+  });
+
+  assert(
+    metas[0]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateSubmitQuoteAccountMetas: expected system program at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateSubmitQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[2]?.address === args.feeAccount,
+    `simulateSubmitQuoteAccountMetas: expected fee account (${args.feeAccount}) at slot 2, got ${metas[2]?.address} — on-chain contract may have changed`,
+  );
+  return metas.map((m, i) =>
+    i === 1 ? writableSignerAddress(args.payerSubstitution) : m,
   );
 }

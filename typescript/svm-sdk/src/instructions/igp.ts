@@ -1,4 +1,5 @@
 import type {
+  AccountMeta,
   Address,
   Instruction,
   ReadonlyUint8Array,
@@ -14,6 +15,11 @@ import {
   getU32Codec,
   getU64Codec,
 } from '@solana/kit';
+
+import { assert } from '@hyperlane-xyz/utils';
+
+import { simulateInstructionAccountMetas } from '../simulation.js';
+import type { SvmRpc } from '../types.js';
 
 import {
   ByteCursor,
@@ -545,4 +551,60 @@ export async function getGetIgpQuoteAccountMetasInstruction(
     [readonlyAccount(igpAccount)],
     encodeIgpProgramInstruction({ kind: 'getIgpQuoteAccountMetas', input }),
   );
+}
+
+/**
+ * Runs the IGP's `GetIgpQuoteAccountMetas` instruction via transaction
+ * simulation and parses the returned account-meta list.
+ *
+ * The instruction never lands on-chain — the simulator runs it just long
+ * enough for the program to compute the dynamic account set required by a
+ * matching `SubmitIgpQuote` / `transfer_remote` call and emit it via
+ * `set_return_data`.
+ *
+ * Wire layout returned by the on-chain program:
+ *   [0] system program
+ *   [1] payer placeholder (signer + writable, substituted downstream)
+ *   [2] IGP program data PDA
+ *   [3] unique gas-payment account
+ *   [4] gas-payment PDA (== deriveIgpGasPaymentPda(igpAccount, slot[3]))
+ *   [5] configured IGP (`Igp` or `OverheadIgp`)
+ *   [6] sender_authority (the route's IGP quote authority PDA)
+ *   [7] quoted sender (== `input.sender`, the warp program id)
+ *   [8..] cascade route accounts
+ *
+ * Asserts the static prefix and the input-derivable `quoted sender` slot
+ * so drift in the on-chain meta layout fails loudly here instead of
+ * surfacing as a confusing `transfer_remote` malformed-ix runtime error.
+ */
+export async function simulateIgpQuoteAccountMetas(args: {
+  rpc: SvmRpc;
+  programId: Address;
+  igpAccount: Address;
+  /** Funded address used as the simulation fee payer (signature not required). */
+  payer: Address;
+  input: GetIgpQuoteAccountMetasInput;
+}): Promise<AccountMeta[]> {
+  const metas = await simulateInstructionAccountMetas({
+    rpc: args.rpc,
+    payer: args.payer,
+    ix: await getGetIgpQuoteAccountMetasInstruction(
+      args.programId,
+      args.igpAccount,
+      args.input,
+    ),
+  });
+  assert(
+    metas[0]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateIgpQuoteAccountMetas: expected system program at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateIgpQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[7]?.address === args.input.sender,
+    `simulateIgpQuoteAccountMetas: expected quoted sender (${args.input.sender}) at slot 7, got ${metas[7]?.address} — on-chain contract may have changed`,
+  );
+  return metas;
 }

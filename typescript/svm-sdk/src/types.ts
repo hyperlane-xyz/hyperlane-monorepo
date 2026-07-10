@@ -29,6 +29,13 @@ export interface SvmTransaction {
    *  Some transactions that include account creation might fail the simulation check.
    */
   skipPreflight?: boolean;
+  /**
+   * ALT addresses to compress the compiled v0 message against. The signer
+   * fetches each table's on-chain entries and assembles the
+   * `AddressesByLookupTableAddress` map kit's compiler expects, so callers
+   * only need to track the ALT pubkey — not its contents.
+   */
+  addressLookupTables?: Address[];
 }
 
 export interface SvmReceipt {

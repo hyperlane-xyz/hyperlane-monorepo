@@ -44,6 +44,7 @@
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@noble/hashes": "^1.7.1",
+    "@solana-program/address-lookup-table": "^0.11.0",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
     "@solana/errors": "^6.1.0",
@@ -52,6 +53,7 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@noble/curves": "^1.9.0",
     "@types/chai": "^4.3.14",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",
@@ -66,5 +68,13 @@
     "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@noble/curves": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@noble/curves": {
+      "optional": true
+    }
   }
 }
