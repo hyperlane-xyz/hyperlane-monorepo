@@ -40,9 +40,12 @@ export async function runWarpAltRead({
     return true;
   });
 
-  if (chain) {
-    assert(filtered[chain], `No ALT addresses registered for chain "${chain}"`);
-  }
+  assert(
+    Object.keys(filtered).length > 0,
+    chain
+      ? `No ALT addresses registered for chain "${chain}"`
+      : 'No SVM chains have ALT addresses registered for this warp route',
+  );
 
   return promiseObjAll(
     objMap(filtered, async (chainName, addresses) => {

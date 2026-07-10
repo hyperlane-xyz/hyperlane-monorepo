@@ -172,6 +172,8 @@ export async function deriveFeeQuoteCascadeAltAddresses(args: {
       break;
     default: {
       const _exhaustive: never = feeConfig;
+      // CAST: value is `never` in the exhaustive default; the cast is
+      // required to surface the runtime discriminant in the error message.
       throw new Error(
         `Unhandled fee config type: ${String((_exhaustive as { type?: unknown }).type)}`,
       );
