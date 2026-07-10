@@ -305,11 +305,16 @@ export function buildFeeTransferRemoteSectionAccounts(
 /**
  * Optional "quoted-mode" extension to the IGP section. When set, the IGP
  * uses offchain quote pricing and the warp program invokes PayForGas with
- * `invoke_signed` using the dispatch_authority PDA. The matching
+ * `invoke_signed` using the route's `igp_quote_authority` PDA. The matching
  * `SubmitIgpQuote` instruction must run earlier in the same transaction.
  */
 export interface IgpQuotedExtension {
-  /** Dispatch authority PDA of THIS warp program. */
+  /**
+   * The route's dedicated `igp_quote_authority` PDA (derive via
+   * `deriveIgpQuoteAuthorityPda`) — distinct from the mailbox and CC
+   * dispatch-authority PDAs. The IGP signs the quoted PayForGas CPI with
+   * this authority.
+   */
   senderAuthority: Address;
   /**
    * Warp program id (= the sender). The on-chain IGP rejects the quote
