@@ -36,14 +36,14 @@
     "format": "oxfmt --write ./src",
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
-    "test": "echo \"no tests in aleo-sdk\"",
-    "test:ci": "echo \"no tests in aleo-sdk\"",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json",
     "test:e2e": "./scripts/run-e2e-test.sh"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@provablehq/sdk": "0.9.15",
+    "@provablehq/sdk": "0.11.3",
     "bignumber.js": "catalog:",
     "unzipper": "^0.12.3"
   },
@@ -62,6 +62,7 @@
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

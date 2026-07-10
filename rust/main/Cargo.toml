@@ -219,13 +219,13 @@ hyperlane-cosmos-rs = "0.1.4"
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
 
-snarkvm = { version = "4.3.0", features = [
+snarkvm = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1", features = [
   "async",
   "test_targets",
   "test_consensus_heights",
 ] }
-snarkvm-algorithms = { version = "4.3.0" }
-snarkvm-console-account = { version = "4.3.0" }
+snarkvm-algorithms = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1" }
+snarkvm-console-account = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1" }
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 
