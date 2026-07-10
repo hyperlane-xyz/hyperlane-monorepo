@@ -181,6 +181,13 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       owner: DEPLOYER_EVM,
       ...additionalRebalancingConfigByChain.bsc,
       allowedRebalancers: ALLOWED_REBALANCERS,
+      // bsc USDC is 18-decimal (vs 6 elsewhere); the 1e12 scale reconciles it.
+      // Declaring name/symbol/decimals makes this leg satisfy TokenMetadataSchema
+      // so `warp apply`'s metadata derivation preserves `scale` (otherwise the
+      // scale is dropped and cross-chain decimals fail verification).
+      name: 'USD Coin',
+      symbol: 'USDC',
+      decimals: 18,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },

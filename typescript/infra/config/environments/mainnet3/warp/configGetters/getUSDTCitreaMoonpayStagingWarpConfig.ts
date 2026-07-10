@@ -107,6 +107,13 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       owner: DEPLOYER_EVM,
       ...oftRebalancingConfigByChain.bsc,
       allowedRebalancers: ALLOWED_REBALANCERS,
+      // bsc USDT is 18-decimal (vs 6 elsewhere); the 1e12 scale reconciles it.
+      // Declaring name/symbol/decimals makes this leg satisfy TokenMetadataSchema
+      // so `warp apply`'s metadata derivation preserves `scale` (otherwise the
+      // scale is dropped and cross-chain decimals fail verification).
+      name: 'Tether USD',
+      symbol: 'USDT',
+      decimals: 18,
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       crossCollateralRouters,
     },
