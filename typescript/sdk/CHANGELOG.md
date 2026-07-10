@@ -1,5 +1,54 @@
 # @hyperlane-xyz/sdk
 
+## 36.0.0
+
+### Major Changes
+
+- d288e7b: Refactor testIgpConfig function for clarity and maintainability
+- d288e7b: fix(sdk): refactor `addVerificationArtifacts` for enhanced Artifact Deduplication in HyperlaneDeployer
+
+### Minor Changes
+
+- 2821252: Added SDK support for IGP fee token oracle configuration and warp route feeHook. The IGP schema now accepts `tokenOracleConfig` for per-ERC20 gas oracle configs, and warp route configs accept `feeHook` for setting the IGP address as a fee hook on TokenRouter. Full pipeline support across deploy, read, update, and check flows.
+- aa41ce4: SVM fee program management was added to the SVM SDK with full create, read, and update support for all 6 fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting). The provider-sdk fee types were refactored with a FeeParams discriminated union (bps vs raw), PascalCase FeeType/FeeStrategyType values, expanded DerivedFeeConfig with resolved bigint fields, and a required FeeReadContext parameter on createFeeArtifactManager. Shared BPS fee utilities (computeBps, bpsToRawFeeParams, constants) were consolidated into provider-sdk as the single source of truth — sdk and svm-sdk now import from provider-sdk. The EVM SDK TokenFeeType was converted from enum to const object for structural compatibility. Legacy pre-fee program bytes were preserved for upgrade testing. The repeated account-decoding boilerplate in the fee and token decoders was consolidated into a shared decodeDiscriminatedAccount helper.
+- 2f9d783: CLI warp deploy and warp apply commands were wired to drive SVM fee program lifecycles. A new tokenFeeInputToFeeConfig mapping was added to bridge EVM SDK fee config inputs to provider-sdk fee types, and tokenFee was plumbed through validateWarpConfigForAltVM so YAML configs flow into the multi-VM deploy/update path. The fee config input schema gained an optional beneficiary field so operators can set a beneficiary distinct from the owner; tokenFeeInputToFeeConfig now respects it (defaulting to owner when omitted) instead of forcing beneficiary = owner. tokenFeeInputToFeeConfig also now prefers raw maxFee/halfAmount over the schema's derived bps when both are present, so YAML configs authored as raw round-trip without silent bps conversion. The four SVM fee writers were switched to deploy programs with exact-byte-length data accounts (matching the warp token writer convention), halving the rent paid for each fee program. SvmWarpArtifactManager is now publicly exported from sealevel-sdk. provider-sdk now exports `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` from `@hyperlane-xyz/provider-sdk/warp` for downstream CLI/test code that needs to reference the wildcard cross-collateral target-router slot without depending on the main SDK.
+- 32b87ad: The XERC20 module was extended to read and reconcile ownership in addition to limits. `EvmXERC20Reader` gained `readOwner` and `readProxyAdmin`, `EvmXERC20Module.read()` was updated to surface the token owner and ProxyAdmin owner, and `update()` was changed to append ownership-transfer transactions (for the token's `Ownable` owner and its ProxyAdmin owner) after limit/bridge changes. Expected owners for both the token and its ProxyAdmin were derived from the warp deploy config's top-level `owner`. The `hyperlane xerc20 apply` command was updated to transfer ownership through the same submitter strategy, so XERC20 ownership handoffs no longer require an infra script, and `hyperlane xerc20 read` now reports current owners.
+
+### Patch Changes
+
+- d288e7b: SmartProvider error handling was hardened for malformed provider errors, and MegaETH routing ISM enrollments were given a larger gas buffer.
+- d288e7b: ICA fallback gas estimation was updated to use the derived interchain account as the sender, preventing owner-gated fallback estimates from inflating Tron gas quotes.
+- d288e7b: Core deployments finalized core ownership before deploying TestRecipient, retried post-transaction ISM and hook reads to tolerate RPC read-after-write lag, and preserved nested RPC error messages when CALL_EXCEPTION wraps provider failures.
+- 019201a: Fixed ISM initialization guard on retry, added in-place ISM sub-module updates for AGGREGATION and AMOUNT_ROUTING containers (with side-effect-free preflight, duplicate-key checks, CCIP cache propagation, and nested RATE_LIMITED support), and made Safe nonce fetching queue-aware with a manual override escape hatch.
+- cc722b8: Composite submitters can now resolve a nested submitter whose type is only registered via a custom factory (such as the CLI's `file` submitter), and ICA file output is self-describing:
+  - Threaded custom submitter factories through nested submitter resolution. Previously `getSubmitter` passed the bare `getSubmitter` as the recursive `getSubmitterFn`, defaulting `additionalSubmitterFactories` to an empty map, so a wrapping submitter (`interchainAccount` or `timelockController`) could not resolve a nested submitter registered only via a custom factory. The recursive getter now merges the parent's `additionalSubmitterFactories` into any factories a nested caller passes, so custom factories survive recursion at depth >= 2.
+  - Refactored the SDK's ICA and timelock submitter schemas into the `buildEvmIcaTxSubmitterPropsSchema` and `buildEvmTimelockControllerSubmitterPropsSchema` builders (parameterized by the nested submitter schema) and exported them alongside the `EvmTimelockControllerSubmitterProps` type, so the CLI derives its extended strategy schemas from them instead of re-declaring the wrapper fields.
+  - Widened the CLI's `ExtendedChainSubmissionStrategySchema` to accept any extended submitter (including `file`) as both the ICA `internalSubmitter` and the timelock `proposerSubmitter`. Previously the `file` submitter was permitted only at the top level and as an ICA `internalSubmitter`, rejecting it as a timelock `proposerSubmitter`. This also widens the optional `feeSubmitter` to the same recursive shape.
+  - Set the `from` field of the ICA `callRemote` transaction to the configured ICA `owner` rather than the signer that populated it, so file-submitter output is self-describing for downstream broadcasters. `callRemote` derives the interchain account from `msg.sender`, so broadcasting from the deployer key would have silently routed the dispatch to the wrong account. Live submitters are unaffected because `MultiProvider.prepareTx` resets `from` to the actual signer.
+
+- 9cd7606: `normalizeAddressEvm` now lowercases its input before checksumming, canonicalizing a bad-EIP-55-casing EVM address instead of returning it unchanged. `EvmIcaTxSubmitter.fromConfig` normalizes its origin-side EVM addresses (`owner`, origin `interchainAccountRouter`) up front, so bad casing no longer throws deep inside ethers mid-submission after irreversible deploys have run. Destination router and ISM (remote chain, not assumed EVM) are untouched.
+- a6a3a33: Fixed EvmHypSyntheticAdapter.quoteTransferRemoteGas miscounting the bridged amount as a native fee for native warp routes (token() == address(0)), which inflated the IGP quote and caused downstream consumers (e.g. the rebalancer) to over-reserve costs. The transfer amount is now subtracted from the internal-fee quote before quotes are classified as native or ERC20.
+- 2821252: The compare-versions dependency was moved to the workspace catalog.
+- d288e7b: Optional core deployer contracts were omitted from returned contract maps when disabled instead of being returned as undefined values.
+- 9bdab1d: SVM warp route fee integration was added. Warp token writers wired SetFeeConfig into the create and update flows with fee PDA validation, and readers were updated to surface the on-chain fee config. The token account decoder was extended to read the trailing Option<FeeConfig> field. Program version detection was added via GetProgramVersion simulation, gating explicit program upgrades that emit ExtendProgramChecked and Upgrade against the deployed BPF Loader v3 program. A contractVersion field was added to the provider-sdk warp config types, and compare-versions was promoted to the workspace catalog.
+- cf6857e: `tryGetEvmExplorerMetadata` now restricts explorer-API usage to Etherscan-compatible families (Etherscan/Blockscout/Routescan/ZkSync) instead of only excluding `Other`, so non-Etherscan explorers such as TronScan are skipped cleanly instead of returning HTML that breaks JSON parsing during xERC20 bridge derivation (warp read / enrollment on Tron).
+- cf6857e: Fixed XERC20 type detection (deriveXERC20TokenType) for xERC20 tokens deployed behind a proxy: it now resolves the implementation address and inspects its bytecode for the Velodrome/Standard selectors, instead of only checking the (delegatecall-stub) proxy bytecode. This fixes "Unable to detect XERC20 type … does not implement Standard or Velodrome XERC20 interface" for proxied xERC20 warp routes.
+- Updated dependencies [9cd7606]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+- Updated dependencies [823eca3]
+- Updated dependencies [70586aa]
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/deploy-sdk@7.0.0
+  - @hyperlane-xyz/aleo-sdk@36.0.0
+  - @hyperlane-xyz/cosmos-sdk@36.0.0
+  - @hyperlane-xyz/radix-sdk@36.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.2
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/starknet-core@36.0.0
+
 ## 35.2.0
 
 ### Minor Changes
