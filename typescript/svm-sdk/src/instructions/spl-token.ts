@@ -2,6 +2,7 @@ import type { Address, Instruction } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { u64le } from '../codecs/binary.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
@@ -15,6 +16,16 @@ import {
   writableSignerAddress,
   readonlySignerAddress,
 } from './utils.js';
+
+/** Associated Token program instruction discriminants. */
+const AssociatedTokenInstructionKind = {
+  CreateIdempotent: 1,
+} as const;
+
+/** SPL Token program instruction discriminants. */
+const SplTokenInstructionKind = {
+  MintTo: 7,
+} as const;
 
 /**
  * Builds the idempotent CreateAssociatedTokenAccount instruction (kind 1).
@@ -42,7 +53,7 @@ export function getCreateAssociatedTokenIdempotentInstruction(args: {
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       readonlyAccount(args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS),
     ],
-    new Uint8Array([1]), // CreateIdempotent
+    new Uint8Array([AssociatedTokenInstructionKind.CreateIdempotent]),
   );
 }
 
@@ -66,13 +77,10 @@ export function getMintToInstruction(args: {
     args.amount >= 0n && args.amount <= U64_MAX,
     `getMintToInstruction: amount ${args.amount} does not fit in u64 (0..${U64_MAX})`,
   );
-  const data = new Uint8Array(9);
-  data[0] = 7;
-  let v = args.amount;
-  for (let i = 0; i < 8; i += 1) {
-    data[1 + i] = Number(v & 0xffn);
-    v >>= 8n;
-  }
+  const data = new Uint8Array([
+    SplTokenInstructionKind.MintTo,
+    ...u64le(args.amount),
+  ]);
   return buildInstruction(
     args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS,
     [

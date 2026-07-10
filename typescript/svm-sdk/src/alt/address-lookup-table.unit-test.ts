@@ -110,6 +110,17 @@ describe('SvmAddressLookupTableWriter — 256-address cap', () => {
       ).to.be.rejectedWith(/exceeds the 256-address cap \(257\)/);
     });
 
+    it('rejects a frozen config with no addresses', async () => {
+      // The SvmAltConfig union forbids this at compile time; JSON-parsed
+      // input can still reach create() with the shape, so the runtime
+      // guard must fire before any rpc call.
+      const config: SvmAltConfig = JSON.parse('{"frozen":true,"addresses":[]}');
+      const writer = new SvmAddressLookupTableWriter(stubRpc(), stubSigner());
+      await expect(
+        writer.create({ artifactState: ArtifactState.NEW, config }),
+      ).to.be.rejectedWith(/Cannot create a frozen ALT with no addresses/);
+    });
+
     it('counts deduped addresses, not raw input length', async () => {
       // 300 raw entries but only 50 unique → must pass the cap check.
       // The next step (rpc.getSlot) trips the stubRpc, proving the cap

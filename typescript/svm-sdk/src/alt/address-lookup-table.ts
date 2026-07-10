@@ -148,11 +148,25 @@ export class SvmAddressLookupTableWriter
       `ALT exceeds the ${ALT_MAX_ADDRESSES}-address cap (${uniqueAddresses.length}); split into multiple tables.`,
     );
 
+    // The `SvmAltConfig` union already forbids `frozen: true` with no
+    // addresses at compile time, but untyped/JSON-parsed input can reach
+    // here — the ALT program rejects freezing an empty table, so guard at
+    // runtime too.
+    assert(
+      uniqueAddresses.length > 0 || !frozen,
+      'Cannot create a frozen ALT with no addresses.',
+    );
+
     // The ALT program rejects slots that aren't in the SlotHashes sysvar.
     // A finalized slot is guaranteed to have already been recorded there,
     // so it's a safe `recent_slot` for create — the alternative (tip
     // commitment) often picks the in-progress slot which isn't yet in
     // slot_hashes and trips InvalidInstructionData.
+    //
+    // The ALT PDA is derived from (authority, recent_slot), so two create()
+    // calls by the same authority within one finalized-slot window collide
+    // and the second fails with AccountAlreadyInUse. Batch tooling that
+    // creates several ALTs back-to-back should space them across slots.
     const recentSlot = await this.rpc
       .getSlot({ commitment: 'finalized' })
       .send();
@@ -234,6 +248,12 @@ export class SvmAddressLookupTableWriter
    * callers must wait at least one slot before referencing the table in
    * a v0 tx — otherwise the runtime rejects the tx with "address lookup
    * table is not activated".
+   *
+   * Each tx sets `feePayer` to the on-chain ALT authority so it can be
+   * signed downstream by that key. Do NOT route these through this
+   * writer's own `SvmSigner.send()` when the authority differs from the
+   * signer: `send()` ignores `feePayer` and signs with the signer's
+   * identity, which the ALT program then rejects as an invalid authority.
    */
   async update(
     artifact: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>,
