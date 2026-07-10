@@ -372,6 +372,14 @@ export const CrossCollateralTokenConfigSchema =
     crossCollateralRouters: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
+    /**
+     * Map of domain → rebalance target router addresses (beyond the enrolled
+     * remote router), authorized via `addRebalanceTarget`. Used e.g. to let a
+     * same-chain AtomicLocalRebalancingBridge fund a sibling collateral router.
+     */
+    rebalanceTargets: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
     ...BaseMovableTokenConfigSchema.shape,
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
