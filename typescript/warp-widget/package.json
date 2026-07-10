@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "clean": "rm -rf ./dist ./cache",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src"

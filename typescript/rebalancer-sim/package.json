@@ -23,6 +23,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "clean": "rm -rf dist cache",
     "dev": "tsc --watch",
     "generate-scenarios": "tsx scripts/generate-scenarios.ts",

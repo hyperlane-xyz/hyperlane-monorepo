@@ -20,6 +20,7 @@
   "exports": "./dist/index.js",
   "scripts": {
     "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
+    "build:ts7": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsgo",
     "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
     "coverage": "pnpm hardhat-esm coverage",
     "lint": "solhint contracts/**/*.sol",

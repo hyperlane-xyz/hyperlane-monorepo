@@ -83,12 +83,14 @@ export class SealevelHelloWorldAdapter
     const connection = this.getProvider();
     const recentBlockhash = (await connection.getLatestBlockhash('finalized'))
       .blockhash;
-    // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-    const transaction = new Transaction({
+    // Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash.
+    // Using an intermediate variable bypasses excess-property checks in both tsc 6 and tsgo 7.
+    const txOpts = {
       feePayer: senderPubKey,
       blockhash: recentBlockhash,
       recentBlockhash,
-    }).add(txInstruction);
+    };
+    const transaction = new Transaction(txOpts).add(txInstruction);
     transaction.partialSign(randomWallet);
 
     return { type: ProviderType.SolanaWeb3, transaction };

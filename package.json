@@ -6,6 +6,7 @@
   "scripts": {
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
+    "build:ts7": "turbo run build:ts7",
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format && pnpm exec tsx ./scripts/sort-yaml.ts",
@@ -26,6 +27,7 @@
     "@changesets/cli": "^2.26.2"
   },
   "devDependencies": {
+    "@typescript/native-preview": "catalog:",
     "husky": "^8.0.0",
     "lint-staged": "^15.5.2",
     "oxfmt": "catalog:",

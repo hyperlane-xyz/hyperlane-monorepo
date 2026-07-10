@@ -132,6 +132,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",

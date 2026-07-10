@@ -26,6 +26,7 @@
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "pnpm version:update && NODE_OPTIONS='--max-old-space-size=4096' tsc",
+    "build:ts7": "pnpm version:update && NODE_OPTIONS='--max-old-space-size=4096' tsgo",
     "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "pnpm version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./bundle",

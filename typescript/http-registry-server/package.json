@@ -14,6 +14,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:ts7": "tsgo -p tsconfig.json",
     "clean": "rm -rf ./dist",
     "start": "node dist/scripts/run-server.js",
     "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/scripts/run-server.js",
