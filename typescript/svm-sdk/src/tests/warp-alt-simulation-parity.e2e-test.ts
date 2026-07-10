@@ -1,3 +1,4 @@
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { address, type Address, generateKeyPairSigner } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
@@ -45,6 +46,7 @@ import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { deriveAssociatedTokenAddress, deriveIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
+import { ethAddressHexFromPrivateKey } from '../testing/quote-signer.js';
 import {
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
@@ -200,6 +202,9 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
     });
 
     // ---- IGP hook (program is shared with all warps in CI) ----
+    const quoteSignerHex = ethAddressHexFromPrivateKey(
+      secp256k1.utils.randomSecretKey(),
+    );
     igpConfig = {
       type: 'interchainGasPaymaster',
       owner: signer.getSignerAddress(),
@@ -212,6 +217,8 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
           tokenExchangeRate: '1000000000000000000',
         },
       },
+      contractVersion: '1.0.0',
+      quoteSigners: [quoteSignerHex],
     };
     await new SvmIgpHookWriter(
       { program: { programId: igpProgramId }, domainId: DOMAIN_LOCAL },
