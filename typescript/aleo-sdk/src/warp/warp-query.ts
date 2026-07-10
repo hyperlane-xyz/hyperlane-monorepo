@@ -44,6 +44,24 @@ export async function getArc20ProgramId(
 }
 
 /**
+ * Validates and extracts the first output from a view function response body.
+ * Expects a JSON array of wire-format strings (e.g. ["6u8"], ["'USDC'"]).
+ */
+export function parseViewFunctionOutputs(
+  outputs: unknown,
+  programId: string,
+  viewName: string,
+): string {
+  assert(
+    Array.isArray(outputs) &&
+      outputs.length > 0 &&
+      typeof outputs[0] === 'string',
+    `View function ${programId}/${viewName} returned an unexpected response shape: ${JSON.stringify(outputs)}`,
+  );
+  return outputs[0];
+}
+
+/**
  * Calls a view function on an Aleo program via the Explorer REST API.
  * POST {host}/program/{programId}/view/{viewName}
  * No-input functions use an empty object body `{}`; functions with inputs use a JSON array.
@@ -65,12 +83,8 @@ export async function callViewFunction(
         body,
       });
       assert(res.ok, `View function call failed (${res.status}): ${url}`);
-      const outputs: string[] = await res.json();
-      assert(
-        outputs.length > 0,
-        `View function ${programId}/${viewName} returned no outputs`,
-      );
-      return outputs[0];
+      const outputs: unknown = await res.json();
+      return parseViewFunctionOutputs(outputs, programId, viewName);
     },
     RETRY_ATTEMPTS,
     RETRY_DELAY_MS,
@@ -105,10 +119,16 @@ export async function getArc20TokenMetadata(
     callViewFunction(aleoClient, arc20ProgramId, 'symbol'),
     callViewFunction(aleoClient, arc20ProgramId, 'decimals'),
   ]);
+  const decimals = parseInt(decimalsRaw, 10);
+  assert(
+    !Number.isNaN(decimals),
+    `Expected numeric decimals from ${arc20ProgramId}, got: ${decimalsRaw}`,
+  );
+
   return {
     name: parseAleoIdentifier(nameRaw),
     symbol: parseAleoIdentifier(symbolRaw),
-    decimals: parseInt(decimalsRaw, 10),
+    decimals,
   };
 }
 
@@ -456,6 +476,21 @@ export async function getNativeWarpTokenConfig(
 }
 
 /**
+ * Resolve token name/symbol/decimals for a warp token — ARC-20 for v2, token_registry for v1.
+ */
+async function resolveTokenMetadata(
+  aleoClient: AnyAleoNetworkClient,
+  programId: string,
+  tokenId: string,
+): Promise<{ name: string; symbol: string; decimals: number }> {
+  if (isV2WarpToken(programId)) {
+    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
+    return getArc20TokenMetadata(aleoClient, arc20ProgramId);
+  }
+  return getTokenMetadata(aleoClient, tokenId);
+}
+
+/**
  * Query collateral warp token configuration
  */
 export async function getCollateralWarpTokenConfig(
@@ -503,25 +538,11 @@ export async function getCollateralWarpTokenConfig(
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
   );
 
-  let name: string;
-  let symbol: string;
-  let decimals: number;
-
-  if (isV2WarpToken(programId)) {
-    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
-    const arc20Metadata = await getArc20TokenMetadata(
-      aleoClient,
-      arc20ProgramId,
-    );
-    name = arc20Metadata.name;
-    symbol = arc20Metadata.symbol;
-    decimals = arc20Metadata.decimals;
-  } else {
-    const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
-    name = tokenMetadata.name;
-    symbol = tokenMetadata.symbol;
-    decimals = tokenMetadata.decimals;
-  }
+  const { name, symbol, decimals } = await resolveTokenMetadata(
+    aleoClient,
+    programId,
+    tokenId,
+  );
 
   return {
     type: AleoTokenType.COLLATERAL,
@@ -585,25 +606,11 @@ export async function getSyntheticWarpTokenConfig(
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
   );
 
-  let name: string;
-  let symbol: string;
-  let decimals: number;
-
-  if (isV2WarpToken(programId)) {
-    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
-    const arc20Metadata = await getArc20TokenMetadata(
-      aleoClient,
-      arc20ProgramId,
-    );
-    name = arc20Metadata.name;
-    symbol = arc20Metadata.symbol;
-    decimals = arc20Metadata.decimals;
-  } else {
-    const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
-    name = tokenMetadata.name;
-    symbol = tokenMetadata.symbol;
-    decimals = tokenMetadata.decimals;
-  }
+  const { name, symbol, decimals } = await resolveTokenMetadata(
+    aleoClient,
+    programId,
+    tokenId,
+  );
 
   return {
     type: AleoTokenType.SYNTHETIC,

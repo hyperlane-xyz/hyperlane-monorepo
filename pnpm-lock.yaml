@@ -546,6 +546,9 @@ importers:
       ts-node:
         specifier: 'catalog:'
         version: 10.9.2(@types/node@24.10.9)(typescript@6.0.2)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.2

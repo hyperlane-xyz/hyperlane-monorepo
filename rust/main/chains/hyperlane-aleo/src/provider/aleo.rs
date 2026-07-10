@@ -229,7 +229,11 @@ impl<C: AleoClient> AleoProvider<C> {
         let height = self.get_latest_height().await?;
         let consensus_version = N::CONSENSUS_VERSION(height).map_err(HyperlaneAleoError::from)?;
 
-        // Get the finalize cost.
+        // Get the finalize cost. This is a lower bound (not the exact runtime cost) because we
+        // only have an Authorization at this point, not a proven Execution: the exact cost
+        // (`execution_finalize_cost`) requires iterating over concrete transitions, which don't
+        // exist yet. `execution_cost_for_authorization` below has the same limitation, returning
+        // a `MinimumCost`.
         let finalize_cost = minimum_cost_in_microcredits_v3(&stack, function_name)
             .map_err(HyperlaneAleoError::from)?;
         let execution_cost =
@@ -297,7 +301,8 @@ impl<C: AleoClient> AleoProvider<C> {
             Identifier::<N>::from_str(function_name).map_err(HyperlaneAleoError::from)?;
         let signer = self.get_signer()?;
         let private_key = signer.get_private_key()?;
-        let mut rng = ChaCha20Rng::try_from_rng(&mut SysRng).expect("RNG seeding failed");
+        let mut rng = ChaCha20Rng::try_from_rng(&mut SysRng)
+            .map_err(|e| HyperlaneAleoError::Other(format!("RNG seeding failed: {e}")))?;
         // Load program + dependencies.
         self.load_program(vm, &program_id_parsed, 0).await?;
 
