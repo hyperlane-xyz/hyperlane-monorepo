@@ -19,10 +19,15 @@ import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
 import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type FeeReadContext,
+  type IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
+import { SvmFeeArtifactManager } from '../fee/fee-artifact-manager.js';
+import { resolveFeeSalt } from '../fee/types.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
@@ -74,7 +79,9 @@ export class SvmProtocolProvider implements ProtocolProvider {
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmWarpArtifactManager(rpc);
+    return new SvmWarpArtifactManager(rpc, {
+      chainName: chainMetadata.name,
+    });
   }
 
   createMailboxArtifactManager(
@@ -92,9 +99,16 @@ export class SvmProtocolProvider implements ProtocolProvider {
   }
 
   createFeeArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
+    context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
-    return null;
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmFeeArtifactManager(
+      rpc,
+      context,
+      { domainId: chainMetadata.domainId, chainName: chainMetadata.name },
+      resolveFeeSalt(chainMetadata.name),
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {

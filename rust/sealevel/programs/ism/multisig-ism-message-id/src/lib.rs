@@ -9,5 +9,4 @@
 pub mod accounts;
 pub mod error;
 pub mod instruction;
-pub mod metadata;
 pub mod processor;
