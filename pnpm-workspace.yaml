@@ -2,6 +2,7 @@
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@hyperlane-xyz/*'
+  - '@provablehq/*'
 
 packages:
   - 'solhint-plugin'

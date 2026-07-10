@@ -19,10 +19,18 @@ import {
   getBalanceKey,
   getProgramIdFromSuffix,
   getProgramSuffix,
+  isArc20ProgramId,
+  isV2WarpToken,
   toAleoAddress,
 } from '../utils/helper.js';
 import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
-import { getRemoteRouters } from '../warp/warp-query.js';
+import {
+  callViewFunction,
+  getArc20ProgramId,
+  getArc20TokenMetadata,
+  getRemoteRouters,
+  parseAleoUint,
+} from '../warp/warp-query.js';
 
 import { AleoBase } from './base.js';
 
@@ -86,6 +94,16 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
+      if (isArc20ProgramId(req.denom)) {
+        const raw = await callViewFunction(
+          this.aleoClient,
+          req.denom,
+          'balance_of',
+          [aleoAddress],
+        );
+        return parseAleoUint(raw);
+      }
+
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
@@ -108,6 +126,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   ): Promise<bigint> {
     if (!req.denom) {
       return 0n;
+    }
+
+    if (isArc20ProgramId(req.denom)) {
+      const raw = await callViewFunction(this.aleoClient, req.denom, 'supply');
+      return parseAleoUint(raw);
     }
 
     let result = null;
@@ -278,14 +301,27 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
         : `${getProgramIdFromSuffix(this.prefix, 'hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
-    token.denom = tokenMetadata.token_id || '';
-
-    if (token.denom) {
-      const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
-
-      token.name = tokenRegistryMetadata.name;
-      token.symbol = tokenRegistryMetadata.symbol;
-      token.decimals = tokenRegistryMetadata.decimals;
+    if (isV2WarpToken(programId)) {
+      const arc20ProgramId = await getArc20ProgramId(
+        this.aleoClient,
+        programId,
+      );
+      token.denom = arc20ProgramId;
+      const arc20Metadata = await getArc20TokenMetadata(
+        this.aleoClient,
+        arc20ProgramId,
+      );
+      token.name = arc20Metadata.name;
+      token.symbol = arc20Metadata.symbol;
+      token.decimals = arc20Metadata.decimals;
+    } else {
+      token.denom = tokenMetadata.token_id || '';
+      if (token.denom) {
+        const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
+        token.name = tokenRegistryMetadata.name;
+        token.symbol = tokenRegistryMetadata.symbol;
+        token.decimals = tokenRegistryMetadata.decimals;
+      }
     }
 
     switch (tokenMetadata.token_type) {
@@ -330,6 +366,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       'true',
     );
 
+    const arc20ProgramId = isV2WarpToken(programId)
+      ? await getArc20ProgramId(this.aleoClient, programId)
+      : undefined;
+
     switch (metadata['token_type']) {
       case AleoTokenType.NATIVE: {
         return this.getBalance({
@@ -339,14 +379,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
-          denom: metadata['token_id'],
+          denom: arc20ProgramId ?? metadata['token_id'],
           programId,
         });
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
           address: getAddressFromProgramId(programId),
-          denom: metadata['token_id'],
+          denom: arc20ProgramId ?? metadata['token_id'],
         });
       }
       default: {
@@ -516,6 +556,16 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
     if (req.denom) {
+      if (isArc20ProgramId(req.denom)) {
+        return {
+          programName: req.denom,
+          functionName: 'transfer_public',
+          priorityFee: 0,
+          privateFee: false,
+          inputs: [req.recipient, `${req.amount}u128`],
+        };
+      }
+
       return {
         programName: 'token_registry.aleo',
         functionName: 'transfer_public',
