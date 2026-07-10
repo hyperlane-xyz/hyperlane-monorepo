@@ -53,24 +53,27 @@ export function decodeIgpFeeConfig(cursor: ByteCursor): IgpFeeConfig {
   return { signers, domainId, minIssuedAt };
 }
 
+const IGP_FEE_CONFIG_DISCRIMINATOR = ascii8('IGPFEEV1');
+
 /**
- * Reads an optional trailing `IgpFeeConfig` from the cursor, mirroring the
- * Rust `read_optional_trailing` semantics:
+ * Reads an optional trailing `IgpFeeConfig` (on-chain
+ * `OptionalDiscriminatedData<IgpFeeConfig>`):
  *
- *   - no remaining bytes → undefined (pre-upgrade account)
- *   - tag byte `0`        → undefined (explicit None)
- *   - tag byte `1`        → decoded `IgpFeeConfig`
- *   - any other byte      → throws
+ *   - fewer than 8 trailing bytes            → undefined (pre-upgrade / None)
+ *   - 8-byte `IGPFEEV1` discriminator + body → decoded `IgpFeeConfig`
+ *   - any other 8-byte tail                  → undefined (stale bytes, tolerated
+ *                                               as None, matching the on-chain
+ *                                               deserializer)
  */
 export function readOptionalTrailingIgpFeeConfig(
   cursor: ByteCursor,
 ): IgpFeeConfig | undefined {
-  if (cursor.remaining() === 0) return undefined;
-  const tag = cursor.readU8();
-  if (tag === 0) return undefined;
-  if (tag !== 1) {
-    throw new Error(`Invalid IgpFeeConfig option tag: ${tag}`);
-  }
+  if (cursor.remaining() < 8) return undefined;
+  const discriminator = cursor.readBytes(8);
+  const mismatch = discriminator.some(
+    (value, i) => value !== IGP_FEE_CONFIG_DISCRIMINATOR[i],
+  );
+  if (mismatch) return undefined;
   return decodeIgpFeeConfig(cursor);
 }
 

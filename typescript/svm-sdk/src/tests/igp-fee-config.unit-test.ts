@@ -14,6 +14,7 @@ const SIGNER_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const SIGNER_C = '0xcccccccccccccccccccccccccccccccccccccccc';
 
 const IGP_DISCRIMINATOR = new TextEncoder().encode('IGP_____');
+const IGP_FEE_CONFIG_DISCRIMINATOR = new TextEncoder().encode('IGPFEEV1');
 
 function buildIgpAccountRaw(
   trailing: Uint8Array = new Uint8Array(),
@@ -100,19 +101,19 @@ describe('decodeIgpAccount — feeConfig trailing', () => {
     expect(decoded?.feeConfig).to.be.undefined;
   });
 
-  it('returns feeConfig undefined when the option tag is 0 (None)', () => {
+  it('returns feeConfig undefined when the trailing tail is shorter than the discriminator', () => {
     const decoded = decodeIgpAccount(buildIgpAccountRaw(new Uint8Array([0])));
     expect(decoded?.feeConfig).to.be.undefined;
   });
 
-  it('parses feeConfig when the option tag is 1 (Some)', () => {
+  it('parses feeConfig when the IGPFEEV1 discriminator is present', () => {
     const config: IgpFeeConfig = {
       signers: [SIGNER_A],
       domainId: 42,
       minIssuedAt: 9000n,
     };
     const trailing = Uint8Array.from(
-      concatBytes(new Uint8Array([1]), encodeIgpFeeConfig(config)),
+      concatBytes(IGP_FEE_CONFIG_DISCRIMINATOR, encodeIgpFeeConfig(config)),
     );
     const decoded = decodeIgpAccount(buildIgpAccountRaw(trailing));
     expect(decoded?.feeConfig?.domainId).to.equal(42);
@@ -120,9 +121,10 @@ describe('decodeIgpAccount — feeConfig trailing', () => {
     expect(decoded?.feeConfig?.signers).to.eql([SIGNER_A]);
   });
 
-  it('throws on an invalid option tag', () => {
-    expect(() =>
-      decodeIgpAccount(buildIgpAccountRaw(new Uint8Array([2]))),
-    ).to.throw(/Invalid IgpFeeConfig option tag/);
+  it('returns feeConfig undefined on a non-matching (stale) 8-byte tail', () => {
+    const decoded = decodeIgpAccount(
+      buildIgpAccountRaw(new Uint8Array(8).fill(0xff)),
+    );
+    expect(decoded?.feeConfig).to.be.undefined;
   });
 });
