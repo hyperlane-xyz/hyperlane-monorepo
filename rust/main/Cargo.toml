@@ -135,6 +135,7 @@ ripemd = "0.1.3"
 rlp = "=0.5.2"
 rocksdb = "0.24.0"
 rstest = "0.25.0"
+rustls = { version = "0.23.36", default-features = false, features = ["aws_lc_rs", "logging", "std", "tls12"] }
 sea-orm = { version = "1.1.10", features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",
