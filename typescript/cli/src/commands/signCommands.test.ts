@@ -20,6 +20,10 @@ describe('signCommands', () => {
       }
     });
 
+    it('returns true for nested warp fee-vault deploy commands', () => {
+      expect(isSignCommand({ _: ['warp', 'fee-vault', 'deploy'] })).to.be.true;
+    });
+
     it('returns false for non-sign commands', () => {
       expect(isSignCommand({ _: ['read'] })).to.be.false;
       expect(isSignCommand({ _: ['config'] })).to.be.false;
