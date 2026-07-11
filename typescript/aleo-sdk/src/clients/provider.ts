@@ -405,12 +405,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const blockHash = await this.findBlockHashByTxId(txId);
     const block = await this.aleoClient.getBlockByHash(blockHash);
     const blockHeight = Number(block.header.metadata.height);
-    const nonce = await this.queryMappingValue(
-      programId,
-      'dispatch_event_index',
-      `${blockHeight}u32`,
-    );
-    return nonce != null ? (nonce as number) : null;
+    try {
+      const nonce = await this.queryMappingValue(
+        programId,
+        'dispatch_event_index',
+        `${blockHeight}u32`,
+        { retryOnNull: true },
+      );
+      return nonce != null ? (nonce as number) : null;
+    } catch {
+      // Retries exhausted; genuinely no dispatch event for this block.
+      return null;
+    }
   }
 
   async getDispatchedMessageId(
