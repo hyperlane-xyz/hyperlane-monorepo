@@ -114,6 +114,10 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
     const igpFeeOnly = isNativeRoute
       ? nativeValue - originTokenAmount.amount
       : nativeValue;
+    assert(
+      igpFeeOnly >= 0n,
+      `IGP fee quote underflow: quoted ${nativeValue} < amount ${originTokenAmount.amount}`,
+    );
     const igpQuote = new TokenAmount(igpFeeOnly, nativeToken);
 
     const tokenKey = toAddress(
