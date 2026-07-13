@@ -265,10 +265,16 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     // non-CC contexts are 44B and carry no target_router slot; fall back to
     // the request's bytes (kept ZERO by the cascade layout's standing-target
     // hardcode at `_ => H256::zero()`).
+    const LEAF_CONTEXT_LEN = 44;
     const CC_CONTEXT_LEN = 76;
+    const contextLen = decodedWarp.signedQuote.context.length;
+    assert(
+      contextLen === LEAF_CONTEXT_LEN || contextLen === CC_CONTEXT_LEN,
+      `Unexpected signed-quote context length ${contextLen}; expected ${LEAF_CONTEXT_LEN} (leaf/non-CC) or ${CC_CONTEXT_LEN} (cross-collateral)`,
+    );
     const effectiveTargetRouter =
-      decodedWarp.signedQuote.context.length === CC_CONTEXT_LEN
-        ? decodedWarp.signedQuote.context.slice(44)
+      contextLen === CC_CONTEXT_LEN
+        ? decodedWarp.signedQuote.context.slice(LEAF_CONTEXT_LEN)
         : targetRouterBytes;
 
     const submitFeeIx = await buildSubmitFeeQuoteIx({
