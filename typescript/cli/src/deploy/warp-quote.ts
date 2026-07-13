@@ -90,6 +90,19 @@ export async function runWarpQuoteCreate({
     localConfig.tokenFee,
     `No tokenFee deployed for warp route ${warpRouteId} on ${chain}`,
   );
+
+  const chainLookup = altVmChainLookup(multiProvider);
+  const feeReadContext = buildFeeReadContextFromWarpDeployConfig(
+    localConfig,
+    chainLookup,
+  );
+
+  // knownRoutersPerDomain unions remoteRouters and crossCollateralRouters.
+  assert(
+    feeReadContext.knownRoutersPerDomain[destinationDomain],
+    `Destination ${destinationChainName} (domain ${destinationDomain}) is not enrolled in warp route ${warpRouteId} on ${chain}`,
+  );
+
   const targetRouter = resolveTargetRouterForVariant({
     tokenFee: localConfig.tokenFee,
     localConfig,
@@ -118,12 +131,11 @@ export async function runWarpQuoteCreate({
           value: parseBigIntFlag('amount', amount),
         };
 
-  const chainLookup = altVmChainLookup(multiProvider);
   const chainMetadata = chainLookup.getChainMetadata(chain);
   const manager = createQuoteArtifactManagerForChain({
     chainMetadata,
     feeAddress,
-    context: buildFeeReadContextFromWarpDeployConfig(localConfig, chainLookup),
+    context: feeReadContext,
     multiProvider,
   });
   assert(
