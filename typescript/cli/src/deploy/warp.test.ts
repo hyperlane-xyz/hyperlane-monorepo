@@ -7,12 +7,17 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  IsmType,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
-import { runWarpRouteCombine } from './warp.js';
+import {
+  runWarpRouteCombine,
+  transformDeployConfigForDisplay,
+} from './warp.js';
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,
@@ -383,5 +388,41 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('scale=3/2');
     expect(thrown?.message).to.include('scale=1');
     expect(thrown?.message).to.not.include('[object Object]');
+  });
+});
+
+describe('transformDeployConfigForDisplay', () => {
+  const OWNER = '11111111111111111111111111111111111111111';
+  const MAILBOX = '22222222222222222222222222222222222222222';
+  const RELAYER = '33333333333333333333333333333333333333333';
+
+  it('recurses into routing/fallbackRouting domain sub-nodes of a composite ISM', () => {
+    const deployConfig = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'routing',
+            domains: {
+              ethereum: {
+                type: 'multisigMessageId',
+                validators: [RELAYER],
+                threshold: 1,
+              },
+            },
+          },
+        },
+      },
+    } as WarpRouteDeployConfigMailboxRequired;
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    expect(rows.some((row) => row.Type === 'multisigMessageId')).to.equal(true);
   });
 });

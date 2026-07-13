@@ -529,55 +529,68 @@ export type CompositeIsmNodeConfig =
 
 export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
   z.lazy(() =>
-    z.discriminatedUnion('type', [
-      z.object({
-        type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
-        relayer: ZHash,
+    z
+      .discriminatedUnion('type', [
+        z.object({
+          type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
+          relayer: ZHash,
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
+          validators: z.array(ZHash),
+          threshold: z.number(),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.AGGREGATION),
+          threshold: z.number(),
+          subIsms: z.array(CompositeIsmNodeConfigSchema),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.TEST),
+          accept: z.boolean(),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.PAUSABLE),
+          paused: z.boolean(),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
+          threshold: z
+            .string()
+            .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
+          lower: CompositeIsmNodeConfigSchema,
+          upper: CompositeIsmNodeConfigSchema,
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
+          maxCapacity: z
+            .string()
+            .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+          mailbox: ZHash,
+          recipient: ZHash.optional(),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.ROUTING),
+          domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+        }),
+        z.object({
+          type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
+          fallbackIsm: ZHash,
+          domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+        }),
+      ])
+      .superRefine((data, ctx) => {
+        if (
+          data.type === CompositeIsmNodeType.AGGREGATION &&
+          (data.threshold < 1 || data.threshold > data.subIsms.length)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'Threshold must be between 1 and the number of subIsms (inclusive)',
+          });
+        }
       }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
-        validators: z.array(ZHash),
-        threshold: z.number(),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.AGGREGATION),
-        threshold: z.number(),
-        subIsms: z.array(CompositeIsmNodeConfigSchema),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.TEST),
-        accept: z.boolean(),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.PAUSABLE),
-        paused: z.boolean(),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
-        threshold: z
-          .string()
-          .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
-        lower: CompositeIsmNodeConfigSchema,
-        upper: CompositeIsmNodeConfigSchema,
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
-        maxCapacity: z
-          .string()
-          .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
-        mailbox: ZHash,
-        recipient: ZHash.optional(),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.ROUTING),
-        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
-      }),
-      z.object({
-        type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
-        fallbackIsm: ZHash,
-        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
-      }),
-    ]),
   );
 
 export type CompositeIsmConfig = OwnableConfig & {

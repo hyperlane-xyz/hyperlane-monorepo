@@ -948,10 +948,11 @@ type IsmDisplayConfig =
   | TrustedRelayerIsmConfig // type, relayer
   | CompositeIsmConfig; // type, owner, root (Sealevel-only)
 
-function transformDeployConfigForDisplay(
+export function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
 ) {
-  const transformedIsmConfigs: Record<ChainName, any[]> = {};
+  const transformedIsmConfigs: Record<ChainName, Record<string, unknown>[]> =
+    {};
   const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
     if (config.interchainSecurityModule)
       transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
@@ -975,8 +976,10 @@ function transformDeployConfigForDisplay(
   };
 }
 
-function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
-  const ismConfigs: any[] = [];
+function transformIsmConfigForDisplay(
+  ismConfig: IsmDisplayConfig,
+): Record<string, unknown>[] {
+  const ismConfigs: Record<string, unknown>[] = [];
   switch (ismConfig.type) {
     case IsmType.AGGREGATION:
       ismConfigs.push({
@@ -1070,7 +1073,7 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
  */
 function transformCompositeIsmNodeForDisplay(
   node: CompositeIsmNodeConfig,
-): any[] {
+): Record<string, unknown>[] {
   switch (node.type) {
     case 'aggregation':
       return [
@@ -1102,6 +1105,11 @@ function transformCompositeIsmNodeForDisplay(
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
+        ...(node.domains
+          ? Object.values(node.domains).flatMap((sub) =>
+              transformCompositeIsmNodeForDisplay(sub),
+            )
+          : []),
       ];
     case 'fallbackRouting':
       return [
@@ -1112,6 +1120,11 @@ function transformCompositeIsmNodeForDisplay(
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
+        ...(node.domains
+          ? Object.values(node.domains).flatMap((sub) =>
+              transformCompositeIsmNodeForDisplay(sub),
+            )
+          : []),
       ];
     case 'trustedRelayer':
       return [{ Type: node.type, Relayer: node.relayer }];

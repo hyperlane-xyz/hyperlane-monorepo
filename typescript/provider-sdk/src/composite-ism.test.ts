@@ -6,7 +6,6 @@ import { IsmType as AltVMIsmType } from './altvm.js';
 import { ArtifactNew, ArtifactState, isArtifactDeployed } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
-  CompositeIsmArtifactConfig,
   CompositeIsmConfig,
   DeployedIsmArtifact,
   IsmArtifactConfig,
@@ -77,7 +76,8 @@ describe('compositeIsm config <-> artifact conversion', () => {
     const artifact = ismConfigToArtifact(config, chainLookup);
     expect(artifact.artifactState).to.equal(ArtifactState.NEW);
 
-    const artifactConfig = artifact.config as CompositeIsmArtifactConfig;
+    assert(artifact.config.type === 'compositeIsm', 'expected compositeIsm');
+    const artifactConfig = artifact.config;
     expect(artifactConfig.type).to.equal('compositeIsm');
     expect(artifactConfig.owner).to.equal(OWNER);
     assert(artifactConfig.root.type === 'aggregation', 'expected aggregation');
@@ -126,7 +126,8 @@ describe('compositeIsm config <-> artifact conversion', () => {
     };
 
     const artifact = ismConfigToArtifact(config, chainLookup);
-    const artifactConfig = artifact.config as CompositeIsmArtifactConfig;
+    assert(artifact.config.type === 'compositeIsm', 'expected compositeIsm');
+    const artifactConfig = artifact.config;
     assert(artifactConfig.root.type === 'routing', 'expected routing');
     expect(Object.keys(artifactConfig.root.domains ?? {})).to.deep.equal([
       '1399811149',
@@ -146,7 +147,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
             1399811149: { type: 'test', accept: true },
           },
         },
-      } as CompositeIsmArtifactConfig,
+      },
       deployed: { address: PROGRAM_ADDRESS },
     };
 
@@ -178,7 +179,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
             999999999: { type: 'test', accept: false },
           },
         },
-      } as CompositeIsmArtifactConfig,
+      },
       deployed: { address: PROGRAM_ADDRESS },
     };
 
@@ -199,7 +200,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
         type: 'compositeIsm',
         owner: OWNER,
         root: { type: 'test', accept: true },
-      } as CompositeIsmArtifactConfig,
+      },
       deployed: { address: PROGRAM_ADDRESS },
     };
 
@@ -212,7 +213,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
         // this itself; it just passes the expected config through, leaving
         // the actual diffing to SvmCompositeIsmWriter.update().
         root: { type: 'pausable', paused: true },
-      } as CompositeIsmArtifactConfig,
+      },
     };
 
     const result = mergeIsmArtifacts(currentArtifact, expectedArtifact);
@@ -229,7 +230,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
         type: 'compositeIsm',
         owner: OWNER,
         root: { type: 'test', accept: true },
-      } as CompositeIsmArtifactConfig,
+      },
       deployed: { address: PROGRAM_ADDRESS },
     };
 

@@ -448,7 +448,7 @@ function compositeIsmNodeArtifactToConfig(
       }
       const domains: Record<string, CompositeIsmNodeConfig> = {};
       for (const [domainIdStr, domainNode] of Object.entries(node.domains)) {
-        const chainName = chainLookup.getChainName(parseInt(domainIdStr));
+        const chainName = chainLookup.getChainName(parseInt(domainIdStr, 10));
         if (!chainName) {
           // Skip unknown domains, matching domainRoutingIsm's behavior
           continue;

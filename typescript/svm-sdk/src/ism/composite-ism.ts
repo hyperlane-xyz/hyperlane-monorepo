@@ -11,7 +11,7 @@ import type {
   CompositeIsmArtifactConfig,
   CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   decodeCompositeIsmStorageAccount,
@@ -526,10 +526,7 @@ function deepEqualNode(
   a: CompositeIsmNodeArtifactConfig,
   b: CompositeIsmNodeArtifactConfig,
 ): boolean {
-  return (
-    JSON.stringify(normalizeForCompare(a)) ===
-    JSON.stringify(normalizeForCompare(b))
-  );
+  return deepEquals(normalizeForCompare(a), normalizeForCompare(b));
 }
 
 /**

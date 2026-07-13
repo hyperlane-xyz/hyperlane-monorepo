@@ -90,8 +90,13 @@ describe('CompositeIsmConfigSchema', () => {
   it('parses via the top-level IsmConfigSchema union', () => {
     const result = IsmConfigSchema.safeParse(sample);
     expect(result.success).to.be.true;
-    if (result.success) {
-      expect((result.data as { type: string }).type).to.equal('compositeIsm');
+    if (
+      result.success &&
+      typeof result.data === 'object' &&
+      result.data !== null &&
+      'type' in result.data
+    ) {
+      expect(result.data.type).to.equal('compositeIsm');
     }
   });
 
@@ -101,5 +106,27 @@ describe('CompositeIsmConfigSchema', () => {
       root: { type: 'notARealNodeType', foo: 'bar' },
     };
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects an aggregation node with an out-of-range threshold', () => {
+    const tooHigh = {
+      ...sample,
+      root: {
+        type: 'aggregation',
+        threshold: 5,
+        subIsms: [{ type: 'trustedRelayer', relayer: SOME_ADDRESS }],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(tooHigh).success).to.be.false;
+
+    const tooLow = {
+      ...sample,
+      root: {
+        type: 'aggregation',
+        threshold: 0,
+        subIsms: [{ type: 'trustedRelayer', relayer: SOME_ADDRESS }],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(tooLow).success).to.be.false;
   });
 });
