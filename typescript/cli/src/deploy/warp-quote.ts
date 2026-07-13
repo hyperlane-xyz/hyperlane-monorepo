@@ -15,7 +15,7 @@ import {
   altVmChainLookup,
   buildFeeReadContextFromWarpDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
@@ -225,8 +225,7 @@ export function resolveTargetRouterForVariant(args: {
       const routers = localConfig.remoteRouters ?? {};
       const routerEntry = Object.entries(routers).find(([key]) => {
         const domain = multiProvider.tryGetDomainId(key);
-        if (domain !== null && domain !== undefined)
-          return domain === destinationDomain;
+        if (!isNullish(domain)) return domain === destinationDomain;
         return key === destinationChainName;
       });
       if (routerEntry) {
