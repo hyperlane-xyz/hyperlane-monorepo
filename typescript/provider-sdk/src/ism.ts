@@ -65,6 +65,25 @@ export interface DomainRoutingIsmConfig {
 }
 
 /**
+ * Discriminants for composite ISM tree nodes — used to compare/narrow
+ * `CompositeIsmNodeConfig`/`CompositeIsmNodeArtifactConfig` without
+ * hardcoding string literals at each comparison site (mirrors
+ * `@hyperlane-xyz/sdk`'s `CompositeIsmNodeType`, redeclared here since
+ * provider-sdk doesn't depend on the top-level sdk package).
+ */
+export const CompositeIsmNodeType = {
+  TRUSTED_RELAYER: 'trustedRelayer',
+  MULTISIG_MESSAGE_ID: 'multisigMessageId',
+  AGGREGATION: 'aggregation',
+  TEST: 'test',
+  PAUSABLE: 'pausable',
+  AMOUNT_ROUTING: 'amountRouting',
+  RATE_LIMITED: 'rateLimited',
+  ROUTING: 'routing',
+  FALLBACK_ROUTING: 'fallbackRouting',
+} as const;
+
+/**
  * A node in a Sealevel-only "composite ISM" tree (one program storing the
  * whole tree in a single PDA). Sub-nodes are inline Borsh data, not separate
  * deployments — only `routing`/`fallbackRouting.domains` are chain-name keyed
@@ -428,21 +447,21 @@ function compositeIsmNodeArtifactToConfig(
   chainLookup: ChainLookup,
 ): CompositeIsmNodeConfig {
   switch (node.type) {
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
         subIsms: node.subIsms.map((sub) =>
           compositeIsmNodeArtifactToConfig(sub, chainLookup),
         ),
       };
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
         ...node,
         lower: compositeIsmNodeArtifactToConfig(node.lower, chainLookup),
         upper: compositeIsmNodeArtifactToConfig(node.upper, chainLookup),
       };
-    case 'routing':
-    case 'fallbackRouting': {
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING: {
       if (!node.domains) {
         return { ...node, domains: undefined };
       }
@@ -475,21 +494,21 @@ function compositeIsmNodeConfigToArtifact(
   chainLookup: ChainLookup,
 ): CompositeIsmNodeArtifactConfig {
   switch (node.type) {
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
         subIsms: node.subIsms.map((sub) =>
           compositeIsmNodeConfigToArtifact(sub, chainLookup),
         ),
       };
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {
         ...node,
         lower: compositeIsmNodeConfigToArtifact(node.lower, chainLookup),
         upper: compositeIsmNodeConfigToArtifact(node.upper, chainLookup),
       };
-    case 'routing':
-    case 'fallbackRouting': {
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING: {
       if (!node.domains) {
         return { ...node, domains: undefined };
       }

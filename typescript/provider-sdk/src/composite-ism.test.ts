@@ -8,6 +8,7 @@ import { ChainLookup } from './chain.js';
 import {
   CompositeIsmConfig,
   DeployedIsmArtifact,
+  DerivedIsmConfig,
   IsmArtifactConfig,
   altVMIsmTypeToProviderSdkType,
   ismArtifactToDerivedConfig,
@@ -152,7 +153,7 @@ describe('compositeIsm config <-> artifact conversion', () => {
     };
 
     const derived = ismArtifactToDerivedConfig(deployedArtifact, chainLookup);
-    expect(derived).to.deep.equal({
+    const expected: DerivedIsmConfig = {
       type: 'compositeIsm',
       owner: OWNER,
       address: PROGRAM_ADDRESS,
@@ -163,7 +164,8 @@ describe('compositeIsm config <-> artifact conversion', () => {
           solanamainnet: { type: 'test', accept: true },
         },
       },
-    });
+    };
+    expect(derived).to.deep.equal(expected);
   });
 
   it('skips domains for unknown domain IDs when deriving config', () => {

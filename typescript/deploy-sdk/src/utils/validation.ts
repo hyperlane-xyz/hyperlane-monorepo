@@ -10,6 +10,13 @@ import { IsmConfig, IsmType } from '@hyperlane-xyz/provider-sdk/ism';
 /**
  * ISM types supported by provider-sdk for Alt-VM chains.
  * These correspond to the types defined in provider-sdk/src/ism.ts
+ *
+ * Typed as `ReadonlySet<string>` rather than `ReadonlySet<IsmType>`
+ * deliberately: `validateIsmType`'s `ismType` parameter is arbitrary,
+ * not-yet-validated input (a raw config field, possibly from an untrusted
+ * registry entry), so `.has()` is called with a plain `string`. Narrowing
+ * the set to `ReadonlySet<IsmType>` would just push an unsafe cast to
+ * every call site instead of removing it.
  */
 const SUPPORTED_ISM_TYPES: ReadonlySet<string> = new Set<IsmType>([
   'domainRoutingIsm',

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 import {
   UnsupportedIsmTypeError,
@@ -89,19 +90,20 @@ describe('validateIsmType legacy calls (no protocol)', () => {
 
 describe('validateIsmConfig', () => {
   it('rejects compositeIsm nested in a domainRoutingIsm on a non-Sealevel chain', () => {
+    const config: IsmConfig = {
+      type: 'domainRoutingIsm',
+      owner: '0x0',
+      domains: {
+        ethereum: {
+          type: 'compositeIsm',
+          owner: '0x0',
+          root: { type: 'test', accept: true },
+        },
+      },
+    };
     expect(() => {
       validateIsmConfig(
-        {
-          type: 'domainRoutingIsm',
-          owner: '0x0',
-          domains: {
-            ethereum: {
-              type: 'compositeIsm',
-              owner: '0x0',
-              root: { type: 'test', accept: true },
-            },
-          },
-        },
+        config,
         'somechain',
         'configuration',
         ProtocolType.Radix,

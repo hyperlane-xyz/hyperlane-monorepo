@@ -397,7 +397,7 @@ describe('transformDeployConfigForDisplay', () => {
   const RELAYER = '33333333333333333333333333333333333333333';
 
   it('recurses into routing/fallbackRouting domain sub-nodes of a composite ISM', () => {
-    const deployConfig = {
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
       solanamainnet: {
         type: TokenType.synthetic,
         owner: OWNER,
@@ -417,7 +417,7 @@ describe('transformDeployConfigForDisplay', () => {
           },
         },
       },
-    } satisfies WarpRouteDeployConfigMailboxRequired;
+    };
 
     const { transformedIsmConfigs } =
       transformDeployConfigForDisplay(deployConfig);
@@ -428,7 +428,7 @@ describe('transformDeployConfigForDisplay', () => {
 
   it('tags each domain row with its own path when multiple domains have distinct configs', () => {
     const RELAYER_2 = '44444444444444444444444444444444444444444';
-    const deployConfig = {
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
       solanamainnet: {
         type: TokenType.synthetic,
         owner: OWNER,
@@ -452,7 +452,7 @@ describe('transformDeployConfigForDisplay', () => {
           },
         },
       },
-    } satisfies WarpRouteDeployConfigMailboxRequired;
+    };
 
     const { transformedIsmConfigs } =
       transformDeployConfigForDisplay(deployConfig);
@@ -472,7 +472,7 @@ describe('transformDeployConfigForDisplay', () => {
   });
 
   it('disambiguates a nested tree via Path when sibling rows would otherwise collide', () => {
-    const deployConfig = {
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
       solanamainnet: {
         type: TokenType.synthetic,
         owner: OWNER,
@@ -495,7 +495,7 @@ describe('transformDeployConfigForDisplay', () => {
           },
         },
       },
-    } satisfies WarpRouteDeployConfigMailboxRequired;
+    };
 
     const { transformedIsmConfigs } =
       transformDeployConfigForDisplay(deployConfig);

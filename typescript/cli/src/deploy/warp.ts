@@ -21,6 +21,7 @@ import {
   type ChainName,
   type CompositeIsmConfig,
   type CompositeIsmNodeConfig,
+  CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
   ExplorerLicenseType,
@@ -1096,7 +1097,7 @@ function transformCompositeIsmNodeForDisplay(
   path: string = 'root',
 ): Record<string, unknown>[] {
   switch (node.type) {
-    case 'aggregation':
+    case CompositeIsmNodeType.AGGREGATION:
       return [
         {
           Path: path,
@@ -1108,7 +1109,7 @@ function transformCompositeIsmNodeForDisplay(
           transformCompositeIsmNodeForDisplay(sub, `${path}.subIsms[${i}]`),
         ),
       ];
-    case 'amountRouting':
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
       return [
         {
           Path: path,
@@ -1120,7 +1121,7 @@ function transformCompositeIsmNodeForDisplay(
         ...transformCompositeIsmNodeForDisplay(node.lower, `${path}.lower`),
         ...transformCompositeIsmNodeForDisplay(node.upper, `${path}.upper`),
       ];
-    case 'routing':
+    case CompositeIsmNodeType.ROUTING:
       return [
         {
           Path: path,
@@ -1131,7 +1132,7 @@ function transformCompositeIsmNodeForDisplay(
         },
         ...transformCompositeIsmDomainsForDisplay(node.domains, path),
       ];
-    case 'fallbackRouting':
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
       return [
         {
           Path: path,
@@ -1143,9 +1144,9 @@ function transformCompositeIsmNodeForDisplay(
         },
         ...transformCompositeIsmDomainsForDisplay(node.domains, path),
       ];
-    case 'trustedRelayer':
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
       return [{ Path: path, Type: node.type, Relayer: node.relayer }];
-    case 'multisigMessageId':
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
       return [
         {
           Path: path,
@@ -1154,11 +1155,11 @@ function transformCompositeIsmNodeForDisplay(
           Threshold: node.threshold,
         },
       ];
-    case 'test':
+    case CompositeIsmNodeType.TEST:
       return [{ Path: path, Type: node.type, Accept: node.accept }];
-    case 'pausable':
+    case CompositeIsmNodeType.PAUSABLE:
       return [{ Path: path, Type: node.type, Paused: node.paused }];
-    case 'rateLimited':
+    case CompositeIsmNodeType.RATE_LIMITED:
       return [
         {
           Path: path,
