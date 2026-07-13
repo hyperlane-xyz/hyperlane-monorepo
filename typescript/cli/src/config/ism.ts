@@ -86,6 +86,8 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
   [IsmType.AMOUNT_ROUTING]:
     'Route messages based on the token amount to transfer',
+  [IsmType.COMPOSITE]:
+    'Sealevel-only: a single on-chain program storing an entire ISM tree (aggregation, routing, multisig, etc.) in one PDA',
 };
 
 export async function createAdvancedIsmConfig(

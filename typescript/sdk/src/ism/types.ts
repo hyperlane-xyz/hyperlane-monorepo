@@ -34,19 +34,24 @@ import {
 import { isCompliant } from '../utils/schemas.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
+// (COMPOSITE has no Solidity counterpart; it's Sealevel-only, matching
+// rust/main/hyperlane-core's ModuleType)
 // meant for the relayer
 export enum ModuleType {
-  UNUSED,
-  ROUTING,
-  AGGREGATION,
-  LEGACY_MULTISIG, // DEPRECATED
-  MERKLE_ROOT_MULTISIG,
-  MESSAGE_ID_MULTISIG,
-  NULL,
-  CCIP_READ,
-  ARB_L2_TO_L1,
-  WEIGHTED_MERKLE_ROOT_MULTISIG,
-  WEIGHTED_MESSAGE_ID_MULTISIG,
+  UNUSED = 0,
+  ROUTING = 1,
+  AGGREGATION = 2,
+  LEGACY_MULTISIG = 3, // DEPRECATED
+  MERKLE_ROOT_MULTISIG = 4,
+  MESSAGE_ID_MULTISIG = 5,
+  NULL = 6,
+  CCIP_READ = 7,
+  ARB_L2_TO_L1 = 8,
+  WEIGHTED_MERKLE_ROOT_MULTISIG = 9,
+  WEIGHTED_MESSAGE_ID_MULTISIG = 10,
+  OP_L2_TO_L1 = 11,
+  POLYMER = 12,
+  COMPOSITE = 13,
 }
 
 // this const object can be adjusted as per deployments necessary
@@ -74,6 +79,7 @@ export const IsmType = {
   CCIP: 'ccipIsm',
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
+  COMPOSITE: 'compositeIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -92,6 +98,7 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
   IsmType.RATE_LIMITED,
+  IsmType.COMPOSITE,
 ];
 
 /**
@@ -152,6 +159,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.COMPOSITE:
+      return ModuleType.COMPOSITE;
     case IsmType.UNKNOWN:
       return ModuleType.UNUSED;
   }
@@ -238,7 +247,31 @@ export type AggregationIsmConfig = {
   threshold: number;
 };
 
-export type IsmConfig = z.infer<typeof IsmConfigSchema>;
+// Explicit (not z.infer) union: IsmConfigSchema gets annotated with this type
+// below so downstream `.extend()`/`.merge()` chains (MailboxClientConfigSchema
+// and everything built on it) reference this pre-computed type instead of
+// re-expanding the full union's structure on every merge, which otherwise
+// risks TS2590 ("union too complex to represent") once the union is large
+// enough — confirmed via a control-group test that any new member (not just
+// compositeIsm) trips this ceiling.
+export type IsmConfig =
+  | Address
+  | TestIsmConfig
+  | OpStackIsmConfig
+  | DerivedPausableIsmConfig
+  | PausableIsmConfig
+  | TrustedRelayerIsmConfig
+  | CCIPIsmConfig
+  | RateLimitedIsmConfig
+  | MultisigIsmConfig
+  | WeightedMultisigIsmConfig
+  | RoutingIsmConfig
+  | AggregationIsmConfig
+  | CompositeIsmConfig
+  | ArbL2ToL1IsmConfig
+  | OffchainLookupIsmConfig
+  | InterchainAccountRouterIsm
+  | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
@@ -422,6 +455,142 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
+// Discriminants for nodes inside a compositeIsm tree (Sealevel-only).
+// Distinct namespace from IsmType: these tag inline Borsh nodes within a
+// single composite-ism PDA, not separately deployed/addressed ISMs.
+export const CompositeIsmNodeType = {
+  TRUSTED_RELAYER: 'trustedRelayer',
+  MULTISIG_MESSAGE_ID: 'multisigMessageId',
+  AGGREGATION: 'aggregation',
+  TEST: 'test',
+  PAUSABLE: 'pausable',
+  AMOUNT_ROUTING: 'amountRouting',
+  RATE_LIMITED: 'rateLimited',
+  ROUTING: 'routing',
+  FALLBACK_ROUTING: 'fallbackRouting',
+} as const;
+export type CompositeIsmNodeType =
+  (typeof CompositeIsmNodeType)[keyof typeof CompositeIsmNodeType];
+
+export interface CompositeTrustedRelayerNodeConfig {
+  type: typeof CompositeIsmNodeType.TRUSTED_RELAYER;
+  relayer: Address;
+}
+export interface CompositeMultisigMessageIdNodeConfig {
+  type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
+  validators: Address[];
+  threshold: number;
+}
+export interface CompositeAggregationNodeConfig {
+  type: typeof CompositeIsmNodeType.AGGREGATION;
+  threshold: number;
+  subIsms: CompositeIsmNodeConfig[];
+}
+export interface CompositeTestNodeConfig {
+  type: typeof CompositeIsmNodeType.TEST;
+  accept: boolean;
+}
+export interface CompositePausableNodeConfig {
+  type: typeof CompositeIsmNodeType.PAUSABLE;
+  paused: boolean;
+}
+export interface CompositeAmountRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.AMOUNT_ROUTING;
+  threshold: string;
+  lower: CompositeIsmNodeConfig;
+  upper: CompositeIsmNodeConfig;
+}
+export interface CompositeRateLimitedNodeConfig {
+  type: typeof CompositeIsmNodeType.RATE_LIMITED;
+  maxCapacity: string;
+  mailbox: Address;
+  recipient?: Address;
+}
+export interface CompositeRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.ROUTING;
+  domains?: ChainMap<CompositeIsmNodeConfig>;
+}
+export interface CompositeFallbackRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.FALLBACK_ROUTING;
+  fallbackIsm: Address;
+  domains?: ChainMap<CompositeIsmNodeConfig>;
+}
+
+export type CompositeIsmNodeConfig =
+  | CompositeTrustedRelayerNodeConfig
+  | CompositeMultisigMessageIdNodeConfig
+  | CompositeAggregationNodeConfig
+  | CompositeTestNodeConfig
+  | CompositePausableNodeConfig
+  | CompositeAmountRoutingNodeConfig
+  | CompositeRateLimitedNodeConfig
+  | CompositeRoutingNodeConfig
+  | CompositeFallbackRoutingNodeConfig;
+
+export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
+  z.lazy(() =>
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
+        relayer: ZHash,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
+        validators: z.array(ZHash),
+        threshold: z.number(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AGGREGATION),
+        threshold: z.number(),
+        subIsms: z.array(CompositeIsmNodeConfigSchema),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TEST),
+        accept: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.PAUSABLE),
+        paused: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
+        threshold: z
+          .string()
+          .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
+        lower: CompositeIsmNodeConfigSchema,
+        upper: CompositeIsmNodeConfigSchema,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
+        maxCapacity: z
+          .string()
+          .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+        mailbox: ZHash,
+        recipient: ZHash.optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.ROUTING),
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
+        fallbackIsm: ZHash,
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+    ]),
+  );
+
+export type CompositeIsmConfig = OwnableConfig & {
+  type: typeof IsmType.COMPOSITE;
+  root: CompositeIsmNodeConfig;
+};
+
+export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
+  OwnableSchema.extend({
+    type: z.literal(IsmType.COMPOSITE),
+    root: CompositeIsmNodeConfigSchema,
+  });
+
 export const UnknownIsmConfigSchema = z
   .object({
     type: z.literal(IsmType.UNKNOWN),
@@ -468,7 +637,7 @@ export function normalizeUnknownIsmTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const IsmConfigSchema = z.union([
+export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.union([
   ZHash,
   TestIsmConfigSchema,
   OpStackIsmConfigSchema,
@@ -481,6 +650,7 @@ export const IsmConfigSchema = z.union([
   WeightedMultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
+  CompositeIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,

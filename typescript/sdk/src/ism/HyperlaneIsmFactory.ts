@@ -222,6 +222,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       `Cannot deploy unknown ISM type. Registry contains ISM type not supported by this SDK version.`,
     );
 
+    // Composite ISM is Sealevel-only (no Solidity contract) — it's deployed
+    // through the AltVM deploy-sdk instead of this EVM/ethers factory.
+    assert(
+      ismType !== IsmType.COMPOSITE,
+      `Cannot deploy compositeIsm via the EVM ISM factory — it is Sealevel-only.`,
+    );
+
     let contract: DeployedIsmType[typeof ismType];
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:

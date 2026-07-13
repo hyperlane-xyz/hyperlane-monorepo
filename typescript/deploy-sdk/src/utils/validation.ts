@@ -15,6 +15,7 @@ const SUPPORTED_ISM_TYPES: Set<IsmType> = new Set([
   'merkleRootMultisigIsm',
   'messageIdMultisigIsm',
   'testIsm',
+  'compositeIsm',
 ]);
 
 /**

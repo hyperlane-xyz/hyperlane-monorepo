@@ -62,6 +62,38 @@ export async function deriveTestIsmStoragePda(
   ]);
 }
 
+/**
+ * Composite ISM's storage PDA uses the shared VAM (VerifyAccountMetas) seed
+ * convention (`VERIFY_ACCOUNT_METAS_PDA_SEEDS` in
+ * hyperlane_sealevel_interchain_security_module_interface) rather than a
+ * program-specific seed — this is what lets the relayer discover any Sealevel
+ * ISM's account-metas PDA generically. No collision risk with
+ * `deriveTestIsmStoragePda`/`deriveMultisigIsmAccessControlPda` above since
+ * each uses its own distinct seed string relative to the same program ID.
+ */
+export async function deriveCompositeIsmStoragePda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_ism'),
+    utf8.encode('-'),
+    utf8.encode('verify'),
+    utf8.encode('-'),
+    utf8.encode('account_metas'),
+  ]);
+}
+
+/** Per-domain override PDA for a composite ISM's `Routing`/`FallbackRouting` node. */
+export async function deriveCompositeIsmDomainPda(
+  programAddress: Address,
+  domain: number,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('domain_ism'),
+    u32.encode(domain),
+  ]);
+}
+
 export async function deriveHyperlaneTokenPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

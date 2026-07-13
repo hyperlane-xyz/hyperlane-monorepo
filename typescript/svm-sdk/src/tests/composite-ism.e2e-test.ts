@@ -1,0 +1,394 @@
+import { address, type Address, generateKeyPairSigner } from '@solana/kit';
+import { expect } from 'chai';
+import { before, describe, it } from 'mocha';
+
+import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type {
+  CompositeIsmArtifactConfig,
+  CompositeIsmNodeArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { assert } from '@hyperlane-xyz/utils';
+
+import { SvmSigner } from '../clients/signer.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import {
+  SvmCompositeIsmReader,
+  SvmCompositeIsmWriter,
+} from '../ism/composite-ism.js';
+import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { createRpc } from '../rpc.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
+import { airdropSol } from '../testing/setup.js';
+import type { SvmDeployedIsm } from '../types.js';
+
+const TEST_PRIVATE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000001';
+const ALT_OWNER_PRIVATE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000002';
+
+describe('SVM Composite ISM E2E Tests', function () {
+  this.timeout(180_000);
+
+  let rpc: ReturnType<typeof createRpc>;
+  let signer: SvmSigner;
+  let altOwnerSigner: SvmSigner;
+  let programId: Address;
+
+  before(async () => {
+    rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
+    signer = await SvmSigner.connectWithSigner(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_PRIVATE_KEY,
+    );
+    altOwnerSigner = await SvmSigner.connectWithSigner(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      ALT_OWNER_PRIVATE_KEY,
+    );
+
+    // This suite deploys composite-ism (~260KB) fresh twice — once here,
+    // once in the "maximal tree" test below — plus several update/pause/
+    // ownership transactions, so a larger airdrop than a single-deploy test
+    // needs is required.
+    await airdropSol(rpc, address(signer.getSignerAddress()), 20_000_000_000n);
+    await airdropSol(
+      rpc,
+      address(altOwnerSigner.getSignerAddress()),
+      5_000_000_000n,
+    );
+
+    // Deploy composite-ism fresh (the real production path — each core/warp
+    // deployment gets its own instance) rather than using a preloaded
+    // well-known program ID. solana-test-validator's `--bpf-program` preload
+    // mechanism loads programs as upgradeable with a zero-filled "Some(default
+    // pubkey)" authority, which no real keypair can ever satisfy, so
+    // Initialize's upgrade-authority gate would always fail against it.
+    const writer = new SvmCompositeIsmWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+      rpc,
+      signer,
+    );
+    const [deployed] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: { type: 'pausable', paused: false },
+      },
+    });
+    programId = deployed.deployed.programId;
+  });
+
+  describe('create + read', () => {
+    it('initialized a pausable root and can read it back', async () => {
+      const reader = new SvmCompositeIsmReader(rpc);
+      const readResult = await reader.read(programId);
+      expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(readResult.config).to.deep.equal({
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: { type: 'pausable', paused: false },
+      });
+    });
+  });
+
+  describe('ISM Artifact Manager', () => {
+    it('detects compositeIsm type from address', async () => {
+      const manager = new SvmIsmArtifactManager(rpc);
+      const artifact = await manager.readIsm(programId);
+      expect(artifact.config.type).to.equal(IsmType.COMPOSITE);
+    });
+
+    it('creates a composite ISM reader/writer via the manager', () => {
+      const manager = new SvmIsmArtifactManager(rpc);
+      const reader = manager.createReader('compositeIsm');
+      expect(reader).to.be.instanceOf(SvmCompositeIsmReader);
+      const writer = manager.createWriter('compositeIsm', signer);
+      expect(writer).to.be.instanceOf(SvmCompositeIsmWriter);
+    });
+  });
+
+  describe('update — root diff', () => {
+    it('flips pausable.paused via UpdateConfig', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        signer,
+      );
+
+      const current = await writer.read(programId);
+      assert(current.config.root.type === 'pausable', 'expected pausable root');
+      expect(current.config.root.paused).to.equal(false);
+
+      const expected: ArtifactDeployed<
+        CompositeIsmArtifactConfig,
+        SvmDeployedIsm
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: { type: 'pausable', paused: true },
+        },
+        deployed: current.deployed,
+      };
+
+      const txs = await writer.update(expected);
+      expect(txs).to.have.length.greaterThan(0);
+      for (const tx of txs) {
+        await signer.send(tx);
+      }
+
+      const after = await writer.read(programId);
+      assert(after.config.root.type === 'pausable', 'expected pausable root');
+      expect(after.config.root.paused).to.equal(true);
+    });
+
+    it('is idempotent — returns no transactions when config is unchanged', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        signer,
+      );
+
+      const current = await writer.read(programId);
+      const txs = await writer.update({
+        ...current,
+        config: current.config,
+      });
+      expect(txs).to.have.length(0);
+    });
+  });
+
+  describe('pause / unpause', () => {
+    it('pauses and unpauses every Pausable node in the tree', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        signer,
+      );
+
+      // On-chain root is `{ type: 'pausable', paused: true }` from the
+      // previous describe block; unpause() should flip it back to false
+      // without needing an explicit UpdateConfig.
+      const unpauseTx = await writer.unpause(programId);
+      await signer.send(unpauseTx);
+
+      let read = await writer.read(programId);
+      assert(read.config.root.type === 'pausable', 'expected pausable root');
+      expect(read.config.root.paused).to.equal(false);
+
+      const pauseTx = await writer.pause(programId);
+      await signer.send(pauseTx);
+
+      read = await writer.read(programId);
+      assert(read.config.root.type === 'pausable', 'expected pausable root');
+      expect(read.config.root.paused).to.equal(true);
+    });
+  });
+
+  describe('update — ownership transfer', () => {
+    it('transfers ownership when config.owner differs from on-chain owner', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        signer,
+      );
+
+      const current = await writer.read(programId);
+      expect(current.config.owner).to.equal(signer.signer.address);
+
+      const expected: ArtifactDeployed<
+        CompositeIsmArtifactConfig,
+        SvmDeployedIsm
+      > = {
+        ...current,
+        config: {
+          ...current.config,
+          owner: altOwnerSigner.signer.address,
+        },
+      };
+
+      const txs = await writer.update(expected);
+      expect(txs).to.have.length.greaterThan(0);
+      for (const tx of txs) {
+        await signer.send(tx);
+      }
+
+      const after = await writer.read(programId);
+      expect(after.config.owner).to.equal(altOwnerSigner.signer.address);
+
+      // Restore ownership using the new owner's signer, for subsequent tests.
+      const altWriter = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        altOwnerSigner,
+      );
+      const restoreTxs = await altWriter.update({
+        ...after,
+        config: { ...after.config, owner: signer.signer.address },
+      });
+      for (const tx of restoreTxs) {
+        await altOwnerSigner.send(tx);
+      }
+    });
+  });
+
+  describe('routing domains', () => {
+    it('creates a routing root with domain overrides and diffs them on update', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programId } },
+        rpc,
+        signer,
+      );
+
+      // Note: `pausable` nodes are rejected inside domain PDAs by the
+      // program (Error::PausableInDomainIsm — pause propagation doesn't
+      // reach domain PDAs), so domain overrides below use `test`/
+      // `trustedRelayer` instead.
+      const rootWithDomains: CompositeIsmNodeArtifactConfig = {
+        type: 'routing',
+        domains: {
+          1: { type: 'test', accept: true },
+          137: {
+            type: 'trustedRelayer',
+            relayer: altOwnerSigner.signer.address,
+          },
+        },
+      };
+
+      const config: CompositeIsmArtifactConfig = {
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: rootWithDomains,
+      };
+
+      const current = await writer.read(programId);
+      const txs = await writer.update({ ...current, config });
+      expect(txs).to.have.length.greaterThan(0);
+      for (const tx of txs) {
+        await signer.send(tx);
+      }
+
+      const afterSet = await writer.read(programId);
+      assert(afterSet.config.root.type === 'routing', 'expected routing root');
+      expect(afterSet.config.root.domains).to.deep.equal({
+        1: { type: 'test', accept: true },
+        137: { type: 'trustedRelayer', relayer: altOwnerSigner.signer.address },
+      });
+
+      // Remove domain 137, change domain 1, add domain 42.
+      const updatedConfig: CompositeIsmArtifactConfig = {
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: {
+          type: 'routing',
+          domains: {
+            1: { type: 'test', accept: false },
+            42: { type: 'trustedRelayer', relayer: signer.signer.address },
+          },
+        },
+      };
+
+      const diffTxs = await writer.update({
+        ...afterSet,
+        config: updatedConfig,
+      });
+      expect(diffTxs).to.have.length.greaterThan(0);
+      for (const tx of diffTxs) {
+        await signer.send(tx);
+      }
+
+      const afterDiff = await writer.read(programId);
+      assert(afterDiff.config.root.type === 'routing', 'expected routing root');
+      expect(afterDiff.config.root.domains).to.deep.equal({
+        1: { type: 'test', accept: false },
+        42: { type: 'trustedRelayer', relayer: signer.signer.address },
+      });
+    });
+  });
+
+  describe('maximal tree — every node kind in one aggregation', () => {
+    it('deploys and reads back an aggregation containing all 9 node kinds', async () => {
+      // Only one Routing-type node (Routing XOR FallbackRouting) is allowed
+      // per tree — FallbackRouting is used here since it also exercises a
+      // field (fallback_ism) and a domains map; bare `routing` is already
+      // covered by the "routing domains" describe block above.
+      const fallbackTarget = await generateKeyPairSigner();
+
+      const maximalRoot: CompositeIsmNodeArtifactConfig = {
+        type: 'aggregation',
+        threshold: 4,
+        subIsms: [
+          { type: 'trustedRelayer', relayer: altOwnerSigner.signer.address },
+          {
+            type: 'multisigMessageId',
+            validators: [
+              '0x1111111111111111111111111111111111111111',
+              '0x2222222222222222222222222222222222222222',
+            ],
+            threshold: 1,
+          },
+          { type: 'test', accept: true },
+          { type: 'pausable', paused: false },
+          {
+            type: 'rateLimited',
+            maxCapacity: '86400',
+            mailbox: signer.signer.address,
+            // RateLimited requires a non-zero recipient — a zero/omitted
+            // recipient is rejected by validate_config (InvalidConfig).
+            recipient: '0x' + '5'.repeat(64),
+          },
+          {
+            type: 'amountRouting',
+            threshold: '1000000',
+            lower: { type: 'test', accept: false },
+            upper: { type: 'pausable', paused: true },
+          },
+          // Must be last — FallbackRouting elsewhere would drain
+          // accounts_iter and starve subsequent siblings (FallbackRoutingNotLast).
+          {
+            type: 'fallbackRouting',
+            fallbackIsm: fallbackTarget.address,
+            domains: {
+              1: { type: 'trustedRelayer', relayer: signer.signer.address },
+            },
+          },
+        ],
+      };
+
+      const config: CompositeIsmArtifactConfig = {
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: maximalRoot,
+      };
+
+      const writer = new SvmCompositeIsmWriter(
+        {
+          program: {
+            programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm,
+          },
+        },
+        rpc,
+        signer,
+      );
+
+      const [deployed, receipts] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config,
+      });
+
+      expect(receipts).to.have.length.greaterThan(0);
+      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(deployed.config).to.deep.equal(config);
+
+      const reader = new SvmCompositeIsmReader(rpc);
+      const readResult = await reader.read(deployed.deployed.programId);
+      expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(readResult.config).to.deep.equal(config);
+    });
+  });
+});
