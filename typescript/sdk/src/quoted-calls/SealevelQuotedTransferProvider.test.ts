@@ -113,6 +113,7 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
 
   function makeWarpEntry(
     protocol: ProtocolType.Sealevel | ProtocolType.Ethereum,
+    contextByteLen = 44,
   ): SealevelQuoteV2Entry {
     // The protocol field is intentionally widened here so tests can construct
     // a wrong-protocol entry that exercises the provider's narrowing
@@ -125,7 +126,7 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
       details: {
         domainId: DEST_DOMAIN,
         signedQuote: {
-          context: `0x${'11'.repeat(44)}`,
+          context: `0x${'11'.repeat(contextByteLen)}`,
           data: `0x${'22'.repeat(8)}`,
           issuedAt: `0x${'33'.repeat(6)}`,
           expiry: `0x${'44'.repeat(6)}`,
@@ -187,6 +188,25 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
         recipient: RECIPIENT,
       }),
     ).to.be.rejectedWith(/Sealevel warp quote/);
+  });
+
+  it('throws when the signed-quote context is neither 44B nor 76B', async () => {
+    const { warpCore, originTokenAmount } = makeWarpCore(
+      makeAdapter({ feeConfig: { feeProgram: 'x' } }),
+    );
+    const provider = makeProvider(
+      makeClient(makeWarpEntry(ProtocolType.Sealevel, 30)),
+    );
+
+    await expect(
+      provider.buildQuotedTransferTxs({
+        warpCore,
+        originTokenAmount,
+        destination: DEST,
+        sender: SENDER,
+        recipient: RECIPIENT,
+      }),
+    ).to.be.rejectedWith(/Unexpected signed-quote context length/);
   });
 
   // Orchestration paths that require mocking `Connection.simulateTransaction`

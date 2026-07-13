@@ -17,7 +17,10 @@ import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ethAddressHexFromPrivateKey } from '@hyperlane-xyz/sealevel-sdk';
 
 import { QuoteMode } from '../../src/config.js';
-import { NoQuoteAvailableError } from '../../src/middleware/errorHandler.js';
+import {
+  ApiError,
+  NoQuoteAvailableError,
+} from '../../src/middleware/errorHandler.js';
 import type { QuoteBinding } from '../../src/services/IProtocolQuoteService.js';
 import {
   SvmQuoteService,
@@ -335,6 +338,24 @@ describe('SvmQuoteService', () => {
       const signedRecipient =
         '0x' + ctx.slice(RECIPIENT_HEX_START, RECIPIENT_HEX_END);
       expect(signedRecipient.toLowerCase()).to.equal(RECIPIENT.toLowerCase());
+    });
+  });
+
+  describe('getWarpQuote — txSubmitter validation', () => {
+    it('rejects an EVM-shaped txSubmitter with a 400', async () => {
+      const svc = createTestService();
+      try {
+        await svc.getWarpQuote({
+          ...baseWarpReq,
+          txSubmitter: '0x1111111111111111111111111111111111111111',
+          binding: TRANSIENT_BINDING,
+        });
+        expect.fail('expected an ApiError');
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        expect(err.statusCode).to.equal(400);
+        expect(err.message).to.match(/not a valid Sealevel address/);
+      }
     });
   });
 

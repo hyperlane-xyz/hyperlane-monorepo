@@ -674,6 +674,42 @@ describe('QuoteService', () => {
     }
   });
 
+  it('accepts EVM-like (Tron) origins for v1 quotes', async () => {
+    const logger = pino({ level: 'silent' });
+    const evm = EvmQuoteService.fromState({
+      signerKey: TEST_PRIVATE_KEY,
+      logger,
+      routes: [
+        {
+          origin: 'tron',
+          warpRouter: ROUTER,
+          chainId: 1,
+          quotedCallsAddress: QUOTED_CALLS,
+          feeToken: FEE_TOKEN,
+          derivedConfig: mockDerivedConfig as DerivedTokenRouterConfig,
+        },
+      ],
+    });
+    const service = new QuoteService({
+      services: new Map([[ProtocolType.Ethereum, evm]]),
+      protocolByChain: new Map([['tron', ProtocolType.Tron]]),
+      quoteMode: 'transient',
+      quoteExpiry: 300,
+      multiProvider: mockMultiProvider,
+      logger,
+    });
+
+    const res = await service.getQuote(
+      'tron',
+      FeeQuotingCommand.TransferRemote,
+      ROUTER,
+      DESTINATION,
+      SALT,
+      RECIPIENT,
+    );
+    expect(res.quotes).to.be.an('array').with.lengthOf(2);
+  });
+
   it('throws for unknown router', async () => {
     const service = createTestService();
     try {
