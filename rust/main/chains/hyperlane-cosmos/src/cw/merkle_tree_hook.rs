@@ -142,7 +142,7 @@ impl MerkleTreeHook for CwMerkleTreeHook {
                 merkle_tree_hook_address: self.address,
                 mailbox_domain: self.domain.id(),
                 root: response.root.parse()?,
-                index: response.count,
+                index: response.count.saturating_sub(1),
             },
             block_height: Some(height),
         })
@@ -355,9 +355,12 @@ impl Indexer<MerkleTreeInsertion> for CwMerkleTreeHookIndexer {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CwMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
-        let sequence = self.merkle_tree_hook.count_at_block(tip.into()).await?;
+        let count = self.merkle_tree_hook.count_at_block(tip.into()).await?;
+        // Convert count to the last indexed sequence (count - 1)
+        // If count is 0, there are no indexed sequences yet
+        let sequence = count.checked_sub(1);
 
-        Ok((Some(sequence), tip))
+        Ok((sequence, tip))
     }
 }
 
