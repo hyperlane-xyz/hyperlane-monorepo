@@ -69,7 +69,18 @@ export async function fetchCompositeIsmStorageAccount(
   const { address: storagePda } = await deriveCompositeIsmStoragePda(programId);
   const raw = await fetchAccountDataRaw(rpc, storagePda);
   if (!raw || raw.length === 0) return null;
-  return decodeCompositeIsmStorageAccount(raw);
+  try {
+    return decodeCompositeIsmStorageAccount(raw);
+  } catch {
+    // This probe runs concurrently with the test/multisig probes in
+    // detectIsmType's Promise.all — a throw here (e.g. an unrelated account
+    // happening to exist at this program's shared VAM PDA, or a future
+    // incompatible storage format) must not reject the whole detection call
+    // and take those other probes down with it. Treat a decode failure the
+    // same as "no composite storage present", matching fetchDomainIsms'
+    // handling of the same class of error.
+    return null;
+  }
 }
 
 export async function fetchMultisigIsmDomainData(

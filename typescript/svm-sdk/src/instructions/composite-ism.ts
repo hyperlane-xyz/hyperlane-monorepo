@@ -1,4 +1,9 @@
-import type { Address, Instruction, TransactionSigner } from '@solana/kit';
+import type {
+  Address,
+  Instruction,
+  ReadonlyUint8Array,
+  TransactionSigner,
+} from '@solana/kit';
 import { getAddressCodec } from '@solana/kit';
 
 import {
@@ -42,6 +47,19 @@ function encodeInstructionData(
   body: ArrayLike<number>,
 ) {
   return concatBytes(PROGRAM_INSTRUCTION_DISCRIMINATOR, u8(kind), body);
+}
+
+/**
+ * Reads the instruction kind byte from an encoded composite ISM instruction
+ * (immediately after the shared 8-byte program discriminator). Exposed so
+ * callers (tests especially) can assert on the actual instruction built
+ * instead of matching against annotation text, which is cosmetic display
+ * copy and can change without the instruction itself changing.
+ */
+export function decodeCompositeIsmInstructionKind(
+  data: ReadonlyUint8Array | undefined,
+): number | undefined {
+  return data?.[PROGRAM_INSTRUCTION_DISCRIMINATOR.length];
 }
 
 export async function getInitializeCompositeIsmInstruction(

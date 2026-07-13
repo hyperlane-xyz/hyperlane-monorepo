@@ -1170,8 +1170,13 @@ function transformCompositeIsmNodeForDisplay(
         },
       ];
     default: {
+      // Compile-time exhaustiveness check — but if a new node type is ever
+      // added to CompositeIsmNodeConfig without a case here, this must fail
+      // loudly at runtime too, not silently print the raw unhandled object.
       const _exhaustive: never = node;
-      return [_exhaustive];
+      throw new Error(
+        `Unhandled composite ISM node type: ${(_exhaustive as { type: string }).type}`,
+      );
     }
   }
 }

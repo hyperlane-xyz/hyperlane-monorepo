@@ -196,7 +196,7 @@ export interface CompositeIsmStorage {
 }
 
 export function decodeCompositeIsmStorageAccount(
-  raw: Uint8Array,
+  raw: ReadonlyUint8Array,
 ): CompositeIsmStorage | null {
   const wrapped = decodeAccountData(raw, (cursor) => {
     const bumpSeed = cursor.readU8();
@@ -215,7 +215,7 @@ export interface DomainIsmStorage {
 }
 
 export function decodeDomainIsmStorageAccount(
-  raw: Uint8Array,
+  raw: ReadonlyUint8Array,
 ): DomainIsmStorage | null {
   const wrapped = decodeAccountData(raw, (cursor) => {
     const bumpSeed = cursor.readU8();

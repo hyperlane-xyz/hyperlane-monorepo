@@ -16,6 +16,10 @@ import { assert } from '@hyperlane-xyz/utils';
 import { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import {
+  CompositeIsmInstructionKind,
+  decodeCompositeIsmInstructionKind,
+} from '../instructions/composite-ism.js';
+import {
   SvmCompositeIsmReader,
   SvmCompositeIsmWriter,
 } from '../ism/composite-ism.js';
@@ -23,12 +27,27 @@ import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { airdropSol } from '../testing/setup.js';
-import type { SvmDeployedIsm } from '../types.js';
+import type { AnnotatedSvmTransaction, SvmDeployedIsm } from '../types.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 const ALT_OWNER_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000002';
+
+/**
+ * True if any instruction in `tx` is the given composite ISM instruction
+ * kind, decoded from the actual wire data rather than matched against
+ * `tx.annotation` — annotations are cosmetic display text and can change
+ * without the instruction itself changing.
+ */
+function txHasInstructionKind(
+  tx: AnnotatedSvmTransaction,
+  kind: CompositeIsmInstructionKind,
+): boolean {
+  return tx.instructions.some(
+    (ix) => decodeCompositeIsmInstructionKind(ix.data) === kind,
+  );
+}
 
 describe('SVM Composite ISM E2E Tests', function () {
   this.timeout(180_000);
@@ -164,6 +183,65 @@ describe('SVM Composite ISM E2E Tests', function () {
       });
       expect(txs).to.have.length(0);
     });
+
+    it('is idempotent for a leading-zero decimal maxCapacity/threshold, matching the on-chain canonical form', async () => {
+      // normalizeForCompare canonicalizes decimal strings via
+      // BigInt(x).toString() specifically so a config-supplied leading-zero
+      // value (e.g. from hand-edited YAML) doesn't cause update() to emit a
+      // spurious UpdateConfig — which would reset a rateLimited node's
+      // on-chain filledLevel to full capacity on every apply.
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'amountRouting',
+            threshold: '1000000',
+            lower: {
+              type: 'rateLimited',
+              maxCapacity: '86400',
+              mailbox: signer.signer.address,
+              recipient: '0x' + '7'.repeat(64),
+            },
+            upper: { type: 'test', accept: false },
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      const current = await writer.read(localProgramId);
+      assert(
+        current.config.root.type === 'amountRouting',
+        'expected amountRouting root',
+      );
+      const txs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'amountRouting',
+            // Leading-zero forms of the same values already on-chain.
+            threshold: '001000000',
+            lower: {
+              type: 'rateLimited',
+              maxCapacity: '086400',
+              mailbox: signer.signer.address,
+              recipient: '0x' + '7'.repeat(64),
+            },
+            upper: { type: 'test', accept: false },
+          },
+        },
+      });
+      expect(txs).to.have.length(0);
+    });
   });
 
   describe('pause / unpause', () => {
@@ -237,6 +315,56 @@ describe('SVM Composite ISM E2E Tests', function () {
       for (const tx of restoreTxs) {
         await altOwnerSigner.send(tx);
       }
+    });
+
+    it('edits a domain and transfers ownership in one update() call', async () => {
+      // Ownership transfer is placed last precisely because domain/root
+      // instructions require the CURRENT on-chain owner as signer — this
+      // test exercises that exact scenario (not just an ownership-only
+      // change) to confirm the domain edit isn't sent after the transfer,
+      // which would fail since `signer` would no longer be the owner.
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 31: { type: 'test', accept: true } },
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      const current = await writer.read(localProgramId);
+      const txs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: altOwnerSigner.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 31: { type: 'test', accept: false } },
+          },
+        },
+      });
+      expect(txs).to.have.length.greaterThan(1);
+      for (const tx of txs) {
+        await signer.send(tx);
+      }
+
+      const after = await writer.read(localProgramId);
+      expect(after.config.owner).to.equal(altOwnerSigner.signer.address);
+      assert(after.config.root.type === 'routing', 'expected routing root');
+      expect(after.config.root.domains).to.deep.equal({
+        31: { type: 'test', accept: false },
+      });
     });
   });
 
@@ -312,6 +440,77 @@ describe('SVM Composite ISM E2E Tests', function () {
         42: { type: 'trustedRelayer', relayer: signer.signer.address },
       });
     });
+
+    it('diffs a domain living under an aggregation (not a top-level routing root)', async () => {
+      // Every other update() test in this suite uses a top-level `routing`
+      // root. extractDomains/stripDomains recurse into aggregation.subIsms
+      // and amountRouting.lower/upper to find the domains map wherever it
+      // is — if that recursion broke, update() would silently fail to
+      // reconcile domains for any tree where routing isn't the root (a
+      // realistic config shape), with no other test catching it.
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'aggregation',
+            threshold: 1,
+            subIsms: [
+              { type: 'test', accept: true },
+              {
+                type: 'routing',
+                domains: { 51: { type: 'test', accept: true } },
+              },
+            ],
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      const current = await writer.read(localProgramId);
+      const txs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'aggregation',
+            threshold: 1,
+            subIsms: [
+              { type: 'test', accept: true },
+              {
+                type: 'routing',
+                domains: { 51: { type: 'test', accept: false } },
+              },
+            ],
+          },
+        },
+      });
+      expect(txs).to.have.length.greaterThan(0);
+      for (const tx of txs) {
+        await signer.send(tx);
+      }
+
+      const after = await writer.read(localProgramId);
+      assert(
+        after.config.root.type === 'aggregation',
+        'expected aggregation root',
+      );
+      const routingSub = after.config.root.subIsms.find(
+        (sub) => sub.type === 'routing',
+      );
+      assert(routingSub?.type === 'routing', 'expected nested routing sub-ism');
+      expect(routingSub.domains).to.deep.equal({
+        51: { type: 'test', accept: false },
+      });
+    });
   });
 
   describe('domain PDA staleness across partial multi-tx updates', () => {
@@ -352,7 +551,7 @@ describe('SVM Composite ISM E2E Tests', function () {
         },
       });
       const removeDomainTx = txs.find((tx) =>
-        tx.annotation?.includes('Remove composite ISM domain'),
+        txHasInstructionKind(tx, CompositeIsmInstructionKind.RemoveDomainIsm),
       );
       assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
       for (const tx of txs) {
@@ -427,7 +626,7 @@ describe('SVM Composite ISM E2E Tests', function () {
         },
       });
       const removeDomainTx = toNonRoutingTxs.find((tx) =>
-        tx.annotation?.includes('Remove composite ISM domain'),
+        txHasInstructionKind(tx, CompositeIsmInstructionKind.RemoveDomainIsm),
       );
       assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
       for (const tx of toNonRoutingTxs) {
@@ -459,11 +658,14 @@ describe('SVM Composite ISM E2E Tests', function () {
       });
 
       const rootTxIndex = activateTxs.findIndex((tx) =>
-        tx.annotation?.includes('Update composite ISM config'),
+        txHasInstructionKind(tx, CompositeIsmInstructionKind.UpdateConfig),
       );
       const domainTxIndices = activateTxs
         .map((tx, i) =>
-          tx.annotation?.includes('composite ISM domain') ? i : -1,
+          txHasInstructionKind(tx, CompositeIsmInstructionKind.SetDomainIsm) ||
+          txHasInstructionKind(tx, CompositeIsmInstructionKind.RemoveDomainIsm)
+            ? i
+            : -1,
         )
         .filter((i) => i >= 0);
       assert(rootTxIndex >= 0, 'expected a root UpdateConfig transaction');
@@ -516,7 +718,7 @@ describe('SVM Composite ISM E2E Tests', function () {
         },
       });
       const removeDomainTx = toNonRoutingTxs.find((tx) =>
-        tx.annotation?.includes('Remove composite ISM domain'),
+        txHasInstructionKind(tx, CompositeIsmInstructionKind.RemoveDomainIsm),
       );
       assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
       for (const tx of toNonRoutingTxs) {
@@ -550,11 +752,14 @@ describe('SVM Composite ISM E2E Tests', function () {
       });
 
       const rootTxIndex = activateTxs.findIndex((tx) =>
-        tx.annotation?.includes('Update composite ISM config'),
+        txHasInstructionKind(tx, CompositeIsmInstructionKind.UpdateConfig),
       );
       const domainTxIndices = activateTxs
         .map((tx, i) =>
-          tx.annotation?.includes('composite ISM domain') ? i : -1,
+          txHasInstructionKind(tx, CompositeIsmInstructionKind.SetDomainIsm) ||
+          txHasInstructionKind(tx, CompositeIsmInstructionKind.RemoveDomainIsm)
+            ? i
+            : -1,
         )
         .filter((i) => i >= 0);
       assert(rootTxIndex >= 0, 'expected a root UpdateConfig transaction');

@@ -33,10 +33,15 @@ const chainLookup: ChainLookup = {
   getKnownChainNames: () => ['solanamainnet', 'ethereum'],
 };
 
-const PROGRAM_ADDRESS = '11111111111111111111111111111111111111111';
-const RELAYER = '22222222222222222222222222222222222222222';
-const MAILBOX = '33333333333333333333333333333333333333333';
-const OWNER = '44444444444444444444444444444444444444444';
+// Real base58 Sealevel pubkeys (not just arbitrary-length placeholder
+// strings) so the artifact-conversion round-trip below is meaningful —
+// provider-sdk itself does no address format validation, so a regression
+// that mangled address bytes wouldn't be caught by fixtures that were never
+// valid pubkeys to begin with.
+const PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const RELAYER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
+const MAILBOX = 'ComputeBudget111111111111111111111111111111';
+const OWNER = 'Vote111111111111111111111111111111111111111';
 
 describe('compositeIsm config <-> artifact conversion', () => {
   it('altVMIsmTypeToProviderSdkType maps COMPOSITE to compositeIsm', () => {

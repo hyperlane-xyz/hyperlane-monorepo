@@ -71,7 +71,7 @@ const logger = rootLogger.child({ module: 'composite-ism' });
 // can't safely bound size (a handful of large multisig/aggregation subtrees
 // can already exceed the limit), so domain instructions are batched by
 // actual serialized size instead.
-const SOLANA_MAX_TRANSACTION_SIZE = 1232;
+export const SOLANA_MAX_TRANSACTION_SIZE = 1232;
 const DUMMY_BLOCKHASH = blockhash('11111111111111111111111111111111');
 
 /**
@@ -80,7 +80,7 @@ const DUMMY_BLOCKHASH = blockhash('11111111111111111111111111111111');
  * always prepends (`buildTransactionMessage` in tx.ts) — measuring only the
  * domain instructions themselves undercounts the actual submitted size.
  */
-function estimateTransactionWireSize(
+export function estimateTransactionWireSize(
   feePayer: Address,
   instructions: readonly Instruction[],
 ): number {
@@ -111,7 +111,7 @@ function estimateTransactionWireSize(
  * transaction size limit, using the real serialized size (not a fixed
  * per-item count) since domain instructions are variable-sized.
  */
-function chunkInstructionsBySize<T>(
+export function chunkInstructionsBySize<T>(
   items: readonly T[],
   toInstruction: (item: T) => Instruction,
   feePayer: Address,
@@ -813,7 +813,15 @@ export class SvmCompositeIsmWriter
     return transactions;
   }
 
-  /** Sets every `Pausable` node in the tree to paused. */
+  /**
+   * Sets every `Pausable` node in the tree to paused. This is an emergency,
+   * out-of-band circuit breaker independent of `update()`'s config diffing —
+   * `pausable.paused` is a regular, diffable config field (matching the EVM
+   * PausableIsm), so a later `update()` call reconciles the on-chain state
+   * back to whatever the expected config says. Pausing via this method
+   * without also setting `paused: true` in the expected config means the
+   * next `update()` (e.g. from an unrelated `apply`) will unpause it again.
+   */
   async pause(programId: Address): Promise<AnnotatedSvmTransaction> {
     const ix = await getPauseCompositeIsmInstruction(
       programId,
@@ -907,6 +915,11 @@ function normalizeForCompare(node: CompositeIsmNodeArtifactConfig): unknown {
         lower: normalizeForCompare(node.lower),
         upper: normalizeForCompare(node.upper),
       };
+    // `pausable` intentionally falls through to default (compared as-is):
+    // `paused` is a regular diffable config field here, same as EVM's
+    // PausableIsm — see the doc comment on `pause()` above for what that
+    // means when mixing the emergency pause()/unpause() methods with
+    // config-driven update()/apply().
     default:
       return node;
   }

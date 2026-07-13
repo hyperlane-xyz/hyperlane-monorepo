@@ -1,4 +1,8 @@
-import { type Address, getAddressCodec } from '@solana/kit';
+import {
+  type Address,
+  type ReadonlyUint8Array,
+  getAddressCodec,
+} from '@solana/kit';
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
@@ -24,7 +28,7 @@ function addrFromByte(byte: number): Address {
   return ADDRESS_CODEC.decode(repeat(byte, 32));
 }
 
-function hex(bytes: Uint8Array): string {
+function hex(bytes: ReadonlyUint8Array): string {
   return Buffer.from(bytes).toString('hex');
 }
 
@@ -113,12 +117,12 @@ describe('composite-ism Borsh codec', () => {
 
   for (const [label, node, expectedHex] of cases) {
     it(`encodes ${label} to match the Rust program's Borsh output`, () => {
-      expect(hex(encodeIsmNode(node) as Uint8Array)).to.equal(expectedHex);
+      expect(hex(encodeIsmNode(node))).to.equal(expectedHex);
     });
 
     it(`round-trips ${label} through encode -> decode`, () => {
       const encoded = encodeIsmNode(node);
-      const decoded = decodeIsmNode(new ByteCursor(encoded as Uint8Array));
+      const decoded = decodeIsmNode(new ByteCursor(encoded));
       expect(decoded).to.deep.equal(node);
     });
   }
@@ -136,7 +140,7 @@ describe('composite-ism Borsh codec', () => {
         root: { kind: 'test' as const, accept: true },
       };
       const encoded = encodeCompositeIsmStorageAccount(storage);
-      const decoded = decodeCompositeIsmStorageAccount(encoded as Uint8Array);
+      const decoded = decodeCompositeIsmStorageAccount(encoded);
       expect(decoded).to.deep.equal(storage);
     });
 
@@ -148,9 +152,7 @@ describe('composite-ism Borsh codec', () => {
       };
       // "01" (initialized=true, AccountData<T> wrapper) + bare
       // `borsh::to_vec(&CompositeIsmStorage{...})` from the Rust program.
-      expect(
-        hex(encodeCompositeIsmStorageAccount(storage) as Uint8Array),
-      ).to.equal(
+      expect(hex(encodeCompositeIsmStorageAccount(storage))).to.equal(
         '01fe010909090909090909090909090909090909090909090909090909090909090909010301',
       );
     });
@@ -168,7 +170,7 @@ describe('composite-ism Borsh codec', () => {
         ism: { kind: 'test' as const, accept: true },
       };
       const encoded = encodeDomainIsmStorageAccount(storage);
-      const decoded = decodeDomainIsmStorageAccount(encoded as Uint8Array);
+      const decoded = decodeDomainIsmStorageAccount(encoded);
       expect(decoded).to.deep.equal(storage);
     });
 
@@ -178,9 +180,9 @@ describe('composite-ism Borsh codec', () => {
         domain: 1234,
         ism: { kind: 'test' as const, accept: true },
       };
-      expect(
-        hex(encodeDomainIsmStorageAccount(storage) as Uint8Array),
-      ).to.equal('01fed2040000010301');
+      expect(hex(encodeDomainIsmStorageAccount(storage))).to.equal(
+        '01fed2040000010301',
+      );
     });
 
     it('returns null for an empty (uninitialized) account', () => {

@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import {
   AggregationIsmConfigSchema,
+  type CompositeIsmConfig,
   CompositeIsmConfigSchema,
   IsmConfigSchema,
   IsmType,
@@ -65,7 +66,7 @@ describe('ModuleType', () => {
 });
 
 describe('CompositeIsmConfigSchema', () => {
-  const sample = {
+  const sample: CompositeIsmConfig = {
     type: IsmType.COMPOSITE,
     owner: SEALEVEL_ADDRESS,
     root: {

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import { assertNoNestedCompositeIsm } from './HyperlaneIsmFactory.js';
-import { IsmType } from './types.js';
+import { type IsmConfig, IsmType } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 
@@ -16,19 +16,18 @@ describe('assertNoNestedCompositeIsm', () => {
     ).to.not.throw();
   });
 
-  it('rejects a top-level compositeIsm config', () => {
-    expect(() =>
-      assertNoNestedCompositeIsm({
+  const nestedCompositeCases: Array<[label: string, config: IsmConfig]> = [
+    [
+      'a top-level compositeIsm config',
+      {
         type: IsmType.COMPOSITE,
         owner: SOME_ADDRESS,
         root: { type: 'test', accept: true },
-      }),
-    ).to.throw(/Sealevel-only/);
-  });
-
-  it('rejects a compositeIsm nested inside an aggregation', () => {
-    expect(() =>
-      assertNoNestedCompositeIsm({
+      },
+    ],
+    [
+      'a compositeIsm nested inside an aggregation',
+      {
         type: IsmType.AGGREGATION,
         threshold: 2,
         modules: [
@@ -39,13 +38,11 @@ describe('assertNoNestedCompositeIsm', () => {
             root: { type: 'test', accept: true },
           },
         ],
-      }),
-    ).to.throw(/Sealevel-only/);
-  });
-
-  it('rejects a compositeIsm nested inside a routing domain', () => {
-    expect(() =>
-      assertNoNestedCompositeIsm({
+      },
+    ],
+    [
+      'a compositeIsm nested inside a routing domain',
+      {
         type: IsmType.ROUTING,
         owner: SOME_ADDRESS,
         domains: {
@@ -55,13 +52,11 @@ describe('assertNoNestedCompositeIsm', () => {
             root: { type: 'test', accept: true },
           },
         },
-      }),
-    ).to.throw(/Sealevel-only/);
-  });
-
-  it('rejects a compositeIsm nested inside amountRouting lower/upper', () => {
-    expect(() =>
-      assertNoNestedCompositeIsm({
+      },
+    ],
+    [
+      'a compositeIsm nested inside amountRouting lower/upper',
+      {
         type: IsmType.AMOUNT_ROUTING,
         threshold: 100,
         lowerIsm: { type: IsmType.TEST_ISM },
@@ -70,7 +65,15 @@ describe('assertNoNestedCompositeIsm', () => {
           owner: SOME_ADDRESS,
           root: { type: 'test', accept: true },
         },
-      }),
-    ).to.throw(/Sealevel-only/);
-  });
+      },
+    ],
+  ];
+
+  for (const [label, config] of nestedCompositeCases) {
+    it(`rejects ${label}`, () => {
+      expect(() => assertNoNestedCompositeIsm(config)).to.throw(
+        /Sealevel-only/,
+      );
+    });
+  }
 });
