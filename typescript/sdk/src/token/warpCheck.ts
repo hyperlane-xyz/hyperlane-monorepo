@@ -62,6 +62,23 @@ import {
 export const WARP_ROUTE_CHECK_TYPE = 'ConfigMismatch';
 export const WARP_ROUTE_CHECK_SCALE_TYPE = 'ScaleMismatch';
 
+// Protocols createWarpTokenReader/loadProtocolProviders actually support. Not every
+// non-EVM protocol is a checkable altVM: e.g. legacy (non-native) Cosmos SDK chains
+// have no registered protocol provider and no warp token reader, so treating them
+// as "altVM" would attempt an on-chain read that always throws. Keep this in sync
+// with the switch in `@hyperlane-xyz/deploy-sdk`'s loadProtocolProviders.
+const ALTVM_CHECK_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
+  ProtocolType.CosmosNative,
+  ProtocolType.Radix,
+  ProtocolType.Aleo,
+  ProtocolType.Sealevel,
+  ProtocolType.Starknet,
+]);
+
+function isSupportedAltVmProtocol(protocol: ProtocolType | null): boolean {
+  return protocol !== null && ALTVM_CHECK_PROTOCOLS.has(protocol);
+}
+
 type ObjectDiffMap = Exclude<ObjectDiff, ObjectDiff[] | undefined>;
 type ObjectDiffLeaf = Exclude<ObjectDiffMap[string], ObjectDiff | undefined>;
 
@@ -291,10 +308,9 @@ async function getAltVmOnChainConfigs({
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
 }): Promise<Record<string, AltVmCheckConfig>> {
-  const altVmTokens = warpCoreConfig.tokens.filter((token) => {
-    const protocol = multiProvider.tryGetProtocol(token.chainName);
-    return protocol !== null && !isEVMLike(protocol);
-  });
+  const altVmTokens = warpCoreConfig.tokens.filter((token) =>
+    isSupportedAltVmProtocol(multiProvider.tryGetProtocol(token.chainName)),
+  );
 
   if (altVmTokens.length === 0) return {};
 
@@ -408,6 +424,19 @@ export async function checkWarpRouteDeployConfig({
       isEVMLike(multiProvider.getProtocol(token.chainName)),
     ),
   };
+  // altVM support (below) covers Solana/Aleo/Radix/etc, but a route consisting only
+  // of chains this check genuinely can't verify at all (unknown protocols, or
+  // non-EVM protocols with no altVM reader, e.g. legacy Cosmos SDK chains) has
+  // nothing to check -- fail fast rather than silently reporting a route as valid
+  // when zero chains were actually verified.
+  assert(
+    knownWarpCoreTokens.some(
+      (token) =>
+        isEVMLike(multiProvider.getProtocol(token.chainName)) ||
+        isSupportedAltVmProtocol(multiProvider.tryGetProtocol(token.chainName)),
+    ),
+    'Warp route check requires at least one EVM or supported altVM chain in the selected route config',
+  );
   const deployedRoutersAddresses = objFilter(
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     (chain, _address): _address is Address =>
@@ -460,7 +489,7 @@ export async function checkWarpRouteDeployConfig({
 
   const altVmExpectedConfigs: Record<string, AltVmCheckConfig> = {};
   for (const [chain, config] of Object.entries(normalizedWarpDeployConfig)) {
-    if (!isEVMLike(multiProvider.getProtocol(chain))) {
+    if (isSupportedAltVmProtocol(multiProvider.tryGetProtocol(chain))) {
       altVmExpectedConfigs[chain] = expandedDeployConfigToAltVmCheckConfig(
         chain,
         config,
