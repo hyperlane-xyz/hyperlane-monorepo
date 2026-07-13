@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
-import { type Address, type Hex } from 'viem';
+import { type Address, type Hex, isHex } from 'viem';
 
 import {
   CrossCollateralRouter__factory,
@@ -88,6 +88,13 @@ const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
 
 function isAnnotatedTx(value: unknown): value is AnnotatedTx {
   return typeof value === 'object' && value !== null;
+}
+
+/** `addressToBytes32` output narrowed to viem's `Hex`; it is always 0x-prefixed. */
+function bytes32Hex(address: string): Hex {
+  const hex = addressToBytes32(address);
+  assert(isHex(hex), `Expected 0x-prefixed bytes32, got ${hex}`);
+  return hex;
 }
 
 function toTypedAltVmReceipt(
@@ -597,9 +604,9 @@ async function executeDelivery({
           router: token.addressOrDenom as Address,
           destination: destinationDomainId,
           salt,
-          recipient: addressToBytes32(recipientAddress) as Hex,
+          recipient: bytes32Hex(recipientAddress),
           targetRouter: destToken
-            ? (addressToBytes32(destToken.addressOrDenom) as Hex)
+            ? bytes32Hex(destToken.addressOrDenom)
             : undefined,
         });
 
