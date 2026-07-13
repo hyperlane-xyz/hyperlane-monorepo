@@ -172,6 +172,7 @@ jobs:
           - synthetic-token
           - collateral-token
           - cross-collateral-token
+          - composite-ism
           - provider
           - read-token
           - program-upgrade

@@ -311,6 +311,134 @@ describe('SVM Composite ISM E2E Tests', function () {
     });
   });
 
+  describe('domain PDA staleness across partial multi-tx updates', () => {
+    it('does not resurrect a stale domain PDA after a partially-applied root change', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      // Deploy with a routing root + domain 7.
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 7: { type: 'test', accept: true } },
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      // Update to a non-routing root. This returns two independent
+      // transactions: one UpdateConfig (root change) and one
+      // RemoveCompositeIsmDomain(7). Simulate a partially-applied `warp
+      // apply` by sending only the root-change transaction — domain 7's
+      // PDA is left orphaned on-chain, exactly as a real interrupted apply
+      // (network blip, insufficient funds mid-batch, etc.) would leave it.
+      const current = await writer.read(localProgramId);
+      const txs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: { type: 'test', accept: true },
+        },
+      });
+      const removeDomainTx = txs.find((tx) =>
+        tx.annotation?.includes('Remove composite ISM domain'),
+      );
+      assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
+      for (const tx of txs) {
+        if (tx === removeDomainTx) continue;
+        await signer.send(tx);
+      }
+
+      const afterPartial = await writer.read(localProgramId);
+      assert(
+        afterPartial.config.root.type === 'test',
+        'expected non-routing root after partial apply',
+      );
+
+      // Switch back to routing with a different domain (9, not 7). If the
+      // stale domain-7 PDA isn't diffed against the raw on-chain domain
+      // map, it silently becomes live again the moment the root is
+      // routing.
+      const backToRoutingTxs = await writer.update({
+        ...afterPartial,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 9: { type: 'test', accept: false } },
+          },
+        },
+      });
+      for (const tx of backToRoutingTxs) {
+        await signer.send(tx);
+      }
+
+      const final = await writer.read(localProgramId);
+      assert(final.config.root.type === 'routing', 'expected routing root');
+      expect(final.config.root.domains).to.deep.equal({
+        9: { type: 'test', accept: false },
+      });
+    });
+  });
+
+  describe('domain instruction batching respects Solana tx size limit', () => {
+    it('splits large multisig domain overrides across multiple transactions', async () => {
+      // A fixed instructions-per-tx count is unsafe here — each domain
+      // instruction carries a variable-sized recursive IsmNode, so a
+      // handful of large multisig overrides can already exceed Solana's
+      // 1232-byte transaction limit well before a fixed count is reached.
+      const manyValidators = Array.from(
+        { length: 15 },
+        (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+      );
+
+      const domains: Record<number, CompositeIsmNodeArtifactConfig> = {};
+      for (let domain = 1; domain <= 6; domain++) {
+        domains[domain] = {
+          type: 'multisigMessageId',
+          validators: manyValidators,
+          threshold: 8,
+        };
+      }
+
+      const config: CompositeIsmArtifactConfig = {
+        type: 'compositeIsm',
+        owner: signer.signer.address,
+        root: { type: 'routing', domains },
+      };
+
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      const [deployed, receipts] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config,
+      });
+
+      // 6 domain instructions this large can't fit 5-per-tx (the previous
+      // fixed batch size) — that would have built an oversized transaction
+      // and failed to send. Confirm it succeeded and used more than one
+      // domain-instruction batch (beyond the single Initialize receipt).
+      expect(receipts.length).to.be.greaterThan(2);
+
+      const reader = new SvmCompositeIsmReader(rpc);
+      const readResult = await reader.read(deployed.deployed.programId);
+      expect(readResult.config).to.deep.equal(config);
+    });
+  });
+
   describe('maximal tree — every node kind in one aggregation', () => {
     it('deploys and reads back an aggregation containing all 9 node kinds', async () => {
       // Only one Routing-type node (Routing XOR FallbackRouting) is allowed

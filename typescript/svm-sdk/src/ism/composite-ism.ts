@@ -1,4 +1,16 @@
-import { address as parseAddress, type Address } from '@solana/kit';
+import {
+  address as parseAddress,
+  appendTransactionMessageInstructions,
+  blockhash,
+  compileTransactionMessage,
+  createTransactionMessage,
+  getCompiledTransactionMessageEncoder,
+  getShortU16Encoder,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  type Address,
+  type Instruction,
+} from '@solana/kit';
 
 import {
   type ArtifactDeployed,
@@ -42,8 +54,79 @@ import type {
 
 import { validatorBytesToHex } from './ism-query.js';
 
-const CHUNK_SIZE = 5;
 const logger = rootLogger.child({ module: 'composite-ism' });
+
+// Solana's serialized transaction size limit
+// (https://solana.com/docs/core/transactions#transaction-size). Each domain
+// instruction carries a recursive, variable-sized IsmNode — unlike
+// fixed-width entries elsewhere in this package, a static per-tx count
+// can't safely bound size (a handful of large multisig/aggregation subtrees
+// can already exceed the limit), so domain instructions are batched by
+// actual serialized size instead.
+const SOLANA_MAX_TRANSACTION_SIZE = 1232;
+const DUMMY_BLOCKHASH = blockhash('11111111111111111111111111111111');
+
+/** Real serialized wire size (signatures + message) for a candidate transaction. */
+function estimateTransactionWireSize(
+  feePayer: Address,
+  instructions: readonly Instruction[],
+): number {
+  const message = appendTransactionMessageInstructions(
+    instructions,
+    setTransactionMessageLifetimeUsingBlockhash(
+      { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 0n },
+      setTransactionMessageFeePayer(
+        feePayer,
+        createTransactionMessage({ version: 0 }),
+      ),
+    ),
+  );
+  const compiled = compileTransactionMessage(message);
+  const messageBytes = getCompiledTransactionMessageEncoder().encode(compiled);
+  const sigCountBytes = getShortU16Encoder().encode(
+    compiled.header.numSignerAccounts,
+  );
+  return (
+    sigCountBytes.length +
+    compiled.header.numSignerAccounts * 64 +
+    messageBytes.length
+  );
+}
+
+/**
+ * Greedily groups items into batches whose instructions fit within Solana's
+ * transaction size limit, using the real serialized size (not a fixed
+ * per-item count) since domain instructions are variable-sized.
+ */
+function chunkInstructionsBySize<T>(
+  items: readonly T[],
+  toInstruction: (item: T) => Instruction,
+  feePayer: Address,
+): T[][] {
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  for (const item of items) {
+    const candidate = [...current, item];
+    const size = estimateTransactionWireSize(
+      feePayer,
+      candidate.map(toInstruction),
+    );
+    if (current.length > 0 && size > SOLANA_MAX_TRANSACTION_SIZE) {
+      chunks.push(current);
+      current = [item];
+    } else {
+      assert(
+        size <= SOLANA_MAX_TRANSACTION_SIZE,
+        `Composite ISM domain instruction alone (${size} bytes) exceeds Solana's ` +
+          `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — the nested ` +
+          `ISM tree for this domain is too large to submit in a single instruction.`,
+      );
+      current = candidate;
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
 
 /**
  * Deployment-time configuration for the SVM composite ISM writer.
@@ -251,7 +334,7 @@ export class SvmCompositeIsmReader implements ArtifactReader<
     };
   }
 
-  private async fetchDomainIsms(
+  protected async fetchDomainIsms(
     programId: Address,
     storagePda: Address,
   ): Promise<Record<number, IsmNode>> {
@@ -347,8 +430,12 @@ export class SvmCompositeIsmWriter
           ),
         ),
       );
-      for (let i = 0; i < domainInstructions.length; i += CHUNK_SIZE) {
-        const chunk = domainInstructions.slice(i, i + CHUNK_SIZE);
+      const chunks = chunkInstructionsBySize(
+        domainInstructions,
+        (ix) => ix,
+        this.svmSigner.signer.address,
+      );
+      for (const chunk of chunks) {
         receipts.push(await this.svmSigner.send({ instructions: chunk }));
       }
     }
@@ -398,7 +485,21 @@ export class SvmCompositeIsmWriter
     }
 
     const expectedDomains = extractDomains(expected.root);
-    const currentDomains = extractDomains(current.config.root);
+    // Domain PDAs survive UpdateConfig independently of the current root's
+    // shape (a routing root's per-domain overrides are separate accounts
+    // that aren't deleted when the root is later updated to a non-routing
+    // type) — diff against the raw on-chain domain map, not
+    // extractDomains(current.config.root), which is empty whenever the
+    // current root itself isn't routing/fallbackRouting (or doesn't nest
+    // one), and would otherwise leave stale domains un-removed and silently
+    // reactivated the next time the root becomes routing again.
+    const { address: storagePda } =
+      await deriveCompositeIsmStoragePda(programId);
+    const rawCurrentDomains = await this.fetchDomainIsms(programId, storagePda);
+    const currentDomains: Record<number, CompositeIsmNodeArtifactConfig> = {};
+    for (const [domainStr, ismNode] of Object.entries(rawCurrentDomains)) {
+      currentDomains[Number(domainStr)] = ismNodeToArtifactConfig(ismNode, {});
+    }
 
     const domainIxs: {
       instruction: Awaited<
@@ -438,8 +539,12 @@ export class SvmCompositeIsmWriter
       });
     }
 
-    for (let i = 0; i < domainIxs.length; i += CHUNK_SIZE) {
-      const chunk = domainIxs.slice(i, i + CHUNK_SIZE);
+    const domainIxChunks = chunkInstructionsBySize(
+      domainIxs,
+      (item) => item.instruction,
+      this.svmSigner.signer.address,
+    );
+    for (const chunk of domainIxChunks) {
       transactions.push({
         feePayer: this.svmSigner.signer.address,
         instructions: chunk.map((c) => c.instruction),
@@ -530,12 +635,17 @@ function deepEqualNode(
 }
 
 /**
- * Recursively normalizes case/order-only differences (hex validator
- * addresses, recipient hash) so `deepEqualNode` doesn't report a false
- * "changed" for a node nested anywhere in the tree — not just at the
- * outermost call — which would otherwise make `update()` never converge
- * to a no-op diff for trees containing `multisigMessageId`/`rateLimited`
- * below an `aggregation`/`amountRouting` node.
+ * Recursively normalizes case/order/formatting-only differences (hex
+ * validator addresses, recipient hash, decimal string capacity/threshold) so
+ * `deepEqualNode` doesn't report a false "changed" for a node nested
+ * anywhere in the tree — not just at the outermost call — which would
+ * otherwise make `update()` never converge to a no-op diff for trees
+ * containing `multisigMessageId`/`rateLimited` below an
+ * `aggregation`/`amountRouting` node. Decimal strings in particular must be
+ * canonicalized (e.g. config-supplied `"086400"` vs on-chain `"86400"`) —
+ * on-chain `UpdateConfig` resets a `rateLimited` node's `filledLevel` to
+ * full capacity, so an uncanonicalized false diff would cause every
+ * `apply` to needlessly refill the limiter.
  */
 function normalizeForCompare(node: CompositeIsmNodeArtifactConfig): unknown {
   switch (node.type) {
@@ -545,12 +655,17 @@ function normalizeForCompare(node: CompositeIsmNodeArtifactConfig): unknown {
         validators: [...node.validators].map((v) => v.toLowerCase()).sort(),
       };
     case 'rateLimited':
-      return { ...node, recipient: node.recipient?.toLowerCase() };
+      return {
+        ...node,
+        maxCapacity: BigInt(node.maxCapacity).toString(),
+        recipient: node.recipient?.toLowerCase(),
+      };
     case 'aggregation':
       return { ...node, subIsms: node.subIsms.map(normalizeForCompare) };
     case 'amountRouting':
       return {
         ...node,
+        threshold: BigInt(node.threshold).toString(),
         lower: normalizeForCompare(node.lower),
         upper: normalizeForCompare(node.upper),
       };

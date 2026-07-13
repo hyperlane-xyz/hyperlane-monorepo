@@ -22,7 +22,7 @@ import type {
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
-import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { isEmptyAddress, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -90,7 +90,10 @@ export type DeployableIsmType = Exclude<
   typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
 >;
 
-// ISM types that can be updated in-place
+// ISM types that can be updated in-place on EVM chains (consumed by
+// EvmIsmModule and its test fixtures). COMPOSITE is Sealevel-only and never
+// appears as an EVM ISM config, so it's intentionally excluded here — its
+// mutability is handled separately by SvmCompositeIsmWriter/deploy-sdk.
 export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.ROUTING,
   IsmType.FALLBACK_ROUTING,
@@ -98,7 +101,6 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
   IsmType.RATE_LIMITED,
-  IsmType.COMPOSITE,
 ];
 
 /**
@@ -529,68 +531,55 @@ export type CompositeIsmNodeConfig =
 
 export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
   z.lazy(() =>
-    z
-      .discriminatedUnion('type', [
-        z.object({
-          type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
-          relayer: ZHash,
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
-          validators: z.array(ZHash),
-          threshold: z.number(),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.AGGREGATION),
-          threshold: z.number(),
-          subIsms: z.array(CompositeIsmNodeConfigSchema),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.TEST),
-          accept: z.boolean(),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.PAUSABLE),
-          paused: z.boolean(),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
-          threshold: z
-            .string()
-            .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
-          lower: CompositeIsmNodeConfigSchema,
-          upper: CompositeIsmNodeConfigSchema,
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
-          maxCapacity: z
-            .string()
-            .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
-          mailbox: ZHash,
-          recipient: ZHash.optional(),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.ROUTING),
-          domains: z.record(CompositeIsmNodeConfigSchema).optional(),
-        }),
-        z.object({
-          type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
-          fallbackIsm: ZHash,
-          domains: z.record(CompositeIsmNodeConfigSchema).optional(),
-        }),
-      ])
-      .superRefine((data, ctx) => {
-        if (
-          data.type === CompositeIsmNodeType.AGGREGATION &&
-          (data.threshold < 1 || data.threshold > data.subIsms.length)
-        ) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'Threshold must be between 1 and the number of subIsms (inclusive)',
-          });
-        }
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
+        relayer: ZHash,
       }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
+        validators: z.array(ZHash),
+        threshold: z.number(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AGGREGATION),
+        threshold: z.number(),
+        subIsms: z.array(CompositeIsmNodeConfigSchema),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TEST),
+        accept: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.PAUSABLE),
+        paused: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
+        threshold: z
+          .string()
+          .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
+        lower: CompositeIsmNodeConfigSchema,
+        upper: CompositeIsmNodeConfigSchema,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
+        maxCapacity: z
+          .string()
+          .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+        mailbox: ZHash,
+        recipient: ZHash.optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.ROUTING),
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
+        fallbackIsm: ZHash,
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+    ]),
   );
 
 export type CompositeIsmConfig = OwnableConfig & {
@@ -598,10 +587,179 @@ export type CompositeIsmConfig = OwnableConfig & {
   root: CompositeIsmNodeConfig;
 };
 
+/** True if a `fallbackRouting` node exists anywhere in this subtree. */
+function containsFallbackRouting(node: CompositeIsmNodeConfig): boolean {
+  switch (node.type) {
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return true;
+    case CompositeIsmNodeType.AGGREGATION:
+      return node.subIsms.some(containsFallbackRouting);
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return (
+        containsFallbackRouting(node.lower) ||
+        containsFallbackRouting(node.upper)
+      );
+    default:
+      return false;
+  }
+}
+
+type CompositeIsmValidationState = { routingFound: boolean };
+
+/**
+ * Recursively mirrors the Rust program's `validate_config`/
+ * `validate_domain_ism` semantic checks
+ * (rust/sealevel/programs/ism/composite-ism/src/processor.rs) so an invalid
+ * config is caught at parse time instead of after the writer has already
+ * deployed/initialized the program on-chain.
+ */
+function validateCompositeIsmTree(
+  node: CompositeIsmNodeConfig,
+  path: (string | number)[],
+  state: CompositeIsmValidationState,
+  insideDomainIsm: boolean,
+  ctx: z.RefinementCtx,
+): void {
+  const addIssue = (message: string, subPath: (string | number)[] = path) =>
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: subPath });
+
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      if (node.threshold < 1 || node.threshold > node.subIsms.length) {
+        addIssue(
+          'Threshold must be between 1 and the number of subIsms (inclusive)',
+          [...path, 'threshold'],
+        );
+      }
+      // FallbackRouting must be the last sub-ISM (checked transitively) —
+      // verify_node drains the accounts iterator entirely on the fallback
+      // path, so any sibling after it would fail with NotEnoughAccountKeys.
+      node.subIsms.slice(0, -1).forEach((sub, i) => {
+        if (containsFallbackRouting(sub)) {
+          addIssue('fallbackRouting must be the last entry in subIsms', [
+            ...path,
+            'subIsms',
+            i,
+          ]);
+        }
+      });
+      node.subIsms.forEach((sub, i) =>
+        validateCompositeIsmTree(
+          sub,
+          [...path, 'subIsms', i],
+          state,
+          insideDomainIsm,
+          ctx,
+        ),
+      );
+      break;
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID: {
+      if (node.threshold < 1 || node.threshold > node.validators.length) {
+        addIssue(
+          'Threshold must be between 1 and the number of validators (inclusive)',
+          [...path, 'threshold'],
+        );
+      }
+      const seen = new Set<string>();
+      for (const validator of node.validators) {
+        const normalized = validator.toLowerCase();
+        if (seen.has(normalized)) {
+          addIssue(`Duplicate validator address: ${validator}`, [
+            ...path,
+            'validators',
+          ]);
+          break;
+        }
+        seen.add(normalized);
+      }
+      break;
+    }
+    case CompositeIsmNodeType.RATE_LIMITED:
+      if (BigInt(node.maxCapacity) === 0n) {
+        addIssue('maxCapacity must be non-zero', [...path, 'maxCapacity']);
+      }
+      if (isEmptyAddress(node.mailbox)) {
+        addIssue('mailbox must be a non-zero address', [...path, 'mailbox']);
+      }
+      if (!node.recipient || isEmptyAddress(node.recipient)) {
+        addIssue('recipient is required and must be a non-zero address', [
+          ...path,
+          'recipient',
+        ]);
+      }
+      break;
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      if (isEmptyAddress(node.relayer)) {
+        addIssue('relayer must be a non-zero address', [...path, 'relayer']);
+      }
+      break;
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      validateCompositeIsmTree(
+        node.lower,
+        [...path, 'lower'],
+        state,
+        insideDomainIsm,
+        ctx,
+      );
+      validateCompositeIsmTree(
+        node.upper,
+        [...path, 'upper'],
+        state,
+        insideDomainIsm,
+        ctx,
+      );
+      break;
+    case CompositeIsmNodeType.PAUSABLE:
+      if (insideDomainIsm) {
+        addIssue('pausable is not allowed inside a domain override');
+      }
+      break;
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      if (insideDomainIsm) {
+        addIssue(`${node.type} is not allowed inside a domain override`);
+        break;
+      }
+      if (
+        node.type === CompositeIsmNodeType.FALLBACK_ROUTING &&
+        isEmptyAddress(node.fallbackIsm)
+      ) {
+        addIssue('fallbackIsm must be a non-zero address', [
+          ...path,
+          'fallbackIsm',
+        ]);
+      }
+      if (state.routingFound) {
+        addIssue('Only one routing/fallbackRouting node is allowed per tree');
+      }
+      state.routingFound = true;
+      for (const [chain, domainNode] of Object.entries(node.domains ?? {})) {
+        validateCompositeIsmTree(
+          domainNode,
+          [...path, 'domains', chain],
+          state,
+          true,
+          ctx,
+        );
+      }
+      break;
+    case CompositeIsmNodeType.TEST:
+      break;
+  }
+}
+
 export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
   OwnableSchema.extend({
     type: z.literal(IsmType.COMPOSITE),
     root: CompositeIsmNodeConfigSchema,
+  }).superRefine((data, ctx) => {
+    validateCompositeIsmTree(
+      data.root,
+      ['root'],
+      { routingFound: false },
+      false,
+      ctx,
+    );
   });
 
 export const UnknownIsmConfigSchema = z

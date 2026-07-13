@@ -65,6 +65,7 @@ import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
   CCIPIsmConfig,
+  CompositeIsmConfig,
   DeployedIsm,
   DeployedIsmType,
   DerivedPausableIsmConfigSchema,
@@ -133,6 +134,43 @@ const domainRoutingSetGasBuffer = (destination: ChainName) => {
   return 15;
 };
 
+/**
+ * Recursively rejects a Composite ISM (Sealevel-only) anywhere in an EVM ISM
+ * config tree, including nested under AGGREGATION/ROUTING/AMOUNT_ROUTING —
+ * called once up front so an invalid nested config is caught before any
+ * sibling module in the tree is deployed on-chain.
+ */
+export function assertNoNestedCompositeIsm(
+  config: IsmConfig,
+): asserts config is Exclude<IsmConfig, CompositeIsmConfig> {
+  if (typeof config === 'string') {
+    return;
+  }
+
+  assert(
+    config.type !== IsmType.COMPOSITE,
+    `Cannot deploy compositeIsm via the EVM ISM factory — it is Sealevel-only.`,
+  );
+
+  switch (config.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      config.modules.forEach(assertNoNestedCompositeIsm);
+      break;
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      Object.values(config.domains).forEach(assertNoNestedCompositeIsm);
+      break;
+    case IsmType.AMOUNT_ROUTING:
+      assertNoNestedCompositeIsm(config.lowerIsm);
+      assertNoNestedCompositeIsm(config.upperIsm);
+      break;
+    default:
+      break;
+  }
+}
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -191,6 +229,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     existingIsmAddress?: Address;
   }): Promise<DeployedIsm> {
     const { destination, config, origin, mailbox, existingIsmAddress } = params;
+
+    // Reject a nested Composite ISM (Sealevel-only) before deploying any
+    // sibling module in the tree — a leaf-only check would let earlier
+    // siblings in e.g. an AGGREGATION deploy before this is caught.
+    assertNoNestedCompositeIsm(config);
+
     if (typeof config === 'string') {
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
@@ -220,13 +264,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     assert(
       ismType !== IsmType.UNKNOWN,
       `Cannot deploy unknown ISM type. Registry contains ISM type not supported by this SDK version.`,
-    );
-
-    // Composite ISM is Sealevel-only (no Solidity contract) — it's deployed
-    // through the AltVM deploy-sdk instead of this EVM/ethers factory.
-    assert(
-      ismType !== IsmType.COMPOSITE,
-      `Cannot deploy compositeIsm via the EVM ISM factory — it is Sealevel-only.`,
     );
 
     let contract: DeployedIsmType[typeof ismType];

@@ -12,6 +12,7 @@ import { type CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-s
 import { type HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { type CoreConfig, type HookConfig } from '@hyperlane-xyz/sdk';
+import { type ProtocolType } from '@hyperlane-xyz/utils';
 export { validateWarpConfigForAltVM } from '@hyperlane-xyz/sdk';
 
 const ALT_VM_SUPPORTED_HOOK_TYPES: ReadonlySet<string> = new Set([
@@ -32,12 +33,14 @@ const ALT_VM_SUPPORTED_HOOK_TYPES: ReadonlySet<string> = new Set([
 export function validateCoreConfigForAltVM(
   config: CoreConfig,
   chain: string,
+  protocol: ProtocolType,
 ): ProviderCoreConfig {
   // Validate ISM configuration (handles recursion for routing ISMs)
   if (config.defaultIsm) {
     validateIsmConfig(
       config.defaultIsm as ProviderIsmConfig | string,
       chain,
+      protocol,
       'core config',
     );
   }

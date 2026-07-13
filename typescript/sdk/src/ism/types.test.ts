@@ -11,6 +11,8 @@ import {
 } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
+const OTHER_ADDRESS = ethers.Wallet.createRandom().address;
+const ZERO_ADDRESS = '0x' + '0'.repeat(40);
 describe('AggregationIsmConfigSchema refine', () => {
   it('should require threshold to be below modules length', () => {
     const IsmConfig = {
@@ -76,6 +78,7 @@ describe('CompositeIsmConfigSchema', () => {
             type: 'rateLimited',
             maxCapacity: '86400',
             mailbox: SOME_ADDRESS,
+            recipient: SOME_ADDRESS,
           },
         },
       ],
@@ -128,5 +131,178 @@ describe('CompositeIsmConfigSchema', () => {
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(tooLow).success).to.be.false;
+  });
+
+  it('rejects a multisigMessageId node with duplicate validators', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'multisigMessageId',
+        threshold: 1,
+        validators: [SOME_ADDRESS, SOME_ADDRESS.toUpperCase()],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects a multisigMessageId node with an out-of-range threshold', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'multisigMessageId',
+        threshold: 3,
+        validators: [SOME_ADDRESS, OTHER_ADDRESS],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects a rateLimited node with a zero mailbox or missing/zero recipient', () => {
+    const zeroMailbox = {
+      ...sample,
+      root: {
+        type: 'rateLimited',
+        maxCapacity: '86400',
+        mailbox: ZERO_ADDRESS,
+        recipient: SOME_ADDRESS,
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(zeroMailbox).success).to.be.false;
+
+    const missingRecipient = {
+      ...sample,
+      root: {
+        type: 'rateLimited',
+        maxCapacity: '86400',
+        mailbox: SOME_ADDRESS,
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(missingRecipient).success).to.be
+      .false;
+
+    const zeroRecipient = {
+      ...sample,
+      root: {
+        type: 'rateLimited',
+        maxCapacity: '86400',
+        mailbox: SOME_ADDRESS,
+        recipient: ZERO_ADDRESS,
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(zeroRecipient).success).to.be
+      .false;
+  });
+
+  it('rejects a trustedRelayer node with a zero relayer', () => {
+    const invalid = {
+      ...sample,
+      root: { type: 'trustedRelayer', relayer: ZERO_ADDRESS },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects more than one routing/fallbackRouting node in the tree', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'aggregation',
+        threshold: 1,
+        subIsms: [
+          { type: 'routing', domains: {} },
+          {
+            type: 'fallbackRouting',
+            fallbackIsm: SOME_ADDRESS,
+            domains: {},
+          },
+        ],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects a fallbackRouting node with a zero fallbackIsm', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'fallbackRouting',
+        fallbackIsm: ZERO_ADDRESS,
+        domains: {},
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects fallbackRouting nested anywhere but last in an aggregation', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'aggregation',
+        threshold: 2,
+        subIsms: [
+          {
+            type: 'fallbackRouting',
+            fallbackIsm: SOME_ADDRESS,
+            domains: {},
+          },
+          { type: 'trustedRelayer', relayer: SOME_ADDRESS },
+        ],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects routing, fallbackRouting, or pausable nested inside a domain override', () => {
+    const nestedRouting = {
+      ...sample,
+      root: {
+        type: 'routing',
+        domains: { ethereum: { type: 'routing', domains: {} } },
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(nestedRouting).success).to.be
+      .false;
+
+    const nestedFallbackRouting = {
+      ...sample,
+      root: {
+        type: 'routing',
+        domains: {
+          ethereum: {
+            type: 'fallbackRouting',
+            fallbackIsm: SOME_ADDRESS,
+            domains: {},
+          },
+        },
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(nestedFallbackRouting).success).to
+      .be.false;
+
+    const nestedPausable = {
+      ...sample,
+      root: {
+        type: 'routing',
+        domains: { ethereum: { type: 'pausable', paused: false } },
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(nestedPausable).success).to.be
+      .false;
+  });
+
+  it('accepts a domain override with an allowed nested type', () => {
+    const valid = {
+      ...sample,
+      root: {
+        type: 'routing',
+        domains: {
+          ethereum: {
+            type: 'multisigMessageId',
+            validators: [SOME_ADDRESS, OTHER_ADDRESS],
+            threshold: 1,
+          },
+        },
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(valid).success).to.be.true;
   });
 });

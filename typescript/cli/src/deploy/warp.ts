@@ -826,6 +826,7 @@ async function updateExistingWarpRoute(
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
+              protocolType,
             );
 
             const chainLookup = altVmChainLookup(multiProvider);
