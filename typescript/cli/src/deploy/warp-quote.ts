@@ -158,9 +158,7 @@ export async function runWarpQuoteCreate({
   const expiry = issuedAt + ttl;
 
   logBlue(
-    `Submitting ${
-      ttl === 0 ? 'transient' : 'standing'
-    } warp quote on ${chain} ⇒ ${destinationChainName} (domain ${destinationDomain})…`,
+    `Submitting standing warp quote on ${chain} ⇒ ${destinationChainName} (domain ${destinationDomain})…`,
   );
   const result = await writer.submitQuote({
     scope: {
