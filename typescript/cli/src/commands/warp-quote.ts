@@ -8,7 +8,7 @@ import {
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpQuoteCreate } from '../deploy/warp-quote.js';
-import { log, logCommandHeader, logGreen } from '../logger.js';
+import { log, logCommandHeader, logGreen, warnYellow } from '../logger.js';
 import { runWarpQuoteRead } from '../read/warp-quote.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
@@ -140,6 +140,9 @@ const read: CommandModuleWithContext<{
         extraRecipients.add(addressToBytes32(native));
       } catch {
         // skip inputs that don't validate as any supported protocol address
+        warnYellow(
+          `Skipping --recipients entry "${native}" — not a valid EVM or Sealevel address`,
+        );
       }
     }
     const result = await runWarpQuoteRead({
