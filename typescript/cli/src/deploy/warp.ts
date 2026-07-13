@@ -19,6 +19,8 @@ import {
   CCIPContractCache,
   type ChainMap,
   type ChainName,
+  type CompositeIsmConfig,
+  type CompositeIsmNodeConfig,
   ContractVerifier,
   EvmWarpModule,
   ExplorerLicenseType,
@@ -943,7 +945,8 @@ type IsmDisplayConfig =
   | MultisigIsmConfig // type, validators, threshold
   | OpStackIsmConfig // type, origin, nativeBridge
   | PausableIsmConfig // type, owner, paused, ownerOverrides
-  | TrustedRelayerIsmConfig; // type, relayer
+  | TrustedRelayerIsmConfig // type, relayer
+  | CompositeIsmConfig; // type, owner, root (Sealevel-only)
 
 function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
@@ -1045,8 +1048,98 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
           Relayer: ismConfig.relayer,
         },
       ];
+    case IsmType.COMPOSITE:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          Root: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(ismConfig.root),
+      ];
     default:
       return [ismConfig];
+  }
+}
+
+/**
+ * Recursively flattens a composite ISM's node tree into display rows, one row
+ * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
+ * node configs (subIsms, lower/upper, domains) are never printed as raw
+ * objects; each becomes its own row via recursion.
+ */
+function transformCompositeIsmNodeForDisplay(
+  node: CompositeIsmNodeConfig,
+): any[] {
+  switch (node.type) {
+    case 'aggregation':
+      return [
+        {
+          Type: node.type,
+          Threshold: node.threshold,
+          SubIsms: 'See table(s) below.',
+        },
+        ...node.subIsms.flatMap((sub) =>
+          transformCompositeIsmNodeForDisplay(sub),
+        ),
+      ];
+    case 'amountRouting':
+      return [
+        {
+          Type: node.type,
+          Threshold: node.threshold,
+          Lower: 'See table(s) below.',
+          Upper: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(node.lower),
+        ...transformCompositeIsmNodeForDisplay(node.upper),
+      ];
+    case 'routing':
+      return [
+        {
+          Type: node.type,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+      ];
+    case 'fallbackRouting':
+      return [
+        {
+          Type: node.type,
+          FallbackIsm: node.fallbackIsm,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+      ];
+    case 'trustedRelayer':
+      return [{ Type: node.type, Relayer: node.relayer }];
+    case 'multisigMessageId':
+      return [
+        {
+          Type: node.type,
+          Validators: node.validators,
+          Threshold: node.threshold,
+        },
+      ];
+    case 'test':
+      return [{ Type: node.type, Accept: node.accept }];
+    case 'pausable':
+      return [{ Type: node.type, Paused: node.paused }];
+    case 'rateLimited':
+      return [
+        {
+          Type: node.type,
+          MaxCapacity: node.maxCapacity,
+          Mailbox: node.mailbox,
+          Recipient: node.recipient ?? 'Undefined',
+        },
+      ];
+    default: {
+      const _exhaustive: never = node;
+      return [_exhaustive];
+    }
   }
 }
 
