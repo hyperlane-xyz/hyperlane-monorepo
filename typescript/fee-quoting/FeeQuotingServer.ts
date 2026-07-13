@@ -3,7 +3,7 @@ import express, { Express } from 'express';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
-import { type Address, type Hex, hexToBytes, isAddress } from 'viem';
+import { type Address, hexToBytes, isAddress, isHex } from 'viem';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -88,7 +88,11 @@ export class FeeQuotingServer {
     const { multiProvider, core, evmRoutes, svmRoutes, protocolByChain } =
       await this.partitionWarpRoutes(registry);
 
-    const signerKeyHex = this.config.signerKey as Hex;
+    assert(
+      isHex(this.config.signerKey),
+      `signerKey must be a hex string, got: ${this.config.signerKey}`,
+    );
+    const signerKeyHex = this.config.signerKey;
 
     const evm = await EvmQuoteService.create({
       signerKey: signerKeyHex,
