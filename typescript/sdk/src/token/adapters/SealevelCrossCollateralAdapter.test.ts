@@ -186,21 +186,4 @@ describe('SealevelHypCrossCollateralAdapter', () => {
       });
     }
   });
-
-  describe('deriveIgpQuoteAuthorityAccount', () => {
-    // Full seed-lockstep with the on-chain igp_quote_authority PDA is validated
-    // in the SVM e2e harness; this guards the specific regression of reusing
-    // the mailbox dispatch authority for the quoted-IGP sender authority.
-    it('derives a PDA distinct from the mailbox dispatch authority', () => {
-      expect(adapter.deriveIgpQuoteAuthorityAccount().toBase58()).to.not.equal(
-        adapter.deriveMessageDispatchAuthorityAccount().toBase58(),
-      );
-    });
-
-    it('is deterministic', () => {
-      expect(adapter.deriveIgpQuoteAuthorityAccount().toBase58()).to.equal(
-        adapter.deriveIgpQuoteAuthorityAccount().toBase58(),
-      );
-    });
-  });
 });
