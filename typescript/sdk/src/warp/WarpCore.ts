@@ -131,7 +131,7 @@ export class WarpCore {
         new Token(
           {
             ...token,
-            addressOrDenom: token.addressOrDenom || '',
+            addressOrDenom: token.addressOrDenom ?? '',
             connections: undefined,
           },
           parsedConfig.options,

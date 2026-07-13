@@ -1,4 +1,10 @@
-import { addressToBytes, assert, padBytesToLength } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  addressToBytes,
+  assert,
+  padBytesToLength,
+} from '@hyperlane-xyz/utils';
 import {
   AccountMeta,
   ComputeBudgetProgram,
@@ -69,7 +75,13 @@ export class SealevelHypCrossCollateralAdapter
   ) {
     const localDomain = this.multiProvider.getDomainId(this.chainName);
     if (params.destination === localDomain) {
-      return { igpQuote: { amount: 0n } };
+      return this.quoteLocalTransferGas({
+        sender: params.sender,
+        recipient: params.recipient,
+        amount: BigInt(params.amount),
+        destination: params.destination,
+        targetRouter: padBytesToLength(addressToBytes(params.targetRouter), 32),
+      });
     }
 
     return this.quoteTransferGas({
@@ -83,6 +95,45 @@ export class SealevelHypCrossCollateralAdapter
     });
   }
 
+  /**
+   * Quote a same-domain (local) CrossCollateral transfer. Local transfers make
+   * no IGP payment, but `transfer_remote_to_local` still debits the warp fee
+   * on-chain when fee_config is set (quoted against the destination router), so
+   * surface it as `tokenFeeQuote` to keep cost display and balance validation
+   * consistent with what the transaction actually charges.
+   */
+  private async quoteLocalTransferGas({
+    sender,
+    recipient,
+    amount,
+    destination,
+    targetRouter,
+  }: {
+    sender?: Address;
+    recipient?: Address;
+    amount?: bigint;
+    destination: Domain;
+    targetRouter: Uint8Array;
+  }): Promise<InterchainGasQuote> {
+    const tokenData = await this.getTokenAccountData();
+    if (!tokenData.fee_config) {
+      return { igpQuote: { amount: 0n } };
+    }
+    assert(
+      sender && recipient && amount !== undefined,
+      'sender, recipient, and amount required for Sealevel warp-fee quote',
+    );
+    const tokenFeeQuote = await this.quoteWarpFee({
+      feeConfig: tokenData.fee_config,
+      payer: new PublicKey(sender),
+      destination,
+      recipient,
+      amount,
+      targetRouter,
+    });
+    return { igpQuote: { amount: 0n }, tokenFeeQuote };
+  }
+
   // Override base impl which seeds the standing-quote PDA with H256::zero();
   // CC fee accounts seed with the destination warp router pulled from the
   // on-chain remote_routers map.
@@ -90,15 +141,22 @@ export class SealevelHypCrossCollateralAdapter
     params: QuoteTransferRemoteParams,
   ): Promise<InterchainGasQuote> {
     const localDomain = this.multiProvider.getDomainId(this.chainName);
-    if (params.destination === localDomain) {
-      return { igpQuote: { amount: 0n } };
-    }
     const tokenData = await this.getTokenAccountData();
     const remoteRouterBytes = tokenData.remote_routers?.get(params.destination);
     assert(
       remoteRouterBytes,
       `No remote router registered for destination domain ${params.destination}`,
     );
+    if (params.destination === localDomain) {
+      return this.quoteLocalTransferGas({
+        sender: params.sender,
+        recipient: params.recipient,
+        amount: params.amount,
+        destination: params.destination,
+        targetRouter: remoteRouterBytes,
+      });
+    }
+
     return this.quoteTransferGas({
       destination: params.destination,
       sender: params.sender,

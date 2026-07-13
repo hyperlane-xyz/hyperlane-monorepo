@@ -814,7 +814,7 @@ export abstract class SealevelHypTokenAdapter
     return tokenFeeQuote ? { igpQuote, tokenFeeQuote } : { igpQuote };
   }
 
-  private async quoteWarpFee({
+  protected async quoteWarpFee({
     feeConfig,
     payer,
     destination,
