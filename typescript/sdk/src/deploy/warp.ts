@@ -127,7 +127,7 @@ export function buildFeeReadContextFromWarpDeployConfig(
     const existing = knownRoutersPerDomain[domain] ?? new Set();
     knownRoutersPerDomain[domain] = new Set([
       ...existing,
-      router.address,
+      addressToBytes32(router.address),
       DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
     ]);
   }
@@ -144,7 +144,7 @@ export function buildFeeReadContextFromWarpDeployConfig(
       const existing = knownRoutersPerDomain[domain] ?? new Set();
       knownRoutersPerDomain[domain] = new Set([
         ...existing,
-        ...routers,
+        ...routers.map((r) => addressToBytes32(r)),
         DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
       ]);
     }
