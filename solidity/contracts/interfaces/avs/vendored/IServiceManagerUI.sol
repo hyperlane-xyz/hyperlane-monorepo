@@ -17,7 +17,7 @@ interface IServiceManagerUI {
      *         "website": "https://www.eigenlayer.xyz/",
      *         "description": "This is my 1st AVS",
      *         "logo": "https://holesky-operator-metadata.s3.amazonaws.com/eigenlayer.png",
-     *         "twitter": "https://twitter.com/eigenlayer"
+     *         "twitter": "https://x.com/eigenlayer"
      *     }
      * @notice Updates the metadata URI for the AVS
      * @param _metadataURI is the metadata URI for the AVS
