@@ -2,7 +2,7 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-Added v2 fee-quoting API types alongside the legacy v1 (`/quote/*`) types. The v2 shape splits a request into quoter-specific endpoints (`/v2/quote/warp` and `/v2/quote/igp`), returns at most one quote per response, and is protocol-agnostic via a generic envelope:
+Added v2 fee-quoting API types alongside the legacy v1 (`/quote/*`) types. The v2 shape split a request into quoter-specific endpoints (`/v2/quote/warp` and `/v2/quote/igp`), returned at most one quote per response, and is protocol-agnostic via a generic envelope:
 
 - `QuoteV2Response` — `{ quote: AnyQuoteV2Entry }`
 - `QuoteV2Entry<P extends ProtocolType, D>` — protocol-discriminated envelope generic over `(protocol, details)` so new VMs are added by introducing a `*QuoteV2Entry` alias.
