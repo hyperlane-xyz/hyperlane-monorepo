@@ -27,6 +27,7 @@ import type {
   TransferRemoteParams,
   TransferRemoteToParams,
 } from './ITokenAdapter.js';
+import { parseSimulationAccountMetas } from './sealevelFee.js';
 import {
   SealevelHypCollateralAdapter,
   TRANSFER_REMOTE_COMPUTE_LIMIT,
@@ -42,9 +43,6 @@ import {
 
 // CC program discriminator (8 bytes of 2s)
 const CC_DISCRIMINATOR = Buffer.from([2, 2, 2, 2, 2, 2, 2, 2]);
-
-// Each SerializableAccountMeta is: pubkey (32) + is_signer (1) + is_writable (1) = 34 bytes
-const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
 
 export class SealevelHypCrossCollateralAdapter
   extends SealevelHypCollateralAdapter
@@ -359,24 +357,7 @@ export class SealevelHypCrossCollateralAdapter
       `HandleLocalAccountMetas simulation returned no data. The target program may not implement HandleLocalAccountMetas.\nLogs: ${logs?.join('\n')}`,
     );
 
-    const data = Buffer.from(base64Data, 'base64');
-    // First 4 bytes are the Vec length (little-endian u32)
-    const count = data.readUInt32LE(0);
-    const expectedLength = 4 + count * SERIALIZABLE_ACCOUNT_META_SIZE;
-    assert(
-      data.length >= expectedLength,
-      `HandleLocalAccountMetas returned truncated data: expected ${expectedLength} bytes, got ${data.length}`,
-    );
-    const accountMetas: Array<AccountMeta> = [];
-    for (let i = 0; i < count; i++) {
-      const offset = 4 + i * SERIALIZABLE_ACCOUNT_META_SIZE;
-      const pubkey = new PublicKey(data.subarray(offset, offset + 32));
-      const isSigner = data[offset + 32] !== 0;
-      const isWritable = data[offset + 33] !== 0;
-      accountMetas.push({ pubkey, isSigner, isWritable });
-    }
-
-    return accountMetas;
+    return parseSimulationAccountMetas(Buffer.from(base64Data, 'base64'));
   }
 
   // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_local

@@ -10,24 +10,6 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 
-/**
- * Rewrite a `VersionedTransaction`'s blockhash and clear its signatures so
- * the caller can re-sign with the fresh blockhash. `MessageV0.recentBlockhash`
- * is declared `readonly` in TypeScript but is a plain mutable field at
- * runtime; the same pattern is used by `@solana/wallet-adapter` resubmit
- * examples. Returns the same instance for chaining.
- */
-function stampVersionedBlockhash(
-  tx: VersionedTransaction,
-  blockhash: Blockhash,
-): VersionedTransaction {
-  (tx.message as { recentBlockhash: Blockhash }).recentBlockhash = blockhash;
-  for (let i = 0; i < tx.signatures.length; i++) {
-    tx.signatures[i] = new Uint8Array(64);
-  }
-  return tx;
-}
-
 import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
@@ -36,6 +18,25 @@ import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
+
+/**
+ * Rewrite a `VersionedTransaction`'s blockhash and clear its signatures so
+ * the caller can re-sign with the fresh blockhash. `MessageV0.recentBlockhash`
+ * is declared `readonly` in TypeScript but is a plain mutable field at
+ * runtime; the same pattern is used by `@solana/wallet-adapter` resubmit
+ * examples. `Object.assign` performs the write without a type assertion.
+ * Returns the same instance for chaining.
+ */
+function stampVersionedBlockhash(
+  tx: VersionedTransaction,
+  blockhash: Blockhash,
+): VersionedTransaction {
+  Object.assign(tx.message, { recentBlockhash: blockhash });
+  for (let i = 0; i < tx.signatures.length; i++) {
+    tx.signatures[i] = new Uint8Array(64);
+  }
+  return tx;
+}
 
 /**
  * Interface for SVM transaction signers. Accepts both legacy `Transaction`

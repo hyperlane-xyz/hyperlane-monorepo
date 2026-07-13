@@ -7,6 +7,7 @@ import {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
   getSealevelSimulationReturnDataSchema,
+  readOptionalDiscriminatedTrailing,
 } from '../../utils/sealevelSerialization.js';
 
 /**
@@ -23,63 +24,60 @@ export interface SealevelIgpFeeConfig {
   min_issued_at: bigint;
 }
 
-const IGP_FEE_CONFIG_OPTION_NONE_TAG = 0;
-const IGP_FEE_CONFIG_OPTION_SOME_TAG = 1;
+/// `IgpFeeConfig::DISCRIMINATOR` in hyperlane-sealevel-igp/src/accounts.rs.
+const IGP_FEE_CONFIG_DISCRIMINATOR = Buffer.from('IGPFEEV1', 'ascii');
 const H160_BYTES = 20;
 const U32_BYTES = 4;
 const I64_BYTES = 8;
 
 /**
  * Decode the optional trailing IgpFeeConfig from an Igp account's raw data.
- * Handles all three layouts per `read_optional_trailing` in account-utils:
- * empty (pre-upgrade), `[0u8]` (defensive None), or `[1u8] + payload` (Some).
+ * The trailing field is an `OptionalDiscriminatedData<IgpFeeConfig>`: empty
+ * when absent, or `[DISCRIMINATOR (8)][signers (borsh set)][domain_id (u32)]
+ * [min_issued_at (i64)]` when present.
  *
- * Hand-rolled (no borsh dependency for the payload) because borsh-js 0.7
+ * The payload is hand-decoded (no borsh dependency) because borsh-js 0.7
  * lacks native i64 support for `min_issued_at`.
  */
 export function decodeTrailingIgpFeeConfig(
   rawAccountData: Buffer,
   consumedSize: number,
 ): SealevelIgpFeeConfig | undefined {
-  if (rawAccountData.length <= consumedSize) return undefined;
-
-  const tag = rawAccountData[consumedSize];
-  if (tag === IGP_FEE_CONFIG_OPTION_NONE_TAG) return undefined;
-  assert(
-    tag === IGP_FEE_CONFIG_OPTION_SOME_TAG,
-    `Invalid igp.fee_config Option tag: ${tag}`,
+  const payload = readOptionalDiscriminatedTrailing(
+    rawAccountData,
+    consumedSize,
+    IGP_FEE_CONFIG_DISCRIMINATOR,
   );
+  if (payload === undefined) return undefined;
 
-  let offset = consumedSize + 1;
+  let offset = 0;
   assert(
-    rawAccountData.length >= offset + U32_BYTES,
-    `Truncated igp.fee_config: signers length prefix missing at offset ${offset}`,
+    payload.length >= offset + U32_BYTES,
+    `Truncated igp.fee_config: signers length prefix missing`,
   );
-  const signersLen = rawAccountData.readUInt32LE(offset);
+  const signersLen = payload.readUInt32LE(offset);
   offset += U32_BYTES;
 
   const payloadEnd = offset + signersLen * H160_BYTES + U32_BYTES + I64_BYTES;
   assert(
-    rawAccountData.length >= payloadEnd,
-    `Truncated igp.fee_config: expected payload through offset ${payloadEnd}, got ${rawAccountData.length}`,
+    payload.length >= payloadEnd,
+    `Truncated igp.fee_config: expected payload through offset ${payloadEnd}, got ${payload.length}`,
   );
 
   const signers: string[] = [];
   for (let i = 0; i < signersLen; i++) {
     signers.push(
-      toHexString(
-        Buffer.from(rawAccountData.subarray(offset, offset + H160_BYTES)),
-      ),
+      toHexString(Buffer.from(payload.subarray(offset, offset + H160_BYTES))),
     );
     offset += H160_BYTES;
   }
-  const domain_id = rawAccountData.readUInt32LE(offset);
+  const domain_id = payload.readUInt32LE(offset);
   offset += U32_BYTES;
   // Use DataView for i64 — Node's readBigInt64LE is missing from common
   // browser Buffer polyfills (e.g., Turbopack).
   const min_issued_at = new DataView(
-    rawAccountData.buffer,
-    rawAccountData.byteOffset + offset,
+    payload.buffer,
+    payload.byteOffset + offset,
     I64_BYTES,
   ).getBigInt64(0, true);
 

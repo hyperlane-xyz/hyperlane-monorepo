@@ -10,6 +10,7 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
+  readOptionalDiscriminatedTrailing,
 } from '../../utils/sealevelSerialization.js';
 
 /**
@@ -22,47 +23,39 @@ export interface SealevelTokenFeeConfig {
   feeAccount: PublicKey;
 }
 
-const FEE_CONFIG_OPTION_NONE_TAG = 0;
-const FEE_CONFIG_OPTION_SOME_TAG = 1;
-const FEE_CONFIG_SOME_TRAILING_SIZE = 65; // 1 (tag) + 32 (feeProgram) + 32 (feeAccount)
+/// `FeeConfig::DISCRIMINATOR` in hyperlane-sealevel-token/src/accounts.rs.
+const FEE_CONFIG_DISCRIMINATOR = Buffer.from('TOKFEEV1', 'ascii');
+const FEE_CONFIG_PAYLOAD_SIZE = 64; // 32 (feeProgram) + 32 (feeAccount)
 
 /**
  * Decode the optional trailing FeeConfig from a Hyperlane token PDA's raw
  * account data. Returns undefined for pre-upgrade accounts and for accounts
- * where fee_config is explicitly None.
+ * where fee_config is absent.
  *
  * On-chain layout: [SealevelHyperlaneTokenData (variable)] [plugin_data
- * (fixed per token type)] [optional fee_config trailing]. Trailing is one
- * of: empty (pre-upgrade), `[0u8]` (defensive None — handled even though
- * the current on-chain serializer skips it), or `[1u8, 32B, 32B]` (Some).
- * Mirrors `read_optional_trailing` in
- * rust/sealevel/libraries/account-utils/src/lib.rs.
+ * (fixed per token type)] [optional fee_config trailing]. The trailing field
+ * is an `OptionalDiscriminatedData<FeeConfig>`: empty when absent, or
+ * `[DISCRIMINATOR (8)][feeProgram (32)][feeAccount (32)]` when present.
  */
 export function decodeTrailingFeeConfig(
   rawAccountData: Buffer,
   consumedSize: number,
   pluginDataSize: number,
 ): SealevelTokenFeeConfig | undefined {
-  const trailingOffset = consumedSize + pluginDataSize;
-  if (rawAccountData.length <= trailingOffset) return undefined;
-
-  const tag = rawAccountData[trailingOffset];
-  if (tag === FEE_CONFIG_OPTION_NONE_TAG) return undefined;
-  assert(
-    tag === FEE_CONFIG_OPTION_SOME_TAG,
-    `Invalid fee_config Option tag: ${tag}`,
+  const payload = readOptionalDiscriminatedTrailing(
+    rawAccountData,
+    consumedSize + pluginDataSize,
+    FEE_CONFIG_DISCRIMINATOR,
   );
+  if (payload === undefined) return undefined;
+
   assert(
-    rawAccountData.length >= trailingOffset + FEE_CONFIG_SOME_TRAILING_SIZE,
-    `Truncated fee_config: expected ${FEE_CONFIG_SOME_TRAILING_SIZE} bytes from offset ${trailingOffset}, got ${rawAccountData.length - trailingOffset}`,
+    payload.length >= FEE_CONFIG_PAYLOAD_SIZE,
+    `Truncated fee_config: expected ${FEE_CONFIG_PAYLOAD_SIZE} payload bytes, got ${payload.length}`,
   );
   return {
-    feeProgram: new PublicKey(
-      rawAccountData.subarray(trailingOffset + 1, trailingOffset + 33),
-    ),
-    feeAccount: new PublicKey(
-      rawAccountData.subarray(trailingOffset + 33, trailingOffset + 65),
-    ),
+    feeProgram: new PublicKey(payload.subarray(0, 32)),
+    feeAccount: new PublicKey(payload.subarray(32, 64)),
   };
 }
 

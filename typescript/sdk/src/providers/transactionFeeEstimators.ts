@@ -156,10 +156,11 @@ export async function estimateTransactionFeeSolanaWeb3({
   provider: SolanaWeb3Provider;
 }): Promise<TransactionFeeEstimate> {
   const connection = provider.provider;
-  // `Connection.simulateTransaction` has separate overloads for legacy
-  // `Transaction` and `VersionedTransaction`; the union doesn't satisfy
-  // either branch directly, so branch on runtime type to pick the right one.
   const inner = transaction.transaction;
+  // The two arms are intentionally identical: `Connection.simulateTransaction`
+  // has separate overloads for legacy `Transaction` and `VersionedTransaction`
+  // and the union satisfies neither, so we branch purely to narrow `inner` to a
+  // concrete type and let overload resolution pick the matching signature.
   const { value } =
     inner instanceof VersionedTransaction
       ? await connection.simulateTransaction(inner)

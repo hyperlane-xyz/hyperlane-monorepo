@@ -106,6 +106,15 @@ const PRIORITY_FEE_PADDING_FACTOR = 2;
  */
 const MINIMUM_PRIORITY_FEE = 100_000;
 
+/**
+ * Number of static prefix accounts in the PayForGas-shaped list returned by
+ * `GetIgpQuoteAccountMetas`: `[system, payer, program_data, unique_gas_payment,
+ * gas_payment_pda, igp, sender_authority, quoted_sender]`. Slot 8+ is the
+ * quoted-fee cascade tail. Must stay in lockstep with `get_igp_quote_account_metas`
+ * in rust/sealevel/programs/hyperlane-sealevel-igp/src/processor.rs.
+ */
+const IGP_QUOTE_METAS_CASCADE_OFFSET = 8;
+
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
@@ -487,6 +496,12 @@ export abstract class SealevelHypTokenAdapter
   /// under Solana's 1232-byte transaction size limit when the new fee +
   /// IGP-quoted-mode sections push the count past what a legacy
   /// `Transaction` can carry.
+  ///
+  /// Cached for the adapter's lifetime with no invalidation: if a configured
+  /// ALT is extended or deactivated on-chain after first load, this instance
+  /// keeps the stale snapshot. Adapters are constructed per warp operation, so
+  /// a fresh adapter always re-fetches; only a long-lived, reused instance
+  /// would observe staleness.
   protected readonly addressLookupTableAccounts = new LazyAsync(() =>
     this.loadAddressLookupTableAccounts(),
   );
@@ -602,9 +617,9 @@ export abstract class SealevelHypTokenAdapter
    * Build the quoted-mode IGP extension. Spliced into the IGP section between
    * the gas-payment PDA and the configured IGP account when the inner Igp
    * has `fee_config` set:
-   *   [dispatchAuthority, warpProgramId, ...cascade]
+   *   [igpQuoteAuthority, warpProgramId, ...cascade]
    *
-   * The dispatch authority is the warp's `invoke_signed` PDA at runtime; it
+   * The IGP quote authority is the warp's `invoke_signed` PDA at runtime; it
    * is NOT marked as a signer at the outer-instruction level.
    */
   protected async buildIgpQuotedSectionKeys({
@@ -626,16 +641,16 @@ export abstract class SealevelHypTokenAdapter
       { destinationDomain: destination, sender: this.warpProgramPubKey },
     );
     // GetIgpQuoteAccountMetas returns the PayForGas-shaped list. We re-emit
-    // the quoted-mode prefix from local state and use the simulation's tail
-    // (slot 8+) for the cascade PDAs.
+    // the quoted-mode prefix from local state and use the simulation's cascade
+    // tail for the cascade PDAs.
     return [
       {
-        pubkey: this.deriveMessageDispatchAuthorityAccount(),
+        pubkey: this.deriveIgpQuoteAuthorityAccount(),
         isSigner: false,
         isWritable: false,
       },
       { pubkey: this.warpProgramPubKey, isSigner: false, isWritable: false },
-      ...igpMetas.slice(8),
+      ...igpMetas.slice(IGP_QUOTE_METAS_CASCADE_OFFSET),
     ];
   }
 
@@ -862,7 +877,7 @@ export abstract class SealevelHypTokenAdapter
   }): Promise<bigint> {
     // Discover the standing cascade tail via on-chain simulation on the
     // inner Igp. simulateIgpQuoteAccountMetas returns the PayForGas-shaped
-    // list; slots 0..7 are the static prefix, slot 8+ is the cascade.
+    // list; the static prefix precedes the cascade tail.
     const igpMetas = await simulateIgpQuoteAccountMetas(
       this.getProvider(),
       igpProgramId,
@@ -870,7 +885,7 @@ export abstract class SealevelHypTokenAdapter
       payer,
       { destinationDomain: destination, sender: this.warpProgramPubKey },
     );
-    const cascadeTail = igpMetas.slice(8);
+    const cascadeTail = igpMetas.slice(IGP_QUOTE_METAS_CASCADE_OFFSET);
 
     // QuoteGasPayment new-flow direct-call layout:
     //   [system, inner_igp, quoted_sender, ...cascade, optional_overhead_igp]
@@ -1142,6 +1157,20 @@ export abstract class SealevelHypTokenAdapter
   deriveMessageDispatchAuthorityAccount(): PublicKey {
     return super.derivePda(
       ['hyperlane_dispatcher', '-', 'dispatch_authority'],
+      this.warpProgramPubKey,
+    );
+  }
+
+  /**
+   * IGP quote authority PDA under the warp route program. Authorizes quoted
+   * IGP gas payments and is deliberately distinct from the mailbox dispatch
+   * authority so a malicious IGP cannot replay the forwarded signer into a
+   * Mailbox dispatch. Seeds match `igp_quote_authority_pda_seeds!` in
+   * rust/sealevel/programs/hyperlane-sealevel-igp/src/pda_seeds.rs.
+   */
+  deriveIgpQuoteAuthorityAccount(): PublicKey {
+    return super.derivePda(
+      ['hyperlane_dispatcher', '-', 'igp_quote_authority'],
       this.warpProgramPubKey,
     );
   }
