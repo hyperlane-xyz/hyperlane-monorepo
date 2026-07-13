@@ -597,7 +597,7 @@ async function executeDelivery({
           router: token.addressOrDenom as Address,
           destination: destinationDomainId,
           salt,
-          recipient: addressToBytes32(recipient!) as Hex,
+          recipient: addressToBytes32(recipientAddress) as Hex,
         });
 
         const quotedCalls: QuotedCallsParams = {
@@ -612,7 +612,7 @@ async function executeDelivery({
           originTokenAmount: new TokenAmount(amount, token),
           destination,
           sender: signerAddress,
-          recipient: recipient!,
+          recipient: recipientAddress,
           quotedCalls,
           destinationToken: destToken,
         });
