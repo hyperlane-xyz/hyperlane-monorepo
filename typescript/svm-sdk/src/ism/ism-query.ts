@@ -90,22 +90,28 @@ export async function detectIsmType(
   rpc: Rpc<SolanaRpcApi>,
   programId: Address,
 ): Promise<IsmType> {
-  const testIsmStorage = await fetchTestIsmStorageAccount(rpc, programId);
+  // The three probes hit distinct, independently-derived PDAs, so they're
+  // fetched concurrently — only the *interpretation* order below is
+  // priority-sensitive (see the composite-ISM comment), not the fetch order.
+  const [testIsmStorage, accessControl, composite] = await Promise.all([
+    fetchTestIsmStorageAccount(rpc, programId),
+    fetchMultisigIsmAccessControl(rpc, programId),
+    fetchCompositeIsmStorageAccount(rpc, programId),
+  ]);
+
   if (testIsmStorage !== null) {
     return IsmType.TEST_ISM;
   }
 
-  const accessControl = await fetchMultisigIsmAccessControl(rpc, programId);
   if (accessControl !== null) {
     return IsmType.MESSAGE_ID_MULTISIG;
   }
 
   // Checked last: composite ISM's storage PDA uses the shared VAM seed
   // convention (unlike the two program-specific seeds probed above), and its
-  // storage is the largest/most specific shape — probing it last minimizes
+  // storage is the largest/most specific shape — checking it last minimizes
   // any chance of a false-positive decode against a differently-shaped
   // account that happens to exist at this program's VAM PDA.
-  const composite = await fetchCompositeIsmStorageAccount(rpc, programId);
   if (composite !== null && composite.root !== null) {
     return IsmType.COMPOSITE;
   }

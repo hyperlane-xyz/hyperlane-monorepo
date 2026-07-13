@@ -6,7 +6,11 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { decodeAccountData } from '../codecs/account-data.js';
+import {
+  decodeAccountData,
+  readAddress,
+  readOptionAddress,
+} from '../codecs/account-data.js';
 import {
   bool,
   type ByteCursor,
@@ -29,6 +33,16 @@ import {
 } from '../codecs/shared.js';
 
 const ADDRESS_CODEC = getAddressCodec();
+
+/** Reads a Borsh `Option<T>`: 0 ⇒ null, 1 ⇒ decoded value, other ⇒ throws. */
+function readOption<T>(
+  cursor: ByteCursor,
+  decode: (c: ByteCursor) => T,
+): T | null {
+  const tag = cursor.readU8();
+  assert(tag === 0 || tag === 1, `Invalid Option tag: ${tag}`);
+  return tag === 1 ? decode(cursor) : null;
+}
 
 /**
  * Discriminants for `IsmNode` (rust/sealevel/programs/ism/composite-ism/src/accounts.rs).
@@ -152,7 +166,7 @@ export function decodeIsmNode(cursor: ByteCursor): IsmNode {
     }
     case IsmNodeKind.RateLimited: {
       const maxCapacity = cursor.readU64LE();
-      const recipient = readOptionH256(cursor);
+      const recipient = readOption(cursor, decodeH256);
       const filledLevel = cursor.readU64LE();
       const lastUpdated = cursor.readI64LE();
       const mailbox = readAddress(cursor);
@@ -174,16 +188,6 @@ export function decodeIsmNode(cursor: ByteCursor): IsmNode {
   }
 }
 
-function readAddress(cursor: ByteCursor): Address {
-  return ADDRESS_CODEC.decode(cursor.readBytes(32));
-}
-
-function readOptionH256(cursor: ByteCursor): H256 | null {
-  const tag = cursor.readU8();
-  assert(tag === 0 || tag === 1, `Invalid Option tag: ${tag}`);
-  return tag === 1 ? decodeH256(cursor) : null;
-}
-
 /** Data stored in the VAM PDA account (see `deriveCompositeIsmStoragePda`). */
 export interface CompositeIsmStorage {
   bumpSeed: number;
@@ -196,12 +200,8 @@ export function decodeCompositeIsmStorageAccount(
 ): CompositeIsmStorage | null {
   const wrapped = decodeAccountData(raw, (cursor) => {
     const bumpSeed = cursor.readU8();
-    const ownerTag = cursor.readU8();
-    assert(ownerTag === 0 || ownerTag === 1, `Invalid Option tag: ${ownerTag}`);
-    const owner = ownerTag === 1 ? readAddress(cursor) : null;
-    const rootTag = cursor.readU8();
-    assert(rootTag === 0 || rootTag === 1, `Invalid Option tag: ${rootTag}`);
-    const root = rootTag === 1 ? decodeIsmNode(cursor) : null;
+    const owner = readOptionAddress(cursor);
+    const root = readOption(cursor, decodeIsmNode);
     return { bumpSeed, owner, root };
   });
   return wrapped.data;
@@ -220,9 +220,7 @@ export function decodeDomainIsmStorageAccount(
   const wrapped = decodeAccountData(raw, (cursor) => {
     const bumpSeed = cursor.readU8();
     const domain = cursor.readU32LE();
-    const ismTag = cursor.readU8();
-    assert(ismTag === 0 || ismTag === 1, `Invalid Option tag: ${ismTag}`);
-    const ism = ismTag === 1 ? decodeIsmNode(cursor) : null;
+    const ism = readOption(cursor, decodeIsmNode);
     return { bumpSeed, domain, ism };
   });
   return wrapped.data;

@@ -11,7 +11,7 @@ import type {
   CompositeIsmArtifactConfig,
   CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   decodeCompositeIsmStorageAccount,
@@ -43,6 +43,7 @@ import type {
 import { validatorBytesToHex } from './ism-query.js';
 
 const CHUNK_SIZE = 5;
+const logger = rootLogger.child({ module: 'composite-ism' });
 
 /**
  * Deployment-time configuration for the SVM composite ISM writer.
@@ -265,8 +266,16 @@ export class SvmCompositeIsmReader implements ArtifactReader<
       let decoded;
       try {
         decoded = decodeDomainIsmStorageAccount(raw);
-      } catch {
-        continue; // not a DomainIsmStorage account
+      } catch (error) {
+        // This program only ever creates two account shapes (the storage
+        // PDA, excluded above, and DomainIsmStorage PDAs), so a decode
+        // failure here means corruption or an unrecognized future format —
+        // log it rather than silently dropping the domain from the result.
+        logger.warn('Failed to decode account as DomainIsmStorage', {
+          pubkey,
+          error,
+        });
+        continue;
       }
       if (decoded?.ism) {
         domains[decoded.domain] = decoded.ism;
@@ -319,16 +328,13 @@ export class SvmCompositeIsmWriter
       }),
     );
 
-    const owner = parseAddress(config.owner);
-    if (owner !== this.svmSigner.signer.address) {
-      const transferIx = await getTransferCompositeIsmOwnershipInstruction(
-        programAddress,
-        this.svmSigner.signer,
-        owner,
-      );
-      receipts.push(await this.svmSigner.send({ instructions: [transferIx] }));
-    }
-
+    // Domain instructions (and any other admin action) must be sent while
+    // this.svmSigner.signer is still the on-chain owner — every mutating
+    // instruction's account list requires the CURRENT owner as signer
+    // (`ensure_owner_signer` checks against `storage.owner` as of that
+    // instruction's execution). Transferring ownership first would leave
+    // the deploying signer unauthorized for the domain instructions below,
+    // failing them on-chain. Ownership transfer must be the last step.
     const domainEntries = Object.entries(domains);
     if (domainEntries.length > 0) {
       const domainInstructions = await Promise.all(
@@ -345,6 +351,16 @@ export class SvmCompositeIsmWriter
         const chunk = domainInstructions.slice(i, i + CHUNK_SIZE);
         receipts.push(await this.svmSigner.send({ instructions: chunk }));
       }
+    }
+
+    const owner = parseAddress(config.owner);
+    if (owner !== this.svmSigner.signer.address) {
+      const transferIx = await getTransferCompositeIsmOwnershipInstruction(
+        programAddress,
+        this.svmSigner.signer,
+        owner,
+      );
+      receipts.push(await this.svmSigner.send({ instructions: [transferIx] }));
     }
 
     return [
@@ -378,21 +394,6 @@ export class SvmCompositeIsmWriter
         feePayer: this.svmSigner.signer.address,
         instructions: [ix],
         annotation: 'Update composite ISM config',
-      });
-    }
-
-    const expectedOwner = parseAddress(expected.owner);
-    const currentOwner = parseAddress(current.config.owner);
-    if (expectedOwner !== currentOwner) {
-      const ix = await getTransferCompositeIsmOwnershipInstruction(
-        programId,
-        this.svmSigner.signer,
-        expectedOwner,
-      );
-      transactions.push({
-        feePayer: this.svmSigner.signer.address,
-        instructions: [ix],
-        annotation: 'Transfer composite ISM ownership',
       });
     }
 
@@ -443,6 +444,26 @@ export class SvmCompositeIsmWriter
         feePayer: this.svmSigner.signer.address,
         instructions: chunk.map((c) => c.instruction),
         annotation: chunk.map((c) => c.annotation).join(', '),
+      });
+    }
+
+    // Ownership transfer must be the last transaction: every other
+    // instruction above requires `this.svmSigner.signer` to still be the
+    // on-chain owner (`ensure_owner_signer` checks against `storage.owner`
+    // at execution time), so transferring first would leave the signer
+    // unauthorized for the root/domain updates built above.
+    const expectedOwner = parseAddress(expected.owner);
+    const currentOwner = parseAddress(current.config.owner);
+    if (expectedOwner !== currentOwner) {
+      const ix = await getTransferCompositeIsmOwnershipInstruction(
+        programId,
+        this.svmSigner.signer,
+        expectedOwner,
+      );
+      transactions.push({
+        feePayer: this.svmSigner.signer.address,
+        instructions: [ix],
+        annotation: 'Transfer composite ISM ownership',
       });
     }
 
@@ -511,12 +532,32 @@ function deepEqualNode(
   );
 }
 
+/**
+ * Recursively normalizes case/order-only differences (hex validator
+ * addresses, recipient hash) so `deepEqualNode` doesn't report a false
+ * "changed" for a node nested anywhere in the tree — not just at the
+ * outermost call — which would otherwise make `update()` never converge
+ * to a no-op diff for trees containing `multisigMessageId`/`rateLimited`
+ * below an `aggregation`/`amountRouting` node.
+ */
 function normalizeForCompare(node: CompositeIsmNodeArtifactConfig): unknown {
-  if (node.type === 'multisigMessageId') {
-    return {
-      ...node,
-      validators: [...node.validators].map((v) => v.toLowerCase()).sort(),
-    };
+  switch (node.type) {
+    case 'multisigMessageId':
+      return {
+        ...node,
+        validators: [...node.validators].map((v) => v.toLowerCase()).sort(),
+      };
+    case 'rateLimited':
+      return { ...node, recipient: node.recipient?.toLowerCase() };
+    case 'aggregation':
+      return { ...node, subIsms: node.subIsms.map(normalizeForCompare) };
+    case 'amountRouting':
+      return {
+        ...node,
+        lower: normalizeForCompare(node.lower),
+        upper: normalizeForCompare(node.upper),
+      };
+    default:
+      return node;
   }
-  return node;
 }

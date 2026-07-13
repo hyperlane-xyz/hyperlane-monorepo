@@ -391,4 +391,43 @@ describe('SVM Composite ISM E2E Tests', function () {
       expect(readResult.config).to.deep.equal(config);
     });
   });
+
+  describe('create — non-deployer owner combined with domains', () => {
+    it('sets domains successfully even when config.owner differs from the deploying signer', async () => {
+      // Regression test: create() must send SetDomainIsm *before*
+      // TransferOwnership. Every mutating instruction requires the CURRENT
+      // on-chain owner as signer, so if ownership were transferred away from
+      // `signer` first, the domain instructions below (still signed by
+      // `signer`) would be rejected on-chain.
+      const writer = new SvmCompositeIsmWriter(
+        {
+          program: {
+            programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm,
+          },
+        },
+        rpc,
+        signer,
+      );
+
+      const config: CompositeIsmArtifactConfig = {
+        type: 'compositeIsm',
+        owner: altOwnerSigner.signer.address,
+        root: {
+          type: 'routing',
+          domains: {
+            1: { type: 'test', accept: true },
+          },
+        },
+      };
+
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config,
+      });
+
+      const reader = new SvmCompositeIsmReader(rpc);
+      const readResult = await reader.read(deployed.deployed.programId);
+      expect(readResult.config).to.deep.equal(config);
+    });
+  });
 });
