@@ -5,15 +5,20 @@ import type {
   FeeQuotingCommand,
   FeeQuotingQuoteResponse,
   NoQuoteAvailableError as NoQuoteAvailableErrorBody,
-  NoQuoteAvailableReason,
   QuoteV2Endpoint,
   QuoteV2Response,
 } from './types.js';
 import {
   NO_QUOTE_AVAILABLE_ERROR,
+  NoQuoteAvailableReason,
   QUOTE_V2_BASE_PATH,
   QuoteV2Endpoint as QuoteV2EndpointValues,
 } from './types.js';
+
+/** Runtime membership set for the `NoQuoteAvailableReason` discriminant. */
+const NO_QUOTE_AVAILABLE_REASONS = new Set<string>(
+  Object.values(NoQuoteAvailableReason),
+);
 
 export interface FeeQuotingClientOptions {
   baseUrl: string;
@@ -138,6 +143,7 @@ function isNoQuoteAvailableBody(
   return (
     b.error === NO_QUOTE_AVAILABLE_ERROR &&
     typeof b.reason === 'string' &&
+    NO_QUOTE_AVAILABLE_REASONS.has(b.reason) &&
     typeof b.detail === 'string'
   );
 }
