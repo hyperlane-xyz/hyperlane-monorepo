@@ -235,8 +235,8 @@ function recipientLabel(hex: string): string {
 export function groupEntriesByScope(
   entries: StandingWarpQuoteEntry[],
   multiProvider: { tryGetChainName: (domain: number) => ChainName | null },
+  nowSec: number = Math.floor(Date.now() / 1000),
 ): WarpQuoteReadResult[ChainName] {
-  const nowSec = Math.floor(Date.now() / 1000);
   const grouped: WarpQuoteReadResult[ChainName] = {};
   for (const entry of entries) {
     const destKey =
@@ -255,6 +255,8 @@ export function groupEntriesByScope(
       halfAmount: entry.params.halfAmount.toString(),
       issuedAt: unixSecToIsoString(entry.issuedAt),
       expiry: unixSecToIsoString(entry.expiry),
+      // A quote stays valid through its exact expiry second; it is expired only
+      // once nowSec is strictly past expiry.
       expired: nowSec > entry.expiry,
     };
   }

@@ -53,6 +53,28 @@ describe('groupEntriesByScope', () => {
     expect(entry.expired).to.equal(false);
   });
 
+  // Expiry is a strict boundary: a quote stays valid through its exact expiry
+  // second and only flips to expired once nowSec is strictly past it.
+  const NOW = 1_700_000_000;
+  const boundaryCases = [
+    { label: 'one second before expiry', expiry: NOW + 1, expired: false },
+    { label: 'exactly at expiry', expiry: NOW, expired: false },
+    { label: 'one second past expiry', expiry: NOW - 1, expired: true },
+  ];
+  for (const { label, expiry, expired } of boundaryCases) {
+    it(`marks an entry ${expired ? 'expired' : 'not expired'} ${label}`, () => {
+      const result = groupEntriesByScope(
+        [makeEntry(expiry)],
+        multiProvider,
+        NOW,
+      );
+      const entry =
+        result[DEST_CHAIN]?.['TARGET_ROUTER_NONE']?.['WILDCARD_RECIPIENT'];
+      assert(entry, 'expected entry under DEST_CHAIN/NONE/WILDCARD');
+      expect(entry.expired).to.equal(expired);
+    });
+  }
+
   it('computes the expired flag independently per entry', () => {
     const nowSec = Math.floor(Date.now() / 1000);
     const past = {
