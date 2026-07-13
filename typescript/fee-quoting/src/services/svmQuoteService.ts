@@ -40,7 +40,11 @@ import {
   isSealevelDeployedWarpAddress,
   signSvmQuote,
 } from '@hyperlane-xyz/sealevel-sdk';
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  eqAddress,
+  isValidAddressSealevel,
+} from '@hyperlane-xyz/utils';
 
 import { QuoteMode } from '../config.js';
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
@@ -322,6 +326,13 @@ export class SvmQuoteService implements IProtocolQuoteService {
     binding: QuoteBinding;
     txSubmitter: string;
   }): SealevelQuoteV2Entry {
+    if (!isValidAddressSealevel(args.txSubmitter)) {
+      throw new ApiError(
+        `txSubmitter is not a valid Sealevel address: ${args.txSubmitter}`,
+        400,
+      );
+    }
+
     const { issuedAt, expiry } = resolveTimestamps(args.binding);
     const signed = signSvmQuote({
       privateKey: this.privateKey,
