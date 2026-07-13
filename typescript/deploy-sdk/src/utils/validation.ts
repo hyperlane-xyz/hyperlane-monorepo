@@ -32,10 +32,13 @@ const PROTOCOL_SPECIFIC_ISM_TYPES: Readonly<
  * @param ismType - The ISM type string to validate
  * @param chain - Chain name for error messages
  * @param context - Context string for error messages (e.g., "warp route", "core")
- * @param protocol - Protocol of the chain being validated. When omitted,
- * protocol-specific ISM types (e.g. compositeIsm) are not restricted —
- * preserves the pre-existing permissive behavior for callers that predate
- * protocol-aware validation.
+ * @param protocol - Protocol of the chain being validated. `protocol` is
+ * optional only so pre-existing callers (validating one of the
+ * always-cross-protocol types below) keep compiling — it does NOT loosen
+ * validation for a protocol-gated type like compositeIsm. At the point
+ * compositeIsm was introduced it was never accepted without a matching
+ * protocol, so omitting `protocol` for it still fails, just with a
+ * clearer "protocol required" reason instead of a generic type mismatch.
  * @throws UnsupportedIsmTypeError if ISM type is not supported
  */
 export function validateIsmType(
@@ -47,19 +50,28 @@ export function validateIsmType(
   const requiredProtocol = PROTOCOL_SPECIFIC_ISM_TYPES[ismType];
   const supported =
     SUPPORTED_ISM_TYPES.has(ismType) &&
-    (requiredProtocol === undefined ||
-      protocol === undefined ||
-      requiredProtocol === protocol);
+    (requiredProtocol === undefined || requiredProtocol === protocol);
 
   if (!supported) {
     const supportedTypes = Array.from(SUPPORTED_ISM_TYPES)
-      .filter(
-        (type) =>
-          PROTOCOL_SPECIFIC_ISM_TYPES[type] === undefined ||
-          protocol === undefined ||
-          PROTOCOL_SPECIFIC_ISM_TYPES[type] === protocol,
-      )
+      .filter((type) => {
+        const required = PROTOCOL_SPECIFIC_ISM_TYPES[type];
+        return required === undefined || required === protocol;
+      })
       .join(', ');
+
+    if (
+      SUPPORTED_ISM_TYPES.has(ismType) &&
+      requiredProtocol !== undefined &&
+      protocol === undefined
+    ) {
+      throw new UnsupportedIsmTypeError(
+        ismType,
+        chain,
+        context,
+        `${supportedTypes} (ismType '${ismType}' requires the chain's protocol to be passed explicitly to validateIsmType/validateIsmConfig)`,
+      );
+    }
     throw new UnsupportedIsmTypeError(ismType, chain, context, supportedTypes);
   }
 }

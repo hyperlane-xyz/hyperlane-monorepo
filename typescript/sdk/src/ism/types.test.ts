@@ -252,6 +252,53 @@ describe('CompositeIsmConfigSchema', () => {
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
   });
 
+  it('rejects malformed decimal strings without throwing', () => {
+    for (const badValue of ['abc', '1.5', '', '-1', '0x10']) {
+      const invalid = {
+        ...sample,
+        root: {
+          type: 'rateLimited',
+          maxCapacity: badValue,
+          mailbox: SEALEVEL_ADDRESS,
+          recipient: H256_ADDRESS,
+        },
+      };
+      // The assertion itself is the regression check: safeParse must not
+      // throw for malformed input (BigInt(value) inside the schema's
+      // overflow refine would throw for non-digit strings if unguarded).
+      expect(() => CompositeIsmConfigSchema.safeParse(invalid)).to.not.throw();
+      expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+    }
+  });
+
+  it('rejects a multisigMessageId/aggregation threshold above u8::MAX', () => {
+    const validators = Array.from(
+      { length: 256 },
+      (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+    );
+    const invalidMultisig = {
+      ...sample,
+      root: {
+        type: 'multisigMessageId',
+        threshold: 256,
+        validators,
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalidMultisig).success).to.be
+      .false;
+
+    const invalidAggregation = {
+      ...sample,
+      root: {
+        type: 'aggregation',
+        threshold: 256,
+        subIsms: [{ type: 'trustedRelayer', relayer: SEALEVEL_ADDRESS }],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalidAggregation).success).to.be
+      .false;
+  });
+
   it('rejects a trustedRelayer node with a zero relayer', () => {
     const invalid = {
       ...sample,
@@ -266,6 +313,23 @@ describe('CompositeIsmConfigSchema', () => {
       root: { type: 'trustedRelayer', relayer: SOME_ADDRESS },
     };
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects base58-alphabet strings that do not decode to a real 32-byte pubkey', () => {
+    // Both are valid base58 alphabet + within the naive 32-44 char length
+    // range, but neither actually decodes to a 32-byte public key.
+    const wrongAlphabetDensity = {
+      ...sample,
+      root: { type: 'trustedRelayer', relayer: 'z'.repeat(32) },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(wrongAlphabetDensity).success).to
+      .be.false;
+
+    const wrongWidth = {
+      ...sample,
+      root: { type: 'trustedRelayer', relayer: '1'.repeat(33) },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(wrongWidth).success).to.be.false;
   });
 
   it('rejects more than one routing/fallbackRouting node in the tree', () => {

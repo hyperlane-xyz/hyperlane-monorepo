@@ -22,7 +22,12 @@ import type {
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
-import { isEmptyAddress, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  isEmptyAddress,
+  isNullish,
+  isValidAddressSealevel,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -467,10 +472,9 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
 // already deployed the program on-chain.
 const ZSealevelPubkey = z
   .string()
-  .regex(
-    /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32,44}$/,
-    'must be a base58-encoded Sealevel address',
-  );
+  .refine((value) => isValidAddressSealevel(value), {
+    message: 'must be a valid base58-encoded Sealevel address',
+  });
 const ZH160Hex = z
   .string()
   .regex(
@@ -484,14 +488,25 @@ const ZH256Hex = z
 const U64_MAX = 2n ** 64n - 1n;
 const U256_MAX = 2n ** 256n - 1n;
 
+// MultisigMessageId.threshold and Aggregation.threshold are Borsh-encoded
+// as u8 on-chain — a value outside 0-255 parses fine as a JS number but
+// throws in getU8Codec().encode() after the program has already deployed.
+const ZU8Threshold = z.number().int().min(0).max(255);
+
 /** Base-10 integer string bounded to fit the given Borsh-encoded wire width. */
 function decimalStringBoundedBy(max: bigint, label: string) {
   return z
     .string()
     .regex(/^\d+$/, `${label} must be a base-10 integer string`)
-    .refine((value) => BigInt(value) <= max, {
-      message: `${label} exceeds the maximum value representable on-chain`,
-    });
+    .refine(
+      // Zod runs every check in the chain regardless of earlier failures
+      // (no short-circuiting), so BigInt(value) must stay guarded here even
+      // though the regex above already rejects non-digit strings —
+      // otherwise a value like "abc" throws inside refine and crashes
+      // safeParse() instead of returning { success: false }.
+      (value) => /^\d+$/.test(value) && BigInt(value) <= max,
+      { message: `${label} exceeds the maximum value representable on-chain` },
+    );
 }
 
 // Discriminants for nodes inside a compositeIsm tree (Sealevel-only).
@@ -576,11 +591,11 @@ export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
       z.object({
         type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
         validators: z.array(ZH160Hex),
-        threshold: z.number().int(),
+        threshold: ZU8Threshold,
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.AGGREGATION),
-        threshold: z.number().int(),
+        threshold: ZU8Threshold,
         subIsms: z.array(CompositeIsmNodeConfigSchema),
       }),
       z.object({
@@ -708,7 +723,11 @@ function validateCompositeIsmTree(
       break;
     }
     case CompositeIsmNodeType.RATE_LIMITED:
-      if (BigInt(node.maxCapacity) === 0n) {
+      // Guarded: superRefine runs regardless of whether maxCapacity's own
+      // field-level schema (decimalStringBoundedBy) already rejected it —
+      // BigInt() on a malformed string would otherwise throw here too and
+      // crash safeParse() instead of returning { success: false }.
+      if (/^\d+$/.test(node.maxCapacity) && BigInt(node.maxCapacity) === 0n) {
         addIssue('maxCapacity must be non-zero', [...path, 'maxCapacity']);
       }
       if (isEmptyAddress(node.mailbox)) {

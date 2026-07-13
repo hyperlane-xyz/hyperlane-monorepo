@@ -426,7 +426,7 @@ describe('transformDeployConfigForDisplay', () => {
     expect(rows.some((row) => row.Type === 'multisigMessageId')).to.equal(true);
   });
 
-  it('tags each domain row with its own domain label when multiple domains have distinct configs', () => {
+  it('tags each domain row with its own path when multiple domains have distinct configs', () => {
     const RELAYER_2 = '44444444444444444444444444444444444444444';
     const deployConfig = {
       solanamainnet: {
@@ -459,12 +459,59 @@ describe('transformDeployConfigForDisplay', () => {
 
     const rows = transformedIsmConfigs.solanamainnet;
     const ethereumRow = rows.find(
-      (row) => row.Domain === 'ethereum' && row.Type === 'multisigMessageId',
+      (row) =>
+        row.Path === 'root.domains.ethereum' &&
+        row.Type === 'multisigMessageId',
     );
     const polygonRow = rows.find(
-      (row) => row.Domain === 'polygon' && row.Type === 'trustedRelayer',
+      (row) =>
+        row.Path === 'root.domains.polygon' && row.Type === 'trustedRelayer',
     );
     expect(ethereumRow?.Validators).to.deep.equal([RELAYER]);
     expect(polygonRow?.Relayer).to.equal(RELAYER_2);
+  });
+
+  it('disambiguates a nested tree via Path when sibling rows would otherwise collide', () => {
+    const deployConfig = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'aggregation',
+            threshold: 1,
+            subIsms: [
+              {
+                type: 'amountRouting',
+                threshold: '1000',
+                lower: { type: 'test', accept: true },
+                upper: { type: 'test', accept: false },
+              },
+              { type: 'trustedRelayer', relayer: RELAYER },
+            ],
+          },
+        },
+      },
+    } satisfies WarpRouteDeployConfigMailboxRequired;
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    const lowerRow = rows.find(
+      (row) => row.Path === 'root.subIsms[0].lower' && row.Type === 'test',
+    );
+    const upperRow = rows.find(
+      (row) => row.Path === 'root.subIsms[0].upper' && row.Type === 'test',
+    );
+    const relayerRow = rows.find(
+      (row) => row.Path === 'root.subIsms[1]' && row.Type === 'trustedRelayer',
+    );
+    expect(lowerRow?.Accept).to.equal(true);
+    expect(upperRow?.Accept).to.equal(false);
+    expect(relayerRow?.Relayer).to.equal(RELAYER);
   });
 });

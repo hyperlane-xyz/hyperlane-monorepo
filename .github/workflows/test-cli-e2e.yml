@@ -547,6 +547,7 @@ jobs:
         test:
           - core-deploy
           - core-apply
+          - core-composite-ism
           - hook-igp
           - warp-cross-collateral
           - warp-fee

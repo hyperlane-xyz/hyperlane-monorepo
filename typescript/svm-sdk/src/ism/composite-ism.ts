@@ -6,6 +6,7 @@ import {
   createTransactionMessage,
   getCompiledTransactionMessageEncoder,
   getShortU16Encoder,
+  isAddress,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
   type Address,
@@ -23,7 +24,12 @@ import type {
   CompositeIsmArtifactConfig,
   CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  deepEquals,
+  isEmptyAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   decodeCompositeIsmStorageAccount,
@@ -312,6 +318,194 @@ function extractDomains(
   }
 }
 
+/**
+ * True if a `routing`/`fallbackRouting` node exists anywhere in this tree —
+ * mirrors extractDomains'/stripDomains' recursion through
+ * aggregation.subIsms and amountRouting.lower/upper, since routing isn't
+ * only ever the tree's own top-level type.
+ */
+function containsRoutingNode(node: CompositeIsmNodeArtifactConfig): boolean {
+  switch (node.type) {
+    case 'routing':
+    case 'fallbackRouting':
+      return true;
+    case 'aggregation':
+      return node.subIsms.some(containsRoutingNode);
+    case 'amountRouting':
+      return containsRoutingNode(node.lower) || containsRoutingNode(node.upper);
+    default:
+      return false;
+  }
+}
+
+/** True if a `fallbackRouting` node exists anywhere in this subtree. */
+function containsFallbackRoutingNode(
+  node: CompositeIsmNodeArtifactConfig,
+): boolean {
+  switch (node.type) {
+    case 'fallbackRouting':
+      return true;
+    case 'aggregation':
+      return node.subIsms.some(containsFallbackRoutingNode);
+    case 'amountRouting':
+      return (
+        containsFallbackRoutingNode(node.lower) ||
+        containsFallbackRoutingNode(node.upper)
+      );
+    default:
+      return false;
+  }
+}
+
+const ARTIFACT_U64_MAX = 2n ** 64n - 1n;
+const ARTIFACT_U256_MAX = 2n ** 256n - 1n;
+
+function isValidDecimalStringBoundedBy(value: string, max: bigint): boolean {
+  return /^\d+$/.test(value) && BigInt(value) <= max;
+}
+
+/**
+ * Validates a composite ISM artifact tree against the same semantic rules
+ * enforced by the Rust program's validate_config/validate_domain_ism
+ * (rust/sealevel/programs/ism/composite-ism/src/processor.rs), mirroring
+ * `@hyperlane-xyz/sdk`'s CompositeIsmConfigSchema superRefine checks.
+ *
+ * The SDK schema only protects config-file/YAML callers parsed through
+ * CompositeIsmConfigSchema — a caller constructing a CompositeIsmArtifactConfig
+ * directly and calling this writer bypasses that validation entirely. Called
+ * before resolveProgram() so an invalid tree is rejected before a program is
+ * deployed on-chain.
+ */
+export function assertValidCompositeIsmArtifact(
+  config: CompositeIsmArtifactConfig,
+): void {
+  assert(
+    isAddress(config.owner),
+    `Composite ISM owner must be a valid Sealevel address, got: ${config.owner}`,
+  );
+  assertValidCompositeIsmArtifactNode(config.root, false, {
+    routingFound: false,
+  });
+}
+
+function assertValidCompositeIsmArtifactNode(
+  node: CompositeIsmNodeArtifactConfig,
+  insideDomainIsm: boolean,
+  state: { routingFound: boolean },
+): void {
+  switch (node.type) {
+    case 'trustedRelayer':
+      assert(
+        isAddress(node.relayer) && !isEmptyAddress(node.relayer),
+        `trustedRelayer.relayer must be a non-zero Sealevel address, got: ${node.relayer}`,
+      );
+      break;
+    case 'multisigMessageId': {
+      assert(
+        node.threshold >= 1 &&
+          node.threshold <= 255 &&
+          node.threshold <= node.validators.length,
+        `multisigMessageId.threshold (${node.threshold}) must be between 1 and min(255, validators.length)`,
+      );
+      const seen = new Set<string>();
+      for (const validator of node.validators) {
+        try {
+          encodeH160(validator);
+        } catch {
+          assert(false, `Invalid H160 validator address: ${validator}`);
+        }
+        const normalized = validator.toLowerCase();
+        assert(
+          !seen.has(normalized),
+          `Duplicate validator address: ${validator}`,
+        );
+        seen.add(normalized);
+      }
+      break;
+    }
+    case 'aggregation':
+      assert(
+        node.threshold >= 1 &&
+          node.threshold <= 255 &&
+          node.threshold <= node.subIsms.length,
+        `aggregation.threshold (${node.threshold}) must be between 1 and min(255, subIsms.length)`,
+      );
+      node.subIsms.slice(0, -1).forEach((sub) => {
+        assert(
+          !containsFallbackRoutingNode(sub),
+          'fallbackRouting must be the last entry in subIsms',
+        );
+      });
+      node.subIsms.forEach((sub) =>
+        assertValidCompositeIsmArtifactNode(sub, insideDomainIsm, state),
+      );
+      break;
+    case 'amountRouting':
+      assert(
+        isValidDecimalStringBoundedBy(node.threshold, ARTIFACT_U256_MAX),
+        `amountRouting.threshold (${node.threshold}) must be a base-10 integer string not exceeding u256::MAX`,
+      );
+      assertValidCompositeIsmArtifactNode(node.lower, insideDomainIsm, state);
+      assertValidCompositeIsmArtifactNode(node.upper, insideDomainIsm, state);
+      break;
+    case 'rateLimited':
+      assert(
+        isValidDecimalStringBoundedBy(node.maxCapacity, ARTIFACT_U64_MAX) &&
+          BigInt(node.maxCapacity) > 0n,
+        `rateLimited.maxCapacity (${node.maxCapacity}) must be a non-zero base-10 integer string not exceeding u64::MAX`,
+      );
+      assert(
+        isAddress(node.mailbox) && !isEmptyAddress(node.mailbox),
+        `rateLimited.mailbox must be a non-zero Sealevel address, got: ${node.mailbox}`,
+      );
+      assert(
+        node.recipient,
+        'rateLimited.recipient is required and must be a non-zero 32-byte address',
+      );
+      if (node.recipient) {
+        try {
+          encodeH256(node.recipient);
+        } catch {
+          assert(false, `Invalid H256 recipient: ${node.recipient}`);
+        }
+        assert(
+          !/^0x0+$/i.test(node.recipient),
+          'rateLimited.recipient must be a non-zero address',
+        );
+      }
+      break;
+    case 'routing':
+    case 'fallbackRouting':
+      assert(
+        !insideDomainIsm,
+        `${node.type} is not allowed inside a domain override`,
+      );
+      if (node.type === 'fallbackRouting') {
+        assert(
+          isAddress(node.fallbackIsm) && !isEmptyAddress(node.fallbackIsm),
+          `fallbackRouting.fallbackIsm must be a non-zero Sealevel address, got: ${node.fallbackIsm}`,
+        );
+      }
+      assert(
+        !state.routingFound,
+        'Only one routing/fallbackRouting node is allowed per tree',
+      );
+      state.routingFound = true;
+      for (const domainNode of Object.values(node.domains ?? {})) {
+        assertValidCompositeIsmArtifactNode(domainNode, true, state);
+      }
+      break;
+    case 'pausable':
+      assert(
+        !insideDomainIsm,
+        'pausable is not allowed inside a domain override',
+      );
+      break;
+    case 'test':
+      break;
+  }
+}
+
 export class SvmCompositeIsmReader implements ArtifactReader<
   CompositeIsmArtifactConfig,
   SvmDeployedIsm
@@ -402,6 +596,7 @@ export class SvmCompositeIsmWriter
     [ArtifactDeployed<CompositeIsmArtifactConfig, SvmDeployedIsm>, SvmReceipt[]]
   > {
     const config = artifact.config;
+    assertValidCompositeIsmArtifact(config);
     const { programAddress, receipts } = await resolveProgram(
       this.writerConfig.program,
       this.svmSigner,
@@ -481,6 +676,7 @@ export class SvmCompositeIsmWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.programId;
     const expected = artifact.config;
+    assertValidCompositeIsmArtifact(expected);
     const current = await this.read(programId);
 
     const transactions: AnnotatedSvmTransaction[] = [];
@@ -570,20 +766,21 @@ export class SvmCompositeIsmWriter
     );
 
     // Ordering matters: activating routing/fallbackRouting from a
-    // non-routing root immediately exposes every domain PDA that currently
+    // non-routing tree immediately exposes every domain PDA that currently
     // exists on-chain (including stale ones). If the root update were sent
     // before the domain reconciliation and the domain transactions then
     // failed to send (partial apply), a stale domain would be briefly — or
     // indefinitely — live. Reconcile domains first when routing is being
-    // activated; when routing is being disabled (or the root isn't
-    // changing type), the existing root-then-domains order is fine, since
-    // domain PDAs are unreachable once the root is non-routing regardless
-    // of when they're cleaned up.
-    const isRoutingType = (type: CompositeIsmNodeArtifactConfig['type']) =>
-      type === 'routing' || type === 'fallbackRouting';
+    // activated; when routing is being disabled (or unchanged), the
+    // existing root-then-domains order is fine, since domain PDAs are
+    // unreachable once nothing in the tree is routing, regardless of when
+    // they're cleaned up. Routing/fallbackRouting can be nested under
+    // aggregation/amountRouting (same as extractDomains/stripDomains
+    // recurse through), not just at the tree's own top-level type, so
+    // activation must be detected with the same recursive walk.
     const activatingRouting =
-      !isRoutingType(currentRootStripped.type) &&
-      isRoutingType(expectedRootStripped.type);
+      !containsRoutingNode(currentRootStripped) &&
+      containsRoutingNode(expectedRootStripped);
 
     if (activatingRouting) {
       transactions.push(...domainTxs);

@@ -1068,19 +1068,17 @@ function transformIsmConfigForDisplay(
 
 /**
  * Flattens a routing/fallbackRouting node's domain overrides into display
- * rows, tagging each row with its domain so multiple domains' rows (e.g.
- * two different multisig configs) aren't ambiguous once flattened into one
- * table.
+ * rows, threading `${parentPath}.domains.${chain}` through the recursion so
+ * multiple domains' rows (e.g. two different multisig configs) aren't
+ * ambiguous once flattened into one table.
  */
 function transformCompositeIsmDomainsForDisplay(
   domains: ChainMap<CompositeIsmNodeConfig> | undefined,
+  parentPath: string,
 ): Record<string, unknown>[] {
   if (!domains) return [];
   return Object.entries(domains).flatMap(([chain, sub]) =>
-    transformCompositeIsmNodeForDisplay(sub).map((row) => ({
-      Domain: chain,
-      ...row,
-    })),
+    transformCompositeIsmNodeForDisplay(sub, `${parentPath}.domains.${chain}`),
   );
 }
 
@@ -1088,72 +1086,82 @@ function transformCompositeIsmDomainsForDisplay(
  * Recursively flattens a composite ISM's node tree into display rows, one row
  * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
  * node configs (subIsms, lower/upper, domains) are never printed as raw
- * objects; each becomes its own row via recursion.
+ * objects; each becomes its own row via recursion, tagged with its full
+ * `Path` (e.g. `root.subIsms[1].domains.ethereum`) so rows that would
+ * otherwise collide (two domains, or lower/upper both `test`) stay
+ * distinguishable once flattened into one table.
  */
 function transformCompositeIsmNodeForDisplay(
   node: CompositeIsmNodeConfig,
+  path: string = 'root',
 ): Record<string, unknown>[] {
   switch (node.type) {
     case 'aggregation':
       return [
         {
+          Path: path,
           Type: node.type,
           Threshold: node.threshold,
           SubIsms: 'See table(s) below.',
         },
-        ...node.subIsms.flatMap((sub) =>
-          transformCompositeIsmNodeForDisplay(sub),
+        ...node.subIsms.flatMap((sub, i) =>
+          transformCompositeIsmNodeForDisplay(sub, `${path}.subIsms[${i}]`),
         ),
       ];
     case 'amountRouting':
       return [
         {
+          Path: path,
           Type: node.type,
           Threshold: node.threshold,
           Lower: 'See table(s) below.',
           Upper: 'See table(s) below.',
         },
-        ...transformCompositeIsmNodeForDisplay(node.lower),
-        ...transformCompositeIsmNodeForDisplay(node.upper),
+        ...transformCompositeIsmNodeForDisplay(node.lower, `${path}.lower`),
+        ...transformCompositeIsmNodeForDisplay(node.upper, `${path}.upper`),
       ];
     case 'routing':
       return [
         {
+          Path: path,
           Type: node.type,
           Domains: node.domains
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
-        ...transformCompositeIsmDomainsForDisplay(node.domains),
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
       ];
     case 'fallbackRouting':
       return [
         {
+          Path: path,
           Type: node.type,
           FallbackIsm: node.fallbackIsm,
           Domains: node.domains
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
-        ...transformCompositeIsmDomainsForDisplay(node.domains),
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
       ];
     case 'trustedRelayer':
-      return [{ Type: node.type, Relayer: node.relayer }];
+      return [{ Path: path, Type: node.type, Relayer: node.relayer }];
     case 'multisigMessageId':
       return [
         {
+          Path: path,
           Type: node.type,
           Validators: node.validators,
           Threshold: node.threshold,
         },
       ];
     case 'test':
-      return [{ Type: node.type, Accept: node.accept }];
+      return [{ Path: path, Type: node.type, Accept: node.accept }];
     case 'pausable':
-      return [{ Type: node.type, Paused: node.paused }];
+      return [{ Path: path, Type: node.type, Paused: node.paused }];
     case 'rateLimited':
       return [
         {
+          Path: path,
           Type: node.type,
           MaxCapacity: node.maxCapacity,
           Mailbox: node.mailbox,

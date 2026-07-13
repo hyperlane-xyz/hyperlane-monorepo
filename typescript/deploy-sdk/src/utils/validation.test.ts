@@ -70,13 +70,14 @@ describe('validateIsmType legacy calls (no protocol)', () => {
     }).to.not.throw();
   });
 
-  it('does not restrict compositeIsm by protocol when protocol is omitted', () => {
-    // Pre-existing (pre-protocol-awareness) callers passed no protocol at
-    // all; compositeIsm must remain accepted for them, since restricting it
-    // here would change behavior for callers that never opted in.
+  it('rejects compositeIsm with a clear "protocol required" error when protocol is omitted', () => {
+    // compositeIsm never existed as a supported type before protocol
+    // awareness was added — there's no legacy call shape to preserve
+    // permissiveness for. Omitting protocol must still reject it (just
+    // with a clearer reason), not silently accept it for every protocol.
     expect(() => {
       validateIsmType('compositeIsm', 'somechain', 'core config');
-    }).to.not.throw();
+    }).to.throw(UnsupportedIsmTypeError, /requires the chain's protocol/);
   });
 
   it('still rejects a genuinely unsupported type with no protocol given', () => {

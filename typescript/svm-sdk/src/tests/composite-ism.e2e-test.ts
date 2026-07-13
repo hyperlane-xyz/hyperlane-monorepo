@@ -480,6 +480,104 @@ describe('SVM Composite ISM E2E Tests', function () {
         13: { type: 'test', accept: false },
       });
     });
+
+    it('reconciles domains before activating a routing node nested inside an aggregation', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      // Same partial-apply precondition as the top-level-routing test
+      // above, but this time the tree we activate wraps the routing node
+      // inside an aggregation — containsRoutingNode must recurse into
+      // subIsms to detect this as "activating routing", not just check the
+      // tree's own top-level type.
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 21: { type: 'test', accept: true } },
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      const current = await writer.read(localProgramId);
+      const toNonRoutingTxs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: { type: 'test', accept: true },
+        },
+      });
+      const removeDomainTx = toNonRoutingTxs.find((tx) =>
+        tx.annotation?.includes('Remove composite ISM domain'),
+      );
+      assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
+      for (const tx of toNonRoutingTxs) {
+        if (tx === removeDomainTx) continue;
+        await signer.send(tx);
+      }
+
+      const nonRoutingState = await writer.read(localProgramId);
+      assert(
+        nonRoutingState.config.root.type === 'test',
+        'expected non-routing root after partial apply',
+      );
+
+      const activateTxs = await writer.update({
+        ...nonRoutingState,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'aggregation',
+            threshold: 1,
+            subIsms: [
+              { type: 'test', accept: true },
+              {
+                type: 'routing',
+                domains: { 23: { type: 'test', accept: false } },
+              },
+            ],
+          },
+        },
+      });
+
+      const rootTxIndex = activateTxs.findIndex((tx) =>
+        tx.annotation?.includes('Update composite ISM config'),
+      );
+      const domainTxIndices = activateTxs
+        .map((tx, i) =>
+          tx.annotation?.includes('composite ISM domain') ? i : -1,
+        )
+        .filter((i) => i >= 0);
+      assert(rootTxIndex >= 0, 'expected a root UpdateConfig transaction');
+      assert(domainTxIndices.length > 0, 'expected domain transactions');
+      expect(Math.max(...domainTxIndices)).to.be.lessThan(rootTxIndex);
+
+      for (const tx of activateTxs) {
+        await signer.send(tx);
+      }
+
+      const final = await writer.read(localProgramId);
+      assert(
+        final.config.root.type === 'aggregation',
+        'expected aggregation root',
+      );
+      const routingSub = final.config.root.subIsms.find(
+        (sub) => sub.type === 'routing',
+      );
+      assert(routingSub?.type === 'routing', 'expected nested routing sub-ism');
+      expect(routingSub.domains).to.deep.equal({
+        23: { type: 'test', accept: false },
+      });
+    });
   });
 
   describe('domain instruction batching respects Solana tx size limit', () => {
