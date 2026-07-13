@@ -10,6 +10,7 @@ import {
   type StandingWarpQuoteEntry,
   WARP_TARGET_ROUTER_NONE,
   WILDCARD_BYTES32,
+  WarpQuoteAmountKind,
 } from '@hyperlane-xyz/provider-sdk/quote';
 import { DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isEVMLike, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -247,7 +248,7 @@ export function groupEntriesByScope(
     ] ??= {});
     byRecipient[recipientLabel(entry.scope.recipient)] = {
       amount:
-        entry.scope.amount.kind === 'wildcard'
+        entry.scope.amount.kind === WarpQuoteAmountKind.wildcard
           ? 'wildcard'
           : entry.scope.amount.value.toString(),
       maxFee: entry.params.maxFee.toString(),
