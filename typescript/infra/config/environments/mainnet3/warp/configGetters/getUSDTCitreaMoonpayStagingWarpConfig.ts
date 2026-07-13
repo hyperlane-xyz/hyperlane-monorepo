@@ -93,7 +93,10 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
       // Authorize the local rebalancing bridge as a rebalancer AND a bridge, and
       // register its sibling USDC CCR as a same-chain rebalance target.
       contractVersion: REBALANCE_TARGET_CONTRACT_VERSION,
-      allowedRebalancers: [EXTRA_REBALANCER, localBridgeBase],
+      // Include the MCR signer (REBALANCER) so it can drive the reverse
+      // USDT->USDC ALRB rebalance — matches the USDC leg's ALLOWED_REBALANCERS
+      // (the same signer must be authorized on both base CCRs).
+      allowedRebalancers: [...ALLOWED_REBALANCERS, localBridgeBase],
       allowedRebalancingBridges: {
         [String(getDomainId('base'))]: [{ bridge: localBridgeBase }],
       },
