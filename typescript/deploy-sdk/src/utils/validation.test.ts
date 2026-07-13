@@ -11,7 +11,12 @@ import {
 describe('validateIsmType', () => {
   it('accepts compositeIsm on Sealevel', () => {
     expect(() => {
-      validateIsmType('compositeIsm', 'solanamainnet', ProtocolType.Sealevel);
+      validateIsmType(
+        'compositeIsm',
+        'solanamainnet',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
     }).to.not.throw();
   });
 
@@ -24,20 +29,59 @@ describe('validateIsmType', () => {
   ]) {
     it(`rejects compositeIsm on ${protocol}`, () => {
       expect(() => {
-        validateIsmType('compositeIsm', 'somechain', protocol);
+        validateIsmType('compositeIsm', 'somechain', 'configuration', protocol);
       }).to.throw(UnsupportedIsmTypeError);
     });
   }
 
   it('accepts protocol-agnostic ISM types on any Alt-VM protocol', () => {
     expect(() => {
-      validateIsmType('testIsm', 'somechain', ProtocolType.Radix);
+      validateIsmType(
+        'testIsm',
+        'somechain',
+        'configuration',
+        ProtocolType.Radix,
+      );
     }).to.not.throw();
   });
 
   it('rejects unknown ISM types', () => {
     expect(() => {
-      validateIsmType('notARealIsm', 'somechain', ProtocolType.Sealevel);
+      validateIsmType(
+        'notARealIsm',
+        'somechain',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
+    }).to.throw(UnsupportedIsmTypeError);
+  });
+});
+
+describe('validateIsmType legacy calls (no protocol)', () => {
+  it('accepts a 2-arg call (chain only, default context)', () => {
+    expect(() => {
+      validateIsmType('testIsm', 'somechain');
+    }).to.not.throw();
+  });
+
+  it('accepts a 3-arg call with an explicit context string in the old position', () => {
+    expect(() => {
+      validateIsmType('testIsm', 'somechain', 'core config');
+    }).to.not.throw();
+  });
+
+  it('does not restrict compositeIsm by protocol when protocol is omitted', () => {
+    // Pre-existing (pre-protocol-awareness) callers passed no protocol at
+    // all; compositeIsm must remain accepted for them, since restricting it
+    // here would change behavior for callers that never opted in.
+    expect(() => {
+      validateIsmType('compositeIsm', 'somechain', 'core config');
+    }).to.not.throw();
+  });
+
+  it('still rejects a genuinely unsupported type with no protocol given', () => {
+    expect(() => {
+      validateIsmType('notARealIsm', 'somechain', 'core config');
     }).to.throw(UnsupportedIsmTypeError);
   });
 });
@@ -58,8 +102,15 @@ describe('validateIsmConfig', () => {
           },
         },
         'somechain',
+        'configuration',
         ProtocolType.Radix,
       );
     }).to.throw(UnsupportedIsmTypeError);
+  });
+
+  it('accepts a legacy 2-arg call with no context/protocol', () => {
+    expect(() => {
+      validateIsmConfig({ type: 'testIsm' }, 'somechain');
+    }).to.not.throw();
   });
 });

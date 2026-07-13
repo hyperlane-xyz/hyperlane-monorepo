@@ -1067,6 +1067,24 @@ function transformIsmConfigForDisplay(
 }
 
 /**
+ * Flattens a routing/fallbackRouting node's domain overrides into display
+ * rows, tagging each row with its domain so multiple domains' rows (e.g.
+ * two different multisig configs) aren't ambiguous once flattened into one
+ * table.
+ */
+function transformCompositeIsmDomainsForDisplay(
+  domains: ChainMap<CompositeIsmNodeConfig> | undefined,
+): Record<string, unknown>[] {
+  if (!domains) return [];
+  return Object.entries(domains).flatMap(([chain, sub]) =>
+    transformCompositeIsmNodeForDisplay(sub).map((row) => ({
+      Domain: chain,
+      ...row,
+    })),
+  );
+}
+
+/**
  * Recursively flattens a composite ISM's node tree into display rows, one row
  * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
  * node configs (subIsms, lower/upper, domains) are never printed as raw
@@ -1106,11 +1124,7 @@ function transformCompositeIsmNodeForDisplay(
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
-        ...(node.domains
-          ? Object.values(node.domains).flatMap((sub) =>
-              transformCompositeIsmNodeForDisplay(sub),
-            )
-          : []),
+        ...transformCompositeIsmDomainsForDisplay(node.domains),
       ];
     case 'fallbackRouting':
       return [
@@ -1121,11 +1135,7 @@ function transformCompositeIsmNodeForDisplay(
             ? Object.keys(node.domains).join(', ')
             : 'Undefined',
         },
-        ...(node.domains
-          ? Object.values(node.domains).flatMap((sub) =>
-              transformCompositeIsmNodeForDisplay(sub),
-            )
-          : []),
+        ...transformCompositeIsmDomainsForDisplay(node.domains),
       ];
     case 'trustedRelayer':
       return [{ Type: node.type, Relayer: node.relayer }];

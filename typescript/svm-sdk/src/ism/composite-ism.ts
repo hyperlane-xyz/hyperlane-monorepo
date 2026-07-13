@@ -31,6 +31,7 @@ import {
   type IsmNode,
 } from '../accounts/composite-ism.js';
 import { encodeH160, encodeH256 } from '../codecs/shared.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitializeCompositeIsmInstruction,
@@ -43,6 +44,7 @@ import {
 } from '../instructions/composite-ism.js';
 import { deriveCompositeIsmStoragePda } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
+import { getComputeBudgetInstructions } from '../tx.js';
 import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
@@ -66,13 +68,18 @@ const logger = rootLogger.child({ module: 'composite-ism' });
 const SOLANA_MAX_TRANSACTION_SIZE = 1232;
 const DUMMY_BLOCKHASH = blockhash('11111111111111111111111111111111');
 
-/** Real serialized wire size (signatures + message) for a candidate transaction. */
+/**
+ * Real serialized wire size (signatures + message) for a candidate
+ * transaction, including the ComputeBudget instruction `SvmSigner.send()`
+ * always prepends (`buildTransactionMessage` in tx.ts) — measuring only the
+ * domain instructions themselves undercounts the actual submitted size.
+ */
 function estimateTransactionWireSize(
   feePayer: Address,
   instructions: readonly Instruction[],
 ): number {
   const message = appendTransactionMessageInstructions(
-    instructions,
+    [...getComputeBudgetInstructions(DEFAULT_COMPUTE_UNITS), ...instructions],
     setTransactionMessageLifetimeUsingBlockhash(
       { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 0n },
       setTransactionMessageFeePayer(
@@ -106,6 +113,21 @@ function chunkInstructionsBySize<T>(
   const chunks: T[][] = [];
   let current: T[] = [];
   for (const item of items) {
+    // Checked unconditionally (not just in the "merge" branch below) — an
+    // oversized item that starts a fresh chunk (because it doesn't fit
+    // alongside the previous batch) would otherwise never hit this check
+    // and get pushed as an ordinary single-item chunk, only failing later
+    // with an opaque RPC size error instead of this message.
+    const soloSize = estimateTransactionWireSize(feePayer, [
+      toInstruction(item),
+    ]);
+    assert(
+      soloSize <= SOLANA_MAX_TRANSACTION_SIZE,
+      `Composite ISM domain instruction alone (${soloSize} bytes) exceeds Solana's ` +
+        `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — the nested ` +
+        `ISM tree for this domain is too large to submit in a single instruction.`,
+    );
+
     const candidate = [...current, item];
     const size = estimateTransactionWireSize(
       feePayer,
@@ -115,12 +137,6 @@ function chunkInstructionsBySize<T>(
       chunks.push(current);
       current = [item];
     } else {
-      assert(
-        size <= SOLANA_MAX_TRANSACTION_SIZE,
-        `Composite ISM domain instruction alone (${size} bytes) exceeds Solana's ` +
-          `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — the nested ` +
-          `ISM tree for this domain is too large to submit in a single instruction.`,
-      );
       current = candidate;
     }
   }
@@ -471,17 +487,18 @@ export class SvmCompositeIsmWriter
 
     const expectedRootStripped = stripDomains(expected.root);
     const currentRootStripped = stripDomains(current.config.root);
+    let rootTx: AnnotatedSvmTransaction | undefined;
     if (!deepEqualNode(expectedRootStripped, currentRootStripped)) {
       const ix = await getUpdateCompositeIsmConfigInstruction(
         programId,
         this.svmSigner.signer,
         artifactConfigToIsmNode(expectedRootStripped),
       );
-      transactions.push({
+      rootTx = {
         feePayer: this.svmSigner.signer.address,
         instructions: [ix],
         annotation: 'Update composite ISM config',
-      });
+      };
     }
 
     const expectedDomains = extractDomains(expected.root);
@@ -544,12 +561,36 @@ export class SvmCompositeIsmWriter
       (item) => item.instruction,
       this.svmSigner.signer.address,
     );
-    for (const chunk of domainIxChunks) {
-      transactions.push({
+    const domainTxs: AnnotatedSvmTransaction[] = domainIxChunks.map(
+      (chunk) => ({
         feePayer: this.svmSigner.signer.address,
         instructions: chunk.map((c) => c.instruction),
         annotation: chunk.map((c) => c.annotation).join(', '),
-      });
+      }),
+    );
+
+    // Ordering matters: activating routing/fallbackRouting from a
+    // non-routing root immediately exposes every domain PDA that currently
+    // exists on-chain (including stale ones). If the root update were sent
+    // before the domain reconciliation and the domain transactions then
+    // failed to send (partial apply), a stale domain would be briefly — or
+    // indefinitely — live. Reconcile domains first when routing is being
+    // activated; when routing is being disabled (or the root isn't
+    // changing type), the existing root-then-domains order is fine, since
+    // domain PDAs are unreachable once the root is non-routing regardless
+    // of when they're cleaned up.
+    const isRoutingType = (type: CompositeIsmNodeArtifactConfig['type']) =>
+      type === 'routing' || type === 'fallbackRouting';
+    const activatingRouting =
+      !isRoutingType(currentRootStripped.type) &&
+      isRoutingType(expectedRootStripped.type);
+
+    if (activatingRouting) {
+      transactions.push(...domainTxs);
+      if (rootTx) transactions.push(rootTx);
+    } else {
+      if (rootTx) transactions.push(rootTx);
+      transactions.push(...domainTxs);
     }
 
     // Ownership transfer must be the last transaction: every other

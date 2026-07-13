@@ -417,12 +417,54 @@ describe('transformDeployConfigForDisplay', () => {
           },
         },
       },
-    } as WarpRouteDeployConfigMailboxRequired;
+    } satisfies WarpRouteDeployConfigMailboxRequired;
 
     const { transformedIsmConfigs } =
       transformDeployConfigForDisplay(deployConfig);
 
     const rows = transformedIsmConfigs.solanamainnet;
     expect(rows.some((row) => row.Type === 'multisigMessageId')).to.equal(true);
+  });
+
+  it('tags each domain row with its own domain label when multiple domains have distinct configs', () => {
+    const RELAYER_2 = '44444444444444444444444444444444444444444';
+    const deployConfig = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'routing',
+            domains: {
+              ethereum: {
+                type: 'multisigMessageId',
+                validators: [RELAYER],
+                threshold: 1,
+              },
+              polygon: {
+                type: 'trustedRelayer',
+                relayer: RELAYER_2,
+              },
+            },
+          },
+        },
+      },
+    } satisfies WarpRouteDeployConfigMailboxRequired;
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    const ethereumRow = rows.find(
+      (row) => row.Domain === 'ethereum' && row.Type === 'multisigMessageId',
+    );
+    const polygonRow = rows.find(
+      (row) => row.Domain === 'polygon' && row.Type === 'trustedRelayer',
+    );
+    expect(ethereumRow?.Validators).to.deep.equal([RELAYER]);
+    expect(polygonRow?.Relayer).to.equal(RELAYER_2);
   });
 });

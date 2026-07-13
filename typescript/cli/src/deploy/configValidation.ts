@@ -33,15 +33,15 @@ const ALT_VM_SUPPORTED_HOOK_TYPES: ReadonlySet<string> = new Set([
 export function validateCoreConfigForAltVM(
   config: CoreConfig,
   chain: string,
-  protocol: ProtocolType,
+  protocol?: ProtocolType,
 ): ProviderCoreConfig {
   // Validate ISM configuration (handles recursion for routing ISMs)
   if (config.defaultIsm) {
     validateIsmConfig(
       config.defaultIsm as ProviderIsmConfig | string,
       chain,
-      protocol,
       'core config',
+      protocol,
     );
   }
 

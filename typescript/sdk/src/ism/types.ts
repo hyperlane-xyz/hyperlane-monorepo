@@ -457,6 +457,43 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
+// Composite ISM (Sealevel-only) wire-format-specific schemas. Unlike ZHash
+// (deliberately multi-format, for config fields that may hold an address
+// from any protocol), these fields always have one specific wire format —
+// using ZHash for them would let an EVM hex string pass as a Sealevel
+// pubkey, a base58 pubkey pass as an H160 validator, or a 20-byte hash pass
+// as the required 32-byte H256 recipient, only failing later in the writer's
+// parseAddress/encodeH160/encodeH256 calls, after resolveProgram() has
+// already deployed the program on-chain.
+const ZSealevelPubkey = z
+  .string()
+  .regex(
+    /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32,44}$/,
+    'must be a base58-encoded Sealevel address',
+  );
+const ZH160Hex = z
+  .string()
+  .regex(
+    /^0x[0-9a-fA-F]{40}$/,
+    'must be a 20-byte (0x + 40 hex chars) address',
+  );
+const ZH256Hex = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 32-byte (0x + 64 hex chars) hash');
+
+const U64_MAX = 2n ** 64n - 1n;
+const U256_MAX = 2n ** 256n - 1n;
+
+/** Base-10 integer string bounded to fit the given Borsh-encoded wire width. */
+function decimalStringBoundedBy(max: bigint, label: string) {
+  return z
+    .string()
+    .regex(/^\d+$/, `${label} must be a base-10 integer string`)
+    .refine((value) => BigInt(value) <= max, {
+      message: `${label} exceeds the maximum value representable on-chain`,
+    });
+}
+
 // Discriminants for nodes inside a compositeIsm tree (Sealevel-only).
 // Distinct namespace from IsmType: these tag inline Borsh nodes within a
 // single composite-ism PDA, not separately deployed/addressed ISMs.
@@ -534,16 +571,16 @@ export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
     z.discriminatedUnion('type', [
       z.object({
         type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
-        relayer: ZHash,
+        relayer: ZSealevelPubkey,
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
-        validators: z.array(ZHash),
-        threshold: z.number(),
+        validators: z.array(ZH160Hex),
+        threshold: z.number().int(),
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.AGGREGATION),
-        threshold: z.number(),
+        threshold: z.number().int(),
         subIsms: z.array(CompositeIsmNodeConfigSchema),
       }),
       z.object({
@@ -556,19 +593,15 @@ export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
-        threshold: z
-          .string()
-          .regex(/^\d+$/, 'threshold must be a base-10 integer string'),
+        threshold: decimalStringBoundedBy(U256_MAX, 'threshold'),
         lower: CompositeIsmNodeConfigSchema,
         upper: CompositeIsmNodeConfigSchema,
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
-        maxCapacity: z
-          .string()
-          .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
-        mailbox: ZHash,
-        recipient: ZHash.optional(),
+        maxCapacity: decimalStringBoundedBy(U64_MAX, 'maxCapacity'),
+        mailbox: ZSealevelPubkey,
+        recipient: ZH256Hex.optional(),
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.ROUTING),
@@ -576,7 +609,7 @@ export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
-        fallbackIsm: ZHash,
+        fallbackIsm: ZSealevelPubkey,
         domains: z.record(CompositeIsmNodeConfigSchema).optional(),
       }),
     ]),
@@ -751,6 +784,10 @@ function validateCompositeIsmTree(
 export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
   OwnableSchema.extend({
     type: z.literal(IsmType.COMPOSITE),
+    // Composite ISM is Sealevel-only, so unlike OwnableSchema's generic
+    // multi-format owner (shared across every ISM/hook/token config type),
+    // owner here is always a Sealevel pubkey.
+    owner: ZSealevelPubkey,
     root: CompositeIsmNodeConfigSchema,
   }).superRefine((data, ctx) => {
     validateCompositeIsmTree(

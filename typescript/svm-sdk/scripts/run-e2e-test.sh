@@ -3,7 +3,7 @@ set -e
 
 if [ -z "${SVM_SDK_E2E_TEST}" ]; then
   echo "Error: SVM_SDK_E2E_TEST env var is required."
-  echo "Available tests: ism, hook, mailbox, validator-announce, native-token, synthetic-token, collateral-token, cross-collateral-token, composite-ism, provider, read-token, program-upgrade, warp-fee-config, warp-transfer-remote-with-fees"
+  echo "Available tests: ism, hook, mailbox, validator-announce, native-token, synthetic-token, collateral-token, cross-collateral-token, composite-ism, provider, read-token, program-upgrade, igp-program-upgrade, warp-fee-config, warp-transfer-remote-with-fees"
   echo "Usage: SVM_SDK_E2E_TEST=ism pnpm test:e2e"
   exit 1
 fi

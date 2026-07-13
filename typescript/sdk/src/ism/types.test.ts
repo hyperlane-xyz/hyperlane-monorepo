@@ -12,7 +12,16 @@ import {
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const OTHER_ADDRESS = ethers.Wallet.createRandom().address;
-const ZERO_ADDRESS = '0x' + '0'.repeat(40);
+
+// Composite ISM (Sealevel-only) wire fields have distinct formats from the
+// generic EVM-style addresses above: owner/relayer/mailbox/fallbackIsm are
+// base58 Sealevel pubkeys, and recipient is a 32-byte (64 hex char) H256.
+const SEALEVEL_ADDRESS = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
+const OTHER_SEALEVEL_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const SEALEVEL_ZERO_ADDRESS = '1'.repeat(32);
+const H256_ADDRESS = '0x' + '5'.repeat(64);
+const H256_ZERO = '0x' + '0'.repeat(64);
+
 describe('AggregationIsmConfigSchema refine', () => {
   it('should require threshold to be below modules length', () => {
     const IsmConfig = {
@@ -58,12 +67,12 @@ describe('ModuleType', () => {
 describe('CompositeIsmConfigSchema', () => {
   const sample = {
     type: IsmType.COMPOSITE,
-    owner: SOME_ADDRESS,
+    owner: SEALEVEL_ADDRESS,
     root: {
       type: 'aggregation',
       threshold: 2,
       subIsms: [
-        { type: 'trustedRelayer', relayer: SOME_ADDRESS },
+        { type: 'trustedRelayer', relayer: SEALEVEL_ADDRESS },
         {
           type: 'routing',
           domains: {
@@ -77,8 +86,8 @@ describe('CompositeIsmConfigSchema', () => {
           upper: {
             type: 'rateLimited',
             maxCapacity: '86400',
-            mailbox: SOME_ADDRESS,
-            recipient: SOME_ADDRESS,
+            mailbox: SEALEVEL_ADDRESS,
+            recipient: H256_ADDRESS,
           },
         },
       ],
@@ -117,7 +126,7 @@ describe('CompositeIsmConfigSchema', () => {
       root: {
         type: 'aggregation',
         threshold: 5,
-        subIsms: [{ type: 'trustedRelayer', relayer: SOME_ADDRESS }],
+        subIsms: [{ type: 'trustedRelayer', relayer: SEALEVEL_ADDRESS }],
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(tooHigh).success).to.be.false;
@@ -127,7 +136,7 @@ describe('CompositeIsmConfigSchema', () => {
       root: {
         type: 'aggregation',
         threshold: 0,
-        subIsms: [{ type: 'trustedRelayer', relayer: SOME_ADDRESS }],
+        subIsms: [{ type: 'trustedRelayer', relayer: SEALEVEL_ADDRESS }],
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(tooLow).success).to.be.false;
@@ -139,7 +148,7 @@ describe('CompositeIsmConfigSchema', () => {
       root: {
         type: 'multisigMessageId',
         threshold: 1,
-        validators: [SOME_ADDRESS, SOME_ADDRESS.toUpperCase()],
+        validators: [SOME_ADDRESS, '0x' + SOME_ADDRESS.slice(2).toUpperCase()],
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
@@ -157,14 +166,38 @@ describe('CompositeIsmConfigSchema', () => {
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
   });
 
+  it('rejects a multisigMessageId node with a non-integer threshold', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'multisigMessageId',
+        threshold: 1.5,
+        validators: [SOME_ADDRESS, OTHER_ADDRESS],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects a multisigMessageId node with a base58 pubkey as a validator', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'multisigMessageId',
+        threshold: 1,
+        validators: [SEALEVEL_ADDRESS],
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
   it('rejects a rateLimited node with a zero mailbox or missing/zero recipient', () => {
     const zeroMailbox = {
       ...sample,
       root: {
         type: 'rateLimited',
         maxCapacity: '86400',
-        mailbox: ZERO_ADDRESS,
-        recipient: SOME_ADDRESS,
+        mailbox: SEALEVEL_ZERO_ADDRESS,
+        recipient: H256_ADDRESS,
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(zeroMailbox).success).to.be.false;
@@ -174,7 +207,7 @@ describe('CompositeIsmConfigSchema', () => {
       root: {
         type: 'rateLimited',
         maxCapacity: '86400',
-        mailbox: SOME_ADDRESS,
+        mailbox: SEALEVEL_ADDRESS,
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(missingRecipient).success).to.be
@@ -185,18 +218,52 @@ describe('CompositeIsmConfigSchema', () => {
       root: {
         type: 'rateLimited',
         maxCapacity: '86400',
-        mailbox: SOME_ADDRESS,
-        recipient: ZERO_ADDRESS,
+        mailbox: SEALEVEL_ADDRESS,
+        recipient: H256_ZERO,
       },
     };
     expect(CompositeIsmConfigSchema.safeParse(zeroRecipient).success).to.be
       .false;
   });
 
+  it('rejects a rateLimited node with maxCapacity above u64::MAX', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'rateLimited',
+        maxCapacity: (2n ** 64n).toString(),
+        mailbox: SEALEVEL_ADDRESS,
+        recipient: H256_ADDRESS,
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects an amountRouting node with threshold above u256::MAX', () => {
+    const invalid = {
+      ...sample,
+      root: {
+        type: 'amountRouting',
+        threshold: (2n ** 256n).toString(),
+        lower: { type: 'test', accept: true },
+        upper: { type: 'test', accept: false },
+      },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
   it('rejects a trustedRelayer node with a zero relayer', () => {
     const invalid = {
       ...sample,
-      root: { type: 'trustedRelayer', relayer: ZERO_ADDRESS },
+      root: { type: 'trustedRelayer', relayer: SEALEVEL_ZERO_ADDRESS },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects a trustedRelayer node with an EVM-style hex relayer', () => {
+    const invalid = {
+      ...sample,
+      root: { type: 'trustedRelayer', relayer: SOME_ADDRESS },
     };
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
   });
@@ -211,7 +278,7 @@ describe('CompositeIsmConfigSchema', () => {
           { type: 'routing', domains: {} },
           {
             type: 'fallbackRouting',
-            fallbackIsm: SOME_ADDRESS,
+            fallbackIsm: SEALEVEL_ADDRESS,
             domains: {},
           },
         ],
@@ -225,7 +292,7 @@ describe('CompositeIsmConfigSchema', () => {
       ...sample,
       root: {
         type: 'fallbackRouting',
-        fallbackIsm: ZERO_ADDRESS,
+        fallbackIsm: SEALEVEL_ZERO_ADDRESS,
         domains: {},
       },
     };
@@ -241,10 +308,10 @@ describe('CompositeIsmConfigSchema', () => {
         subIsms: [
           {
             type: 'fallbackRouting',
-            fallbackIsm: SOME_ADDRESS,
+            fallbackIsm: SEALEVEL_ADDRESS,
             domains: {},
           },
-          { type: 'trustedRelayer', relayer: SOME_ADDRESS },
+          { type: 'trustedRelayer', relayer: SEALEVEL_ADDRESS },
         ],
       },
     };
@@ -269,7 +336,7 @@ describe('CompositeIsmConfigSchema', () => {
         domains: {
           ethereum: {
             type: 'fallbackRouting',
-            fallbackIsm: SOME_ADDRESS,
+            fallbackIsm: SEALEVEL_ADDRESS,
             domains: {},
           },
         },
@@ -302,6 +369,14 @@ describe('CompositeIsmConfigSchema', () => {
           },
         },
       },
+    };
+    expect(CompositeIsmConfigSchema.safeParse(valid).success).to.be.true;
+  });
+
+  it('accepts a second, distinct base58 pubkey for trustedRelayer', () => {
+    const valid = {
+      ...sample,
+      root: { type: 'trustedRelayer', relayer: OTHER_SEALEVEL_ADDRESS },
     };
     expect(CompositeIsmConfigSchema.safeParse(valid).success).to.be.true;
   });

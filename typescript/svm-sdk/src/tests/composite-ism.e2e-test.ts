@@ -49,11 +49,14 @@ describe('SVM Composite ISM E2E Tests', function () {
       ALT_OWNER_PRIVATE_KEY,
     );
 
-    // This suite deploys composite-ism (~260KB) fresh twice — once here,
-    // once in the "maximal tree" test below — plus several update/pause/
-    // ownership transactions, so a larger airdrop than a single-deploy test
-    // needs is required.
-    await airdropSol(rpc, address(signer.getSignerAddress()), 20_000_000_000n);
+    // This suite deploys composite-ism (~260KB) fresh multiple times (each
+    // instance's ProgramData account permanently locks ~2+ SOL in rent,
+    // unlike buffer rent which is refunded at finalize) — once here, and
+    // again in the domain-staleness, activation-ordering, batching,
+    // maximal-tree, and non-deployer-owner tests below — plus several
+    // update/pause/ownership transactions, so a larger airdrop than a
+    // single-deploy test needs is required.
+    await airdropSol(rpc, address(signer.getSignerAddress()), 40_000_000_000n);
     await airdropSol(
       rpc,
       address(altOwnerSigner.getSignerAddress()),
@@ -386,6 +389,95 @@ describe('SVM Composite ISM E2E Tests', function () {
       assert(final.config.root.type === 'routing', 'expected routing root');
       expect(final.config.root.domains).to.deep.equal({
         9: { type: 'test', accept: false },
+      });
+    });
+
+    it('reconciles domains before activating routing, so a stale domain is never briefly live', async () => {
+      const writer = new SvmCompositeIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm } },
+        rpc,
+        signer,
+      );
+
+      // Deploy with a routing root + domain 11, then partially apply a
+      // switch to non-routing (send only the root-change transaction) so
+      // domain 11's PDA is left orphaned on-chain — the same precondition
+      // as the previous test, but this time we switch back to a DIFFERENT
+      // domain (13) in one step, exercising the activating-routing path.
+      const [deployed] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 11: { type: 'test', accept: true } },
+          },
+        },
+      });
+      const localProgramId = deployed.deployed.programId;
+
+      const current = await writer.read(localProgramId);
+      const toNonRoutingTxs = await writer.update({
+        ...current,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: { type: 'test', accept: true },
+        },
+      });
+      const removeDomainTx = toNonRoutingTxs.find((tx) =>
+        tx.annotation?.includes('Remove composite ISM domain'),
+      );
+      assert(removeDomainTx, 'expected a RemoveCompositeIsmDomain transaction');
+      for (const tx of toNonRoutingTxs) {
+        if (tx === removeDomainTx) continue;
+        await signer.send(tx);
+      }
+
+      const nonRoutingState = await writer.read(localProgramId);
+      assert(
+        nonRoutingState.config.root.type === 'test',
+        'expected non-routing root after partial apply',
+      );
+
+      // Now activate routing with domain 13. The returned transactions
+      // must reconcile domains (remove 11, set 13) BEFORE the root update
+      // that activates routing — otherwise activating routing first would
+      // make stale domain 11 briefly (or, under another partial failure,
+      // indefinitely) live before its removal is applied.
+      const activateTxs = await writer.update({
+        ...nonRoutingState,
+        config: {
+          type: 'compositeIsm',
+          owner: signer.signer.address,
+          root: {
+            type: 'routing',
+            domains: { 13: { type: 'test', accept: false } },
+          },
+        },
+      });
+
+      const rootTxIndex = activateTxs.findIndex((tx) =>
+        tx.annotation?.includes('Update composite ISM config'),
+      );
+      const domainTxIndices = activateTxs
+        .map((tx, i) =>
+          tx.annotation?.includes('composite ISM domain') ? i : -1,
+        )
+        .filter((i) => i >= 0);
+      assert(rootTxIndex >= 0, 'expected a root UpdateConfig transaction');
+      assert(domainTxIndices.length > 0, 'expected domain transactions');
+      expect(Math.max(...domainTxIndices)).to.be.lessThan(rootTxIndex);
+
+      for (const tx of activateTxs) {
+        await signer.send(tx);
+      }
+
+      const final = await writer.read(localProgramId);
+      assert(final.config.root.type === 'routing', 'expected routing root');
+      expect(final.config.root.domains).to.deep.equal({
+        13: { type: 'test', accept: false },
       });
     });
   });

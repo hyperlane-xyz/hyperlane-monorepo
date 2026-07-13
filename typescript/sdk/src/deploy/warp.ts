@@ -101,7 +101,7 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
-  protocol: ProtocolType,
+  protocol?: ProtocolType,
 ): ProviderWarpConfig {
   if (!SUPPORTED_ALTVM_TOKEN_TYPES.has(config.type)) {
     const supportedTypes = Array.from(SUPPORTED_ALTVM_TOKEN_TYPES).join(', ');
@@ -115,8 +115,8 @@ export function validateWarpConfigForAltVM(
     validateIsmConfig(
       config.interchainSecurityModule as ProviderIsmConfig | string,
       chain,
-      protocol,
       'warp config',
+      protocol,
     );
   }
 
