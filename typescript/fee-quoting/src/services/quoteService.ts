@@ -10,7 +10,7 @@ import {
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { QuoteMode } from '../config.js';
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
@@ -98,7 +98,7 @@ export class QuoteService {
     if (!protocol) {
       throw new ApiError(`Unknown origin chain: ${origin}`, 400);
     }
-    if (protocol !== ProtocolType.Ethereum) {
+    if (!isEVMLike(protocol)) {
       throw new ApiError('v1 quotes are EVM-only', 400);
     }
 
