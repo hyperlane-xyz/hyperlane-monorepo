@@ -121,7 +121,6 @@ const linearFeeData = (maxFee: bigint, halfAmount: bigint) =>
     }),
   );
 
-
 // On-chain `fee_token_mint` for SOL-native warp is `Pubkey::default()`.
 const SOL_FEE_TOKEN_MINT = getAddressDecoder().decode(new Uint8Array(32));
 
