@@ -66,6 +66,12 @@ async function main() {
     Object.keys(squadsConfigs),
   ).argv;
 
+  assert(
+    governanceType === GovernanceType.Regular,
+    `Squads member updates only support ${GovernanceType.Regular}: squadsConfigs is keyed by chain only ` +
+      `(holding the regular Squad PDAs), so other governance types would target the wrong Squad.`,
+  );
+
   const { signers, threshold } = getGovernanceSvmSigners(governanceType);
   const members = signers.map((signer) => new PublicKey(signer));
 
