@@ -380,6 +380,14 @@ export const CrossCollateralTokenConfigSchema =
     rebalanceTargets: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
+    /**
+     * Map of domain → the rebalance recipient router address applied via
+     * `setRecipient()`; e.g. the same-chain sibling CrossCollateralRouter for an
+     * AtomicLocalRebalancingBridge escrow.
+     */
+    rebalanceRecipients: z
+      .record(RemoteRouterDomainOrChainNameSchema, ZHash)
+      .optional(),
     ...BaseMovableTokenConfigSchema.shape,
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });

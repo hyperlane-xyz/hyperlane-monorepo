@@ -1442,6 +1442,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     ];
     const crossCollateralRouters: Record<string, string[]> = {};
     const rebalanceTargets: Record<string, string[]> = {};
+    const rebalanceRecipients: Record<string, string> = {};
 
     await Promise.all(
       allDomains.map(async (domain) => {
@@ -1479,6 +1480,29 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       );
     }
 
+    // `allowedRecipient()` may not exist on older deployed implementations.
+    // Probe once so deriving a pre-upgrade router does not fail.
+    let supportsRebalanceRecipients = true;
+    try {
+      await crossCollateralRouter.allowedRecipient(localDomain);
+    } catch {
+      supportsRebalanceRecipients = false;
+    }
+
+    if (supportsRebalanceRecipients) {
+      await Promise.all(
+        allDomains.map(async (domain) => {
+          const recipient =
+            await crossCollateralRouter.allowedRecipient(domain);
+          if (!isZeroishAddress(recipient)) {
+            rebalanceRecipients[domain.toString()] = normalizeAddressEvm(
+              bytes32ToAddress(recipient),
+            );
+          }
+        }),
+      );
+    }
+
     return {
       ...erc20TokenMetadata,
       type: TokenType.crossCollateral,
@@ -1490,6 +1514,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           : undefined,
       rebalanceTargets:
         Object.keys(rebalanceTargets).length > 0 ? rebalanceTargets : undefined,
+      rebalanceRecipients:
+        Object.keys(rebalanceRecipients).length > 0
+          ? rebalanceRecipients
+          : undefined,
     };
   }
 
