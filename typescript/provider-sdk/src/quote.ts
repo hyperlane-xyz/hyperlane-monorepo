@@ -211,6 +211,15 @@ export function enumerateWarpQuoteCandidates(
       targetRouter: WARP_TARGET_ROUTER_NONE,
       amount: WARP_QUOTE_AMOUNT_WILDCARD,
     });
+    // CC standing quotes can also sit under a wildcard domain with a concrete
+    // target router. SVM keys its PDA on (dest, target_router), so emit that
+    // scope or the (WILDCARD_DOMAIN, router) PDA is never read.
+    candidates.push({
+      destination: WILDCARD_DESTINATION_DOMAIN,
+      recipient: router,
+      targetRouter: router,
+      amount: WARP_QUOTE_AMOUNT_WILDCARD,
+    });
   }
 
   const seen = new Map<string, WarpQuoteScope>();

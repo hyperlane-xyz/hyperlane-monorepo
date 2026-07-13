@@ -60,6 +60,13 @@ describe('enumerateWarpQuoteCandidates', () => {
         targetRouter: WARP_TARGET_ROUTER_NONE,
         amount: WARP_QUOTE_AMOUNT_WILDCARD,
       },
+      // Wildcard destination, CC scope: concrete target_router (SVM PDA locator)
+      {
+        destination: WILDCARD_DESTINATION_DOMAIN,
+        recipient: routerA,
+        targetRouter: routerA,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
     ]);
   });
 
@@ -71,7 +78,11 @@ describe('enumerateWarpQuoteCandidates', () => {
       },
     });
     const wildcardDestRecipients = got
-      .filter((s) => s.destination === WILDCARD_DESTINATION_DOMAIN)
+      .filter(
+        (s) =>
+          s.destination === WILDCARD_DESTINATION_DOMAIN &&
+          s.targetRouter === WARP_TARGET_ROUTER_NONE,
+      )
       .map((s) => s.recipient)
       .sort();
     expect(wildcardDestRecipients).to.deep.equal([routerA, routerB].sort());
@@ -85,10 +96,31 @@ describe('enumerateWarpQuoteCandidates', () => {
       },
     });
     const wildcardDestRows = got.filter(
-      (s) => s.destination === WILDCARD_DESTINATION_DOMAIN,
+      (s) =>
+        s.destination === WILDCARD_DESTINATION_DOMAIN &&
+        s.targetRouter === WARP_TARGET_ROUTER_NONE,
     );
     expect(wildcardDestRows).to.have.lengthOf(1);
     expect(wildcardDestRows[0].recipient).to.equal(routerA);
+  });
+
+  it('enumerates a concrete-target-router CC scope under a wildcard destination', () => {
+    const got = enumerateWarpQuoteCandidates({
+      knownRoutersPerDomain: { 1: new Set([routerA]) },
+    });
+    const wildcardCc = got.filter(
+      (s) =>
+        s.destination === WILDCARD_DESTINATION_DOMAIN &&
+        s.targetRouter === routerA,
+    );
+    expect(wildcardCc).to.deep.equal([
+      {
+        destination: WILDCARD_DESTINATION_DOMAIN,
+        recipient: routerA,
+        targetRouter: routerA,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
+    ]);
   });
 
   it('every emitted candidate has wildcard amount (standing-quote invariant)', () => {
