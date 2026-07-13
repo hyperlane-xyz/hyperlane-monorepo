@@ -598,6 +598,9 @@ async function executeDelivery({
           destination: destinationDomainId,
           salt,
           recipient: addressToBytes32(recipientAddress) as Hex,
+          targetRouter: destToken
+            ? (addressToBytes32(destToken.addressOrDenom) as Hex)
+            : undefined,
         });
 
         const quotedCalls: QuotedCallsParams = {
