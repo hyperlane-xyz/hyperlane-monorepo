@@ -560,11 +560,10 @@ async function executeDelivery({
   // origins get the v2 `SealevelQuotedTransferProvider` (atomic submit-quote
   // + transfer in one tx).
   let quotedTransfer: QuotedTransferProvider | undefined;
-  if (feeQuotingUrl && !feeQuotingApiKey) {
-    log(
-      'Warning: --fee-quoting-url provided without --fee-quoting-api-key, skipping fee quoting',
-    );
-  }
+  assert(
+    !feeQuotingUrl || feeQuotingApiKey,
+    '--fee-quoting-url requires --fee-quoting-api-key',
+  );
   if (feeQuotingUrl && feeQuotingApiKey) {
     switch (originProtocol) {
       case ProtocolType.Ethereum:
