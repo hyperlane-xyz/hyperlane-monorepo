@@ -98,6 +98,10 @@ export async function getUSDTCitreaMoonpayStagingWarpConfig(
         [String(getDomainId('base'))]: [{ bridge: localBridgeBase }],
       },
       rebalanceTargets: { [String(getDomainId('base'))]: [usdcCcrBase] },
+      // Local-domain rebalance recipient: setRecipient(base, USDC-CCR) so the
+      // ALRB escrow's source.rebalance(localDomain,…) can resolve _recipient
+      // (rebalanceTargets only satisfies isRebalanceTarget, not _recipient).
+      rebalanceRecipients: { [String(getDomainId('base'))]: usdcCcrBase },
       crossCollateralRouters,
     },
     bsc: {
