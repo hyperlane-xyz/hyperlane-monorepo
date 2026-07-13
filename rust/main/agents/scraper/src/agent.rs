@@ -1,12 +1,18 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    panic::AssertUnwindSafe,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use futures::future::try_join_all;
+use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, InterchainGasPayment, SameChainCcrSwap, H512,
 };
+use prometheus::IntGaugeVec;
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
@@ -16,9 +22,16 @@ use hyperlane_base::{
     CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
-use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+use crate::{
+    db::ScraperDb,
+    settings::ScraperSettings,
+    store::{HyperlaneDbStore, RawDispatchRetryBackoff},
+};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
+const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(60);
+const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -33,6 +46,7 @@ pub struct Scraper {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
+    raw_dispatch_unenriched_max_age: IntGaugeVec,
 }
 
 #[derive(Debug)]
@@ -64,6 +78,13 @@ impl BaseAgent for Scraper {
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let raw_dispatch_unenriched_max_age = metrics
+            .new_int_gauge(
+                "raw_message_dispatch_unenriched_max_age_seconds",
+                "Maximum age in seconds of raw message dispatches pending reconciliation",
+                &["chain"],
+            )
+            .expect("failed to register raw dispatch reconciliation age metric");
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -85,6 +106,7 @@ impl BaseAgent for Scraper {
             agent_metrics,
             chain_metrics,
             runtime_metrics,
+            raw_dispatch_unenriched_max_age,
         })
     }
 
@@ -224,6 +246,13 @@ impl Scraper {
             .await?;
         tasks.push(gas_payment_indexer);
 
+        tasks.push(self.build_raw_dispatch_reconciler(
+            domain.clone(),
+            self.contract_sync_metrics.clone(),
+            self.raw_dispatch_unenriched_max_age.clone(),
+            store.clone(),
+        ));
+
         if let Some(ccr_task) = self
             .build_ccr_indexer(
                 domain,
@@ -352,6 +381,99 @@ impl Scraper {
                 .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         );
         Ok((task, maybe_broadcaser))
+    }
+
+    fn build_raw_dispatch_reconciler(
+        &self,
+        domain: HyperlaneDomain,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        raw_dispatch_unenriched_max_age: IntGaugeVec,
+        store: HyperlaneDbStore,
+    ) -> JoinHandle<()> {
+        let domain_name = domain.name().to_owned();
+        let span_domain_name = domain_name.clone();
+        tokio::spawn(
+            async move {
+                let stored_events_metric = contract_sync_metrics
+                    .stored_events
+                    .with_label_values(&["message_dispatch_reconciled", &domain_name]);
+                let liveness_metric = contract_sync_metrics.liveness_metrics.with_label_values(&[
+                    "raw_message_dispatch_reconciliation",
+                    &domain_name,
+                    "reconcile_task",
+                ]);
+                let max_age_metric =
+                    raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
+                let mut next_after_id = 0;
+                let mut retry_backoff = RawDispatchRetryBackoff::default();
+                let mut max_age_seen_this_scan = 0_u64;
+
+                loop {
+                    liveness_metric.set(
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map(|duration| duration.as_secs() as i64)
+                            .unwrap_or_default(),
+                    );
+
+                    let result = AssertUnwindSafe(store.reconcile_raw_message_dispatches(
+                        next_after_id,
+                        RAW_DISPATCH_RECONCILIATION_BATCH_SIZE,
+                        &mut retry_backoff,
+                    ))
+                    .catch_unwind()
+                    .await;
+
+                    match result {
+                        Ok(Ok(result)) if result.candidate_count == 0 && next_after_id > 0 => {
+                            next_after_id = 0;
+                            max_age_seen_this_scan = 0;
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Ok(Ok(result)) if result.candidate_count == 0 => {
+                            max_age_metric.set(0);
+                            max_age_seen_this_scan = 0;
+                            sleep(RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP).await;
+                        }
+                        Ok(Ok(result)) => {
+                            next_after_id = result.next_after_id;
+                            max_age_seen_this_scan =
+                                max_age_seen_this_scan.max(result.max_unenriched_age_seconds);
+                            max_age_metric
+                                .set(max_age_seen_this_scan.try_into().unwrap_or(i64::MAX));
+                            stored_events_metric.inc_by(result.stored_count.into());
+                            info!(
+                                candidates = result.candidate_count,
+                                attempted = result.attempted_count,
+                                skipped_backoff = result.skipped_backoff_count,
+                                stored = result.stored_count,
+                                next_after_id,
+                                max_unenriched_age_seconds = max_age_seen_this_scan,
+                                domain = domain_name,
+                                "Reconciled raw message dispatches"
+                            );
+                            sleep(RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP).await;
+                        }
+                        Ok(Err(err)) => {
+                            warn!(
+                                ?err,
+                                domain = domain_name,
+                                "Failed to reconcile raw message dispatches"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                        Err(_) => {
+                            warn!(
+                                domain = domain_name,
+                                "Raw message dispatch reconciliation panicked; retrying"
+                            );
+                            sleep(RPC_RETRY_SLEEP_DURATION).await;
+                        }
+                    }
+                }
+            }
+            .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),
+        )
     }
 
     async fn build_delivery_indexer(
@@ -566,6 +688,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                identity: None,
                 submitter: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,

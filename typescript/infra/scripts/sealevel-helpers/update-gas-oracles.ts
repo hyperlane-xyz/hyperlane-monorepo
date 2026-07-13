@@ -592,34 +592,34 @@ async function main() {
 
   // Process all chains in parallel
   const mpp = await envConfig.getMultiProtocolProvider();
-  const results = await Promise.all(
-    chains.map((chain) => {
-      // Wrap Turnkey signer in the adapter for this chain
-      const signerAdapter = new SvmMultiProtocolSignerAdapter(
-        chain,
-        turnkeySigner,
-        mpp,
-      );
+  const results = [];
+  for (const chain of chains) {
+    // Wrap Turnkey signer in the adapter for this chain
+    const signerAdapter = new SvmMultiProtocolSignerAdapter(
+      chain,
+      turnkeySigner,
+      mpp,
+    );
 
-      const chainGasOracleConfig = gasOracleConfig[chain];
-      if (!chainGasOracleConfig) {
-        // Guard against missing chain configuration
-        throw new Error(
-          `No gas oracle configuration found for chain '${chain}' in environment '${environment}'. ` +
-            `This would cause all existing gas oracles and overheads to be removed. ` +
-            `Please ensure the chain is configured in ${configPath}`,
-        );
-      }
-      return processChain(
-        environment,
-        mpp,
-        chain,
-        chainGasOracleConfig,
-        signerAdapter,
-        dryRun,
+    const chainGasOracleConfig = gasOracleConfig[chain];
+    if (!chainGasOracleConfig) {
+      // Guard against missing chain configuration
+      throw new Error(
+        `No gas oracle configuration found for chain '${chain}' in environment '${environment}'. ` +
+          `This would cause all existing gas oracles and overheads to be removed. ` +
+          `Please ensure the chain is configured in ${configPath}`,
       );
-    }),
-  );
+    }
+    const result = await processChain(
+      environment,
+      mpp,
+      chain,
+      chainGasOracleConfig,
+      signerAdapter,
+      dryRun,
+    );
+    results.push(result);
+  }
 
   // Print results in a table format
   console.table(results);

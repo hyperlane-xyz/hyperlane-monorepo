@@ -1,7 +1,4 @@
 {
-  "zksync": {
-    "validators": []
-  },
   "ancient8": {
     "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
   },
@@ -118,16 +115,6 @@
       "0xf0a990959f833ccde624c8bcd4c7669286a57a0f",
       "0x456b636bdde99d69176261d7a4fba42c16f57f56",
       "0xe78d3681d4f59e0768be8b1171f920ed4d52409f"
-    ]
-  },
-  "redstone": {
-    "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
-  },
-  "scroll": {
-    "validators": [
-      "0x11387d89856219cf685f22781bf4e85e00468d54",
-      "0x64b98b96ccae6e660ecf373b5dd61bcc34fd19ee",
-      "0x07c2f32a402543badc3141f6b98969d75ef2ac28"
     ]
   },
   "sei": {

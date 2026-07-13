@@ -1,11 +1,10 @@
-import { Network } from '@provablehq/aleo-types';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import React, { useContext, useEffect, useState } from 'react';
 
 import { Modal } from '../../layout/Modal.js';
 
 import { AleoPopupContext } from './contexts.js';
-import { getAdapter } from './utils.js';
+import { getAdapter, getAleoNetwork } from './utils.js';
 
 export const AleoPopupProvider = ({
   children,
@@ -45,7 +44,7 @@ export const AleoPopupProvider = ({
 
     // Wallet is installed, proceed with connection
     await adapter.connect(
-      Network.MAINNET,
+      getAleoNetwork(),
       WalletDecryptPermission.AutoDecrypt,
       [],
     );

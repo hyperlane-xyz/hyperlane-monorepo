@@ -247,6 +247,28 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       value: BigNumber.from(call.value ?? '0'),
       data: call.data,
     }));
+    let destinationAccount: Address;
+    try {
+      destinationAccount = await destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](
+        originDomain,
+        addressToBytes32(config.owner),
+        addressToBytes32(localRouterAddress),
+        bytes32ToAddress(remoteIsm),
+        config.userSalt ?? InterchainAccount.EMPTY_SALT,
+      );
+    } catch (error) {
+      if (config.userSalt) throw error;
+      destinationAccount = await destinationRouter[
+        'getLocalInterchainAccount(uint32,address,address,address)'
+      ](
+        originDomain,
+        config.owner,
+        localRouterAddress,
+        bytes32ToAddress(remoteIsm),
+      );
+    }
 
     const messageBody = this.encodeIcaMessageBody(
       addressToBytes32(config.owner),
@@ -282,6 +304,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         formattedCalls.map((call) =>
           estimateCallGas({
             provider,
+            from: destinationAccount,
             to: bytes32ToAddress(call.to),
             data: call.data,
             value: call.value,

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sealevel-sdk",
-  "version": "35.0.1",
+  "version": "36.0.0",
   "description": "Hand-crafted Solana/SVM client for Hyperlane Sealevel programs",
   "keywords": [
     "hyperlane",
@@ -36,20 +36,24 @@
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "pnpm test:unit",
+    "test:ci": "pnpm test:unit",
     "test:e2e": "./scripts/run-e2e-test.sh",
-    "test:unit": "mocha --require tsx --timeout 10000 'src/tests/**/*.unit-test.ts'"
+    "test:unit": "mocha --require tsx --timeout 10000 'src/**/*.unit-test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@noble/hashes": "^1.7.1",
+    "@solana-program/address-lookup-table": "^0.11.0",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
     "@solana/errors": "^6.1.0",
-    "@solana/kit": "catalog:"
+    "@solana/kit": "catalog:",
+    "compare-versions": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@noble/curves": "^1.9.0",
     "@types/chai": "^4.3.14",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",
@@ -64,5 +68,13 @@
     "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@noble/curves": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@noble/curves": {
+      "optional": true
+    }
   }
 }

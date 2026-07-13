@@ -1,10 +1,18 @@
 import { type Address, fetchEncodedAccount } from '@solana/kit';
 
-import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  fromHexString,
+  rootLogger,
+  toHexString,
+} from '@hyperlane-xyz/utils';
 
 import {
+  COLLATERAL_PLUGIN_SIZE,
   decodeHyperlaneTokenAccount,
   type HyperlaneTokenAccountData,
+  NATIVE_PLUGIN_SIZE,
+  SYNTHETIC_PLUGIN_SIZE,
 } from '../accounts/token.js';
 import {
   deriveCrossCollateralStatePda,
@@ -14,6 +22,12 @@ import {
   deriveEscrowPda,
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
+import {
+  FALLBACK_SIMULATION_PAYER,
+  queryProgramVersion,
+} from '../version/version-query.js';
+
+const logger = rootLogger.child({ module: 'warp-query' });
 
 export enum SvmWarpTokenType {
   Native = 'native',
@@ -29,11 +43,40 @@ export enum SvmWarpTokenType {
 export async function fetchTokenAccount(
   rpc: SvmRpc,
   programId: Address,
+  pluginSize: number,
 ): Promise<HyperlaneTokenAccountData | null> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programId);
   const account = await fetchEncodedAccount(rpc, tokenPda);
   if (!account.exists) return null;
-  return decodeHyperlaneTokenAccount(account.data as Uint8Array);
+  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data), pluginSize);
+}
+
+export function fetchNativeTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, NATIVE_PLUGIN_SIZE);
+}
+
+export function fetchSyntheticTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, SYNTHETIC_PLUGIN_SIZE);
+}
+
+export function fetchCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
+}
+
+export function fetchCrossCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
 }
 
 /**
@@ -88,6 +131,32 @@ export async function detectWarpTokenType(
   const result = matches[0];
   assert(result !== undefined, 'Unexpected empty matches after validation');
   return result;
+}
+
+/**
+ * Queries the on-chain program version for a warp token program.
+ *
+ * Uses the token owner as the simulation fee payer when present, falling
+ * back to a known-funded mainnet address when the owner is null or the
+ * owner-paid simulation fails (e.g. production owner has no SOL).
+ */
+export async function fetchWarpProgramVersion(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+): Promise<string | null> {
+  if (owner) {
+    try {
+      return await queryProgramVersion(rpc, programId, owner);
+    } catch (err) {
+      logger.debug(
+        'Owner-as-payer simulation failed; retrying with fallback payer',
+        { programId, owner, err },
+      );
+    }
+  }
+
+  return queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

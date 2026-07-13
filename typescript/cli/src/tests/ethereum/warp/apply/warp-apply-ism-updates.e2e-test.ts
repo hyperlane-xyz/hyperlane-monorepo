@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type IsmConfig,
@@ -26,6 +27,7 @@ import {
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../../constants.js';
 import { deployTestOffchainLookupISM } from '../../commands/helpers.js';
@@ -230,11 +232,21 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
     );
 
     const ism = updatedConfig[chain2]
-      .interchainSecurityModule as RateLimitedIsmConfig;
+      .interchainSecurityModule as RateLimitedIsmConfig & { address: string };
     expect(ism).to.exist;
     expect(ism.type).to.equal(IsmType.RATE_LIMITED);
     expect(ism.maxCapacity).to.equal(maxCapacity);
-    expect(ism.recipient).to.not.be.undefined;
-    expect(ism.recipient!.toLowerCase()).to.equal(tokenAddress.toLowerCase());
+    // recipient is stripped from read() output — verify on-chain directly
+    expect(ism.address).to.not.be.undefined;
+    const chain2Metadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    const provider = new ethers.providers.JsonRpcProvider(
+      chain2Metadata.rpcUrl,
+    );
+    const onChainRecipient = await RateLimitedIsm__factory.connect(
+      ism.address,
+      provider,
+    ).recipient();
+    expect(onChainRecipient.toLowerCase()).to.equal(tokenAddress.toLowerCase());
   });
 });

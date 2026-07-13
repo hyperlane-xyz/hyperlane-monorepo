@@ -26,6 +26,7 @@ pub struct Model {
     pub sender: Vec<u8>,
     pub recipient: Vec<u8>,
     pub origin_mailbox: Vec<u8>,
+    pub msg_body: Option<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -43,6 +44,7 @@ pub enum Column {
     Sender,
     Recipient,
     OriginMailbox,
+    MsgBody,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -80,6 +82,7 @@ impl ColumnTrait for Column {
             Self::Sender => ColumnType::VarBinary(StringLen::None).def(),
             Self::Recipient => ColumnType::VarBinary(StringLen::None).def(),
             Self::OriginMailbox => ColumnType::VarBinary(StringLen::None).def(),
+            Self::MsgBody => ColumnType::VarBinary(StringLen::None).def().null(),
         }
     }
 }

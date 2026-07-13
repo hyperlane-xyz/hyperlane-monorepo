@@ -5,12 +5,16 @@ import {
   ensure0x,
   isNullish,
   isZeroishAddress,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
+  RETRY_ATTEMPTS,
+  RETRY_DELAY_MS,
   U128ToString,
   fromAleoAddress,
+  isV2WarpToken,
   toAleoAddress,
 } from '../utils/helper.js';
 import {
@@ -19,6 +23,114 @@ import {
   type AleoSyntheticWarpTokenConfig,
   AleoTokenType,
 } from '../utils/types.js';
+
+/**
+ * Returns the ARC-20 token program ID imported by an ARC-20-based warp token.
+ * The arc20 token import is the one that contains 'arc20' but not 'multisig'.
+ */
+export async function getArc20ProgramId(
+  aleoClient: AnyAleoNetworkClient,
+  warpProgramId: string,
+): Promise<string> {
+  const imports = await aleoClient.getProgramImportNames(warpProgramId);
+  const arc20ProgramId = imports.find(
+    (i) => i.includes('arc20') && !i.includes('multisig'),
+  );
+  assert(
+    arc20ProgramId,
+    `Could not find ARC-20 token import in program ${warpProgramId}`,
+  );
+  return arc20ProgramId;
+}
+
+/**
+ * Validates and extracts the first output from a view function response body.
+ * Expects a JSON array of wire-format strings (e.g. ["6u8"], ["'USDC'"]).
+ */
+export function parseViewFunctionOutputs(
+  outputs: unknown,
+  programId: string,
+  viewName: string,
+): string {
+  assert(
+    Array.isArray(outputs) &&
+      outputs.length > 0 &&
+      typeof outputs[0] === 'string',
+    `View function ${programId}/${viewName} returned an unexpected response shape: ${JSON.stringify(outputs)}`,
+  );
+  return outputs[0];
+}
+
+/**
+ * Calls a view function on an Aleo program via the Explorer REST API.
+ * POST {host}/program/{programId}/view/{viewName}
+ * No-input functions use an empty object body `{}`; functions with inputs use a JSON array.
+ * Returns the raw wire-format string of the first output (e.g. "6u8", "'USDC'", "1000000u128").
+ */
+export async function callViewFunction(
+  aleoClient: AnyAleoNetworkClient,
+  programId: string,
+  viewName: string,
+  inputs: string[] = [],
+): Promise<string> {
+  const url = `${aleoClient.host}/program/${programId}/view/${viewName}`;
+  const body = inputs.length === 0 ? '{}' : JSON.stringify(inputs);
+  return retryAsync(
+    async () => {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      assert(res.ok, `View function call failed (${res.status}): ${url}`);
+      const outputs: unknown = await res.json();
+      return parseViewFunctionOutputs(outputs, programId, viewName);
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
+  );
+}
+
+/**
+ * Parse a raw Aleo uint literal (e.g. "1000000u128", "6u8") to BigInt.
+ */
+export function parseAleoUint(raw: string): bigint {
+  const match = raw.match(/^(\d+)/);
+  assert(match, `Expected numeric Aleo literal, got: ${raw}`);
+  return BigInt(match[1]);
+}
+
+/**
+ * Parse a raw Aleo identifier literal (e.g. "'USDC'") to a plain string.
+ */
+function parseAleoIdentifier(raw: string): string {
+  return raw.replace(/^'|'$/g, '');
+}
+
+/**
+ * Query token metadata from an ARC-20 token program via its view functions.
+ */
+export async function getArc20TokenMetadata(
+  aleoClient: AnyAleoNetworkClient,
+  arc20ProgramId: string,
+): Promise<{ name: string; symbol: string; decimals: number }> {
+  const [nameRaw, symbolRaw, decimalsRaw] = await Promise.all([
+    callViewFunction(aleoClient, arc20ProgramId, 'name'),
+    callViewFunction(aleoClient, arc20ProgramId, 'symbol'),
+    callViewFunction(aleoClient, arc20ProgramId, 'decimals'),
+  ]);
+  const decimals = parseInt(decimalsRaw, 10);
+  assert(
+    !Number.isNaN(decimals),
+    `Expected numeric decimals from ${arc20ProgramId}, got: ${decimalsRaw}`,
+  );
+
+  return {
+    name: parseAleoIdentifier(nameRaw),
+    symbol: parseAleoIdentifier(symbolRaw),
+    decimals,
+  };
+}
 
 /**
  * Query token metadata from token_registry.aleo
@@ -31,15 +143,23 @@ export async function getTokenMetadata(
   symbol: string;
   decimals: number;
 }> {
-  const mappingValue = await aleoClient.getProgramMappingValue(
-    'token_registry.aleo',
-    'registered_tokens',
-    tokenId,
-  );
-
-  assert(
-    mappingValue,
-    `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after registration) is retried, not treated as absent.
+  const mappingValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        'token_registry.aleo',
+        'registered_tokens',
+        tokenId,
+      );
+      assert(
+        value,
+        `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const tokenMetadata = Plaintext.fromString(mappingValue).toObject();
@@ -78,15 +198,23 @@ export async function getAleoWarpTokenType(
 ): Promise<AleoTokenType> {
   const { programId } = fromAleoAddress(tokenAddress);
 
-  const metadataValue = await aleoClient.getProgramMappingValue(
-    programId,
-    'app_metadata',
-    'true',
-  );
-
-  assert(
-    metadataValue,
-    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after deployment) is retried, not treated as absent.
+  const metadataValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        programId,
+        'app_metadata',
+        'true',
+      );
+      assert(
+        value,
+        `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const metadata = Plaintext.fromString(metadataValue).toObject();
@@ -184,15 +312,23 @@ async function getWarpTokenMetadata(
 ): Promise<AleoWarpTokenMetadata> {
   const { programId } = fromAleoAddress(tokenAddress);
 
-  const metadataValue = await aleoClient.getProgramMappingValue(
-    programId,
-    'app_metadata',
-    'true',
-  );
-
-  assert(
-    metadataValue,
-    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  // Wrap the read + assert together so a mapping that hasn't finalized/indexed
+  // yet (e.g. immediately after deployment) is retried, not treated as absent.
+  const metadataValue = await retryAsync(
+    async () => {
+      const value = await aleoClient.getProgramMappingValue(
+        programId,
+        'app_metadata',
+        'true',
+      );
+      assert(
+        value,
+        `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+      );
+      return value;
+    },
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_MS,
   );
 
   const metadata = Plaintext.fromString(metadataValue).toObject();
@@ -340,6 +476,21 @@ export async function getNativeWarpTokenConfig(
 }
 
 /**
+ * Resolve token name/symbol/decimals for a warp token — ARC-20 for v2, token_registry for v1.
+ */
+async function resolveTokenMetadata(
+  aleoClient: AnyAleoNetworkClient,
+  programId: string,
+  tokenId: string,
+): Promise<{ name: string; symbol: string; decimals: number }> {
+  if (isV2WarpToken(programId)) {
+    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
+    return getArc20TokenMetadata(aleoClient, arc20ProgramId);
+  }
+  return getTokenMetadata(aleoClient, tokenId);
+}
+
+/**
  * Query collateral warp token configuration
  */
 export async function getCollateralWarpTokenConfig(
@@ -348,6 +499,8 @@ export async function getCollateralWarpTokenConfig(
   fallbackIsmManager: string,
   fallbackHookManager: string,
 ): Promise<AleoCollateralWarpTokenConfig> {
+  const { programId } = fromAleoAddress(tokenAddress);
+
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
 
@@ -378,14 +531,18 @@ export async function getCollateralWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
-  // Get token ID and metadata from token_registry
+  // Get token ID and metadata — ARC-20 for v2, token_registry for v1
   const tokenId = metadata.token_id;
   assert(
     tokenId,
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
   );
 
-  const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
+  const { name, symbol, decimals } = await resolveTokenMetadata(
+    aleoClient,
+    programId,
+    tokenId,
+  );
 
   return {
     type: AleoTokenType.COLLATERAL,
@@ -395,9 +552,9 @@ export async function getCollateralWarpTokenConfig(
     hook,
     remoteRouters,
     token: tokenId,
-    name: tokenMetadata.name,
-    symbol: tokenMetadata.symbol,
-    decimals: tokenMetadata.decimals,
+    name,
+    symbol,
+    decimals,
   };
 }
 
@@ -410,6 +567,8 @@ export async function getSyntheticWarpTokenConfig(
   fallbackIsmManager: string,
   fallbackHookManager: string,
 ): Promise<AleoSyntheticWarpTokenConfig> {
+  const { programId } = fromAleoAddress(tokenAddress);
+
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
 
@@ -440,14 +599,18 @@ export async function getSyntheticWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
-  // Get token ID and metadata from token_registry
+  // Get token metadata — ARC-20 for v2, token_registry for v1
   const tokenId = metadata.token_id;
   assert(
     tokenId,
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
   );
 
-  const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
+  const { name, symbol, decimals } = await resolveTokenMetadata(
+    aleoClient,
+    programId,
+    tokenId,
+  );
 
   return {
     type: AleoTokenType.SYNTHETIC,
@@ -456,8 +619,8 @@ export async function getSyntheticWarpTokenConfig(
     ism,
     hook,
     remoteRouters,
-    name: tokenMetadata.name,
-    symbol: tokenMetadata.symbol,
-    decimals: tokenMetadata.decimals,
+    name,
+    symbol,
+    decimals,
   };
 }

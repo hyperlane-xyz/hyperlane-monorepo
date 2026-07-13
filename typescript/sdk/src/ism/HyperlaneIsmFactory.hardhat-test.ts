@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -22,6 +22,7 @@ import {
   DomainRoutingIsmConfig,
   IsmType,
   MultisigIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -86,6 +87,26 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  it('recovers an address-bearing pausable ism config', async () => {
+    const config: PausableIsmConfig = {
+      type: IsmType.PAUSABLE,
+      owner: await multiProvider.getSignerAddress(chain),
+      paused: false,
+    };
+    const deployed = await ismFactory.deploy({ destination: chain, config });
+    const recoveredConfig: WithAddress<PausableIsmConfig> = {
+      ...config,
+      address: deployed.address,
+    };
+
+    const recovered = await ismFactory.deploy({
+      destination: chain,
+      config: recoveredConfig,
+    });
+
+    expect(recovered.address).to.equal(deployed.address);
   });
 
   it('deploys a trusted relayer ism', async () => {

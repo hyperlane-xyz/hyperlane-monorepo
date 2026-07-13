@@ -15,14 +15,9 @@ import {
 // any chain marked as disabled in the registry. Mirrors the alert-relevant
 // subset of `chainsToSkip` in src/config/chain.ts.
 const ADDITIONAL_NO_ALERT_CHAINS: ChainName[] = [
-  // permanently decommissioned
-  'everclear',
-  'milkyway',
-
   // downtime
+  'artela',
   'molten',
-  'fluence',
-  'tangle',
 ];
 
 export function getNoAlertChains(): Set<ChainName> {

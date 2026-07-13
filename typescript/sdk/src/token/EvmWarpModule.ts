@@ -127,6 +127,12 @@ const getAllowedRebalancingBridgesByDomain = (
     },
   );
 };
+export type WarpUpdateResult = {
+  txs: AnnotatedEV5Transaction[];
+  feeTxs: AnnotatedEV5Transaction[];
+  ownershipTxs: AnnotatedEV5Transaction[];
+};
+
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -203,12 +209,12 @@ export class EvmWarpModule extends HyperlaneModule<
    * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
+   * @returns `{txs, feeTxs, ownershipTxs}` — main txs (includes router-owner `setFeeRecipient`), fee-contract-owner txs (safe to route to a dedicated feeSubmitter), and ownership/proxyAdmin txs that must execute last.
    */
-  async update(
+  async updateSplit(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
     const transactions = [];
@@ -223,6 +229,26 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       xerc20Txs = await module.update(config);
     }
+
+    const allFeeTxs = await this.createTokenFeeUpdateTxs(
+      actualConfig,
+      expectedConfig,
+      tokenReaderParams,
+    );
+
+    // Split feeTxs by authority: setFeeRecipient targets the token router (router
+    // owner gated) while all other fee txs target the fee contract (fee-contract
+    // owner gated).  Keeping them in the same bucket means a dedicated feeSubmitter
+    // (which owns the fee contract) would try to call setFeeRecipient — which reverts
+    // because it doesn't own the router.  Router-owner txs go into the main batch;
+    // only fee-contract-owner txs are returned as feeTxs for the feeSubmitter.
+    const routerAddress = this.args.addresses.deployedTokenRoute.toLowerCase();
+    const routerOwnerFeeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() === routerAddress,
+    );
+    const feeTxs = allFeeTxs.filter(
+      (tx) => tx.to?.toLowerCase() !== routerAddress,
+    );
 
     /**
      * @remark
@@ -243,11 +269,7 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
-      ...(await this.createTokenFeeUpdateTxs(
-        actualConfig,
-        expectedConfig,
-        tokenReaderParams,
-      )),
+      ...this.createFeeHookUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
@@ -279,7 +301,15 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
+      // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
+      // always execute under the router owner's authority — even when a dedicated
+      // feeSubmitter is configured for fee-contract-owner txs.
+      ...routerOwnerFeeTxs,
+    );
 
+    // Ownership/proxyAdmin must always execute last; returned separately so callers
+    // can place feeTxs between main txs and ownership (see update() below).
+    const ownershipTxs = [
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -287,9 +317,26 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-    );
+    ];
 
-    return transactions;
+    return { txs: transactions, feeTxs, ownershipTxs };
+  }
+
+  /**
+   * Backwards-compatible wrapper around `updateSplit`. Returns a flat, ordered
+   * transaction array suitable for a single submitter.
+   */
+  async update(
+    expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
+      expectedConfig,
+      tokenReaderParams,
+    );
+    // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
+    // execute before the router owner changes.
+    return [...txs, ...feeTxs, ...ownershipTxs];
   }
 
   /**
@@ -1599,12 +1646,53 @@ export class EvmWarpModule extends HyperlaneModule<
     };
   }
 
+  createFeeHookUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (isOftTokenConfig(expectedConfig)) return [];
+
+    const expectedFeeHook = expectedConfig.feeHook;
+    const actualFeeHook = actualConfig.feeHook;
+
+    // No change needed
+    if (!expectedFeeHook && !actualFeeHook) return [];
+    // Unset in expected config → leave the on-chain feeHook unchanged.
+    // Clearing an existing feeHook requires an explicit address(0) in the config.
+    if (!expectedFeeHook && actualFeeHook) return [];
+    if (
+      expectedFeeHook &&
+      actualFeeHook &&
+      eqAddress(expectedFeeHook, actualFeeHook)
+    )
+      return [];
+
+    const newFeeHook = expectedFeeHook ?? constants.AddressZero;
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Setting feeHook to ${newFeeHook}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenRouter__factory.createInterface().encodeFunctionData(
+          'setFeeHook',
+          [newFeeHook],
+        ),
+      },
+    ];
+  }
+
   /**
    * Create transactions to update token fee configuration.
    *
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transactions that need to be executed to update the token fee.
+   *
+   * @remarks
+   * The returned transactions may include both `setFeeRecipient` (gated by the
+   * token-router owner) and fee-contract config calls (gated by the fee-contract
+   * owner). When routing these to a dedicated `feeSubmitter`, that submitter
+   * must own both the token router and the fee contract.
    */
   async createTokenFeeUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,

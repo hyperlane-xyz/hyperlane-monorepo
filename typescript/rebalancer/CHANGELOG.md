@@ -1,5 +1,69 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.3.7
+
+### Patch Changes
+
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [019201a]
+- Updated dependencies [cc722b8]
+- Updated dependencies [9cd7606]
+- Updated dependencies [2821252]
+- Updated dependencies [a6a3a33]
+- Updated dependencies [2821252]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+- Updated dependencies [d288e7b]
+- Updated dependencies [cf6857e]
+- Updated dependencies [5527cd0]
+- Updated dependencies [32b87ad]
+- Updated dependencies [cf6857e]
+  - @hyperlane-xyz/sdk@36.0.0
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/metrics@0.2.28
+  - @hyperlane-xyz/core@11.3.1
+
+## 27.3.6
+
+### Patch Changes
+
+- Updated dependencies [88e51ed]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [889c68a]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [92ef474]
+- Updated dependencies [f0b325a]
+- Updated dependencies [6db4aee]
+- Updated dependencies [babb3d0]
+- Updated dependencies [867ce3c]
+- Updated dependencies [b77faf4]
+- Updated dependencies [fb63f5f]
+- Updated dependencies [fb63f5f]
+  - @hyperlane-xyz/sdk@35.2.0
+  - @hyperlane-xyz/metrics@0.2.27
+  - @hyperlane-xyz/utils@35.2.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.1.1
+
+## 27.3.5
+
+### Patch Changes
+
+- Updated dependencies [d1b6f0a]
+- Updated dependencies [830ce1d]
+- Updated dependencies [9cdf9eb]
+  - @hyperlane-xyz/provider-sdk@6.1.0
+  - @hyperlane-xyz/sdk@35.1.0
+  - @hyperlane-xyz/metrics@0.2.26
+  - @hyperlane-xyz/utils@35.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 27.3.4
 
 ### Patch Changes

@@ -9,10 +9,12 @@ import {
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
+  IgpTokenGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
@@ -124,6 +126,18 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
               .join(', ')}`,
           },
         };
+      }
+      case IgpViolationType.TokenGasOracles: {
+        const tokenGasViolation = violation as IgpTokenGasOraclesViolation;
+        rootLogger.warn(
+          {
+            chain: tokenGasViolation.chain,
+            feeToken: tokenGasViolation.feeToken,
+            missingRemotes: Object.keys(tokenGasViolation.actual),
+          },
+          'TokenGasOracles violation requires manual remediation via HyperlaneIgpDeployer — no automatic fix available',
+        );
+        return undefined;
       }
       default:
         throw new Error(

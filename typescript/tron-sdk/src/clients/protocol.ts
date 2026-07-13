@@ -16,7 +16,10 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
-import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type FeeReadContext,
+  type IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -91,6 +94,7 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   createFeeArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     return null;
   }
@@ -100,6 +104,7 @@ export class TronProtocolProvider implements ProtocolProvider {
       CORE_DEPLOY_GAS: BigInt(1e9),
       WARP_DEPLOY_GAS: BigInt(1e9),
       ISM_DEPLOY_GAS: BigInt(1e9),
+      HOOK_DEPLOY_GAS: BigInt(1e9),
       TEST_SEND_GAS: BigInt(1e9),
       AVS_GAS: BigInt(1e9),
     };

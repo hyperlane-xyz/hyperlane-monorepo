@@ -1,5 +1,4 @@
 export enum WarpRouteIds {
-  BscMilkywayMILK = 'MILK/bsc-milkyway',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
@@ -46,9 +45,12 @@ export enum WarpRouteIds {
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
-  ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork',
+  // Removed here: ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  // and USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork. These multi-leg
+  // routes include the deprecated scroll/zoramainnet legs, so their config generators were
+  // dropped; their warp-route monitors are retained for the remaining live legs until
+  // scroll/zoramainnet are fully decommissioned from the registry.
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
-  ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
@@ -153,6 +155,9 @@ export enum WarpRouteIds {
   USDCCitreaMoonpay = 'USDC/moonpay',
   USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
   USDTCitreaMoonpay = 'USDT/moonpay',
+  USDCCitreaMoonpaySTAGING = 'USDC/moonpay-staging',
+  USDTCitreaMoonpaySTAGING = 'USDT/moonpay-staging',
+  CROSSCitreaMoonpay = 'CROSS/moonpay',
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
@@ -164,6 +169,9 @@ export enum WarpRouteIds {
 
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
+
+  // Nesa routes
+  BscNES = 'NES/bsc',
 
   // Igra routes
   IgraUSDC = 'USDC/igra',

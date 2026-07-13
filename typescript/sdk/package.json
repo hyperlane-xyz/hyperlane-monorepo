@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "35.0.1",
+  "version": "36.0.0",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -167,8 +167,8 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "@safe-global/api-kit": "catalog:",
     "@safe-global/protocol-kit": "catalog:",
-    "@safe-global/safe-core-sdk-types": "catalog:",
     "@safe-global/safe-deployments": "catalog:",
+    "@safe-global/types-kit": "catalog:",
     "@solana/spl-token": "catalog:",
     "@solana/web3.js": "catalog:",
     "@starknet-react/chains": "catalog:",
@@ -177,7 +177,7 @@
     "@turnkey/solana": "catalog:",
     "bignumber.js": "catalog:",
     "borsh": "catalog:",
-    "compare-versions": "^6.1.1",
+    "compare-versions": "catalog:",
     "cosmjs-types": "catalog:",
     "cross-fetch": "^3.1.5",
     "ethers": "catalog:",

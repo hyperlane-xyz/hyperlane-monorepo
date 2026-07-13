@@ -19,7 +19,10 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
-import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type FeeReadContext,
+  type IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -193,6 +196,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
 
   createFeeArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     return null;
   }
@@ -204,6 +208,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,
+      HOOK_DEPLOY_GAS: 0n,
     };
   }
 }

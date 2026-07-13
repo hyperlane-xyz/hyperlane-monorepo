@@ -34,6 +34,7 @@ impl From<MultisigIsmError> for Error {
         match err {
             MultisigIsmError::InvalidSignature => Error::InvalidSignature,
             MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
+            MultisigIsmError::InvalidMetadata => Error::InvalidMetadata,
         }
     }
 }

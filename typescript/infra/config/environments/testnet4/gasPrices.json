@@ -39,10 +39,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "incentivtestnet": {
-    "amount": "1.500000007",
-    "decimals": 9
-  },
   "kyvetestnet": {
     "amount": "0.001",
     "decimals": 1
@@ -66,6 +62,10 @@
   "radixtestnet": {
     "amount": "50.0",
     "decimals": 6
+  },
+  "seismictestnet": {
+    "amount": "46.566129041",
+    "decimals": 9
   },
   "sepolia": {
     "amount": "0.05",

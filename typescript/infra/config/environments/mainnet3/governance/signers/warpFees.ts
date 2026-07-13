@@ -1,4 +1,4 @@
-import { awSigners, awThreshold } from './aw.js';
+import { awSigners } from './aw.js';
 
 export const warpFeesSigners = awSigners;
-export const warpFeesThreshold = awThreshold;
+export const warpFeesThreshold = 2;

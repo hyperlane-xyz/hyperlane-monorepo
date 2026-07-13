@@ -27,10 +27,6 @@
     "amount": "0.02",
     "decimals": 9
   },
-  "arbitrumnova": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "arcadia": {
     "amount": "0.000000008",
     "decimals": 9
@@ -43,20 +39,8 @@
     "amount": "779.371350051",
     "decimals": 9
   },
-  "aurora": {
-    "amount": "0.07",
-    "decimals": 9
-  },
-  "botanix": {
-    "amount": "0.00375",
-    "decimals": 9
-  },
   "avalanche": {
     "amount": "10.0",
-    "decimals": 9
-  },
-  "b3": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "base": {
@@ -81,6 +65,10 @@
   },
   "boba": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "botanix": {
+    "amount": "0.00375",
     "decimals": 9
   },
   "bsc": {
@@ -123,14 +111,6 @@
     "amount": "0.001000252",
     "decimals": 9
   },
-  "degenchain": {
-    "amount": "120.0",
-    "decimals": 9
-  },
-  "dogechain": {
-    "amount": "250.0",
-    "decimals": 9
-  },
   "eclipsemainnet": {
     "amount": "0.07555556",
     "decimals": 1
@@ -155,14 +135,6 @@
     "amount": "0.04210292",
     "decimals": 9
   },
-  "everclear": {
-    "amount": "0.1",
-    "decimals": 9
-  },
-  "fantom": {
-    "amount": "1.0246",
-    "decimals": 9
-  },
   "flare": {
     "amount": "25.000000001",
     "decimals": 9
@@ -173,10 +145,6 @@
   },
   "fluent": {
     "amount": "0.001000007",
-    "decimals": 9
-  },
-  "fluence": {
-    "amount": "0.1",
     "decimals": 9
   },
   "forma": {
@@ -201,10 +169,6 @@
   },
   "gravity": {
     "amount": "1800.0",
-    "decimals": 9
-  },
-  "harmony": {
-    "amount": "100.0",
     "decimals": 9
   },
   "hashkey": {
@@ -299,10 +263,6 @@
     "amount": "0.002",
     "decimals": 9
   },
-  "merlin": {
-    "amount": "0.006",
-    "decimals": 9
-  },
   "metal": {
     "amount": "0.001000252",
     "decimals": 9
@@ -310,10 +270,6 @@
   "metis": {
     "amount": "6.360456245",
     "decimals": 9
-  },
-  "milkyway": {
-    "amount": "0.03",
-    "decimals": 1
   },
   "miraclechain": {
     "amount": "0.01",
@@ -339,10 +295,6 @@
     "amount": "102.0",
     "decimals": 9
   },
-  "moonbeam": {
-    "amount": "31.25",
-    "decimals": 9
-  },
   "morph": {
     "amount": "0.1375",
     "decimals": 9
@@ -354,6 +306,10 @@
   "neutron": {
     "amount": "0.0053",
     "decimals": 1
+  },
+  "nexus": {
+    "amount": "1.000000007",
+    "decimals": 9
   },
   "nibiru": {
     "amount": "1000.0",
@@ -403,14 +359,6 @@
     "amount": "116.87204498",
     "decimals": 9
   },
-  "polygonzkevm": {
-    "amount": "0.01",
-    "decimals": 9
-  },
-  "polynomialfi": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "prom": {
     "amount": "45.0",
     "decimals": 9
@@ -431,16 +379,12 @@
     "amount": "600.0",
     "decimals": 9
   },
-  "redstone": {
-    "amount": "0.00020005",
+  "robinhood": {
+    "amount": "0.1",
     "decimals": 9
   },
   "ronin": {
     "amount": "21.492605086",
-    "decimals": 9
-  },
-  "scroll": {
-    "amount": "0.015823137",
     "decimals": 9
   },
   "sei": {
@@ -491,10 +435,6 @@
     "amount": "5000",
     "decimals": 1
   },
-  "story": {
-    "amount": "0.002050755",
-    "decimals": 9
-  },
   "stride": {
     "amount": "0.005",
     "decimals": 1
@@ -505,10 +445,6 @@
   },
   "superseed": {
     "amount": "0.001000252",
-    "decimals": 9
-  },
-  "superpositionmainnet": {
-    "amount": "0.2",
     "decimals": 9
   },
   "swell": {
@@ -523,12 +459,8 @@
     "amount": "0.125",
     "decimals": 9
   },
-  "tangle": {
-    "amount": "1.0",
-    "decimals": 9
-  },
-  "torus": {
-    "amount": "31.25",
+  "tea": {
+    "amount": "0.0011",
     "decimals": 9
   },
   "tron": {
@@ -581,10 +513,6 @@
   },
   "zksync": {
     "amount": "0.04525",
-    "decimals": 9
-  },
-  "zoramainnet": {
-    "amount": "0.001000252",
     "decimals": 9
   }
 }

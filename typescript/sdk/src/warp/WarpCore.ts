@@ -36,6 +36,7 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
+import { TokenType } from '../token/config.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
@@ -74,6 +75,20 @@ export interface WarpCoreOptions {
   localFeeConstants?: FeeConstantConfig;
   interchainFeeConstants?: FeeConstantConfig;
   routeBlacklist?: RouteBlacklist;
+}
+
+const DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES = new Set<TokenType>([
+  TokenType.collateralCctp,
+  TokenType.collateralOft,
+]);
+
+// CCTP/OFT both map to EvmHypCollateral, so standard alone cannot distinguish
+// protocol-backed collateral from escrowed collateral.
+function isDestinationCollateralExemptToken(token: IToken): boolean {
+  return (
+    token.tokenType !== undefined &&
+    DESTINATION_COLLATERAL_EXEMPT_TOKEN_TYPES.has(token.tokenType)
+  );
 }
 
 export class WarpCore {
@@ -545,9 +560,13 @@ export class WarpCore {
       },
     };
 
+    // Include the ERC20 fee (tokenFeeQuote) in the approval threshold so that
+    // allowance checks account for hookFee charged by the feeHook contract.
+    const feeQuote = tokenFeeQuote?.amount ?? 0n;
+
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
-        originTokenAmount,
+        originTokenAmount: originTokenAmount.plus(feeQuote),
         owner: sender,
       }),
       hypAdapter.isRevokeApprovalRequired(
@@ -566,8 +585,6 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      // feeQuote is required to be approved for routes that have fees set
-      const feeQuote = tokenFeeQuote?.amount ?? 0n;
       const amountToApprove = amount + feeQuote;
       preTransferRemoteTxs.push([
         amountToApprove.toString(),
@@ -1341,6 +1358,13 @@ export class WarpCore {
       destination,
       destinationToken,
     });
+
+    if (isDestinationCollateralExemptToken(resolvedDestinationToken)) {
+      this.logger.debug(
+        `${resolvedDestinationToken.symbol} uses ${resolvedDestinationToken.tokenType}, skipping destination collateral check`,
+      );
+      return true;
+    }
 
     if (
       !TOKEN_COLLATERALIZED_STANDARDS.includes(

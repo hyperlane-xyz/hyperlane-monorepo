@@ -1,6 +1,6 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import { SafeTransaction } from '@safe-global/types-kit';
 import chalk from 'chalk';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
@@ -21,10 +21,10 @@ import {
 
 // Safe nonce overrides to ensure transactions are proposed at the correct nonce.
 // Remove entries once the transactions have been executed.
-const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
+export const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
 
 export abstract class MultiSend {
-  abstract sendTransactions(calls: CallData[]): Promise<void>;
+  abstract sendTransactions(calls: CallData[]): Promise<string[] | void>;
 }
 
 export class SignerMultiSend extends MultiSend {
@@ -89,7 +89,7 @@ export class SafeMultiSend extends MultiSend {
     );
   }
 
-  async sendTransactions(calls: CallData[]) {
+  async sendTransactions(calls: CallData[]): Promise<string[]> {
     // If the multiSend address is the same as the safe address, we need to
     // propose the transactions individually. See: gnosisSafe.js in the SDK.
     if (eqAddress(this.safeSdk.getMultiSendAddress(), this.safeAddress)) {
@@ -98,34 +98,57 @@ export class SafeMultiSend extends MultiSend {
           `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
         ),
       );
-      await this.proposeIndividualTransactions(calls);
+      return this.proposeIndividualTransactions(calls);
     } else {
-      await this.proposeMultiSendTransaction(calls);
+      return this.proposeMultiSendTransaction(calls);
     }
   }
 
+  // Resolve the base nonce for new proposals: a manual override if set,
+  // otherwise the Safe transaction service's next nonce (queue-aware: highest
+  // pending + 1). Falling back to protocol-kit's default would use the on-chain
+  // nonce and collide with an already-pending proposal at that nonce.
+  private async resolveBaseNonce(): Promise<number> {
+    const override = SAFE_NONCE_OVERRIDES[this.chain];
+    if (override !== undefined) {
+      return override;
+    }
+    const nextNonce = await retrySafeApi(() =>
+      this.safeService.getNextNonce(this.safeAddress),
+    );
+    return parseInt(nextNonce, 10);
+  }
+
   // Helper function to propose individual transactions
-  private async proposeIndividualTransactions(calls: CallData[]) {
-    const nonce = SAFE_NONCE_OVERRIDES[this.chain];
-    for (const call of calls) {
+  private async proposeIndividualTransactions(
+    calls: CallData[],
+  ): Promise<string[]> {
+    const baseNonce = await this.resolveBaseNonce();
+    const hashes: string[] = [];
+    for (const [i, call] of calls.entries()) {
       const safeTransactionData = createSafeTransactionData(call);
       const safeTransaction = await createSafeTransaction(
         this.safeSdk,
         [safeTransactionData],
         undefined,
-        nonce,
+        baseNonce + i,
       );
-      await this.proposeSafeTransaction(
-        this.safeSdk,
-        this.safeService,
-        safeTransaction,
+      hashes.push(
+        await this.proposeSafeTransaction(
+          this.safeSdk,
+          this.safeService,
+          safeTransaction,
+        ),
       );
     }
+    return hashes;
   }
 
   // Helper function to propose a multi-send transaction
-  private async proposeMultiSendTransaction(calls: CallData[]) {
-    const nonce = SAFE_NONCE_OVERRIDES[this.chain];
+  private async proposeMultiSendTransaction(
+    calls: CallData[],
+  ): Promise<string[]> {
+    const nonce = await this.resolveBaseNonce();
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
     );
@@ -135,11 +158,12 @@ export class SafeMultiSend extends MultiSend {
       true,
       nonce,
     );
-    await this.proposeSafeTransaction(
+    const hash = await this.proposeSafeTransaction(
       this.safeSdk,
       this.safeService,
       safeTransaction,
     );
+    return [hash];
   }
 
   // Helper function to propose a safe transaction
@@ -147,9 +171,9 @@ export class SafeMultiSend extends MultiSend {
     safeSdk: Safe.default,
     safeService: SafeApiKit.default,
     safeTransaction: SafeTransaction,
-  ) {
+  ): Promise<string> {
     const signer = this.multiProvider.getSigner(this.chain);
-    await proposeSafeTransaction(
+    return proposeSafeTransaction(
       this.chain,
       safeSdk,
       safeService,

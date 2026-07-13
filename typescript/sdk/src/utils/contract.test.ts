@@ -2,7 +2,10 @@ import { expect } from 'chai';
 
 import { missingSelectorError, wrappedError } from '../test/errors.js';
 
-import { isMissingSelectorCallException } from './contract.js';
+import {
+  isMissingSelectorCallException,
+  isMissingSelectorRevert,
+} from './contract.js';
 
 describe('contract utils', () => {
   describe('isMissingSelectorCallException', () => {
@@ -32,6 +35,9 @@ describe('contract utils', () => {
           new Error('Invalid response from provider'),
         ),
       ).to.equal(true);
+      expect(
+        isMissingSelectorRevert(new Error('Invalid response from provider')),
+      ).to.equal(false);
     });
 
     it('matches SmartProvider-wrapped empty provider responses', () => {

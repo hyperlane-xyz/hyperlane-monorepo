@@ -23,12 +23,6 @@
   "mantle": {
     "router": "0xf4368751f99127F052AFa993aEc3C6393AcA5466"
   },
-  "zoramainnet": {
-    "router": "0x8028d4f11d10730B12Ae011474F9db8140F112F4"
-  },
-  "scroll": {
-    "router": "0xc0faBF14f8ad908b2dCE4C8aA2e7c1a6bD069957"
-  },
   "ethereum": {
     "router": "0x64D9b639aE85a1e436c1752889c5C40699f3887C"
   },
@@ -47,9 +41,6 @@
   "zetachain": {
     "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
   },
-  "redstone": {
-    "router": "0x49bF21531991742b0c1797230758992769771CcD"
-  },
   "sei": {
     "router": "0x97aa7b7501FA0fe66649DE7394b9794fa40aEF02"
   },
@@ -64,9 +55,6 @@
   },
   "zircuit": {
     "router": "0xA5f471A19fdB367Ea80c4c82ecd30eA94090d549"
-  },
-  "everclear": {
-    "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
   },
   "morph": {
     "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"

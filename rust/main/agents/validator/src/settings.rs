@@ -142,7 +142,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("interval")
             .parse_u64()
             .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(5));
+            .unwrap_or(Duration::from_secs(2));
 
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
@@ -192,8 +192,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
-        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+        // Tron and Ethereum both use secp256k1 keys, so the validator attestation
+        // signer can double as the origin chain signer (used for self-announce txs).
+        if matches!(
+            origin_chain.domain_protocol(),
+            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Tron
+        ) {
             if let Some(origin) = base.chains.get_mut(&origin_chain) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }

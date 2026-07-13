@@ -4,6 +4,8 @@ import { it } from 'mocha';
 
 import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+
+import { supportsFeeConfig } from '../version/version-query.js';
 import type {
   DeployedWarpAddress,
   RawNativeWarpArtifactConfig,
@@ -73,6 +75,8 @@ export function defineWarpTokenTests(
     expect(onChain.config.hook).to.be.undefined;
     expect(onChain.config.interchainSecurityModule).to.be.undefined;
     expect(onChain.config.scale).to.equal(testScale);
+    expect(onChain.config.contractVersion).to.be.a('string');
+    expect(supportsFeeConfig(onChain.config.contractVersion)).to.equal(true);
   });
 
   it('should deploy with IGP and ISM configured and read them back', async () => {

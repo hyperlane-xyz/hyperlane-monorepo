@@ -7,7 +7,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -42,6 +41,7 @@ import {
   writableSigner,
 } from '../instructions/utils.js';
 import { deriveAtaPayerPda, deriveSyntheticMintPda } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type {
   AnnotatedSvmTransaction,
   SvmInstruction,
@@ -49,8 +49,13 @@ import type {
   SvmRpc,
 } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
+import {
+  fetchSyntheticTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -162,17 +167,17 @@ function createInitializeMetadataInstruction(
 
 export class SvmSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchSyntheticTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Synthetic token not initialized at ${programId}`,
@@ -190,6 +195,12 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
 
     const { address: mintPda } = await deriveSyntheticMintPda(programId);
     const metadata = await fetchMintMetadata(this.rpc, mintPda);
+
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
 
     const config: RawSyntheticWarpArtifactConfig = {
       type: TokenType.synthetic,
@@ -214,19 +225,30 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       decimals: token.decimals,
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
 
 export class SvmSyntheticTokenWriter
   extends SvmSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -240,7 +262,7 @@ export class SvmSyntheticTokenWriter
     artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -365,6 +387,7 @@ export class SvmSyntheticTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
@@ -381,7 +404,7 @@ export class SvmSyntheticTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawSyntheticWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
@@ -392,13 +415,38 @@ export class SvmSyntheticTokenWriter
       `Cannot update synthetic token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    let upgradingToVersion: string | undefined;
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `synthetic token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.rpc,
       `synthetic token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
+      upgradingToVersion,
     );
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

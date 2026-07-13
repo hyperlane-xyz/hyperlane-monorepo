@@ -207,6 +207,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
                 self.tx_submitter.clone(),
                 self.conn.priority_fee_oracle.create_oracle(),
                 None, // ALT not used for validator announce
+                &[],  // no additional signers
             )
             .await?;
 

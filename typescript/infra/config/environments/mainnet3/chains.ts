@@ -66,6 +66,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 export const tokenPriceOverrides: ChainMap<string> = {
   incentiv: '0.003',
   krown: '0.0015',
+  tea: '10',
+  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -86,19 +88,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
-  polygonzkevm: {
-    transactionOverrides: {
-      gasPrice: 1 * 10 ** 9, // 1 gwei
-    },
-  },
-  scroll: {
-    transactionOverrides: {
-      // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
-      // too low for the transaction to be included in a reasonable amount of time -
-      // this often leads to transaction underpriced issues.
-      gasPrice: 2 * 10 ** 8, // 0.2 gwei
-    },
-  },
   sei: {
     // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
     // so we force legacy transactions by setting a gas price.
@@ -107,22 +96,31 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 101 * 10 ** 9, // 101 gwei
     },
   },
-  moonbeam: {
-    transactionOverrides: {
-      maxFeePerGas: 350 * 10 ** 9, // 350 gwei
-      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-    },
-  },
   morph: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
+  // nexus: {
+  //   transactionOverrides: {
+  //     gasPrice: 2 * 10 ** 9, // 2 gwei
+  //   },
+  // },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //   },
+  // },
+  // immutablezkevmmainnet: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
+  // xrplevm: {
+  //   blocks: {
+  //     confirmations: 5,
   //   },
   // },
   // xlayer: {
@@ -147,12 +145,17 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
   // unichain: {
   //   blocks: {
-  //     confirmations: 8,
+  //     confirmations: 5,
   //   },
   // },
   // optimism: {
   //   blocks: {
   //     confirmations: 5,
+  //   },
+  // },
+  // prom: {
+  //   blocks: {
+  //     confirmations: 3,
   //   },
   // },
 };

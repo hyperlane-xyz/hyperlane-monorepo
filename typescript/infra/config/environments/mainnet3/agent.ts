@@ -4,6 +4,7 @@ import {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  AgentSealevelUrReveal,
   ChainMap,
   ChainName,
   GasPaymentEnforcement,
@@ -45,14 +46,16 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
@@ -73,13 +76,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     apechain: true,
     appchain: true,
     arbitrum: true,
-    arbitrumnova: false,
     arcadia: true,
     artela: false,
     astar: true,
-    aurora: false,
     avalanche: true,
-    b3: false,
     base: true,
     berachain: true,
     bitlayer: true,
@@ -97,27 +97,21 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     coredao: true,
     coti: true,
     cyber: true,
-    degenchain: false,
-    dogechain: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
     ethereum: true,
-    everclear: false,
-    fantom: false,
     flare: true,
     fluent: true,
     flowmainnet: true,
-    fluence: false,
     forma: false, // relayer + scraper only
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
     gnosis: true,
     gravity: true,
-    harmony: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
@@ -133,7 +127,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -141,20 +135,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantra: true,
     matchain: true,
     megaeth: true,
-    merlin: false,
     metal: true,
     metis: true,
-    milkyway: false,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
     molten: false,
     monad: true,
-    moonbeam: false,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -167,16 +159,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     plume: true,
     polygon: true,
-    polygonzkevm: false,
-    polynomialfi: false,
     prom: true,
     pulsechain: true,
     radix: true,
     rarichain: true,
     reactive: true,
-    redstone: true,
+    robinhood: true,
     ronin: true,
-    scroll: true,
     sei: true,
     shibarium: true,
     solanamainnet: true,
@@ -189,16 +178,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sophon: true,
     stable: true,
     starknet: true,
-    story: false,
     stride: false,
     subtensor: true,
     superseed: true,
-    superpositionmainnet: false,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
-    taiko: true,
-    tangle: false,
-    torus: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -212,7 +198,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zetachain: true,
     zircuit: true,
     zksync: true,
-    zoramainnet: false,
   },
   [Role.Relayer]: {
     abstract: true,
@@ -224,12 +209,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     appchain: true,
     arcadia: true,
     arbitrum: true,
-    arbitrumnova: false,
     artela: false,
     astar: true,
-    aurora: false,
     avalanche: true,
-    b3: false,
     base: true,
     berachain: true,
     bitlayer: true,
@@ -247,27 +229,21 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     coredao: true,
     coti: true,
     cyber: true,
-    degenchain: false,
-    dogechain: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
     ethereum: true,
-    everclear: false,
-    fantom: false,
     flare: true,
     fluent: true,
     flowmainnet: true,
-    fluence: false,
     forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
     gnosis: true,
     gravity: true,
-    harmony: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
@@ -283,7 +259,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -291,20 +267,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantra: true,
     matchain: true,
     megaeth: true,
-    merlin: false,
     metal: true,
     metis: true,
-    milkyway: false,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
     molten: false,
     monad: true,
-    moonbeam: false,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -317,16 +291,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     plume: true,
     polygon: true,
-    polygonzkevm: false,
-    polynomialfi: false,
     prom: true,
     pulsechain: true,
     radix: true,
     rarichain: true,
     reactive: true,
-    redstone: true,
+    robinhood: true,
     ronin: true,
-    scroll: true,
     sei: true,
     shibarium: true,
     solanamainnet: true,
@@ -339,16 +310,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sophon: true,
     stable: true,
     starknet: true,
-    story: false,
     stride: true,
     subtensor: true,
     superseed: true,
-    superpositionmainnet: false,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
-    taiko: true,
-    tangle: false,
-    torus: true,
+    taiko: false, // temporarily disabled out of caution (Taiko network incident)
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -362,7 +330,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zetachain: true,
     zircuit: true,
     zksync: true,
-    zoramainnet: false,
   },
   [Role.Scraper]: {
     abstract: true,
@@ -373,13 +340,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     apechain: true,
     appchain: true,
     arbitrum: true,
-    arbitrumnova: false,
     arcadia: true,
     artela: false,
     astar: true,
-    aurora: false,
     avalanche: true,
-    b3: false,
     base: true,
     berachain: true,
     bitlayer: true,
@@ -397,27 +361,21 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     coredao: true,
     coti: true,
     cyber: true,
-    degenchain: false,
-    dogechain: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
     ethereum: true,
-    everclear: false,
-    fantom: false,
     flare: true,
     fluent: true,
     flowmainnet: true,
-    fluence: false,
     forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
     gnosis: true,
     gravity: true,
-    harmony: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
@@ -433,7 +391,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lazai: true,
     linea: true,
     lisk: true,
-    litchain: true,
+    litchain: false,
     lukso: true,
     lumiaprism: true,
     mantapacific: true,
@@ -441,20 +399,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantra: true,
     matchain: true,
     megaeth: true,
-    merlin: false,
     metal: true,
     metis: true,
-    milkyway: false,
-    miraclechain: true,
+    miraclechain: false, // disabled — Miraclechain network sunset 2026-06-30
     mitosis: true,
     mocachain: true,
     mode: true,
     molten: false,
     monad: true,
-    moonbeam: false,
     morph: true,
     nesa: true,
-    neutron: true,
+    neutron: false,
+    nexus: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -467,16 +423,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     plume: true,
     polygon: true,
-    polygonzkevm: false,
-    polynomialfi: false,
     prom: true,
     pulsechain: true,
     radix: true,
     rarichain: true,
     reactive: true,
-    redstone: true,
+    robinhood: true,
     ronin: true,
-    scroll: true,
     sei: true,
     shibarium: true,
     solanamainnet: true,
@@ -489,16 +442,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sophon: true,
     stable: true,
     starknet: true,
-    story: false,
     stride: true,
     subtensor: true,
     superseed: true,
-    superpositionmainnet: false,
-    swell: true,
+    swell: false, // disabled — Swell network sunset 2026-06-30
     tac: true,
     taiko: true,
-    tangle: false,
-    torus: true,
+    tea: true,
     tron: true,
     unichain: true,
     vana: true,
@@ -513,7 +463,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zetachain: true,
     zircuit: true,
     zksync: true,
-    zoramainnet: false,
   },
 };
 
@@ -577,6 +526,18 @@ const sealevelTransactionSubmitterConfigGetter = (
   };
 };
 
+const sealevelUrRevealConfigGetter = (
+  chain: ChainName,
+): AgentSealevelUrReveal => {
+  if (chain === 'solanamainnet') {
+    return {
+      ccsUrl: 'https://offchain-lookup.services.hyperlane.xyz/callCommitments',
+      programId: '2CttnaLkYbNHbaFDFnQ8PMCnzUwTGrKnskBxPM4TRWGp',
+    };
+  }
+  return undefined;
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -587,6 +548,7 @@ const contextBase = {
   sealevel: {
     priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
     transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
+    urRevealConfigGetter: sealevelUrRevealConfigGetter,
   },
 } as const;
 
@@ -659,14 +621,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
-      // Temporary workaround due to funky Torus gas amounts.
-      { destinationDomain: getDomainId('torus') },
       // Not a core chain
       { destinationDomain: getDomainId('forma') },
       // Temporary workaround due to funky Zeronetwork gas amounts.
       { destinationDomain: getDomainId('zeronetwork') },
-      // Temporary workaround during testing of MilkyWay.
-      { originDomain: getDomainId('milkyway') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
@@ -768,12 +726,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // more poorly documented.
       name: 'aave',
       matchingList: senderMatchingList(aaveSenderAddresses),
-    },
-    {
-      // https://docs.everclear.org/resources/contracts/mainnet
-      // Messages between HubGateway (Everclear hub) <> EverclearSpoke (all other spoke chains)
-      name: 'everclear_gateway',
-      matchingList: senderMatchingList(everclearSenderAddresses),
     },
     // Manually specified for now until things are public
     {
@@ -945,7 +897,8 @@ const hyperlane: RootAgentConfig = {
       port: 8900,
       rateLimitMaxRequests: 100,
       rateLimitWindowSecs: 60,
-      corsOrigins: 'https://nexus.hyperlane.xyz',
+      corsOrigins:
+        'https://nexus.hyperlane.xyz,https://hyperlane-warp-template-git-xaroz-swap-form-abacus-works.vercel.app',
     },
     resources: relayerResources,
   },
@@ -1081,17 +1034,45 @@ const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
     '0xA9C9a8FB36Ce3e5ffBAC3757dA7141262723541F', // USDC
     '0xeB1b48b238E15A62e1858a601B6BfFdf41163AE3', // USDT
   ],
+  polygon: [
+    '0x28a96f9928dB06317356caACd5641C4Fde4424C7', // USDC
+    '0x766A80a7a6BBA555731DC1726DB5BFa030631270', // USDT
+  ],
+  bsc: [
+    '0x6E66a10Ce72fBdFA45Ab7de3693321246E254123', // USDC
+    '0x050dcc964BCA53eF1A98A2347995cabC73cE25b9', // USDT
+  ],
+  katana: [
+    '0x936e8A1fBD8317Be59A9B8924a300993c8Bf7ce6', // USDC
+    '0x0b51aFdd3F43446a621C555B16A1cb781D8443Ad', // USDT
+  ],
 });
 
 const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
   contextChainNames: {
-    validator: [],
-    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    validator: [
+      'arbitrum',
+      'base',
+      'bsc',
+      'citrea',
+      'ethereum',
+      'katana',
+      'polygon',
+    ],
+    relayer: [
+      'arbitrum',
+      'base',
+      'bsc',
+      'citrea',
+      'ethereum',
+      'katana',
+      'polygon',
+    ],
     scraper: [],
   },
-  rolesWithKeys: [Role.Relayer],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -1105,12 +1086,21 @@ const fastPath: RootAgentConfig = {
     ],
     blacklist,
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { ethereum: 1 },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,
     cache: {
       enabled: true,
     },
     resources: fastPathRelayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validatorFastPath,
+    },
+    chains: validatorChainConfig(Contexts.FastPath),
+    resources: validatorResources,
   },
 };
 

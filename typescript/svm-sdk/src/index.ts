@@ -37,6 +37,32 @@ export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/mu
 export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 
 // Low-level instruction builders
+export {
+  getCloseIgpStandingQuoteInstruction,
+  getCloseIgpTransientQuoteInstruction,
+  getGetIgpQuoteAccountMetasInstruction,
+  getSetIgpMinIssuedAtInstruction,
+  getSetIgpQuoteConfigInstruction,
+  getSetIgpQuoteSignerInstruction,
+  getSubmitIgpQuoteInstruction,
+  simulateIgpQuoteAccountMetas,
+} from './instructions/igp.js';
+export {
+  getGetQuoteAccountMetasInstruction,
+  getGetSubmitQuoteAccountMetasInstruction,
+  getSubmitQuoteInstruction,
+  simulateFeeQuoteAccountMetas,
+  simulateSubmitQuoteAccountMetas,
+} from './instructions/fee.js';
+export type {
+  GetQuoteAccountMetasInput,
+  GetSubmitQuoteAccountMetasInput,
+} from './instructions/fee.js';
+export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
+export {
+  simulateInstructionAccountMetas,
+  simulateInstructionForReturnData,
+} from './simulation.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
@@ -112,13 +138,46 @@ export {
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
+  deriveIgpQuoteAuthorityPda,
+  deriveIgpStandingQuotePda,
+  deriveIgpTransientQuotePda,
   deriveOverheadIgpAccountPda,
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
   deriveReplayProtectionPda,
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
+  deriveMailboxDispatchedMessagePda,
+  deriveIgpGasPaymentPda,
+  deriveFeeTransientQuotePda,
 } from './pda.js';
+
+// Warp token transfer-remote instruction builders
+export {
+  buildFeeTransferRemoteSectionAccounts,
+  buildIgpTransferRemoteSectionAccounts,
+  getTokenTransferRemoteInstruction,
+} from './instructions/token.js';
+export type {
+  FeeTransferRemoteSection,
+  IgpQuotedExtension,
+  IgpTransferRemoteSection,
+  TransferRemoteInstructionData,
+} from './instructions/token.js';
+export { getCrossCollateralTransferRemoteToInstruction } from './instructions/cross-collateral-token.js';
+export type { TransferRemoteToInstructionData } from './instructions/cross-collateral-token.js';
+
+// Address Lookup Table reader / writer pair. Wraps the on-chain ALT
+// program account behind the same ArtifactReader / ArtifactWriter
+// contract used by other SVM artifacts.
+export {
+  SvmAddressLookupTableReader as SealevelAddressLookupTableReader,
+  SvmAddressLookupTableWriter as SealevelAddressLookupTableWriter,
+} from './alt/address-lookup-table.js';
+export type {
+  SvmAltConfig as SealevelAltConfig,
+  SvmDeployedAlt as SealevelDeployedAlt,
+} from './alt/address-lookup-table.js';
 
 // Account decoders
 export {
@@ -127,6 +186,19 @@ export {
   decodeIgpAccount,
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
+export {
+  decodeIgpStandingQuoteAccount,
+  decodeIgpTransientQuoteAccount,
+  WILDCARD_DOMAIN,
+  WILDCARD_SENDER,
+} from './codecs/igp.js';
+export type { SvmSignedQuote } from './codecs/fee.js';
+export type {
+  GetIgpQuoteAccountMetasInput,
+  IgpFeeConfig,
+  IgpStandingQuoteData,
+  IgpTransientQuoteData,
+} from './codecs/igp.js';
 export {
   decodeMultisigIsmAccessControlAccount,
   decodeMultisigIsmDomainDataAccount,
@@ -148,3 +220,15 @@ export {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
+export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
+
+// Warp Address Lookup Table support
+export {
+  createWarpAltManager,
+  createWarpAltReader,
+} from './alt/warp-alt-manager.js';
+
+// Fee program
+export { SvmFeeArtifactManager } from './fee/fee-artifact-manager.js';
+export { DEFAULT_FEE_SALT, deriveFeeSalt } from './fee/types.js';
+export type { SvmDeployedFee } from './fee/types.js';

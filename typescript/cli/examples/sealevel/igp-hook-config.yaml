@@ -1,0 +1,13 @@
+type: interchainGasPaymaster
+owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+beneficiary: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+oracleKey: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+overhead:
+  svmlocal1: 50000
+oracleConfig:
+  svmlocal1:
+    gasPrice: '1'
+    tokenExchangeRate: '1000000000000000000'
+contractVersion: '1.0.0'
+quoteSigners:
+  - '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

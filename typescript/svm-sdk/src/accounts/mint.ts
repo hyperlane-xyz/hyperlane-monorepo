@@ -1,4 +1,5 @@
 import {
+  type Address,
   address as parseAddress,
   fetchEncodedAccount,
   getAddressDecoder,
@@ -7,11 +8,12 @@ import {
   getUtf8Encoder,
 } from '@solana/kit';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ByteCursor } from '../codecs/binary.js';
 import {
   METAPLEX_METADATA_PROGRAM_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
 import type { SvmRpc } from '../types.js';
@@ -198,4 +200,27 @@ export async function fetchMintMetadata(
   }
 
   return { name: 'Unknown Token', symbol: 'UNKNOWN', decimals };
+}
+
+/**
+ * Reads the on-chain mint account and returns the owning token
+ * program — either the classic SPL Token program or Token-2022.
+ * Throws if the mint doesn't exist or is owned by some other program.
+ */
+export async function fetchMintTokenProgram(
+  rpc: SvmRpc,
+  mint: Address,
+): Promise<Address> {
+  const mintInfo = await rpc
+    .getAccountInfo(mint, { encoding: 'base64' })
+    .send();
+  assert(!isNullish(mintInfo.value), `Mint account not found: ${mint}`);
+
+  const owner = mintInfo.value.owner;
+  assert(
+    owner === SPL_TOKEN_PROGRAM_ADDRESS || owner === TOKEN_2022_PROGRAM_ADDRESS,
+    `Mint ${mint} is not owned by SPL Token or Token-2022 (owner: ${owner})`,
+  );
+
+  return owner;
 }

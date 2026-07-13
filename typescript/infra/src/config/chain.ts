@@ -60,12 +60,42 @@ export function getDisabledChains(): ChainName[] {
     .map(([name]) => name);
 }
 
+// Chains that should keep the legacy IGP path. Deploy flows should recover
+// existing IGP deployments and skip latest-only contracts on these chains.
+// Disabled chains are included so operations never try to auto-heal them from
+// legacy recover-only deployments to latest IGP deployments while disabled.
+export const legacyIgpChains: ChainName[] = Array.from(
+  new Set([
+    'arcadia',
+    'chilizmainnet',
+    'coti',
+    'electroneum',
+    'incentiv',
+    'metis',
+    'ontology',
+    'taiko',
+    'torus',
+
+    // Keep chains with repeatedly unreliable deployment/proposal execution on
+    // legacy IGP for now.
+    'astar',
+    'krown',
+    'prom',
+    'pulsechain',
+    'sei',
+    'viction',
+    'xrplevm',
+    ...getDisabledChains(),
+  ]),
+);
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
+  'eden',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
@@ -73,7 +103,13 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
-  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
+  // Swell network sunset 2026-06-30 (registry marks it disabled; kept explicit
+  // until the pinned .registryrc is bumped past the disable commit).
+  'swell',
+
+  // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
+  // pinned registry, so kept explicit here.
+  'miraclechain',
 
   ...getDisabledChains(),
 ];

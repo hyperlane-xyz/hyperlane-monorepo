@@ -18,7 +18,7 @@ import {
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { stubMerkleTreeConfig } from '../utils/relay.js';
+import { logDeliveryTime, stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function sendTestMessage({
   context,
@@ -159,6 +159,14 @@ async function executeDelivery({
       log('Attempting self-relay of message');
       await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');
+      await logDeliveryTime(
+        origin,
+        destination,
+        dispatchTx.blockNumber,
+        message.id,
+        chainAddresses,
+        multiProvider,
+      );
     } else {
       if (skipWaitForDelivery) {
         return;
@@ -168,6 +176,14 @@ async function executeDelivery({
       // Max wait 10 minutes
       await core.waitForMessageProcessed(dispatchTx, 10000, 60);
       logGreen('Message was delivered!');
+      await logDeliveryTime(
+        origin,
+        destination,
+        dispatchTx.blockNumber,
+        message.id,
+        chainAddresses,
+        multiProvider,
+      );
     }
   } catch (e) {
     errorRed(
