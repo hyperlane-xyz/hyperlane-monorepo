@@ -30,7 +30,6 @@ import {
   type SvmFeeQuoteContextInput,
   type SvmSignedQuote,
   WILDCARD_AMOUNT,
-  WILDCARD_RECIPIENT,
   encodeFeeDataStrategy,
   encodeSvmFeeQuoteContext,
   encodeSvmIgpQuoteContext,
@@ -39,6 +38,7 @@ import {
   isSealevelDeployedIgpHook,
   isSealevelDeployedWarpAddress,
   signSvmQuote,
+  wildcardRecipient,
 } from '@hyperlane-xyz/sealevel-sdk';
 import {
   assert,
@@ -219,7 +219,7 @@ export class SvmQuoteService implements IProtocolQuoteService {
     // user's recipient there.
     const recipientForSigning =
       req.binding.kind === QuoteMode.STANDING
-        ? WILDCARD_RECIPIENT
+        ? wildcardRecipient()
         : hexToBytes(req.recipient);
 
     const resolved = resolveSvmWarpQuote(

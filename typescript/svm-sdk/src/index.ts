@@ -211,7 +211,7 @@ export type { SvmFeeQuoteContextInput, SvmSignedQuote } from './codecs/fee.js';
 export {
   encodeSvmFeeQuoteContext,
   WILDCARD_AMOUNT,
-  WILDCARD_RECIPIENT,
+  wildcardRecipient,
 } from './codecs/fee.js';
 export type {
   SvmIgpQuoteContextInput,

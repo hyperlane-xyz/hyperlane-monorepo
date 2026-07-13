@@ -96,8 +96,13 @@ export function decodeBTreeSetH160(cursor: ByteCursor): string[] {
  * signed `recipient` slot equals this value, the on-chain context-match check
  * skips the equality test and accepts any recipient. Mirrors EVM's
  * `_matchesTransient` wildcard pattern.
+ *
+ * Returns a fresh array on each call so the shared sentinel can't be mutated
+ * by a consumer.
  */
-export const WILDCARD_RECIPIENT: Uint8Array = new Uint8Array(32).fill(0xff);
+export function wildcardRecipient(): Uint8Array {
+  return new Uint8Array(32).fill(0xff);
+}
 
 /**
  * Wildcard amount sentinel — `u64::MAX` on-chain. Offchain signers use this
