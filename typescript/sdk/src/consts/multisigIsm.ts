@@ -419,7 +419,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celestia: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x6dbc192c06907784fb0af0c0c2d8809ea50ba675',
@@ -599,7 +599,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   eden: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x1c61e6379443e2842d3e9db28e962b6c717fdab1',
@@ -1124,7 +1124,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantapacific: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc',
@@ -1370,7 +1370,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   neutron: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
@@ -1965,7 +1965,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   stride: {
-    threshold: 6,
+    threshold: 5,
     validators: [
       {
         address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
