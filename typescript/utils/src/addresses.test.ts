@@ -108,13 +108,49 @@ describe('Address utilities', () => {
         ),
       ).to.equal(STARKNET_NON_ZERO_ADDR);
     });
-    it('Rejects zeroish addresses', () => {
+    it('Decodes all-zero bytes to the protocol zero address', () => {
+      // Scraper / on-chain data sometimes carries zero-byte addresses (e.g.
+      // unset destination_tx_sender). The decoder must format them rather
+      // than throw, leaving zero-address rejection to the transfer
+      // construction path (`addressToBytes`).
+      expect(
+        bytesToProtocolAddress(new Uint8Array(20), ProtocolType.Ethereum),
+      ).to.equal(ETH_ZERO_ADDR);
+      expect(
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Starknet),
+      ).to.equal(STARKNET_ZERO_ADDR);
+      // Sealevel is the only converter that delegates to an external library
+      // (`PublicKey` from `@solana/web3.js`). Lock in current behavior so a
+      // future `web3.js` bump can't silently regress to throwing on zero bytes.
+      expect(
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Sealevel),
+      ).to.equal('11111111111111111111111111111111');
+      // Remaining converters: exact zero-byte output is protocol-specific
+      // (bech32/bech32m of zero bytes is not the same as the placeholder
+      // zero-address strings used elsewhere), so just assert "does not throw".
       expect(() =>
         bytesToProtocolAddress(
-          new Uint8Array([0, 0, 0]),
-          ProtocolType.Ethereum,
+          new Uint8Array(20),
+          ProtocolType.Cosmos,
+          COSMOS_PREFIX,
         ),
-      ).to.throw(Error);
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(
+          new Uint8Array(32),
+          ProtocolType.CosmosNative,
+          COSMOS_PREFIX,
+        ),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(30), ProtocolType.Radix, 'rdx'),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Aleo),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(20), ProtocolType.Tron),
+      ).to.not.throw();
     });
   });
 

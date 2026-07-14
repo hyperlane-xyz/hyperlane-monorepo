@@ -152,6 +152,10 @@ export class EvmNativeTokenAdapter
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
+    assert(
+      !isZeroishAddress(recipient),
+      `Refusing to construct EVM native transfer to zero address (${recipient})`,
+    );
     const value = BigNumber.from(weiAmountOrId.toString());
     return { value, to: toEvmAddress(recipient) };
   }
@@ -224,6 +228,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
+    assert(
+      !isZeroishAddress(recipient),
+      `Refusing to approve to zero address (${recipient})`,
+    );
     return this.contract.populateTransaction.approve(
       toEvmAddress(recipient),
       weiAmountOrId.toString(),
@@ -234,6 +242,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
+    assert(
+      !isZeroishAddress(recipient),
+      `Refusing to construct ERC20 transfer to zero address (${recipient})`,
+    );
     return this.contract.populateTransaction.transfer(
       toEvmAddress(recipient),
       weiAmountOrId.toString(),
