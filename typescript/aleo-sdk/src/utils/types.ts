@@ -72,6 +72,7 @@ interface BaseAleoWarpTokenConfig {
 
 export interface AleoNativeWarpTokenConfig extends BaseAleoWarpTokenConfig {
   type: AleoTokenType.NATIVE;
+  scale?: number;
 }
 
 export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {

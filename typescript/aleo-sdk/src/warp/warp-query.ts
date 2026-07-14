@@ -123,6 +123,19 @@ export function localRemoteDecimalsToScale(
 }
 
 /**
+ * Converts hyp_native's on-chain `scale` field — a base-10 exponent (see
+ * `pow 10u64 r0.scale` in the hyp_native program) — into the SDK's scale
+ * multiplier convention used elsewhere (undefined for identity, i.e.
+ * exponent 0).
+ */
+export function nativeScaleExponentToMultiplier(
+  exponent: number | undefined,
+): number | undefined {
+  if (isNullish(exponent) || exponent === 0) return undefined;
+  return Math.pow(10, exponent);
+}
+
+/**
  * Query token metadata from an ARC-20 token program via its view functions.
  */
 export async function getArc20TokenMetadata(
@@ -326,6 +339,9 @@ interface AleoWarpTokenMetadata {
   // field, not a local/remote decimals pair) and never have these.
   local_decimals?: number;
   remote_decimals?: number;
+  // Native-only: base-10 exponent (see nativeScaleExponentToMultiplier).
+  // Collateral/synthetic tokens never have this field.
+  scale?: number;
 }
 
 async function getWarpTokenMetadata(
@@ -361,6 +377,7 @@ async function getWarpTokenMetadata(
   const tokenId = metadata['token_id'];
   const localDecimals = metadata['local_decimals'];
   const remoteDecimals = metadata['remote_decimals'];
+  const scale = metadata['scale'];
 
   assert(
     typeof tokenType === 'number',
@@ -390,6 +407,10 @@ async function getWarpTokenMetadata(
     isNullish(remoteDecimals) || typeof remoteDecimals === 'number',
     `Expected remote_decimals field to be a number in app_metadata for token ${tokenAddress} but got ${typeof remoteDecimals}`,
   );
+  assert(
+    isNullish(scale) || typeof scale === 'number',
+    `Expected scale field to be a number in app_metadata for token ${tokenAddress} but got ${typeof scale}`,
+  );
 
   return {
     token_type: tokenType,
@@ -399,6 +420,7 @@ async function getWarpTokenMetadata(
     token_id: tokenId,
     local_decimals: localDecimals,
     remote_decimals: remoteDecimals,
+    scale,
   };
 }
 
@@ -499,6 +521,8 @@ export async function getNativeWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
+  const scale = nativeScaleExponentToMultiplier(metadata.scale);
+
   return {
     type: AleoTokenType.NATIVE,
     owner: metadata.token_owner,
@@ -506,6 +530,7 @@ export async function getNativeWarpTokenConfig(
     ism,
     hook,
     remoteRouters,
+    scale,
   };
 }
 

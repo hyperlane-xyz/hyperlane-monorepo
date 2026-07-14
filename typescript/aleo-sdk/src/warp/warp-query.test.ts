@@ -7,6 +7,7 @@ import { isArc20ProgramId, isV2WarpToken } from '../utils/helper.js';
 import {
   getArc20TokenMetadata,
   localRemoteDecimalsToScale,
+  nativeScaleExponentToMultiplier,
   parseAleoUint,
   parseViewFunctionOutputs,
 } from './warp-query.js';
@@ -40,6 +41,20 @@ describe('localRemoteDecimalsToScale', () => {
 
   it('scales down when remote decimals are fewer than local decimals', () => {
     expect(localRemoteDecimalsToScale(18, 6)).to.equal(1e-12);
+  });
+});
+
+describe('nativeScaleExponentToMultiplier', () => {
+  it('returns undefined for an identity exponent (0)', () => {
+    expect(nativeScaleExponentToMultiplier(0)).to.equal(undefined);
+  });
+
+  it('returns undefined when the exponent is unavailable', () => {
+    expect(nativeScaleExponentToMultiplier(undefined)).to.equal(undefined);
+  });
+
+  it('converts a positive exponent to the equivalent power-of-10 multiplier', () => {
+    expect(nativeScaleExponentToMultiplier(6)).to.equal(1_000_000);
   });
 });
 

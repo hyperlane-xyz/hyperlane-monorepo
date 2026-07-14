@@ -255,15 +255,21 @@ function normalizeCrossCollateralRouterAddress(address: string): string {
 }
 
 // SVM cross-collateral readers always include `crossCollateralRouters` (even
-// as `{}` when nothing is enrolled), but the expected side only sets it when
-// the deploy config specifies it -- normalize both sides so an empty map is
-// equivalent to omitted, rather than diffing `{}` against `undefined`.
+// as `{}`, or with a chain key mapped to `[]`, when nothing is enrolled for
+// that chain), but the expected side only sets a chain entry when the deploy
+// config actually enrolls a router there -- normalize both sides so an empty
+// map, or a map whose entries are all empty, is equivalent to omitted, rather
+// than diffing it against `undefined`.
 function normalizeCrossCollateralRouters(
   routers: Record<string, string[]> | undefined,
 ): Record<string, string[]> | undefined {
   if (!routers) return undefined;
-  const normalized = objMap(routers, (_chain, addresses) =>
-    [...addresses].map(normalizeCrossCollateralRouterAddress).sort(),
+  const normalized = Object.fromEntries(
+    Object.entries(
+      objMap(routers, (_chain, addresses) =>
+        [...addresses].map(normalizeCrossCollateralRouterAddress).sort(),
+      ),
+    ).filter(([, addresses]) => addresses.length > 0),
   );
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }

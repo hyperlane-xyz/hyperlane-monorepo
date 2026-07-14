@@ -6,7 +6,12 @@ import { zeroAddress } from 'viem';
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { test1, test2, testSealevelChain } from '../consts/testChains.js';
+import {
+  test1,
+  test2,
+  test3,
+  testSealevelChain,
+} from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -296,6 +301,39 @@ describe('derivedWarpConfigToCheckConfig', () => {
     );
 
     expect(result.crossCollateralRouters).to.equal(undefined);
+  });
+
+  it('treats a crossCollateralRouters map with only empty chain entries ({ chain: [] }) as omitted', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.equal(undefined);
+  });
+
+  it('drops empty chain entries but keeps non-empty ones in a mixed crossCollateralRouters map', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [],
+          [test3.name]: [ROUTER_B],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.deep.equal({
+      [test3.name]: [addressToBytes32(ROUTER_B).toLowerCase()],
+    });
   });
 });
 
