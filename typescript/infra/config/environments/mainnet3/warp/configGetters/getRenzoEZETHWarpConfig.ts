@@ -295,10 +295,6 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   worldchain: {
     threshold: 1,
     validators: [
-      {
-        address: '0x15c6aaf2d982651ea5ae5f080d0ddfe7d6545f19',
-        alias: 'Luganodes',
-      },
       { address: '0x650a1bcb489BE2079d82602c10837780ef6dADA8', alias: 'Renzo' },
     ],
   },
