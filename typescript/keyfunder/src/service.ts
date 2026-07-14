@@ -4,7 +4,9 @@ import { Wallet } from 'ethers';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
+  ProtocolType,
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
   rootLogger,
@@ -68,9 +70,26 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
-    multiProvider.setSharedSigner(signer);
-    logger.info('Initialized MultiProvider with signer');
+    // Tron's JSON-RPC rejects eth_sendRawTransaction, so Tron chains need a
+    // TronWallet (native HTTP wallet API) for the funding write path. Other
+    // chains use a standard ethers Wallet. setSharedSigner can't be mixed with
+    // per-chain signers, so wire every configured chain explicitly.
+    const evmSigner = new Wallet(privateKey);
+    const tronChains: string[] = [];
+    for (const chain of configuredChains) {
+      const metadata = chainMetadata[chain];
+      if (metadata.protocol === ProtocolType.Tron) {
+        const rpcUrl = metadata.rpcUrls[0].http;
+        multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrl));
+        tronChains.push(chain);
+      } else {
+        multiProvider.setSigner(chain, evmSigner);
+      }
+    }
+    logger.info(
+      { tronChains, totalChains: configuredChains.length },
+      'Initialized MultiProvider with per-chain signers',
+    );
 
     let igp: HyperlaneIgp | undefined;
     const igpEntries = Object.entries(config.chains)
