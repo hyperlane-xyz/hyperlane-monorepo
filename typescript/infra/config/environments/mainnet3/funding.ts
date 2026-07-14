@@ -91,6 +91,7 @@ export const keyFunderConfig: KeyFunderConfig<
     'litchain',
     'mantapacific',
     'miraclechain',
+    'mocachain',
     'molten',
     'neutron',
     'ontology',
