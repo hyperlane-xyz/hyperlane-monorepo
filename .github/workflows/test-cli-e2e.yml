@@ -549,6 +549,7 @@ jobs:
           - core-apply
           - core-composite-ism
           - hook-igp
+          - warp-alt
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply

@@ -1,6 +1,7 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
+import type { WarpCoreConfig } from '../../warp/types.js';
 
 import {
   SealevelHypCollateralAdapter,
@@ -18,6 +19,7 @@ import { SealevelHypCrossCollateralAdapter } from './SealevelCrossCollateralAdap
 export function createSealevelHypAdapter(
   multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
+  warpCoreOptions?: WarpCoreConfig['options'],
 ): IHypTokenAdapter<unknown> | undefined {
   const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
     token;
@@ -27,6 +29,7 @@ export function createSealevelHypAdapter(
   }
 
   const mailbox = multiProvider.getChainMetadata(chainName).mailbox;
+  const altAddresses = warpCoreOptions?.sealevel?.altAddresses?.[chainName];
 
   switch (standard) {
     case TokenStandard.SealevelHypNative:
@@ -34,6 +37,7 @@ export function createSealevelHypAdapter(
       return new SealevelHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         mailbox,
+        altAddresses,
       });
     case TokenStandard.SealevelHypCollateral:
       assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
@@ -45,6 +49,7 @@ export function createSealevelHypAdapter(
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,
+        altAddresses,
       });
     case TokenStandard.SealevelHypSynthetic:
       assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
@@ -56,6 +61,7 @@ export function createSealevelHypAdapter(
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,
+        altAddresses,
       });
     case TokenStandard.SealevelHypCrossCollateral:
       assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
@@ -67,6 +73,7 @@ export function createSealevelHypAdapter(
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,
+        altAddresses,
       });
     default:
       return undefined;
