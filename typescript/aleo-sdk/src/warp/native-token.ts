@@ -76,6 +76,7 @@ export class AleoNativeTokenReader implements ArtifactReader<
       remoteRouters,
       interchainSecurityModule,
       hook,
+      scale: token.scale,
     };
 
     return {

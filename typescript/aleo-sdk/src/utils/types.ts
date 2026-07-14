@@ -72,6 +72,7 @@ interface BaseAleoWarpTokenConfig {
 
 export interface AleoNativeWarpTokenConfig extends BaseAleoWarpTokenConfig {
   type: AleoTokenType.NATIVE;
+  scale?: number;
 }
 
 export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
@@ -80,6 +81,7 @@ export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
   name: string;
   symbol: string;
   decimals: number;
+  scale?: number;
 }
 
 export interface AleoSyntheticWarpTokenConfig extends BaseAleoWarpTokenConfig {
@@ -87,6 +89,7 @@ export interface AleoSyntheticWarpTokenConfig extends BaseAleoWarpTokenConfig {
   name: string;
   symbol: string;
   decimals: number;
+  scale?: number;
 }
 
 export type AleoWarpTokenConfig =
