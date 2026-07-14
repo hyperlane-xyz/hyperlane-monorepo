@@ -65,7 +65,13 @@
       "validatorAnnounce": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x25d668D37f20E6f396cB5DF1DFf5A3f2F568e707",
       "staticMessageIdWeightedMultisigIsmFactory": "0x549F241472FccdA169E3202048aE2241231A7772",
-      "quotedCalls": "0xab852e67bf03E74C89aF67C4BA97dd1088D3dA19"
+      "quotedCalls": "0xab852e67bf03E74C89aF67C4BA97dd1088D3dA19",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "arbitrum": {
       "aggregationHook": "0x5A477c362106FC6E25785C4C611fB8c27CA3140f",
@@ -685,7 +691,13 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "opstack",
       "gnosisSafeTransactionServiceUrl": "https://transaction-cyber.safe.optimism.io",
-      "quotedCalls": "0x29D438579f1cFB6f9a5161d828c89Ccd82dd8cB5"
+      "quotedCalls": "0x29D438579f1cFB6f9a5161d828c89Ccd82dd8cB5",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "eclipsemainnet": {
       "blockExplorers": [
@@ -1043,7 +1055,13 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xe522A5DcA58e3ab7fEd2bf25DA3E8d90c14083a8",
       "staticMessageIdWeightedMultisigIsmFactory": "0x53642476e24E28c3218E8Da44eDEBB4adB9DE13e",
       "technicalStack": "other",
-      "quotedCalls": "0xDad43A991F525939b70Ca7392ff3f2e23A4E2f5c"
+      "quotedCalls": "0xDad43A991F525939b70Ca7392ff3f2e23A4E2f5c",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "gnosis": {
       "aggregationHook": "0xE32bc0f3FaDd23620B3945101f3BC3aFD41B30D5",
@@ -2198,7 +2216,13 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x3E969bA938E6A993eeCD6F65b0dd8712B07dFe59",
       "interchainAccountRouter": "0xA8aB763aB8ab133236afc7b31aFC606F268048f5",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "quotedCalls": "0x31839566B757E99b50A9d78e1D6a59F7f21b7907"
+      "quotedCalls": "0x31839566B757E99b50A9d78e1D6a59F7f21b7907",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "xlayer": {
       "aggregationHook": "0xFA33A7786c67c5FDB6DC71E9D4e65293C62a047A",
@@ -2336,7 +2360,13 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xF645AeA0b8D26c9DBdfdeF2DEe59F845715BE32F",
       "staticMessageIdWeightedMultisigIsmFactory": "0x0ed553e7e5D55535457d1E778Ba96cF839c18442",
       "technicalStack": "other",
-      "quotedCalls": "0xD3770962B7A62ac62E7241b26c92a133D69d7b84"
+      "quotedCalls": "0xD3770962B7A62ac62E7241b26c92a133D69d7b84",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "zircuit": {
       "aggregationHook": "0x5c731fC712F351Eae3a0c47f4bd1f49041e0De7b",
@@ -2478,7 +2508,13 @@
       "interchainAccountRouter": "0xC3d9e724c6Bf3c4456EB8572Be05AA52f8acC9Ae",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "polkadotsubstrate",
-      "quotedCalls": "0xCC35dFE954ac13aBD4c50e1327EdB1B492Fcf11A"
+      "quotedCalls": "0xCC35dFE954ac13aBD4c50e1327EdB1B492Fcf11A",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "bitlayer": {
       "blockExplorers": [
@@ -2619,7 +2655,13 @@
       "interchainAccountRouter": "0xB8736c87da7DEc750fA0226e3bdE1Ac35B88f43d",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "other",
-      "quotedCalls": "0xEe78716A3042f05E3E74566a00C544fC59D40467"
+      "quotedCalls": "0xEe78716A3042f05E3E74566a00C544fC59D40467",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "flare": {
       "blockExplorers": [
@@ -2696,7 +2738,13 @@
       "interchainAccountRouter": "0xC1272CCea251c85b7D11eDeD1204a88DEde90f46",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "other",
-      "quotedCalls": "0xe41a3270875f28A03312877cD95A01e9a53664b1"
+      "quotedCalls": "0xe41a3270875f28A03312877cD95A01e9a53664b1",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "molten": {
       "blockExplorers": [
@@ -2832,7 +2880,13 @@
       "interchainAccountRouter": "0xa4fc7C90a4D4ae2A11637D04A6c5286E00B4bAA0",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "other",
-      "quotedCalls": "0xd6fC2707494b1157e58881eA1ECa51C7508b1365"
+      "quotedCalls": "0xd6fC2707494b1157e58881eA1ECa51C7508b1365",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "oortmainnet": {
       "blockExplorers": [
@@ -2959,6 +3013,12 @@
       "index": {
         "from": 9152000,
         "chunk": 5
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "apechain": {
@@ -3095,7 +3155,13 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x61374178e45F65fF9D6252d017Cd580FC60B7654",
       "displayNameShort": "Gravity",
-      "quotedCalls": "0xf9c5e5048bB5eeBCebDe5C6C130406E2Ec39CaC9"
+      "quotedCalls": "0xf9c5e5048bB5eeBCebDe5C6C130406E2Ec39CaC9",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "kaia": {
       "blockExplorers": [
@@ -3159,7 +3225,13 @@
       "index": {
         "from": 167871545
       },
-      "quotedCalls": "0x23C6D8145DDb71a24965AAAdf4CA4B095b4eC85F"
+      "quotedCalls": "0x23C6D8145DDb71a24965AAAdf4CA4B095b4eC85F",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "morph": {
       "blockExplorers": [
@@ -3290,7 +3362,13 @@
       "index": {
         "from": 16635646
       },
-      "quotedCalls": "0x21581dE0CB0Ce91E87b9d5124543C75Fa01ED9CC"
+      "quotedCalls": "0x21581dE0CB0Ce91E87b9d5124543C75Fa01ED9CC",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "zeronetwork": {
       "blockExplorers": [
@@ -3481,6 +3559,12 @@
       "validatorAnnounce": "0x16625230dD6cFe1B2bec3eCaEc7d43bA3A902CD6",
       "index": {
         "from": 18075501
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       },
       "transactionOverrides": {
         "maxPriorityFeePerGas": 1000000000
@@ -3816,7 +3900,13 @@
       "testRecipient": "0xCE8260c1b5cF2fAD15bb4B6542716b050Fdf35c9",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x38D361861d321B8B05de200c61B8F18740Daf4D8",
-      "quotedCalls": "0x9799951a0282839E9d8D0B6385F7C14BB4556682"
+      "quotedCalls": "0x9799951a0282839E9d8D0B6385F7C14BB4556682",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "boba": {
       "blockExplorers": [
@@ -5317,6 +5407,12 @@
       "validatorAnnounce": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
       "index": {
         "from": 773
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "ronin": {
@@ -5451,7 +5547,13 @@
       "index": {
         "from": 5125936
       },
-      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.sophon.xyz"
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.sophon.xyz",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "subtensor": {
       "blockExplorers": [
@@ -5902,7 +6004,13 @@
       "index": {
         "from": 51245832
       },
-      "quotedCalls": "0x036a5E4722DB8a61CC2731d9a6d7B32fb18eB239"
+      "quotedCalls": "0x036a5E4722DB8a61CC2731d9a6d7B32fb18eB239",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "reactive": {
       "blockExplorers": [
@@ -6096,6 +6204,12 @@
       "validatorAnnounce": "0x4e128A1b613A9C9Ecf650FeE461c353612559fcf",
       "index": {
         "from": 18791289
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "peaq": {
@@ -6294,7 +6408,13 @@
       "testRecipient": "0xc8826EA18D9884A1A335b2Cd7d5f44B159084301",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9",
-      "quotedCalls": "0xeB647CF5C95A477DaB4E053986a36657C88bfC10"
+      "quotedCalls": "0xeB647CF5C95A477DaB4E053986a36657C88bfC10",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "botanix": {
       "blockExplorers": [
@@ -6782,7 +6902,13 @@
       "index": {
         "from": 1005847
       },
-      "interchainAccountRouter": "0xe6fC77B08b457A29747682aB1dBfb32AF4A1A999"
+      "interchainAccountRouter": "0xe6fC77B08b457A29747682aB1dBfb32AF4A1A999",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "noble": {
       "bech32Prefix": "noble",
