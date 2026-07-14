@@ -57,6 +57,14 @@ export function requiredExtendBytes(
  * Creates the buffer and writes program bytes using the provided signer,
  * then returns transactions that require the upgrade authority to execute.
  *
+ * The extend and upgrade are returned as separate transactions and must land
+ * in separate slots: the loader rejects an Upgrade in the same slot the
+ * program-data was extended ("Program was deployed in this block already").
+ * For the same reason, any config-change instruction (which invokes the
+ * program) must run after the upgrade lands — a program is not invocable in
+ * the slot it is upgraded — so callers sequence config updates after these
+ * transactions rather than batching them in.
+ *
  * @returns Upgrade transactions plus receipts from buffer prep.
  *          Null if no upgrade is needed.
  * @throws If downgrade is attempted, or the program is immutable.
