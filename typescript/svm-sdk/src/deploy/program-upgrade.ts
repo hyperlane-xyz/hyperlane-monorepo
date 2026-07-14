@@ -10,7 +10,12 @@ import type { Address } from '@solana/kit';
 import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
-import { MAX_COMPUTE_UNITS } from '../constants.js';
+import {
+  EXTEND_PROGRAM_CHECKED_FEATURE,
+  MAX_COMPUTE_UNITS,
+  MIN_PROGRAM_DATA_EXTEND_BYTES,
+} from '../constants.js';
+import { isFeatureActive } from '../feature-gate.js';
 import {
   PROGRAM_DATA_HEADER_SIZE,
   createUpgradeProgramPlan,
@@ -21,10 +26,30 @@ import {
 import { deriveProgramDataAddress } from '../pda.js';
 import {
   getExtendProgramCheckedInstruction,
+  getExtendProgramInstruction,
   getSetBufferAuthorityInstruction,
 } from '../instructions/loader.js';
 import { compareVersions } from '../version/version-query.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
+
+/**
+ * Bytes needed to grow the program-data account for a new binary, clamped up
+ * to the loader's minimum single-extend size. Returns 0 when the new binary
+ * already fits.
+ */
+export function requiredExtendBytes(
+  newProgramLen: number,
+  currentMaxProgramLen: number,
+): number {
+  if (newProgramLen <= currentMaxProgramLen) {
+    return 0;
+  }
+
+  return Math.max(
+    newProgramLen - currentMaxProgramLen,
+    MIN_PROGRAM_DATA_EXTEND_BYTES,
+  );
+}
 
 /**
  * Handles program upgrade for a warp route token program.
@@ -90,20 +115,34 @@ export async function prepareProgramUpgrade(
     'base64',
   ).length;
   const currentMaxProgramLen = currentAccountSize - PROGRAM_DATA_HEADER_SIZE;
-  const additionalBytes = programBytes.length - currentMaxProgramLen;
+  const additionalBytes = requiredExtendBytes(
+    programBytes.length,
+    currentMaxProgramLen,
+  );
 
   if (additionalBytes > 0) {
-    authorityTransactions.push({
-      feePayer: upgradeAuthority,
-      instructions: [
-        getExtendProgramCheckedInstruction(
+    const checkedActive = await isFeatureActive(
+      rpc,
+      EXTEND_PROGRAM_CHECKED_FEATURE,
+    );
+    const extendInstruction = checkedActive
+      ? getExtendProgramCheckedInstruction(
           programDataAddress,
           programId,
           upgradeAuthority,
           upgradeAuthority,
           additionalBytes,
-        ),
-      ],
+        )
+      : getExtendProgramInstruction(
+          programDataAddress,
+          programId,
+          upgradeAuthority,
+          additionalBytes,
+        );
+
+    authorityTransactions.push({
+      feePayer: upgradeAuthority,
+      instructions: [extendInstruction],
       computeUnits: MAX_COMPUTE_UNITS,
       annotation: `Extend ${label}: +${additionalBytes} bytes`,
     });
