@@ -74,6 +74,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: [
+    'ancient8',
     'arcadia',
     'artela',
     'astar',
