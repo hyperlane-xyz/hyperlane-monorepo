@@ -8,6 +8,7 @@ import {
   type FeeQuotingQuoteResponse,
   NoQuoteAvailableReason,
   type MultiProvider,
+  QuoteV2Endpoint,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { assert, isEVMLike } from '@hyperlane-xyz/utils';
@@ -164,7 +165,9 @@ export class QuoteService {
       txSubmitter: args.txSubmitter,
       binding: this.buildBinding(args.salt),
     };
-    return service.getWarpQuote(req);
+    const entry = await service.getWarpQuote(req);
+    this.recordQuoteServed(QuoteV2Endpoint.Warp, args, entry);
+    return entry;
   }
 
   async getIgpQuoteV2(args: {
@@ -184,17 +187,54 @@ export class QuoteService {
       txSubmitter: args.txSubmitter,
       binding: this.buildBinding(args.salt),
     };
-    return service.getIgpQuote(req);
+    const entry = await service.getIgpQuote(req);
+    this.recordQuoteServed(QuoteV2Endpoint.Igp, args, entry);
+    return entry;
   }
 
   // ============ helpers ============
+
+  /**
+   * Increment the `quotes_served` counter and emit a per-quote log line for a
+   * v2 quote, mirroring the v1 `getQuote` path so SVM (v2-only) origins are not
+   * absent from `hyperlane_fee_quoting_quotes_served_total`. `command` uses the
+   * v2 endpoint name (`warp` / `igp`) — v2 has no `FeeQuotingCommand` analogue.
+   */
+  private recordQuoteServed(
+    command: QuoteV2Endpoint,
+    args: { origin: string; router: string; destination: number },
+    entry: AnyQuoteV2Entry,
+  ): void {
+    this.quotesServed?.inc({
+      origin: args.origin,
+      command,
+      router: args.router,
+      destination: String(args.destination),
+      quoter: entry.quoter,
+    });
+
+    this.logger.info(
+      {
+        origin: args.origin,
+        command,
+        router: args.router,
+        destination: args.destination,
+        quoter: entry.quoter,
+        mode: this.quoteMode,
+      },
+      'Generated v2 signed quote',
+    );
+  }
 
   private dispatch(origin: string): IProtocolQuoteService {
     const protocol = this.protocolByChain.get(origin);
     if (!protocol) {
       throw new ApiError(`Unknown origin chain: ${origin}`, 400);
     }
-    const service = this.services.get(protocol);
+    // EVM-family chains (Ethereum, Tron, ...) all share the single
+    // EvmQuoteService registered under ProtocolType.Ethereum.
+    const key = isEVMLike(protocol) ? ProtocolType.Ethereum : protocol;
+    const service = this.services.get(key);
     if (!service) {
       throw new NoQuoteAvailableError(
         NoQuoteAvailableReason.NotConfigured,
