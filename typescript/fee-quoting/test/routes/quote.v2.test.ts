@@ -143,6 +143,7 @@ function createTestApp(opts: ContextOverrides = {}): Express {
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
     quoteExpiry: 300,
+    transientBuffer: 240,
     multiProvider: {
       getChainName: (d: number) =>
         d === DEST_DOMAIN ? DEST_CHAIN_NAME : `chain-${d}`,
@@ -230,6 +231,7 @@ function createSvmTestApp(opts: SvmContextOverrides = {}): Express {
     protocolByChain: new Map([[SVM_ORIGIN, ProtocolType.Sealevel]]),
     quoteMode: 'transient',
     quoteExpiry: 300,
+    transientBuffer: 240,
     multiProvider: {
       getChainName: (d: number) =>
         d === DEST_DOMAIN ? DEST_CHAIN_NAME : `chain-${d}`,

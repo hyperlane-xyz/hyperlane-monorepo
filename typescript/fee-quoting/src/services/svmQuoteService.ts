@@ -228,7 +228,6 @@ export class SvmQuoteService implements IProtocolQuoteService {
       recipientForSigning,
       hexToBytes(req.targetRouter),
       route.fee.feeAccountPda,
-      req.binding,
     );
     this.assertSignerAuthorized(
       resolved.quoteSigners,
@@ -480,11 +479,11 @@ interface ResolvedSvmWarpQuote {
  * `FeeStrategy` leaves (no nested `RoutingFee` allowed) — so the walk is a
  * single branch + lookup, no recursion.
  *
- * `binding` is consumed by the CC branch only: if the exact `targetRouter`
- * is unconfigured but a `DEFAULT_ROUTER_KEY` entry exists, the on-chain CC
- * submit handler accepts the DEFAULT-router fallback for standing quotes
- * but explicitly rejects it for transient quotes. The walker enforces that
- * rule here so the caller can sign blindly.
+ * CC branch: if the exact `targetRouter` is unconfigured but a
+ * `DEFAULT_ROUTER_KEY` entry exists, the DEFAULT-router fallback leaf is
+ * used and signed against `DEFAULT_ROUTER`. The on-chain CC submit handler
+ * accepts this for both standing and transient quotes (it rejects only
+ * `H256::zero()`), so the caller can sign blindly.
  *
  * Only `quoteSigners` and the CC-vs-non-CC discriminator are read off the
  * leaf — the strategy params signed on the wire come from
@@ -496,14 +495,12 @@ function resolveSvmWarpQuote(
   recipient: Uint8Array,
   targetRouter: Uint8Array,
   feeAccountPda: string,
-  binding: QuoteBinding,
 ): ResolvedSvmWarpQuote {
   const picked = pickLeaf(
     config,
     destinationDomain,
     targetRouter,
     feeAccountPda,
-    binding,
   );
 
   if (picked.leaf.type !== FeeType.offchainQuotedLinear) {
@@ -538,7 +535,6 @@ function pickLeaf(
   destinationDomain: number,
   targetRouter: Uint8Array,
   feeAccountPda: string,
-  binding: QuoteBinding,
 ): PickedLeaf {
   switch (config.type) {
     case FeeType.linear:
@@ -574,12 +570,6 @@ function pickLeaf(
         };
       }
       if (destRoutes[DEFAULT_ROUTER_KEY]) {
-        if (binding.kind === QuoteMode.TRANSIENT) {
-          throw new NoQuoteAvailableError(
-            NoQuoteAvailableReason.NotConfigured,
-            `Only DEFAULT_ROUTER fallback exists for ${destinationDomain}/${targetRouterKey} on ${feeAccountPda}, but on-chain rejects transient quotes signed against DEFAULT_ROUTER`,
-          );
-        }
         return {
           leaf: destRoutes[DEFAULT_ROUTER_KEY],
           effectiveTargetRouter: hexToBytes(DEFAULT_ROUTER_KEY),

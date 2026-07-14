@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { DEFAULT_PORT, DEFAULT_QUOTE_EXPIRY_SECONDS } from './constants.js';
+import {
+  DEFAULT_PORT,
+  DEFAULT_QUOTE_EXPIRY_SECONDS,
+  DEFAULT_TRANSIENT_BUFFER_SECONDS,
+  ONCHAIN_MAX_ISSUED_AT_FUTURE_SKEW_SECONDS,
+} from './constants.js';
 
 export const QuoteMode = {
   /** Transient: single-use, scoped to sender, submitted via QuotedCalls.SUBMIT_QUOTE */
@@ -25,6 +30,17 @@ export const ServerConfigSchema = z.object({
     .int()
     .positive()
     .default(DEFAULT_QUOTE_EXPIRY_SECONDS),
+  /**
+   * Transient forward-date buffer in seconds (transient mode only). Must stay
+   * strictly below the on-chain future-skew cap so clock lag between sign time
+   * and on-chain consume time can't push `issued_at` past the limit.
+   */
+  transientBuffer: z
+    .number()
+    .int()
+    .positive()
+    .lt(ONCHAIN_MAX_ISSUED_AT_FUTURE_SKEW_SECONDS)
+    .default(DEFAULT_TRANSIENT_BUFFER_SECONDS),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;

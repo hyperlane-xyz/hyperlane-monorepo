@@ -71,6 +71,7 @@ interface TestServiceOverrides {
   derivedConfig?: any;
   quoteMode?: QuoteMode;
   quoteExpiry?: number;
+  transientBuffer?: number;
 }
 
 function createTestService(overrides: TestServiceOverrides = {}): QuoteService {
@@ -95,6 +96,7 @@ function createTestService(overrides: TestServiceOverrides = {}): QuoteService {
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: overrides.quoteMode ?? 'transient',
     quoteExpiry: overrides.quoteExpiry ?? 300,
+    transientBuffer: overrides.transientBuffer ?? 240,
     multiProvider: mockMultiProvider,
     logger,
   });
@@ -445,6 +447,65 @@ describe('QuoteService', () => {
       expect(feeQuote).to.exist;
     });
 
+    it('resolves CCRF router-specific fee for an uppercase-hex targetRouter', async () => {
+      const ROUTER_FEE =
+        '0x6666666666666666666666666666666666666666' as Address;
+      const TARGET_ROUTER =
+        '0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc' as Hex;
+      const TARGET_ROUTER_UPPER =
+        '0x000000000000000000000000CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' as Hex;
+      const svc = createTestService({
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            type: TokenFeeType.CrossCollateralRoutingFee,
+            address: FEE_CONTRACT,
+            token: FEE_TOKEN,
+            owner: ZERO_ADDRESS,
+            feeContracts: {
+              arbitrum: {
+                [DEFAULT_ROUTER_KEY]: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: DEST_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+                [TARGET_ROUTER]: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: ROUTER_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const res = await svc.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemoteTo,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+        TARGET_ROUTER_UPPER,
+      );
+      const feeQuote = res.quotes.find(
+        (q) => q.quoter.toLowerCase() === ROUTER_FEE.toLowerCase(),
+      );
+      expect(feeQuote, 'uppercase targetRouter should hit the specific leaf').to
+        .exist;
+    });
+
     it('falls back to CCRF default when targetRouter not in routers', async () => {
       const UNKNOWN_ROUTER =
         '0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd' as Hex;
@@ -695,6 +756,7 @@ describe('QuoteService', () => {
       protocolByChain: new Map([['tron', ProtocolType.Tron]]),
       quoteMode: 'transient',
       quoteExpiry: 300,
+      transientBuffer: 240,
       multiProvider: mockMultiProvider,
       logger,
     });

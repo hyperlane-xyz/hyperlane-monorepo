@@ -81,6 +81,7 @@ function createTestApp(): Express {
     protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
     quoteExpiry: 300,
+    transientBuffer: 240,
     multiProvider: {
       getChainName: (d: number) => (d === 42161 ? 'arbitrum' : `chain-${d}`),
       getChainId: () => 1,

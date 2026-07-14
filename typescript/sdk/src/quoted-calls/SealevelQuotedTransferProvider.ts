@@ -214,7 +214,13 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     const igpState = await adapter.innerIgpFeeState.get();
     const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
     const igpAccount = igpState?.innerIgpAccount;
+    // A same-domain (local) transfer consumes no interchain message, so the CC
+    // bundle's local branch emits no IGP section. Skipping the IGP quote here
+    // avoids prepending an orphan SubmitIgpQuote ix that would strand the
+    // transient IGP quote-account rent (and an unnecessary quoter round-trip).
+    const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
     const igpEnabled =
+      destinationDomainId !== localDomainId &&
       !isNullish(igpProgramId) &&
       !isNullish(igpAccount) &&
       !isNullish(igpState?.feeConfig);

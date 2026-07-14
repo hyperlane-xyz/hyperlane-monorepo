@@ -1,5 +1,4 @@
 import { Request, Response, Router } from 'express';
-import { type Hex, isHex } from 'viem';
 import { z } from 'zod';
 
 import { type QuoteV2Response, ZHash } from '@hyperlane-xyz/sdk';
@@ -8,20 +7,8 @@ import { isValidAddressSealevel } from '@hyperlane-xyz/utils';
 import type { QuoteService } from '../services/quoteService.js';
 
 import { asyncHandler } from './asyncHandler.js';
+import { bytes32Schema, domainSchema } from './commonSchemas.js';
 import { parseAndValidate } from './parseAndValidate.js';
-
-// Bytes32 schema narrows to viem's branded `Hex`. Used for fixed-32-byte
-// fields (salt, recipient, targetRouter) regardless of origin protocol.
-const bytes32Schema = z.custom<Hex>(
-  (v): boolean =>
-    typeof v === 'string' && isHex(v, { strict: true }) && v.length === 66,
-  'Invalid bytes32 hex (must be 0x + 64 hex chars)',
-);
-
-const domainSchema = z
-  .string()
-  .regex(/^\d+$/, 'Domain must be a numeric string')
-  .transform((s) => parseInt(s, 10));
 
 const svmAddressSchema = z.string().refine(isValidAddressSealevel, {
   message: 'Must be a valid Sealevel address (base58-encoded 32-byte pubkey)',

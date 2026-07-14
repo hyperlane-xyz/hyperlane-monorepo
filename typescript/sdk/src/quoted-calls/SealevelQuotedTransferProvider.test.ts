@@ -65,6 +65,7 @@ describe('computeSealevelScopedSalt', () => {
 
 describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
   const ORIGIN = 'solanamainnet';
+  const ORIGIN_DOMAIN = 1399811149;
   const DEST = 'arbitrum';
   const DEST_DOMAIN = 42161;
   const ROUTER_PUBKEY = 'SysvarRent111111111111111111111111111111111';
@@ -104,7 +105,11 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
 
     const warpCore = sinon.createStubInstance(WarpCore);
     Object.defineProperty(warpCore, 'multiProvider', {
-      value: { getDomainId: () => DEST_DOMAIN, getChainName: () => DEST },
+      value: {
+        getDomainId: (chain: string) =>
+          chain === ORIGIN ? ORIGIN_DOMAIN : DEST_DOMAIN,
+        getChainName: () => DEST,
+      },
     });
     warpCore.isCrossCollateralTransfer.returns(false);
 

@@ -35,13 +35,11 @@ export interface QuoteServiceOptions {
   protocolByChain: ReadonlyMap<string, ProtocolType>;
   quoteMode: QuoteMode;
   quoteExpiry: number;
+  transientBuffer: number;
   multiProvider: MultiProvider;
   logger: Logger;
   quotesServed?: Counter<string>;
 }
-
-/** Default transient buffer in seconds (5 minutes for testing). */
-const DEFAULT_TRANSIENT_BUFFER_SECONDS = 300;
 
 /**
  * Thin orchestrator. Per-protocol concrete services own their full stack —
@@ -59,6 +57,7 @@ export class QuoteService {
   private readonly protocolByChain: ReadonlyMap<string, ProtocolType>;
   private readonly quoteMode: QuoteMode;
   private readonly quoteExpiry: number;
+  private readonly transientBuffer: number;
   private readonly multiProvider: MultiProvider;
   private readonly logger: Logger;
   private readonly quotesServed?: Counter<string>;
@@ -74,6 +73,7 @@ export class QuoteService {
     this.protocolByChain = options.protocolByChain;
     this.quoteMode = options.quoteMode;
     this.quoteExpiry = options.quoteExpiry;
+    this.transientBuffer = options.transientBuffer;
     this.multiProvider = options.multiProvider;
     this.logger = options.logger;
     this.quotesServed = options.quotesServed;
@@ -209,7 +209,7 @@ export class QuoteService {
       ? {
           kind: QuoteMode.TRANSIENT,
           salt,
-          transientBuffer: DEFAULT_TRANSIENT_BUFFER_SECONDS,
+          transientBuffer: this.transientBuffer,
         }
       : { kind: QuoteMode.STANDING, salt, ttlSeconds: this.quoteExpiry };
   }

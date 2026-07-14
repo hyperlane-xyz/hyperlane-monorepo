@@ -90,7 +90,7 @@ export class FeeQuotingServer {
 
     assert(
       isHex(this.config.signerKey),
-      `signerKey must be a hex string, got: ${this.config.signerKey}`,
+      'signerKey must be a valid hex string',
     );
     const signerKeyHex = this.config.signerKey;
 
@@ -124,6 +124,7 @@ export class FeeQuotingServer {
       protocolByChain,
       quoteMode: this.config.quoteMode,
       quoteExpiry: this.config.quoteExpiry,
+      transientBuffer: this.config.transientBuffer,
       multiProvider,
       logger: this.logger,
       quotesServed: metrics.quotesServed,
@@ -236,7 +237,8 @@ export class FeeQuotingServer {
         const metadata = chainMetadataMap[chainName];
 
         switch (metadata?.protocol) {
-          case ProtocolType.Ethereum: {
+          case ProtocolType.Ethereum:
+          case ProtocolType.Tron: {
             const spec = this.buildEvmRouteSpec(
               chainName,
               token,
@@ -244,7 +246,7 @@ export class FeeQuotingServer {
             );
             if (spec) {
               evmRoutes.push(spec);
-              protocolByChain.set(chainName, ProtocolType.Ethereum);
+              protocolByChain.set(chainName, metadata.protocol);
             }
             break;
           }

@@ -503,7 +503,12 @@ function pickFeeLeaf(
       const cc = fee as DerivedCrossCollateralRoutingFeeConfig;
       const destConfig = cc.feeContracts[destChainName];
       if (!destConfig) return fee;
-      const exact = targetRouter ? destConfig[targetRouter] : undefined;
+      // Config keys / DEFAULT_ROUTER_KEY are lowercase, but bytes32Schema
+      // accepts uppercase hex — normalize so an uppercase request still hits
+      // its specific leaf instead of falling through to DEFAULT_ROUTER.
+      const exact = targetRouter
+        ? destConfig[targetRouter.toLowerCase()]
+        : undefined;
       const resolved = exact ?? destConfig[DEFAULT_ROUTER_KEY];
       return resolved
         ? pickFeeLeaf(resolved, destChainName, targetRouter)

@@ -651,10 +651,9 @@ async function executeDelivery({
       case ProtocolType.Radix:
       case ProtocolType.Aleo:
       case ProtocolType.Unknown:
-        logRed(
-          `Fee quoting is not supported for ${originProtocol} origins yet; ignoring --fee-quoting-url`,
+        throw new Error(
+          `Fee quoting is not supported for ${originProtocol} origins yet; remove --fee-quoting-url to send on the unquoted path`,
         );
-        break;
       default: {
         const _exhaustive: never = originProtocol;
         throw new Error(`Unhandled origin protocol: ${_exhaustive}`);
