@@ -181,4 +181,13 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         let contract_call = self.announce_contract_call(announcement).await?;
         send_and_confirm(self.provider.rpc_client(), contract_call).await
     }
+
+    async fn announce_calldata(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        Err(hyperlane_core::ChainCommunicationError::CustomError(
+            "announce_calldata not supported for Starknet".to_string(),
+        ))
+    }
 }
