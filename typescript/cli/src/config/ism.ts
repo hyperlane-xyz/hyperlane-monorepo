@@ -86,6 +86,9 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
   [IsmType.AMOUNT_ROUTING]:
     'Route messages based on the token amount to transfer',
+  // COMPOSITE intentionally excluded: it's Sealevel-only, config-file input
+  // only — createAdvancedIsmConfig()'s switch has no branch for it, so
+  // listing it here would let it be selected into a dead end.
 };
 
 export async function createAdvancedIsmConfig(

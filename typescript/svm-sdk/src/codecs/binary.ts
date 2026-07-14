@@ -28,7 +28,7 @@ const VEC_BYTES_CODEC = addCodecSizePrefix(getBytesCodec(), U32_CODEC);
 export class ByteCursor {
   private offset = 0;
 
-  constructor(private readonly data: Uint8Array) {}
+  constructor(private readonly data: ReadonlyUint8Array) {}
 
   remaining(): number {
     return this.data.length - this.offset;

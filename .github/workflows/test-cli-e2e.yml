@@ -520,6 +520,7 @@ jobs:
       matrix:
         test:
           - core-deploy
+          - core-composite-ism
     steps:
       - uses: actions/checkout@v6
         with:
@@ -547,6 +548,7 @@ jobs:
         test:
           - core-deploy
           - core-apply
+          - core-composite-ism
           - hook-igp
           - warp-alt
           - warp-cross-collateral

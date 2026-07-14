@@ -1,4 +1,8 @@
-import { type Address, getAddressDecoder } from '@solana/kit';
+import {
+  type Address,
+  getAddressDecoder,
+  type ReadonlyUint8Array,
+} from '@solana/kit';
 
 import { ByteCursor } from './binary.js';
 
@@ -8,7 +12,7 @@ export interface DecodedAccountData<T> {
 }
 
 export function decodeAccountData<T>(
-  raw: Uint8Array,
+  raw: ReadonlyUint8Array,
   decodeInner: (cursor: ByteCursor) => T,
 ): DecodedAccountData<T> {
   if (raw.length === 0) return { initialized: false, data: null };
