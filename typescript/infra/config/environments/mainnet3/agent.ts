@@ -21,6 +21,7 @@ import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 import {
   AgentChainConfig,
   HELIUS_SECRET_URL_MARKER,
+  KubernetesResources,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -764,23 +765,88 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '20000m',
-    memory: '55G',
+    cpu: '14000m',
+    memory: '24G',
   },
 };
 
+// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores (rare
+// transient spikes to ~5.7, absorbed by burst since there is no CPU limit),
+// memory peak ~2.4Gi. Request covers the memory peak and ~2x the CPU p99.
 const fastPathRelayerResources = {
   requests: {
-    cpu: '8000m',
-    memory: '16G',
+    cpu: '500m',
+    memory: '3G',
   },
 };
 
+// Validator resource tiers. Sized from 30-day observed peaks
+// (https://abacusworks.grafana.net/d/FSR9YWr7k). Memory must clear each tier's
+// peak to avoid OOM; CPU is compressible. The default (light) covers the ~90
+// low-traffic validators; heavier chains are overridden below, keyed by chain
+// name (applies across the hyperlane, RC, and fastpath validator contexts).
 const validatorResources = {
   requests: {
-    cpu: '500m',
+    cpu: '100m',
+    memory: '256Mi',
+  },
+};
+
+const heavyValidatorResources = {
+  requests: {
+    cpu: '1000m',
     memory: '1G',
   },
+};
+
+const mediumValidatorResources = {
+  requests: {
+    cpu: '500m',
+    memory: '512Mi',
+  },
+};
+
+// Heavy: solana (577Mi mem), arbitrum/base (~470-490Mi), optimism (351Mi), aleo (0.87 cores).
+const heavyValidatorChains = [
+  'solanamainnet',
+  'arbitrum',
+  'base',
+  'optimism',
+  'aleo',
+];
+
+// Medium: mid-traffic chains peaking ~60-183Mi / 0.1-0.41 cores.
+const mediumValidatorChains = [
+  'polygon',
+  'bsc',
+  'ethereum',
+  'linea',
+  'eclipsemainnet',
+  'mantapacific',
+  'celo',
+  'ink',
+  'unichain',
+  'celestia',
+  'tron',
+  'superseed',
+  'mode',
+  'avalanche',
+  'blast',
+  'soneium',
+  'taiko',
+  'paradex',
+  'gnosis',
+  'mitosis',
+  'eni',
+];
+
+const validatorChainResourceOverrides: ChainMap<KubernetesResources> = {
+  ...Object.fromEntries(
+    heavyValidatorChains.map((chain) => [chain, heavyValidatorResources]),
+  ),
+  ...Object.fromEntries(
+    mediumValidatorChains.map((chain) => [chain, mediumValidatorResources]),
+  ),
 };
 
 const scraperResources = {
@@ -910,6 +976,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
   scraper: {
     scraperOnlyChains,
@@ -964,6 +1031,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
 };
 
@@ -1101,6 +1169,7 @@ const fastPath: RootAgentConfig = {
     },
     chains: validatorChainConfig(Contexts.FastPath),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
 };
 

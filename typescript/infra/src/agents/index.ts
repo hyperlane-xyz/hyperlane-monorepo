@@ -274,6 +274,17 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       effect: 'NoSchedule',
     });
 
+    // The toleration above only permits relayers onto the tainted relayer pool;
+    // it does not force them there. Historically the oversized resource requests
+    // meant the pods only fit on the relayer pool, but with right-sized requests
+    // they can now land on other pools. Pin mainnet3 relayers to the relayer node
+    // pool explicitly so they schedule there deterministically at redeploy.
+    if (this.environment === 'mainnet3') {
+      values.nodeSelector = {
+        'cloud.google.com/gke-nodepool': 'relayer-pool-2',
+      };
+    }
+
     return values;
   }
 
@@ -408,7 +419,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
-      resources: this.kubernetesResources(),
+      resources: this.config.resourcesForChain(this.chainName),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.
