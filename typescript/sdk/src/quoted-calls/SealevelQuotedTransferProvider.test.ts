@@ -75,7 +75,10 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
     'SysvarRent111111111111111111111111111111111',
   );
 
-  function makeAdapter(opts: { feeConfig: object | null }) {
+  function makeAdapter(opts: {
+    feeConfig: object | null;
+    igpGet?: sinon.SinonStub;
+  }) {
     const adapter = sinon.createStubInstance(SealevelHypNativeAdapter);
     adapter.getTokenAccountData.resolves(
       new SealevelHyperlaneTokenData({
@@ -88,7 +91,7 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
       Buffer.from(new Uint8Array(32).fill(0xaa)),
     );
     Object.defineProperty(adapter, 'innerIgpFeeState', {
-      value: { get: sinon.stub().resolves(undefined) },
+      value: { get: opts.igpGet ?? sinon.stub().resolves(undefined) },
     });
     return adapter;
   }
@@ -212,6 +215,53 @@ describe('SealevelQuotedTransferProvider.buildQuotedTransferTxs', () => {
         recipient: RECIPIENT,
       }),
     ).to.be.rejectedWith(/Unexpected signed-quote context length/);
+  });
+
+  it('does not load IGP state for a same-domain (local) destination', async () => {
+    const igpGet = sinon.stub().resolves(undefined);
+    const { warpCore, originTokenAmount } = makeWarpCore(
+      makeAdapter({ feeConfig: { feeProgram: 'x' }, igpGet }),
+    );
+    const provider = makeProvider(
+      makeClient(makeWarpEntry(ProtocolType.Sealevel)),
+    );
+
+    // destination === origin chain → local transfer. The build continues past
+    // the IGP gate and fails later at ix simulation (Connection is stubbed),
+    // but the IGP-state RPC must never fire for a local transfer.
+    await provider
+      .buildQuotedTransferTxs({
+        warpCore,
+        originTokenAmount,
+        destination: ORIGIN,
+        sender: SENDER,
+        recipient: RECIPIENT,
+      })
+      .catch(() => undefined);
+
+    expect(igpGet.called).to.be.false;
+  });
+
+  it('loads IGP state for a remote destination', async () => {
+    const igpGet = sinon.stub().resolves(undefined);
+    const { warpCore, originTokenAmount } = makeWarpCore(
+      makeAdapter({ feeConfig: { feeProgram: 'x' }, igpGet }),
+    );
+    const provider = makeProvider(
+      makeClient(makeWarpEntry(ProtocolType.Sealevel)),
+    );
+
+    await provider
+      .buildQuotedTransferTxs({
+        warpCore,
+        originTokenAmount,
+        destination: DEST,
+        sender: SENDER,
+        recipient: RECIPIENT,
+      })
+      .catch(() => undefined);
+
+    expect(igpGet.called).to.be.true;
   });
 
   // Orchestration paths that require mocking `Connection.simulateTransaction`

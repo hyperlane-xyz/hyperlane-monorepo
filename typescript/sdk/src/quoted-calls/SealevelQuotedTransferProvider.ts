@@ -211,16 +211,22 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       txSubmitter: sender,
     };
 
-    const igpState = await adapter.innerIgpFeeState.get();
-    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
-    const igpAccount = igpState?.innerIgpAccount;
     // A same-domain (local) transfer consumes no interchain message, so the CC
-    // bundle's local branch emits no IGP section. Skipping the IGP quote here
-    // avoids prepending an orphan SubmitIgpQuote ix that would strand the
-    // transient IGP quote-account rent (and an unnecessary quoter round-trip).
+    // bundle's local branch emits no IGP section. Resolve the local condition
+    // first and only load IGP state for remote destinations: this avoids an
+    // unused IGP-state RPC on local transfers (which can itself fail on
+    // missing/bad IGP accounts) and prevents prepending an orphan
+    // SubmitIgpQuote ix that would strand the transient IGP quote-account rent.
     const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
+    const isRemoteTransfer = destinationDomainId !== localDomainId;
+
+    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
+    const igpState = isRemoteTransfer
+      ? await adapter.innerIgpFeeState.get()
+      : undefined;
+    const igpAccount = igpState?.innerIgpAccount;
     const igpEnabled =
-      destinationDomainId !== localDomainId &&
+      isRemoteTransfer &&
       !isNullish(igpProgramId) &&
       !isNullish(igpAccount) &&
       !isNullish(igpState?.feeConfig);
