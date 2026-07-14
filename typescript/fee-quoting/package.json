@@ -19,6 +19,7 @@
     "dev": "tsx watch scripts/run-server.ts",
     "start": "tsx scripts/run-server.ts",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "test:ci": "pnpm test",
     "coverage": "c8 pnpm test",
     "lint": "eslint -c ./eslint.config.mjs",
     "format": "oxfmt --write ./src"

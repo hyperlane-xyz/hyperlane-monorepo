@@ -1586,6 +1586,7 @@ describe('WarpCore', () => {
       adapterStubs.forEach((s) => s.restore());
     }
   });
+
   it('Routes ERC4626 collateral tokens through getBridgedSupply in getTokenCollateral', async () => {
     const ownerCollateralToken = warpCore.tokens.find(
       (t) => t.standard === TokenStandard.EvmHypOwnerCollateral,

@@ -1246,9 +1246,9 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         'escrow token balance must equal the transferred amount',
       );
 
-      // Fee beneficiary ATA balance = QUOTE-derived fee (1000), not the
-      // route-derived fee (5000). Exact equality proves the offchain-quoted
-      // path drove pricing.
+      // Fee beneficiary ATA balance = this case's QUOTE-derived fee, not the
+      // route-configured fee. Exact equality proves the offchain-quoted path
+      // drove pricing.
       const beneficiaryAtaAccount = await rpc
         .getAccountInfo(feeBeneficiaryAta, { encoding: 'base64' })
         .send();
