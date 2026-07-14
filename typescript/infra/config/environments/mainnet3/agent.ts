@@ -107,7 +107,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: false, // relayer + scraper only
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
     fusemainnet: false,
     galactica: true,
@@ -175,7 +175,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — RPC unavailable
     sophon: false,
     stable: true,
     starknet: true,
@@ -239,7 +239,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: true,
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
     fusemainnet: false,
     galactica: true,
@@ -307,7 +307,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — RPC unavailable
     sophon: false,
     stable: true,
     starknet: true,
@@ -371,7 +371,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: true,
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
     fusemainnet: false,
     galactica: true,
@@ -439,7 +439,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
+    soon: false, // disabled — RPC unavailable
     sophon: false,
     stable: true,
     starknet: true,
