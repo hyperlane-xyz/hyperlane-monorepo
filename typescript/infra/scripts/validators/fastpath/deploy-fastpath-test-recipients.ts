@@ -3,11 +3,11 @@
  * and persist the addresses to a JSON file.
  *
  * Usage (dry-run):
- *   yarn tsx scripts/validators/fastpath/deploy-fastpath-test-recipients.ts \
+ *   pnpm tsx scripts/validators/fastpath/deploy-fastpath-test-recipients.ts \
  *     -e mainnet3 --dry-run
  *
  * Usage (deploy):
- *   yarn tsx scripts/validators/fastpath/deploy-fastpath-test-recipients.ts \
+ *   pnpm tsx scripts/validators/fastpath/deploy-fastpath-test-recipients.ts \
  *     -e mainnet3 --key 0x<deployer-private-key> \
  *     [--chains base ethereum ...] \
  *     [--ismsFile config/environments/mainnet3/fastpath/isms.json] \
@@ -16,13 +16,14 @@
 import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
-import { TestRecipientDeployer } from '@hyperlane-xyz/sdk';
+import { MultiProvider, TestRecipientDeployer } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
-import { readJson, writeJson } from '@hyperlane-xyz/utils/fs';
+import { mergeJson, readJson } from '@hyperlane-xyz/utils/fs';
 
 import { join } from 'path';
 
 import { Contexts } from '../../../config/contexts.js';
+import { getRegistry as getInfraRegistry } from '../../../config/registry.js';
 import { getEnvironmentDirectory } from '../../../src/paths.js';
 import { getInfraPath } from '../../../src/utils/utils.js';
 import {
@@ -31,7 +32,6 @@ import {
   withChains,
   withOutputFile,
 } from '../../agent-utils.js';
-import { getEnvironmentConfig } from '../../core-utils.js';
 
 function getArgs() {
   return withOutputFile(withChains(getBaseArgs()))
@@ -103,13 +103,12 @@ async function main() {
 
   assert(key, '--key is required');
 
-  const envConfig = getEnvironmentConfig(environment);
-  const multiProvider = await envConfig.getMultiProvider(
-    Contexts.Hyperlane,
-    undefined,
-    false,
-    targetChains,
-  );
+  // Read-only multi-provider (no GCP key lookup); the deployer wallet is
+  // attached explicitly below.
+  const chainMetadata = await getInfraRegistry().getMetadata();
+  const multiProvider = new MultiProvider(chainMetadata, {
+    minConfirmationTimeoutMs: 300_000,
+  });
 
   for (const chain of targetChains) {
     multiProvider.setSigner(
@@ -141,9 +140,16 @@ async function main() {
       'fastpath',
       'test-recipients.json',
     );
-  writeJson(outputPath, deployed);
+  // Merge rather than overwrite — a --chains subset run must not delete
+  // addresses for chains outside the subset that other scripts still read.
+  mergeJson(outputPath, deployed);
   rootLogger.info({ outputPath }, 'Written test recipient addresses');
   console.table(deployed);
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

@@ -3,7 +3,7 @@
  * on-chain for each fastpath chain.
  *
  * Usage:
- *   yarn tsx scripts/validators/fastpath/check-fastpath-validator-announce.ts \
+ *   pnpm tsx scripts/validators/fastpath/check-fastpath-validator-announce.ts \
  *     -e mainnet3 [--chains arbitrum base ...]
  */
 import { eqAddress } from '@hyperlane-xyz/utils';
@@ -67,10 +67,15 @@ async function main() {
     failures.forEach((r) =>
       console.error(`  [${r.chain}] ${r.alias} (${r.validator})`),
     );
-    process.exit(1);
+    process.exitCode = 1;
   } else {
     console.log('\n✅ All fastpath validators announced!');
   }
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

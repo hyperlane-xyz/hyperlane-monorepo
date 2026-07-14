@@ -3,7 +3,7 @@
  * Reads each ISM's on-chain validators and threshold.
  *
  * Usage:
- *   yarn tsx scripts/validators/fastpath/check-fastpath-isms.ts \
+ *   pnpm tsx scripts/validators/fastpath/check-fastpath-isms.ts \
  *     -e mainnet3 \
  *     --ismsFile config/environments/mainnet3/fastpath/isms.json \
  *     [--chains arbitrum base ...]
@@ -83,7 +83,14 @@ async function main() {
   for (const destination of destinations) {
     const ismAddress = ismAddresses[destination];
     if (!ismAddress) {
-      rootLogger.warn({ destination }, 'No ISM address found, skipping');
+      rootLogger.warn({ destination }, 'No ISM address found');
+      rows.push({
+        destination,
+        ismAddress: '',
+        validators: '',
+        threshold: 0,
+        ok: '❌',
+      });
       continue;
     }
 
@@ -103,6 +110,13 @@ async function main() {
         { destination, ismAddress, moduleType },
         'Expected messageId multisig ISM',
       );
+      rows.push({
+        destination,
+        ismAddress,
+        validators: '',
+        threshold: 0,
+        ok: '❌',
+      });
       continue;
     }
 
@@ -129,13 +143,24 @@ async function main() {
 
   console.table(rows);
 
+  if (rows.length === 0) {
+    rootLogger.error('No ISM checks completed');
+    process.exitCode = 1;
+    return;
+  }
+
   const failures = rows.filter((r) => r.ok === '❌');
   if (failures.length > 0) {
     rootLogger.error({ count: failures.length }, 'Some ISMs failed checks');
-    process.exit(1);
+    process.exitCode = 1;
   } else {
     rootLogger.info('All ISMs ok ✅');
   }
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

@@ -3,42 +3,48 @@
  * Run deploy-fastpath-test-recipients.ts first to create the recipients file.
  *
  * Usage (one origin → all destinations):
- *   yarn tsx scripts/validators/fastpath/test-fastpath-ism.ts \
+ *   pnpm tsx scripts/validators/fastpath/test-fastpath-ism.ts \
  *     -e mainnet3 --origin arbitrum --key 0x<key>
  *
  * Usage (one origin → specific destinations):
- *   yarn tsx scripts/validators/fastpath/test-fastpath-ism.ts \
+ *   pnpm tsx scripts/validators/fastpath/test-fastpath-ism.ts \
  *     -e mainnet3 --origin arbitrum --chains base ethereum --key 0x<key>
  *
  * Usage (full matrix — all origins → all destinations):
- *   yarn tsx scripts/validators/fastpath/test-fastpath-ism.ts \
+ *   pnpm tsx scripts/validators/fastpath/test-fastpath-ism.ts \
  *     -e mainnet3 --key 0x<key>
  *
  * Pass --timeout 0 to skip delivery polling and exit immediately after dispatch.
  * Pass -r http://localhost:3333 to use an HTTP registry instead of the local filesystem.
+ * Message IDs are persisted to --outFile (default: environment fastpath/test-messages.json)
+ * as they're dispatched, for consumption by check-fastpath-messages.ts.
  */
 import { ethers } from 'ethers';
 
 import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
-import { DispatchedMessage, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import {
+  DispatchedMessage,
+  HyperlaneCore,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
-import { readJson } from '@hyperlane-xyz/utils/fs';
+import { mergeJson, readJson } from '@hyperlane-xyz/utils/fs';
 
 import { join } from 'path';
 
 import { Contexts } from '../../../config/contexts.js';
-import { getChainAddresses } from '../../../config/registry.js';
+import { getRegistry as getInfraRegistry } from '../../../config/registry.js';
 import { getEnvironmentDirectory } from '../../../src/paths.js';
 import { getInfraPath } from '../../../src/utils/utils.js';
 import {
   getAgentConfig,
   getArgs as getBaseArgs,
   withChains,
+  withOutputFile,
 } from '../../agent-utils.js';
-import { getEnvironmentConfig } from '../../core-utils.js';
 
 function getArgs() {
-  return withChains(getBaseArgs())
+  return withOutputFile(withChains(getBaseArgs()))
     .option('origin', {
       type: 'string',
       describe:
@@ -94,7 +100,17 @@ async function main() {
     recipientsFile,
     timeout,
     registry: registryUrl,
+    outFile,
   } = await getArgs().argv;
+
+  const outputPath =
+    outFile ??
+    join(
+      getInfraPath(),
+      getEnvironmentDirectory(environment),
+      'fastpath',
+      'test-messages.json',
+    );
 
   const recipientsFilePath =
     recipientsFile ??
@@ -127,13 +143,17 @@ async function main() {
 
   const allChains = [...new Set(pairs.flatMap(({ from, to }) => [from, to]))];
 
-  const envConfig = getEnvironmentConfig(environment);
-  const multiProvider = await envConfig.getMultiProvider(
-    Contexts.Hyperlane,
-    undefined,
-    false,
-    allChains,
-  );
+  // Build providers and addresses from the same registry — an -r override
+  // must apply to both, or a fork registry can end up dispatching against
+  // live-chain RPCs. Read-only (no GCP key lookup); the deployer wallet is
+  // attached explicitly below.
+  const rpcRegistry = registryUrl
+    ? getMergedRegistry({ registryUris: [registryUrl], enableProxy: true })
+    : getInfraRegistry();
+  const chainMetadata = await rpcRegistry.getMetadata();
+  const multiProvider = new MultiProvider(chainMetadata, {
+    minConfirmationTimeoutMs: 300_000,
+  });
 
   for (const chain of allChains) {
     multiProvider.setSigner(
@@ -142,12 +162,7 @@ async function main() {
     );
   }
 
-  const chainAddresses = registryUrl
-    ? await getMergedRegistry({
-        registryUris: [registryUrl],
-        enableProxy: false,
-      }).getAddresses()
-    : getChainAddresses();
+  const chainAddresses = await rpcRegistry.getAddresses();
 
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
@@ -175,6 +190,9 @@ async function main() {
       { from, to, messageId: message.id, txHash: dispatchTx.transactionHash },
       'Dispatched',
     );
+    // Persisted after each dispatch so a partial run still leaves an
+    // inspectable record for check-fastpath-messages.ts.
+    mergeJson(outputPath, { [`${from}->${to}`]: message.id });
     pending.push({
       result: {
         origin: from,
@@ -227,7 +245,12 @@ async function main() {
   console.table(results);
 
   const failures = results.filter((r) => r.delivered === '❌ timed out');
-  if (failures.length > 0) process.exit(1);
+  if (failures.length > 0) process.exitCode = 1;
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

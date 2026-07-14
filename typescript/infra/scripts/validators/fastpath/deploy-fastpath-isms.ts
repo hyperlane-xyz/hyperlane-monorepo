@@ -6,11 +6,11 @@
  * Live run: deploys via the proxy factory using the provided --key.
  *
  * Usage (dry-run):
- *   yarn tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
+ *   pnpm tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
  *     -e mainnet3 --dry-run
  *
  * Usage (deploy):
- *   yarn tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
+ *   pnpm tsx scripts/validators/fastpath/deploy-fastpath-isms.ts \
  *     -e mainnet3 --key 0x<deployer-private-key> \
  *     [--chains arbitrum base ...] \
  *     [-r http://localhost:3333] \
@@ -23,15 +23,16 @@ import { getRegistry as getMergedRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   HyperlaneIsmFactory,
   IsmType,
+  MultiProvider,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
-import { writeJson } from '@hyperlane-xyz/utils/fs';
+import { mergeJson } from '@hyperlane-xyz/utils/fs';
 
 import { join } from 'path';
 
 import { Contexts } from '../../../config/contexts.js';
-import { getChainAddresses } from '../../../config/registry.js';
+import { getRegistry as getInfraRegistry } from '../../../config/registry.js';
 import { getEnvironmentDirectory } from '../../../src/paths.js';
 import { getInfraPath } from '../../../src/utils/utils.js';
 import {
@@ -40,7 +41,6 @@ import {
   withChains,
   withOutputFile,
 } from '../../agent-utils.js';
-import { getEnvironmentConfig } from '../../core-utils.js';
 
 // Fastpath validator addresses (AW, Enigma, Luganodes)
 const AW_FASTPATH_VALIDATOR = '0xa9c4c16a4e2cf4628e1bb045cfee9de2f1c3c24a';
@@ -129,14 +129,17 @@ async function main() {
     'Deploying fastpath messageId multisig ISMs',
   );
 
-  const envConfig = getEnvironmentConfig(environment);
-  // Get a read-only multi-provider (no GCP key lookup), then attach the deployer wallet.
-  const multiProvider = await envConfig.getMultiProvider(
-    Contexts.Hyperlane,
-    undefined,
-    false,
-    targetChains,
-  );
+  // Build providers and addresses from the same registry — an -r override
+  // must apply to both, or a fork registry can end up deploying against
+  // live-chain RPCs. Read-only (no GCP key lookup); the deployer wallet is
+  // attached explicitly below.
+  const rpcRegistry = registryUrl
+    ? getMergedRegistry({ registryUris: [registryUrl], enableProxy: true })
+    : getInfraRegistry();
+  const chainMetadata = await rpcRegistry.getMetadata();
+  const multiProvider = new MultiProvider(chainMetadata, {
+    minConfirmationTimeoutMs: 300_000,
+  });
 
   for (const chain of targetChains) {
     const provider = multiProvider.getProvider(chain);
@@ -148,12 +151,7 @@ async function main() {
   // which automatically merges getTransactionOverrides(chain) into every tx —
   // chain-specific gas overrides (e.g. katana's maxFeePerGas) are picked up
   // without any extra code here.
-  const chainAddresses = registryUrl
-    ? await getMergedRegistry({
-        registryUris: [registryUrl],
-        enableProxy: false,
-      }).getAddresses()
-    : getChainAddresses();
+  const chainAddresses = await rpcRegistry.getAddresses();
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     chainAddresses,
     multiProvider,
@@ -179,9 +177,16 @@ async function main() {
       'fastpath',
       'isms.json',
     );
-  writeJson(outputPath, deployedIsms);
+  // Merge rather than overwrite — a --chains subset run must not delete
+  // addresses for chains outside the subset that the warp getters still read.
+  mergeJson(outputPath, deployedIsms);
   rootLogger.info({ outputPath }, 'Written ISM addresses');
   console.table(deployedIsms);
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

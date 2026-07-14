@@ -1028,6 +1028,21 @@ const fastPathTestRecipientMatchingList: MatchingList = Object.entries(
   recipientAddress: addressToBytes32(address),
 }));
 
+// Messages to the fastpath test recipients must always pay real on-chain
+// fees, ahead of the shared enforcement list's dust-payment carve-outs
+// (e.g. citrea's "temporary workaround" accepting a payment of 1). Without
+// this, an open (any-sender) whitelist entry to a TestRecipient — which
+// accepts and stores arbitrary message bodies — combined with a dust
+// exception would let anyone repeatedly drain the fastpath relayer's
+// destination gas funds for ~free.
+const fastPathGasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    matchingList: fastPathTestRecipientMatchingList,
+  },
+  ...gasPaymentEnforcement,
+];
+
 const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
   arbitrum: [
     '0xeBC079D41C41a0ef7e54aa7Af867df9a621C9bE0', // USDC
@@ -1096,7 +1111,7 @@ const fastPath: RootAgentConfig = {
       ...fastPathTestRecipientMatchingList,
     ],
     blacklist,
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: fastPathGasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,
     cache: {

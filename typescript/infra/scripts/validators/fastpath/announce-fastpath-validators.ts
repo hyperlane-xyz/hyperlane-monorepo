@@ -6,11 +6,11 @@
  * - Luganodes: s3://hyperlane-fastpath-validators-signatures/<chain>
  *
  * Usage (all validators, all chains):
- *   yarn tsx scripts/validators/fastpath/announce-fastpath-validators.ts \
+ *   pnpm tsx scripts/validators/fastpath/announce-fastpath-validators.ts \
  *     -e mainnet3
  *
  * Usage (single chain):
- *   yarn tsx scripts/validators/fastpath/announce-fastpath-validators.ts \
+ *   pnpm tsx scripts/validators/fastpath/announce-fastpath-validators.ts \
  *     -e mainnet3 --chain arbitrum
  */
 import chalk from 'chalk';
@@ -120,12 +120,14 @@ async function main() {
   );
 
   // Submit any that aren't already announced.
+  const failedChains: ChainName[] = [];
   for (const { chain: c, storageLocation, announcement } of pending) {
     try {
       if (!announcement) {
         console.warn(
           chalk.yellow(`[${c}] No announcement at ${storageLocation}`),
         );
+        failedChains.push(c);
         continue;
       }
       const validatorAnnounce = core.getContracts(c).validatorAnnounce;
@@ -156,8 +158,23 @@ async function main() {
       console.error(
         chalk.bold.red(`Error processing announcement for ${c}:`, error),
       );
+      failedChains.push(c);
     }
+  }
+
+  if (failedChains.length > 0) {
+    console.error(
+      chalk.bold.red(
+        `\n${failedChains.length} chain(s) failed: ${failedChains.join(', ')}`,
+      ),
+    );
+    process.exitCode = 1;
   }
 }
 
-main().catch(console.error);
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
