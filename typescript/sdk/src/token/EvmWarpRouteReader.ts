@@ -534,6 +534,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.logger.debug('Skipping verification for local endpoints');
       return { [contractType]: ContractVerificationStatus.Skipped };
     }
+
+    // Skip chains with no Etherscan-API-compatible explorer configured. The
+    // verifier can't query them (e.g. tronscan, zksync, keyless etherscan), so
+    // a resulting `Error` status is a false-positive violation, not a real
+    // unverified contract.
+    if (!this.multiProvider.tryGetEvmExplorerMetadata(chain)) {
+      this.logger.debug(
+        `Skipping verification for ${chain}: no Etherscan-compatible explorer configured`,
+      );
+      return { [contractType]: ContractVerificationStatus.Skipped };
+    }
     const quietVerificationLogger = this.logger.child(
       { module: 'contract-verifier' },
       { level: 'silent' },
