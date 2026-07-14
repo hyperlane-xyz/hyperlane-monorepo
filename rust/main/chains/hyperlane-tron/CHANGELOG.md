@@ -1,3 +1,8 @@
+## [2.3.0] - 2026-03-25
+
+* feat(infra): add Tron mainnet deployment (#8356)
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+
 ## [2.1.0] - 2026-03-04
 
 * feat(tron): add ethereum compatibility & tron aws signer (#8222)
