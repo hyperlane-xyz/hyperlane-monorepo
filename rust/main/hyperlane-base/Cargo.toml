@@ -31,6 +31,7 @@ maplit.workspace = true
 mockall.workspace = true
 paste.workspace = true
 prometheus.workspace = true
+reqwest.workspace = true
 rocksdb.workspace = true
 rustls.workspace = true
 serde.workspace = true
@@ -76,7 +77,6 @@ rusoto_sts = "*"
 
 [dev-dependencies]
 color-eyre.workspace = true
-reqwest.workspace = true
 tempfile.workspace = true
 tracing-test.workspace = true
 walkdir.workspace = true
