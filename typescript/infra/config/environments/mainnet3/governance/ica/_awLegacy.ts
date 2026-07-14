@@ -4,7 +4,8 @@ import { Address } from '@hyperlane-xyz/utils';
 
 // pnpm tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const awIcasLegacy: ChainMap<Address> = {
-  viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
+  // Jul 14, 2026 - migrated to v2 ICA, see governance/ica/aw.ts
+  // viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
 
   // Jul 26, 2024 batch
   // ----------------------------------------------------------

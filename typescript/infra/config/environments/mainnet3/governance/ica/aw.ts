@@ -135,4 +135,8 @@ export const awIcas: ChainMap<Address> = {
   nexus: '0x488d1a010318941bF420FfcDc7aa8312b943C21E',
   robinhood: '0xaE3B79d7c9FBE5905fc5638Bb070dd356513d6fc',
   tea: '0xD7CfFFE7B51B2113B959A8EbA6c40F338eD8A4d5',
+
+  // Jul 14, 2026 - Viction ICA v2 migration
+  // ----------------------------------------------------------
+  viction: '0xacabBBa51DB75161274950aB57a466EAFB5F13B8',
 } as const;

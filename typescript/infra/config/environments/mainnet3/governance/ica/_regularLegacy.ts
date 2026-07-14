@@ -57,7 +57,8 @@ export const regularIcasLegacy: ChainMap<Address> = {
   superseed: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
   unichain: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
   vana: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
-  viction: '0x426FC4C5CC60E5e47101fe30d4f8B94F1b7C1C70',
+  // Jul 14, 2026 - migrated to v2 ICA, see governance/ica/regular.ts
+  // viction: '0x426FC4C5CC60E5e47101fe30d4f8B94F1b7C1C70',
   worldchain: '0x51E4E4b7317043A1D6e2fe6ccd9dA51844C385f0',
   xai: '0xF01B503E5cC884f0EB6eF062F704A610FD69842D',
   xlayer: '0x73581C1c03E64BDE5775b7236B57d78155B75fA7',
