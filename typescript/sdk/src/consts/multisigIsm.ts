@@ -762,7 +762,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fraxtal: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
@@ -776,10 +776,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x573e960e07ad74ea2c5f1e3c31b2055994b12797',
         alias: 'Imperator',
-      },
-      {
-        address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
-        alias: 'Luganodes',
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
@@ -2126,7 +2122,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   unichain: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x9773a382342ebf604a2e5de0a1f462fb499e28b1',
@@ -2136,14 +2132,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xa2549be30fb852c210c2fe8e7639039dca779936',
         alias: 'Imperator',
       },
-
       {
         address: '0xbcbed4d11e946844162cd92c6d09d1cf146b4006',
         alias: 'Enigma',
-      },
-      {
-        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
-        alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,

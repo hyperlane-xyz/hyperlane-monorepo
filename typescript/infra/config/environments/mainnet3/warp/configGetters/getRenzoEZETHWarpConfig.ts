@@ -233,10 +233,6 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   fraxtal: {
     threshold: 1,
     validators: [
-      {
-        address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
-        alias: 'Luganodes',
-      },
       { address: '0xe986f457965227a05dcf984c8d0c29e01253c44d', alias: 'Renzo' },
     ],
   },
@@ -283,10 +279,6 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   unichain: {
     threshold: 1,
     validators: [
-      {
-        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
-        alias: 'Luganodes',
-      },
       { address: '0xfe318024ca6197f2157905209149067a11e6982c', alias: 'Renzo' },
     ],
   },
@@ -313,30 +305,18 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   plasma: {
     threshold: 1,
     validators: [
-      {
-        address: '0x8516146068f7de5df6d65a54a631c968121df782',
-        alias: 'Luganodes',
-      },
       { address: '0x9A336232b3cc7399b500D09821AB14Caed008b7e', alias: 'Renzo' },
     ],
   },
   ink: {
     threshold: 1,
     validators: [
-      {
-        address: '0x4d3d970a2468c25d4b5c6af860d11b48223ca94b',
-        alias: 'Luganodes',
-      },
       { address: '0xe42562c4b4d72f28a11e6d02e5a641706f5815b3', alias: 'Renzo' },
     ],
   },
   monad: {
     threshold: 1,
     validators: [
-      {
-        address: '0x552d5a478d78a558eb473d844e4524de36d79cd9',
-        alias: 'Luganodes',
-      },
       { address: '0x59f6f0beb754f74a6d6b95d37f70066a474f2de7', alias: 'Renzo' },
     ],
   },
