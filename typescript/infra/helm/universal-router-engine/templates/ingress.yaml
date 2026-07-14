@@ -1,0 +1,23 @@
+{{- if .Values.ingress }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name }}--ingress--{{ .Values.hyperlane.runEnv }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: {{ .Values.ingress.staticIpName }}
+    networking.gke.io/managed-certificates: {{ .Chart.Name }}--certificate--{{ .Values.hyperlane.runEnv }}
+spec:
+  ingressClassName: "gce"
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Chart.Name }}
+                port:
+                  number: {{ .Values.port }}
+{{- end }}
