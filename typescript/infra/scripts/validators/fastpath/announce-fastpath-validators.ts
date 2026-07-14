@@ -70,6 +70,7 @@ async function main() {
   const evmChains = targetChains.filter(isEthereumProtocolChain);
 
   const pending: PendingAnnouncement[] = [];
+  const failures: string[] = [];
 
   // AW: read storage locations from the fastpath agent config.
   if (agentConfig.validators) {
@@ -114,20 +115,20 @@ async function main() {
               `[${c}] ${alias}: could not read announcement from ${storageLocation}: ${err}`,
             ),
           );
+          failures.push(`${alias}@${c}`);
         }
       }),
     ),
   );
 
   // Submit any that aren't already announced.
-  const failedChains: ChainName[] = [];
   for (const { chain: c, storageLocation, announcement } of pending) {
     try {
       if (!announcement) {
         console.warn(
           chalk.yellow(`[${c}] No announcement at ${storageLocation}`),
         );
-        failedChains.push(c);
+        failures.push(c);
         continue;
       }
       const validatorAnnounce = core.getContracts(c).validatorAnnounce;
@@ -158,15 +159,13 @@ async function main() {
       console.error(
         chalk.bold.red(`Error processing announcement for ${c}:`, error),
       );
-      failedChains.push(c);
+      failures.push(c);
     }
   }
 
-  if (failedChains.length > 0) {
+  if (failures.length > 0) {
     console.error(
-      chalk.bold.red(
-        `\n${failedChains.length} chain(s) failed: ${failedChains.join(', ')}`,
-      ),
+      chalk.bold.red(`\n${failures.length} failure(s): ${failures.join(', ')}`),
     );
     process.exitCode = 1;
   }

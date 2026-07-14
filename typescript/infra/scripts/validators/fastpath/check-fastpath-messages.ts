@@ -6,7 +6,13 @@
  * and ISM addresses from isms.json. For each destination chain it checks:
  *   1. mailbox.delivered(messageId) — message reached the mailbox
  *   2. testRecipient.interchainSecurityModule() == fastpathIsm — correct ISM used
- *   3. testRecipient.lastData() == expected dispatched body — message body was received
+ *   3. the specific process tx's ReceivedMessage log == expected origin/body
+ *
+ * Body/origin are read from the ProcessId(messageId) transaction's own
+ * ReceivedMessage log, not from TestRecipient's lastData/lastSender storage —
+ * those are single mutable slots per contract, so with multiple origins
+ * dispatching to the same destination (the full matrix case) they only ever
+ * reflect the most recently processed message, not the one being checked.
  *
  * The expected origin->dest matrix is derived from the fastpath agent config,
  * not from test-messages.json, so an empty/truncated/malformed messages file
@@ -20,9 +26,7 @@
  *     [--ismsFile      config/environments/mainnet3/fastpath/isms.json] \
  *     [--chains base ethereum ...]
  */
-import { ethers } from 'ethers';
-
-import { TestRecipient__factory } from '@hyperlane-xyz/core';
+import { Mailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { assert, eqAddress } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -72,6 +76,41 @@ type Row = {
 // Mirrors the body dispatched by test-fastpath-ism.ts for a given pair.
 function expectedBody(origin: string, dest: string): string {
   return `fastpath ISM test ${origin}->${dest}`;
+}
+
+const testRecipientInterface = TestRecipient__factory.createInterface();
+
+// Reads the ReceivedMessage log emitted by the specific transaction that
+// processed `messageId`, rather than TestRecipient's mutable lastData/
+// lastSender storage — those are single slots per contract and only ever
+// reflect the most recently processed message.
+async function getReceivedMessage(
+  mailbox: Mailbox,
+  messageId: string,
+  recipientAddress: string,
+): Promise<{ origin: number; message: string } | null> {
+  const processedBlock = await mailbox.processedAt(messageId);
+  if (processedBlock === 0) return null;
+  const events = await mailbox.queryFilter(
+    mailbox.filters.ProcessId(messageId),
+    processedBlock,
+    processedBlock,
+  );
+  if (events.length !== 1) return null;
+  const receipt = await events[0].getTransactionReceipt();
+  for (const log of receipt.logs) {
+    if (!eqAddress(log.address, recipientAddress)) continue;
+    let parsed;
+    try {
+      parsed = testRecipientInterface.parseLog(log);
+    } catch {
+      continue;
+    }
+    if (parsed.name === 'ReceivedMessage') {
+      return { origin: parsed.args.origin, message: parsed.args.message };
+    }
+  }
+  return null;
 }
 
 async function main() {
@@ -148,15 +187,27 @@ async function main() {
       provider,
     );
 
-    const [delivered, ismOnRecipient, lastData] = await Promise.all([
+    const [delivered, ismOnRecipient] = await Promise.all([
       mailbox.delivered(messageId),
       recipient.interchainSecurityModule(),
-      recipient.lastData(),
     ]);
 
     const ismCorrect = eqAddress(ismOnRecipient, expectedIsm);
-    const receivedBody = ethers.utils.toUtf8String(lastData);
-    const bodyCorrect = receivedBody === expectedBody(origin, dest);
+
+    // Bind messageId to this specific pair's origin/recipient/body via the
+    // process transaction's own log, not TestRecipient's shared storage slot.
+    let bodyCorrect = false;
+    if (delivered) {
+      const received = await getReceivedMessage(
+        mailbox,
+        messageId,
+        recipientAddress,
+      );
+      bodyCorrect =
+        received !== null &&
+        received.message === expectedBody(origin, dest) &&
+        received.origin === multiProvider.getDomainId(origin);
+    }
 
     rows.push({
       chain: key,

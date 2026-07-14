@@ -18,7 +18,12 @@ import { ModuleType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { getArgs as getBaseArgs, withChains } from '../../agent-utils.js';
+import { Contexts } from '../../../config/contexts.js';
+import {
+  getAgentConfig,
+  getArgs as getBaseArgs,
+  withChains,
+} from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 // Fastpath validator addresses (AW, Enigma, Luganodes)
@@ -72,8 +77,12 @@ async function main() {
 
   const ismAddresses = readJson<Record<string, string>>(ismsFile);
 
-  const destinations =
-    chains && chains.length > 0 ? chains : Object.keys(ismAddresses);
+  // Expected destinations come from the fastpath agent config, not from the
+  // artifact being checked — a truncated isms.json must fail the missing
+  // chain, not silently drop it from the checked set.
+  const agentConfig = getAgentConfig(Contexts.FastPath, environment);
+  const fastpathChains = agentConfig.contextChainNames.validator;
+  const destinations = chains && chains.length > 0 ? chains : fastpathChains;
 
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
