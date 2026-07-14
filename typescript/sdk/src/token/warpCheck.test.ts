@@ -1,15 +1,20 @@
+import type { DerivedCollateralWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { test1, test2, testSealevelChain } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
-import { getScaleViolations } from './warpCheck.js';
+import {
+  buildAltVmWarpRouteDiff,
+  derivedWarpConfigToCheckConfig,
+  getScaleViolations,
+} from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
 const OWNER = '0x000000000000000000000000000000000000dEaD';
@@ -163,5 +168,126 @@ describe('getScaleViolations', () => {
 
     expect(violations).to.deep.equal([]);
     expect(connectStub.notCalled).to.equal(true);
+  });
+});
+
+function buildDerivedCollateralConfig(
+  overrides: Partial<DerivedCollateralWarpConfig> = {},
+): DerivedCollateralWarpConfig {
+  return {
+    decimals: 6,
+    destinationGas: {},
+    hook: MAILBOX,
+    interchainSecurityModule: MAILBOX,
+    mailbox: MAILBOX,
+    name: 'TOKEN',
+    owner: OWNER,
+    remoteRouters: {},
+    symbol: 'TOKEN',
+    token: TOKEN_A,
+    type: 'collateral',
+    ...overrides,
+  };
+}
+
+describe('derivedWarpConfigToCheckConfig', () => {
+  it('excludes decimals for CosmosNative, whose reader always returns a placeholder', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({
+        decimals: 0,
+        name: 'Unknown',
+        symbol: 'Unknown',
+      }),
+      ProtocolType.CosmosNative,
+    );
+
+    expect(result.decimals).to.equal(undefined);
+  });
+
+  it('keeps decimals for protocols with reliable on-chain metadata', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ decimals: 9 }),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.decimals).to.equal(9);
+  });
+
+  it('normalizes Starknet addresses so differently-formatted equal addresses compare equal', () => {
+    const short = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ owner: '0x1abc' }),
+      ProtocolType.Starknet,
+    );
+    const padded = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({
+        owner:
+          '0x0000000000000000000000000000000000000000000000000000000001abc',
+      }),
+      ProtocolType.Starknet,
+    );
+
+    expect(short.owner).to.equal(padded.owner);
+  });
+
+  it('never includes name/symbol, mirroring the EVM FIELDS_TO_IGNORE convention', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig(),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.not.have.property('name');
+    expect(result).to.not.have.property('symbol');
+  });
+});
+
+describe('buildAltVmWarpRouteDiff', () => {
+  const baseConfig = {
+    destinationGas: {},
+    mailbox: MAILBOX,
+    owner: OWNER,
+    remoteRouters: {},
+    type: TokenType.collateral,
+  };
+
+  it('does not flag an on-chain zero-address ISM/hook when the deploy config omits it', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          hook: '0x0000000000000000000000000000000000000000',
+          interchainSecurityModule:
+            '0x0000000000000000000000000000000000000000',
+        },
+      },
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a chain present on-chain but missing from the expected config', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      { [testSealevelChain.name]: { ...baseConfig } },
+      {},
+    );
+
+    expect(diff).to.deep.equal({
+      [testSealevelChain.name]: {
+        route: { actual: 'present', expected: 'missing' },
+      },
+    });
+  });
+
+  it('flags a chain expected but missing on-chain', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {},
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({
+      [testSealevelChain.name]: {
+        route: { actual: 'missing', expected: 'present' },
+      },
+    });
   });
 });

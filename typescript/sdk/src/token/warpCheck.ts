@@ -21,9 +21,11 @@ import {
   diffObjMerge,
   eqAddress,
   isAddressEvm,
+  isCosmosIbcDenomAddress,
   isEVMLike,
   isNullish,
   keepOnlyDiffObjects,
+  normalizeAddress,
   normalizeAddressEvm,
   objFilter,
   objMap,
@@ -137,7 +139,11 @@ async function getWarpRouteConfigsByCore({
 
 // Normalized shape used for altVM diff comparison.
 // All router addresses are lowercased bytes32 hex. Keys are chain names.
-type AltVmCheckConfig = {
+// name/symbol are deliberately excluded, mirroring the EVM path's
+// FIELDS_TO_IGNORE (see configUtils.ts): they're not critical to whether the
+// route functions correctly, and some altVM protocols (Cosmos SDK) don't
+// store them on-chain at all, so comparing them produces false positives.
+export type AltVmCheckConfig = {
   type: string;
   owner: string;
   mailbox: string;
@@ -147,8 +153,6 @@ type AltVmCheckConfig = {
   remoteRouters: Record<string, string>;
   destinationGas: Record<string, string>;
   token?: string;
-  name?: string;
-  symbol?: string;
   decimals?: number;
 };
 
@@ -171,8 +175,9 @@ function extractAddress(
   return undefined;
 }
 
-function derivedWarpConfigToCheckConfig(
+export function derivedWarpConfigToCheckConfig(
   config: DerivedWarpConfig,
+  protocol: ProtocolType,
 ): AltVmCheckConfig {
   const remoteRouters: Record<string, string> = {};
   for (const [chain, router] of Object.entries(config.remoteRouters)) {
@@ -186,33 +191,41 @@ function derivedWarpConfigToCheckConfig(
 
   const result: AltVmCheckConfig = {
     type: config.type,
-    owner: config.owner,
-    mailbox: config.mailbox,
-    interchainSecurityModule: extractAddress(config.interchainSecurityModule),
-    hook: extractAddress(config.hook),
+    owner: normalizeAddress(config.owner, protocol),
+    mailbox: normalizeAddress(config.mailbox, protocol),
+    interchainSecurityModule: normalizeOptionalAddress(
+      extractAddress(config.interchainSecurityModule),
+      protocol,
+    ),
+    hook: normalizeOptionalAddress(extractAddress(config.hook), protocol),
     scale: config.scale,
     remoteRouters,
     destinationGas,
   };
 
-  // warpArtifactToDerivedConfig spreads name/symbol/decimals from baseDerivedConfig
-  // even onto DerivedNativeWarpConfig at runtime. Mirror the expected-side guards:
-  // only include fields that can be non-undefined, and skip name/symbol for native.
-  // The `type !== native` check above narrows away DerivedNativeWarpConfig, so
-  // name/symbol are accessible without a cast; decimals is checked unconditionally
-  // below (DerivedNativeWarpConfig has no decimals field), so a narrowing `in` check
-  // is used instead.
-  if (config.type !== TokenType.native) {
-    if (!isNullish(config.name)) result.name = config.name;
-    if (!isNullish(config.symbol)) result.symbol = config.symbol;
-  }
+  // Cosmos SDK chains don't store token metadata on-chain and the reader
+  // always returns a decimals=0 placeholder (see cosmos-sdk's warp-query.ts);
+  // comparing it would produce a false-positive mismatch against any real
+  // configured decimals, so it's excluded for that protocol only.
+  // DerivedNativeWarpConfig has no decimals field, hence the `in` check.
   const decimals = 'decimals' in config ? config.decimals : undefined;
-  if (!isNullish(decimals)) result.decimals = decimals;
+  if (protocol !== ProtocolType.CosmosNative && !isNullish(decimals)) {
+    result.decimals = decimals;
+  }
   if ('token' in config && typeof config.token === 'string') {
-    result.token = config.token;
+    result.token = normalizeAddress(config.token, protocol);
   }
 
   return result;
+}
+
+function normalizeOptionalAddress(
+  address: string | undefined,
+  protocol: ProtocolType,
+): string | undefined {
+  return address === undefined
+    ? undefined
+    : normalizeAddress(address, protocol);
 }
 
 function expandedDeployConfigToAltVmCheckConfig(
@@ -248,14 +261,19 @@ function expandedDeployConfigToAltVmCheckConfig(
     destinationGas[chainName] = gas;
   }
 
+  const protocol = multiProvider.getProtocol(chain);
+
   // Only compare ISM/hook as addresses when they are plain strings in the deploy config.
   // Complex ISM/hook config objects require deployment to resolve their address,
   // so we skip comparison for those to avoid false violations.
   const ismAddress =
     typeof config.interchainSecurityModule === 'string'
-      ? config.interchainSecurityModule
+      ? normalizeAddress(config.interchainSecurityModule, protocol)
       : undefined;
-  const hookAddress = typeof config.hook === 'string' ? config.hook : undefined;
+  const hookAddress =
+    typeof config.hook === 'string'
+      ? normalizeAddress(config.hook, protocol)
+      : undefined;
 
   // The derived (on-chain) side's scale is always a plain number, so a fractional
   // scale can only be compared once it collapses to an exact integer ratio.
@@ -274,8 +292,8 @@ function expandedDeployConfigToAltVmCheckConfig(
 
   const result: AltVmCheckConfig = {
     type: config.type,
-    owner: config.owner,
-    mailbox: config.mailbox,
+    owner: normalizeAddress(config.owner, protocol),
+    mailbox: normalizeAddress(config.mailbox, protocol),
     interchainSecurityModule: ismAddress,
     hook: hookAddress,
     scale,
@@ -283,33 +301,42 @@ function expandedDeployConfigToAltVmCheckConfig(
     destinationGas,
   };
 
-  // deriveTokenMetadata is EVM-only, so name/symbol/decimals are undefined in the
-  // expanded deploy config for non-EVM chains unless the user explicitly set them.
-  // Only include them in the comparison when they're actually specified, to avoid
-  // false positives from unresolved metadata on the expected side.
-  // name/symbol are also skipped for native tokens — they're not stored on-chain.
-  if (config.type !== TokenType.native) {
-    if (!isNullish(config.name)) result.name = config.name;
-    if (!isNullish(config.symbol)) result.symbol = config.symbol;
+  // deriveTokenMetadata is EVM-only, so decimals is undefined in the expanded
+  // deploy config for non-EVM chains unless the user explicitly set it or it was
+  // seeded from on-chain state (see metadataSeededWarpDeployConfig below). Only
+  // include it in the comparison when it's actually specified, to avoid false
+  // positives from unresolved metadata on the expected side. Cosmos SDK's
+  // decimals=0 placeholder is excluded on the actual side (see
+  // derivedWarpConfigToCheckConfig), so it's excluded here too for symmetry.
+  if (protocol !== ProtocolType.CosmosNative && !isNullish(config.decimals)) {
+    result.decimals = config.decimals;
   }
-  if (!isNullish(config.decimals)) result.decimals = config.decimals;
 
   if ('token' in config && typeof config.token === 'string') {
-    result.token = config.token;
+    result.token = normalizeAddress(config.token, protocol);
   }
 
   return result;
 }
 
-async function getAltVmOnChainConfigs({
+// Fetches raw on-chain altVM warp configs (pre-diff-shape). Kept separate from
+// the AltVmCheckConfig conversion so callers can also read name/symbol/decimals
+// off the raw config for metadata seeding (see metadataSeededWarpDeployConfig
+// in checkWarpRouteDeployConfig) before those fields are dropped for diffing.
+async function getAltVmOnChainDerivedConfigs({
   multiProvider,
   warpCoreConfig,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
-}): Promise<Record<string, AltVmCheckConfig>> {
-  const altVmTokens = warpCoreConfig.tokens.filter((token) =>
-    isSupportedAltVmProtocol(multiProvider.tryGetProtocol(token.chainName)),
+}): Promise<Record<string, DerivedWarpConfig>> {
+  const altVmTokens = warpCoreConfig.tokens.filter(
+    (token) =>
+      isSupportedAltVmProtocol(multiProvider.tryGetProtocol(token.chainName)) &&
+      // ibc/... denoms live on the same chain as the warp token but are only
+      // used to pay the IGP hook -- they aren't routers and deriving a warp
+      // config against one always fails (mirrors getRouterAddressesFromWarpCoreConfig).
+      !isCosmosIbcDenomAddress(token.addressOrDenom),
   );
 
   if (altVmTokens.length === 0) return {};
@@ -338,8 +365,7 @@ async function getAltVmOnChainConfigs({
           chainName,
           (async () => {
             try {
-              const config = await reader.deriveWarpConfig(addressOrDenom);
-              return derivedWarpConfigToCheckConfig(config);
+              return await reader.deriveWarpConfig(addressOrDenom);
             } catch (error) {
               const message =
                 error instanceof Error ? error.message : String(error);
@@ -354,7 +380,7 @@ async function getAltVmOnChainConfigs({
   );
 }
 
-function buildAltVmWarpRouteDiff(
+export function buildAltVmWarpRouteDiff(
   onChainConfigs: Record<string, AltVmCheckConfig>,
   expectedConfigs: Record<string, AltVmCheckConfig>,
 ): Record<string, ObjectDiff> {
@@ -453,9 +479,51 @@ export async function checkWarpRouteDeployConfig({
     deployedRoutersAddresses,
   });
 
+  // Read altVM on-chain state up front: it's needed both for the diff below and
+  // to seed metadata before expandWarpDeployConfig runs (see next comment).
+  const altVmOnChainDerivedConfigs = await getAltVmOnChainDerivedConfigs({
+    multiProvider,
+    warpCoreConfig,
+  });
+
+  // expandWarpDeployConfig derives name/symbol/decimals via deriveTokenMetadata,
+  // which is EVM-only: it resolves each chain's metadata by falling back to any
+  // other chain's metadata in the route, and throws (TokenMetadataMap.getSymbol)
+  // if nothing resolves anywhere. A route with no EVM legs, and no chain that
+  // explicitly configures name/symbol, has nothing to fall back to -- which would
+  // otherwise crash `warp check` on a schema-valid altVM-only route instead of
+  // returning a result. Seed real on-chain name/symbol/decimals for altVM chains
+  // that don't already specify them, so there's always something to resolve.
+  // Cosmos SDK chains don't store token metadata on-chain (decimals is always a
+  // 0 placeholder, invalid per TokenMetadataSchema) so they're left unseeded; an
+  // all-Cosmos route with no explicit metadata anywhere is a limitation of the
+  // chain itself, not something this check can resolve.
+  const metadataSeededWarpDeployConfig = deepCopy(warpDeployConfig);
+  for (const [chain, derivedConfig] of Object.entries(
+    altVmOnChainDerivedConfigs,
+  )) {
+    const chainConfig = metadataSeededWarpDeployConfig[chain];
+    const decimals =
+      'decimals' in derivedConfig ? derivedConfig.decimals : undefined;
+    if (
+      !chainConfig ||
+      chainConfig.type === TokenType.native ||
+      !('name' in derivedConfig) ||
+      !('symbol' in derivedConfig) ||
+      isNullish(decimals) ||
+      decimals <= 0
+    ) {
+      continue;
+    }
+    if (isNullish(chainConfig.name)) chainConfig.name = derivedConfig.name;
+    if (isNullish(chainConfig.symbol))
+      chainConfig.symbol = derivedConfig.symbol;
+    if (isNullish(chainConfig.decimals)) chainConfig.decimals = decimals;
+  }
+
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    warpDeployConfig,
+    warpDeployConfig: metadataSeededWarpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale: false,
@@ -481,11 +549,13 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
-  // AltVM check: read on-chain state and diff against the expanded deploy config
-  const altVmOnChainConfigs = await getAltVmOnChainConfigs({
-    multiProvider,
-    warpCoreConfig,
-  });
+  // AltVM check: diff the already-fetched on-chain state against the expanded
+  // deploy config
+  const altVmOnChainConfigs: Record<string, AltVmCheckConfig> = objMap(
+    altVmOnChainDerivedConfigs,
+    (chain, config) =>
+      derivedWarpConfigToCheckConfig(config, multiProvider.getProtocol(chain)),
+  );
 
   const altVmExpectedConfigs: Record<string, AltVmCheckConfig> = {};
   for (const [chain, config] of Object.entries(normalizedWarpDeployConfig)) {
