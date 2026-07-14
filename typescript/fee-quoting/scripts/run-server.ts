@@ -66,6 +66,15 @@ async function main() {
         ? parseInt(process.env.QUOTE_EXPIRY, 10)
         : undefined,
     })
+    .option('transient-buffer', {
+      alias: 't',
+      describe:
+        'Forward-date buffer in seconds for transient quotes (must be below the on-chain future-skew cap)',
+      type: 'number',
+      default: process.env.TRANSIENT_BUFFER
+        ? parseInt(process.env.TRANSIENT_BUFFER, 10)
+        : undefined,
+    })
     .help()
     .parse();
 
@@ -77,6 +86,7 @@ async function main() {
     port: args.port,
     quoteMode: args['quote-mode'],
     quoteExpiry: args['quote-expiry'],
+    transientBuffer: args['transient-buffer'],
   });
 
   rootLogger.info(
