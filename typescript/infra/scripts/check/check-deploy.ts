@@ -7,8 +7,16 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { module, context, environment, asDeployer, chains, fork, govern } =
-    await getCheckDeployArgs().argv;
+  const {
+    module,
+    context,
+    environment,
+    asDeployer,
+    chains,
+    fork,
+    govern,
+    icaRemotes,
+  } = await getCheckDeployArgs().argv;
   assert(module, 'Module is required');
 
   const governor = await getGovernor(
@@ -19,6 +27,8 @@ async function main() {
     chains,
     fork,
     govern,
+    undefined,
+    icaRemotes,
   );
 
   if (fork) {

@@ -187,6 +187,20 @@ export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   );
 }
 
+export function withIcaRemotes<T>(args: Argv<T>) {
+  return (
+    args
+      .describe(
+        'icaRemotes',
+        "For the ica/haas modules: restrict a non-fully-connected chain's expected enrollment to this explicit set of remotes, instead of the full FULLY_CONNECTED_ICA_CHAINS set.",
+      )
+      .array('icaRemotes')
+      .choices('icaRemotes', getChains())
+      // Ensure chains are unique
+      .coerce('icaRemotes', (chains: string[]) => Array.from(new Set(chains)))
+  );
+}
+
 export function withChainsRequired<T>(
   args: Argv<T>,
   chainOptions?: ChainName[],

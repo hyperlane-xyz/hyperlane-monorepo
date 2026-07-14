@@ -1,9 +1,13 @@
 import chalk from 'chalk';
 
 import {
+  ChainMap,
   ChainName,
+  InterchainAccount,
   InterchainAccountChecker,
+  InterchainAccountConfig,
   MissingRouterViolation,
+  MultiProvider,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -23,6 +27,18 @@ const FULLY_CONNECTED_ICA_CHAINS = new Set([
 ]);
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {
+  constructor(
+    multiProvider: MultiProvider,
+    app: InterchainAccount,
+    configMap: ChainMap<InterchainAccountConfig>,
+    // Overrides the remote chains a non-fully-connected chain is expected to
+    // enroll, instead of the full FULLY_CONNECTED_ICA_CHAINS set. Useful for
+    // enrolling a new chain against a single remote at a time.
+    readonly remoteChainsOverride?: ChainName[],
+  ) {
+    super(multiProvider, app, configMap);
+  }
+
   async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const config = this.configMap[chain];
@@ -48,6 +64,15 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
    * and that remote chains have the correct router enrolled.
    */
   async checkIcaRouterEnrollment(chain: ChainName): Promise<void> {
+    // If a remote chains override was given, only check enrollment against
+    // that explicit set rather than the full FULLY_CONNECTED_ICA_CHAINS set.
+    if (this.remoteChainsOverride) {
+      const remotes = this.remoteChainsOverride.filter(
+        (c) => c !== chain && !legacyIcaChains.includes(c) && c !== 'eden',
+      );
+      return super.checkEnrolledRouters(chain, remotes);
+    }
+
     // If the chain should be fully connected, do the regular full check.
     if (FULLY_CONNECTED_ICA_CHAINS.has(chain)) {
       // don't try to enroll legacy ica chains

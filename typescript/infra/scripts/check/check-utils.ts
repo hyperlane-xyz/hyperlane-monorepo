@@ -39,6 +39,7 @@ import {
   withContext,
   withFork,
   withGovern,
+  withIcaRemotes,
   withModule,
   withPushMetrics,
 } from '../agent-utils.js';
@@ -56,7 +57,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withModule(getCheckBaseArgs()));
+  return withIcaRemotes(withRegistryUris(withModule(getCheckBaseArgs())));
 }
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
@@ -144,6 +145,9 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
+  // For the ica/haas modules: overrides the remote chains a non-fully-connected
+  // chain is expected to enroll, instead of the full FULLY_CONNECTED_ICA_CHAINS set.
+  icaRemotes?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -240,7 +244,12 @@ export async function getGovernor(
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      ica,
+      icaConfig,
+      icaRemotes,
+    );
     governor = new ProxiedRouterGovernor(icaChecker);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
@@ -271,7 +280,12 @@ export async function getGovernor(
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      ica,
+      icaConfig,
+      icaRemotes,
+    );
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
