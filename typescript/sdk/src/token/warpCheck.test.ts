@@ -267,6 +267,36 @@ describe('derivedWarpConfigToCheckConfig', () => {
       [test2.name]: ['0x' + 'a'.repeat(64), '0x' + 'b'.repeat(64)],
     });
   });
+
+  it('widens a 20-byte EVM router address to bytes32 before comparing', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [ROUTER_B],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.deep.equal({
+      [test2.name]: [addressToBytes32(ROUTER_B).toLowerCase()],
+    });
+  });
+
+  it('treats an on-chain empty crossCollateralRouters map ({}) as omitted, not a real value', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {},
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.equal(undefined);
+  });
 });
 
 describe('altVmScaleMismatch', () => {
@@ -293,6 +323,22 @@ describe('altVmScaleMismatch', () => {
   it('matches an integer on-chain scale against an equivalent plain-number expected scale', () => {
     expect(altVmScaleMismatch(1000, 1000)).to.equal(undefined);
   });
+
+  // 1/scale is lossy in IEEE-754 for several of these exponents (e.g.
+  // 1/1e-5 = 99999.99999999999, not exactly 100000), which used to either
+  // throw or silently compare against the wrong fraction. These decimal
+  // deltas are routine for SVM's remoteDecimalsToScale and the Aleo reader.
+  for (const exponent of [1, 3, 5, 9, 12, 15, 18]) {
+    it(`matches a 1e-${exponent} on-chain scale against the equivalent expected fraction`, () => {
+      const scale = Math.pow(10, -exponent);
+      expect(
+        altVmScaleMismatch(scale, {
+          denominator: 10 ** exponent,
+          numerator: 1,
+        }),
+      ).to.equal(undefined);
+    });
+  }
 });
 
 describe('expandedDeployConfigToAltVmCheckConfig', () => {

@@ -16,6 +16,7 @@ import {
   type Address,
   type ObjectDiff,
   ProtocolType,
+  addressToBytes32,
   assert,
   bytes32ToAddress,
   concurrentMap,
@@ -227,9 +228,8 @@ export function derivedWarpConfigToCheckConfig(
     result.contractVersion = config.contractVersion;
   }
   if ('crossCollateralRouters' in config) {
-    result.crossCollateralRouters = objMap(
+    result.crossCollateralRouters = normalizeCrossCollateralRouters(
       config.crossCollateralRouters,
-      (_chain, routers) => [...routers].map((r) => r.toLowerCase()).sort(),
     );
   }
 
@@ -243,6 +243,29 @@ function normalizeOptionalAddress(
   return address === undefined
     ? undefined
     : normalizeAddress(address, protocol);
+}
+
+// Cross-collateral router addresses are always bytes32 on-chain, but a deploy
+// config listing an EVM remote may write it as a plain 20-byte address --
+// widen it before lowercasing so it compares equal to the padded on-chain form.
+function normalizeCrossCollateralRouterAddress(address: string): string {
+  return (
+    isAddressEvm(address) ? addressToBytes32(address) : address
+  ).toLowerCase();
+}
+
+// SVM cross-collateral readers always include `crossCollateralRouters` (even
+// as `{}` when nothing is enrolled), but the expected side only sets it when
+// the deploy config specifies it -- normalize both sides so an empty map is
+// equivalent to omitted, rather than diffing `{}` against `undefined`.
+function normalizeCrossCollateralRouters(
+  routers: Record<string, string[]> | undefined,
+): Record<string, string[]> | undefined {
+  if (!routers) return undefined;
+  const normalized = objMap(routers, (_chain, addresses) =>
+    [...addresses].map(normalizeCrossCollateralRouterAddress).sort(),
+  );
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 export function expandedDeployConfigToAltVmCheckConfig(
@@ -342,11 +365,11 @@ export function expandedDeployConfigToAltVmCheckConfig(
         chainName,
         `Unknown crossCollateralRouters domain ${domainIdStr} configured for chain ${chain}`,
       );
-      crossCollateralRouters[chainName] = [...routers]
-        .map((r) => r.toLowerCase())
-        .sort();
+      crossCollateralRouters[chainName] = [...routers];
     }
-    result.crossCollateralRouters = crossCollateralRouters;
+    result.crossCollateralRouters = normalizeCrossCollateralRouters(
+      crossCollateralRouters,
+    );
   }
 
   return result;
@@ -487,12 +510,16 @@ export function buildAltVmWarpRouteDiff(
 // it doesn't rather than silently comparing a rounded approximation.
 function actualScaleToScaleInput(scale: number): ScaleInput {
   if (Number.isInteger(scale)) return scale;
-  const inverse = 1 / scale;
+  // `1 / scale` is lossy for powers of ten with a large negative exponent
+  // (e.g. scale=1e-5 -> inverse=99999.99999999999, scale=1e-18 -> inverse
+  // rounds to an integer that isn't exactly 10^18) -- reconstruct the exponent
+  // via log10 and verify by exact recomputation instead of dividing.
+  const exponent = Math.round(Math.log10(scale));
   assert(
-    Number.isInteger(inverse),
-    `AltVM on-chain scale ${scale} is not exactly representable as an integer ratio`,
+    Math.pow(10, exponent) === scale,
+    `AltVM on-chain scale ${scale} is not exactly representable as a power-of-ten ratio`,
   );
-  return { numerator: 1n, denominator: BigInt(inverse) };
+  return { numerator: 1n, denominator: 10n ** BigInt(-exponent) };
 }
 
 // Compares the on-chain scale against the raw (pre-expansion) expected
