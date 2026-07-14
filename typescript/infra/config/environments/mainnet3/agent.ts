@@ -971,7 +971,7 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: ['mantapacific', 'arbitrum'],
+    relayer: ['arbitrum'],
     scraper: [],
   },
   context: Contexts.Neutron,
