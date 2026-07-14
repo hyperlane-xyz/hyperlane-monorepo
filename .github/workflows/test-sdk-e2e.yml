@@ -176,6 +176,7 @@ jobs:
           - provider
           - read-token
           - program-upgrade
+          - program-extend-upgrade
           - igp-program-upgrade
           - mailbox-program-upgrade
           - warp-alt-simulation-parity
