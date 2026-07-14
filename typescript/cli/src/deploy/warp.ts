@@ -1175,7 +1175,7 @@ function transformCompositeIsmNodeForDisplay(
       // loudly at runtime too, not silently print the raw unhandled object.
       const _exhaustive: never = node;
       throw new Error(
-        `Unhandled composite ISM node type: ${(_exhaustive as { type: string }).type}`,
+        `Unhandled composite ISM node type: ${JSON.stringify(_exhaustive)}`,
       );
     }
   }

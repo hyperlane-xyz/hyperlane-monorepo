@@ -520,6 +520,7 @@ jobs:
       matrix:
         test:
           - core-deploy
+          - core-composite-ism
     steps:
       - uses: actions/checkout@v6
         with:

@@ -11,6 +11,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   type Address,
   type Instruction,
+  type TransactionSigner,
 } from '@solana/kit';
 
 import {
@@ -37,7 +38,7 @@ import {
   type IsmNode,
 } from '../accounts/composite-ism.js';
 import { encodeH160, encodeH256 } from '../codecs/shared.js';
-import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
+import { DEFAULT_COMPUTE_UNITS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitializeCompositeIsmInstruction,
@@ -378,20 +379,30 @@ function isValidDecimalStringBoundedBy(value: string, max: bigint): boolean {
  */
 export function assertValidCompositeIsmArtifact(
   config: CompositeIsmArtifactConfig,
+  programId?: Address,
 ): void {
   assert(
-    isAddress(config.owner),
-    `Composite ISM owner must be a valid Sealevel address, got: ${config.owner}`,
+    isAddress(config.owner) && !isEmptyAddress(config.owner),
+    `Composite ISM owner must be a non-zero Sealevel address, got: ${config.owner}`,
   );
-  assertValidCompositeIsmArtifactNode(config.root, false, {
-    routingFound: false,
-  });
+  assertValidCompositeIsmArtifactNode(
+    config.root,
+    false,
+    { routingFound: false },
+    programId,
+  );
+}
+
+/** A domain map key must be a canonical (no leading zeros, no sign) base-10 u32. */
+function isValidDomainKey(key: string): boolean {
+  return /^(0|[1-9]\d*)$/.test(key) && BigInt(key) <= 0xffffffffn;
 }
 
 function assertValidCompositeIsmArtifactNode(
   node: CompositeIsmNodeArtifactConfig,
   insideDomainIsm: boolean,
   state: { routingFound: boolean },
+  programId?: Address,
 ): void {
   switch (node.type) {
     case 'trustedRelayer':
@@ -402,10 +413,11 @@ function assertValidCompositeIsmArtifactNode(
       break;
     case 'multisigMessageId': {
       assert(
-        node.threshold >= 1 &&
+        Number.isInteger(node.threshold) &&
+          node.threshold >= 1 &&
           node.threshold <= 255 &&
           node.threshold <= node.validators.length,
-        `multisigMessageId.threshold (${node.threshold}) must be between 1 and min(255, validators.length)`,
+        `multisigMessageId.threshold (${node.threshold}) must be an integer between 1 and min(255, validators.length)`,
       );
       const seen = new Set<string>();
       for (const validator of node.validators) {
@@ -425,10 +437,11 @@ function assertValidCompositeIsmArtifactNode(
     }
     case 'aggregation':
       assert(
-        node.threshold >= 1 &&
+        Number.isInteger(node.threshold) &&
+          node.threshold >= 1 &&
           node.threshold <= 255 &&
           node.threshold <= node.subIsms.length,
-        `aggregation.threshold (${node.threshold}) must be between 1 and min(255, subIsms.length)`,
+        `aggregation.threshold (${node.threshold}) must be an integer between 1 and min(255, subIsms.length)`,
       );
       node.subIsms.slice(0, -1).forEach((sub) => {
         assert(
@@ -437,7 +450,12 @@ function assertValidCompositeIsmArtifactNode(
         );
       });
       node.subIsms.forEach((sub) =>
-        assertValidCompositeIsmArtifactNode(sub, insideDomainIsm, state),
+        assertValidCompositeIsmArtifactNode(
+          sub,
+          insideDomainIsm,
+          state,
+          programId,
+        ),
       );
       break;
     case 'amountRouting':
@@ -445,8 +463,18 @@ function assertValidCompositeIsmArtifactNode(
         isValidDecimalStringBoundedBy(node.threshold, ARTIFACT_U256_MAX),
         `amountRouting.threshold (${node.threshold}) must be a base-10 integer string not exceeding u256::MAX`,
       );
-      assertValidCompositeIsmArtifactNode(node.lower, insideDomainIsm, state);
-      assertValidCompositeIsmArtifactNode(node.upper, insideDomainIsm, state);
+      assertValidCompositeIsmArtifactNode(
+        node.lower,
+        insideDomainIsm,
+        state,
+        programId,
+      );
+      assertValidCompositeIsmArtifactNode(
+        node.upper,
+        insideDomainIsm,
+        state,
+        programId,
+      );
       break;
     case 'rateLimited':
       assert(
@@ -485,14 +513,24 @@ function assertValidCompositeIsmArtifactNode(
           isAddress(node.fallbackIsm) && !isEmptyAddress(node.fallbackIsm),
           `fallbackRouting.fallbackIsm must be a non-zero Sealevel address, got: ${node.fallbackIsm}`,
         );
+        assert(
+          !programId || node.fallbackIsm !== programId,
+          `fallbackRouting.fallbackIsm must not be the composite ISM's own program ID: ${node.fallbackIsm}`,
+        );
       }
       assert(
         !state.routingFound,
         'Only one routing/fallbackRouting node is allowed per tree',
       );
       state.routingFound = true;
-      for (const domainNode of Object.values(node.domains ?? {})) {
-        assertValidCompositeIsmArtifactNode(domainNode, true, state);
+      for (const [domainKey, domainNode] of Object.entries(
+        node.domains ?? {},
+      )) {
+        assert(
+          isValidDomainKey(domainKey),
+          `${node.type}.domains key must be a canonical base-10 u32 domain ID, got: ${domainKey}`,
+        );
+        assertValidCompositeIsmArtifactNode(domainNode, true, state, programId);
       }
       break;
     case 'pausable':
@@ -503,6 +541,53 @@ function assertValidCompositeIsmArtifactNode(
       break;
     case 'test':
       break;
+  }
+}
+
+/**
+ * Prebuilds the root Initialize instruction and every domain SetDomainIsm
+ * instruction against a placeholder program address and checks each fits
+ * within Solana's transaction size limit. A tree can satisfy every semantic
+ * rule in assertValidCompositeIsmArtifact yet still be too large to submit —
+ * called before resolveProgram() so that's caught before a program is
+ * deployed (and paid for) on-chain, not after. Address byte-width is fixed
+ * regardless of value, so a placeholder program ID is sufficient here.
+ */
+export async function assertCompositeIsmFitsSizeLimit(
+  config: CompositeIsmArtifactConfig,
+  placeholderProgramId: Address,
+  payer: TransactionSigner,
+): Promise<void> {
+  const rootIsmNode = artifactConfigToIsmNode(stripDomains(config.root));
+  const initIx = await getInitializeCompositeIsmInstruction(
+    placeholderProgramId,
+    payer,
+    rootIsmNode,
+  );
+  const initSize = estimateTransactionWireSize(payer.address, [initIx]);
+  assert(
+    initSize <= SOLANA_MAX_TRANSACTION_SIZE,
+    `Composite ISM root config instruction (${initSize} bytes) exceeds Solana's ` +
+      `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — the ISM tree ` +
+      `is too large to initialize in a single instruction.`,
+  );
+
+  for (const [domainStr, domainConfig] of Object.entries(
+    extractDomains(config.root),
+  )) {
+    const domainIx = await getSetCompositeIsmDomainInstruction(
+      placeholderProgramId,
+      payer,
+      Number(domainStr),
+      artifactConfigToIsmNode(domainConfig),
+    );
+    const domainSize = estimateTransactionWireSize(payer.address, [domainIx]);
+    assert(
+      domainSize <= SOLANA_MAX_TRANSACTION_SIZE,
+      `Composite ISM domain ${domainStr} instruction (${domainSize} bytes) exceeds ` +
+        `Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — this ` +
+        `domain's nested ISM tree is too large.`,
+    );
   }
 }
 
@@ -596,7 +681,24 @@ export class SvmCompositeIsmWriter
     [ArtifactDeployed<CompositeIsmArtifactConfig, SvmDeployedIsm>, SvmReceipt[]]
   > {
     const config = artifact.config;
-    assertValidCompositeIsmArtifact(config);
+    // A fresh deploy's program address isn't known yet (only resolveProgram()
+    // below produces it), so a self-reference in fallbackIsm can only be
+    // checked here when targeting an already-existing program.
+    assertValidCompositeIsmArtifact(
+      config,
+      'programId' in this.writerConfig.program
+        ? this.writerConfig.program.programId
+        : undefined,
+    );
+    // A placeholder distinct from the payer — the real program address isn't
+    // known until resolveProgram() runs below, and reusing the payer's own
+    // address here would make the payer both fee payer and invoked program,
+    // which Solana rejects outright.
+    await assertCompositeIsmFitsSizeLimit(
+      config,
+      SYSTEM_PROGRAM_ADDRESS,
+      this.svmSigner.signer,
+    );
     const { programAddress, receipts } = await resolveProgram(
       this.writerConfig.program,
       this.svmSigner,
@@ -676,7 +778,7 @@ export class SvmCompositeIsmWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.programId;
     const expected = artifact.config;
-    assertValidCompositeIsmArtifact(expected);
+    assertValidCompositeIsmArtifact(expected, programId);
     const current = await this.read(programId);
 
     const transactions: AnnotatedSvmTransaction[] = [];

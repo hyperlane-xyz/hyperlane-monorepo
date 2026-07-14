@@ -1,3 +1,4 @@
+import { address as parseAddress } from '@solana/kit';
 import { expect } from 'chai';
 
 import type {
@@ -251,6 +252,123 @@ describe('assertValidCompositeIsmArtifact', () => {
           threshold: 1,
           validators: [VALIDATOR, OTHER_VALIDATOR],
         }),
+      ),
+    ).to.not.throw();
+  });
+
+  it('rejects a fractional multisigMessageId threshold', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'multisigMessageId',
+          threshold: 1.5,
+          validators: [VALIDATOR, OTHER_VALIDATOR],
+        }),
+      ),
+    ).to.throw(/threshold/);
+  });
+
+  it('rejects a fractional aggregation threshold', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'aggregation',
+          threshold: 1.5,
+          subIsms: [
+            { type: 'trustedRelayer', relayer: OTHER_PUBKEY },
+            { type: 'trustedRelayer', relayer: OWNER },
+          ],
+        }),
+      ),
+    ).to.throw(/threshold/);
+  });
+
+  it('rejects a zero owner', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact({
+        type: 'compositeIsm',
+        owner: ZERO_PUBKEY,
+        root: { type: 'trustedRelayer', relayer: OTHER_PUBKEY },
+      }),
+    ).to.throw(/owner/);
+  });
+
+  it('rejects a fractional domain map key', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'routing',
+          domains: { '1.5': { type: 'trustedRelayer', relayer: OTHER_PUBKEY } },
+        }),
+      ),
+    ).to.throw(/domains key/);
+  });
+
+  it('rejects a non-canonical domain map key (leading zero)', () => {
+    const nonCanonicalKey: string = '01';
+    const domainNode: CompositeIsmNodeArtifactConfig = {
+      type: 'trustedRelayer',
+      relayer: OTHER_PUBKEY,
+    };
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'routing',
+          domains: { [nonCanonicalKey]: domainNode },
+        }),
+      ),
+    ).to.throw(/domains key/);
+  });
+
+  it('rejects a negative domain map key', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'routing',
+          domains: { '-1': { type: 'trustedRelayer', relayer: OTHER_PUBKEY } },
+        }),
+      ),
+    ).to.throw(/domains key/);
+  });
+
+  it('rejects a domain map key overflowing u32', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'routing',
+          domains: {
+            '4294967296': { type: 'trustedRelayer', relayer: OTHER_PUBKEY },
+          },
+        }),
+      ),
+    ).to.throw(/domains key/);
+  });
+
+  it('accepts a canonical zero domain map key', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({
+          type: 'routing',
+          domains: { '0': { type: 'trustedRelayer', relayer: OTHER_PUBKEY } },
+        }),
+      ),
+    ).to.not.throw();
+  });
+
+  it('rejects a fallbackRouting fallbackIsm that self-references the program ID', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({ type: 'fallbackRouting', fallbackIsm: OTHER_PUBKEY }),
+        parseAddress(OTHER_PUBKEY),
+      ),
+    ).to.throw(/must not be the composite ISM's own program ID/);
+  });
+
+  it('accepts a fallbackRouting fallbackIsm distinct from the program ID', () => {
+    expect(() =>
+      assertValidCompositeIsmArtifact(
+        config({ type: 'fallbackRouting', fallbackIsm: OTHER_PUBKEY }),
+        parseAddress(OWNER),
       ),
     ).to.not.throw();
   });

@@ -5,12 +5,18 @@ import {
   type Instruction,
   type TransactionSigner,
 } from '@solana/kit';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+
+chai.use(chaiAsPromised);
+
+import type { CompositeIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { getSetCompositeIsmDomainInstruction } from '../instructions/composite-ism.js';
 
 import {
   SOLANA_MAX_TRANSACTION_SIZE,
+  assertCompositeIsmFitsSizeLimit,
   chunkInstructionsBySize,
   estimateTransactionWireSize,
 } from './composite-ism.js';
@@ -83,5 +89,69 @@ describe('chunkInstructionsBySize', () => {
         owner.address,
       ),
     ).to.throw(/exceeds Solana's/);
+  });
+});
+
+describe('assertCompositeIsmFitsSizeLimit', () => {
+  let owner: TransactionSigner;
+
+  before(async () => {
+    owner = await generateKeyPairSigner();
+  });
+
+  it('accepts a small root and domain tree', async () => {
+    const config: CompositeIsmArtifactConfig = {
+      type: 'compositeIsm',
+      owner: owner.address,
+      root: {
+        type: 'routing',
+        domains: {
+          1: {
+            type: 'multisigMessageId',
+            validators: manyValidators(3),
+            threshold: 2,
+          },
+        },
+      },
+    };
+    await expect(
+      assertCompositeIsmFitsSizeLimit(config, PROGRAM_ADDRESS, owner),
+    ).to.not.be.rejected;
+  });
+
+  it('rejects an oversized root instruction before any program is deployed', async () => {
+    const config: CompositeIsmArtifactConfig = {
+      type: 'compositeIsm',
+      owner: owner.address,
+      root: {
+        type: 'multisigMessageId',
+        // Far past the 1232-byte limit for a single instruction.
+        validators: manyValidators(60),
+        threshold: 30,
+      },
+    };
+    await expect(
+      assertCompositeIsmFitsSizeLimit(config, PROGRAM_ADDRESS, owner),
+    ).to.be.rejectedWith(/root config instruction/);
+  });
+
+  it('rejects an oversized domain instruction before any program is deployed', async () => {
+    const config: CompositeIsmArtifactConfig = {
+      type: 'compositeIsm',
+      owner: owner.address,
+      root: {
+        type: 'routing',
+        domains: {
+          1: {
+            type: 'multisigMessageId',
+            validators: manyValidators(60),
+            threshold: 30,
+          },
+        },
+      },
+    };
+    await expect(
+      assertCompositeIsmFitsSizeLimit(config, PROGRAM_ADDRESS, owner),
+    ).to.be.rejectedWith(/domain 1 instruction/);
   });
 });
