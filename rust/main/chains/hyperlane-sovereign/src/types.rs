@@ -126,15 +126,6 @@ pub struct SchemaResponse {
     pub chain_hash: String,
 }
 
-/// Response from the `/rollup/constants` endpoint.
-#[derive(Deserialize, Debug)]
-pub struct ConstantsResponse {
-    /// The rollups Chain ID
-    pub chain_id: u64,
-    /// The name of the rollup
-    pub chain_name: String,
-}
-
 /// Response from POST `/sequencer/txs` endpoint.
 #[derive(Debug, Deserialize)]
 pub struct SubmitTxResponse {
