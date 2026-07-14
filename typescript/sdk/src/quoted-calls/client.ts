@@ -1,5 +1,8 @@
 import type { Address, Hex } from 'viem';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
+
 import type {
   AnyQuoteV2Entry,
   FeeQuotingCommand,
@@ -148,6 +151,55 @@ function isNoQuoteAvailableBody(
   );
 }
 
+/** Type-predicate narrowing of `unknown` to an indexable object. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Validate a v2 success body before trusting it. The server signs these
+ * responses, but a misrouted 2xx (empty `{}`, a reverse-proxy page coerced to
+ * an object, or server/client schema drift) must fail loudly here rather than
+ * returning `undefined`/mis-shaped data that only blows up later during
+ * transaction construction.
+ */
+function isQuoteV2Response(body: unknown): body is QuoteV2Response {
+  if (!isRecord(body) || !isRecord(body.quote)) return false;
+  const quote = body.quote;
+  if (
+    typeof quote.quoter !== 'string' ||
+    typeof quote.issuedAt !== 'number' ||
+    typeof quote.expiry !== 'number' ||
+    !isRecord(quote.details)
+  ) {
+    return false;
+  }
+  const details = quote.details;
+  switch (quote.protocol) {
+    case ProtocolType.Ethereum:
+      return isRecord(details.quote) && typeof details.signature === 'string';
+    case ProtocolType.Sealevel: {
+      if (
+        typeof details.domainId !== 'number' ||
+        !isRecord(details.signedQuote)
+      ) {
+        return false;
+      }
+      const sq = details.signedQuote;
+      return (
+        typeof sq.context === 'string' &&
+        typeof sq.data === 'string' &&
+        typeof sq.issuedAt === 'string' &&
+        typeof sq.expiry === 'string' &&
+        typeof sq.clientSalt === 'string' &&
+        typeof sq.signature === 'string'
+      );
+    }
+    default:
+      return false;
+  }
+}
+
 export class FeeQuotingV2Client {
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -213,6 +265,10 @@ export class FeeQuotingV2Client {
       );
     }
 
-    return (body as QuoteV2Response).quote;
+    assert(
+      isQuoteV2Response(body),
+      `Fee quoting v2 returned a malformed success body (HTTP ${res.status})`,
+    );
+    return body.quote;
   }
 }

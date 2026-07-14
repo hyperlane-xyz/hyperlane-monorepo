@@ -174,6 +174,43 @@ describe('FeeQuotingV2Client', () => {
         expect((err as Error).message).to.include('upstream RPC error');
       }
     });
+
+    it('throws on a 200 with an empty body rather than returning undefined', async () => {
+      fetchStub.resolves(makeResponse(200, {}));
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect(err).to.not.be.instanceOf(FeeQuotingNoQuoteAvailableError);
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
+
+    it('throws on a 200 whose quote is missing required fields', async () => {
+      fetchStub.resolves(
+        makeResponse(200, {
+          quote: { protocol: ProtocolType.Sealevel, quoter: 'x' },
+        }),
+      );
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
   });
 
   describe('getIgpQuote', () => {
