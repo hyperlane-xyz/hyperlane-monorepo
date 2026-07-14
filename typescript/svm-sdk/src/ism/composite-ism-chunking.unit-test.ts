@@ -12,6 +12,7 @@ chai.use(chaiAsPromised);
 
 import type { CompositeIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { getSetCompositeIsmDomainInstruction } from '../instructions/composite-ism.js';
 
 import {
@@ -89,6 +90,46 @@ describe('chunkInstructionsBySize', () => {
         owner.address,
       ),
     ).to.throw(/exceeds Solana's/);
+  });
+
+  it('undercounts size when the placeholder program ID collides with an explicit instruction account', async () => {
+    // Both composite ISM instruction builders list SYSTEM_PROGRAM_ADDRESS as
+    // an explicit readonly account. If that same address is used as the
+    // placeholder *program* ID, compileTransactionMessage deduplicates the
+    // repeated key, undercounting the real (distinct-program) transaction by
+    // one account. This regression pins down that exact mechanism — a
+    // sanity-check helper measured against a colliding placeholder must
+    // never be trusted over one measured against a genuinely distinct ID.
+    const ismNode = {
+      kind: 'multisigMessageId' as const,
+      validators: manyValidators(10).map((v) =>
+        Uint8Array.from(Buffer.from(v.slice(2), 'hex')),
+      ),
+      threshold: 5,
+    };
+
+    const collidingIx = await getSetCompositeIsmDomainInstruction(
+      SYSTEM_PROGRAM_ADDRESS,
+      owner,
+      0,
+      ismNode,
+    );
+    const { address: distinctProgramId } = await generateKeyPairSigner();
+    const distinctIx = await getSetCompositeIsmDomainInstruction(
+      distinctProgramId,
+      owner,
+      0,
+      ismNode,
+    );
+
+    const collidingSize = estimateTransactionWireSize(owner.address, [
+      collidingIx,
+    ]);
+    const distinctSize = estimateTransactionWireSize(owner.address, [
+      distinctIx,
+    ]);
+
+    expect(distinctSize).to.be.greaterThan(collidingSize);
   });
 });
 

@@ -4,6 +4,7 @@ import {
   blockhash,
   compileTransactionMessage,
   createTransactionMessage,
+  generateKeyPairSigner,
   getCompiledTransactionMessageEncoder,
   getShortU16Encoder,
   isAddress,
@@ -38,7 +39,7 @@ import {
   type IsmNode,
 } from '../accounts/composite-ism.js';
 import { encodeH160, encodeH256 } from '../codecs/shared.js';
-import { DEFAULT_COMPUTE_UNITS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitializeCompositeIsmInstruction,
@@ -690,13 +691,19 @@ export class SvmCompositeIsmWriter
         ? this.writerConfig.program.programId
         : undefined,
     );
-    // A placeholder distinct from the payer — the real program address isn't
-    // known until resolveProgram() runs below, and reusing the payer's own
-    // address here would make the payer both fee payer and invoked program,
-    // which Solana rejects outright.
+    // A placeholder distinct from every account these instructions reference
+    // (payer, SYSTEM_PROGRAM_ADDRESS, and any PDA derived from the
+    // placeholder itself) — the real program address isn't known until
+    // resolveProgram() runs below. A fixed well-known constant here (e.g.
+    // SYSTEM_PROGRAM_ADDRESS or the payer's own address) would collide with
+    // an account both instruction builders already list explicitly,
+    // undercounting the real transaction size once compileTransactionMessage
+    // deduplicates the repeated key. A freshly generated address carries no
+    // such collision risk.
+    const { address: placeholderProgramId } = await generateKeyPairSigner();
     await assertCompositeIsmFitsSizeLimit(
       config,
-      SYSTEM_PROGRAM_ADDRESS,
+      placeholderProgramId,
       this.svmSigner.signer,
     );
     const { programAddress, receipts } = await resolveProgram(
