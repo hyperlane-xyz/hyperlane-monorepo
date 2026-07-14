@@ -6,8 +6,9 @@ export const warpFeesSafes: ChainMap<Address> = {
   ethereum: '0x8Ff4c563f26db00e65bD93d9f662A51c304C09b0',
 
   // Jan 29, 2026 - Migrating Viction to Safes
+  // Not in use after viction ICA v2 migration - moved to ICA-owned via warpFeesIcas
   // ----------------------------------------------------------
-  viction: '0xdE008b9E50C20a59f407CE92A27b1578ef14933D',
+  // viction: '0xdE008b9E50C20a59f407CE92A27b1578ef14933D',
 
   // Mar 12, 2026 - Igra Chain Deployment
   // ----------------------------------------------------------

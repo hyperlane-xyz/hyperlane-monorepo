@@ -128,4 +128,8 @@ export const warpFeesIcas: ChainMap<Address> = {
   nexus: '0x02A71708821D6e0bC9D4ecBF62e539157971987B',
   robinhood: '0x41dEC5AB11f4481F78ba3a05f93369179dbc0d0f',
   tea: '0x37a5630cF1C8DCf2F8E1F601a2Ea9700ADaAff60',
+
+  // Jul 14, 2026 - Viction ICA v2 migration
+  // ----------------------------------------------------------
+  viction: '0xD0d988ee307376Cf545d8737dd448083C05bD8F3',
 };
