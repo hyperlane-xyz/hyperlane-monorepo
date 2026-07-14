@@ -18,6 +18,8 @@ const ADDITIONAL_NO_ALERT_CHAINS: ChainName[] = [
   // downtime
   'artela',
   'molten',
+  // no active warp route yet
+  'mocachain',
 ];
 
 export function getNoAlertChains(): Set<ChainName> {
