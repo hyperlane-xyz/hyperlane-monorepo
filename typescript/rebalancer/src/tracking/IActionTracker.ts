@@ -99,6 +99,12 @@ export interface IActionTracker {
    */
   getTransfersByDestination(destination: Domain): Promise<Transfer[]>;
 
+  /**
+   * Get transfers created within the given time window.
+   * @param sinceMs Window size in milliseconds (e.g. 60_000 for last 60s)
+   */
+  getRecentTransfers(sinceMs: number): Promise<Transfer[]>;
+
   // === RebalanceIntent Queries ===
 
   /**
