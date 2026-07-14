@@ -319,8 +319,11 @@ interface AleoWarpTokenMetadata {
   ism: string;
   hook: string;
   token_id?: string;
-  // Only present on the v2 ARC-20 warp token standard (collateral/synthetic).
-  // Native tokens use a different Metadata struct without these fields.
+  // Present on collateral/synthetic tokens regardless of v1 vs v2 (verified
+  // live on-chain for a v1 synthetic token) -- getWarpTokenMetadata reads the
+  // same app_metadata mapping either way, so no version branching is needed
+  // here. Native tokens use a different Metadata struct (a single `scale`
+  // field, not a local/remote decimals pair) and never have these.
   local_decimals?: number;
   remote_decimals?: number;
 }
