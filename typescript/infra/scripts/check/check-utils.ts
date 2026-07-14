@@ -332,3 +332,33 @@ export function getCheckerViolationsGaugeObj(metricsRegister: Registry) {
     ],
   };
 }
+
+// Every warp violation is pushed to PushGateway under its own group, keyed by
+// (warp_route_id, chain, contract_name, type). This makes each alert an
+// independently addressable series that can be cleared on its own (push 0 /
+// DELETE) without touching any other violation. The grouping value must be a
+// single URL-path-safe segment: warp_route_id contains "/" and contract_name
+// can be empty, both of which break PushGateway's path grouping, so we encode
+// the composite as base64url and expose it as a single `alert_key` label. A NUL
+// separator is used so values containing spaces (e.g. some violation types)
+// cannot collide across different composites.
+export function warpViolationAlertKey(
+  warpRouteId: string,
+  chain: string,
+  contractName: string,
+  type: string,
+): string {
+  const composite = [warpRouteId, chain, contractName, type].join('\u0000');
+  return Buffer.from(composite, 'utf8').toString('base64url');
+}
+
+export function warpViolationGroupings(
+  warpRouteId: string,
+  chain: string,
+  contractName: string,
+  type: string,
+): Record<string, string> {
+  return {
+    alert_key: warpViolationAlertKey(warpRouteId, chain, contractName, type),
+  };
+}

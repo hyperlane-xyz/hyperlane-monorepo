@@ -21,10 +21,13 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import type {
-  DeployedFeeArtifact,
-  FeeArtifactConfig,
-  IRawFeeArtifactManager,
+import {
+  type DeployedFeeArtifact,
+  type FeeArtifactConfig,
+  FeeParamsType,
+  FeeStrategyType,
+  FeeType,
+  type IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   ProtocolType,
@@ -1184,11 +1187,10 @@ describe('WarpTokenWriter', () => {
     let mockFeeCreateStub: Sinon.SinonStub;
 
     const linearFeeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1334,11 +1336,10 @@ describe('WarpTokenWriter', () => {
     let currentMockFeeArtifactManager: IRawFeeArtifactManager;
 
     const linearFeeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1436,7 +1437,7 @@ describe('WarpTokenWriter', () => {
       const currentRoutingFee: DeployedFeeArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'routing',
+          type: FeeType.routing,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
           routes: {},
@@ -1458,14 +1459,17 @@ describe('WarpTokenWriter', () => {
         fee: {
           artifactState: ArtifactState.DEPLOYED,
           config: {
-            type: 'routing',
+            type: FeeType.routing,
             owner: '0xnewowner',
             beneficiary: '0xbeneficiary',
             routes: {
               [REMOTE_DOMAIN_ID_1]: {
-                type: 'linear',
-                maxFee: '1000',
-                halfAmount: '500',
+                type: FeeStrategyType.linear,
+                params: {
+                  type: FeeParamsType.raw,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
               },
             },
           },
@@ -1565,11 +1569,10 @@ describe('WarpTokenWriter', () => {
     });
 
     const feeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const configWithFee: WarpArtifactConfig = {

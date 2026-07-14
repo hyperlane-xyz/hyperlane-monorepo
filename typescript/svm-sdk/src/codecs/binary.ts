@@ -79,6 +79,12 @@ export class ByteCursor {
     return value;
   }
 
+  readI64LE(): bigint {
+    const unsigned = this.readU64LE();
+    const SIGN_BIT = 1n << 63n;
+    return unsigned >= SIGN_BIT ? unsigned - (1n << 64n) : unsigned;
+  }
+
   readU256LE(): bigint {
     return readBigIntLE(this.readBytes(32));
   }
@@ -153,6 +159,15 @@ export function u64le(value: bigint): ReadonlyUint8Array {
 
 export function u128le(value: bigint): ReadonlyUint8Array {
   return U128_CODEC.encode(value);
+}
+
+export function i64le(value: bigint): ReadonlyUint8Array {
+  assert(
+    value >= -(1n << 63n) && value < 1n << 63n,
+    `i64 out of range: ${value}`,
+  );
+  const unsigned = value < 0n ? value + (1n << 64n) : value;
+  return U64_CODEC.encode(unsigned);
 }
 
 export function u256le(value: bigint): ReadonlyUint8Array {

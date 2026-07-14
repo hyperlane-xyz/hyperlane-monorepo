@@ -72,6 +72,13 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// initialize the metrics server and tracing as well.
 #[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 clippy issue
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
+    // Some dependencies (e.g. snarkvm's reqwest/quinn stack) pull in the `aws-lc-rs`
+    // rustls backend alongside the `ring` backend already used by tonic/gRPC, so rustls
+    // can no longer auto-select a default CryptoProvider. Install one explicitly before
+    // any TLS connection (e.g. cosmos-native gRPC) is established. `install_default`
+    // errors only if a provider is already installed, which is harmless here.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     if env::var("ONELINE_BACKTRACES")
         .map(|v| v.to_lowercase())
         .as_deref()

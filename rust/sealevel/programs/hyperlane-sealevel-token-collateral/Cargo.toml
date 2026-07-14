@@ -25,6 +25,7 @@ thiserror.workspace = true
 
 account-utils = { path = "../../libraries/account-utils" }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
+package-versioned = { path = "../../libraries/package-versioned" }
 hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
     "no-entrypoint",
@@ -41,10 +42,16 @@ serializable-account-meta = { path = "../../libraries/serializable-account-meta"
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 
+hyperlane-sealevel-fee = { path = "../hyperlane-sealevel-fee", features = [
+    "no-entrypoint",
+] }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
 ] }
+k256.workspace = true
+quote-verifier = { path = "../../libraries/quote-verifier" }
+rand.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
