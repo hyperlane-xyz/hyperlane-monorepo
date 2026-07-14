@@ -10,6 +10,7 @@ import {
   type FeeQuotingV2WarpParams,
 } from './client.js';
 import {
+  type EthereumQuoteV2Entry,
   NO_QUOTE_AVAILABLE_ERROR,
   NoQuoteAvailableReason,
   QUOTE_V2_BASE_PATH,
@@ -53,6 +54,24 @@ const SEALEVEL_QUOTE: SealevelQuoteV2Entry = {
       clientSalt: `0x${'55'.repeat(32)}`,
       signature: `0x${'66'.repeat(65)}`,
     },
+  },
+};
+
+const ETHEREUM_QUOTE: EthereumQuoteV2Entry = {
+  protocol: ProtocolType.Ethereum,
+  quoter: `0x${'11'.repeat(20)}`,
+  issuedAt: 1700000000,
+  expiry: 1700003600,
+  details: {
+    quote: {
+      context: `0x${'22'.repeat(32)}`,
+      data: `0x${'33'.repeat(8)}`,
+      issuedAt: 1700000000,
+      expiry: 1700003600,
+      salt: `0x${'44'.repeat(32)}`,
+      submitter: `0x${'55'.repeat(20)}`,
+    },
+    signature: `0x${'66'.repeat(65)}`,
   },
 };
 
@@ -196,6 +215,125 @@ describe('FeeQuotingV2Client', () => {
       fetchStub.resolves(
         makeResponse(200, {
           quote: { protocol: ProtocolType.Sealevel, quoter: 'x' },
+        }),
+      );
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
+
+    it('returns a valid EVM quote on success', async () => {
+      fetchStub.resolves(makeResponse(200, { quote: ETHEREUM_QUOTE }));
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+      const quote = await client.getWarpQuote(WARP_PARAMS);
+
+      expect(quote).to.deep.equal(ETHEREUM_QUOTE);
+    });
+
+    it('throws on an EVM 200 whose details.quote is empty', async () => {
+      fetchStub.resolves(
+        makeResponse(200, {
+          quote: {
+            ...ETHEREUM_QUOTE,
+            details: { quote: {}, signature: ETHEREUM_QUOTE.details.signature },
+          },
+        }),
+      );
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
+
+    it('throws on an EVM 200 with a non-hex signature', async () => {
+      fetchStub.resolves(
+        makeResponse(200, {
+          quote: {
+            ...ETHEREUM_QUOTE,
+            details: {
+              quote: ETHEREUM_QUOTE.details.quote,
+              signature: 'nothex',
+            },
+          },
+        }),
+      );
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
+
+    it('throws on an SVM 200 with a wrong-length signature', async () => {
+      fetchStub.resolves(
+        makeResponse(200, {
+          quote: {
+            ...SEALEVEL_QUOTE,
+            details: {
+              ...SEALEVEL_QUOTE.details,
+              signedQuote: {
+                ...SEALEVEL_QUOTE.details.signedQuote,
+                signature: `0x${'66'.repeat(10)}`,
+              },
+            },
+          },
+        }),
+      );
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
+
+    it('throws on an SVM 200 with a non-hex context', async () => {
+      fetchStub.resolves(
+        makeResponse(200, {
+          quote: {
+            ...SEALEVEL_QUOTE,
+            details: {
+              ...SEALEVEL_QUOTE.details,
+              signedQuote: {
+                ...SEALEVEL_QUOTE.details.signedQuote,
+                context: 'nothex',
+              },
+            },
+          },
         }),
       );
 

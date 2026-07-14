@@ -1,4 +1,5 @@
 import type { Address, Hex } from 'viem';
+import { isHex } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -157,6 +158,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * True when `value` is a `0x`-prefixed hex string whose decoded byte length is
+ * one of `byteLengths`. Empty `byteLengths` accepts any length.
+ */
+function isHexBytes(value: unknown, ...byteLengths: number[]): boolean {
+  if (!isHex(value)) return false;
+  if (byteLengths.length === 0) return true;
+  return byteLengths.includes((value.length - 2) / 2);
+}
+
+// Fixed byte widths for the SVM `SvmSignedQuote` wire fields (see
+// `SealevelSignedQuote` in `./types.ts`).
+const SVM_CONTEXT_BYTES = [44, 76]; // non-CC | CC
+const SVM_ISSUED_AT_BYTES = 6;
+const SVM_EXPIRY_BYTES = 6;
+const SVM_CLIENT_SALT_BYTES = 32;
+const SVM_SIGNATURE_BYTES = 65;
+
+/** Byte width of an EVM `bytes32` field (salt). */
+const EVM_SALT_BYTES = 32;
+/** Byte width of an EVM address (`submitter`). */
+const EVM_ADDRESS_BYTES = 20;
+
+/** Validate the EVM `SignedQuoteData` shape (see `./types.ts`). */
+function isSignedQuoteData(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    isHexBytes(value.context) &&
+    isHexBytes(value.data) &&
+    typeof value.issuedAt === 'number' &&
+    typeof value.expiry === 'number' &&
+    isHexBytes(value.salt, EVM_SALT_BYTES) &&
+    isHexBytes(value.submitter, EVM_ADDRESS_BYTES)
+  );
+}
+
+/**
  * Validate a v2 success body before trusting it. The server signs these
  * responses, but a misrouted 2xx (empty `{}`, a reverse-proxy page coerced to
  * an object, or server/client schema drift) must fail loudly here rather than
@@ -177,7 +214,7 @@ function isQuoteV2Response(body: unknown): body is QuoteV2Response {
   const details = quote.details;
   switch (quote.protocol) {
     case ProtocolType.Ethereum:
-      return isRecord(details.quote) && typeof details.signature === 'string';
+      return isSignedQuoteData(details.quote) && isHex(details.signature);
     case ProtocolType.Sealevel: {
       if (
         typeof details.domainId !== 'number' ||
@@ -187,12 +224,12 @@ function isQuoteV2Response(body: unknown): body is QuoteV2Response {
       }
       const sq = details.signedQuote;
       return (
-        typeof sq.context === 'string' &&
-        typeof sq.data === 'string' &&
-        typeof sq.issuedAt === 'string' &&
-        typeof sq.expiry === 'string' &&
-        typeof sq.clientSalt === 'string' &&
-        typeof sq.signature === 'string'
+        isHexBytes(sq.context, ...SVM_CONTEXT_BYTES) &&
+        isHexBytes(sq.data) &&
+        isHexBytes(sq.issuedAt, SVM_ISSUED_AT_BYTES) &&
+        isHexBytes(sq.expiry, SVM_EXPIRY_BYTES) &&
+        isHexBytes(sq.clientSalt, SVM_CLIENT_SALT_BYTES) &&
+        isHexBytes(sq.signature, SVM_SIGNATURE_BYTES)
       );
     }
     default:
