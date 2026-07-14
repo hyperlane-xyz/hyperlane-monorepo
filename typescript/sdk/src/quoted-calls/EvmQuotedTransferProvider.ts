@@ -1,5 +1,5 @@
-import type { Address, Hex } from 'viem';
-import { isAddress, isHex } from 'viem';
+import type { Hex } from 'viem';
+import { isAddress } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
@@ -18,6 +18,7 @@ import type { WarpCore } from '../warp/WarpCore.js';
 import { resolveDestinationToken } from '../warp/resolveDestinationToken.js';
 import { WarpTxCategory, WarpTypedTransaction } from '../warp/types.js';
 
+import { toAddress, toHex } from './assertHex.js';
 import { buildExecuteCalldata, buildQuoteCalldata } from './builder.js';
 import {
   Quote,
@@ -26,18 +27,6 @@ import {
 } from './codec.js';
 import type { QuotedTransferProvider } from './QuotedTransferProvider.js';
 import { QuotedCallsParams, TokenPullMode } from './types.js';
-
-/** Narrow a string to viem's Address (0x + 40 hex chars). Fails fast otherwise. */
-function toAddress(s: string, msg: string): Address {
-  assert(isAddress(s), `${msg}: ${s}`);
-  return s;
-}
-
-/** Narrow a string to viem's Hex. Fails fast otherwise. */
-function toHex(s: string, msg: string): Hex {
-  assert(isHex(s), `${msg}: ${s}`);
-  return s;
-}
 
 /**
  * EVM implementation of `QuotedTransferProvider`. Wraps the on-chain

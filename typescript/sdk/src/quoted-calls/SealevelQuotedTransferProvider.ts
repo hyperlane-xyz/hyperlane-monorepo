@@ -1,5 +1,6 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
-import { type Hex, bytesToHex, hexToBytes, keccak256 } from 'viem';
+import { ethers } from 'ethers';
+import { bytesToHex, hexToBytes, keccak256 } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
@@ -25,6 +26,7 @@ import type { WarpCore } from '../warp/WarpCore.js';
 import { resolveDestinationToken } from '../warp/resolveDestinationToken.js';
 import { WarpTxCategory, WarpTypedTransaction } from '../warp/types.js';
 
+import { toHex } from './assertHex.js';
 import {
   FeeQuotingV2Client,
   type FeeQuotingV2IgpParams,
@@ -63,9 +65,11 @@ export function computeSealevelScopedSalt(
 }
 
 function defaultRandomSalt(): Uint8Array {
-  const salt = new Uint8Array(SALT_LEN);
-  globalThis.crypto.getRandomValues(salt);
-  return salt;
+  // ethers' isomorphic `randomBytes` works in both Node and the browser,
+  // unlike `globalThis.crypto` which is undefined on Node 16 and flag-gated on
+  // Node 18. Avoids a `node:crypto` import, which the SDK forbids for browser
+  // safety.
+  return ethers.utils.randomBytes(SALT_LEN);
 }
 
 function toSealevelSvmSignedQuote(
@@ -85,8 +89,8 @@ export interface SealevelQuotedTransferProviderOpts {
   feeQuotingClient: FeeQuotingV2Client;
   connection: Connection;
   /**
-   * Random-salt source — override for deterministic tests. Defaults to
-   * `crypto.getRandomValues` (works in Node + browser).
+   * Random-salt source — override for deterministic tests. Defaults to ethers'
+   * isomorphic `randomBytes` (works in Node + browser).
    */
   randomSalt?: () => Uint8Array;
 }
@@ -185,19 +189,25 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     //    CC fee leaves on deployments that configure them.
     const targetRouterBytes = isCC
       ? hexToBytes(
-          addressToBytes32(
-            resolveDestinationToken({
-              multiProvider: warpCore.multiProvider,
-              originToken: token,
-              destination,
-              destinationToken,
-            }).addressOrDenom,
-          ) as Hex,
+          toHex(
+            addressToBytes32(
+              resolveDestinationToken({
+                multiProvider: warpCore.multiProvider,
+                originToken: token,
+                destination,
+                destinationToken,
+              }).addressOrDenom,
+            ),
+            'targetRouter bytes32 narrowing failed',
+          ),
         )
       : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
     // 3. Build API request shape — same salt/txSubmitter for both endpoints.
-    const recipientHex = addressToBytes32(recipient) as Hex;
+    const recipientHex = toHex(
+      addressToBytes32(recipient),
+      'recipient bytes32 narrowing failed',
+    );
     const targetRouterHex = bytesToHex(targetRouterBytes);
     const saltHex = bytesToHex(rawClientSalt);
 
