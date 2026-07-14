@@ -160,7 +160,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Validate a v2 success body before trusting it. The server signs these
  * responses, but a misrouted 2xx (empty `{}`, a reverse-proxy page coerced to
  * an object, or server/client schema drift) must fail loudly here rather than
- * returning `undefined`/mis-shaped data that only blows up later during
+ * returning `undefined` or malformed data that only blows up later during
  * transaction construction.
  */
 function isQuoteV2Response(body: unknown): body is QuoteV2Response {
