@@ -3,11 +3,12 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ChainMetadata, HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
   ProtocolType,
   applyRpcUrlOverridesFromEnv,
+  assert,
   createServiceLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -77,8 +78,13 @@ async function main(): Promise<void> {
     const evmSigner = new Wallet(privateKey);
     const tronChains: string[] = [];
     for (const chain of configuredChains) {
-      const metadata = chainMetadata[chain];
+      const metadata: ChainMetadata | undefined = chainMetadata[chain];
+      assert(metadata, `Missing metadata for chain: ${chain}`);
       if (metadata.protocol === ProtocolType.Tron) {
+        assert(
+          metadata.rpcUrls.length,
+          `No RPC URLs configured for Tron chain: ${chain}`,
+        );
         const rpcUrl = metadata.rpcUrls[0].http;
         multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrl));
         tronChains.push(chain);
