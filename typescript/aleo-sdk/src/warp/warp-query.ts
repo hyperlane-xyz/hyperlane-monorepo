@@ -108,6 +108,21 @@ function parseAleoIdentifier(raw: string): string {
 }
 
 /**
+ * Converts the v2 ARC-20 warp token standard's on-chain local_decimals/
+ * remote_decimals fields into the scale multiplier convention used elsewhere
+ * in the SDK (mirrors svm-sdk's remoteDecimalsToScale). Returns undefined for
+ * identity scale (remote === local) or when either side is unavailable.
+ */
+export function localRemoteDecimalsToScale(
+  localDecimals: number | undefined,
+  remoteDecimals: number | undefined,
+): number | undefined {
+  if (isNullish(localDecimals) || isNullish(remoteDecimals)) return undefined;
+  const diff = remoteDecimals - localDecimals;
+  return diff === 0 ? undefined : Math.pow(10, diff);
+}
+
+/**
  * Query token metadata from an ARC-20 token program via its view functions.
  */
 export async function getArc20TokenMetadata(
@@ -304,6 +319,10 @@ interface AleoWarpTokenMetadata {
   ism: string;
   hook: string;
   token_id?: string;
+  // Only present on the v2 ARC-20 warp token standard (collateral/synthetic).
+  // Native tokens use a different Metadata struct without these fields.
+  local_decimals?: number;
+  remote_decimals?: number;
 }
 
 async function getWarpTokenMetadata(
@@ -337,6 +356,8 @@ async function getWarpTokenMetadata(
   const ism = metadata['ism'];
   const hook = metadata['hook'];
   const tokenId = metadata['token_id'];
+  const localDecimals = metadata['local_decimals'];
+  const remoteDecimals = metadata['remote_decimals'];
 
   assert(
     typeof tokenType === 'number',
@@ -358,6 +379,14 @@ async function getWarpTokenMetadata(
     isNullish(tokenId) || typeof tokenId === 'string',
     `Expected token_id field to be a string in app_metadata for token ${tokenAddress} but got ${typeof tokenId}`,
   );
+  assert(
+    isNullish(localDecimals) || typeof localDecimals === 'number',
+    `Expected local_decimals field to be a number in app_metadata for token ${tokenAddress} but got ${typeof localDecimals}`,
+  );
+  assert(
+    isNullish(remoteDecimals) || typeof remoteDecimals === 'number',
+    `Expected remote_decimals field to be a number in app_metadata for token ${tokenAddress} but got ${typeof remoteDecimals}`,
+  );
 
   return {
     token_type: tokenType,
@@ -365,6 +394,8 @@ async function getWarpTokenMetadata(
     ism,
     hook,
     token_id: tokenId,
+    local_decimals: localDecimals,
+    remote_decimals: remoteDecimals,
   };
 }
 
@@ -544,6 +575,11 @@ export async function getCollateralWarpTokenConfig(
     tokenId,
   );
 
+  const scale = localRemoteDecimalsToScale(
+    metadata.local_decimals,
+    metadata.remote_decimals,
+  );
+
   return {
     type: AleoTokenType.COLLATERAL,
     owner: metadata.token_owner,
@@ -555,6 +591,7 @@ export async function getCollateralWarpTokenConfig(
     name,
     symbol,
     decimals,
+    scale,
   };
 }
 
@@ -612,6 +649,11 @@ export async function getSyntheticWarpTokenConfig(
     tokenId,
   );
 
+  const scale = localRemoteDecimalsToScale(
+    metadata.local_decimals,
+    metadata.remote_decimals,
+  );
+
   return {
     type: AleoTokenType.SYNTHETIC,
     owner: metadata.token_owner,
@@ -622,5 +664,6 @@ export async function getSyntheticWarpTokenConfig(
     name,
     symbol,
     decimals,
+    scale,
   };
 }

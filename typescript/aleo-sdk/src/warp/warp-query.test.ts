@@ -6,6 +6,7 @@ import { isArc20ProgramId, isV2WarpToken } from '../utils/helper.js';
 
 import {
   getArc20TokenMetadata,
+  localRemoteDecimalsToScale,
   parseAleoUint,
   parseViewFunctionOutputs,
 } from './warp-query.js';
@@ -20,6 +21,25 @@ describe('parseAleoUint', () => {
 
   it('throws on a non-numeric literal', () => {
     expect(() => parseAleoUint('not-a-number')).to.throw();
+  });
+});
+
+describe('localRemoteDecimalsToScale', () => {
+  it('returns undefined when local and remote decimals match (no scaling)', () => {
+    expect(localRemoteDecimalsToScale(6, 6)).to.equal(undefined);
+  });
+
+  it('returns undefined when either side is unavailable', () => {
+    expect(localRemoteDecimalsToScale(undefined, 18)).to.equal(undefined);
+    expect(localRemoteDecimalsToScale(6, undefined)).to.equal(undefined);
+  });
+
+  it('scales up when remote decimals exceed local decimals', () => {
+    expect(localRemoteDecimalsToScale(6, 18)).to.equal(1_000_000_000_000);
+  });
+
+  it('scales down when remote decimals are fewer than local decimals', () => {
+    expect(localRemoteDecimalsToScale(18, 6)).to.equal(1e-12);
   });
 });
 

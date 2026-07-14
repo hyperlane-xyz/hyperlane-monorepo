@@ -1,3 +1,5 @@
+import { zeroAddress } from 'viem';
+
 import {
   CrossCollateralRouter__factory,
   IERC4626__factory,
@@ -37,7 +39,11 @@ import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
-import { normalizeScale, verifyScale } from '../utils/decimals.js';
+import {
+  type ScaleInput,
+  scalesEqual,
+  verifyScale,
+} from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -154,6 +160,8 @@ export type AltVmCheckConfig = {
   destinationGas: Record<string, string>;
   token?: string;
   decimals?: number;
+  contractVersion?: string;
+  crossCollateralRouters?: Record<string, string[]>;
 };
 
 function hasAddress(value: unknown): value is { address: string } {
@@ -215,6 +223,15 @@ export function derivedWarpConfigToCheckConfig(
   if ('token' in config && typeof config.token === 'string') {
     result.token = normalizeAddress(config.token, protocol);
   }
+  if (!isNullish(config.contractVersion)) {
+    result.contractVersion = config.contractVersion;
+  }
+  if ('crossCollateralRouters' in config) {
+    result.crossCollateralRouters = objMap(
+      config.crossCollateralRouters,
+      (_chain, routers) => [...routers].map((r) => r.toLowerCase()).sort(),
+    );
+  }
 
   return result;
 }
@@ -228,7 +245,7 @@ function normalizeOptionalAddress(
     : normalizeAddress(address, protocol);
 }
 
-function expandedDeployConfigToAltVmCheckConfig(
+export function expandedDeployConfigToAltVmCheckConfig(
   chain: ChainName,
   config: WarpRouteDeployConfigMailboxRequired[string],
   multiProvider: MultiProvider,
@@ -265,38 +282,31 @@ function expandedDeployConfigToAltVmCheckConfig(
 
   // Only compare ISM/hook as addresses when they are plain strings in the deploy config.
   // Complex ISM/hook config objects require deployment to resolve their address,
-  // so we skip comparison for those to avoid false violations.
+  // so we skip comparison for those to avoid false violations. expandWarpDeployConfig
+  // also fills in viem's EVM `zeroAddress` as the default for any chain (including
+  // altVM ones) that doesn't set ISM/hook at all -- that placeholder isn't a genuine
+  // user-specified value for a non-EVM chain (whose real "unset" sentinel, if any,
+  // looks nothing like an EVM zero address), so it's treated the same as unset here
+  // too, rather than being diffed against the real on-chain address.
   const ismAddress =
-    typeof config.interchainSecurityModule === 'string'
+    typeof config.interchainSecurityModule === 'string' &&
+    config.interchainSecurityModule !== zeroAddress
       ? normalizeAddress(config.interchainSecurityModule, protocol)
       : undefined;
   const hookAddress =
-    typeof config.hook === 'string'
+    typeof config.hook === 'string' && config.hook !== zeroAddress
       ? normalizeAddress(config.hook, protocol)
       : undefined;
 
-  // The derived (on-chain) side's scale is always a plain number, so a fractional
-  // scale can only be compared once it collapses to an exact integer ratio.
-  // Converting via `Number(bigint) / Number(bigint)` for a non-evenly-dividing
-  // fraction would silently produce a lossy float that can never match the
-  // derived side, causing a false-positive ScaleMismatch -- so those are left
-  // undefined (skipped) instead. An unset config.scale is left undefined too,
-  // matching the derived side's convention of `undefined` for identity scale.
-  let scale: number | undefined;
-  if (!isNullish(config.scale)) {
-    const normalizedScale = normalizeScale(config.scale);
-    if (normalizedScale.numerator % normalizedScale.denominator === 0n) {
-      scale = Number(normalizedScale.numerator / normalizedScale.denominator);
-    }
-  }
-
+  // scale is deliberately left unset here -- it's compared separately via
+  // altVmScaleMismatch (exact bigint fraction compare against the raw expected
+  // config.scale), not through this generic diff. See checkWarpRouteDeployConfig.
   const result: AltVmCheckConfig = {
     type: config.type,
     owner: normalizeAddress(config.owner, protocol),
     mailbox: normalizeAddress(config.mailbox, protocol),
     interchainSecurityModule: ismAddress,
     hook: hookAddress,
-    scale,
     remoteRouters,
     destinationGas,
   };
@@ -314,6 +324,29 @@ function expandedDeployConfigToAltVmCheckConfig(
 
   if ('token' in config && typeof config.token === 'string') {
     result.token = normalizeAddress(config.token, protocol);
+  }
+
+  if (!isNullish(config.contractVersion)) {
+    result.contractVersion = config.contractVersion;
+  }
+
+  if (isCrossCollateralTokenConfig(config) && config.crossCollateralRouters) {
+    const resolvedByDomain = resolveRouterMapConfig(
+      multiProvider,
+      config.crossCollateralRouters,
+    );
+    const crossCollateralRouters: Record<string, string[]> = {};
+    for (const [domainIdStr, routers] of Object.entries(resolvedByDomain)) {
+      const chainName = multiProvider.tryGetChainName(Number(domainIdStr));
+      assert(
+        chainName,
+        `Unknown crossCollateralRouters domain ${domainIdStr} configured for chain ${chain}`,
+      );
+      crossCollateralRouters[chainName] = [...routers]
+        .map((r) => r.toLowerCase())
+        .sort();
+    }
+    result.crossCollateralRouters = crossCollateralRouters;
   }
 
   return result;
@@ -402,17 +435,29 @@ export function buildAltVmWarpRouteDiff(
     // against an omitted expected value would otherwise report a false-positive
     // mismatch on every altVM route that doesn't override ISM/hook -- mirror the
     // EVM path (buildWarpRouteDiff) and only compare when both sides opt in.
+    // contractVersion is excluded the same way (mirrors buildWarpRouteDiff): it's
+    // rarely set explicitly, so only compare when the deploy config opts in.
+    // scale is excluded entirely here -- it needs an exact rational comparison
+    // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
     const normalizedActual: AltVmCheckConfig = {
       ...actual,
       interchainSecurityModule: isNullish(expected.interchainSecurityModule)
         ? undefined
         : actual.interchainSecurityModule,
       hook: isNullish(expected.hook) ? undefined : actual.hook,
+      contractVersion: isNullish(expected.contractVersion)
+        ? undefined
+        : actual.contractVersion,
+      scale: undefined,
+    };
+    const normalizedExpected: AltVmCheckConfig = {
+      ...expected,
+      scale: undefined,
     };
 
     const { mergedObject, isInvalid } = diffObjMerge(
       normalizedActual,
-      expected,
+      normalizedExpected,
     );
 
     if (isInvalid) {
@@ -430,6 +475,52 @@ export function buildAltVmWarpRouteDiff(
   }
 
   return diff;
+}
+
+// The derived (on-chain) side's scale can itself be a non-integer number (e.g.
+// SVM's remoteDecimalsToScale returns 10^(remoteDecimals - localDecimals),
+// which is fractional whenever the remote chain has fewer decimals). Convert it
+// to an exact bigint fraction so it can be compared against the expected side's
+// fraction via `scalesEqual` without floating-point precision loss in either
+// direction. Scale ratios are always clean powers of ten in practice, so an
+// exact integer reciprocal is expected to exist; this intentionally throws if
+// it doesn't rather than silently comparing a rounded approximation.
+function actualScaleToScaleInput(scale: number): ScaleInput {
+  if (Number.isInteger(scale)) return scale;
+  const inverse = 1 / scale;
+  assert(
+    Number.isInteger(inverse),
+    `AltVM on-chain scale ${scale} is not exactly representable as an integer ratio`,
+  );
+  return { numerator: 1n, denominator: BigInt(inverse) };
+}
+
+// Compares the on-chain scale against the raw (pre-expansion) expected
+// config.scale using exact bigint cross-multiplication (via `scalesEqual`)
+// instead of the lossy float collapse this used to do. Deliberately kept
+// outside of AltVmCheckConfig/buildAltVmWarpRouteDiff's generic diff, since it
+// needs the un-collapsed expected fraction, not a pre-converted plain number.
+export function altVmScaleMismatch(
+  actualScale: number | undefined,
+  expectedScale: WarpRouteDeployConfigMailboxRequired[string]['scale'],
+): { actual: string; expected: string } | undefined {
+  const actualInput =
+    actualScale === undefined
+      ? undefined
+      : actualScaleToScaleInput(actualScale);
+  if (scalesEqual(actualInput, expectedScale)) return undefined;
+
+  return {
+    // Unset/identity scale is reported as the number 1 (not a scale of 1 as
+    // distinct from "no scale" -- they're the same thing), matching the
+    // expected side's plain-number formatting for an easy side-by-side read.
+    actual: actualScale === undefined ? '1' : String(actualScale),
+    expected: isNullish(expectedScale)
+      ? '1'
+      : JSON.stringify(expectedScale, (_key, value) =>
+          typeof value === 'bigint' ? value.toString() : value,
+        ),
+  };
 }
 
 export async function checkWarpRouteDeployConfig({
@@ -521,6 +612,27 @@ export async function checkWarpRouteDeployConfig({
     if (isNullish(chainConfig.decimals)) chainConfig.decimals = decimals;
   }
 
+  // Native altVM tokens carry no name/symbol/decimals on-chain (DerivedNativeWarpConfig
+  // has no such fields; the seeding above always skips them), so they'd hit the same
+  // getSymbol crash the seeding above prevents for other types. Seed from the chain's
+  // own native currency metadata instead -- the same source EVM's deriveTokenMetadata
+  // uses for its (EVM-only) native branch.
+  for (const chain of Object.keys(metadataSeededWarpDeployConfig)) {
+    const chainConfig = metadataSeededWarpDeployConfig[chain];
+    if (
+      chainConfig.type !== TokenType.native ||
+      !isSupportedAltVmProtocol(multiProvider.tryGetProtocol(chain))
+    ) {
+      continue;
+    }
+    const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
+    if (!nativeToken) continue;
+    if (isNullish(chainConfig.name)) chainConfig.name = nativeToken.name;
+    if (isNullish(chainConfig.symbol)) chainConfig.symbol = nativeToken.symbol;
+    if (isNullish(chainConfig.decimals))
+      chainConfig.decimals = nativeToken.decimals;
+  }
+
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig: metadataSeededWarpDeployConfig,
@@ -572,6 +684,19 @@ export async function checkWarpRouteDeployConfig({
     altVmOnChainConfigs,
     altVmExpectedConfigs,
   );
+
+  for (const chain of Object.keys(altVmExpectedConfigs)) {
+    const onChainConfig = altVmOnChainConfigs[chain];
+    if (!onChainConfig) continue; // already reported as a missing route above
+
+    const scaleMismatch = altVmScaleMismatch(
+      onChainConfig.scale,
+      normalizedWarpDeployConfig[chain]?.scale,
+    );
+    if (scaleMismatch) {
+      addNestedDiff(rawAltVmDiff, chain, ['scale'], scaleMismatch);
+    }
+  }
 
   const rawDiff = {
     ...rawEvmDiff,
@@ -633,7 +758,10 @@ function buildWarpRouteDiff({
 
       if (!expectedDeployedConfig.proxyAdmin?.address) {
         currentDeployedConfig.proxyAdmin = currentDeployedConfig.proxyAdmin
-          ? { ...currentDeployedConfig.proxyAdmin, address: undefined }
+          ? {
+              ...currentDeployedConfig.proxyAdmin,
+              address: undefined,
+            }
           : undefined;
       }
 
