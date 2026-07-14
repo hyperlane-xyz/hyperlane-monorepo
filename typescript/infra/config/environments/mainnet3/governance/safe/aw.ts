@@ -19,9 +19,14 @@ export const awSafes: ChainMap<Address> = {
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   optimism: '0xbd7db3821806bc72D223F0AE521Bf82FcBd6Ef4d',
   plasma: '0xCcf5e9862D486e71aA47B87Cb3a7eEB1e1f2F624',
-  viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
   worldchain: '0x95b1634566663117322999ce42cDEaEF18c089Be',
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+
+  // ---------------------------------------------------------------------------
+  // Jul 14, 2026: Inactive — moved to ICA-owned via awIcas as part of the
+  // viction ICA v2 migration.
+  // ---------------------------------------------------------------------------
+  // viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
 
   // ---------------------------------------------------------------------------
   // 2026-06-16: Inactive — own no warp routes and are not referenced as an owner

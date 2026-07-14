@@ -11,8 +11,8 @@ import {
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 
-import { legacyEthIcaRouter } from '../../../../../src/config/chain.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
@@ -51,7 +51,7 @@ const ownersByChain: Record<DeploymentChain, string> = {
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
   base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
   optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC', // ICA on ethereum
-  viction: awSafes.viction,
+  viction: awIcas.viction,
 };
 
 export const getVictionETHWarpConfig = async (
@@ -124,7 +124,8 @@ export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
       chain: safeChain,
       destinationChain: 'viction',
       owner: safeAddress,
-      originInterchainAccountRouter: legacyEthIcaRouter,
+      // Falls back to the registry's current (v2) ICA router for safeChain
+      // when omitted, rather than pinning to the now-decommissioned legacy one.
       internalSubmitter: safeSubmitter,
     },
   };
