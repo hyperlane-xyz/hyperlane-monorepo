@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/keyfunder",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "private": true,
   "description": "Hyperlane Key Funder Service - funds agent keys with native tokens",
   "keywords": [
@@ -39,6 +39,7 @@
     "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "ethers": "catalog:",
     "pino": "catalog:",

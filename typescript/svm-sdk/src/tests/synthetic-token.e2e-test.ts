@@ -59,7 +59,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       },
     };
     const igpWriter = new SvmIgpHookWriter(
-      { program: { programId: igpProgramId } },
+      { program: { programId: igpProgramId }, domainId: 1 },
       rpc,
       DEFAULT_IGP_SALT,
       signer,

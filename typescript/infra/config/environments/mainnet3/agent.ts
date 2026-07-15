@@ -21,6 +21,7 @@ import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 import {
   AgentChainConfig,
   HELIUS_SECRET_URL_MARKER,
+  KubernetesResources,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -46,6 +47,7 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
+import fastpathTestRecipients from './fastpath/test-recipients.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
@@ -72,13 +74,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // acala: true,
     adichain: true,
     aleo: true,
-    ancient8: true,
+    ancient8: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
-    arcadia: true,
+    arcadia: false,
     artela: false,
-    astar: true,
+    astar: false,
     avalanche: true,
     base: true,
     berachain: true,
@@ -92,34 +94,34 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    chilizmainnet: true,
+    chilizmainnet: false,
     citrea: true,
-    coredao: true,
+    coredao: false,
     coti: true,
-    cyber: true,
+    cyber: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
-    endurance: true,
+    endurance: false,
     eni: true,
     ethereum: true,
-    flare: true,
+    flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: false, // relayer + scraper only
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
-    fusemainnet: true,
+    fusemainnet: false,
     galactica: true,
     gnosis: true,
-    gravity: true,
+    gravity: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
     igra: true,
     immutablezkevmmainnet: true,
-    incentiv: true,
+    incentiv: false,
     ink: true,
-    kaia: true,
+    kaia: false,
     katana: true,
     kiichain: true,
     krown: true,
@@ -130,7 +132,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     litchain: false,
     lukso: true,
     lumiaprism: true,
-    mantapacific: true,
+    mantapacific: false,
     mantle: true,
     mantra: true,
     matchain: true,
@@ -150,10 +152,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nibiru: true,
     noble: true,
     oortmainnet: true,
-    ontology: true,
-    opbnb: true,
+    ontology: false,
+    opbnb: false,
     optimism: true,
-    orderly: true,
+    orderly: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -162,20 +164,20 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     pulsechain: true,
     radix: true,
-    rarichain: true,
+    rarichain: false,
     reactive: true,
     robinhood: true,
     ronin: true,
     sei: true,
-    shibarium: true,
+    shibarium: false,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
-    sophon: true,
+    soon: false, // disabled — RPC unavailable
+    sophon: false,
     stable: true,
     starknet: true,
     stride: false,
@@ -190,13 +192,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     vana: true,
     viction: true,
     worldchain: true,
-    xai: true,
+    xai: false,
     xlayer: true,
-    xrplevm: true,
+    xrplevm: false,
     zerogravity: true,
-    zeronetwork: true,
-    zetachain: true,
-    zircuit: true,
+    zeronetwork: false,
+    zetachain: false,
+    zircuit: false,
     zksync: true,
   },
   [Role.Relayer]: {
@@ -204,13 +206,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // acala: true,
     adichain: true,
     aleo: true,
-    ancient8: true,
+    ancient8: false,
     apechain: true,
     appchain: true,
-    arcadia: true,
+    arcadia: false,
     arbitrum: true,
     artela: false,
-    astar: true,
+    astar: false,
     avalanche: true,
     base: true,
     berachain: true,
@@ -224,34 +226,34 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    chilizmainnet: true,
+    chilizmainnet: false,
     citrea: true,
-    coredao: true,
+    coredao: false,
     coti: true,
-    cyber: true,
+    cyber: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
-    endurance: true,
+    endurance: false,
     eni: true,
     ethereum: true,
-    flare: true,
+    flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: true,
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
-    fusemainnet: true,
+    fusemainnet: false,
     galactica: true,
     gnosis: true,
-    gravity: true,
+    gravity: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
     igra: true,
     immutablezkevmmainnet: true,
-    incentiv: true,
+    incentiv: false,
     ink: true,
-    kaia: true,
+    kaia: false,
     katana: true,
     kiichain: true,
     krown: true,
@@ -262,7 +264,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     litchain: false,
     lukso: true,
     lumiaprism: true,
-    mantapacific: true,
+    mantapacific: false,
     mantle: true,
     mantra: true,
     matchain: true,
@@ -282,10 +284,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nibiru: true,
     noble: true,
     oortmainnet: true,
-    ontology: true,
-    opbnb: true,
+    ontology: false,
+    opbnb: false,
     optimism: true,
-    orderly: true,
+    orderly: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -294,23 +296,23 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     pulsechain: true,
     radix: true,
-    rarichain: true,
+    rarichain: false,
     reactive: true,
     robinhood: true,
     ronin: true,
     sei: true,
-    shibarium: true,
+    shibarium: false,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
-    sophon: true,
+    soon: false, // disabled — RPC unavailable
+    sophon: false,
     stable: true,
     starknet: true,
-    stride: true,
+    stride: false,
     subtensor: true,
     superseed: true,
     swell: false, // disabled — Swell network sunset 2026-06-30
@@ -322,13 +324,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     vana: true,
     viction: true,
     worldchain: true,
-    xai: true,
+    xai: false,
     xlayer: true,
-    xrplevm: true,
+    xrplevm: false,
     zerogravity: true,
-    zeronetwork: true,
-    zetachain: true,
-    zircuit: true,
+    zeronetwork: false,
+    zetachain: false,
+    zircuit: false,
     zksync: true,
   },
   [Role.Scraper]: {
@@ -336,13 +338,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // acala: true,
     adichain: true,
     aleo: true,
-    ancient8: true,
+    ancient8: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
-    arcadia: true,
+    arcadia: false,
     artela: false,
-    astar: true,
+    astar: false,
     avalanche: true,
     base: true,
     berachain: true,
@@ -356,34 +358,34 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    chilizmainnet: true,
+    chilizmainnet: false,
     citrea: true,
-    coredao: true,
+    coredao: false,
     coti: true,
-    cyber: true,
+    cyber: false,
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
-    endurance: true,
+    endurance: false,
     eni: true,
     ethereum: true,
-    flare: true,
+    flare: false,
     fluent: true,
     flowmainnet: true,
-    forma: true,
+    forma: false, // disabled — RPC unavailable
     fraxtal: true,
-    fusemainnet: true,
+    fusemainnet: false,
     galactica: true,
     gnosis: true,
-    gravity: true,
+    gravity: false,
     hashkey: true,
     hemi: true,
     hyperevm: true,
     igra: true,
     immutablezkevmmainnet: true,
-    incentiv: true,
+    incentiv: false,
     ink: true,
-    kaia: true,
+    kaia: false,
     katana: true,
     kiichain: true,
     krown: true,
@@ -394,7 +396,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     litchain: false,
     lukso: true,
     lumiaprism: true,
-    mantapacific: true,
+    mantapacific: false,
     mantle: true,
     mantra: true,
     matchain: true,
@@ -414,10 +416,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nibiru: true,
     noble: true,
     oortmainnet: true,
-    ontology: true,
-    opbnb: true,
+    ontology: false,
+    opbnb: false,
     optimism: true,
-    orderly: true,
+    orderly: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -426,23 +428,23 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     pulsechain: true,
     radix: true,
-    rarichain: true,
+    rarichain: false,
     reactive: true,
     robinhood: true,
     ronin: true,
     sei: true,
-    shibarium: true,
+    shibarium: false,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
-    soon: true,
-    sophon: true,
+    soon: false, // disabled — RPC unavailable
+    sophon: false,
     stable: true,
     starknet: true,
-    stride: true,
+    stride: false,
     subtensor: true,
     superseed: true,
     swell: false, // disabled — Swell network sunset 2026-06-30
@@ -455,13 +457,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
     viction: true,
     worldchain: true,
-    xai: true,
+    xai: false,
     xlayer: true,
-    xrplevm: true,
+    xrplevm: false,
     zerogravity: true,
-    zeronetwork: true,
-    zetachain: true,
-    zircuit: true,
+    zeronetwork: false,
+    zetachain: false,
+    zircuit: false,
     zksync: true,
   },
 };
@@ -764,23 +766,88 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '20000m',
-    memory: '55G',
+    cpu: '14000m',
+    memory: '24G',
   },
 };
 
+// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores (rare
+// transient spikes to ~5.7, absorbed by burst since there is no CPU limit),
+// memory peak ~2.4Gi. Request covers the memory peak and ~2x the CPU p99.
 const fastPathRelayerResources = {
   requests: {
-    cpu: '8000m',
-    memory: '16G',
+    cpu: '500m',
+    memory: '3G',
   },
 };
 
+// Validator resource tiers. Sized from 30-day observed peaks
+// (https://abacusworks.grafana.net/d/FSR9YWr7k). Memory must clear each tier's
+// peak to avoid OOM; CPU is compressible. The default (light) covers the ~90
+// low-traffic validators; heavier chains are overridden below, keyed by chain
+// name (applies across the hyperlane, RC, and fastpath validator contexts).
 const validatorResources = {
   requests: {
-    cpu: '500m',
+    cpu: '100m',
+    memory: '256Mi',
+  },
+};
+
+const heavyValidatorResources = {
+  requests: {
+    cpu: '1000m',
     memory: '1G',
   },
+};
+
+const mediumValidatorResources = {
+  requests: {
+    cpu: '500m',
+    memory: '512Mi',
+  },
+};
+
+// Heavy: solana (577Mi mem), arbitrum/base (~470-490Mi), optimism (351Mi), aleo (0.87 cores).
+const heavyValidatorChains = [
+  'solanamainnet',
+  'arbitrum',
+  'base',
+  'optimism',
+  'aleo',
+];
+
+// Medium: mid-traffic chains peaking ~60-183Mi / 0.1-0.41 cores.
+const mediumValidatorChains = [
+  'polygon',
+  'bsc',
+  'ethereum',
+  'linea',
+  'eclipsemainnet',
+  'mantapacific',
+  'celo',
+  'ink',
+  'unichain',
+  'celestia',
+  'tron',
+  'superseed',
+  'mode',
+  'avalanche',
+  'blast',
+  'soneium',
+  'taiko',
+  'paradex',
+  'gnosis',
+  'mitosis',
+  'eni',
+];
+
+const validatorChainResourceOverrides: ChainMap<KubernetesResources> = {
+  ...Object.fromEntries(
+    heavyValidatorChains.map((chain) => [chain, heavyValidatorResources]),
+  ),
+  ...Object.fromEntries(
+    mediumValidatorChains.map((chain) => [chain, mediumValidatorResources]),
+  ),
 };
 
 const scraperResources = {
@@ -910,6 +977,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
   scraper: {
     scraperOnlyChains,
@@ -964,6 +1032,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
 };
 
@@ -971,7 +1040,7 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: ['mantapacific', 'arbitrum'],
+    relayer: ['arbitrum'],
     scraper: [],
   },
   context: Contexts.Neutron,
@@ -1018,6 +1087,30 @@ const fastPathUsdtMatchingList = chainMapMatchingList({
 // CROSS Moonpay - https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/deployments/warp_routes/CROSS/moonpay-config.yaml
 // Single route with mixed underlying token types (USDC/USDT per chain), so both addresses per chain
 // must be in the same matching list to cover cross-type transfers (e.g. ethereum USDC → arbitrum USDT).
+// Match any sender → fastpath test recipient. No senderAddress restriction so
+// real-world messages (not just test-to-test) get picked up by the fastpath relayer.
+const fastPathTestRecipientMatchingList: MatchingList = Object.entries(
+  fastpathTestRecipients,
+).map(([chain, address]) => ({
+  destinationDomain: getDomainId(chain),
+  recipientAddress: addressToBytes32(address),
+}));
+
+// Messages to the fastpath test recipients must always pay real on-chain
+// fees, ahead of the shared enforcement list's dust-payment carve-outs
+// (e.g. citrea's "temporary workaround" accepting a payment of 1). Without
+// this, an open (any-sender) whitelist entry to a TestRecipient — which
+// accepts and stores arbitrary message bodies — combined with a dust
+// exception would let anyone repeatedly drain the fastpath relayer's
+// destination gas funds for ~free.
+const fastPathGasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    matchingList: fastPathTestRecipientMatchingList,
+  },
+  ...gasPaymentEnforcement,
+];
+
 const fastPathCrossMoonpayMatchingList = multiAddressChainMapMatchingList({
   arbitrum: [
     '0xeBC079D41C41a0ef7e54aa7Af867df9a621C9bE0', // USDC
@@ -1083,9 +1176,10 @@ const fastPath: RootAgentConfig = {
       ...fastPathUsdcMatchingList,
       ...fastPathUsdtMatchingList,
       ...fastPathCrossMoonpayMatchingList,
+      ...fastPathTestRecipientMatchingList,
     ],
     blacklist,
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: fastPathGasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,
     cache: {
@@ -1102,6 +1196,7 @@ const fastPath: RootAgentConfig = {
     },
     chains: validatorChainConfig(Contexts.FastPath),
     resources: validatorResources,
+    chainResourceOverrides: validatorChainResourceOverrides,
   },
 };
 

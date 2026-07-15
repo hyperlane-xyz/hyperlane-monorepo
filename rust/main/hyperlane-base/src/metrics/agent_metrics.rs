@@ -7,6 +7,7 @@ use std::time::Duration;
 use eyre::Result;
 use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
+use hyperlane_core::metrics::agent::u256_as_scaled_f64_with_decimals;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
@@ -367,7 +368,8 @@ impl ChainSpecificMetricsUpdater {
 
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
-                let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
+                let balance =
+                    u256_as_scaled_f64_with_decimals(balance, self.conf.native_token.decimals);
                 trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                 .with(&hashmap! {
