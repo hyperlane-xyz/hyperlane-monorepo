@@ -19,6 +19,7 @@ export type { SolanaRpcClient } from './rpc.js';
 
 // RPC + Signer
 export { createRpc } from './rpc.js';
+export { FALLBACK_SIMULATION_PAYER } from './version/version-query.js';
 
 // Artifact managers
 export { SvmMailboxArtifactManager as SealevelMailboxArtifactManager } from './core/mailbox-artifact-manager.js';
