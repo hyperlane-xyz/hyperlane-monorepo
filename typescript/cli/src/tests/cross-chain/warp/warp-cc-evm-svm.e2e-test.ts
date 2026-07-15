@@ -9,6 +9,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
+  FALLBACK_SIMULATION_PAYER,
   SealevelSigner,
   SvmCrossCollateralTokenReader,
   createRpc,
@@ -484,6 +485,12 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       ],
     });
 
+    // Reading an SVM warp simulates an on-chain program-version query. When the
+    // owner can't pay (a governance/burn owner holds no SOL), the reader falls
+    // back to FALLBACK_SIMULATION_PAYER — funded on mainnet but not on a local
+    // validator, so fund it here so the read can simulate.
+    await airdropSol(svmRpc, FALLBACK_SIMULATION_PAYER, 1_000_000_000n);
+
     const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
     const deployedConfig = await warpCommands.readConfig(
       SVM_CHAIN,
@@ -491,7 +498,8 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     );
     const svmConfig = deployedConfig[SVM_CHAIN];
 
-    // Ownership was handed to the configured (non-deployer) owner.
+    // Ownership was handed to the configured (non-deployer) owner during
+    // enrollment — the on-chain state confirms the override worked end to end.
     expect(svmConfig.owner).to.equal(svmOwner);
     // The EVM router was enrolled on the SVM warp, i.e. the post-create
     // enrollment ran successfully while the deployer still owned the warp.
