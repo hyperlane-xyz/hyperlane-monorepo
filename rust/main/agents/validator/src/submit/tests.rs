@@ -146,6 +146,71 @@ async fn single_checkpoint_chunk_has_no_throttle_tail() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn two_written_chunks_have_one_inter_chunk_throttle() {
+    let checkpoints = [7, 8].map(|index| CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index,
+        },
+        message_id: H256::zero(),
+    });
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(checkpoints.len())
+        .returning(|_| Ok(None));
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .times(checkpoints.len())
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(checkpoints[1].index))
+        .once()
+        .returning(|_| Ok(()));
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(checkpoints.to_vec())
+            .await;
+    });
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_millis(99)).await;
+    tokio::task::yield_now().await;
+
+    assert!(
+        !task.is_finished(),
+        "two written chunks must wait for the 100ms inter-chunk throttle"
+    );
+
+    tokio::time::advance(Duration::from_millis(1)).await;
+    tokio::task::yield_now().await;
+
+    assert!(
+        task.is_finished(),
+        "the final written chunk must not add another throttle delay"
+    );
+    task.await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
 async fn all_existing_chunks_skip_inter_chunk_throttle() {
     let checkpoints = [7, 8].map(|index| CheckpointWithMessageId {
         checkpoint: Checkpoint {
