@@ -5,7 +5,11 @@ import type {
   ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
-import { address as parseAddress, getAddressCodec } from '@solana/kit';
+import {
+  address as parseAddress,
+  fetchEncodedAccount,
+  getAddressCodec,
+} from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -626,4 +630,39 @@ export async function buildBeneficiaryAtaIx(
     mint,
     tokenProgram,
   });
+}
+
+export interface BeneficiaryAtaExistsArgs {
+  rpc: SvmRpc;
+  beneficiary: Address;
+  /** See {@link BuildBeneficiaryAtaIxArgs.feeToken}. */
+  feeToken: string | undefined;
+}
+
+/**
+ * Returns whether the `(beneficiary, feeToken)` Associated Token Account
+ * already exists on-chain. Derives the ATA the same way
+ * {@link buildBeneficiaryAtaIx} does. Returns false when `feeToken` is
+ * undefined/empty (native flows — nothing to create).
+ *
+ * Writers use this to skip emitting a standalone idempotent create-ATA tx when
+ * nothing else changed, so a no-op update converges to zero transactions.
+ */
+export async function beneficiaryAtaExists(
+  args: BeneficiaryAtaExistsArgs,
+): Promise<boolean> {
+  if (!args.feeToken) {
+    return false;
+  }
+
+  const mint = parseAddress(args.feeToken);
+  const tokenProgram = await fetchMintTokenProgram(args.rpc, mint);
+  const ata = await deriveAssociatedTokenAddress({
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
+
+  const account = await fetchEncodedAccount(args.rpc, ata.address);
+  return account.exists;
 }

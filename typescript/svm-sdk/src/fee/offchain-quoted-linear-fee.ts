@@ -25,6 +25,7 @@ import type { SvmSigner } from '../clients/signer.js';
 import { SetQuoteSignerOp } from '../codecs/fee.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
+  beneficiaryAtaExists,
   buildBeneficiaryAtaIx,
   getInitFeeInstruction,
   getSetBeneficiaryInstruction,
@@ -259,6 +260,11 @@ export class SvmOffchainQuotedLinearFeeWriter
       beneficiary: expectedBeneficiary,
       feeToken: expected.token,
     });
+    const ataAlreadyExists = await beneficiaryAtaExists({
+      rpc: this.rpc,
+      beneficiary: expectedBeneficiary,
+      feeToken: expected.token,
+    });
     const beneficiaryChanged = !eqAddressSol(
       currentConfig.beneficiary,
       expected.beneficiary,
@@ -278,7 +284,7 @@ export class SvmOffchainQuotedLinearFeeWriter
           ? 'Update fee beneficiary and create ata'
           : 'Update fee beneficiary',
       });
-    } else if (ataIx) {
+    } else if (ataIx && !ataAlreadyExists) {
       txs.push({
         feePayer: ownerAddress,
         instructions: [ataIx],

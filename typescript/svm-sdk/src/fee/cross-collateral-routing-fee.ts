@@ -26,6 +26,7 @@ import type { SvmSigner } from '../clients/signer.js';
 import { addressBytes, ensureLength } from '../codecs/binary.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
+  beneficiaryAtaExists,
   buildBeneficiaryAtaIx,
   getInitFeeInstruction,
   getRemoveRemoteFeeRouteInstruction,
@@ -387,6 +388,11 @@ export class SvmCrossCollateralRoutingFeeWriter
       beneficiary: expectedBeneficiary,
       feeToken: expected.token,
     });
+    const ataAlreadyExists = await beneficiaryAtaExists({
+      rpc: this.rpc,
+      beneficiary: expectedBeneficiary,
+      feeToken: expected.token,
+    });
     const beneficiaryChanged = !eqAddressSol(
       currentConfig.beneficiary,
       expected.beneficiary,
@@ -406,7 +412,7 @@ export class SvmCrossCollateralRoutingFeeWriter
           ? 'Update fee beneficiary and create ata'
           : 'Update fee beneficiary',
       });
-    } else if (ataIx) {
+    } else if (ataIx && !ataAlreadyExists) {
       txs.push({
         feePayer: ownerAddress,
         instructions: [ataIx],
