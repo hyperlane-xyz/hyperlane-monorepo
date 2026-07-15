@@ -26,7 +26,7 @@ export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
     if (this.signer.supportsTransactionBatching()) {
       for (const tx of txs) {
         if (tx.annotation) {
-          this.logger.debug(tx.annotation);
+          this.logger.info(tx.annotation);
         }
       }
       const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
@@ -37,7 +37,7 @@ export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
 
     for (const tx of txs) {
       if (tx.annotation) {
-        this.logger.debug(tx.annotation);
+        this.logger.info(tx.annotation);
       }
 
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
