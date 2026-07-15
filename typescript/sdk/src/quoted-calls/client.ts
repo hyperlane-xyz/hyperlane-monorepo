@@ -167,9 +167,16 @@ function isHexBytes(value: unknown, ...byteLengths: number[]): boolean {
   return byteLengths.includes((value.length - 2) / 2);
 }
 
-// Fixed byte widths for the SVM `SvmSignedQuote` wire fields (see
+// Valid SVM signed-quote `context` widths, by endpoint. Warp fee contexts are
+// 44B (leaf/routing) or 76B (cross-collateral); the IGP context is 68B (see
+// the IGP context layout in `@hyperlane-xyz/svm-sdk`). The two endpoints never
+// share a width, so the guard is parameterized by endpoint to reject a
+// context that is well-formed for the other route.
+const WARP_CONTEXT_BYTES = [44, 76]; // non-CC | CC
+const IGP_CONTEXT_BYTES = [68];
+
+// Fixed byte widths for the remaining SVM `SvmSignedQuote` wire fields (see
 // `SealevelSignedQuote` in `./types.ts`).
-const SVM_CONTEXT_BYTES = [44, 76]; // non-CC | CC
 const SVM_ISSUED_AT_BYTES = 6;
 const SVM_EXPIRY_BYTES = 6;
 const SVM_CLIENT_SALT_BYTES = 32;
@@ -199,8 +206,14 @@ function isSignedQuoteData(value: unknown): boolean {
  * an object, or server/client schema drift) must fail loudly here rather than
  * returning `undefined` or malformed data that only blows up later during
  * transaction construction.
+ *
+ * `svmContextBytes` is the set of `context` widths valid for the endpoint being
+ * validated (warp vs IGP), since the two carry different-sized contexts.
  */
-function isQuoteV2Response(body: unknown): body is QuoteV2Response {
+function isQuoteV2Response(
+  body: unknown,
+  svmContextBytes: number[],
+): body is QuoteV2Response {
   if (!isRecord(body) || !isRecord(body.quote)) return false;
   const quote = body.quote;
   if (
@@ -224,7 +237,7 @@ function isQuoteV2Response(body: unknown): body is QuoteV2Response {
       }
       const sq = details.signedQuote;
       return (
-        isHexBytes(sq.context, ...SVM_CONTEXT_BYTES) &&
+        isHexBytes(sq.context, ...svmContextBytes) &&
         isHexBytes(sq.data) &&
         isHexBytes(sq.issuedAt, SVM_ISSUED_AT_BYTES) &&
         isHexBytes(sq.expiry, SVM_EXPIRY_BYTES) &&
@@ -302,8 +315,12 @@ export class FeeQuotingV2Client {
       );
     }
 
+    const svmContextBytes =
+      endpoint === QuoteV2EndpointValues.Warp
+        ? WARP_CONTEXT_BYTES
+        : IGP_CONTEXT_BYTES;
     assert(
-      isQuoteV2Response(body),
+      isQuoteV2Response(body, svmContextBytes),
       `Fee quoting v2 returned a malformed success body (HTTP ${res.status})`,
     );
     return body.quote;

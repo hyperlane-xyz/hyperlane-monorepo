@@ -57,6 +57,18 @@ const SEALEVEL_QUOTE: SealevelQuoteV2Entry = {
   },
 };
 
+// Same as the warp fixture but with the 68B context the IGP endpoint emits.
+const SEALEVEL_IGP_QUOTE: SealevelQuoteV2Entry = {
+  ...SEALEVEL_QUOTE,
+  details: {
+    ...SEALEVEL_QUOTE.details,
+    signedQuote: {
+      ...SEALEVEL_QUOTE.details.signedQuote,
+      context: `0x${'11'.repeat(68)}`,
+    },
+  },
+};
+
 const ETHEREUM_QUOTE: EthereumQuoteV2Entry = {
   protocol: ProtocolType.Ethereum,
   quoter: `0x${'11'.repeat(20)}`,
@@ -349,11 +361,28 @@ describe('FeeQuotingV2Client', () => {
         expect((err as Error).message).to.include('malformed');
       }
     });
+
+    // The 68B IGP context is not a valid warp width (44B/76B).
+    it('throws on a warp 200 whose context is an IGP width (68B)', async () => {
+      fetchStub.resolves(makeResponse(200, { quote: SEALEVEL_IGP_QUOTE }));
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getWarpQuote(WARP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
+    });
   });
 
   describe('getIgpQuote', () => {
     it('hits the igp endpoint with the expected params', async () => {
-      fetchStub.resolves(makeResponse(200, { quote: SEALEVEL_QUOTE }));
+      fetchStub.resolves(makeResponse(200, { quote: SEALEVEL_IGP_QUOTE }));
 
       const client = new FeeQuotingV2Client({
         baseUrl: BASE_URL,
@@ -361,7 +390,7 @@ describe('FeeQuotingV2Client', () => {
       });
       const quote = await client.getIgpQuote(IGP_PARAMS);
 
-      expect(quote).to.deep.equal(SEALEVEL_QUOTE);
+      expect(quote).to.deep.equal(SEALEVEL_IGP_QUOTE);
 
       const [url] = fetchStub.firstCall.args as [string];
       expect(url).to.include(`${QUOTE_V2_BASE_PATH}/${QuoteV2Endpoint.Igp}?`);
@@ -370,6 +399,24 @@ describe('FeeQuotingV2Client', () => {
       // IGP variant does NOT send `recipient` or `targetRouter`
       expect(url).to.not.include('recipient=');
       expect(url).to.not.include('targetRouter=');
+    });
+
+    // Context width is endpoint-specific: IGP is 68B, warp is 44B/76B. A warp
+    // context returned on the IGP endpoint must be rejected as malformed.
+    it('throws on an IGP 200 whose context is a warp width (44B)', async () => {
+      fetchStub.resolves(makeResponse(200, { quote: SEALEVEL_QUOTE }));
+
+      const client = new FeeQuotingV2Client({
+        baseUrl: BASE_URL,
+        apiKey: API_KEY,
+      });
+
+      try {
+        await client.getIgpQuote(IGP_PARAMS);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect((err as Error).message).to.include('malformed');
+      }
     });
   });
 });
