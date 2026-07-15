@@ -1,13 +1,16 @@
+use std::str::FromStr;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
-use std::str::FromStr;
+use tokio::sync::OnceCell;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
@@ -25,6 +28,39 @@ fn resolve_kms_region(region: &str) -> Region {
         name: region.to_owned(),
         endpoint: format!("https://kms.{region}.amazonaws.com"),
     })
+}
+
+/// A global cache of constructed AWS signers, keyed by (KMS key id, region). Building an
+/// `AwsSigner` requires a KMS `GetPublicKey` call; without this cache, every independent
+/// call site that needs the same configured signer (mailbox builder, ISM builder,
+/// validator-announce builder, lander adapter, etc.) pays that KMS round trip again, even
+/// though the result - the signer's address - never changes for a given key id.
+static AWS_SIGNER_CACHE: OnceLock<DashMap<(String, String), OnceCell<AwsSigner>>> = OnceLock::new();
+
+fn get_aws_signer_cache() -> &'static DashMap<(String, String), OnceCell<AwsSigner>> {
+    AWS_SIGNER_CACHE.get_or_init(DashMap::new)
+}
+
+/// Builds an `AwsSigner` for the given KMS key id and region, reusing an already-constructed
+/// signer for the same (id, region) pair if one exists rather than making a fresh KMS call.
+async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
+    let cell = get_aws_signer_cache()
+        .entry((id.to_owned(), region.to_owned()))
+        .or_default();
+    let signer = cell
+        .get_or_try_init(|| async {
+            let http_client =
+                utils::http_client_with_timeout().map_err(|err| eyre::eyre!(err.to_string()))?;
+            let client = KmsClient::new_with_client(
+                rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
+                resolve_kms_region(region),
+            );
+            AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT))
+                .await
+                .map_err(Report::from)
+        })
+        .await?;
+    Ok(signer.clone())
 }
 
 /// Signer types
@@ -107,14 +143,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
-                let http_client = utils::http_client_with_timeout()
-                    .map_err(|err| eyre::eyre!(err.to_string()))?;
-                let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    resolve_kms_region(region),
-                );
-                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
-                hyperlane_ethereum::Signers::Aws(signer)
+                hyperlane_ethereum::Signers::Aws(build_aws_signer(id, region).await?)
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
@@ -148,16 +177,9 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
                 let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
                 Ok(hyperlane_tron::TronSigner::from(wallet))
             }
-            SignerConf::Aws { id, region } => {
-                let http_client = utils::http_client_with_timeout()
-                    .map_err(|err| eyre::eyre!(err.to_string()))?;
-                let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    resolve_kms_region(region),
-                );
-                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
-                Ok(hyperlane_tron::TronSigner::Aws(signer))
-            }
+            SignerConf::Aws { id, region } => Ok(hyperlane_tron::TronSigner::Aws(
+                build_aws_signer(id, region).await?,
+            )),
             _ => bail!(format!("{conf:?} key is not supported by tron")),
         }
     }
