@@ -252,6 +252,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
+        interval: ZNzUint.optional().describe(
+          'How long to wait between polls when idle/caught up, in seconds. Defaults to 5s.',
+        ),
       })
       .optional(),
   })
@@ -677,8 +680,8 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
-  interval: ZUint.optional().describe(
-    'How long to wait between checking for new checkpoints in seconds.',
+  interval: ZNzUint.optional().describe(
+    'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
 });
 
