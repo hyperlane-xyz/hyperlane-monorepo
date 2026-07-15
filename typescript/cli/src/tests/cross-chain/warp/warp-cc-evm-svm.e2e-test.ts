@@ -34,6 +34,7 @@ import { localTestRunCmdPrefix } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import { deployToken } from '../../ethereum/commands/helpers.js';
 import {
+  BURN_ADDRESS_BY_PROTOCOL,
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
@@ -425,6 +426,77 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     );
     expect(deployedConfig[EVM_CHAIN].tokenFee?.type).to.equal(
       TokenFeeType.RoutingFee,
+    );
+  });
+
+  it('should deploy an EVM+SVM warp whose SVM owner is not the deployer and still enroll cross-chain routers', async function () {
+    const evmOwner = new Wallet(EVM_KEY).address;
+    // A non-deployer owner for the SVM side. The deploy runs with the deployer
+    // key and cross-chain router enrollment happens after create(), so the SVM
+    // warp must stay deployer-owned through enrollment and only be handed to
+    // this owner during it. If create() applied the configured owner up front,
+    // the deployer could no longer sign the enrollment and the deploy would
+    // fail.
+    const svmOwner = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const DECIMALS = 9;
+    const SYMBOL = 'NDOWN';
+
+    const evmToken = await deployToken(
+      EVM_KEY,
+      EVM_CHAIN,
+      DECIMALS,
+      SYMBOL,
+      'Non-deployer Owner Token',
+      REGISTRY_PATH,
+    );
+
+    const warpId = createWarpRouteConfigId(SYMBOL, `${EVM_CHAIN}-${SVM_CHAIN}`);
+    const warpDeployConfig: WarpRouteDeployConfig = {
+      [EVM_CHAIN]: {
+        type: TokenType.collateral,
+        token: evmToken.address,
+        mailbox: evmCoreAddresses.mailbox,
+        owner: evmOwner,
+      },
+      [SVM_CHAIN]: {
+        type: TokenType.synthetic,
+        mailbox: svmCoreAddresses.mailbox,
+        owner: svmOwner,
+        name: 'Non-deployer Owner Token',
+        symbol: SYMBOL,
+        decimals: DECIMALS,
+        metadataUri: 'https://test.example.com/ndown-metadata.json',
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+    // Deploy must succeed: enrollment is authorized by the deployer key because
+    // ownership is handed to svmOwner only during enrollment, not at create.
+    await warpCommands.deployRaw({
+      warpRouteId: warpId,
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      skipConfirmationPrompts: true,
+      extraArgs: [
+        `--key.${ProtocolType.Ethereum}`,
+        EVM_KEY,
+        `--key.${ProtocolType.Sealevel}`,
+        SVM_KEY,
+      ],
+    });
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
+    const deployedConfig = await warpCommands.readConfig(
+      SVM_CHAIN,
+      warpCorePath,
+    );
+    const svmConfig = deployedConfig[SVM_CHAIN];
+
+    // Ownership was handed to the configured (non-deployer) owner.
+    expect(svmConfig.owner).to.equal(svmOwner);
+    // The EVM router was enrolled on the SVM warp, i.e. the post-create
+    // enrollment ran successfully while the deployer still owned the warp.
+    expect(Object.keys(svmConfig.remoteRouters ?? {}).length).to.be.greaterThan(
+      0,
     );
   });
 });
