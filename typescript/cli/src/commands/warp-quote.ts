@@ -10,6 +10,7 @@ import {
 import { runWarpQuoteCreate } from '../deploy/warp-quote.js';
 import { log, logCommandHeader, logGreen, warnYellow } from '../logger.js';
 import { runWarpQuoteRead } from '../read/warp-quote.js';
+import { ENV } from '../utils/env.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
@@ -73,7 +74,9 @@ const create: CommandModuleWithWriteContext<{
     'quote-signer-key': {
       type: 'string',
       description:
-        '0x-hex secp256k1 private key for signing the quote (distinct from --key.<protocol> which signs the submission tx)',
+        '0x-hex secp256k1 private key for signing the quote, or use the HYP_QUOTE_SIGNER_KEY env var (distinct from --key.<protocol> which signs the submission tx)',
+      default: ENV.HYP_QUOTE_SIGNER_KEY,
+      defaultDescription: 'process.env.HYP_QUOTE_SIGNER_KEY',
       demandOption: true,
     },
   },
