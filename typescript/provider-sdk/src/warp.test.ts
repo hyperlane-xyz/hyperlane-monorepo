@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { TokenType, resolveFeeTokenFromWarpArtifactConfig } from './warp.js';
+import {
+  TokenType,
+  computeRemoteRoutersUpdates,
+  resolveFeeTokenFromWarpArtifactConfig,
+} from './warp.js';
 import type {
   CollateralWarpArtifactConfig,
   CrossCollateralWarpArtifactConfig,
@@ -77,5 +81,44 @@ describe('resolveFeeTokenFromWarpArtifactConfig', () => {
       type: TokenType.native,
     };
     expect(resolveFeeTokenFromWarpArtifactConfig(config)).to.equal(undefined);
+  });
+});
+
+describe('computeRemoteRoutersUpdates', () => {
+  const eq = (a: string, b: string) => a === b;
+  const DOMAIN = 1234;
+
+  it('keeps current gas for an existing router when expected omits it', () => {
+    const current = {
+      remoteRouters: { [DOMAIN]: { address: '0xRouter' } },
+      destinationGas: { [DOMAIN]: '200000' },
+    };
+    const expected = {
+      remoteRouters: { [DOMAIN]: { address: '0xRouter' } },
+      destinationGas: {},
+    };
+
+    const diff = computeRemoteRoutersUpdates(current, expected, eq);
+
+    expect(diff.toEnroll).to.deep.equal([]);
+    expect(diff.toUnenroll).to.deep.equal([]);
+  });
+
+  it('enrolls a new router with gas 0 when expected omits it', () => {
+    const current = {
+      remoteRouters: {},
+      destinationGas: {},
+    };
+    const expected = {
+      remoteRouters: { [DOMAIN]: { address: '0xRouter' } },
+      destinationGas: {},
+    };
+
+    const diff = computeRemoteRoutersUpdates(current, expected, eq);
+
+    expect(diff.toEnroll).to.deep.equal([
+      { domainId: DOMAIN, routerAddress: '0xRouter', gas: '0' },
+    ]);
+    expect(diff.toUnenroll).to.deep.equal([]);
   });
 });

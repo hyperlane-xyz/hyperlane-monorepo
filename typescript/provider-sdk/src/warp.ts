@@ -802,8 +802,6 @@ export function computeRemoteRoutersUpdates(
     expectedRoutersConfig.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId] ?? '0';
     const currentRouterAddress = Object.prototype.hasOwnProperty.call(
       currentRoutersConfig.remoteRouters,
       domainId,
@@ -812,6 +810,11 @@ export function computeRemoteRoutersUpdates(
       : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
+    // When the expected config omits gas for an existing router, keep the
+    // current on-chain value instead of zeroing it. New routers with omitted
+    // gas fall back to current's '0' default, matching EVM behavior.
+    const expectedDestinationGas =
+      expectedRoutersConfig.destinationGas[domainId] ?? currentDestinationGas;
 
     const needsUpdate =
       !currentRouterAddress ||
