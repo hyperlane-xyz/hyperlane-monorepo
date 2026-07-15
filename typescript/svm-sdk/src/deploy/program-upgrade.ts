@@ -62,8 +62,10 @@ export function requiredExtendBytes(
  * program-data was extended ("Program was deployed in this block already").
  * For the same reason, any config-change instruction (which invokes the
  * program) must run after the upgrade lands — a program is not invocable in
- * the slot it is upgraded — so callers sequence config updates after these
- * transactions rather than batching them in.
+ * the slot it is upgraded. Both transactions carry `waitForSlotAdvance` so a
+ * live signer holds each until the cluster advances a slot, guaranteeing the
+ * upgrade lands after the extend and any following config update lands after
+ * the upgrade.
  *
  * @returns Upgrade transactions plus receipts from buffer prep.
  *          Null if no upgrade is needed.
@@ -153,6 +155,7 @@ export async function prepareProgramUpgrade(
       instructions: [extendInstruction],
       computeUnits: MAX_COMPUTE_UNITS,
       annotation: `Extend ${label}: +${additionalBytes} bytes`,
+      waitForSlotAdvance: true,
     });
   }
 
@@ -206,6 +209,7 @@ export async function prepareProgramUpgrade(
     additionalSigners: finalizeStage.additionalSigners,
     computeUnits: MAX_COMPUTE_UNITS,
     annotation: `Upgrade ${label}: ${currentVersion ?? 'unknown'} → ${expectedVersion}`,
+    waitForSlotAdvance: true,
   });
 
   return { authorityTransactions, receipts };

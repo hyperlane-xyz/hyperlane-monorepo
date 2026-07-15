@@ -1,5 +1,10 @@
 ---
 "@hyperlane-xyz/sealevel-sdk": patch
+"@hyperlane-xyz/deploy-sdk": patch
 ---
 
 Fixed SVM warp-route program upgrades failing transaction simulation on clusters where the `enable_extend_program_checked` feature gate is inactive (e.g. Solana mainnet-beta). `prepareProgramUpgrade` now queries the feature gate and emits the legacy `ExtendProgram` (variant 6) instruction when the checked variant is unavailable, and clamps the program-data extend up to the loader's 10240-byte minimum instead of requesting the exact deficit (which the loader rejects). Added a generic `isFeatureActive` gate checker and a `program-extend-upgrade` e2e that exercises the unchecked extend path end-to-end against a feature-deactivated validator.
+
+Fixed the extend and upgrade racing the same slot when a `warp apply` both bumps `contractVersion` and sets a fee: the loader rejects an Upgrade in the slot its program-data was extended ("Program was deployed in this block already"), and a program is not invocable in the slot it is upgraded. A generic `waitForSlotAdvance` hint was added to `SvmTransaction` and honored in `SvmSigner.send` — it polls until the cluster slot advances past the confirmed transaction's slot before reporting the send done, so the next transaction executes in a strictly later slot. `prepareProgramUpgrade` sets the hint on the extend and upgrade transactions, guaranteeing extend → upgrade → config each land in separate slots. The signer stays protocol-generic (no upgrade-specific logic) and the transactions remain emitted for export/multisig flows.
+
+`SvmSigner.signAndSend` now surfaces the on-chain program logs from a failed preflight simulation (logged at `error` before rethrowing) so a failed apply shows why the transaction reverted (e.g. insufficient lamports, custom program errors) instead of a bare "Transaction simulation failed". `AltVMJsonRpcSubmitter` now logs each transaction's annotation at `info` while submitting, matching the EVM `MultiProvider.sendTransaction` output.

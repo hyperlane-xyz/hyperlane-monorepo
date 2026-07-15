@@ -27,6 +27,8 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   assert,
   concurrentMap,
+  isNullish,
+  pollAsync,
   rootLogger,
   sleep,
   strip0x,
@@ -317,6 +319,24 @@ export class SvmSigner
           await sleep(delay);
           continue;
         }
+
+        // Surface the on-chain program logs from a failed preflight so the
+        // caller sees why the transaction reverted, not just "simulation
+        // failed" (e.g. insufficient lamports, custom program errors).
+        if (
+          isSolanaError(
+            error,
+            SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+          )
+        ) {
+          const { logs } = error.context;
+          if (logs?.length) {
+            this.logger.error(
+              `Transaction ${signature} simulation failed:\n${logs.join('\n')}`,
+            );
+          }
+        }
+
         throw error;
       }
     }
@@ -375,6 +395,7 @@ export class SvmSigner
         pollIntervalMs,
       );
       if (result) {
+        await this.awaitSlotAdvance(tx, result);
         return result;
       }
 
@@ -401,7 +422,9 @@ export class SvmSigner
       }
 
       if (historyCheck?.confirmed) {
-        return { signature, slot: historyCheck.slot };
+        const receipt = { signature, slot: historyCheck.slot };
+        await this.awaitSlotAdvance(tx, receipt);
+        return receipt;
       }
 
       if (historyCheck) {
@@ -418,7 +441,10 @@ export class SvmSigner
           pollIntervalMs,
         );
 
-        if (retry) return retry;
+        if (retry) {
+          await this.awaitSlotAdvance(tx, retry);
+          return retry;
+        }
 
         throw new Error(
           `Transaction ${signature} was observed at 'processed' but never confirmed`,
@@ -434,6 +460,35 @@ export class SvmSigner
 
     throw new Error(
       `Transaction not confirmed after ${maxBlockhashAttempts} blockhash attempts (last signature: ${lastSignature})`,
+    );
+  }
+
+  /**
+   * Honors the `waitForSlotAdvance` delivery hint: blocks until the cluster
+   * slot advances past the slot the transaction confirmed in, so the caller's
+   * next transaction executes in a strictly later slot.
+   */
+  private async awaitSlotAdvance(
+    tx: SendableSvmTransaction,
+    receipt: SvmReceipt,
+  ): Promise<void> {
+    if (!tx.waitForSlotAdvance || isNullish(receipt.slot)) {
+      return;
+    }
+
+    const confirmedSlot = receipt.slot;
+    await pollAsync(
+      async () => {
+        const slot = await this.rpc
+          .getSlot({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+        assert(
+          slot > confirmedSlot,
+          `slot ${slot} has not advanced past ${confirmedSlot}`,
+        );
+      },
+      500,
+      60,
     );
   }
 
