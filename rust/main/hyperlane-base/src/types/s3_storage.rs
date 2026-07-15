@@ -55,18 +55,34 @@ fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
 /// `S3_MAX_OBJECT_SIZE` - enforced against bytes actually received, not a `Content-Length`
 /// header, since an adversarial or misconfigured object store isn't obligated to report an
 /// accurate size.
-async fn read_capped(mut body: ByteStream, key: &str) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-    while let Some(chunk) = body.try_next().await? {
-        buf.extend_from_slice(&chunk);
-        if buf.len() as i64 >= S3_MAX_OBJECT_SIZE {
-            bail!(
-                "Object size for key {key} exceeds the {}KiB limit",
-                S3_MAX_OBJECT_SIZE / 1024
-            );
+///
+/// Bounded by `timeout`: the SDK's own operation timeout only covers request transmission and
+/// response headers, not this body read, so a connection that stalls (or drips bytes just under
+/// the size cap) after headers are received would otherwise hang indefinitely.
+async fn read_capped_with_timeout(
+    mut body: ByteStream,
+    key: &str,
+    timeout: Duration,
+) -> Result<Vec<u8>> {
+    tokio::time::timeout(timeout, async {
+        let mut buf = Vec::new();
+        while let Some(chunk) = body.try_next().await? {
+            buf.extend_from_slice(&chunk);
+            if buf.len() as i64 >= S3_MAX_OBJECT_SIZE {
+                bail!(
+                    "Object size for key {key} exceeds the {}KiB limit",
+                    S3_MAX_OBJECT_SIZE / 1024
+                );
+            }
         }
-    }
-    Ok(buf)
+        Ok(buf)
+    })
+    .await
+    .map_err(|_| eyre::eyre!("Timed out reading object for key {key} after {timeout:?}"))?
+}
+
+async fn read_capped(body: ByteStream, key: &str) -> Result<Vec<u8>> {
+    read_capped_with_timeout(body, key, S3_REQUEST_TIMEOUT).await
 }
 
 impl fmt::Debug for S3Storage {
@@ -362,12 +378,58 @@ mod tests {
         assert!(err.to_string().contains("exceeds"));
     }
 
+    /// Builds a plain HTTP-only S3 client pointed at a local mock server. Building an explicit
+    /// connector avoids the SDK's default TLS-capable connector, which eagerly loads the OS
+    /// certificate store even when it'll never be used for a plain-http request.
+    fn test_client(addr: std::net::SocketAddr) -> Client {
+        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
+            .build(hyper::client::HttpConnector::new());
+        let config = aws_sdk_s3::Config::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(Region::new("us-east-1"))
+            .endpoint_url(format!("http://{addr}"))
+            .force_path_style(true)
+            .http_client(http_client)
+            .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
+            .build();
+        Client::from_conf(config)
+    }
+
+    /// Reads a mock HTTP server's request off `socket` up to the end of the headers. The
+    /// connection stays open afterwards (the client is waiting on a response), so EOF never
+    /// comes.
+    async fn discard_request_headers(socket: &mut tokio::net::TcpStream) {
+        use tokio::io::AsyncReadExt;
+
+        let mut discard = [0u8; 4096];
+        loop {
+            let n = socket
+                .read(&mut discard)
+                .await
+                .expect("reading the request must succeed");
+            if discard[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+        }
+    }
+
     /// Proves the abort happens mid-transfer, not just on the buffered result: a local server
-    /// declares a 1GiB body and streams for as long as the client keeps reading, and this
-    /// asserts the client disconnects after only a small multiple of the 50KiB cap.
+    /// declares a 1GiB body and streams for as long as the client keeps reading.
+    ///
+    /// The assertion is on wall-clock time, not bytes written: how many bytes the server
+    /// manages to hand to the kernel before `write_all` starts failing depends on OS-specific
+    /// socket buffer sizes on both ends of the loopback connection (send buffer here, receive
+    /// buffer on the client side, which this test doesn't control) - on a previous version of
+    /// this test that asserted a fixed byte ceiling, a CI runner with larger default buffers
+    /// buffered ~3.9MiB before failing, well past the ceiling, even though the connection was
+    /// in fact torn down promptly. Once the client drops the `ByteStream` (immediately after
+    /// `read_capped` bails), the underlying connection closes and the server's blocking writes
+    /// start erroring within a bounded, short time - regardless of how many bytes it managed to
+    /// buffer first. If the download weren't actually being aborted, the server would keep
+    /// streaming (and this future would keep awaiting) for as long as it takes to send 1GiB.
     #[tokio::test]
     async fn anonymously_read_from_bucket_aborts_download_of_oversized_object() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::io::AsyncWriteExt;
         use tokio::net::TcpListener;
 
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -383,18 +445,7 @@ mod tests {
                 .await
                 .expect("the test client must connect");
 
-            // Read until the end of the request headers - the connection stays open
-            // afterwards (the client is waiting on a response), so EOF never comes.
-            let mut discard = [0u8; 4096];
-            loop {
-                let n = socket
-                    .read(&mut discard)
-                    .await
-                    .expect("reading the request must succeed");
-                if discard[..n].windows(4).any(|w| w == b"\r\n\r\n") {
-                    break;
-                }
-            }
+            discard_request_headers(&mut socket).await;
 
             let declared_size = 1024 * 1024 * 1024u64; // 1GiB, never actually sent in full
             socket
@@ -410,21 +461,7 @@ mod tests {
             total_written
         });
 
-        // A plain HTTP-only connector - this test's endpoint is unencrypted `http://`, and
-        // building one explicitly avoids the SDK's default TLS-capable connector, which eagerly
-        // loads the OS certificate store even when it'll never be used for a plain-http request.
-        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
-            .build(hyper::client::HttpConnector::new());
-        let config = aws_sdk_s3::Config::builder()
-            .behavior_version(aws_config::BehaviorVersion::latest())
-            .region(Region::new("us-east-1"))
-            .endpoint_url(format!("http://{addr}"))
-            .force_path_style(true)
-            .http_client(http_client)
-            .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
-            .build();
-
-        let res = Client::from_conf(config)
+        let res = test_client(addr)
             .get_object()
             .bucket("test-bucket")
             .key("huge-object")
@@ -436,11 +473,73 @@ mod tests {
             .expect_err("oversized body must be rejected");
         assert!(err.to_string().contains("exceeds"));
 
-        let total_written = server.await.expect("the mock server task must not panic");
+        let total_written = tokio::time::timeout(Duration::from_secs(10), server)
+            .await
+            .expect(
+                "the mock server never observed the disconnect - the download is not actually \
+                 being aborted mid-transfer, it's still streaming toward the declared 1GiB",
+            )
+            .expect("the mock server task must not panic");
+        // A generous sanity ceiling, not the primary assertion above: proves we're nowhere near
+        // having streamed the full declared size, without depending on an exact OS buffer size.
         assert!(
-            total_written < 2 * 1024 * 1024,
-            "server was allowed to stream {total_written} bytes before the client disconnected - \
-             the download is not actually being aborted mid-transfer"
+            total_written < 64 * 1024 * 1024,
+            "server streamed {total_written} bytes, unexpectedly close to the declared 1GiB"
         );
+    }
+
+    /// Proves that a connection which stalls after headers - never sending any body, and never
+    /// closing - is bounded by `read_capped`'s own timeout rather than hanging forever. Without
+    /// wrapping the body read in a timeout, this future would never resolve, since the SDK's
+    /// operation timeout only covers request transmission and response headers.
+    #[tokio::test]
+    async fn read_capped_times_out_on_stalled_body() {
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binding a loopback listener must succeed");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener must have a local address");
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener
+                .accept()
+                .await
+                .expect("the test client must connect");
+
+            discard_request_headers(&mut socket).await;
+
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 50\r\n\r\n")
+                .await
+                .expect("writing response headers must succeed");
+
+            // Never send any body, and hold the connection open indefinitely.
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        });
+
+        let res = test_client(addr)
+            .get_object()
+            .bucket("test-bucket")
+            .key("stalled-object")
+            .send()
+            .await
+            .expect("fake server always returns 200");
+
+        let start = tokio::time::Instant::now();
+        let err = read_capped_with_timeout(res.body, "stalled-object", Duration::from_millis(200))
+            .await
+            .expect_err("a stalled body must eventually time out, not hang forever");
+        assert!(err.to_string().contains("Timed out"));
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "read_capped_with_timeout took {:?} to time out - the bound isn't being enforced",
+            start.elapsed()
+        );
+
+        server.abort();
     }
 }
