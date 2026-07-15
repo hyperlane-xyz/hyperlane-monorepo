@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -35,18 +35,24 @@ fn resolve_kms_region(region: &str) -> Region {
 /// call site that needs the same configured signer (mailbox builder, ISM builder,
 /// validator-announce builder, lander adapter, etc.) pays that KMS round trip again, even
 /// though the result - the signer's address - never changes for a given key id.
-static AWS_SIGNER_CACHE: OnceLock<DashMap<(String, String), OnceCell<AwsSigner>>> = OnceLock::new();
+type AwsSignerCache = DashMap<(String, String), Arc<OnceCell<AwsSigner>>>;
 
-fn get_aws_signer_cache() -> &'static DashMap<(String, String), OnceCell<AwsSigner>> {
+static AWS_SIGNER_CACHE: OnceLock<AwsSignerCache> = OnceLock::new();
+
+fn get_aws_signer_cache() -> &'static AwsSignerCache {
     AWS_SIGNER_CACHE.get_or_init(DashMap::new)
 }
 
 /// Builds an `AwsSigner` for the given KMS key id and region, reusing an already-constructed
 /// signer for the same (id, region) pair if one exists rather than making a fresh KMS call.
 async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
+    // Clone the `Arc<OnceCell<_>>` out and let the DashMap guard drop immediately - holding
+    // it across the `.await` below would keep the shard's lock held for the whole KMS call,
+    // blocking any other task whose key happens to hash into the same shard.
     let cell = get_aws_signer_cache()
         .entry((id.to_owned(), region.to_owned()))
-        .or_default();
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
     let signer = cell
         .get_or_try_init(|| async {
             let http_client =
