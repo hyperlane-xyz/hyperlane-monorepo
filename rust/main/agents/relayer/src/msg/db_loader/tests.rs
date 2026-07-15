@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use prometheus::IntCounterVec;
 use tokio::{
-    sync::mpsc::{self, UnboundedReceiver},
-    time::sleep,
+    sync::mpsc::{self, Receiver, UnboundedReceiver},
+    time::{sleep, timeout},
 };
 use tokio_metrics::TaskMonitor;
 use tracing::info_span;
@@ -69,6 +69,16 @@ fn dummy_message_loader(
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> (MessageDbLoader, UnboundedReceiver<QueueOperation>) {
+    dummy_message_loader_with_notifications(origin_domain, destination_domain, db, cache, None)
+}
+
+fn dummy_message_loader_with_notifications(
+    origin_domain: &HyperlaneDomain,
+    destination_domain: &HyperlaneDomain,
+    db: &HyperlaneRocksDB,
+    cache: OptionalCache<MeteredCache<LocalCache>>,
+    index_notifications: Option<Receiver<H512>>,
+) -> (MessageDbLoader, UnboundedReceiver<QueueOperation>) {
     let base_metadata_builder =
         dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
     let message_context = Arc::new(dummy_message_context(
@@ -89,6 +99,7 @@ fn dummy_message_loader(
             HashMap::from([(destination_domain.id(), message_context)]),
             vec![].into(),
             DEFAULT_MAX_MESSAGE_RETRIES,
+            index_notifications,
         ),
         receive_channel,
     )
@@ -113,6 +124,67 @@ fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32)
         db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
             .unwrap();
     }
+}
+
+#[tokio::test]
+async fn test_idle_tick_wakes_on_index_notification() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, _) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+
+        let notify = async move {
+            sleep(Duration::from_millis(20)).await;
+            notification_sender
+                .send(H512::zero())
+                .await
+                .expect("notification receiver should remain open");
+        };
+
+        timeout(Duration::from_millis(750), async {
+            let (tick_result, _) = tokio::join!(loader.tick(), notify);
+            tick_result.expect("idle loader tick should succeed");
+        })
+        .await
+        .expect("index notification should wake the idle loader promptly");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_idle_tick_retains_polling_fallback() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (_notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, _) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+
+        let start = Instant::now();
+        timeout(Duration::from_millis(1_500), loader.tick())
+            .await
+            .expect("fallback poll should complete")
+            .expect("idle loader tick should succeed");
+        assert!(
+            start.elapsed() >= Duration::from_millis(900),
+            "idle loader woke before its fallback poll interval"
+        );
+    })
+    .await;
 }
 
 /// Only adds database entries to the pending message prefix if the message's
