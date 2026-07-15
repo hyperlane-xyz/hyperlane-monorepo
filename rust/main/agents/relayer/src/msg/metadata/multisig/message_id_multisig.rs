@@ -54,25 +54,29 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             }
         };
 
-        // Update the validator latest checkpoint metrics.
-        let _ = checkpoint_syncer
-            .get_validator_latest_checkpoints_and_update_metrics(
+        // Updating the validator latest checkpoint metrics is independent of fetching the exact
+        // message-id checkpoint. Run both storage operations concurrently so metrics collection
+        // does not add another round trip to the metadata critical path.
+        let ((), quorum_checkpoint) = tokio::join!(
+            async {
+                let _ = checkpoint_syncer
+                    .get_validator_latest_checkpoints_and_update_metrics(
+                        validators,
+                        self.base_builder().origin_domain(),
+                        self.base_builder().destination_domain(),
+                    )
+                    .await;
+            },
+            checkpoint_syncer.fetch_checkpoint(
                 validators,
-                self.base_builder().origin_domain(),
+                usize::from(threshold),
+                leaf_index,
                 self.base_builder().destination_domain(),
             )
-            .await;
+        );
 
         let quorum_checkpoint = unwrap_or_none_result!(
-            checkpoint_syncer
-                .fetch_checkpoint(
-                    validators,
-                    threshold as usize,
-                    leaf_index,
-                    self.base_builder().destination_domain()
-                )
-                .await
-                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
+            quorum_checkpoint.map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!("No quorum checkpoint found")
         );
 
@@ -101,18 +105,24 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
 
     use hyperlane_base::tests::mock_checkpoint_syncer::{
-        build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint,
+        build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint, MockCheckpointSyncer,
     };
     use hyperlane_base::tests::test_validators::dummy_validators;
-    use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
+    use hyperlane_base::{CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer};
     use hyperlane_core::{
         ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
         HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, KnownHyperlaneDomain, ModuleType,
-        MultisigIsm, H160, H256,
+        MultisigIsm, ReorgEvent, ReorgEventResponse, SignedAnnouncement,
+        SignedCheckpointWithMessageId, H160, H256,
     };
+    use prometheus::Registry;
+    use tokio::sync::Notify;
 
     use crate::msg::metadata::multisig::{
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
@@ -122,6 +132,70 @@ mod tests {
         MetadataBuildError, MetadataBuilder,
     };
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
+
+    #[derive(Debug)]
+    struct GatedCheckpointSyncer {
+        inner: MockCheckpointSyncer,
+        latest_started: Arc<AtomicBool>,
+        fetch_started: Arc<AtomicBool>,
+        release: Arc<Notify>,
+    }
+
+    #[async_trait::async_trait]
+    impl CheckpointSyncer for GatedCheckpointSyncer {
+        async fn latest_index(&self) -> eyre::Result<Option<u32>> {
+            self.latest_started.store(true, Ordering::SeqCst);
+            self.release.notified().await;
+            self.inner.latest_index().await
+        }
+
+        async fn write_latest_index(&self, index: u32) -> eyre::Result<()> {
+            self.inner.write_latest_index(index).await
+        }
+
+        async fn fetch_checkpoint(
+            &self,
+            index: u32,
+        ) -> eyre::Result<Option<SignedCheckpointWithMessageId>> {
+            self.fetch_started.store(true, Ordering::SeqCst);
+            self.release.notified().await;
+            self.inner.fetch_checkpoint(index).await
+        }
+
+        async fn write_checkpoint(
+            &self,
+            signed_checkpoint: &SignedCheckpointWithMessageId,
+        ) -> eyre::Result<()> {
+            self.inner.write_checkpoint(signed_checkpoint).await
+        }
+
+        async fn write_metadata(&self, serialized_metadata: &str) -> eyre::Result<()> {
+            self.inner.write_metadata(serialized_metadata).await
+        }
+
+        async fn write_announcement(
+            &self,
+            signed_announcement: &SignedAnnouncement,
+        ) -> eyre::Result<()> {
+            self.inner.write_announcement(signed_announcement).await
+        }
+
+        fn announcement_location(&self) -> String {
+            self.inner.announcement_location()
+        }
+
+        async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> eyre::Result<()> {
+            self.inner.write_reorg_status(reorg_event).await
+        }
+
+        async fn write_reorg_rpc_responses(&self, log: String) -> eyre::Result<()> {
+            self.inner.write_reorg_rpc_responses(log).await
+        }
+
+        async fn reorg_status(&self) -> eyre::Result<ReorgEventResponse> {
+            self.inner.reorg_status().await
+        }
+    }
 
     mockall::mock! {
         #[derive(Clone, Debug)]
@@ -231,6 +305,107 @@ mod tests {
 
         let expected = MultisigMetadata::new(signed_checkpoint, 1000, None);
         assert_eq!(resp, expected);
+    }
+
+    #[tokio::test]
+    async fn fetches_latest_index_and_checkpoint_concurrently_and_updates_metrics() {
+        let message = HyperlaneMessage::default();
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: message.id(),
+        };
+
+        let mut validators: Vec<_> = dummy_validators().drain(..).take(1).collect();
+        validators[0].latest_index = Some(1010);
+        validators[0].fetch_checkpoint = Some(checkpoint);
+
+        let validator: H160 = validators[0]
+            .public_key
+            .parse()
+            .expect("validator address should be valid");
+        let validator_address = H256::from(validator);
+        let mut syncers = build_mock_checkpoint_syncs(&validators).await;
+        let inner = syncers
+            .remove(&validator)
+            .expect("validator syncer should exist");
+
+        let latest_started = Arc::new(AtomicBool::new(false));
+        let fetch_started = Arc::new(AtomicBool::new(false));
+        let release = Arc::new(Notify::new());
+        let gated_syncer = GatedCheckpointSyncer {
+            inner,
+            latest_started: latest_started.clone(),
+            fetch_started: fetch_started.clone(),
+            release: release.clone(),
+        };
+        let gated_syncer: Arc<dyn CheckpointSyncer> = Arc::new(gated_syncer);
+
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let app_context = "concurrent-fetch-test";
+        let metrics = Arc::new(
+            CoreMetrics::new("test-relayer", 9090, Registry::new())
+                .expect("metrics should be created"),
+        );
+        let multisig_syncer = MultisigCheckpointSyncer::new(
+            HashMap::from([(validator, gated_syncer)]),
+            Some((metrics.clone(), app_context.to_owned())),
+        );
+
+        let base_builder = build_mock_base_builder(origin.clone(), destination.clone());
+        base_builder
+            .responses
+            .get_merkle_leaf_id_by_message_id
+            .lock()
+            .expect("mock responses lock should not be poisoned")
+            .push_back(Ok(Some(1000)));
+        let message_builder =
+            MessageMetadataBuilder::new(Arc::new(base_builder), H256::zero(), &message)
+                .await
+                .expect("message metadata builder should be created");
+        let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
+
+        let validator_addresses = [validator_address];
+        let mut fetch =
+            Box::pin(builder.fetch_metadata(&validator_addresses, 1, &message, &multisig_syncer));
+
+        assert!(
+            futures::poll!(&mut fetch).is_pending(),
+            "gated storage operations should keep metadata pending"
+        );
+        assert!(
+            latest_started.load(Ordering::SeqCst),
+            "latest-index collection should have started"
+        );
+        assert!(
+            fetch_started.load(Ordering::SeqCst),
+            "checkpoint fetching should start before latest-index collection completes"
+        );
+
+        release.notify_waiters();
+        let metadata = fetch
+            .await
+            .expect("metadata fetch should succeed")
+            .expect("metadata should be available");
+        assert_eq!(metadata.checkpoint.index, checkpoint.index);
+
+        let validator_label = format!("0x{validator:x}").to_lowercase();
+        let observed_latest_index = metrics
+            .validator_metrics
+            .observed_validator_latest_index()
+            .with_label_values(&[
+                origin.as_ref(),
+                destination.as_ref(),
+                &validator_label,
+                app_context,
+            ])
+            .get();
+        assert_eq!(observed_latest_index, 1010);
     }
 
     #[tracing_test::traced_test]
