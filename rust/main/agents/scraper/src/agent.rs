@@ -749,6 +749,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                     idle_sleep_duration: Duration::from_secs(5),
+                    configured_interval: None,
                 },
                 confirmations: Default::default(),
                 chain_id: Default::default(),

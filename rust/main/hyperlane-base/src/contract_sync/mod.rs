@@ -633,6 +633,7 @@ where
                 index_settings.from,
                 watermark,
                 index_settings.idle_sleep_duration,
+                index_settings.configured_interval,
             )
             .await?,
         ))

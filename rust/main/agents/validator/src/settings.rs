@@ -49,7 +49,7 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints. Defaults to 5s, overridable
+    /// How frequently to check for new checkpoints. Defaults to 2s, overridable
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,
@@ -150,12 +150,15 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_value("Invalid reorgPeriod")
             .unwrap_or(ReorgPeriod::from_blocks(1));
 
-        const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
+        // Retains the pre-#8843 2s fallback: only the precedence is new (explicit `interval` ->
+        // chain's `index.interval` -> this default), not the default itself, to avoid widening
+        // checkpoint-availability latency for validators that don't configure either.
+        const DEFAULT_INTERVAL: Duration = Duration::from_secs(2);
         let explicit_interval_secs = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
         if explicit_interval_secs == Some(0) {
             err.push(
                 cwp.clone(),
-                eyre::eyre!("`interval` must be greater than zero, or omitted for the 5s default"),
+                eyre::eyre!("`interval` must be greater than zero, or omitted for the 2s default"),
             );
         }
         let chain_interval_secs = p
@@ -170,7 +173,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             err.push(
                 cwp.clone(),
                 eyre::eyre!(
-                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 5s default"
+                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 2s default"
                 ),
             );
         }

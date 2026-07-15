@@ -407,6 +407,7 @@ fn parse_chain(
             chunk_size,
             mode,
             idle_sleep_duration,
+            configured_interval: interval_secs.map(Duration::from_secs),
         },
         confirmations,
         chain_id,

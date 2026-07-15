@@ -254,6 +254,12 @@ pub struct IndexSettings {
     /// index. Defaults to 5s, overridable via `index.interval` (seconds) in
     /// the chain config.
     pub idle_sleep_duration: Duration,
+    /// The raw `index.interval` as explicitly configured, if any. `None` means the chain didn't
+    /// set it, distinct from `idle_sleep_duration` (which always has the 5s default baked in) -
+    /// callers that need to distinguish "operator opted into a faster/slower poll" from "using
+    /// the default" (e.g. the rate-limited cursor's near-tip tip-refresh throttle, which
+    /// otherwise defaults to 30s) should use this instead.
+    pub configured_interval: Option<Duration>,
 }
 
 impl Default for IndexSettings {
@@ -263,6 +269,7 @@ impl Default for IndexSettings {
             chunk_size: 0,
             mode: IndexMode::default(),
             idle_sleep_duration: Duration::from_secs(5),
+            configured_interval: None,
         }
     }
 }
