@@ -145,6 +145,68 @@ async fn single_checkpoint_chunk_has_no_throttle_tail() {
     task.await.unwrap();
 }
 
+#[tokio::test(start_paused = true)]
+async fn all_existing_chunks_skip_inter_chunk_throttle() {
+    let checkpoints = [7, 8].map(|index| CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index,
+        },
+        message_id: H256::zero(),
+    });
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signed_checkpoints = [
+        signer.sign(checkpoints[0]).await.unwrap(),
+        signer.sign(checkpoints[1]).await.unwrap(),
+    ];
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .times(checkpoints.len())
+        .returning(move |index| {
+            Ok(signed_checkpoints
+                .iter()
+                .find(|signed| signed.value.index == index)
+                .cloned())
+        });
+    checkpoint_syncer.expect_write_checkpoint().never();
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(checkpoints[1].index))
+        .once()
+        .returning(|_| Ok(()));
+
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(checkpoints.to_vec())
+            .await;
+    });
+    tokio::task::yield_now().await;
+
+    assert!(
+        task.is_finished(),
+        "all-existing chunks must not wait for the inter-chunk throttle"
+    );
+    task.await.unwrap();
+}
+
 fn reorg_event_is_correct(
     reorg_event: &ReorgEvent,
     expected_local_merkle_tree: &IncrementalMerkle,

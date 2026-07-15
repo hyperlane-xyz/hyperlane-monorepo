@@ -332,7 +332,7 @@ impl ValidatorSubmitter {
     async fn sign_and_submit_checkpoint(
         &self,
         checkpoint: CheckpointWithMessageId,
-    ) -> ChainResult<()> {
+    ) -> ChainResult<bool> {
         let start = Instant::now();
         let existing = self
             .checkpoint_syncer
@@ -348,7 +348,7 @@ impl ValidatorSubmitter {
             let signer = self.signer.eth_address();
             if existing_signer == signer && existing.value == checkpoint {
                 debug!(index = checkpoint.index, "Checkpoint already submitted");
-                return Ok(());
+                return Ok(false);
             } else {
                 warn!(
                     index = checkpoint.index,
@@ -377,7 +377,7 @@ impl ValidatorSubmitter {
             "Stored checkpoint",
         );
 
-        Ok(())
+        Ok(true)
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
@@ -420,18 +420,20 @@ impl ValidatorSubmitter {
                     Box::pin(async move {
                         let start = Instant::now();
                         let checkpoint_index = checkpoint.index;
-                        self_clone.sign_and_submit_checkpoint(checkpoint).await?;
+                        let wrote_checkpoint =
+                            self_clone.sign_and_submit_checkpoint(checkpoint).await?;
                         tracing::info!(
                             index = checkpoint_index,
+                            wrote_checkpoint,
                             elapsed=?start.elapsed(),
-                            "Signed and submitted checkpoint",
+                            "Processed checkpoint",
                         );
-                        Ok(())
+                        Ok(wrote_checkpoint)
                     })
                 })
             });
 
-            join_all(futures).await;
+            let wrote_checkpoint = join_all(futures).await.into_iter().any(|wrote| wrote);
 
             tracing::info!(
                 elapsed=?start.elapsed(),
@@ -462,8 +464,8 @@ impl ValidatorSubmitter {
             }
 
             // Pace storage/signing bursts between chunks without delaying the latest-index
-            // update or adding an unnecessary tail after the final chunk.
-            if !checkpoints.is_empty() {
+            // update, throttling all-existing backfills, or adding a final-chunk tail.
+            if wrote_checkpoint && !checkpoints.is_empty() {
                 sleep(CHECKPOINT_SUBMISSION_CHUNK_INTERVAL).await;
             }
         }
