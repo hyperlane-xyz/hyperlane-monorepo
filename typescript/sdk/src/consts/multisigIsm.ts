@@ -1786,7 +1786,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Eclipse',
       },
       DEFAULT_MITOSIS_VALIDATOR,
-      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xd90ea26ff731d967c5ea660851f7d63cb04ab820',
+        alias: 'DSRV',
+      },
     ],
   },
 
