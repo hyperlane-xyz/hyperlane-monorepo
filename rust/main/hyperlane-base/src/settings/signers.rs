@@ -1,16 +1,15 @@
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use dashmap::DashMap;
 use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use moka::future::Cache;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
-use tokio::sync::OnceCell;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
@@ -30,31 +29,26 @@ fn resolve_kms_region(region: &str) -> Region {
     })
 }
 
-/// A global cache of constructed AWS signers, keyed by (KMS key id, region). Building an
-/// `AwsSigner` requires a KMS `GetPublicKey` call; without this cache, every independent
-/// call site that needs the same configured signer (mailbox builder, ISM builder,
-/// validator-announce builder, lander adapter, etc.) pays that KMS round trip again, even
-/// though the result - the signer's address - never changes for a given key id.
-type AwsSignerCache = DashMap<(String, String), Arc<OnceCell<AwsSigner>>>;
+/// Cache of constructed AWS signers, keyed by (KMS key id, region), so independent call
+/// sites needing the same signer share one `GetPublicKey` call instead of repeating it.
+///
+/// Uses moka's `try_get_with`, not a `tokio::sync::OnceCell`: moka coalesces concurrent
+/// callers into one `init` attempt on both success and failure, so a KMS outage fails once
+/// for everyone waiting instead of serializing a fresh `AWS_SIGNER_TIMEOUT`-long attempt
+/// per waiter.
+type AwsSignerCache = Cache<(String, String), AwsSigner>;
 
 static AWS_SIGNER_CACHE: OnceLock<AwsSignerCache> = OnceLock::new();
 
 fn get_aws_signer_cache() -> &'static AwsSignerCache {
-    AWS_SIGNER_CACHE.get_or_init(DashMap::new)
+    AWS_SIGNER_CACHE.get_or_init(|| Cache::builder().max_capacity(100).build())
 }
 
 /// Builds an `AwsSigner` for the given KMS key id and region, reusing an already-constructed
 /// signer for the same (id, region) pair if one exists rather than making a fresh KMS call.
 async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
-    // Clone the `Arc<OnceCell<_>>` out and let the DashMap guard drop immediately - holding
-    // it across the `.await` below would keep the shard's lock held for the whole KMS call,
-    // blocking any other task whose key happens to hash into the same shard.
-    let cell = get_aws_signer_cache()
-        .entry((id.to_owned(), region.to_owned()))
-        .or_insert_with(|| Arc::new(OnceCell::new()))
-        .clone();
-    let signer = cell
-        .get_or_try_init(|| async {
+    get_aws_signer_cache()
+        .try_get_with((id.to_owned(), region.to_owned()), async {
             let http_client =
                 utils::http_client_with_timeout().map_err(|err| eyre::eyre!(err.to_string()))?;
             let client = KmsClient::new_with_client(
@@ -65,8 +59,8 @@ async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
                 .await
                 .map_err(Report::from)
         })
-        .await?;
-    Ok(signer.clone())
+        .await
+        .map_err(|arc_err| eyre::eyre!("{arc_err}"))
 }
 
 /// Signer types
@@ -360,12 +354,75 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
     use ethers::{signers::LocalWallet, utils::hex};
     use hyperlane_core::{AccountAddressType, Encode, H256};
+    use moka::future::Cache;
     use rusoto_core::Region;
+    use tokio::sync::Barrier;
 
     use super::resolve_kms_region;
     use crate::settings::{ChainSigner, SignerConf};
+
+    /// Exercises the exact coalescing mechanism `build_aws_signer` relies on
+    /// (`moka::future::Cache::try_get_with`) against a fake, always-failing initializer -
+    /// proving concurrent callers on the same key share one attempt and one failure, and
+    /// that a later call is not permanently blocked by a stale cached error.
+    #[tokio::test]
+    async fn concurrent_failing_lookups_are_coalesced_into_one_attempt() {
+        let cache: Cache<&'static str, u32> = Cache::builder().max_capacity(10).build();
+        let attempts = Arc::new(AtomicUsize::new(0));
+
+        const WAITERS: usize = 5;
+        let barrier = Arc::new(Barrier::new(WAITERS));
+        let tasks: Vec<_> = (0..WAITERS)
+            .map(|_| {
+                let cache = cache.clone();
+                let attempts = attempts.clone();
+                let barrier = barrier.clone();
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    cache
+                        .try_get_with("key", async {
+                            attempts.fetch_add(1, Ordering::SeqCst);
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            Err::<u32, &'static str>("simulated KMS failure")
+                        })
+                        .await
+                })
+            })
+            .collect();
+
+        for task in tasks {
+            let result = task.await.expect("spawned task must not panic");
+            assert!(
+                result.is_err(),
+                "the shared failure must propagate to every waiter"
+            );
+        }
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            1,
+            "concurrent callers on the same key must coalesce into a single init attempt, \
+             not one attempt per waiter"
+        );
+
+        // A later, non-concurrent call must retry rather than reuse the (uncached) failure.
+        let retry_result = cache
+            .try_get_with("key", async {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                Ok::<u32, &'static str>(42)
+            })
+            .await;
+        assert_eq!(retry_result, Ok(42));
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            2,
+            "a later call must retry after a failure, not reuse a permanently cached error"
+        );
+    }
 
     #[test]
     fn resolve_kms_region_known_region_uses_enum_variant() {
