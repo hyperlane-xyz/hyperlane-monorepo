@@ -18,7 +18,7 @@ import {
 import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGreen, warnYellow } from '../logger.js';
 import {
   createDefaultQuoteSignerForChain,
   createQuoteArtifactManagerForChain,
@@ -186,6 +186,12 @@ export async function runWarpQuoteCreate({
     issuedAt,
     expiry,
   });
+
+  if (result.standingStored === false) {
+    warnYellow(
+      `⚠️  On-chain no-op: a standing quote with an equal or newer issuedAt already exists for this scope, so this submission did not overwrite it. Re-run with a later issuedAt (wait a second and retry) to apply changed params.`,
+    );
+  }
 
   logGreen(`✅ Quote submitted`);
   log(`   txHash:    ${result.txHash}`);

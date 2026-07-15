@@ -60,9 +60,25 @@ export class EvmQuoteWriter implements IRawWarpQuoteWriter {
     const tx = await contract.submitQuote(sq, signatureHex);
     const receipt = await tx.wait();
 
+    // A standing quote emits QuoteSubmitted only when actually stored; a
+    // resubmission with an equal-or-older issuedAt is a silent on-chain no-op.
+    // Surface that so callers don't report success for an ignored update.
+    // Transient quotes (expiry === issuedAt) never emit the event and don't
+    // persist, so the flag is left undefined for them.
+    const standingStored =
+      req.expiry > req.issuedAt
+        ? receipt.logs.some(
+            (entry) =>
+              entry.address.toLowerCase() === this.feeAddress.toLowerCase() &&
+              entry.topics[0] ===
+                contract.interface.getEventTopic('QuoteSubmitted'),
+          )
+        : undefined;
+
     return {
       txHash: receipt.transactionHash,
       signature: signatureHex,
+      standingStored,
     };
   }
 }

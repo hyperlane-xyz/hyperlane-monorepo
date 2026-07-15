@@ -72,6 +72,13 @@ export interface CreateWarpQuoteRequest {
 export interface SubmittedWarpQuote {
   txHash: string;
   signature: string;
+  /**
+   * Whether a standing quote was actually written on-chain. `false` means the
+   * submission was a no-op — a quote with an equal-or-newer issuedAt already
+   * exists for this scope, so any changed params were ignored. `undefined` when
+   * the outcome is not applicable (transient quotes) or undetectable (SVM).
+   */
+  standingStored?: boolean;
 }
 
 export interface StandingWarpQuoteEntry {
