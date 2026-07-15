@@ -2,6 +2,7 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypXERC20Lockbox__factory,
+  PackageVersioned__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { expect } from 'chai';
@@ -67,16 +68,13 @@ describe('EvmHypXERC20LockboxAdapter', () => {
   });
 
   it('falls back to the legacy package version when PACKAGE_VERSION is missing', async () => {
-    const adapter = new EvmHypSyntheticAdapter(
-      chainName,
-      multiProvider,
-      { token: hypTokenAddress },
-      {
-        connect: sandbox.stub().returns({
-          PACKAGE_VERSION: sandbox.stub().rejects(missingSelectorError()),
-        }),
-      },
-    );
+    sandbox.stub(PackageVersioned__factory, 'connect').returns({
+      PACKAGE_VERSION: sandbox.stub().rejects(missingSelectorError()),
+    } as any);
+
+    const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
+      token: hypTokenAddress,
+    });
 
     const version = await adapter.getContractPackageVersion();
 
@@ -85,16 +83,13 @@ describe('EvmHypXERC20LockboxAdapter', () => {
 
   it('throws transient package version probe failures', async () => {
     const transientError = networkError();
-    const adapter = new EvmHypSyntheticAdapter(
-      chainName,
-      multiProvider,
-      { token: hypTokenAddress },
-      {
-        connect: sandbox.stub().returns({
-          PACKAGE_VERSION: sandbox.stub().rejects(transientError),
-        }),
-      },
-    );
+    sandbox.stub(PackageVersioned__factory, 'connect').returns({
+      PACKAGE_VERSION: sandbox.stub().rejects(transientError),
+    } as any);
+
+    const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
+      token: hypTokenAddress,
+    });
 
     let thrown: unknown;
     try {

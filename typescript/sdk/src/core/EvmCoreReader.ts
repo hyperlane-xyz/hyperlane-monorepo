@@ -11,7 +11,7 @@ import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
-import { isMissingSelectorCallException } from '../utils/contract.js';
+import { fetchPackageVersion } from '../utils/contract.js';
 
 import { CoreConfig, DerivedCoreConfig } from './types.js';
 
@@ -79,21 +79,6 @@ export class EvmCoreReader implements CoreReader {
       }
     };
 
-    // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0; a mailbox
-    // without it predates that release. Real RPC failures still propagate.
-    const fetchContractVersion = async (): Promise<string> => {
-      try {
-        return await mailboxInstance.PACKAGE_VERSION();
-      } catch (e) {
-        if (isMissingSelectorCallException(e)) return '5.3.9';
-        this.logger.error(
-          `EvmCoreReader: PACKAGE_VERSION read failed for ${mailbox}:`,
-          e,
-        );
-        throw e;
-      }
-    };
-
     // Parallelize each configuration request
     const [
       owner,
@@ -114,7 +99,7 @@ export class EvmCoreReader implements CoreReader {
           : undefined,
       ),
       readConfig(this.getProxyAdminConfig(mailboxProxyAdmin)),
-      fetchContractVersion(),
+      fetchPackageVersion(this.provider, mailbox, this.logger),
     ]);
 
     assert(owner, `EvmCoreReader: owner read failed for ${mailbox}`);
