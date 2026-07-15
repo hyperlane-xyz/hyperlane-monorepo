@@ -83,13 +83,17 @@ describe('EvmQuoteWriter (hardhat)', () => {
     );
   }
 
-  function nowSec() {
-    return Math.floor(Date.now() / 1000);
+  // Derive "now" from the chain's latest block rather than wall-clock time so
+  // these tests stay correct when an earlier hardhat suite warps the shared
+  // node's block.timestamp (e.g. the timelock tests) ahead of real time.
+  async function nowSec() {
+    const { timestamp } = await hre.ethers.provider.getBlock('latest');
+    return timestamp;
   }
 
   it('submits a standing quote and records it on-chain', async () => {
     const writer = makeWriter();
-    const issuedAt = nowSec();
+    const issuedAt = await nowSec();
     const expiry = issuedAt + 3600;
 
     await writer.submitQuote({
@@ -115,7 +119,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
     const otherWallet = Wallet.fromMnemonic(TEST_MNEMONIC, "m/44'/60'/0'/0/9");
     expect(otherWallet.address).to.not.equal(quoteSignerWallet.address);
     const writer = makeWriter(otherWallet.privateKey);
-    const issuedAt = nowSec();
+    const issuedAt = await nowSec();
 
     await expect(
       writer.submitQuote({
@@ -134,7 +138,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
 
   it('rejects standing quotes with a non-wildcard amount', async () => {
     const writer = makeWriter();
-    const issuedAt = nowSec();
+    const issuedAt = await nowSec();
 
     await expect(
       writer.submitQuote({
@@ -162,7 +166,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
 
   it('rejects an expired quote (on-chain QuoteExpired)', async () => {
     const writer = makeWriter();
-    const past = nowSec() - 3600;
+    const past = (await nowSec()) - 3600;
     const error = await writer
       .submitQuote({
         scope: {
@@ -192,7 +196,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
     // Pick a future timestamp so the on-chain `block.timestamp > expiry`
     // check passes when the tx is mined. issuedAt === expiry keeps the
     // quote transient (per AbstractOffchainQuoter routing).
-    const ts = nowSec() + 60;
+    const ts = (await nowSec()) + 60;
     await writer.submitQuote({
       scope: {
         destination: TRANSIENT_DEST,
@@ -217,7 +221,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
     assert(otherSigner.address !== owner.address, 'need a second signer');
 
     // Build a signed quote bound to `owner.address` (the configured submitter).
-    const issuedAt = nowSec();
+    const issuedAt = await nowSec();
     const sq = buildEvmSignedQuoteTuple(
       {
         scope: {
@@ -254,7 +258,7 @@ describe('EvmQuoteWriter (hardhat)', () => {
   it('rejects a stale standing-quote update (on-chain StaleQuote)', async () => {
     const writer = makeWriter();
     const dest = 201;
-    const t = nowSec();
+    const t = await nowSec();
     await writer.submitQuote({
       scope: {
         destination: dest,

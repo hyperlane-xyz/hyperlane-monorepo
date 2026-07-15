@@ -70,8 +70,12 @@ describe('EvmQuoteReader (hardhat)', () => {
     );
   }
 
-  function nowSec() {
-    return Math.floor(Date.now() / 1000);
+  // Derive "now" from the chain's latest block rather than wall-clock time so
+  // these tests stay correct when an earlier hardhat suite warps the shared
+  // node's block.timestamp (e.g. the timelock tests) ahead of real time.
+  async function nowSec() {
+    const { timestamp } = await hre.ethers.provider.getBlock('latest');
+    return timestamp;
   }
 
   it('returns no entries before any quote is submitted', async () => {
@@ -89,7 +93,7 @@ describe('EvmQuoteReader (hardhat)', () => {
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
       owner,
     );
-    const issuedAt = nowSec();
+    const issuedAt = await nowSec();
     const expiry = issuedAt + 3600;
     await writer.submitQuote({
       scope: {
@@ -123,7 +127,7 @@ describe('EvmQuoteReader (hardhat)', () => {
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
       owner,
     );
-    const issuedAt = nowSec() + 1;
+    const issuedAt = (await nowSec()) + 1;
     const expiry = issuedAt + 7200;
     await writer.submitQuote({
       scope: {
@@ -161,7 +165,7 @@ describe('EvmQuoteReader (hardhat)', () => {
       new EvmPrivateKeyQuoteSigner(quoteSignerWallet.privateKey),
       owner,
     );
-    const issuedAt = nowSec() + 2;
+    const issuedAt = (await nowSec()) + 2;
     const expiry = issuedAt + 7200;
     await writer.submitQuote({
       scope: {
