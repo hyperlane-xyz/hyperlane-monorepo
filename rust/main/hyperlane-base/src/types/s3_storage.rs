@@ -3,9 +3,8 @@ use std::{fmt, sync::OnceLock, time::Duration};
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
 use aws_sdk_s3::{
-    error::SdkError,
-    operation::{get_object::GetObjectError as SdkGetObjectError, head_object::HeadObjectError},
-    Client,
+    error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
+    primitives::ByteStream, Client,
 };
 use dashmap::DashMap;
 use derive_new::new;
@@ -52,6 +51,24 @@ fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
     ANONYMOUS_CLIENT_CACHE.get_or_init(DashMap::new)
 }
 
+/// Reads a `ByteStream` chunk by chunk, aborting as soon as the cumulative size reaches
+/// `S3_MAX_OBJECT_SIZE` - enforced against bytes actually received, not a `Content-Length`
+/// header, since an adversarial or misconfigured object store isn't obligated to report an
+/// accurate size.
+async fn read_capped(mut body: ByteStream, key: &str) -> Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    while let Some(chunk) = body.try_next().await? {
+        buf.extend_from_slice(&chunk);
+        if buf.len() as i64 >= S3_MAX_OBJECT_SIZE {
+            bail!(
+                "Object size for key {key} exceeds the {}KiB limit",
+                S3_MAX_OBJECT_SIZE / 1024
+            );
+        }
+    }
+    Ok(buf)
+}
+
 impl fmt::Debug for S3Storage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("S3Storage")
@@ -77,55 +94,24 @@ impl S3Storage {
         Ok(())
     }
 
-    /// Check if the metadata for the object satisfies our size constraints.
-    /// If the object is too big, we return an error.
-    async fn check_metadata(&self, key: String) -> Result<bool> {
-        let metadata_req = self
-            .anonymous_client()
-            .await
-            .head_object()
-            .bucket(self.bucket.clone())
-            .key(self.get_composite_key(key.clone()))
-            .send()
-            .await;
-        match metadata_req {
-            Ok(value) => match value.content_length {
-                Some(length) if length >= S3_MAX_OBJECT_SIZE => {
-                    bail!("Object size for key {key} is too big: {}KiB", length / 1024);
-                }
-                Some(_) => Ok(true),
-                None => Ok(false),
-            },
-            Err(SdkError::ServiceError(err)) => match err.err() {
-                HeadObjectError::NotFound(_) => Ok(false),
-                _ => bail!(err.into_err()),
-            },
-            Err(e) => bail!(e),
-        }
-    }
-
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
-        // check for metadata first
-        if !self.check_metadata(key.clone()).await? {
-            return Ok(None);
-        }
-
         let get_object_result = self
             .anonymous_client()
             .await
             .get_object()
             .bucket(self.bucket.clone())
-            .key(self.get_composite_key(key))
+            .key(self.get_composite_key(key.clone()))
             .send()
             .await;
-        match get_object_result {
-            Ok(res) => Ok(Some(res.body.collect().await?.into_bytes().to_vec())),
+        let body = match get_object_result {
+            Ok(res) => res.body,
             Err(SdkError::ServiceError(err)) => match err.err() {
-                SdkGetObjectError::NoSuchKey(_) => Ok(None),
+                SdkGetObjectError::NoSuchKey(_) => return Ok(None),
                 _ => bail!(err.into_err()),
             },
             Err(e) => bail!(e),
-        }
+        };
+        Ok(Some(read_capped(body, &key).await?))
     }
 
     /// Gets an authenticated S3 client, creating it if it doesn't already exist
@@ -351,5 +337,110 @@ mod tests {
         );
         let location = s3_storage.announcement_location();
         assert_eq!(location, "s3://test-bucket/us-east-1");
+    }
+
+    #[tokio::test]
+    async fn read_capped_allows_body_under_limit() {
+        let data = vec![7u8; 1024];
+        let body = ByteStream::new(aws_sdk_s3::primitives::SdkBody::from(data.clone()));
+        let result = read_capped(body, "small-object")
+            .await
+            .expect("body under the cap must be read successfully");
+        assert_eq!(result, data);
+    }
+
+    #[tokio::test]
+    async fn read_capped_rejects_oversized_body() {
+        // One byte over the cap - the object store claiming a small size isn't
+        // relevant here, since read_capped never looks at any header, only bytes
+        // actually streamed.
+        let data = vec![7u8; (S3_MAX_OBJECT_SIZE + 1) as usize];
+        let body = ByteStream::new(aws_sdk_s3::primitives::SdkBody::from(data));
+        let err = read_capped(body, "huge-object")
+            .await
+            .expect_err("oversized body must be rejected");
+        assert!(err.to_string().contains("exceeds"));
+    }
+
+    /// Proves the abort happens mid-transfer, not just on the buffered result: a local server
+    /// declares a 1GiB body and streams for as long as the client keeps reading, and this
+    /// asserts the client disconnects after only a small multiple of the 50KiB cap.
+    #[tokio::test]
+    async fn anonymously_read_from_bucket_aborts_download_of_oversized_object() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binding a loopback listener must succeed");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener must have a local address");
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener
+                .accept()
+                .await
+                .expect("the test client must connect");
+
+            // Read until the end of the request headers - the connection stays open
+            // afterwards (the client is waiting on a response), so EOF never comes.
+            let mut discard = [0u8; 4096];
+            loop {
+                let n = socket
+                    .read(&mut discard)
+                    .await
+                    .expect("reading the request must succeed");
+                if discard[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            let declared_size = 1024 * 1024 * 1024u64; // 1GiB, never actually sent in full
+            socket
+                .write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {declared_size}\r\nConnection: close\r\n\r\n").as_bytes())
+                .await
+                .expect("writing response headers must succeed");
+
+            let chunk = [7u8; 8 * 1024];
+            let mut total_written = 0usize;
+            while socket.write_all(&chunk).await.is_ok() {
+                total_written += chunk.len();
+            }
+            total_written
+        });
+
+        // A plain HTTP-only connector - this test's endpoint is unencrypted `http://`, and
+        // building one explicitly avoids the SDK's default TLS-capable connector, which eagerly
+        // loads the OS certificate store even when it'll never be used for a plain-http request.
+        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
+            .build(hyper::client::HttpConnector::new());
+        let config = aws_sdk_s3::Config::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(Region::new("us-east-1"))
+            .endpoint_url(format!("http://{addr}"))
+            .force_path_style(true)
+            .http_client(http_client)
+            .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
+            .build();
+
+        let res = Client::from_conf(config)
+            .get_object()
+            .bucket("test-bucket")
+            .key("huge-object")
+            .send()
+            .await
+            .expect("fake server always returns 200");
+        let err = read_capped(res.body, "huge-object")
+            .await
+            .expect_err("oversized body must be rejected");
+        assert!(err.to_string().contains("exceeds"));
+
+        let total_written = server.await.expect("the mock server task must not panic");
+        assert!(
+            total_written < 2 * 1024 * 1024,
+            "server was allowed to stream {total_written} bytes before the client disconnected - \
+             the download is not actually being aborted mid-transfer"
+        );
     }
 }
