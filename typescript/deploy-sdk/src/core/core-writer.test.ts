@@ -355,9 +355,8 @@ describe('CoreWriter', () => {
       sinon.assert.calledWith(createVAWriterStub, 'validatorAnnounce', signer);
     });
 
-    it('should forward contractVersion onto the deployed mailbox artifact', async () => {
+    it('should not forward config contractVersion into the create-path mailbox update', async () => {
       // ARRANGE
-      const expectedContractVersion = '1.0.0';
       const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
@@ -365,7 +364,7 @@ describe('CoreWriter', () => {
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
           requiredHook: mockRequiredHook,
-          contractVersion: expectedContractVersion,
+          contractVersion: '1.0.0',
         },
       };
 
@@ -373,9 +372,7 @@ describe('CoreWriter', () => {
       const [result] = await coreWriter.create(artifact);
 
       // ASSERT
-      expect(result.mailbox.config.contractVersion).to.equal(
-        expectedContractVersion,
-      );
+      expect(result.mailbox.config.contractVersion).to.be.undefined;
     });
 
     it('should use existing ISM when DEPLOYED', async () => {

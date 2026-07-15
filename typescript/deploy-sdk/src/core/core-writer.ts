@@ -227,7 +227,6 @@ export class CoreWriter extends CoreArtifactReader {
         defaultIsm: onChainIsmArtifact,
         defaultHook: onChainDefaultHookArtifact,
         requiredHook: onChainRequiredHookArtifact,
-        contractVersion: config.contractVersion,
       },
       deployed: deployedMailbox.deployed,
     };
