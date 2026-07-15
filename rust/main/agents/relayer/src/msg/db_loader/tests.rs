@@ -221,6 +221,39 @@ async fn test_idle_tick_returns_on_mid_wait_disconnect() {
     .await;
 }
 
+#[tokio::test]
+async fn test_drain_index_notifications_clears_backlog() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(3);
+        for txid in 0..3 {
+            notification_sender
+                .try_send(H512::from_low_u64_be(txid))
+                .expect("notification channel should have capacity");
+        }
+        let (mut loader, _) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+
+        loader.drain_index_notifications();
+
+        assert_eq!(
+            loader.index_notifications.as_ref().map(Receiver::len),
+            Some(0)
+        );
+        notification_sender
+            .try_send(H512::from_low_u64_be(3))
+            .expect("draining should free channel capacity");
+    })
+    .await;
+}
+
 /// Only adds database entries to the pending message prefix if the message's
 /// retry count is greater than zero
 fn persist_retried_messages(
