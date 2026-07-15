@@ -22,6 +22,8 @@ use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::reorg_reporter::ReorgReporter;
 
+const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
+
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
@@ -375,9 +377,6 @@ impl ValidatorSubmitter {
             "Stored checkpoint",
         );
 
-        // TODO: move these into S3 implementations
-        // small sleep before signing next checkpoint to avoid rate limiting
-        sleep(Duration::from_millis(100)).await;
         Ok(())
     }
 
@@ -460,6 +459,12 @@ impl ValidatorSubmitter {
                 })
                 .await;
                 first_chunk = false;
+            }
+
+            // Pace storage/signing bursts between chunks without delaying the latest-index
+            // update or adding an unnecessary tail after the final chunk.
+            if !checkpoints.is_empty() {
+                sleep(CHECKPOINT_SUBMISSION_CHUNK_INTERVAL).await;
             }
         }
     }

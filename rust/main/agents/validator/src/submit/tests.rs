@@ -88,6 +88,63 @@ fn dummy_singleton_handle() -> SingletonSignerHandle {
     SingletonSignerHandle::new(H160::from_low_u64_be(0), mpsc::unbounded_channel().0)
 }
 
+#[tokio::test(start_paused = true)]
+async fn single_checkpoint_chunk_has_no_throttle_tail() {
+    let checkpoint = CheckpointWithMessageId {
+        checkpoint: Checkpoint {
+            root: H256::zero(),
+            merkle_tree_hook_address: H256::zero(),
+            mailbox_domain: 0,
+            index: 7,
+        },
+        message_id: H256::zero(),
+    };
+
+    let mut checkpoint_syncer = MockCheckpointSyncer::new();
+    checkpoint_syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(|_| Ok(None));
+    checkpoint_syncer
+        .expect_write_checkpoint()
+        .once()
+        .returning(|_| Ok(()));
+    checkpoint_syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(checkpoint.index))
+        .once()
+        .returning(|_| Ok(()));
+
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(1),
+        Arc::new(MockMerkleTreeHook::new()),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(checkpoint_syncer),
+        Arc::new(MockDb::new()),
+        dummy_metrics(),
+        1,
+        Arc::new(MockReorgReporter::new()),
+    );
+
+    let task = tokio::spawn(async move {
+        submitter
+            .sign_and_submit_checkpoints(vec![checkpoint])
+            .await;
+    });
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_millis(99)).await;
+    tokio::task::yield_now().await;
+
+    assert!(
+        task.is_finished(),
+        "a final checkpoint chunk must not wait for the 100ms inter-chunk throttle"
+    );
+    task.await.unwrap();
+}
+
 fn reorg_event_is_correct(
     reorg_event: &ReorgEvent,
     expected_local_merkle_tree: &IncrementalMerkle,
