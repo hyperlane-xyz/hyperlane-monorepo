@@ -401,13 +401,18 @@ mod tests {
     async fn discard_request_headers(socket: &mut tokio::net::TcpStream) {
         use tokio::io::AsyncReadExt;
 
-        let mut discard = [0u8; 4096];
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 4096];
         loop {
             let n = socket
-                .read(&mut discard)
+                .read(&mut chunk)
                 .await
                 .expect("reading the request must succeed");
-            if discard[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
                 break;
             }
         }
