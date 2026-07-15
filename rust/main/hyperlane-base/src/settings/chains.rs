@@ -1571,7 +1571,7 @@ impl ChainConf {
         B: BuildableWithProvider + Sync,
     {
         let mut signer = None;
-        if B::NEEDS_SIGNER {
+        if B::SIGNER_REQUIREMENT != h_eth::SignerRequirement::None {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
