@@ -58,6 +58,19 @@ export type {
   GetQuoteAccountMetasInput,
   GetSubmitQuoteAccountMetasInput,
 } from './instructions/fee.js';
+
+// Offchain quote signing primitives (secp256k1 / keccak256). Shared by the
+// fee program and IGP — both verify quotes via the same `SvmSignedQuote`
+// scheme. Mirrors the on-chain `quote-verifier` Rust library.
+export {
+  buildSvmQuoteMessageHash,
+  computeScopedSalt,
+  ethAddressFromPrivateKey,
+  ethAddressHexFromPrivateKey,
+  signSvmQuote,
+} from './quote-signing.js';
+export type { SignSvmQuoteArgs } from './quote-signing.js';
+
 export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
 export {
   simulateInstructionAccountMetas,
@@ -187,12 +200,23 @@ export {
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
 export {
+  encodeSvmIgpQuoteContext,
+  encodeSvmIgpQuoteData,
   decodeIgpStandingQuoteAccount,
   decodeIgpTransientQuoteAccount,
   WILDCARD_DOMAIN,
   WILDCARD_SENDER,
 } from './codecs/igp.js';
-export type { SvmSignedQuote } from './codecs/fee.js';
+export type { SvmFeeQuoteContextInput, SvmSignedQuote } from './codecs/fee.js';
+export {
+  encodeSvmFeeQuoteContext,
+  WILDCARD_AMOUNT,
+  wildcardRecipient,
+} from './codecs/fee.js';
+export type {
+  SvmIgpQuoteContextInput,
+  SvmIgpQuoteDataInput,
+} from './codecs/igp.js';
 export type {
   GetIgpQuoteAccountMetasInput,
   IgpFeeConfig,
@@ -221,6 +245,18 @@ export {
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
 export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
+export { isSvmDeployedWarpAddress as isSealevelDeployedWarpAddress } from './warp/types.js';
+export { isSvmDeployedIgpHook as isSealevelDeployedIgpHook } from './types.js';
+
+// Fee data codec — Borsh encoding of the on-chain `FeeDataStrategy` enum
+// (Linear / Regressive / Progressive). Offchain quote signers use this to
+// produce the `data` bytes the SVM fee program verifies against.
+export {
+  encodeFeeDataStrategy,
+  type SvmFeeDataStrategy,
+  type SvmFeeParams,
+} from './codecs/fee.js';
+export { FeeStrategyKind } from './fee/types.js';
 
 // Warp Address Lookup Table support
 export {

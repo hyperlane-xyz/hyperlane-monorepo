@@ -53,7 +53,7 @@ import {
 } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
-import { ethAddressHexFromPrivateKey } from '../testing/quote-signer.js';
+import { ethAddressHexFromPrivateKey } from '../quote-signing.js';
 import {
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,

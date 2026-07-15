@@ -384,6 +384,33 @@ export interface SealevelAltAddresses {
   warpSpecific: Address[];
 }
 
+/**
+ * Building blocks of a `transfer_remote` (or `transfer_remote_to`) tx — the
+ * Sealevel adapter exposes this for composable callers (e.g. the offchain-
+ * quoted-transfer provider) that need to prepend extra ixs between the
+ * compute-budget head and the warp call.
+ *
+ * Fields are split deliberately:
+ *
+ *  - `computeBudgetInstructions` — Solana compute-budget ixs. The composing
+ *    caller MUST place them at the head of the final tx (priority-fee and
+ *    CU-limit ixs are conventionally first; some RPC/wallet stacks rely on
+ *    that position when computing per-tx priority).
+ *
+ *  - `transferInstructions` — the warp `transfer_remote` / `transfer_remote_to`
+ *    instructions themselves. Submit-quote ixs (warp fee, IGP) for the
+ *    offchain-quoted flow are prepended directly BEFORE these.
+ *
+ * Final tx order: `[...computeBudgetInstructions, ...submitQuoteIxs?, ...transferInstructions]`.
+ */
+export interface SealevelTransferBundle {
+  computeBudgetInstructions: TransactionInstruction[];
+  transferInstructions: TransactionInstruction[];
+  addressLookupTableAccounts: AddressLookupTableAccount[];
+  feePayer: PublicKey;
+  signers: Keypair[];
+}
+
 interface HypTokenAddresses {
   token: Address;
   warpRouter: Address;
@@ -430,7 +457,7 @@ export abstract class SealevelHypTokenAdapter
   /// and to build the new-flow QuoteGasPayment account list. For OverheadIgp
   /// routes the inner Igp address is resolved via an extra RPC on the
   /// OverheadIgp PDA.
-  protected readonly innerIgpFeeState = new LazyAsync(() =>
+  public readonly innerIgpFeeState = new LazyAsync(() =>
     this.loadInnerIgpFeeState(),
   );
 
@@ -586,24 +613,32 @@ export abstract class SealevelHypTokenAdapter
    * Build the fee-section account list. Spliced into the warp transfer_remote
    * after the dispatched-message PDA, when `token.fee_config` is Some.
    *   [feeProgram, feeAccount, ...passThrough, feeBeneficiary(w)]
+   *
+   * `scopedSalt` (optional) is the pre-scoped 32-byte salt for an offchain
+   * transient fee quote — when set, the on-chain cascade enumerator
+   * (`GetQuoteAccountMetas`) returns the transient-quote PDA alongside the
+   * standing path so a same-tx `SubmitFeeQuote` can deposit there. Standing-
+   * only callers omit it.
    */
   protected async buildFeeSectionKeys({
     feeConfig,
     payer,
     destination,
     targetRouter,
+    scopedSalt,
   }: {
     feeConfig: SealevelTokenFeeConfig;
     payer: PublicKey;
     destination: Domain;
     targetRouter: Uint8Array;
+    scopedSalt?: Uint8Array;
   }): Promise<AccountMeta[]> {
     const metas = await simulateFeeQuoteAccountMetas(
       this.getProvider(),
       feeConfig.feeProgram,
       feeConfig.feeAccount,
       payer,
-      { destinationDomain: destination, targetRouter },
+      { destinationDomain: destination, targetRouter, scopedSalt },
     );
     // Drop slots 0 (fee_account) and 1 (payer placeholder) — both appear
     // elsewhere in the warp transfer_remote tx.
@@ -636,18 +671,29 @@ export abstract class SealevelHypTokenAdapter
     innerIgpAccount,
     payer,
     destination,
+    scopedSalt,
   }: {
     igpProgramId: PublicKey;
     innerIgpAccount: PublicKey;
     payer: PublicKey;
     destination: Domain;
+    /**
+     * Pre-scoped 32-byte salt for an offchain transient IGP quote. When set,
+     * `GetIgpQuoteAccountMetas` returns the transient PDA in its cascade.
+     * Forward-looking — SVM IGP doesn't accept offchain submits today.
+     */
+    scopedSalt?: Uint8Array;
   }): Promise<AccountMeta[]> {
     const igpMetas = await simulateIgpQuoteAccountMetas(
       this.getProvider(),
       igpProgramId,
       innerIgpAccount,
       payer,
-      { destinationDomain: destination, sender: this.warpProgramPubKey },
+      {
+        destinationDomain: destination,
+        sender: this.warpProgramPubKey,
+        scopedSalt,
+      },
     );
     // GetIgpQuoteAccountMetas already returns the correctly-derived
     // igp_quote_authority at [6] and quoted_sender (the warp program id) at
@@ -915,13 +961,34 @@ export abstract class SealevelHypTokenAdapter
     });
   }
 
-  async populateTransferRemoteTx({
+  /**
+   * Sealevel-only — returns the building blocks of a `transfer_remote` tx
+   * (compute-budget ixs separated from the warp ix, ALTs, fee payer, the
+   * randomWallet signer) without compiling them into a `Transaction` /
+   * `VersionedTransaction`. The composing layer (typically the offchain-
+   * quoted-transfer provider) prepends `SubmitFeeQuote` / `SubmitIgpQuote`
+   * ixs between the compute-budget head and the transfer ix.
+   *
+   * `scopedSalt` (optional) is the 32-byte `keccak256(payer || clientSalt)`
+   * for a same-tx offchain transient quote — threaded through to the fee +
+   * IGP cascade simulations so their PDA enumeration includes the transient
+   * quote PDA. Matches the on-chain `scoped_salt` field. Standing-only
+   * callers omit it.
+   *
+   * `populateTransferRemoteTx` wraps this with a blockhash fetch + tx
+   * compilation; provider-level composition uses the bundle directly.
+   */
+  async getTransferRemoteIxBundle({
     weiAmountOrId,
     destination,
     recipient,
     fromAccountOwner,
     extraSigners,
-  }: TransferRemoteParams): Promise<Transaction | VersionedTransaction> {
+    scopedSalt,
+  }: TransferRemoteParams & {
+    /** Sealevel-only — see method docs. */
+    scopedSalt?: Uint8Array;
+  }): Promise<SealevelTransferBundle> {
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
     const randomWallet = extraSigners?.length
@@ -933,14 +1000,26 @@ export abstract class SealevelHypTokenAdapter
     const tokenData = await this.getTokenAccountData();
     const igpState = await this.innerIgpFeeState.get();
 
-    // Non-CC routes pass H256::zero() per the fee program's seed macros; CC
-    // override its own populateTransferRemoteToTx.
+    // The non-CC `transfer_remote` CPIs `QuoteFee` with
+    // `target_router = token.router(destination_domain)` (i.e. the enrolled
+    // remote router, see hyperlane-sealevel-token's `transfer_remote`). The
+    // fee program's CC-routing variant keys its specific-scope standing PDA
+    // off `data.target_router`, so the cascade simulation here must use the
+    // same router bytes the runtime CPI will pass — otherwise the simulated
+    // PDA slot at `(dest, ZERO)` mismatches the runtime expectation at
+    // `(dest, enrolled_router)` and `process_quote_fee` errors with
+    // `InvalidTransientSlot`. Non-CC fee variants (Leaf / Routing) ignore
+    // `data.target_router` (the on-chain `standing_target_router = ZERO`
+    // arm fires), so passing the enrolled router is a no-op for them.
     const feeSection = tokenData.fee_config
       ? await this.buildFeeSectionKeys({
           feeConfig: tokenData.fee_config,
           payer: fromWalletPubKey,
           destination,
-          targetRouter: new Uint8Array(32),
+          targetRouter: new Uint8Array(
+            await this.getRouterAddress(destination),
+          ),
+          scopedSalt,
         })
       : undefined;
 
@@ -952,6 +1031,7 @@ export abstract class SealevelHypTokenAdapter
             innerIgpAccount: igpState.innerIgpAccount,
             payer: fromWalletPubKey,
             destination,
+            scopedSalt,
           })
         : undefined;
 
@@ -997,50 +1077,61 @@ export abstract class SealevelHypTokenAdapter
       microLamports: (await this.getMedianPriorityFee()) || 0,
     });
 
+    const addressLookupTableAccounts = this.addresses.altAddresses
+      ? await this.addressLookupTableAccounts.get()
+      : [];
+
+    return {
+      computeBudgetInstructions: [
+        setComputeLimitInstruction,
+        setPriorityFeeInstruction,
+      ],
+      transferInstructions: [transferRemoteInstruction],
+      addressLookupTableAccounts,
+      feePayer: fromWalletPubKey,
+      signers: [randomWallet],
+    };
+  }
+
+  async populateTransferRemoteTx(
+    params: TransferRemoteParams,
+  ): Promise<Transaction | VersionedTransaction> {
+    const bundle = await this.getTransferRemoteIxBundle(params);
+    const allInstructions = [
+      ...bundle.computeBudgetInstructions,
+      ...bundle.transferInstructions,
+    ];
+
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    let tx: Transaction | VersionedTransaction;
     if (this.addresses.altAddresses) {
       // ALT path: when the route registers ALT addresses, compile a v0
       // message so the on-chain account-key list stays under Solana's
       // 1232-byte tx limit (40+ accounts on new-flow fee + IGP routes).
-      const instructions = [
-        setComputeLimitInstruction,
-        setPriorityFeeInstruction,
-        transferRemoteInstruction,
-      ];
-
-      const addressLookupTableAccounts =
-        await this.addressLookupTableAccounts.get();
       const message = MessageV0.compile({
-        payerKey: fromWalletPubKey,
-        instructions,
+        payerKey: bundle.feePayer,
+        instructions: allInstructions,
         recentBlockhash,
-        addressLookupTableAccounts,
+        addressLookupTableAccounts: bundle.addressLookupTableAccounts,
       });
-
       const versionedTx = new VersionedTransaction(message);
       // Only fills the randomWallet's slot; the user wallet's slot stays
       // empty for the wallet-adapter chain to populate later.
-      versionedTx.sign([randomWallet]);
-      tx = versionedTx;
-    } else {
-      // Legacy path — unchanged for routes without ALT.
-      // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-      tx = new Transaction({
-        feePayer: fromWalletPubKey,
-        blockhash: recentBlockhash,
-        recentBlockhash,
-      })
-        .add(setComputeLimitInstruction)
-        .add(setPriorityFeeInstruction)
-        .add(transferRemoteInstruction);
-
-      tx.partialSign(randomWallet);
+      versionedTx.sign(bundle.signers);
+      return versionedTx;
     }
 
+    // Legacy path — unchanged for routes without ALT.
+    // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+    const tx = new Transaction({
+      feePayer: bundle.feePayer,
+      blockhash: recentBlockhash,
+      recentBlockhash,
+    });
+    for (const ix of allInstructions) tx.add(ix);
+    for (const signer of bundle.signers) tx.partialSign(signer);
     return tx;
   }
 

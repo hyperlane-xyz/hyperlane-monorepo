@@ -5,7 +5,7 @@ import {
   type Address,
   assertIsSignature,
   generateKeyPairSigner,
-  getAddressCodec,
+  getAddressDecoder,
   type Instruction,
 } from '@solana/kit';
 import { expect } from 'chai';
@@ -38,7 +38,6 @@ import {
 } from '../constants.js';
 import { SvmCrossCollateralRoutingFeeWriter } from '../fee/cross-collateral-routing-fee.js';
 import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
-import { u128le, u32le, u64le } from '../codecs/binary.js';
 import { DEFAULT_FEE_SALT, FeeStrategyKind } from '../fee/types.js';
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
 import { SvmMailboxWriter } from '../core/mailbox.js';
@@ -63,7 +62,15 @@ import {
   getTokenSetDestinationGasConfigsInstruction,
   getTokenTransferRemoteInstruction,
 } from '../instructions/token.js';
-import type { SvmSignedQuote } from '../codecs/fee.js';
+import {
+  encodeSvmFeeQuoteContext,
+  encodeFeeDataStrategy,
+  type SvmSignedQuote,
+} from '../codecs/fee.js';
+import {
+  encodeSvmIgpQuoteContext,
+  encodeSvmIgpQuoteData,
+} from '../codecs/igp.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import {
   deriveAssociatedTokenAddress,
@@ -85,7 +92,7 @@ import {
   computeScopedSalt,
   ethAddressHexFromPrivateKey,
   signSvmQuote,
-} from '../testing/quote-signer.js';
+} from '../quote-signing.js';
 import {
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
@@ -106,110 +113,16 @@ const REMOTE_GAS = 50_000n;
 const TRANSFER_AMOUNT = 100_000n;
 const ZERO_TARGET_ROUTER = new Uint8Array(32);
 
-const U48_MAX = (1n << 48n) - 1n;
-
-function u48BE(seconds: bigint): Uint8Array {
-  assert(
-    seconds >= 0n && seconds <= U48_MAX,
-    `u48BE: ${seconds} does not fit in u48 (0..${U48_MAX})`,
+const linearFeeData = (maxFee: bigint, halfAmount: bigint) =>
+  Uint8Array.from(
+    encodeFeeDataStrategy({
+      kind: FeeStrategyKind.Linear,
+      params: { maxFee, halfAmount },
+    }),
   );
-  const out = new Uint8Array(6);
-  for (let i = 5; i >= 0; i -= 1) {
-    out[i] = Number(seconds & 0xffn);
-    seconds >>= 8n;
-  }
-  return out;
-}
 
-const addrCodec = getAddressCodec();
-
-/**
- * Builds the 68-byte IGP quote context:
- *   [0:32] fee_token_mint (Pubkey, all-zeros for SOL)
- *   [32:36] destination_domain (u32 LE)
- *   [36:68] sender (warp program id)
- */
-function buildIgpQuoteContext(
-  destinationDomain: number,
-  sender: Address,
-): Uint8Array {
-  const out = new Uint8Array(68);
-  // fee_token_mint = Pubkey::default() = zero bytes (SOL)
-  out.set(u32le(destinationDomain), 32);
-  out.set(addrCodec.encode(sender), 36);
-  return out;
-}
-
-/**
- * Builds the 33-byte IGP quote data:
- *   [0:16] token_exchange_rate (u128 LE)
- *   [16:32] gas_price (u128 LE)
- *   [32:33] token_decimals (u8)
- */
-function buildIgpQuoteData(
-  tokenExchangeRate: bigint,
-  gasPrice: bigint,
-  tokenDecimals: number,
-): Uint8Array {
-  const out = new Uint8Array(33);
-  out.set(u128le(tokenExchangeRate), 0);
-  out.set(u128le(gasPrice), 16);
-  out[32] = tokenDecimals;
-  return out;
-}
-
-/**
- * Builds the 44-byte FeeQuoteContext (Leaf/Routing):
- *   [0:4]   destination_domain (u32 LE)
- *   [4:36]  recipient (H256)
- *   [36:44] amount (u64 LE)
- */
-function buildFeeQuoteContext(
-  destinationDomain: number,
-  recipient: Uint8Array,
-  amount: bigint,
-): Uint8Array {
-  const out = new Uint8Array(44);
-  out.set(u32le(destinationDomain), 0);
-  out.set(recipient, 4);
-  out.set(u64le(amount), 36);
-  return out;
-}
-
-/**
- * Builds the 17-byte FeeDataStrategy for an offchain-quoted linear strategy:
- *   [0:1]   kind (u8, 0=Linear)
- *   [1:9]   max_fee (u64 LE)
- *   [9:17]  half_amount (u64 LE)
- */
-function buildFeeQuoteData(maxFee: bigint, halfAmount: bigint): Uint8Array {
-  const out = new Uint8Array(17);
-  out[0] = FeeStrategyKind.Linear;
-  out.set(u64le(maxFee), 1);
-  out.set(u64le(halfAmount), 9);
-  return out;
-}
-
-/**
- * Builds the 76-byte CcFeeQuoteContext (Cross-Collateral Routing):
- *   [0:4]    destination_domain (u32 LE)
- *   [4:36]   recipient (H256)
- *   [36:44]  amount (u64 LE)
- *   [44:76]  target_router (H256)
- */
-function buildCcFeeQuoteContext(
-  destinationDomain: number,
-  recipient: Uint8Array,
-  amount: bigint,
-  targetRouter: Uint8Array,
-): Uint8Array {
-  const out = new Uint8Array(76);
-  out.set(u32le(destinationDomain), 0);
-  out.set(recipient, 4);
-  out.set(u64le(amount), 36);
-  out.set(targetRouter, 44);
-  return out;
-}
+// On-chain `fee_token_mint` for SOL-native warp is `Pubkey::default()`.
+const SOL_FEE_TOKEN_MINT = getAddressDecoder().decode(new Uint8Array(32));
 
 const rawParams = (maxFee: string, halfAmount: string) =>
   ({ type: FeeParamsType.raw, maxFee, halfAmount }) as const;
@@ -269,17 +182,25 @@ async function setupIgpTransientQuote(args: {
     )
   ).address;
 
-  const issuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
+  const issuedAt = BigInt(Math.floor(Date.now() / 1000)) + 60n;
   const signedQuote = signSvmQuote({
     privateKey: args.quoteSignerPrivateKey,
     feeAccount: args.igpAccount,
     domainId: args.localDomain,
     payer: args.senderWallet,
-    context: buildIgpQuoteContext(args.destinationDomain, args.warpProgramId),
-    data: buildIgpQuoteData(
-      QUOTE_TOKEN_EXCHANGE_RATE,
-      QUOTE_GAS_PRICE,
-      QUOTE_TOKEN_DECIMALS,
+    context: Uint8Array.from(
+      encodeSvmIgpQuoteContext({
+        feeTokenMint: SOL_FEE_TOKEN_MINT,
+        destinationDomain: args.destinationDomain,
+        sender: args.warpProgramId,
+      }),
+    ),
+    data: Uint8Array.from(
+      encodeSvmIgpQuoteData({
+        tokenExchangeRate: QUOTE_TOKEN_EXCHANGE_RATE,
+        gasPrice: QUOTE_GAS_PRICE,
+        tokenDecimals: QUOTE_TOKEN_DECIMALS,
+      }),
     ),
     issuedAt,
     expiry: issuedAt, // transient
@@ -346,7 +267,7 @@ async function setupFeeTransientQuote(args: {
     )
   ).address;
 
-  const issuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
+  const issuedAt = BigInt(Math.floor(Date.now() / 1000)) + 60n;
   const signedQuote = signSvmQuote({
     privateKey: args.feeQuoteSignerPrivateKey,
     feeAccount: args.feeAccountPda,
@@ -720,8 +641,14 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       feeProgramId,
       feeAccountPda,
       feeQuoteSignerPrivateKey,
-      context: buildFeeQuoteContext(DOMAIN_REMOTE, RECIPIENT, TRANSFER_AMOUNT),
-      data: buildFeeQuoteData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
+      context: Uint8Array.from(
+        encodeSvmFeeQuoteContext({
+          destinationDomain: DOMAIN_REMOTE,
+          recipient: RECIPIENT,
+          amount: TRANSFER_AMOUNT,
+        }),
+      ),
+      data: linearFeeData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
       destinationDomain: DOMAIN_REMOTE,
       targetRouter: ZERO_TARGET_ROUTER,
       localDomain: DOMAIN_LOCAL,
@@ -1039,13 +966,15 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       feeProgramId,
       feeAccountPda,
       feeQuoteSignerPrivateKey,
-      context: buildCcFeeQuoteContext(
-        DOMAIN_REMOTE,
-        RECIPIENT,
-        TRANSFER_AMOUNT,
-        REMOTE_ROUTER,
+      context: Uint8Array.from(
+        encodeSvmFeeQuoteContext({
+          destinationDomain: DOMAIN_REMOTE,
+          recipient: RECIPIENT,
+          amount: TRANSFER_AMOUNT,
+          targetRouter: REMOTE_ROUTER,
+        }),
       ),
-      data: buildFeeQuoteData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
+      data: linearFeeData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
       destinationDomain: DOMAIN_REMOTE,
       targetRouter: REMOTE_ROUTER,
       localDomain: DOMAIN_LOCAL,

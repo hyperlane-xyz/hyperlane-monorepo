@@ -1,4 +1,5 @@
 export {
+  DerivedCrossCollateralRoutingFeeConfig,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
@@ -10,7 +11,25 @@ export {
   type QuotedCallsTransaction,
   type QuotedTransferParams,
 } from './quoted-calls/builder.js';
-export { FeeQuotingClient } from './quoted-calls/client.js';
+export {
+  FeeQuotingClient,
+  FeeQuotingNoQuoteAvailableError,
+  FeeQuotingV2Client,
+} from './quoted-calls/client.js';
+export type {
+  FeeQuotingV2IgpParams,
+  FeeQuotingV2WarpParams,
+} from './quoted-calls/client.js';
+export { EvmQuotedTransferProvider } from './quoted-calls/EvmQuotedTransferProvider.js';
+export type { QuotedTransferProvider } from './quoted-calls/QuotedTransferProvider.js';
+export { SealevelQuotedTransferProvider } from './quoted-calls/SealevelQuotedTransferProvider.js';
+export type { SealevelQuotedTransferProviderOpts } from './quoted-calls/SealevelQuotedTransferProvider.js';
+export { composeSealevelTx } from './quoted-calls/composeSealevelTx.js';
+export { decodeSealevelQuoteEntry } from './quoted-calls/svmDecoder.js';
+export type {
+  DecodedSealevelQuoteEntry,
+  DecodedSvmSignedQuote,
+} from './quoted-calls/svmDecoder.js';
 export type {
   FeeQuotingClientOptions,
   QuoteParams as FeeQuotingQuoteParams,
@@ -34,11 +53,24 @@ export {
   sumQuotesByToken,
 } from './quoted-calls/codec.js';
 export {
+  type AnyQuoteV2Entry,
+  type EthereumQuoteDetails,
+  type EthereumQuoteV2Entry,
   FeeQuotingCommand,
   type FeeQuotingQuoteResponse,
+  NO_QUOTE_AVAILABLE_ERROR,
+  type NoQuoteAvailableError,
+  NoQuoteAvailableReason,
   type Permit2Data,
   type QuotedCallsParams,
   QuotedCallsCommand,
+  QUOTE_V2_BASE_PATH,
+  QuoteV2Endpoint,
+  type QuoteV2Entry,
+  type QuoteV2Response,
+  type SealevelQuoteDetails,
+  type SealevelQuoteV2Entry,
+  type SealevelSignedQuote,
   type SignedQuoteData,
   type SubmitQuoteCommand,
   TokenPullMode,
