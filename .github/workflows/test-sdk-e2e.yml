@@ -180,6 +180,12 @@ jobs:
           - warp-alt-simulation-parity
           - warp-fee-config
           - warp-transfer-remote-with-fees
+          - fee-linear
+          - fee-progressive
+          - fee-regressive
+          - fee-routing
+          - fee-cross-collateral-routing
+          - fee-offchain-quoted-linear
         include:
           - test: read-token
             continue-on-error: true
