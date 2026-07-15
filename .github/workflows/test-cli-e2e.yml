@@ -118,6 +118,7 @@ jobs:
           - warp-check-ica
           # other
           - warp-init
+          - warp-quote
           - warp-read
           - warp-rebalancer
           - warp-send
@@ -554,6 +555,7 @@ jobs:
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply
+          - warp-quote
           - warp-read
     steps:
       - uses: actions/checkout@v6
