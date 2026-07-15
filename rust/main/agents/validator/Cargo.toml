@@ -44,7 +44,9 @@ rusoto_core = '*'
 [dev-dependencies]
 http-body-util.workspace = true
 mockall.workspace = true
+rand.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 tokio-test.workspace = true
 tower.workspace = true
 tracing-test.workspace = true
