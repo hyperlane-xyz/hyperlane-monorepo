@@ -1,13 +1,13 @@
 ---
-name: message-latency-flamegraph
-description: Build a stage-by-stage latency breakdown (flamegraph/timeline artifact) for a successfully delivered Hyperlane message - origin mining, relayer pickup, metadata/ISM fetch, queue waits, destination submission, and inclusion. Use when the user pastes a message ID and wants to know "how long did this take" / "where did the time go", not when a message is stuck (use debug-message for that).
+name: message-latency-timeline
+description: Build a stage-by-stage latency breakdown (timeline/waterfall artifact) for a successfully delivered Hyperlane message - origin mining, relayer pickup, metadata/ISM fetch, queue waits, destination submission, and inclusion. Use when the user pastes a message ID and wants to know "how long did this take" / "where did the time go", not when a message is stuck (use debug-message for that).
 ---
 
-# Message Latency Flamegraph
+# Message Latency Timeline
 
 ## When to Use
 
-- User pastes a message ID and asks for timing/latency/flamegraph/waterfall breakdown
+- User pastes a message ID and asks for timing/latency/timeline/waterfall breakdown
 - "Why did this message take Xs" / "where did the time go" for an already-delivered message
 - Works for messages of any age — recent or months old — since Step 0 anchors
   the time range from the scraper, not from "now"
@@ -197,7 +197,7 @@ etc — ignore them):
 | `lander::dispatcher::stages::building_stage::*` | `Transaction built successfully`                               | Tx built                                                                                                            |
 | `lander::dispatcher::stages::inclusion_stage`   | `Processing inclusion stage transaction` (first)               | Entered inclusion queue                                                                                             |
 | `lander::adapter::chains::ethereum::adapter`    | `submitted transaction`                                        | Tx submitted to destination node                                                                                    |
-| `lander::dispatcher::stages::inclusion_stage`   | `Transaction included in block`                                | **Destination tx mined** (real delivery, the terminal event for this flamegraph)                                    |
+| `lander::dispatcher::stages::inclusion_stage`   | `Transaction included in block`                                | **Destination tx mined** (real delivery, the terminal event for this timeline)                                      |
 | `relayer::msg::message_processor`               | `Operation confirmed`                                          | Relayer's own bookkeeping — see caveat below                                                                        |
 
 Cross-check the destination tx hash/block pulled from `tx receipt` / `submitted
@@ -222,7 +222,7 @@ user-facing latency.
 The single `Storing new message in db` timestamp bundles two very different
 things: the chain's mandatory reorg-safety wait (deterministic, can't be
 avoided) and however long it took the indexer's next poll cycle to actually
-run. Always split it — this is part of the default flamegraph, not an add-on.
+run. Always split it — this is part of the default timeline, not an add-on.
 
 ### How the indexer actually works (read from `rust/main/hyperlane-base` source — don't guess)
 
@@ -353,12 +353,12 @@ the headline number — this is when the message was actually executed on the
 destination chain. Don't also track or report a separate finality number
 (origin mined → relayer marks it finalized via `finality_stage`) by
 default — the extra confirmation-depth wait past inclusion isn't part of this
-flamegraph's story unless the user specifically asks about it. If they do,
+timeline's story unless the user specifically asks about it. If they do,
 pull `lander::dispatcher::stages::finality_stage` → `Transaction is finalized`
 from the same log window and report it as an explicit add-on stage, not folded
 into the default breakdown.
 
-## Step 7: Build the flamegraph artifact
+## Step 7: Build the timeline artifact
 
 This is a chart — invoke the `dataviz` skill before writing any HTML/chart
 code. Render as a single horizontal stacked bar (one segment per stage, widths
