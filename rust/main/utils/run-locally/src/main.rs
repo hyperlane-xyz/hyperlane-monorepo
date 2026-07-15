@@ -669,9 +669,6 @@ where
     while loop_invariant_fn() {
         log!("Checking e2e invariants...");
         sleep(loop_check_interval);
-        if !config.ci_mode {
-            continue;
-        }
         match condition_fn() {
             Ok(true) => {
                 // end condition reached successfully
@@ -684,7 +681,7 @@ where
                 log!("Error checking e2e invariants: {}", e);
             }
         }
-        if check_ci_timed_out(config.ci_mode_timeout, start_time) {
+        if config.ci_mode && check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
             log!("Error: CI timeout reached before invariants were met");
             return false;

@@ -113,7 +113,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     }
 
     /// Transfers tokens into the program so they can be sent to a remote chain.
-    /// Burns the tokens from the sender's associated token account.
+    /// If a fee is specified, transfers the fee to the beneficiary wallet.
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
@@ -124,6 +124,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee: Option<(u64, &'a AccountInfo<'b>)>,
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
@@ -139,7 +140,28 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         invoke(
             &system_instruction::transfer(sender_wallet.key, native_collateral_account.key, amount),
             &[sender_wallet.clone(), native_collateral_account.clone()],
-        )
+        )?;
+
+        // Collect fee if configured.
+        if let Some((fee_amount, beneficiary_wallet)) = fee {
+            invoke(
+                &system_instruction::transfer(
+                    sender_wallet.key,
+                    beneficiary_wallet.key,
+                    fee_amount,
+                ),
+                &[sender_wallet.clone(), beneficiary_wallet.clone()],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn fee_beneficiary_pubkey(
+        _token: &HyperlaneToken<Self>,
+        beneficiary_owner: &Pubkey,
+    ) -> Result<Pubkey, ProgramError> {
+        Ok(*beneficiary_owner)
     }
 
     /// Transfers tokens out to a recipient's associated token account as a

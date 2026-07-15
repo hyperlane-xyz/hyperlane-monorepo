@@ -1,0 +1,21 @@
+owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+defaultIsm:
+  type: compositeIsm
+  owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  root:
+    type: aggregation
+    threshold: 1
+    subIsms:
+      - type: trustedRelayer
+        relayer: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+      - type: test
+        accept: true
+defaultHook:
+  type: interchainGasPaymaster
+  owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  beneficiary: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  oracleKey: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  overhead: {}
+  oracleConfig: {}
+requiredHook:
+  type: merkleTreeHook

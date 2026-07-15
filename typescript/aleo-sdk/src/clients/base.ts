@@ -149,11 +149,26 @@ export class AleoBase {
     programId: string,
     mappingName: string,
     key: string,
+    { retryOnNull = false }: { retryOnNull?: boolean } = {},
   ): Promise<any | undefined> {
     try {
       const result = await retryAsync(
-        () =>
-          this.aleoClient.getProgramMappingValue(programId, mappingName, key),
+        async () => {
+          const r = await this.aleoClient.getProgramMappingValue(
+            programId,
+            mappingName,
+            key,
+          );
+          // Freshly-finalized state can briefly lag behind the
+          // confirmed-transaction endpoint, so give callers that just
+          // confirmed a tx the option to retry until the mapping catches up.
+          if (r === null && retryOnNull) {
+            throw new Error(
+              `mapping value for ${programId}/${mappingName}/${key} not yet indexed`,
+            );
+          }
+          return r;
+        },
         RETRY_ATTEMPTS,
         RETRY_DELAY_MS,
       );

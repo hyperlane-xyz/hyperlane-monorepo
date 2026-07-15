@@ -35,6 +35,7 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   ContractVerifier,
+  ExplorerFamily,
   ExplorerLicenseType,
   HyperlaneContractsMap,
   RouterConfig,
@@ -775,6 +776,16 @@ describe('EvmWarpRouteReader', async () => {
       .stub(multiProvider, 'isLocalRpc')
       .returns(false);
 
+    // Stub tryGetEvmExplorerMetadata so the verifier path runs (the local test
+    // chain has no Etherscan-compatible explorer, which would otherwise cause
+    // the status to be reported as Skipped).
+    const tryGetEvmExplorerMetadataStub = sinon
+      .stub(multiProvider, 'tryGetEvmExplorerMetadata')
+      .returns({
+        apiUrl: 'https://example.com/api',
+        family: ExplorerFamily.Etherscan,
+      });
+
     // Stub getContractVerificationStatus
     const getContractVerificationStatus = sinon
       .stub(contractVerifier, 'getContractVerificationStatus')
@@ -794,6 +805,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Restore stub
     getContractVerificationStatus.restore();
+    tryGetEvmExplorerMetadataStub.restore();
     isLocalRpcStub.restore();
   });
 

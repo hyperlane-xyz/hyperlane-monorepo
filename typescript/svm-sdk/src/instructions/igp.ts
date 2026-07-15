@@ -1,4 +1,5 @@
 import type {
+  AccountMeta,
   Address,
   Instruction,
   ReadonlyUint8Array,
@@ -15,7 +16,35 @@ import {
   getU64Codec,
 } from '@solana/kit';
 
-import { concatBytes, option, u8, vec } from '../codecs/binary.js';
+import { assert } from '@hyperlane-xyz/utils';
+
+import { simulateInstructionAccountMetas } from '../simulation.js';
+import type { SvmRpc } from '../types.js';
+
+import {
+  ByteCursor,
+  concatBytes,
+  i64le,
+  option,
+  u8,
+  vec,
+} from '../codecs/binary.js';
+import {
+  decodeSetQuoteSignerOperation,
+  decodeSvmSignedQuote,
+  encodeSetQuoteSignerOperation,
+  encodeSvmSignedQuote,
+  type SetQuoteSignerOp,
+  type SvmSignedQuote,
+} from '../codecs/fee.js';
+import {
+  decodeGetIgpQuoteAccountMetasInput,
+  decodeIgpFeeConfig,
+  encodeGetIgpQuoteAccountMetasInput,
+  encodeIgpFeeConfig,
+  type GetIgpQuoteAccountMetasInput,
+  type IgpFeeConfig,
+} from '../codecs/igp.js';
 import {
   encodeGasOracleConfig,
   encodeGasOverheadConfig,
@@ -49,6 +78,13 @@ export enum IgpInstructionKind {
   SetDestinationGasOverheads = 8,
   SetGasOracleConfigs = 9,
   Claim = 10,
+  SetIgpQuoteConfig = 11,
+  SetIgpQuoteSigner = 12,
+  SetIgpMinIssuedAt = 13,
+  SubmitIgpQuote = 14,
+  CloseIgpTransientQuote = 15,
+  CloseIgpStandingQuote = 16,
+  GetIgpQuoteAccountMetas = 17,
 }
 
 export interface InitIgpData {
@@ -78,7 +114,14 @@ export type IgpProgramInstructionData =
   | { kind: 'setIgpBeneficiary'; beneficiary: Address }
   | { kind: 'setDestinationGasOverheads'; configs: GasOverheadConfig[] }
   | { kind: 'setGasOracleConfigs'; configs: GasOracleConfig[] }
-  | { kind: 'claim' };
+  | { kind: 'claim' }
+  | { kind: 'setIgpQuoteConfig'; config: IgpFeeConfig | null }
+  | { kind: 'setIgpQuoteSigner'; operation: SetQuoteSignerOp; signer: string }
+  | { kind: 'setIgpMinIssuedAt'; minIssuedAt: bigint }
+  | { kind: 'submitIgpQuote'; quote: SvmSignedQuote }
+  | { kind: 'closeIgpTransientQuote' }
+  | { kind: 'closeIgpStandingQuote' }
+  | { kind: 'getIgpQuoteAccountMetas'; input: GetIgpQuoteAccountMetasInput };
 
 const BYTES32_CODEC = fixCodecSize(getBytesCodec(), 32);
 const ADDRESS_CODEC = getAddressCodec();
@@ -163,6 +206,38 @@ export function encodeIgpProgramInstruction(
       );
     case 'claim':
       return u8(IgpInstructionKind.Claim);
+    case 'setIgpQuoteConfig':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpQuoteConfig),
+        option(instruction.config, (cfg) => encodeIgpFeeConfig(cfg)),
+      );
+    case 'setIgpQuoteSigner':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpQuoteSigner),
+        encodeSetQuoteSignerOperation(
+          instruction.operation,
+          instruction.signer,
+        ),
+      );
+    case 'setIgpMinIssuedAt':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpMinIssuedAt),
+        i64le(instruction.minIssuedAt),
+      );
+    case 'submitIgpQuote':
+      return concatBytes(
+        u8(IgpInstructionKind.SubmitIgpQuote),
+        encodeSvmSignedQuote(instruction.quote),
+      );
+    case 'closeIgpTransientQuote':
+      return u8(IgpInstructionKind.CloseIgpTransientQuote);
+    case 'closeIgpStandingQuote':
+      return u8(IgpInstructionKind.CloseIgpStandingQuote);
+    case 'getIgpQuoteAccountMetas':
+      return concatBytes(
+        u8(IgpInstructionKind.GetIgpQuoteAccountMetas),
+        encodeGetIgpQuoteAccountMetasInput(instruction.input),
+      );
   }
 }
 
@@ -187,6 +262,44 @@ export function decodeIgpProgramInstruction(
           destinationDomain: decoded.destinationDomain,
           gasAmount: decoded.gasAmount,
         },
+      };
+    }
+    case IgpInstructionKind.SetIgpQuoteConfig: {
+      const cursor = new ByteCursor(payload);
+      const tag = cursor.readU8();
+      if (tag === 0) {
+        return { kind: 'setIgpQuoteConfig', config: null };
+      }
+      if (tag !== 1) {
+        throw new Error(`Invalid SetIgpQuoteConfig option tag: ${tag}`);
+      }
+      return {
+        kind: 'setIgpQuoteConfig',
+        config: decodeIgpFeeConfig(cursor),
+      };
+    }
+    case IgpInstructionKind.SetIgpQuoteSigner: {
+      const cursor = new ByteCursor(payload);
+      const { operation, signer } = decodeSetQuoteSignerOperation(cursor);
+      return { kind: 'setIgpQuoteSigner', operation, signer };
+    }
+    case IgpInstructionKind.SetIgpMinIssuedAt: {
+      const cursor = new ByteCursor(payload);
+      return { kind: 'setIgpMinIssuedAt', minIssuedAt: cursor.readI64LE() };
+    }
+    case IgpInstructionKind.SubmitIgpQuote: {
+      const cursor = new ByteCursor(payload);
+      return { kind: 'submitIgpQuote', quote: decodeSvmSignedQuote(cursor) };
+    }
+    case IgpInstructionKind.CloseIgpTransientQuote:
+      return { kind: 'closeIgpTransientQuote' };
+    case IgpInstructionKind.CloseIgpStandingQuote:
+      return { kind: 'closeIgpStandingQuote' };
+    case IgpInstructionKind.GetIgpQuoteAccountMetas: {
+      const cursor = new ByteCursor(payload);
+      return {
+        kind: 'getIgpQuoteAccountMetas',
+        input: decodeGetIgpQuoteAccountMetasInput(cursor),
       };
     }
     default:
@@ -317,4 +430,181 @@ export async function getSetDestinationGasOverheadsInstruction(
       configs,
     }),
   );
+}
+
+export async function getSetIgpQuoteConfigInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  config: IgpFeeConfig | null,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({ kind: 'setIgpQuoteConfig', config }),
+  );
+}
+
+export async function getSetIgpQuoteSignerInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  operation: SetQuoteSignerOp,
+  signer: string,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({
+      kind: 'setIgpQuoteSigner',
+      operation,
+      signer,
+    }),
+  );
+}
+
+export async function getSetIgpMinIssuedAtInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  minIssuedAt: bigint,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({ kind: 'setIgpMinIssuedAt', minIssuedAt }),
+  );
+}
+
+export async function getSubmitIgpQuoteInstruction(
+  programAddress: Address,
+  payer: TransactionSigner,
+  igpAccount: Address,
+  quotePda: Address,
+  quote: SvmSignedQuote,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSigner(payer),
+      readonlyAccount(igpAccount),
+      writableAccount(quotePda),
+    ],
+    encodeIgpProgramInstruction({ kind: 'submitIgpQuote', quote }),
+  );
+}
+
+export async function getCloseIgpTransientQuoteInstruction(
+  programAddress: Address,
+  transientPda: Address,
+  payer: TransactionSigner,
+  igpAccount: Address,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      writableAccount(transientPda),
+      writableSigner(payer),
+      readonlyAccount(igpAccount),
+    ],
+    encodeIgpProgramInstruction({ kind: 'closeIgpTransientQuote' }),
+  );
+}
+
+export async function getCloseIgpStandingQuoteInstruction(
+  programAddress: Address,
+  standingPda: Address,
+  igpAccount: Address,
+  beneficiary: Address,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      writableAccount(standingPda),
+      readonlyAccount(igpAccount),
+      writableAccount(beneficiary),
+    ],
+    encodeIgpProgramInstruction({ kind: 'closeIgpStandingQuote' }),
+  );
+}
+
+export async function getGetIgpQuoteAccountMetasInstruction(
+  programAddress: Address,
+  igpAccount: Address,
+  input: GetIgpQuoteAccountMetasInput,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [readonlyAccount(igpAccount)],
+    encodeIgpProgramInstruction({ kind: 'getIgpQuoteAccountMetas', input }),
+  );
+}
+
+/**
+ * Runs the IGP's `GetIgpQuoteAccountMetas` instruction via transaction
+ * simulation and parses the returned account-meta list.
+ *
+ * The instruction never lands on-chain — the simulator runs it just long
+ * enough for the program to compute the dynamic account set required by a
+ * matching `SubmitIgpQuote` / `transfer_remote` call and emit it via
+ * `set_return_data`.
+ *
+ * Wire layout returned by the on-chain program:
+ *   [0] system program
+ *   [1] payer placeholder (signer + writable, substituted downstream)
+ *   [2] IGP program data PDA
+ *   [3] unique gas-payment account
+ *   [4] gas-payment PDA (== deriveIgpGasPaymentPda(igpAccount, slot[3]))
+ *   [5] configured IGP (`Igp` or `OverheadIgp`)
+ *   [6] sender_authority (the route's IGP quote authority PDA)
+ *   [7] quoted sender (== `input.sender`, the warp program id)
+ *   [8..] cascade route accounts
+ *
+ * Asserts the static prefix and the input-derivable `quoted sender` slot
+ * so drift in the on-chain meta layout fails loudly here instead of
+ * surfacing as a confusing `transfer_remote` malformed-ix runtime error.
+ */
+export async function simulateIgpQuoteAccountMetas(args: {
+  rpc: SvmRpc;
+  programId: Address;
+  igpAccount: Address;
+  /** Funded address used as the simulation fee payer (signature not required). */
+  payer: Address;
+  input: GetIgpQuoteAccountMetasInput;
+}): Promise<AccountMeta[]> {
+  const metas = await simulateInstructionAccountMetas({
+    rpc: args.rpc,
+    payer: args.payer,
+    ix: await getGetIgpQuoteAccountMetasInstruction(
+      args.programId,
+      args.igpAccount,
+      args.input,
+    ),
+  });
+  assert(
+    metas[0]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateIgpQuoteAccountMetas: expected system program at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateIgpQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[7]?.address === args.input.sender,
+    `simulateIgpQuoteAccountMetas: expected quoted sender (${args.input.sender}) at slot 7, got ${metas[7]?.address} — on-chain contract may have changed`,
+  );
+  return metas;
 }

@@ -35,6 +35,7 @@ hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver", featur
     "test-client",
 ] }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
+package-versioned = { path = "../../libraries/package-versioned" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [lib]

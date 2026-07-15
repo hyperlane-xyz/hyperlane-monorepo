@@ -172,8 +172,14 @@ jobs:
           - synthetic-token
           - collateral-token
           - cross-collateral-token
+          - composite-ism
           - provider
           - read-token
+          - program-upgrade
+          - igp-program-upgrade
+          - warp-alt-simulation-parity
+          - warp-fee-config
+          - warp-transfer-remote-with-fees
         include:
           - test: read-token
             continue-on-error: true

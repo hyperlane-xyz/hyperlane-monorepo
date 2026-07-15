@@ -1,24 +1,14 @@
 //! Program processor.
 
-use borsh::BorshDeserialize;
-
 use access_control::AccessControl;
 use account_utils::{
     create_pda_account, DiscriminatorDecode, DiscriminatorEncode, SizedData, SPL_NOOP_PROGRAM_ID,
 };
 use hyperlane_core::{Decode, Encode, H256};
-use hyperlane_sealevel_connection_client::gas_router::HyperlaneGasRouter;
-use hyperlane_sealevel_connection_client::{
-    HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
-};
-use hyperlane_sealevel_igp::{
-    accounts::InterchainGasPaymasterType,
-    instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
-};
+use hyperlane_sealevel_connection_client::HyperlaneConnectionClientRecipient;
 use hyperlane_sealevel_mailbox::{
-    accounts::Outbox,
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch},
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
+    accounts::Outbox, mailbox_message_dispatch_authority_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -35,7 +25,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::{get_return_data, invoke, invoke_signed, set_return_data},
+    program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -60,12 +50,21 @@ use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct HyperlaneCrossCollateralProgram;
+impl package_versioned::PackageVersioned for HyperlaneCrossCollateralProgram {}
+
 /// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<HyperlaneCrossCollateralProgram>();
+    }
+
     // Stage 1: Try cross-collateral instruction discriminator [2,2,2,2,2,2,2,2]
     if let Ok(cc_instruction) = CrossCollateralInstruction::decode(instruction_data) {
         return match cc_instruction {
@@ -128,7 +127,10 @@ pub fn process_instruction(
             HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(
                 program_id,
                 accounts,
-                TransferRemoteWithMemo { xfer, memo: vec![] },
+                TransferRemoteWithMemo {
+                    xfer,
+                    memo: Vec::with_capacity(0),
+                },
             )
         }
         TokenIxn::TransferRemoteWithMemo(transfer) => {
@@ -164,6 +166,11 @@ pub fn process_instruction(
         TokenIxn::SetInterchainGasPaymaster(new_igp) => {
             HyperlaneSealevelToken::<CollateralPlugin>::set_interchain_gas_paymaster(
                 program_id, accounts, new_igp,
+            )
+        }
+        TokenIxn::SetFeeConfig(fee_config) => {
+            HyperlaneSealevelToken::<CollateralPlugin>::set_fee_config(
+                program_id, accounts, fee_config,
             )
         }
     }
@@ -293,6 +300,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         remote_decimals: init.remote_decimals,
         remote_routers: HashMap::new(),
         plugin_data,
+        fee_config: None.into(),
     };
     let hyperlane_token_account_data =
         HyperlaneTokenAccount::<CollateralPlugin>::from(hyperlane_token);
@@ -528,16 +536,10 @@ fn transfer_remote_to(
 ///
 /// Accounts consumed from iterator:
 /// 3.    `[executable]` SPL Noop
-/// 4.    `[executable]` mailbox program
-/// 5.    `[]` mailbox outbox
-/// 6.    `[]` dispatch authority PDA
-/// 7.    `[signer]` sender wallet / mailbox payer
-/// 8.    `[signer]` unique message account
-/// 9.    `[writable]` dispatched message PDA
-///       10..N IGP accounts (optional), then plugin transfer_in accounts.
+/// 4..N  Shared remote-dispatch accounts (mailbox, outbox, dispatch authority, sender,
+///       unique message, dispatched message PDA, optional IGP, plugin transfer_in).
 /// SAFETY: This function must only be called from `transfer_remote_to`, which
 /// validates that the destination is an authorized remote router. Do not call directly.
-#[allow(clippy::too_many_lines)]
 fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
     program_id: &Pubkey,
     hyperlane_token: &HyperlaneToken<CollateralPlugin>,
@@ -551,185 +553,19 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Account 4: Mailbox program
-    let mailbox_info = next_account_info(accounts_iter)?;
-    if mailbox_info.key != &hyperlane_token.mailbox {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 5: Mailbox outbox (verified by mailbox)
-    let mailbox_outbox_account = next_account_info(accounts_iter)?;
-
-    // Account 6: Dispatch authority PDA
-    let dispatch_authority_account = next_account_info(accounts_iter)?;
-    let dispatch_authority_seeds: &[&[u8]] =
-        mailbox_message_dispatch_authority_pda_seeds!(hyperlane_token.dispatch_authority_bump);
-    let dispatch_authority_key =
-        Pubkey::create_program_address(dispatch_authority_seeds, program_id)?;
-    if *dispatch_authority_account.key != dispatch_authority_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // Account 7: Sender wallet (signer + payer)
-    let sender_wallet = next_account_info(accounts_iter)?;
-    if !sender_wallet.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Account 8: Unique message / gas payment account
-    let unique_message_account = next_account_info(accounts_iter)?;
-
-    // Account 9: Dispatched message PDA
-    let dispatched_message_pda = next_account_info(accounts_iter)?;
-
-    // Accounts 10..N: IGP accounts (optional)
-    let igp_payment_accounts = if let Some((igp_program_id, igp_account_type)) =
-        hyperlane_token.interchain_gas_paymaster()
-    {
-        let igp_program_account = next_account_info(accounts_iter)?;
-        if igp_program_account.key != igp_program_id {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        let igp_program_data_account = next_account_info(accounts_iter)?;
-        let igp_payment_pda_account = next_account_info(accounts_iter)?;
-
-        let configured_igp_account = next_account_info(accounts_iter)?;
-        if configured_igp_account.key != igp_account_type.key() {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        let mut igp_payment_account_metas = vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*sender_wallet.key, true),
-            AccountMeta::new(*igp_program_data_account.key, false),
-            AccountMeta::new_readonly(*unique_message_account.key, true),
-            AccountMeta::new(*igp_payment_pda_account.key, false),
-        ];
-        let mut igp_payment_account_infos = vec![
-            system_program_account.clone(),
-            sender_wallet.clone(),
-            igp_program_data_account.clone(),
-            unique_message_account.clone(),
-            igp_payment_pda_account.clone(),
-        ];
-
-        match igp_account_type {
-            InterchainGasPaymasterType::Igp(_) => {
-                igp_payment_account_metas
-                    .push(AccountMeta::new(*configured_igp_account.key, false));
-                igp_payment_account_infos.push(configured_igp_account.clone());
-            }
-            InterchainGasPaymasterType::OverheadIgp(_) => {
-                let inner_igp_account = next_account_info(accounts_iter)?;
-                igp_payment_account_metas.extend([
-                    AccountMeta::new(*inner_igp_account.key, false),
-                    AccountMeta::new_readonly(*configured_igp_account.key, false),
-                ]);
-                igp_payment_account_infos
-                    .extend([inner_igp_account.clone(), configured_igp_account.clone()]);
-            }
-        };
-
-        Some((igp_payment_account_metas, igp_payment_account_infos))
-    } else {
-        None
-    };
-
-    // Convert amount to local and remote decimals
-    let local_amount: u64 = xfer
-        .amount_or_id
-        .try_into()
-        .map_err(|_| ProgramError::InvalidArgument)?;
-    let remote_amount = hyperlane_token.local_amount_to_remote_amount(local_amount)?;
-
-    // Transfer tokens into escrow via plugin
-    CollateralPlugin::transfer_in(
+    // Delegate to the shared remote-dispatch helper in token-lib.
+    let remote_amount = HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_to(
         program_id,
         hyperlane_token,
-        sender_wallet,
+        system_program_account,
+        spl_noop,
         accounts_iter,
-        local_amount,
+        xfer.destination_domain,
+        xfer.recipient,
+        xfer.target_router,
+        xfer.amount_or_id,
+        Vec::with_capacity(0),
     )?;
-
-    // Extraneous account check
-    if accounts_iter.next().is_some() {
-        return Err(TokenError::ExtraneousAccount.into());
-    }
-
-    // Build token message body
-    let token_transfer_message = TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
-
-    // Build mailbox dispatch CPI with target_router as recipient (not self.router(domain))
-    let dispatch_instruction = MailboxInstruction::OutboxDispatch(MailboxOutboxDispatch {
-        sender: *program_id,
-        destination_domain: xfer.destination_domain,
-        recipient: xfer.target_router,
-        message_body: token_transfer_message,
-    });
-    let dispatch_account_metas = vec![
-        AccountMeta::new(*mailbox_outbox_account.key, false),
-        AccountMeta::new_readonly(*dispatch_authority_account.key, true),
-        AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new_readonly(SPL_NOOP_PROGRAM_ID, false),
-        AccountMeta::new(*sender_wallet.key, true),
-        AccountMeta::new_readonly(*unique_message_account.key, true),
-        AccountMeta::new(*dispatched_message_pda.key, false),
-    ];
-    let dispatch_account_infos = &[
-        mailbox_outbox_account.clone(),
-        dispatch_authority_account.clone(),
-        system_program_account.clone(),
-        spl_noop.clone(),
-        sender_wallet.clone(),
-        unique_message_account.clone(),
-        dispatched_message_pda.clone(),
-    ];
-
-    let mailbox_ixn = Instruction {
-        program_id: hyperlane_token.mailbox,
-        data: dispatch_instruction
-            .into_instruction_data()
-            .map_err(|_| ProgramError::BorshIoError)?,
-        accounts: dispatch_account_metas,
-    };
-    invoke_signed(
-        &mailbox_ixn,
-        dispatch_account_infos,
-        &[dispatch_authority_seeds],
-    )?;
-
-    // Parse message ID from mailbox return data
-    let (returning_program_id, returned_data) =
-        get_return_data().ok_or(ProgramError::InvalidArgument)?;
-    if returning_program_id != hyperlane_token.mailbox {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // IGP payment if configured
-    if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
-        let (igp_program_id, _) = hyperlane_token
-            .interchain_gas_paymaster()
-            .ok_or(ProgramError::InvalidArgument)?;
-
-        let message_id = hyperlane_core::H256::try_from_slice(&returned_data)
-            .map_err(|_| ProgramError::InvalidArgument)?;
-
-        let destination_gas = hyperlane_token
-            .destination_gas(xfer.destination_domain)
-            .ok_or(ProgramError::InvalidArgument)?;
-
-        let igp_ixn = Instruction::new_with_borsh(
-            *igp_program_id,
-            &IgpInstruction::PayForGas(IgpPayForGas {
-                message_id,
-                destination_domain: xfer.destination_domain,
-                gas_amount: destination_gas,
-            }),
-            igp_payment_account_metas,
-        );
-        invoke(&igp_ixn, &igp_payment_account_infos)?;
-    }
 
     msg!(
         "CC transfer_remote_to completed to destination: {}, target_router: {:?}, remote_amount: {}",
@@ -786,20 +622,35 @@ fn transfer_remote_to_local(
         return Err(ProgramError::InvalidAccountData);
     }
 
-    // Convert amount
+    // Fee prelude: parse fee section if fee_config is configured.
     let local_amount: u64 = xfer
         .amount_or_id
         .try_into()
-        .map_err(|_| ProgramError::InvalidArgument)?;
-    let remote_amount = hyperlane_token.local_amount_to_remote_amount(local_amount)?;
+        .map_err(|_| TokenError::IntegerOverflow)?;
 
-    // Transfer tokens into escrow via plugin
-    CollateralPlugin::transfer_in(
+    let fee = if hyperlane_token.fee_config.is_some() {
+        let (fee_amount, fee_beneficiary) =
+            HyperlaneSealevelToken::<CollateralPlugin>::parse_fee_section_and_quote(
+                hyperlane_token,
+                sender_wallet,
+                accounts_iter,
+                xfer.destination_domain,
+                xfer.recipient,
+                local_amount,
+                xfer.target_router,
+            )?;
+        Some((fee_amount, fee_beneficiary))
+    } else {
+        None
+    };
+
+    let remote_amount = HyperlaneSealevelToken::<CollateralPlugin>::convert_and_transfer_in(
         program_id,
         hyperlane_token,
         sender_wallet,
         accounts_iter,
-        local_amount,
+        xfer.amount_or_id,
+        fee,
     )?;
 
     // Build HandleLocal instruction data
@@ -893,6 +744,11 @@ fn transfer_from_remote_cc(
 
     // Verify mailbox process authority is a valid signer
     hyperlane_token.ensure_mailbox_process_authority_signer(process_authority_account)?;
+
+    // Same-domain releases must use the same-chain CPI path, not the mailbox.
+    if xfer.origin == cc_state.local_domain {
+        return Err(CcError::SameDomainViaMailbox.into());
+    }
 
     // Dual-router validation: check both CC enrolled routers and base remote routers
     if !cc_state.is_authorized_router(xfer.origin, &xfer.sender, &hyperlane_token.remote_routers) {
@@ -1046,8 +902,8 @@ fn handle_local(
     // unvalidated sender field (which would allow spoofing).
     let sender = H256::from(handle.sender_program_id.to_bytes());
 
-    // Validate sender is an authorized router (CC enrolled or base remote routers)
-    if !cc_state.is_authorized_router(cc_state.local_domain, &sender, &token.remote_routers) {
+    // Same-chain release is restricted to CC-enrolled routers.
+    if !cc_state.is_enrolled_router(cc_state.local_domain, &sender) {
         return Err(CcError::UnauthorizedRouter.into());
     }
 

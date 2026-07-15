@@ -304,6 +304,20 @@ export {
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
   ArbL2ToL1IsmConfigSchema,
+  CompositeAggregationNodeConfig,
+  CompositeAmountRoutingNodeConfig,
+  CompositeFallbackRoutingNodeConfig,
+  CompositeIsmConfig,
+  CompositeIsmConfigSchema,
+  CompositeIsmNodeConfig,
+  CompositeIsmNodeConfigSchema,
+  CompositeIsmNodeType,
+  CompositeMultisigMessageIdNodeConfig,
+  CompositePausableNodeConfig,
+  CompositeRateLimitedNodeConfig,
+  CompositeRoutingNodeConfig,
+  CompositeTestNodeConfig,
+  CompositeTrustedRelayerNodeConfig,
   DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
@@ -1058,6 +1072,7 @@ export {
   QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
+export { tokenFeeInputToFeeConfig } from './fee/feeConfigMapping.js';
 
 export {
   TurnkeyClientManager,

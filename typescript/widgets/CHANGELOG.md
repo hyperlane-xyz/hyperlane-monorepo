@@ -1,5 +1,41 @@
 # @hyperlane-xyz/widgets
 
+## 36.0.0
+
+### Minor Changes
+
+- 70586aa: Added aleo ARC20 token support
+
+### Patch Changes
+
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [019201a]
+- Updated dependencies [cc722b8]
+- Updated dependencies [9cd7606]
+- Updated dependencies [2821252]
+- Updated dependencies [a6a3a33]
+- Updated dependencies [2821252]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+- Updated dependencies [d288e7b]
+- Updated dependencies [cf6857e]
+- Updated dependencies [823eca3]
+- Updated dependencies [70586aa]
+- Updated dependencies [32b87ad]
+- Updated dependencies [cf6857e]
+  - @hyperlane-xyz/sdk@36.0.0
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/aleo-sdk@36.0.0
+  - @hyperlane-xyz/cosmos-sdk@36.0.0
+  - @hyperlane-xyz/radix-sdk@36.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.2
+
 ## 35.2.0
 
 ### Patch Changes

@@ -50,4 +50,4 @@ export { formatBigInt } from './utils.js';
 export { startMetricsServer } from './server.js';
 
 // Push Gateway
-export { getPushGateway, submitMetrics } from './pushgateway.js';
+export { deleteMetrics, getPushGateway, submitMetrics } from './pushgateway.js';

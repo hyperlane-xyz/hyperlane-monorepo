@@ -1,10 +1,4 @@
-import {
-  BHP256,
-  BHP1024,
-  Plaintext,
-  Program,
-  U128,
-} from '@provablehq/sdk/mainnet.js';
+import { BHP256, BHP1024, Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -20,13 +14,7 @@ import { type AnyAleoNetworkClient } from '../clients/base.js';
 
 import { AleoNetworkId, AleoTokenType } from './types.js';
 
-const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
-const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-
-function getCustomWarpSuffixFromEnv(): string | undefined {
-  return process.env['ALEO_WARP_SUFFIX'];
-}
 
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
@@ -42,168 +30,6 @@ export const RETRY_DELAY_MS = 100;
 
 export const SUFFIX_LENGTH_LONG = 6;
 export const SUFFIX_LENGTH_SHORT = 3;
-
-export function loadProgramsInDeployOrder(
-  prefix: string,
-  programName: AleoProgram,
-  coreSuffix: string,
-  warpSuffix?: string,
-): { id: string; name: string; program: string }[] {
-  const visited = new Set<string>();
-  let programs: Program[] = [];
-
-  function visit(p: AleoProgram) {
-    if (visited.has(p)) return;
-    visited.add(p);
-
-    const code = programRegistry[p];
-    if (!code) throw new Error(`Program ${p} not found`);
-
-    const program = Program.fromString(code);
-
-    program
-      .getImports()
-      .map((dep) => dep.replace('.aleo', ''))
-      .forEach((dep) => visit(dep));
-
-    programs.push(program);
-  }
-
-  visit(programName);
-
-  programs = programs.map((p) => {
-    let output = p.toString();
-
-    for (const r of Object.keys(programRegistry)) {
-      if (r === 'credits' || r === 'token_registry') {
-        continue;
-      }
-
-      output = output.replaceAll(
-        `${r}.aleo`,
-        `${prefix}_${r.replaceAll('hyp_', '')}.aleo`,
-      );
-    }
-
-    return Program.fromString(output);
-  });
-
-  if (!skipSuffixes) {
-    programs = programs.map((p) =>
-      Program.fromString(
-        p
-          .toString()
-          .replaceAll(
-            /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-            (_, p1) => (coreSuffix ? `${p1}_${coreSuffix}.aleo` : `${p1}.aleo`),
-          )
-          .replaceAll(
-            /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) => {
-              if (p1 === 'hyp_native') {
-                return `hyp_warp_token_credits.aleo`;
-              }
-              const effectiveSuffix =
-                getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
-              return `hyp_warp_token_${effectiveSuffix}.aleo`;
-            },
-          ),
-      ),
-    );
-
-    if (customIsmSuffix) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          p
-            .toString()
-            .replaceAll(
-              'ism_manager.aleo',
-              `ism_manager_${customIsmSuffix}.aleo`,
-            ),
-        ),
-      );
-    }
-  }
-
-  if (upgradeAuthority) {
-    if (new RegExp(/^(aleo1[a-z0-9]{58})$/).test(upgradeAuthority)) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          p.toString().replaceAll(
-            `constructor:
-    assert.eq edition 0u16;`,
-            `constructor:
-    assert.eq program_owner ${upgradeAuthority};`,
-          ),
-        ),
-      );
-    } else if (new RegExp(/^[a-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          `import ${upgradeAuthority};\n` +
-            p.toString().replaceAll(
-              `constructor:
-    assert.eq edition 0u16;`,
-              `struct ChecksumEdition:
-    checksum as [u8; 32u32];
-    edition as u16;
-
-struct WalletEcdsaSigner:
-    wallet_id as address;
-    ecdsa_signer as [u8; 20u32];
-
-struct WalletSigningOpId:
-    wallet_id as address;
-    signing_op_id as field;
-
-struct AdminOp:
-    op as u8;
-    threshold as u8;
-    aleo_signer as address;
-    ecdsa_signer as [u8; 20u32];
-    
-constructor:
-    gt edition 0u16 into r0;
-    branch.eq r0 false to end_then_0_2;
-    cast checksum edition into r1 as ChecksumEdition;
-    hash.bhp256 r1 into r2 as field;
-    cast ${p.id()} r2 into r3 as WalletSigningOpId;
-    hash.bhp256 r3 into r4 as field;
-    contains ${upgradeAuthority}/completed_signing_ops[r4] into r5;
-    assert.eq r5 true;
-    branch.eq true true to end_otherwise_0_3;
-    position end_then_0_2;
-    position end_otherwise_0_3;`,
-            ),
-        ),
-      );
-    } else {
-      throw new Error(
-        `upgrade authority must be an aleo account address or the program id of a multisig program`,
-      );
-    }
-  }
-
-  return programs.map((p) => ({
-    id: p.id(),
-    name:
-      Object.keys(programRegistry).find((r) => {
-        if (r === 'hyp_native') {
-          return p.id() === `${prefix}_warp_token_credits.aleo`;
-        }
-        if (
-          (r === 'hyp_collateral' || r === 'hyp_synthetic') &&
-          r === programName &&
-          p.id().startsWith(`${prefix}_warp_token_`) &&
-          p.id() !== `${prefix}_warp_token_credits.aleo`
-        ) {
-          return true;
-        }
-        return p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`);
-      }) || '',
-    program: p.toString(),
-  }));
-}
 
 export const ALEO_NULL_ADDRESS =
   'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
@@ -555,4 +381,12 @@ export function formatHookAddress(
   );
 
   return `${hookManagerProgramId}/${hookAddress}`;
+}
+
+export function isV2WarpToken(programId: string): boolean {
+  return programId.endsWith('_v2.aleo');
+}
+
+export function isArc20ProgramId(denom: string): boolean {
+  return denom.endsWith('.aleo');
 }

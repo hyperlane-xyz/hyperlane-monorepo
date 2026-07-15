@@ -27,7 +27,7 @@ export const messageOptions: { [k: string]: Options } = {
   timeout: {
     type: 'number',
     description: 'Timeout in seconds',
-    default: 5 * 60,
+    default: 10 * 60,
   },
   quick: {
     type: 'boolean',

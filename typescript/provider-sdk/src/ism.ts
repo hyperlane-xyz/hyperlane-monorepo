@@ -35,6 +35,7 @@ export interface IsmConfigs {
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  compositeIsm: CompositeIsmConfig;
 }
 
 export type IsmType = keyof IsmConfigs;
@@ -63,6 +64,66 @@ export interface DomainRoutingIsmConfig {
   domains: Record<string, IsmConfig | string>;
 }
 
+/**
+ * Discriminants for composite ISM tree nodes — used to compare/narrow
+ * `CompositeIsmNodeConfig`/`CompositeIsmNodeArtifactConfig` without
+ * hardcoding string literals at each comparison site (mirrors
+ * `@hyperlane-xyz/sdk`'s `CompositeIsmNodeType`, redeclared here since
+ * provider-sdk doesn't depend on the top-level sdk package).
+ */
+export const CompositeIsmNodeType = {
+  TRUSTED_RELAYER: 'trustedRelayer',
+  MULTISIG_MESSAGE_ID: 'multisigMessageId',
+  AGGREGATION: 'aggregation',
+  TEST: 'test',
+  PAUSABLE: 'pausable',
+  AMOUNT_ROUTING: 'amountRouting',
+  RATE_LIMITED: 'rateLimited',
+  ROUTING: 'routing',
+  FALLBACK_ROUTING: 'fallbackRouting',
+} as const;
+
+/**
+ * A node in a Sealevel-only "composite ISM" tree (one program storing the
+ * whole tree in a single PDA). Sub-nodes are inline Borsh data, not separate
+ * deployments — only `routing`/`fallbackRouting.domains` are chain-name keyed
+ * (config-file-only; diffed into per-domain instructions by the writer).
+ */
+export type CompositeIsmNodeConfig =
+  | { type: 'trustedRelayer'; relayer: string }
+  | { type: 'multisigMessageId'; validators: string[]; threshold: number }
+  | {
+      type: 'aggregation';
+      threshold: number;
+      subIsms: CompositeIsmNodeConfig[];
+    }
+  | { type: 'test'; accept: boolean }
+  | { type: 'pausable'; paused: boolean }
+  | {
+      type: 'amountRouting';
+      threshold: string;
+      lower: CompositeIsmNodeConfig;
+      upper: CompositeIsmNodeConfig;
+    }
+  | {
+      type: 'rateLimited';
+      maxCapacity: string;
+      mailbox: string;
+      recipient?: string;
+    }
+  | { type: 'routing'; domains?: Record<string, CompositeIsmNodeConfig> }
+  | {
+      type: 'fallbackRouting';
+      fallbackIsm: string;
+      domains?: Record<string, CompositeIsmNodeConfig>;
+    };
+
+export interface CompositeIsmConfig {
+  type: 'compositeIsm';
+  owner: string;
+  root: CompositeIsmNodeConfig;
+}
+
 export type IsmModuleAddresses = {
   deployedIsm: string;
   mailbox: string;
@@ -79,6 +140,7 @@ export interface IsmArtifactConfigs {
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  compositeIsm: CompositeIsmArtifactConfig;
 }
 
 /**
@@ -114,11 +176,56 @@ export interface RoutingIsmArtifactConfig {
 export type RawRoutingIsmArtifactConfig =
   ConfigOnChain<RoutingIsmArtifactConfig>;
 
+/**
+ * Artifact-API mirror of CompositeIsmNodeConfig: `routing`/`fallbackRouting.domains`
+ * are keyed by domain ID instead of chain name. Otherwise identical — sub-nodes
+ * are never separately-deployed Artifacts, so there's no distinct "raw" shape
+ * (unlike domainRoutingIsm, whose domains wrap nested Artifact<> objects).
+ */
+export type CompositeIsmNodeArtifactConfig =
+  | { type: 'trustedRelayer'; relayer: string }
+  | { type: 'multisigMessageId'; validators: string[]; threshold: number }
+  | {
+      type: 'aggregation';
+      threshold: number;
+      subIsms: CompositeIsmNodeArtifactConfig[];
+    }
+  | { type: 'test'; accept: boolean }
+  | { type: 'pausable'; paused: boolean }
+  | {
+      type: 'amountRouting';
+      threshold: string;
+      lower: CompositeIsmNodeArtifactConfig;
+      upper: CompositeIsmNodeArtifactConfig;
+    }
+  | {
+      type: 'rateLimited';
+      maxCapacity: string;
+      mailbox: string;
+      recipient?: string;
+    }
+  | {
+      type: 'routing';
+      domains?: Record<number, CompositeIsmNodeArtifactConfig>;
+    }
+  | {
+      type: 'fallbackRouting';
+      fallbackIsm: string;
+      domains?: Record<number, CompositeIsmNodeArtifactConfig>;
+    };
+
+export interface CompositeIsmArtifactConfig {
+  type: 'compositeIsm';
+  owner: string;
+  root: CompositeIsmNodeArtifactConfig;
+}
+
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  compositeIsm: CompositeIsmArtifactConfig;
 }
 
 /**
@@ -237,6 +344,21 @@ export function mergeIsmArtifacts(
     };
   }
 
+  // Composite ISM's tree is diffed by SvmCompositeIsmWriter.update() itself
+  // (it re-reads on-chain state directly) rather than via this generic
+  // Artifact recursion, since sub-nodes aren't separate deployments.
+  if (expectedConfig.type === 'compositeIsm') {
+    const deployedAddress = isArtifactDeployed(expectedArtifact)
+      ? expectedArtifact.deployed
+      : currentArtifact.deployed;
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedConfig,
+      deployed: deployedAddress,
+    };
+  }
+
   assert(
     currentConfig.type === 'domainRoutingIsm' &&
       expectedConfig.type === 'domainRoutingIsm',
@@ -305,10 +427,107 @@ export function altVMIsmTypeToProviderSdkType(
       return 'messageIdMultisigIsm';
     case AltVMIsmType.ROUTING:
       return 'domainRoutingIsm';
+    case AltVMIsmType.COMPOSITE:
+      return 'compositeIsm';
     default:
       throw new Error(
         `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
       );
+  }
+}
+
+/**
+ * Recursively converts a composite ISM node from the Artifact API shape
+ * (domain-ID-keyed `domains`) to the Config API shape (chain-name-keyed).
+ * Only `routing`/`fallbackRouting.domains` need key conversion — `subIsms`
+ * (array) and `amountRouting.lower`/`upper` (fixed fields) don't.
+ */
+function compositeIsmNodeArtifactToConfig(
+  node: CompositeIsmNodeArtifactConfig,
+  chainLookup: ChainLookup,
+): CompositeIsmNodeConfig {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return {
+        ...node,
+        subIsms: node.subIsms.map((sub) =>
+          compositeIsmNodeArtifactToConfig(sub, chainLookup),
+        ),
+      };
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return {
+        ...node,
+        lower: compositeIsmNodeArtifactToConfig(node.lower, chainLookup),
+        upper: compositeIsmNodeArtifactToConfig(node.upper, chainLookup),
+      };
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING: {
+      if (!node.domains) {
+        return { ...node, domains: undefined };
+      }
+      const domains: Record<string, CompositeIsmNodeConfig> = {};
+      for (const [domainIdStr, domainNode] of Object.entries(node.domains)) {
+        const chainName = chainLookup.getChainName(parseInt(domainIdStr, 10));
+        if (!chainName) {
+          // Skip unknown domains, matching domainRoutingIsm's behavior
+          continue;
+        }
+        domains[chainName] = compositeIsmNodeArtifactToConfig(
+          domainNode,
+          chainLookup,
+        );
+      }
+      return { ...node, domains };
+    }
+    default:
+      return node;
+  }
+}
+
+/**
+ * Recursively converts a composite ISM node from the Config API shape
+ * (chain-name-keyed `domains`) to the Artifact API shape (domain-ID-keyed).
+ * Inverse of {@link compositeIsmNodeArtifactToConfig}.
+ */
+function compositeIsmNodeConfigToArtifact(
+  node: CompositeIsmNodeConfig,
+  chainLookup: ChainLookup,
+): CompositeIsmNodeArtifactConfig {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return {
+        ...node,
+        subIsms: node.subIsms.map((sub) =>
+          compositeIsmNodeConfigToArtifact(sub, chainLookup),
+        ),
+      };
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return {
+        ...node,
+        lower: compositeIsmNodeConfigToArtifact(node.lower, chainLookup),
+        upper: compositeIsmNodeConfigToArtifact(node.upper, chainLookup),
+      };
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING: {
+      if (!node.domains) {
+        return { ...node, domains: undefined };
+      }
+      const domains: Record<number, CompositeIsmNodeArtifactConfig> = {};
+      for (const [chainName, domainNode] of Object.entries(node.domains)) {
+        const domainId = chainLookup.getDomainId(chainName);
+        if (isNullish(domainId)) {
+          // Skip unknown chains, matching domainRoutingIsm's behavior
+          continue;
+        }
+        domains[domainId] = compositeIsmNodeConfigToArtifact(
+          domainNode,
+          chainLookup,
+        );
+      }
+      return { ...node, domains };
+    }
+    default:
+      return node;
   }
 }
 
@@ -371,6 +590,14 @@ export function ismArtifactToDerivedConfig(
       // Test ISMs have identical structure between Artifact and Config APIs
       return {
         ...config,
+        address,
+      };
+
+    case 'compositeIsm':
+      return {
+        type: 'compositeIsm',
+        owner: config.owner,
+        root: compositeIsmNodeArtifactToConfig(config.root, chainLookup),
         address,
       };
 
@@ -450,6 +677,18 @@ export function ismConfigToArtifact(
         type: 'domainRoutingIsm',
         owner: config.owner,
         domains,
+      },
+    };
+  }
+
+  // Composite ISM - need to convert chain names to domain IDs throughout the tree
+  if (config.type === 'compositeIsm') {
+    return {
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: 'compositeIsm',
+        owner: config.owner,
+        root: compositeIsmNodeConfigToArtifact(config.root, chainLookup),
       },
     };
   }
