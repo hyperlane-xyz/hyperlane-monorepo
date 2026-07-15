@@ -161,9 +161,12 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         }
 
         // We are within one chunk size of the known tip.
-        // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
-        if let Some(sleep_time) =
-            Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
+        // If it's been less than the configured interval since the last tip update, sleep for a
+        // bit until we're ready to fetch the next tip. This throttle used to be a hardcoded 30s,
+        // which silently overrode the configured interval for any chain near tip.
+        if let Some(sleep_time) = self
+            .idle_sleep_duration
+            .checked_sub(self.last_tip_update.elapsed())
         {
             return Ok(Some(sleep_time));
         }
@@ -444,5 +447,28 @@ pub(crate) mod test {
         let mut cursor = mock_rate_limited_cursor::<MockIndexable>(Some(chain_tips)).await;
         let (action, _) = cursor.next_action().await.unwrap();
         assert!(matches!(action, CursorAction::Sleep(_)));
+    }
+
+    /// The near-tip throttle must be governed by the configured `idle_sleep_duration`, not a
+    /// hardcoded window - otherwise a fast configured interval (e.g. 1s for fastpath) is
+    /// silently overridden by a much longer wait whenever the cursor is within one chunk of tip.
+    #[tokio::test]
+    async fn test_get_rate_limit_uses_configured_interval_not_hardcoded_window() {
+        // mock_rate_limited_cursor constructs with idle_sleep_duration = 5s.
+        let chain_tips = vec![10];
+        let cursor = mock_rate_limited_cursor::<MockIndexable>(Some(chain_tips)).await;
+
+        // next_block (0) + chunk_size (10) == tip (10), so we're within one chunk of tip and
+        // get_rate_limit's near-tip branch applies. last_tip_update was just set at construction.
+        let sleep_time = cursor
+            .get_rate_limit()
+            .await
+            .expect("get_rate_limit must not fail")
+            .expect("must sleep when within one chunk of the known tip");
+        assert!(
+            sleep_time <= Duration::from_secs(5),
+            "sleep_time {sleep_time:?} exceeds the configured 5s interval - the near-tip throttle \
+             is not governed by idle_sleep_duration"
+        );
     }
 }

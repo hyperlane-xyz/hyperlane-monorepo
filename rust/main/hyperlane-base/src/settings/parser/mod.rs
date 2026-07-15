@@ -244,11 +244,19 @@ fn parse_chain(
                 .unwrap_or_default()
         });
     // Defaults to 5s; overridable via `index.interval` (seconds).
-    let idle_sleep_duration = chain
+    let interval_secs = chain
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("interval")
         .parse_u64()
+        .end();
+    if interval_secs == Some(0) {
+        err.push(
+            chain.cwp.clone(),
+            eyre!("`index.interval` must be greater than zero, or omitted for the 5s default"),
+        );
+    }
+    let idle_sleep_duration = interval_secs
         .map(Duration::from_secs)
         .unwrap_or(Duration::from_secs(5));
 

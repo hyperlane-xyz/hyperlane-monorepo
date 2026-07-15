@@ -151,23 +151,32 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .unwrap_or(ReorgPeriod::from_blocks(1));
 
         const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
-        let explicit_interval = p
-            .chain(&mut err)
-            .get_opt_key("interval")
-            .parse_u64()
-            .map(Duration::from_secs)
-            .end();
-        let chain_interval = p
+        let explicit_interval_secs = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
+        if explicit_interval_secs == Some(0) {
+            err.push(
+                cwp.clone(),
+                eyre::eyre!("`interval` must be greater than zero, or omitted for the 5s default"),
+            );
+        }
+        let chain_interval_secs = p
             .chain(&mut err)
             .get_key("chains")
             .get_key(origin_chain_name)
             .get_opt_key("index")
             .get_opt_key("interval")
             .parse_u64()
-            .map(Duration::from_secs)
             .end();
-        let interval = explicit_interval
-            .or(chain_interval)
+        if chain_interval_secs == Some(0) {
+            err.push(
+                cwp.clone(),
+                eyre::eyre!(
+                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 5s default"
+                ),
+            );
+        }
+        let interval = explicit_interval_secs
+            .map(Duration::from_secs)
+            .or(chain_interval_secs.map(Duration::from_secs))
             .unwrap_or(DEFAULT_INTERVAL);
 
         let chain = p

@@ -139,7 +139,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
                   maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
                 }
               : {}),
-            ...(this.config.rawConfig.relayer?.interval
+            ...(this.config.rawConfig.relayer?.interval != null
               ? { index: { interval: this.config.rawConfig.relayer.interval } }
               : {}),
             priorityFeeOracle,
