@@ -57,7 +57,9 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
 
     const readResult = await writer.read(deployed.deployed.programId);
     expect(readResult.config.type).to.equal(config.type);
-    expect(readResult.config.params.type).to.equal(FeeParamsType.raw);
+    // The leaf-fee reader returns params in bps shape (raw values carried
+    // alongside), regardless of the shape the config was created with.
+    expect(readResult.config.params.type).to.equal(FeeParamsType.bps);
     expect(readResult.config.owner).to.equal(owner.address);
     expect(readResult.config.beneficiary).to.equal(signer.getSignerAddress());
   });
