@@ -1,0 +1,85 @@
+{
+  "uid": "ffs73w46d7668c",
+  "title": "mainnet3 prepare queue anomalous growth with zero deliveries [critical]",
+  "folderUID": "zGKXxzD4z",
+  "ruleGroup": "mainnet3",
+  "orgID": 1,
+  "condition": "C",
+  "for": "45m",
+  "isPaused": true,
+  "noDataState": "OK",
+  "execErrState": "OK",
+  "labels": {
+    "severity": "error",
+    "deployment": "mainnet3",
+    "remote": "{{ $labels.remote }}"
+  },
+  "annotations": {
+    "summary": "Prepare queue for {{ $labels.remote }} is >3x its own trailing 7d baseline AND >30 messages AND zero deliveries (messages_processed rate==0) for 45m+. Indicates a real per-destination delivery stall (e.g. a dead/hung lander task), distinct from chronic upstream backlogs which sit flat vs baseline. Restarting the relayer should fix short-term; ping backend to investigate.",
+    "runbook_url": "https://www.notion.so/hyperlanexyz/Runbook-83c755f2652943289cf98cd1309487a8?source=copy_link"
+  },
+  "notification_settings": {
+    "receiver": "Pagerduty - Error",
+    "group_by": ["grafana_folder", "alertname", "remote"]
+  },
+  "data": [
+    {
+      "refId": "A",
+      "datasourceUid": "grafanacloud-prom",
+      "relativeTimeRange": { "from": 600, "to": 0 },
+      "model": {
+        "refId": "A",
+        "editorMode": "code",
+        "expr": "( (sum by(remote)(hyperlane_submitter_queue_length{queue_name=\"prepare_queue\", hyperlane_deployment=\"mainnet3\"}) > bool (3 * avg_over_time(sum by(remote)(hyperlane_submitter_queue_length{queue_name=\"prepare_queue\", hyperlane_deployment=\"mainnet3\"})[7d:1h]))) * (sum by(remote)(hyperlane_submitter_queue_length{queue_name=\"prepare_queue\", hyperlane_deployment=\"mainnet3\"}) > bool 30) * (sum by(remote)(rate(hyperlane_messages_processed_count{hyperlane_deployment=\"mainnet3\"}[15m])) == bool 0) )",
+        "instant": true,
+        "range": false,
+        "intervalMs": 1000,
+        "maxDataPoints": 43200,
+        "legendFormat": "__auto"
+      }
+    },
+    {
+      "refId": "B",
+      "datasourceUid": "__expr__",
+      "model": {
+        "refId": "B",
+        "type": "reduce",
+        "expression": "A",
+        "reducer": "last",
+        "datasource": { "type": "__expr__", "uid": "__expr__" },
+        "conditions": [
+          {
+            "evaluator": { "params": [], "type": "gt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["B"] },
+            "reducer": { "params": [], "type": "last" },
+            "type": "query"
+          }
+        ],
+        "intervalMs": 1000,
+        "maxDataPoints": 43200
+      }
+    },
+    {
+      "refId": "C",
+      "datasourceUid": "__expr__",
+      "model": {
+        "refId": "C",
+        "type": "math",
+        "expression": "$B > 0",
+        "datasource": { "name": "Expression", "type": "__expr__", "uid": "__expr__" },
+        "conditions": [
+          {
+            "evaluator": { "params": [0, 0], "type": "gt" },
+            "operator": { "type": "and" },
+            "query": { "params": [] },
+            "reducer": { "params": [], "type": "avg" },
+            "type": "query"
+          }
+        ],
+        "intervalMs": 1000,
+        "maxDataPoints": 43200
+      }
+    }
+  ]
+}
