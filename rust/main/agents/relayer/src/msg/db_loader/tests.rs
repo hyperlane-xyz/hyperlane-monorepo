@@ -187,6 +187,40 @@ async fn test_idle_tick_retains_polling_fallback() {
     .await;
 }
 
+#[tokio::test]
+async fn test_idle_tick_returns_on_mid_wait_disconnect() {
+    test_utils::run_test_db(|db| async move {
+        let origin_domain = dummy_domain(0, "dummy_origin_domain");
+        let destination_domain = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        let (notification_sender, notification_receiver) = mpsc::channel(1);
+        let (mut loader, _) = dummy_message_loader_with_notifications(
+            &origin_domain,
+            &destination_domain,
+            &db,
+            OptionalCache::new(None),
+            Some(notification_receiver),
+        );
+
+        let disconnect = async move {
+            sleep(Duration::from_millis(20)).await;
+            drop(notification_sender);
+        };
+
+        timeout(Duration::from_millis(750), async {
+            let (tick_result, _) = tokio::join!(loader.tick(), disconnect);
+            tick_result.expect("idle loader tick should succeed");
+        })
+        .await
+        .expect("receiver disconnect should wake the idle loader promptly");
+        assert!(
+            loader.index_notifications.is_none(),
+            "disconnected receiver should be cleared"
+        );
+    })
+    .await;
+}
+
 /// Only adds database entries to the pending message prefix if the message's
 /// retry count is greater than zero
 fn persist_retried_messages(

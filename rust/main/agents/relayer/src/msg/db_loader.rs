@@ -394,7 +394,6 @@ impl MessageDbLoader {
 
         if disconnected {
             self.index_notifications = None;
-            tokio::time::sleep(FALLBACK_POLL_INTERVAL).await;
         }
     }
 
