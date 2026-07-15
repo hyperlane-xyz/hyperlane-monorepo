@@ -811,10 +811,12 @@ export function computeRemoteRoutersUpdates(
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
     // When the expected config omits gas for an existing router, keep the
-    // current on-chain value instead of zeroing it. New routers with omitted
-    // gas fall back to current's '0' default, matching EVM behavior.
+    // current on-chain value instead of zeroing it. For a new router — or a
+    // domain that only has an orphaned gas entry and no enrolled router — fall
+    // back to '0' rather than reusing a stale value, matching EVM behavior.
     const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId] ?? currentDestinationGas;
+      expectedRoutersConfig.destinationGas[domainId] ??
+      (currentRouterAddress ? currentDestinationGas : '0');
 
     const needsUpdate =
       !currentRouterAddress ||

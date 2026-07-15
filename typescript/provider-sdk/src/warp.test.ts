@@ -121,4 +121,23 @@ describe('computeRemoteRoutersUpdates', () => {
     ]);
     expect(diff.toUnenroll).to.deep.equal([]);
   });
+
+  it('ignores orphaned current gas when enrolling a new router with omitted gas', () => {
+    const current = {
+      // Gas entry exists for the domain but no router is enrolled (orphaned).
+      remoteRouters: {},
+      destinationGas: { [DOMAIN]: '200000' },
+    };
+    const expected = {
+      remoteRouters: { [DOMAIN]: { address: '0xRouter' } },
+      destinationGas: {},
+    };
+
+    const diff = computeRemoteRoutersUpdates(current, expected, eq);
+
+    expect(diff.toEnroll).to.deep.equal([
+      { domainId: DOMAIN, routerAddress: '0xRouter', gas: '0' },
+    ]);
+    expect(diff.toUnenroll).to.deep.equal([]);
+  });
 });
