@@ -44,6 +44,13 @@ fn ccip_signature_cache() -> &'static CcipSignatureCache {
     CCIP_SIGNATURE_CACHE.get_or_init(|| Cache::builder().max_capacity(10_000).build())
 }
 
+/// Process-wide client so requests to CCIP-read servers can reuse pooled connections.
+static CCIP_HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+
+fn ccip_http_client() -> &'static Client {
+    CCIP_HTTP_CLIENT.get_or_init(Client::new)
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct OffchainLookupRequestBody {
     pub data: String,
@@ -420,7 +427,7 @@ async fn fetch_offchain_data(
             ?message_id,
             "Sending POST request to offchain lookup server"
         );
-        Client::new()
+        ccip_http_client()
             .request(Method::POST, interpolated_url)
             .header(CONTENT_TYPE, "application/json")
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
@@ -433,7 +440,7 @@ async fn fetch_offchain_data(
                 MetadataBuildError::FailedToBuild(msg)
             })?
     } else {
-        Client::new()
+        ccip_http_client()
             .request(Method::GET, interpolated_url)
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
             .send()
@@ -514,12 +521,14 @@ fn create_ccip_url_regex() -> RegexSet {
 #[cfg(test)]
 mod test {
     use std::{
+        net::SocketAddr,
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
         time::Duration,
         vec,
     };
 
+    use axum::{extract::ConnectInfo, routing::get, Router};
     use ethers::types::H160 as EthersH160;
     use futures::future::join_all;
     use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, SignedType, U256};
@@ -606,6 +615,32 @@ mod test {
             callback_function: [0, 0, 0, 0],
             extra_data: vec![].into(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_ccip_http_client_reuses_connections() -> eyre::Result<()> {
+        async fn peer_port(ConnectInfo(address): ConnectInfo<SocketAddr>) -> String {
+            address.port().to_string()
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let router = Router::new().route("/", get(peer_port));
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+        });
+
+        let url = format!("http://{address}");
+        let first_peer_port = ccip_http_client().get(&url).send().await?.text().await?;
+        let second_peer_port = ccip_http_client().get(&url).send().await?.text().await?;
+
+        server.abort();
+        assert_eq!(first_peer_port, second_peer_port);
+        Ok(())
     }
 
     #[tokio::test]
