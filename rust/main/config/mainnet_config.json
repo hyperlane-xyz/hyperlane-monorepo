@@ -6170,7 +6170,15 @@
         "from": 4943181
       },
       "interchainAccountRouter": "0xF7af65596A16740b16CF755F3A43206C96285da0",
-      "quotedCalls": "0x1956848601549de5aa0c887892061fA5aB4f6fC4"
+      "quotedCalls": "0x1956848601549de5aa0c887892061fA5aB4f6fC4",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://eden.blockscout.com/api",
+          "family": "blockscout",
+          "name": "Eden Explorer",
+          "url": "https://eden.blockscout.com"
+        }
+      ]
     },
     "igra": {
       "blockExplorers": [
