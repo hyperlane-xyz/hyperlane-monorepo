@@ -289,4 +289,29 @@ describe('EvmQuoteWriter (hardhat)', () => {
     assert(error, 'submitQuote should have rejected');
     expect(String(error)).to.include(errorSelector('StaleQuote'));
   });
+
+  it('reports standingStored true on write and false on an equal-issuedAt no-op', async () => {
+    const writer = makeWriter();
+    const dest = 202;
+    const t = await nowSec();
+    const req = {
+      scope: {
+        destination: dest,
+        recipient: RECIPIENT,
+        targetRouter: WARP_TARGET_ROUTER_NONE,
+        amount: WARP_QUOTE_AMOUNT_WILDCARD,
+      },
+      params: { maxFee: 1n, halfAmount: 2n },
+      issuedAt: t,
+      expiry: t + 3600,
+    };
+
+    const first = await writer.submitQuote(req);
+    // Resubmitting the same issuedAt is an on-chain no-op: _storeStanding
+    // returns false and emits no QuoteSubmitted event.
+    const second = await writer.submitQuote(req);
+
+    expect(first.standingStored).to.equal(true);
+    expect(second.standingStored).to.equal(false);
+  });
 });
