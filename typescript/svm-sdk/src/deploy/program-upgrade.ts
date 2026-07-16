@@ -12,6 +12,7 @@ import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 import type { SvmSigner } from '../clients/signer.js';
 import {
   EXTEND_PROGRAM_CHECKED_FEATURE,
+  MAX_ACCOUNT_DATA_SIZE,
   MAX_COMPUTE_UNITS,
   MIN_PROGRAM_DATA_EXTEND_BYTES,
 } from '../constants.js';
@@ -49,6 +50,19 @@ export function requiredExtendBytes(
     newProgramLen - currentMaxProgramLen,
     MIN_PROGRAM_DATA_EXTEND_BYTES,
   );
+}
+
+/**
+ * Whether growing a program-data account of `currentAccountSize` bytes by
+ * `additionalBytes` stays within Solana's account-data limit. The extend
+ * clamp to the loader minimum can request growth past the cap for a near-full
+ * account, which the loader would reject with an opaque error.
+ */
+export function extendFitsAccountLimit(
+  currentAccountSize: number,
+  additionalBytes: number,
+): boolean {
+  return currentAccountSize + additionalBytes <= MAX_ACCOUNT_DATA_SIZE;
 }
 
 /**
@@ -131,6 +145,14 @@ export async function prepareProgramUpgrade(
   );
 
   if (additionalBytes > 0) {
+    // The clamp to MIN_PROGRAM_DATA_EXTEND_BYTES can push a near-full account
+    // past the loader cap; fail fast with a clear message instead of the
+    // opaque on-chain loader error.
+    assert(
+      extendFitsAccountLimit(currentAccountSize, additionalBytes),
+      `Cannot upgrade ${label}: new binary needs the program-data account grown to ${currentAccountSize + additionalBytes} bytes, exceeding Solana's ${MAX_ACCOUNT_DATA_SIZE}-byte account limit`,
+    );
+
     const checkedActive = await isFeatureActive(
       rpc,
       EXTEND_PROGRAM_CHECKED_FEATURE,

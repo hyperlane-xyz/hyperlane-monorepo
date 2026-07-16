@@ -66,6 +66,14 @@ export interface PrintableSvmTransaction {
   computeUnits?: number;
   transaction_base58: string;
   message_base58: string;
+  /**
+   * Carried over from `SvmTransaction.waitForSlotAdvance`. A live signer
+   * enforces this itself, but exported (file/Squads) transactions are signed
+   * and submitted by an external executor: when true, that executor MUST land
+   * this transaction in a strictly later slot than the previous one, otherwise
+   * the loader rejects an extend→upgrade→config sequence sharing a slot.
+   */
+  waitForSlotAdvance?: boolean;
 }
 
 export interface PrintableSvmInstruction {
@@ -225,6 +233,7 @@ export class SvmSigner
       computeUnits: transaction.computeUnits,
       transaction_base58: transactionBase58,
       message_base58: messageBase58,
+      waitForSlotAdvance: transaction.waitForSlotAdvance,
     };
   }
 
