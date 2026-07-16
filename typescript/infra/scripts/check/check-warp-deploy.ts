@@ -48,6 +48,9 @@ const ROUTES_TO_SKIP: string[] = [
   'GAME/base-form',
   // Skip until Paradex executes hyperevm upgrade on their side
   WarpRouteIds.ParadexUSDC,
+  // Staging route: not auto-skipped by isStagingOrTestRoute since the STAGE
+  // marker is in the symbol before the first `/`, not a chain segment.
+  WarpRouteIds.EclipseUSDCSTAGE,
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)
