@@ -111,6 +111,25 @@ impl CcipReadIsmMetadataBuilder {
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))
     }
 
+    /// GET-style CCIP requests have no request body, so there is nowhere to
+    /// send the relayer authentication signature.
+    async fn generate_signature_for_post_request<S: HyperlaneSigner>(
+        signer: Option<&S>,
+        info: &OffchainLookup,
+        url: &str,
+    ) -> Result<Option<String>, MetadataBuildError> {
+        if url.contains("{data}") {
+            return Ok(None);
+        }
+
+        match signer {
+            Some(signer) => Self::generate_signature_hex(signer, info, url)
+                .await
+                .map(Some),
+            None => Ok(None),
+        }
+    }
+
     /// Returns info on how to query for offchain information
     /// This method will attempt to get the value from cache first. If it is a cache miss,
     /// it will request it from the ISM contract. The result will be cached for future use.
@@ -373,11 +392,12 @@ async fn fetch_offchain_data(
     message_id: H256,
 ) -> Result<Metadata, FetchOutcome> {
     // Compute relayer authentication signature via EIP-191
-    let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
-        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
-    } else {
-        None
-    };
+    let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+        ism_builder.base.base_builder().get_signer(),
+        info,
+        url,
+    )
+    .await?;
 
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
@@ -724,6 +744,24 @@ mod test {
         );
 
         assert_eq!(signer.calls(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_request_does_not_generate_signature() {
+        let signer = CountingSigner::new(0x50);
+        let url = "https://get.example/{data}";
+        let info = test_offchain_lookup(b"get", 0x51, url);
+
+        let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+            Some(&signer),
+            &info,
+            url,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(signature, None);
+        assert_eq!(signer.calls(), 0);
     }
 
     #[test]
