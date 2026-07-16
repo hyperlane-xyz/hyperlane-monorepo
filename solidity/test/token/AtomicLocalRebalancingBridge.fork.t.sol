@@ -364,3 +364,214 @@ contract AtomicLocalRebalancingBridgeBaseForkTest is
         );
     }
 }
+
+interface IUniswapV3SwapRouter02 {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactInputSingle(
+        ExactInputSingleParams calldata params
+    ) external payable returns (uint256 amountOut);
+}
+
+contract AtomicLocalRebalancingBridgeBaseUniswapForwardForkTest is
+    AtomicLocalRebalancingBridgeForkTestBase
+{
+    address internal constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal constant USDT = 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2;
+    address internal constant UNISWAP_V3_ROUTER =
+        0x2626664c2603336E57B271c5C0b26F421741e481;
+    uint32 internal constant LOCAL_DOMAIN = 8453;
+    uint256 internal constant FORK_BLOCK = 48_000_000;
+
+    function setUp() public {
+        _setUpFork(
+            "base",
+            FORK_BLOCK,
+            IERC20(USDC),
+            IERC20(USDT),
+            LOCAL_DOMAIN
+        );
+
+        deal(USDC, address(sourceRouter), 1_000e6);
+        deal(USDT, rebalancer, 1_000e6);
+        _approveOutputForBridge(IERC20(USDT));
+    }
+
+    function testFork_uniswapExactInputSingle_exactFunding() public {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+
+        vm.prank(rebalancer);
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 0));
+
+        _assertExactFunding(
+            IERC20(USDT),
+            amountIn,
+            destinationBefore,
+            IERC20(USDT).balanceOf(rebalancer)
+        );
+    }
+
+    function testFork_uniswapExactInputSingle_surplusRefundedToRebalancer()
+        public
+    {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 0));
+
+        assertEq(
+            IERC20(USDT).balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            amountIn
+        );
+        assertGt(IERC20(USDT).balanceOf(rebalancer), rebalancerBefore);
+        assertEq(IERC20(USDT).balanceOf(address(bridge)), 0);
+    }
+
+    function _uniswapCalls(
+        uint256 amountIn,
+        uint256 topUp
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](topUp == 0 ? 2 : 3);
+        calls[0] = _approveInputCall(IERC20(USDC), UNISWAP_V3_ROUTER, amountIn);
+        calls[1] = _uniswapV3Call(USDC, USDT, amountIn);
+        if (topUp > 0) {
+            calls[2] = _topUpCall(IERC20(USDT), topUp);
+        }
+    }
+
+    function _uniswapV3Call(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) private view returns (CallLib.Call memory) {
+        return
+            _targetCall(
+                UNISWAP_V3_ROUTER,
+                abi.encodeCall(
+                    IUniswapV3SwapRouter02.exactInputSingle,
+                    (
+                        IUniswapV3SwapRouter02.ExactInputSingleParams({
+                            tokenIn: tokenIn,
+                            tokenOut: tokenOut,
+                            fee: 100,
+                            recipient: address(bridge),
+                            amountIn: amountIn,
+                            amountOutMinimum: 1,
+                            sqrtPriceLimitX96: 0
+                        })
+                    )
+                )
+            );
+    }
+}
+
+contract AtomicLocalRebalancingBridgeBaseUniswapReverseForkTest is
+    AtomicLocalRebalancingBridgeForkTestBase
+{
+    address internal constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal constant USDT = 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2;
+    address internal constant UNISWAP_V3_ROUTER =
+        0x2626664c2603336E57B271c5C0b26F421741e481;
+    uint32 internal constant LOCAL_DOMAIN = 8453;
+    uint256 internal constant FORK_BLOCK = 48_000_000;
+
+    function setUp() public {
+        _setUpFork(
+            "base",
+            FORK_BLOCK,
+            IERC20(USDT),
+            IERC20(USDC),
+            LOCAL_DOMAIN
+        );
+
+        deal(USDT, address(sourceRouter), 1_000e6);
+        deal(USDC, rebalancer, 1_000e6);
+        _approveOutputForBridge(IERC20(USDC));
+    }
+
+    function testFork_uniswapExactInputSingle_shortfallCoveredByTopUp() public {
+        uint256 amountIn = 100e6;
+        uint256 destinationBefore = IERC20(USDC).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDC).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 20e6));
+
+        _assertExactFunding(
+            IERC20(USDC),
+            amountIn,
+            destinationBefore,
+            rebalancerBefore
+        );
+        assertLt(IERC20(USDC).balanceOf(rebalancer), rebalancerBefore);
+    }
+
+    function testFork_uniswapExactInputSingle_revertsWhenOutputBelowRequired()
+        public
+    {
+        uint256 amountIn = 100e6;
+
+        vm.prank(rebalancer);
+        vm.expectRevert(
+            AtomicLocalRebalancingBridge
+                .InsufficientOutputTokenProduced
+                .selector
+        );
+        _localRebalance(amountIn, _uniswapCalls(amountIn, 0));
+    }
+
+    function _uniswapCalls(
+        uint256 amountIn,
+        uint256 topUp
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](topUp == 0 ? 2 : 3);
+        calls[0] = _approveInputCall(IERC20(USDT), UNISWAP_V3_ROUTER, amountIn);
+        calls[1] = _uniswapV3Call(USDT, USDC, amountIn);
+        if (topUp > 0) {
+            calls[2] = _topUpCall(IERC20(USDC), topUp);
+        }
+    }
+
+    function _uniswapV3Call(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) private view returns (CallLib.Call memory) {
+        return
+            _targetCall(
+                UNISWAP_V3_ROUTER,
+                abi.encodeCall(
+                    IUniswapV3SwapRouter02.exactInputSingle,
+                    (
+                        IUniswapV3SwapRouter02.ExactInputSingleParams({
+                            tokenIn: tokenIn,
+                            tokenOut: tokenOut,
+                            fee: 100,
+                            recipient: address(bridge),
+                            amountIn: amountIn,
+                            amountOutMinimum: 1,
+                            sqrtPriceLimitX96: 0
+                        })
+                    )
+                )
+            );
+    }
+}
