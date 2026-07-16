@@ -435,16 +435,15 @@ impl KnownHyperlaneDomain {
             ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica | Plume => {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
-            Base | Blast | Bob | Boba | Celo | Fraxtal | Guru | Ink | Lisk
-            | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain | Worldchain => HyperlaneDomainTechnicalStack::OpStack,
+            Base | Blast | Bob | Boba | Celo | Fraxtal | Guru | Ink | Lisk | Mantle | Matchain
+            | Metal | Metis | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain
+            | Worldchain => HyperlaneDomainTechnicalStack::OpStack,
             LumiaPrism | Katana | Prom | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,
             Peaq => HyperlaneDomainTechnicalStack::PolkadotSubstrate,
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 => {
                 HyperlaneDomainTechnicalStack::Starknet
             }
-            Abstract | Treasure | Zksync => {
-                HyperlaneDomainTechnicalStack::ZkSync
-            }
+            Abstract | Treasure | Zksync => HyperlaneDomainTechnicalStack::ZkSync,
             _ => HyperlaneDomainTechnicalStack::Other,
         }
     }
