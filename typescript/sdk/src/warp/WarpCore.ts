@@ -371,8 +371,18 @@ export class WarpCore {
     // requires a signed read (see SeismicSigner), which needs real key material
     // that this read-only MultiProviderAdapter never holds. The actual
     // transferRemote signer is Seismic-aware, so the real send still works.
+    // Use the same hard-coded gas-unit estimate as the multi-tx branch below
+    // (with real on-chain fee data) instead of eth_estimateGas, so callers like
+    // getMaxTransferAmount/validateTransfer still get a conservative non-zero
+    // fee rather than treating the transfer as free.
     if (originMetadata.technicalStack === ChainTechnicalStack.Seismic) {
-      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+      const provider = this.multiProvider.getEthersV5Provider(
+        originMetadata.name,
+      );
+      return estimateTransactionFeeEthersV5ForGasUnits({
+        provider,
+        gasUnits: EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+      });
     }
 
     // Typically the transfers require a single transaction

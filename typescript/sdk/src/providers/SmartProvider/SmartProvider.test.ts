@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { errors as EthersError, providers } from 'ethers';
+import sinon from 'sinon';
 
 import {
   AllProviderMethods,
@@ -303,6 +304,42 @@ describe('SmartProvider', () => {
       // Actual connection (used for requests) has real value - last duplicate wins
       const actualConnection = provider.rpcProviders[0].connection;
       expect(actualConnection.headers?.['Authorization']).to.equal('second');
+    });
+  });
+
+  describe('Call "0x" failover', () => {
+    let performStub: sinon.SinonStub;
+
+    afterEach(() => {
+      performStub?.restore();
+    });
+
+    it('fails over to a second RPC when the first returns "0x" for a call (transient/flaky node)', async () => {
+      // Exercises the real HyperlaneJsonRpcProvider transport, not MockProvider:
+      // a spurious empty "0x" from one provider must not be trusted as a final
+      // answer when another provider returns real data (see #8792/#8910 — a
+      // genuine empty response is only trustworthy once every configured RPC
+      // agrees on it).
+      performStub = sinon
+        .stub(providers.JsonRpcProvider.prototype, 'perform')
+        .callsFake(function (this: providers.JsonRpcProvider, method: string) {
+          if (method !== 'call') return Promise.resolve('0x0');
+          const isFirstProvider = this.connection.url === 'http://provider1';
+          return Promise.resolve(isFirstProvider ? '0x' : '0x1234');
+        });
+
+      const smartProvider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider1' }, { http: 'http://provider2' }],
+        [],
+      );
+
+      const result = await smartProvider.call({
+        to: '0x0000000000000000000000000000000000000001',
+        data: '0x12345678',
+      });
+
+      expect(result).to.equal('0x1234');
     });
   });
 
