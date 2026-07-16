@@ -1,0 +1,34 @@
+{
+  "chains": {
+    "relay": {
+      "name": "relay",
+      "displayName": "Relay",
+      "chainId": "537713",
+      "domainId": "537713",
+      "protocol": "sovereign",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "rpcUrls": [
+        {
+          "http": "https://rpc.chain.relay.link"
+        }
+      ],
+      "mailbox": "0x0000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x0000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 0,
+        "chunk": 15
+      },
+      "finalityBlocks": 1,
+      "signer": {
+        "type": "sovereignKey",
+        "account_type": "ethereum"
+      }
+    }
+  }
+}
