@@ -18,6 +18,8 @@ import {
   MerkleTreeHook__factory,
   OPStackHook,
   OPStackHook__factory,
+  PackageVersioned,
+  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
   ProtocolFee,
@@ -29,7 +31,11 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { missingSelectorError, networkError } from '../test/errors.js';
+import {
+  missingSelectorError,
+  networkError,
+  wrappedError,
+} from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -39,11 +45,17 @@ import {
   IgpVersion,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+
+// Message HyperlaneJsonRpcProvider emits for an empty eth_call result, which
+// isEmptyProviderResponse (utils/contract.ts) string-matches to detect a
+// missing-selector revert. Kept in one place so the coupling can't drift.
+const EMPTY_PROVIDER_RESPONSE_MESSAGE = 'Invalid response from provider';
 
 describe('EvmHookReader', () => {
   let evmHookReader: EvmHookReader;
@@ -59,6 +71,21 @@ describe('EvmHookReader', () => {
   afterEach(() => {
     sandbox.restore();
   });
+
+  // deriveIgpConfig reads PACKAGE_VERSION off PackageVersioned to decide whether
+  // an IGP is legacy (pre-quoteSigners). A version string stubs the read; an
+  // Error stubs the revert (missing selector => legacy, else propagates).
+  const stubIgpPackageVersion = (version: string | Error) => {
+    const packageVersion = sandbox.stub();
+    if (version instanceof Error) {
+      packageVersion.rejects(version);
+    } else {
+      packageVersion.resolves(version);
+    }
+    sandbox.stub(PackageVersioned__factory, 'connect').returns({
+      PACKAGE_VERSION: packageVersion,
+    } as unknown as PackageVersioned);
+  };
 
   it('should derive merkle tree config correctly', async () => {
     const mockAddress = randomAddress();
@@ -280,10 +307,11 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
-  it('should not drop IGP quote signers on transient probe failures', async () => {
+  it('should propagate transient quoteSigners failures on a v2 IGP', async () => {
     const mockAddress = randomAddress();
     const transientError = networkError();
 
+    stubIgpPackageVersion(OFFCHAIN_QUOTED_IGP_VERSION);
     sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
       hookType: sandbox
         .stub()
@@ -303,10 +331,11 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(transientError);
   });
 
-  it('should not stamp IGP as legacy on empty provider responses', async () => {
+  it('should propagate empty provider responses from quoteSigners on a v2 IGP', async () => {
     const mockAddress = randomAddress();
-    const emptyProviderResponse = new Error('Invalid response from provider');
+    const emptyProviderResponse = new Error(EMPTY_PROVIDER_RESPONSE_MESSAGE);
 
+    stubIgpPackageVersion(OFFCHAIN_QUOTED_IGP_VERSION);
     sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
       hookType: sandbox
         .stub()
@@ -326,12 +355,50 @@ describe('EvmHookReader', () => {
     expect(thrown).to.equal(emptyProviderResponse);
   });
 
+  it('should classify a legacy IGP when PACKAGE_VERSION revert is wrapped by the SmartProvider', async () => {
+    const mockAddress = randomAddress();
+    const owner = randomAddress();
+    const beneficiary = randomAddress();
+
+    // Real production shape: a legacy IGP's empty-data revert surfaces through
+    // HyperlaneSmartProvider as "All providers failed" whose cause chain is
+    // "Invalid response from provider" (never a CALL_EXCEPTION).
+    stubIgpPackageVersion(
+      wrappedError(new Error(EMPTY_PROVIDER_RESPONSE_MESSAGE)),
+    );
+    sandbox.stub(evmHookReader, 'possibleDomainIds').returns([]);
+    sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(owner),
+      beneficiary: sandbox.stub().resolves(beneficiary),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
+    } as unknown as InterchainGasPaymaster);
+
+    const config = await evmHookReader.deriveIgpConfig(mockAddress);
+
+    expect(config).to.deep.equal({
+      owner,
+      address: mockAddress,
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      beneficiary,
+      igpVersion: IgpVersion.Legacy,
+      oracleKey: owner,
+      overhead: {},
+      oracleConfig: {},
+    });
+  });
+
   it('should still derive IGP config when a domain is unsupported', async () => {
     const mockAddress = randomAddress();
     const owner = randomAddress();
     const beneficiary = randomAddress();
     const domainId = test1.domainId;
 
+    stubIgpPackageVersion(missingSelectorError());
     sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
     sandbox.stub(InterchainGasPaymaster__factory, 'connect').returns({
       hookType: sandbox
@@ -339,7 +406,9 @@ describe('EvmHookReader', () => {
         .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
       owner: sandbox.stub().resolves(owner),
       beneficiary: sandbox.stub().resolves(beneficiary),
-      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
       getExchangeRateAndGasPrice: sandbox
         .stub()
         .rejects(
@@ -415,13 +484,16 @@ describe('EvmHookReader', () => {
     const mockOracleAddress = randomAddress();
     const feeToken = randomAddress();
 
+    stubIgpPackageVersion(missingSelectorError());
     const mockIgp = {
       hookType: sandbox
         .stub()
         .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
       owner: sandbox.stub().resolves(mockOwner),
       beneficiary: sandbox.stub().resolves(mockBeneficiary),
-      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
       getExchangeRateAndGasPrice: sandbox
         .stub()
         .callsFake((domainId: number) =>
@@ -483,6 +555,7 @@ describe('EvmHookReader', () => {
     const feeToken = randomAddress();
     const domainId = test1.domainId;
 
+    stubIgpPackageVersion(missingSelectorError());
     sandbox.stub(evmHookReader, 'possibleDomainIds').returns([domainId]);
 
     const mockIgp = {
@@ -491,7 +564,9 @@ describe('EvmHookReader', () => {
         .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
       owner: sandbox.stub().resolves(mockOwner),
       beneficiary: sandbox.stub().resolves(mockBeneficiary),
-      quoteSigners: sandbox.stub().rejects(missingSelectorError()),
+      quoteSigners: sandbox
+        .stub()
+        .rejects(new Error('quoteSigners must not be called on a legacy IGP')),
       getExchangeRateAndGasPrice: sandbox
         .stub()
         .rejects(
