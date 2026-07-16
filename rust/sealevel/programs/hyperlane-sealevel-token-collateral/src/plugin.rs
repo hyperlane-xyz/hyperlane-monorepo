@@ -231,7 +231,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     }
 
     /// Transfers tokens to the escrow account so they can be sent to a remote chain.
-    /// Burns the tokens from the sender's associated token account.
+    /// If a fee is specified, transfers the fee to the beneficiary ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The SPL token program for the mint.
@@ -244,6 +244,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         sender_wallet_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee: Option<(u64, &'a AccountInfo<'b>)>,
     ) -> Result<(), ProgramError> {
         // Account 0: SPL token program.
         let spl_token_account_info = next_account_info(accounts_iter)?;
@@ -303,7 +304,41 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             ],
         )?;
 
+        // Collect fee if configured.
+        if let Some((fee_amount, beneficiary_ata)) = fee {
+            let fee_ixn = transfer_checked(
+                spl_token_account_info.key,
+                sender_ata_account_info.key,
+                mint_account_info.key,
+                beneficiary_ata.key,
+                sender_wallet_account_info.key,
+                &[],
+                fee_amount,
+                token.decimals,
+            )?;
+            invoke(
+                &fee_ixn,
+                &[
+                    sender_ata_account_info.clone(),
+                    mint_account_info.clone(),
+                    beneficiary_ata.clone(),
+                    sender_wallet_account_info.clone(),
+                ],
+            )?;
+        }
+
         Ok(())
+    }
+
+    fn fee_beneficiary_pubkey(
+        token: &HyperlaneToken<Self>,
+        beneficiary_owner: &Pubkey,
+    ) -> Result<Pubkey, ProgramError> {
+        Ok(get_associated_token_address_with_program_id(
+            beneficiary_owner,
+            &token.plugin_data.mint,
+            &token.plugin_data.spl_token_program,
+        ))
     }
 
     /// Transfers tokens out to a recipient's associated token account as a

@@ -22,7 +22,12 @@ import type {
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
-import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  isEmptyAddress,
+  isNullish,
+  isValidAddressSealevel,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -34,19 +39,24 @@ import {
 import { isCompliant } from '../utils/schemas.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
+// (COMPOSITE has no Solidity counterpart; it's Sealevel-only, matching
+// rust/main/hyperlane-core's ModuleType)
 // meant for the relayer
 export enum ModuleType {
-  UNUSED,
-  ROUTING,
-  AGGREGATION,
-  LEGACY_MULTISIG, // DEPRECATED
-  MERKLE_ROOT_MULTISIG,
-  MESSAGE_ID_MULTISIG,
-  NULL,
-  CCIP_READ,
-  ARB_L2_TO_L1,
-  WEIGHTED_MERKLE_ROOT_MULTISIG,
-  WEIGHTED_MESSAGE_ID_MULTISIG,
+  UNUSED = 0,
+  ROUTING = 1,
+  AGGREGATION = 2,
+  LEGACY_MULTISIG = 3, // DEPRECATED
+  MERKLE_ROOT_MULTISIG = 4,
+  MESSAGE_ID_MULTISIG = 5,
+  NULL = 6,
+  CCIP_READ = 7,
+  ARB_L2_TO_L1 = 8,
+  WEIGHTED_MERKLE_ROOT_MULTISIG = 9,
+  WEIGHTED_MESSAGE_ID_MULTISIG = 10,
+  OP_L2_TO_L1 = 11,
+  POLYMER = 12,
+  COMPOSITE = 13,
 }
 
 // this const object can be adjusted as per deployments necessary
@@ -74,6 +84,7 @@ export const IsmType = {
   CCIP: 'ccipIsm',
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
+  COMPOSITE: 'compositeIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -84,7 +95,10 @@ export type DeployableIsmType = Exclude<
   typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
 >;
 
-// ISM types that can be updated in-place
+// ISM types that can be updated in-place on EVM chains (consumed by
+// EvmIsmModule and its test fixtures). COMPOSITE is Sealevel-only and never
+// appears as an EVM ISM config, so it's intentionally excluded here — its
+// mutability is handled separately by SvmCompositeIsmWriter/deploy-sdk.
 export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.ROUTING,
   IsmType.FALLBACK_ROUTING,
@@ -152,6 +166,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.COMPOSITE:
+      return ModuleType.COMPOSITE;
     case IsmType.UNKNOWN:
       return ModuleType.UNUSED;
   }
@@ -238,7 +254,31 @@ export type AggregationIsmConfig = {
   threshold: number;
 };
 
-export type IsmConfig = z.infer<typeof IsmConfigSchema>;
+// Explicit (not z.infer) union: IsmConfigSchema gets annotated with this type
+// below so downstream `.extend()`/`.merge()` chains (MailboxClientConfigSchema
+// and everything built on it) reference this pre-computed type instead of
+// re-expanding the full union's structure on every merge, which otherwise
+// risks TS2590 ("union too complex to represent") once the union is large
+// enough — confirmed via a control-group test that any new member (not just
+// compositeIsm) trips this ceiling.
+export type IsmConfig =
+  | Address
+  | TestIsmConfig
+  | OpStackIsmConfig
+  | DerivedPausableIsmConfig
+  | PausableIsmConfig
+  | TrustedRelayerIsmConfig
+  | CCIPIsmConfig
+  | RateLimitedIsmConfig
+  | MultisigIsmConfig
+  | WeightedMultisigIsmConfig
+  | RoutingIsmConfig
+  | AggregationIsmConfig
+  | CompositeIsmConfig
+  | ArbL2ToL1IsmConfig
+  | OffchainLookupIsmConfig
+  | InterchainAccountRouterIsm
+  | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
@@ -422,6 +462,362 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
+// Composite ISM (Sealevel-only) wire-format-specific schemas. Unlike ZHash
+// (deliberately multi-format, for config fields that may hold an address
+// from any protocol), these fields always have one specific wire format —
+// using ZHash for them would let an EVM hex string pass as a Sealevel
+// pubkey, a base58 pubkey pass as an H160 validator, or a 20-byte hash pass
+// as the required 32-byte H256 recipient, only failing later in the writer's
+// parseAddress/encodeH160/encodeH256 calls, after resolveProgram() has
+// already deployed the program on-chain.
+const ZSealevelPubkey = z
+  .string()
+  .refine((value) => isValidAddressSealevel(value), {
+    message: 'must be a valid base58-encoded Sealevel address',
+  });
+const ZH160Hex = z
+  .string()
+  .regex(
+    /^0x[0-9a-fA-F]{40}$/,
+    'must be a 20-byte (0x + 40 hex chars) address',
+  );
+const ZH256Hex = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 32-byte (0x + 64 hex chars) hash');
+
+const U64_MAX = 2n ** 64n - 1n;
+const U256_MAX = 2n ** 256n - 1n;
+
+// MultisigMessageId.threshold and Aggregation.threshold are Borsh-encoded
+// as u8 on-chain — a value outside 0-255 parses fine as a JS number but
+// throws in getU8Codec().encode() after the program has already deployed.
+const ZU8Threshold = z.number().int().min(0).max(255);
+
+/** Base-10 integer string bounded to fit the given Borsh-encoded wire width. */
+function decimalStringBoundedBy(max: bigint, label: string) {
+  return z
+    .string()
+    .regex(/^\d+$/, `${label} must be a base-10 integer string`)
+    .refine(
+      // Zod runs every check in the chain regardless of earlier failures
+      // (no short-circuiting), so BigInt(value) must stay guarded here even
+      // though the regex above already rejects non-digit strings —
+      // otherwise a value like "abc" throws inside refine and crashes
+      // safeParse() instead of returning { success: false }.
+      (value) => /^\d+$/.test(value) && BigInt(value) <= max,
+      { message: `${label} exceeds the maximum value representable on-chain` },
+    );
+}
+
+// Discriminants for nodes inside a compositeIsm tree (Sealevel-only).
+// Distinct namespace from IsmType: these tag inline Borsh nodes within a
+// single composite-ism PDA, not separately deployed/addressed ISMs.
+export const CompositeIsmNodeType = {
+  TRUSTED_RELAYER: 'trustedRelayer',
+  MULTISIG_MESSAGE_ID: 'multisigMessageId',
+  AGGREGATION: 'aggregation',
+  TEST: 'test',
+  PAUSABLE: 'pausable',
+  AMOUNT_ROUTING: 'amountRouting',
+  RATE_LIMITED: 'rateLimited',
+  ROUTING: 'routing',
+  FALLBACK_ROUTING: 'fallbackRouting',
+} as const;
+export type CompositeIsmNodeType =
+  (typeof CompositeIsmNodeType)[keyof typeof CompositeIsmNodeType];
+
+export interface CompositeTrustedRelayerNodeConfig {
+  type: typeof CompositeIsmNodeType.TRUSTED_RELAYER;
+  relayer: Address;
+}
+export interface CompositeMultisigMessageIdNodeConfig {
+  type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
+  validators: Address[];
+  threshold: number;
+}
+export interface CompositeAggregationNodeConfig {
+  type: typeof CompositeIsmNodeType.AGGREGATION;
+  threshold: number;
+  subIsms: CompositeIsmNodeConfig[];
+}
+export interface CompositeTestNodeConfig {
+  type: typeof CompositeIsmNodeType.TEST;
+  accept: boolean;
+}
+export interface CompositePausableNodeConfig {
+  type: typeof CompositeIsmNodeType.PAUSABLE;
+  paused: boolean;
+}
+export interface CompositeAmountRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.AMOUNT_ROUTING;
+  threshold: string;
+  lower: CompositeIsmNodeConfig;
+  upper: CompositeIsmNodeConfig;
+}
+export interface CompositeRateLimitedNodeConfig {
+  type: typeof CompositeIsmNodeType.RATE_LIMITED;
+  maxCapacity: string;
+  mailbox: Address;
+  recipient?: Address;
+}
+export interface CompositeRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.ROUTING;
+  domains?: ChainMap<CompositeIsmNodeConfig>;
+}
+export interface CompositeFallbackRoutingNodeConfig {
+  type: typeof CompositeIsmNodeType.FALLBACK_ROUTING;
+  fallbackIsm: Address;
+  domains?: ChainMap<CompositeIsmNodeConfig>;
+}
+
+export type CompositeIsmNodeConfig =
+  | CompositeTrustedRelayerNodeConfig
+  | CompositeMultisigMessageIdNodeConfig
+  | CompositeAggregationNodeConfig
+  | CompositeTestNodeConfig
+  | CompositePausableNodeConfig
+  | CompositeAmountRoutingNodeConfig
+  | CompositeRateLimitedNodeConfig
+  | CompositeRoutingNodeConfig
+  | CompositeFallbackRoutingNodeConfig;
+
+export const CompositeIsmNodeConfigSchema: z.ZodSchema<CompositeIsmNodeConfig> =
+  z.lazy(() =>
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TRUSTED_RELAYER),
+        relayer: ZSealevelPubkey,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
+        validators: z.array(ZH160Hex),
+        threshold: ZU8Threshold,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AGGREGATION),
+        threshold: ZU8Threshold,
+        subIsms: z.array(CompositeIsmNodeConfigSchema),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.TEST),
+        accept: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.PAUSABLE),
+        paused: z.boolean(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.AMOUNT_ROUTING),
+        threshold: decimalStringBoundedBy(U256_MAX, 'threshold'),
+        lower: CompositeIsmNodeConfigSchema,
+        upper: CompositeIsmNodeConfigSchema,
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.RATE_LIMITED),
+        maxCapacity: decimalStringBoundedBy(U64_MAX, 'maxCapacity'),
+        mailbox: ZSealevelPubkey,
+        recipient: ZH256Hex.optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.ROUTING),
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+      z.object({
+        type: z.literal(CompositeIsmNodeType.FALLBACK_ROUTING),
+        fallbackIsm: ZSealevelPubkey,
+        domains: z.record(CompositeIsmNodeConfigSchema).optional(),
+      }),
+    ]),
+  );
+
+export type CompositeIsmConfig = OwnableConfig & {
+  type: typeof IsmType.COMPOSITE;
+  root: CompositeIsmNodeConfig;
+};
+
+/** True if a `fallbackRouting` node exists anywhere in this subtree. */
+function containsFallbackRouting(node: CompositeIsmNodeConfig): boolean {
+  switch (node.type) {
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return true;
+    case CompositeIsmNodeType.AGGREGATION:
+      return node.subIsms.some(containsFallbackRouting);
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return (
+        containsFallbackRouting(node.lower) ||
+        containsFallbackRouting(node.upper)
+      );
+    default:
+      return false;
+  }
+}
+
+type CompositeIsmValidationState = { routingFound: boolean };
+
+/**
+ * Recursively mirrors the Rust program's `validate_config`/
+ * `validate_domain_ism` semantic checks
+ * (rust/sealevel/programs/ism/composite-ism/src/processor.rs) so an invalid
+ * config is caught at parse time instead of after the writer has already
+ * deployed/initialized the program on-chain.
+ */
+function validateCompositeIsmTree(
+  node: CompositeIsmNodeConfig,
+  path: (string | number)[],
+  state: CompositeIsmValidationState,
+  insideDomainIsm: boolean,
+  ctx: z.RefinementCtx,
+): void {
+  const addIssue = (message: string, subPath: (string | number)[] = path) =>
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: subPath });
+
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      if (node.threshold < 1 || node.threshold > node.subIsms.length) {
+        addIssue(
+          'Threshold must be between 1 and the number of subIsms (inclusive)',
+          [...path, 'threshold'],
+        );
+      }
+      // FallbackRouting must be the last sub-ISM (checked transitively) —
+      // verify_node drains the accounts iterator entirely on the fallback
+      // path, so any sibling after it would fail with NotEnoughAccountKeys.
+      node.subIsms.slice(0, -1).forEach((sub, i) => {
+        if (containsFallbackRouting(sub)) {
+          addIssue('fallbackRouting must be the last entry in subIsms', [
+            ...path,
+            'subIsms',
+            i,
+          ]);
+        }
+      });
+      node.subIsms.forEach((sub, i) =>
+        validateCompositeIsmTree(
+          sub,
+          [...path, 'subIsms', i],
+          state,
+          insideDomainIsm,
+          ctx,
+        ),
+      );
+      break;
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID: {
+      if (node.threshold < 1 || node.threshold > node.validators.length) {
+        addIssue(
+          'Threshold must be between 1 and the number of validators (inclusive)',
+          [...path, 'threshold'],
+        );
+      }
+      const seen = new Set<string>();
+      for (const validator of node.validators) {
+        const normalized = validator.toLowerCase();
+        if (seen.has(normalized)) {
+          addIssue(`Duplicate validator address: ${validator}`, [
+            ...path,
+            'validators',
+          ]);
+          break;
+        }
+        seen.add(normalized);
+      }
+      break;
+    }
+    case CompositeIsmNodeType.RATE_LIMITED:
+      // Guarded: superRefine runs regardless of whether maxCapacity's own
+      // field-level schema (decimalStringBoundedBy) already rejected it —
+      // BigInt() on a malformed string would otherwise throw here too and
+      // crash safeParse() instead of returning { success: false }.
+      if (/^\d+$/.test(node.maxCapacity) && BigInt(node.maxCapacity) === 0n) {
+        addIssue('maxCapacity must be non-zero', [...path, 'maxCapacity']);
+      }
+      if (isEmptyAddress(node.mailbox)) {
+        addIssue('mailbox must be a non-zero address', [...path, 'mailbox']);
+      }
+      if (!node.recipient || isEmptyAddress(node.recipient)) {
+        addIssue('recipient is required and must be a non-zero address', [
+          ...path,
+          'recipient',
+        ]);
+      }
+      break;
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      if (isEmptyAddress(node.relayer)) {
+        addIssue('relayer must be a non-zero address', [...path, 'relayer']);
+      }
+      break;
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      validateCompositeIsmTree(
+        node.lower,
+        [...path, 'lower'],
+        state,
+        insideDomainIsm,
+        ctx,
+      );
+      validateCompositeIsmTree(
+        node.upper,
+        [...path, 'upper'],
+        state,
+        insideDomainIsm,
+        ctx,
+      );
+      break;
+    case CompositeIsmNodeType.PAUSABLE:
+      if (insideDomainIsm) {
+        addIssue('pausable is not allowed inside a domain override');
+      }
+      break;
+    case CompositeIsmNodeType.ROUTING:
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      if (insideDomainIsm) {
+        addIssue(`${node.type} is not allowed inside a domain override`);
+        break;
+      }
+      if (
+        node.type === CompositeIsmNodeType.FALLBACK_ROUTING &&
+        isEmptyAddress(node.fallbackIsm)
+      ) {
+        addIssue('fallbackIsm must be a non-zero address', [
+          ...path,
+          'fallbackIsm',
+        ]);
+      }
+      if (state.routingFound) {
+        addIssue('Only one routing/fallbackRouting node is allowed per tree');
+      }
+      state.routingFound = true;
+      for (const [chain, domainNode] of Object.entries(node.domains ?? {})) {
+        validateCompositeIsmTree(
+          domainNode,
+          [...path, 'domains', chain],
+          state,
+          true,
+          ctx,
+        );
+      }
+      break;
+    case CompositeIsmNodeType.TEST:
+      break;
+  }
+}
+
+export const CompositeIsmConfigSchema: z.ZodSchema<CompositeIsmConfig> =
+  OwnableSchema.extend({
+    type: z.literal(IsmType.COMPOSITE),
+    // Composite ISM is Sealevel-only, so unlike OwnableSchema's generic
+    // multi-format owner (shared across every ISM/hook/token config type),
+    // owner here is always a Sealevel pubkey.
+    owner: ZSealevelPubkey,
+    root: CompositeIsmNodeConfigSchema,
+  }).superRefine((data, ctx) => {
+    validateCompositeIsmTree(
+      data.root,
+      ['root'],
+      { routingFound: false },
+      false,
+      ctx,
+    );
+  });
+
 export const UnknownIsmConfigSchema = z
   .object({
     type: z.literal(IsmType.UNKNOWN),
@@ -468,7 +864,7 @@ export function normalizeUnknownIsmTypes<T>(config: T): T {
   return normalized as T;
 }
 
-export const IsmConfigSchema = z.union([
+export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.union([
   ZHash,
   TestIsmConfigSchema,
   OpStackIsmConfigSchema,
@@ -481,6 +877,7 @@ export const IsmConfigSchema = z.union([
   WeightedMultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
+  CompositeIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,

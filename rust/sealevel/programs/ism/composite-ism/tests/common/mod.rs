@@ -1,0 +1,651 @@
+#![allow(dead_code)]
+
+use borsh::BorshDeserialize;
+use hyperlane_core::{Encode, HyperlaneMessage, ModuleType, H256};
+use hyperlane_sealevel_composite_ism::{
+    accounts::{
+        derive_domain_pda, derive_process_authority, CompositeIsmAccount, CompositeIsmStorage,
+        DomainIsmAccount, DomainIsmStorage, IsmNode,
+    },
+    instruction::{
+        initialize_instruction, pause_instruction, remove_domain_ism_instruction,
+        set_domain_ism_instruction, unpause_instruction, update_config_instruction,
+        verify_metadata_spec_instruction,
+    },
+    processor::process_instruction,
+};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, MetadataSpecResult, VerifyInstruction,
+    VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+use solana_banks_interface::BanksTransactionResultWithSimulation;
+use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey, pubkey::Pubkey};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTest};
+use solana_sdk::{
+    hash::Hash,
+    instruction::Instruction,
+    message::Message,
+    signature::Signer,
+    signer::keypair::Keypair,
+    transaction::{Transaction, TransactionError},
+};
+
+pub fn composite_ism_id() -> Pubkey {
+    pubkey!("Bprmwvw4fCr1fXF4y3qq7JyNiVwb5JNpkVRqxqMhQgau")
+}
+
+/// A fixed mock mailbox program ID used in functional tests for `RateLimited`.
+pub fn mock_mailbox_id() -> Pubkey {
+    pubkey!("8opHzTAnfzRpPEx21XtnrVTX28YQuCpAjcn1PczScKh")
+}
+
+/// The process authority PDA for the mock mailbox.
+pub fn mock_mailbox_process_authority() -> Pubkey {
+    derive_process_authority(&mock_mailbox_id(), &composite_ism_id()).0
+}
+
+/// In-process mock mailbox that forwards `Verify` / `VerifyAccountMetas` calls
+/// to the composite ISM with the process authority as a signer via `invoke_signed`.
+fn mock_mailbox_process_instruction(
+    program_id: &solana_program::pubkey::Pubkey,
+    accounts: &[solana_program::account_info::AccountInfo],
+    data: &[u8],
+) -> solana_program::entrypoint::ProgramResult {
+    use solana_program::{
+        instruction::{AccountMeta as SolAccountMeta, Instruction as SolInstruction},
+        program::invoke_signed,
+    };
+
+    let ism_id = composite_ism_id();
+    let (process_authority, bump) = solana_program::pubkey::Pubkey::find_program_address(
+        &[b"process_authority", ism_id.as_ref()],
+        program_id,
+    );
+
+    // When forwarding accounts to the composite ISM via invoke_signed, we must
+    // set is_signer: true for the process authority PDA in the CPI account metas.
+    // invoke_signed grants signer status for accounts whose keys match the provided
+    // seeds, but the runtime only propagates this if the AccountMeta in the CPI
+    // instruction also has is_signer: true.
+    let account_metas: Vec<SolAccountMeta> = accounts
+        .iter()
+        .map(|a| SolAccountMeta {
+            pubkey: *a.key,
+            is_signer: a.is_signer || *a.key == process_authority,
+            is_writable: a.is_writable,
+        })
+        .collect();
+
+    let ix = SolInstruction::new_with_bytes(composite_ism_id(), data, account_metas);
+
+    invoke_signed(
+        &ix,
+        accounts,
+        &[&[b"process_authority", ism_id.as_ref(), &[bump]]],
+    )
+}
+
+pub fn program_test() -> ProgramTest {
+    let mut pt = ProgramTest::new(
+        "hyperlane_sealevel_composite_ism",
+        composite_ism_id(),
+        solana_program_test::processor!(process_instruction),
+    );
+    pt.add_program(
+        "mock_mailbox",
+        mock_mailbox_id(),
+        solana_program_test::processor!(mock_mailbox_process_instruction),
+    );
+    pt
+}
+
+/// Sends a `Verify` instruction via the mock mailbox, which forwards it to the
+/// composite ISM with the process authority as a CPI signer.
+///
+/// The process authority is a PDA that can only sign via `invoke_signed` in CPI
+/// context (the mock mailbox calls `invoke_signed` to sign with it).  For the
+/// outer transaction to the mock mailbox, the process authority must NOT be
+/// listed as a required signer — it appears with `is_signer: false` so that
+/// `Transaction::sign` does not require a signature for it.  The CPI signing
+/// by the mock mailbox grants the `is_signer` flag inside the composite ISM.
+///
+/// The composite ISM program account must be included in the outer transaction's
+/// account list so that the CPI from the mock mailbox can locate the callee.
+pub async fn process_verify_via_mailbox(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    verify_ixn: VerifyInstruction,
+    account_metas: Vec<AccountMeta>,
+) -> Result<(), BanksClientError> {
+    let process_authority = mock_mailbox_process_authority();
+
+    // Demote the process authority from is_signer in the outer instruction.
+    // The mock mailbox grants it signer status via invoke_signed (CPI).
+    let mut outer_metas: Vec<AccountMeta> = account_metas
+        .into_iter()
+        .map(|m| {
+            if m.pubkey == process_authority && m.is_signer {
+                AccountMeta {
+                    pubkey: m.pubkey,
+                    is_signer: false,
+                    is_writable: m.is_writable,
+                }
+            } else {
+                m
+            }
+        })
+        .collect();
+
+    // Add the composite ISM program account so the CPI from the mock mailbox
+    // can locate the callee program.
+    outer_metas.push(AccountMeta::new_readonly(composite_ism_id(), false));
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let ix = Instruction::new_with_bytes(
+        mock_mailbox_id(),
+        &InterchainSecurityModuleInstruction::Verify(verify_ixn)
+            .encode()
+            .unwrap(),
+        outer_metas,
+    );
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+pub fn storage_pda_key() -> Pubkey {
+    Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &composite_ism_id()).0
+}
+
+pub async fn initialize(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    root: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = initialize_instruction(composite_ism_id(), payer.pubkey(), root).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+pub fn dummy_message() -> HyperlaneMessage {
+    HyperlaneMessage {
+        version: 3,
+        nonce: 0,
+        origin: 1234,
+        sender: H256::zero(),
+        destination: 4321,
+        recipient: H256::zero(),
+        body: vec![],
+    }
+}
+
+/// Non-zero warp-route recipient shared by the RateLimited tests. RateLimited
+/// requires a specific recipient, and the verified message's recipient must
+/// equal it (see `validate_domain_ism` / `verify_node`).
+pub fn rate_limited_recipient() -> H256 {
+    H256::from([0xAAu8; 32])
+}
+
+/// Builds a TokenMessage body with a given amount (big-endian u256 at bytes 32..64).
+pub fn token_message_body(amount: u64) -> Vec<u8> {
+    let mut body = vec![0u8; 64];
+    body[56..64].copy_from_slice(&amount.to_be_bytes()); // last 8 bytes of 32-byte amount field
+    body
+}
+
+pub async fn new_funded_keypair(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    lamports: u64,
+) -> Keypair {
+    let keypair = Keypair::new();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[solana_system_interface::instruction::transfer(
+            &payer.pubkey(),
+            &keypair.pubkey(),
+            lamports,
+        )],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
+    keypair
+}
+
+/// Single-pass `VerifyAccountMetas` call with the given input accounts.
+async fn call_vam_once(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+    accounts: Vec<AccountMeta>,
+) -> Vec<AccountMeta> {
+    let data = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::VerifyAccountMetas(verify_instruction)
+                    .encode()
+                    .unwrap(),
+                accounts,
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+
+    let metas: Vec<SerializableAccountMeta> =
+        SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(&data)
+            .unwrap()
+            .return_data;
+    metas.into_iter().map(|m| m.into()).collect()
+}
+
+/// Simulates `VerifyAccountMetas` (single pass) and returns the result.
+pub async fn get_verify_account_metas(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> Vec<AccountMeta> {
+    let storage_pda = AccountMeta::new_readonly(storage_pda_key(), false);
+    call_vam_once(
+        banks_client,
+        payer,
+        recent_blockhash,
+        verify_instruction,
+        vec![storage_pda],
+    )
+    .await
+}
+
+/// Resolves the full account list needed by `Verify` by calling
+/// `VerifyAccountMetas` in a fixpoint loop.
+///
+/// Each iteration feeds the previous result back as input accounts, allowing
+/// `Routing` nodes to discover sub-accounts (e.g. `TrustedRelayer`) that are
+/// only readable once the domain PDA is known. The loop terminates when the
+/// full `AccountMeta` list (pubkeys **and** flags) stops changing.
+///
+/// Full equality is required because the domain PDA's `is_writable` flag can
+/// flip between iterations: pass 1 returns it readonly (the RateLimited ISM
+/// has not been read yet), pass 2 promotes it to writable (RateLimited
+/// detected), and only pass 3 is stable. Key-only comparison would exit after
+/// pass 2 with stale flags, but since `return result` is used the writable bit
+/// would still be correct in that case; the full check is defensive and ensures
+/// we never ship a pre-stable list to `Verify`.
+///
+/// Use this everywhere the relayer prepares accounts for `Verify`. A single
+/// call to `get_verify_account_metas` is only sufficient for trees that contain
+/// no `Routing` nodes with account-bearing ISMs inside their domain PDAs.
+pub async fn get_all_verify_account_metas(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> Vec<AccountMeta> {
+    let mut accounts = vec![AccountMeta::new_readonly(storage_pda_key(), false)];
+    loop {
+        let result = call_vam_once(
+            banks_client,
+            payer,
+            recent_blockhash,
+            verify_instruction.clone(),
+            accounts.clone(),
+        )
+        .await;
+
+        // Converged when the full AccountMeta list (pubkeys and flags) stabilizes.
+        if result == accounts {
+            return result;
+        }
+        accounts = result;
+    }
+}
+
+/// Simulates `VerifyAccountMetas` and returns the raw simulation result (including errors).
+/// Use this when you expect VAM to fail; use `get_verify_account_metas` when you expect success.
+pub async fn simulate_vam(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> BanksTransactionResultWithSimulation {
+    let storage_pda = AccountMeta::new_readonly(storage_pda_key(), false);
+    banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::VerifyAccountMetas(verify_instruction)
+                    .encode()
+                    .unwrap(),
+                vec![storage_pda],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+}
+
+/// Simulates `Verify` using the given account metas and returns the raw simulation result.
+/// Uses an unsigned transaction, which is fine for programs that don't check fee-payer sig.
+/// For TrustedRelayer tests (which check `is_signer` on an extra account), pass the relayer's
+/// pubkey as a signer in the instruction accounts — the SVM sets `is_signer` based on the
+/// message's required-signers list, not on actual signature bytes during simulation.
+pub async fn simulate_verify(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+    account_metas: Vec<AccountMeta>,
+) -> BanksTransactionResultWithSimulation {
+    banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::Verify(verify_instruction)
+                    .encode()
+                    .unwrap(),
+                account_metas,
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+}
+
+/// Asserts that a simulation succeeded (no transaction error).
+pub fn assert_simulation_ok(result: &BanksTransactionResultWithSimulation) {
+    assert!(
+        result.result.as_ref().map(|r| r.is_ok()).unwrap_or(false),
+        "expected simulation success, got {:?}",
+        result.result
+    );
+}
+
+/// Asserts that a simulation failed with the given transaction error.
+pub fn assert_simulation_error(
+    result: &BanksTransactionResultWithSimulation,
+    expected: TransactionError,
+) {
+    let actual_err = result.result.as_ref().and_then(|r| r.as_ref().err());
+    assert_eq!(
+        actual_err,
+        Some(&expected),
+        "expected {:?}, got {:?}",
+        expected,
+        result.result
+    );
+}
+
+/// Builds aggregation metadata bytes from sub-metadata slices.
+/// `None` entries represent sub-ISMs with no metadata (start=0).
+pub fn encode_aggregation_metadata(sub_metas: &[Option<&[u8]>]) -> Vec<u8> {
+    let header_len = (sub_metas.len() * 8) as u32;
+    let mut offsets: Vec<(u32, u32)> = Vec::new();
+    let mut cursor = header_len;
+    for opt in sub_metas {
+        if let Some(m) = opt {
+            let start = cursor;
+            let end = start + m.len() as u32;
+            offsets.push((start, end));
+            cursor = end;
+        } else {
+            offsets.push((0, 0));
+        }
+    }
+    let mut buf = Vec::new();
+    for (start, end) in &offsets {
+        buf.extend_from_slice(&start.to_be_bytes());
+        buf.extend_from_slice(&end.to_be_bytes());
+    }
+    for opt in sub_metas {
+        if let Some(m) = opt {
+            buf.extend_from_slice(m);
+        }
+    }
+    buf
+}
+
+/// Returns the domain PDA key for a `Routing` node.
+pub fn domain_pda_key(domain: u32) -> Pubkey {
+    derive_domain_pda(&composite_ism_id(), domain).0
+}
+
+/// Submits a `SetDomainIsm` instruction.
+pub async fn set_domain_ism(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    domain: u32,
+    ism: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = set_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain, ism).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits an `UpdateConfig` instruction (replaces the root ISM node).
+pub async fn update_config(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    root: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = update_config_instruction(composite_ism_id(), payer.pubkey(), root).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits a `RemoveDomainIsm` instruction.
+pub async fn remove_domain_ism(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    domain: u32,
+) -> Result<(), BanksClientError> {
+    let ix = remove_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits a `Pause` instruction.
+pub async fn pause(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = pause_instruction(composite_ism_id(), payer.pubkey()).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits an `Unpause` instruction.
+pub async fn unpause(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = unpause_instruction(composite_ism_id(), payer.pubkey()).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Simulates `Type` and returns the resulting `ModuleType`.
+pub async fn get_ism_type(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> ModuleType {
+    let storage_pda = storage_pda_key();
+    let data = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::Type.encode().unwrap(),
+                vec![AccountMeta::new_readonly(storage_pda, false)],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+
+    let type_u32 = SimulationReturnData::<u32>::try_from_slice(&data)
+        .unwrap()
+        .return_data;
+    num_traits::FromPrimitive::from_u32(type_u32).unwrap()
+}
+
+// ── Account-data helpers ─────────────────────────────────────────────────────
+// Used by functional tests that exercise the FallbackRouting fallback path.
+
+/// Serializes a [`DomainIsmStorage`] into a raw byte buffer and returns the PDA key.
+pub fn make_domain_pda_data(
+    program_id: &Pubkey,
+    origin: u32,
+    ism: Option<IsmNode>,
+) -> (Pubkey, Vec<u8>) {
+    let (key, bump) = derive_domain_pda(program_id, origin);
+    let storage = DomainIsmStorage {
+        bump_seed: bump,
+        domain: origin,
+        ism,
+    };
+    let mut data = vec![0u8; 512];
+    let mut lamports = 0u64;
+    let acc = AccountInfo::new(
+        &key,
+        false,
+        true,
+        &mut lamports,
+        &mut data,
+        program_id,
+        false,
+    );
+    DomainIsmAccount::from(storage).store(&acc, false).unwrap();
+    (key, data)
+}
+
+/// Runs the `VerifyMetadataSpec` fixpoint loop (mirrors the relayer's
+/// `SealevelCompositeIsm::get_metadata_spec`) and returns the converged
+/// [`MetadataSpecResult`], or `None` if it did not converge within 10 iters.
+pub async fn get_metadata_spec(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    message: &HyperlaneMessage,
+) -> Option<MetadataSpecResult> {
+    use hyperlane_sealevel_composite_ism::accounts::derive_domain_pda as ddp;
+    let (domain_pda, _) = ddp(&composite_ism_id(), message.origin);
+    let mut extra: Vec<Pubkey> = vec![domain_pda];
+
+    for _ in 0..10 {
+        let ix =
+            verify_metadata_spec_instruction(composite_ism_id(), message.to_vec(), extra.clone())
+                .unwrap();
+
+        let sim = banks_client
+            .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+                &[ix],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .unwrap();
+
+        let data = sim.simulation_details?.return_data?.data;
+
+        let result = SimulationReturnData::<MetadataSpecResult>::try_from_slice(&data)
+            .ok()?
+            .return_data;
+
+        if result.spec.is_some() || result.accounts.is_empty() {
+            return Some(result);
+        }
+        // result.accounts = [vam_pda, a, b, …] — drop the leading vam_pda.
+        extra = result.accounts[1..].to_vec();
+    }
+    None
+}
+
+/// Serializes a [`CompositeIsmAccount`] for a fallback ISM program into a raw byte buffer
+/// and returns the PDA key.
+pub fn make_fallback_storage_data(
+    fallback_program_id: &Pubkey,
+    root: Option<IsmNode>,
+) -> (Pubkey, Vec<u8>) {
+    let (key, bump) =
+        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_program_id);
+    let storage = CompositeIsmStorage {
+        bump_seed: bump,
+        owner: None,
+        root,
+    };
+    let mut data = vec![0u8; 512];
+    let mut lamports = 0u64;
+    let acc = AccountInfo::new(
+        &key,
+        false,
+        true,
+        &mut lamports,
+        &mut data,
+        fallback_program_id,
+        false,
+    );
+    CompositeIsmAccount::from(storage)
+        .store(&acc, false)
+        .unwrap();
+    (key, data)
+}

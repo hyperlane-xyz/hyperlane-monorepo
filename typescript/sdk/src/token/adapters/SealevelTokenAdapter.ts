@@ -9,12 +9,15 @@ import {
 } from '@solana/spl-token';
 import {
   AccountMeta,
+  AddressLookupTableAccount,
   ComputeBudgetProgram,
   Keypair,
+  MessageV0,
   PublicKey,
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  VersionedTransaction,
 } from '@solana/web3.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
@@ -38,7 +41,10 @@ import {
   SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
 } from '../../gas/adapters/SealevelIgpAdapter.js';
-import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
+import {
+  SealevelIgpFeeConfig,
+  SealevelInterchainGasPaymasterType,
+} from '../../gas/adapters/serialization.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
@@ -52,16 +58,27 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  Quote,
   QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 import {
+  simulateFeeQuoteAccountMetas,
+  simulateIgpQuote,
+  simulateIgpQuoteAccountMetas,
+  simulateWarpFee,
+} from './sealevelFee.js';
+import {
+  SealevelFeeAccountPrefix,
+  SealevelFeeAccountPrefixSchema,
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
+  SealevelTokenFeeConfig,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
+  decodeTrailingFeeConfig,
 } from './serialization.js';
 
 const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
@@ -88,6 +105,24 @@ const PRIORITY_FEE_PADDING_FACTOR = 2;
  * 100,000 * 1e-6 * 1,000,000 (compute unit limit) / 1e9 == 0.0001 SOL
  */
 const MINIMUM_PRIORITY_FEE = 100_000;
+
+/**
+ * Number of static prefix accounts in the PayForGas-shaped list returned by
+ * `GetIgpQuoteAccountMetas`: `[system, payer, program_data, unique_gas_payment,
+ * gas_payment_pda, igp, sender_authority, quoted_sender]`. Slot 8+ is the
+ * quoted-fee cascade tail. Must stay in lockstep with `get_igp_quote_account_metas`
+ * in rust/sealevel/programs/hyperlane-sealevel-igp/src/processor.rs.
+ */
+const IGP_QUOTE_METAS_CASCADE_OFFSET = 8;
+
+/**
+ * Offset of the quoted-mode IGP section within the PayForGas-shaped list from
+ * `GetIgpQuoteAccountMetas`: [6] igp_quote_authority, [7] quoted_sender (warp
+ * program id), [8+] cascade PDAs. Must stay in lockstep with
+ * `get_igp_quote_account_metas` in
+ * rust/sealevel/programs/hyperlane-sealevel-igp/src/processor.rs.
+ */
+const IGP_QUOTE_METAS_AUTHORITY_OFFSET = 6;
 
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
@@ -344,18 +379,56 @@ export class SealevelTokenAdapter
   }
 }
 
+export interface SealevelAltAddresses {
+  core: Address;
+  warpSpecific: Address[];
+}
+
+/**
+ * Building blocks of a `transfer_remote` (or `transfer_remote_to`) tx — the
+ * Sealevel adapter exposes this for composable callers (e.g. the offchain-
+ * quoted-transfer provider) that need to prepend extra ixs between the
+ * compute-budget head and the warp call.
+ *
+ * Fields are split deliberately:
+ *
+ *  - `computeBudgetInstructions` — Solana compute-budget ixs. The composing
+ *    caller MUST place them at the head of the final tx (priority-fee and
+ *    CU-limit ixs are conventionally first; some RPC/wallet stacks rely on
+ *    that position when computing per-tx priority).
+ *
+ *  - `transferInstructions` — the warp `transfer_remote` / `transfer_remote_to`
+ *    instructions themselves. Submit-quote ixs (warp fee, IGP) for the
+ *    offchain-quoted flow are prepended directly BEFORE these.
+ *
+ * Final tx order: `[...computeBudgetInstructions, ...submitQuoteIxs?, ...transferInstructions]`.
+ */
+export interface SealevelTransferBundle {
+  computeBudgetInstructions: TransactionInstruction[];
+  transferInstructions: TransactionInstruction[];
+  addressLookupTableAccounts: AddressLookupTableAccount[];
+  feePayer: PublicKey;
+  signers: Keypair[];
+}
+
 interface HypTokenAddresses {
   token: Address;
   warpRouter: Address;
   mailbox: Address;
+  altAddresses?: SealevelAltAddresses;
 }
 
 export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
-  implements IHypTokenAdapter<Transaction>
+  implements IHypTokenAdapter<Transaction | VersionedTransaction>
 {
   public readonly warpProgramPubKey: PublicKey;
   public readonly addresses: HypTokenAddresses;
+  /// Plugin data length in bytes (token-type specific). Required to locate
+  /// the optional trailing fee_config in raw account data. Mirrors the
+  /// per-plugin struct sizes from
+  /// rust/sealevel/programs/hyperlane-sealevel-token-*.
+  protected abstract readonly pluginDataSize: number;
   protected readonly tokenAccountData = new LazyAsync(() =>
     this.loadTokenAccountData(),
   );
@@ -374,6 +447,265 @@ export abstract class SealevelHypTokenAdapter
     return this.tokenAccountData.get();
   }
 
+  async getFeeConfig(): Promise<SealevelTokenFeeConfig | undefined> {
+    const { fee_config } = await this.getTokenAccountData();
+
+    return fee_config;
+  }
+
+  /// Cached inner-Igp state. Used to decide new-flow vs legacy IGP quoting
+  /// and to build the new-flow QuoteGasPayment account list. For OverheadIgp
+  /// routes the inner Igp address is resolved via an extra RPC on the
+  /// OverheadIgp PDA.
+  public readonly innerIgpFeeState = new LazyAsync(() =>
+    this.loadInnerIgpFeeState(),
+  );
+
+  private async loadInnerIgpFeeState(): Promise<
+    | {
+        innerIgpAccount: PublicKey;
+        // Set only when the token's IGP config is OverheadIgp; appended
+        // after the cascade on the new-flow QuoteGasPayment / PayForGas
+        // account list.
+        overheadIgpAccount?: PublicKey;
+        feeConfig: SealevelIgpFeeConfig | undefined;
+      }
+    | undefined
+  > {
+    const tokenData = await this.getTokenAccountData();
+    const igpConfig = tokenData.interchain_gas_paymaster;
+    if (!igpConfig || igpConfig.igp_account_pub_key === undefined) {
+      return undefined;
+    }
+
+    let innerIgpAccount: PublicKey;
+    let overheadIgpAccount: PublicKey | undefined;
+    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
+      innerIgpAccount = igpConfig.igp_account_pub_key;
+    } else if (
+      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
+    ) {
+      overheadIgpAccount = igpConfig.igp_account_pub_key;
+      const overheadIgp = new SealevelOverheadIgpAdapter(
+        this.chainName,
+        this.multiProvider,
+        {
+          overheadIgp: overheadIgpAccount.toBase58(),
+          programId: igpConfig.program_id_pubkey.toBase58(),
+        },
+      );
+      const overheadData = await overheadIgp.getAccountInfo();
+      innerIgpAccount = overheadData.inner_pub_key;
+    } else {
+      return undefined;
+    }
+
+    const innerIgp = new SealevelIgpAdapter(
+      this.chainName,
+      this.multiProvider,
+      {
+        igp: innerIgpAccount.toBase58(),
+        programId: igpConfig.program_id_pubkey.toBase58(),
+      },
+    );
+    const innerInfo = await innerIgp.getAccountInfo();
+    return {
+      innerIgpAccount,
+      overheadIgpAccount,
+      feeConfig: innerInfo.fee_config,
+    };
+  }
+
+  /**
+   * Address-or-denom value used for `tokenFeeQuote.addressOrDenom`. The
+   * on-chain fee is deducted from the warp token; native adapters override
+   * to return undefined (SOL sentinel).
+   */
+  protected getFeeTokenAddressOrDenom(): string | undefined {
+    return this.tokenMintPubKey.toBase58();
+  }
+
+  /// Cached `AddressLookupTableAccount`s fetched from
+  /// `this.addresses.altAddresses`. Empty when no ALT addresses are
+  /// configured (legacy routes). Used by populateTransferRemote(To)Tx to
+  /// compile a `VersionedTransaction` whose account-key footprint fits
+  /// under Solana's 1232-byte transaction size limit when the new fee +
+  /// IGP-quoted-mode sections push the count past what a legacy
+  /// `Transaction` can carry.
+  ///
+  /// Cached for the adapter's lifetime with no invalidation: if a configured
+  /// ALT is extended or deactivated on-chain after first load, this instance
+  /// keeps the stale snapshot. Adapters are constructed per warp operation, so
+  /// a fresh adapter always re-fetches; only a long-lived, reused instance
+  /// would observe staleness.
+  protected readonly addressLookupTableAccounts = new LazyAsync(() =>
+    this.loadAddressLookupTableAccounts(),
+  );
+
+  private async loadAddressLookupTableAccounts(): Promise<
+    AddressLookupTableAccount[]
+  > {
+    const altAddresses = this.addresses.altAddresses;
+    if (!altAddresses) {
+      return [];
+    }
+
+    const connection = this.getProvider();
+    const addresses = [
+      new PublicKey(altAddresses.core),
+      ...altAddresses.warpSpecific.map((a) => new PublicKey(a)),
+    ];
+
+    const results = await Promise.all(
+      addresses.map((addr) => connection.getAddressLookupTable(addr)),
+    );
+    return results.map((r, i) => {
+      assert(
+        r.value,
+        `Sealevel ALT not found on chain: ${addresses[i].toBase58()}`,
+      );
+      return r.value;
+    });
+  }
+
+  /// Cached beneficiary owner pubkey from the fee_account. Used to derive
+  /// the terminal fee_beneficiary spliced into the warp transfer_remote
+  /// fee section. Resolves to undefined when the token has no fee_config.
+  protected readonly feeAccountBeneficiaryOwner = new LazyAsync(() =>
+    this.loadFeeAccountBeneficiaryOwner(),
+  );
+
+  private async loadFeeAccountBeneficiaryOwner(): Promise<
+    PublicKey | undefined
+  > {
+    const tokenData = await this.getTokenAccountData();
+    if (!tokenData.fee_config) return undefined;
+    const info = await this.getProvider().getAccountInfo(
+      tokenData.fee_config.feeAccount,
+    );
+    assert(
+      info,
+      `Fee account ${tokenData.fee_config.feeAccount.toBase58()} not found on chain`,
+    );
+    const wrappedData = deserializeUnchecked(
+      SealevelFeeAccountPrefixSchema,
+      SealevelAccountDataWrapper,
+      info.data,
+    );
+    const data = wrappedData.data;
+    assert(
+      data instanceof SealevelFeeAccountPrefix,
+      'Decoded wrapper.data is not SealevelFeeAccountPrefix',
+    );
+    return data.beneficiary_pub_key;
+  }
+
+  /**
+   * Per-token-type derivation of the terminal `fee_beneficiary` spliced into
+   * the warp transfer_remote fee section. Matches
+   * `HyperlaneSealevelTokenPlugin::fee_beneficiary_pubkey` on chain.
+   */
+  protected abstract deriveFeeBeneficiary(
+    beneficiaryOwner: PublicKey,
+  ): Promise<PublicKey>;
+
+  /**
+   * Build the fee-section account list. Spliced into the warp transfer_remote
+   * after the dispatched-message PDA, when `token.fee_config` is Some.
+   *   [feeProgram, feeAccount, ...passThrough, feeBeneficiary(w)]
+   *
+   * `scopedSalt` (optional) is the pre-scoped 32-byte salt for an offchain
+   * transient fee quote — when set, the on-chain cascade enumerator
+   * (`GetQuoteAccountMetas`) returns the transient-quote PDA alongside the
+   * standing path so a same-tx `SubmitFeeQuote` can deposit there. Standing-
+   * only callers omit it.
+   */
+  protected async buildFeeSectionKeys({
+    feeConfig,
+    payer,
+    destination,
+    targetRouter,
+    scopedSalt,
+  }: {
+    feeConfig: SealevelTokenFeeConfig;
+    payer: PublicKey;
+    destination: Domain;
+    targetRouter: Uint8Array;
+    scopedSalt?: Uint8Array;
+  }): Promise<AccountMeta[]> {
+    const metas = await simulateFeeQuoteAccountMetas(
+      this.getProvider(),
+      feeConfig.feeProgram,
+      feeConfig.feeAccount,
+      payer,
+      { destinationDomain: destination, targetRouter, scopedSalt },
+    );
+    // Drop slots 0 (fee_account) and 1 (payer placeholder) — both appear
+    // elsewhere in the warp transfer_remote tx.
+    const passThrough = metas.slice(2);
+    const beneficiaryOwner = await this.feeAccountBeneficiaryOwner.get();
+    assert(
+      beneficiaryOwner,
+      'fee_account beneficiary owner unavailable; token.fee_config missing',
+    );
+    const feeBeneficiary = await this.deriveFeeBeneficiary(beneficiaryOwner);
+    return [
+      { pubkey: feeConfig.feeProgram, isSigner: false, isWritable: false },
+      { pubkey: feeConfig.feeAccount, isSigner: false, isWritable: false },
+      ...passThrough,
+      { pubkey: feeBeneficiary, isSigner: false, isWritable: true },
+    ];
+  }
+
+  /**
+   * Build the quoted-mode IGP extension. Spliced into the IGP section between
+   * the gas-payment PDA and the configured IGP account when the inner Igp
+   * has `fee_config` set:
+   *   [igpQuoteAuthority, warpProgramId, ...cascade]
+   *
+   * The IGP quote authority is the warp's `invoke_signed` PDA at runtime; it
+   * is NOT marked as a signer at the outer-instruction level.
+   */
+  protected async buildIgpQuotedSectionKeys({
+    igpProgramId,
+    innerIgpAccount,
+    payer,
+    destination,
+    scopedSalt,
+  }: {
+    igpProgramId: PublicKey;
+    innerIgpAccount: PublicKey;
+    payer: PublicKey;
+    destination: Domain;
+    /**
+     * Pre-scoped 32-byte salt for an offchain transient IGP quote. When set,
+     * `GetIgpQuoteAccountMetas` returns the transient PDA in its cascade.
+     * Forward-looking — SVM IGP doesn't accept offchain submits today.
+     */
+    scopedSalt?: Uint8Array;
+  }): Promise<AccountMeta[]> {
+    const igpMetas = await simulateIgpQuoteAccountMetas(
+      this.getProvider(),
+      igpProgramId,
+      innerIgpAccount,
+      payer,
+      {
+        destinationDomain: destination,
+        sender: this.warpProgramPubKey,
+        scopedSalt,
+      },
+    );
+    // GetIgpQuoteAccountMetas already returns the correctly-derived
+    // igp_quote_authority at [6] and quoted_sender (the warp program id) at
+    // [7], followed by the cascade PDAs. Reuse that section verbatim and only
+    // force the authority non-signer — the warp signs it via invoke_signed at
+    // runtime, so it must not be a required signer at the outer level.
+    const [authority, ...rest] = igpMetas.slice(
+      IGP_QUOTE_METAS_AUTHORITY_OFFSET,
+    );
+    return [{ ...authority, isSigner: false }, ...rest];
+  }
+
   private async loadTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
     const tokenPda = this.deriveHypTokenAccount();
     const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
@@ -383,7 +715,24 @@ export abstract class SealevelHypTokenAdapter
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return wrappedData.data as SealevelHyperlaneTokenData;
+
+    const data = wrappedData.data;
+    assert(
+      data instanceof SealevelHyperlaneTokenData,
+      'Decoded wrapper.data is not SealevelHyperlaneTokenData',
+    );
+
+    const consumedSize = serialize(
+      SealevelHyperlaneTokenDataSchema,
+      wrappedData,
+    ).length;
+    data.fee_config = decodeTrailingFeeConfig(
+      Buffer.from(accountInfo.data),
+      consumedSize,
+      this.pluginDataSize,
+    );
+
+    return data;
   }
 
   override async getMetadata(): Promise<TokenMetadata> {
@@ -427,36 +776,219 @@ export abstract class SealevelHypTokenAdapter
   async quoteTransferRemoteGas({
     destination,
     sender,
+    recipient,
+    amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const tokenData = await this.getTokenAccountData();
-    const destinationGas = tokenData.destination_gas?.get(destination);
-    if (isNullish(destinationGas)) {
-      return { igpQuote: { amount: 0n } };
-    }
-
-    const igp = this.getIgpAdapter(tokenData);
-    if (!igp) {
-      return { igpQuote: { amount: 0n } };
-    }
-
-    assert(sender, 'Sender required for Sealevel transfer remote gas quote');
-
-    const igpPayment = await igp.quoteGasPayment(
+    return this.quoteTransferGas({
       destination,
-      destinationGas,
-      new PublicKey(sender),
-    );
-
-    return { igpQuote: { amount: igpPayment } };
+      sender,
+      recipient,
+      amount,
+      // Non-CC routes pass H256::zero() per the fee program's seed macros.
+      targetRouter: new Uint8Array(32),
+    });
   }
 
-  async populateTransferRemoteTx({
+  /// Core quote orchestration shared by quoteTransferRemoteGas (non-CC) and
+  /// quoteTransferRemoteToGas (CC override). `targetRouter` is the 32-byte
+  /// H256 used in the fee program's standing-quote PDA seeds: H256::zero
+  /// for Leaf / Routing modes, destination warp router for
+  /// CrossCollateralRouting.
+  protected async quoteTransferGas({
+    destination,
+    sender,
+    recipient,
+    amount,
+    targetRouter,
+  }: {
+    destination: Domain;
+    sender?: Address;
+    recipient?: Address;
+    amount?: bigint;
+    targetRouter: Uint8Array;
+  }): Promise<InterchainGasQuote> {
+    const tokenData = await this.getTokenAccountData();
+
+    // -------- Warp fee quote (only when token.fee_config is set) --------
+    let tokenFeeQuote: Quote | undefined;
+    if (tokenData.fee_config) {
+      assert(
+        sender && recipient && amount !== undefined,
+        'sender, recipient, and amount required for Sealevel warp-fee quote',
+      );
+      tokenFeeQuote = await this.quoteWarpFee({
+        feeConfig: tokenData.fee_config,
+        payer: new PublicKey(sender),
+        destination,
+        recipient,
+        amount,
+        targetRouter,
+      });
+    }
+
+    // -------- IGP fee quote --------
+    const destinationGas = tokenData.destination_gas?.get(destination);
+    let igpQuote: Quote = { amount: 0n };
+    if (!isNullish(destinationGas)) {
+      const igpAdapter = this.getIgpAdapter(tokenData);
+      if (igpAdapter) {
+        assert(
+          sender,
+          'Sender required for Sealevel transfer remote gas quote',
+        );
+        const senderPubKey = new PublicKey(sender);
+        const igpState = await this.innerIgpFeeState.get();
+        const igpProgramId =
+          tokenData.interchain_gas_paymaster?.program_id_pubkey;
+        if (igpState?.feeConfig && igpProgramId) {
+          igpQuote = {
+            amount: await this.quoteIgpNewFlow({
+              igpProgramId,
+              innerIgpAccount: igpState.innerIgpAccount,
+              overheadIgpAccount: igpState.overheadIgpAccount,
+              payer: senderPubKey,
+              destination,
+              gasAmount: destinationGas,
+            }),
+          };
+        } else {
+          igpQuote = {
+            amount: await igpAdapter.quoteGasPayment(
+              destination,
+              destinationGas,
+              senderPubKey,
+            ),
+          };
+        }
+      }
+    }
+
+    return tokenFeeQuote ? { igpQuote, tokenFeeQuote } : { igpQuote };
+  }
+
+  protected async quoteWarpFee({
+    feeConfig,
+    payer,
+    destination,
+    recipient,
+    amount,
+    targetRouter,
+  }: {
+    feeConfig: SealevelTokenFeeConfig;
+    payer: PublicKey;
+    destination: Domain;
+    recipient: Address;
+    amount: bigint;
+    targetRouter: Uint8Array;
+  }): Promise<Quote> {
+    const metas = await simulateFeeQuoteAccountMetas(
+      this.getProvider(),
+      feeConfig.feeProgram,
+      feeConfig.feeAccount,
+      payer,
+      { destinationDomain: destination, targetRouter },
+    );
+    // Slot 1 of the simulation output is a payer placeholder
+    // (Pubkey::default()) — substitute with the real payer before invoking
+    // QuoteFee.
+    const accounts = metas.map((m, i) =>
+      i === 1 ? { ...m, pubkey: payer } : m,
+    );
+    const feeAmount = await simulateWarpFee(
+      this.getProvider(),
+      feeConfig.feeProgram,
+      payer,
+      accounts,
+      {
+        destinationDomain: destination,
+        recipient: padBytesToLength(addressToBytes(recipient), 32),
+        amount,
+        targetRouter,
+      },
+    );
+    return {
+      amount: feeAmount,
+      addressOrDenom: this.getFeeTokenAddressOrDenom(),
+    };
+  }
+
+  private async quoteIgpNewFlow({
+    igpProgramId,
+    innerIgpAccount,
+    overheadIgpAccount,
+    payer,
+    destination,
+    gasAmount,
+  }: {
+    igpProgramId: PublicKey;
+    innerIgpAccount: PublicKey;
+    overheadIgpAccount?: PublicKey;
+    payer: PublicKey;
+    destination: Domain;
+    gasAmount: bigint;
+  }): Promise<bigint> {
+    // Discover the standing cascade tail via on-chain simulation on the
+    // inner Igp. simulateIgpQuoteAccountMetas returns the PayForGas-shaped
+    // list; the static prefix precedes the cascade tail.
+    const igpMetas = await simulateIgpQuoteAccountMetas(
+      this.getProvider(),
+      igpProgramId,
+      innerIgpAccount,
+      payer,
+      { destinationDomain: destination, sender: this.warpProgramPubKey },
+    );
+    const cascadeTail = igpMetas.slice(IGP_QUOTE_METAS_CASCADE_OFFSET);
+
+    // QuoteGasPayment new-flow direct-call layout:
+    //   [system, inner_igp, quoted_sender, ...cascade, optional_overhead_igp]
+    const accounts: AccountMeta[] = [
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: innerIgpAccount, isSigner: false, isWritable: false },
+      { pubkey: this.warpProgramPubKey, isSigner: false, isWritable: false },
+      ...cascadeTail,
+    ];
+    if (overheadIgpAccount) {
+      accounts.push({
+        pubkey: overheadIgpAccount,
+        isSigner: false,
+        isWritable: false,
+      });
+    }
+
+    return simulateIgpQuote(this.getProvider(), igpProgramId, payer, accounts, {
+      destinationDomain: destination,
+      gasAmount,
+    });
+  }
+
+  /**
+   * Sealevel-only — returns the building blocks of a `transfer_remote` tx
+   * (compute-budget ixs separated from the warp ix, ALTs, fee payer, the
+   * randomWallet signer) without compiling them into a `Transaction` /
+   * `VersionedTransaction`. The composing layer (typically the offchain-
+   * quoted-transfer provider) prepends `SubmitFeeQuote` / `SubmitIgpQuote`
+   * ixs between the compute-budget head and the transfer ix.
+   *
+   * `scopedSalt` (optional) is the 32-byte `keccak256(payer || clientSalt)`
+   * for a same-tx offchain transient quote — threaded through to the fee +
+   * IGP cascade simulations so their PDA enumeration includes the transient
+   * quote PDA. Matches the on-chain `scoped_salt` field. Standing-only
+   * callers omit it.
+   *
+   * `populateTransferRemoteTx` wraps this with a blockhash fetch + tx
+   * compilation; provider-level composition uses the bundle directly.
+   */
+  async getTransferRemoteIxBundle({
     weiAmountOrId,
     destination,
     recipient,
     fromAccountOwner,
     extraSigners,
-  }: TransferRemoteParams): Promise<Transaction> {
+    scopedSalt,
+  }: TransferRemoteParams & {
+    /** Sealevel-only — see method docs. */
+    scopedSalt?: Uint8Array;
+  }): Promise<SealevelTransferBundle> {
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
     const randomWallet = extraSigners?.length
@@ -465,11 +997,51 @@ export abstract class SealevelHypTokenAdapter
     const fromWalletPubKey = new PublicKey(fromAccountOwner);
     const mailboxPubKey = new PublicKey(this.addresses.mailbox);
 
+    const tokenData = await this.getTokenAccountData();
+    const igpState = await this.innerIgpFeeState.get();
+
+    // The non-CC `transfer_remote` CPIs `QuoteFee` with
+    // `target_router = token.router(destination_domain)` (i.e. the enrolled
+    // remote router, see hyperlane-sealevel-token's `transfer_remote`). The
+    // fee program's CC-routing variant keys its specific-scope standing PDA
+    // off `data.target_router`, so the cascade simulation here must use the
+    // same router bytes the runtime CPI will pass — otherwise the simulated
+    // PDA slot at `(dest, ZERO)` mismatches the runtime expectation at
+    // `(dest, enrolled_router)` and `process_quote_fee` errors with
+    // `InvalidTransientSlot`. Non-CC fee variants (Leaf / Routing) ignore
+    // `data.target_router` (the on-chain `standing_target_router = ZERO`
+    // arm fires), so passing the enrolled router is a no-op for them.
+    const feeSection = tokenData.fee_config
+      ? await this.buildFeeSectionKeys({
+          feeConfig: tokenData.fee_config,
+          payer: fromWalletPubKey,
+          destination,
+          targetRouter: new Uint8Array(
+            await this.getRouterAddress(destination),
+          ),
+          scopedSalt,
+        })
+      : undefined;
+
+    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
+    const igpQuotedSection =
+      igpState?.feeConfig && igpProgramId
+        ? await this.buildIgpQuotedSectionKeys({
+            igpProgramId,
+            innerIgpAccount: igpState.innerIgpAccount,
+            payer: fromWalletPubKey,
+            destination,
+            scopedSalt,
+          })
+        : undefined;
+
     const keys = await this.getTransferInstructionKeyList({
       sender: fromWalletPubKey,
       mailbox: mailboxPubKey,
       randomWallet: randomWallet.publicKey,
       igp: await this.getIgpKeys(),
+      feeSection,
+      igpQuotedSection,
     });
 
     const value = new SealevelInstructionWrapper({
@@ -505,20 +1077,61 @@ export abstract class SealevelHypTokenAdapter
       microLamports: (await this.getMedianPriorityFee()) || 0,
     });
 
+    const addressLookupTableAccounts = this.addresses.altAddresses
+      ? await this.addressLookupTableAccounts.get()
+      : [];
+
+    return {
+      computeBudgetInstructions: [
+        setComputeLimitInstruction,
+        setPriorityFeeInstruction,
+      ],
+      transferInstructions: [transferRemoteInstruction],
+      addressLookupTableAccounts,
+      feePayer: fromWalletPubKey,
+      signers: [randomWallet],
+    };
+  }
+
+  async populateTransferRemoteTx(
+    params: TransferRemoteParams,
+  ): Promise<Transaction | VersionedTransaction> {
+    const bundle = await this.getTransferRemoteIxBundle(params);
+    const allInstructions = [
+      ...bundle.computeBudgetInstructions,
+      ...bundle.transferInstructions,
+    ];
+
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
+    if (this.addresses.altAddresses) {
+      // ALT path: when the route registers ALT addresses, compile a v0
+      // message so the on-chain account-key list stays under Solana's
+      // 1232-byte tx limit (40+ accounts on new-flow fee + IGP routes).
+      const message = MessageV0.compile({
+        payerKey: bundle.feePayer,
+        instructions: allInstructions,
+        recentBlockhash,
+        addressLookupTableAccounts: bundle.addressLookupTableAccounts,
+      });
+      const versionedTx = new VersionedTransaction(message);
+      // Only fills the randomWallet's slot; the user wallet's slot stays
+      // empty for the wallet-adapter chain to populate later.
+      versionedTx.sign(bundle.signers);
+      return versionedTx;
+    }
+
+    // Legacy path — unchanged for routes without ALT.
     // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const tx = new Transaction({
-      feePayer: fromWalletPubKey,
+      feePayer: bundle.feePayer,
       blockhash: recentBlockhash,
       recentBlockhash,
-    })
-      .add(setComputeLimitInstruction)
-      .add(setPriorityFeeInstruction)
-      .add(transferRemoteInstruction);
-    tx.partialSign(randomWallet);
+    });
+    for (const ix of allInstructions) tx.add(ix);
+    for (const signer of bundle.signers) tx.partialSign(signer);
     return tx;
   }
 
@@ -534,6 +1147,8 @@ export abstract class SealevelHypTokenAdapter
     mailbox,
     randomWallet,
     igp,
+    feeSection,
+    igpQuotedSection,
   }: KeyListParams): Promise<Array<AccountMeta>> {
     let keys = [
       // 0.   [executable] The system program.
@@ -575,18 +1190,22 @@ export abstract class SealevelHypTokenAdapter
         isWritable: true,
       },
     ];
+    // Fee section — spliced when token.fee_config is Some on chain.
+    if (feeSection) {
+      keys = [...keys, ...feeSection];
+    }
     if (igp) {
       keys = [
         ...keys,
-        // 9.    [executable] The IGP program.
+        // [executable] The IGP program.
         { pubkey: igp.programId, isSigner: false, isWritable: false },
-        // 10.   [writeable] The IGP program data.
+        // [writeable] The IGP program data.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
           isSigner: false,
           isWritable: true,
         },
-        // 11.   [writeable] Gas payment PDA.
+        // [writeable] Gas payment PDA.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
             igp.programId,
@@ -596,10 +1215,16 @@ export abstract class SealevelHypTokenAdapter
           isWritable: true,
         },
       ];
+      // Quoted-mode extension — spliced when the inner Igp has fee_config Some
+      // on chain. Placed BEFORE the optional overhead IGP and the terminal
+      // configured IGP, matching the on-chain transfer_remote layout.
+      if (igpQuotedSection) {
+        keys = [...keys, ...igpQuotedSection];
+      }
       if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
-          // 12.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
+          // [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
           {
             pubkey: igp.overheadIgpAccount,
             isSigner: false,
@@ -609,7 +1234,7 @@ export abstract class SealevelHypTokenAdapter
       }
       keys = [
         ...keys,
-        // 13.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        // [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
         {
           pubkey: igp.igpAccount,
           isSigner: false,
@@ -739,7 +1364,22 @@ export abstract class SealevelHypTokenAdapter
 
 // Interacts with Hyp Native token programs
 export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
+  // NativePlugin = [u8 native_collateral_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token-native/src/plugin.rs.
+  protected readonly pluginDataSize = 1;
   public readonly wrappedNative: SealevelNativeTokenAdapter;
+
+  // Native warp fees are deducted from the native collateral PDA → SOL.
+  protected override getFeeTokenAddressOrDenom(): string | undefined {
+    return undefined;
+  }
+
+  // Native fee_beneficiary = beneficiary wallet directly (lamports recipient).
+  protected override async deriveFeeBeneficiary(
+    beneficiaryOwner: PublicKey,
+  ): Promise<PublicKey> {
+    return beneficiaryOwner;
+  }
 
   constructor(
     public readonly chainName: ChainName,
@@ -749,6 +1389,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       token?: Address;
       warpRouter: Address;
       mailbox: Address;
+      altAddresses?: SealevelAltAddresses;
     },
   ) {
     // Pass in placeholder address for 'token' to avoid errors in the parent classes
@@ -822,6 +1463,23 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Collateral token programs
 export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
+  // CollateralPlugin = [Pubkey spl_token_program, Pubkey mint, Pubkey escrow,
+  // u8 escrow_bump, u8 ata_payer_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token-collateral/src/plugin.rs.
+  protected readonly pluginDataSize = 98;
+
+  // Collateral fee_beneficiary = ATA(beneficiary_owner, mint, spl_token_program).
+  protected override async deriveFeeBeneficiary(
+    beneficiaryOwner: PublicKey,
+  ): Promise<PublicKey> {
+    return getAssociatedTokenAddressSync(
+      this.tokenMintPubKey,
+      beneficiaryOwner,
+      false,
+      await this.getTokenProgramId(),
+    );
+  }
+
   async getBalance(owner: Address): Promise<bigint> {
     // Special case where the owner is the warp route program ID.
     // This is because collateral warp routes don't hold escrowed collateral
@@ -875,6 +1533,22 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Synthetic token programs (aka 'HypTokens')
 export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
+  // SyntheticPlugin = [Pubkey mint, u8 mint_bump, u8 ata_payer_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token/src/plugin.rs.
+  protected readonly pluginDataSize = 34;
+
+  // Synthetic fee_beneficiary = ATA(beneficiary_owner, synthetic_mint, token_2022).
+  protected override async deriveFeeBeneficiary(
+    beneficiaryOwner: PublicKey,
+  ): Promise<PublicKey> {
+    return getAssociatedTokenAddressSync(
+      this.deriveMintAuthorityAccount(),
+      beneficiaryOwner,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
+  }
+
   override async getTransferInstructionKeyList(
     params: KeyListParams,
   ): Promise<Array<AccountMeta>> {
@@ -946,4 +1620,16 @@ interface KeyListParams {
   mailbox: PublicKey;
   randomWallet: PublicKey;
   igp?: IgpPaymentKeys;
+  /**
+   * Optional fee section spliced after the dispatched-message PDA when the
+   * token has `fee_config` set. Layout:
+   *   [feeProgram, feeAccount, ...passThrough, feeBeneficiary(w)]
+   */
+  feeSection?: AccountMeta[];
+  /**
+   * Optional quoted-mode IGP extension spliced between the gas-payment PDA
+   * and the configured IGP account when the inner Igp has `fee_config` set:
+   *   [dispatchAuthority, warpProgramId, ...cascade]
+   */
+  igpQuotedSection?: AccountMeta[];
 }

@@ -1,4 +1,10 @@
-import { addressToBytes, assert, padBytesToLength } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  addressToBytes,
+  assert,
+  padBytesToLength,
+} from '@hyperlane-xyz/utils';
 import {
   AccountMeta,
   ComputeBudgetProgram,
@@ -8,6 +14,7 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  MessageV0,
   VersionedTransaction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
@@ -21,10 +28,14 @@ import {
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 import type {
   IHypCrossCollateralAdapter,
+  InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferRemoteToParams,
 } from './ITokenAdapter.js';
+import { parseSimulationAccountMetas } from './sealevelFee.js';
 import {
   SealevelHypCollateralAdapter,
+  type SealevelTransferBundle,
   TRANSFER_REMOTE_COMPUTE_LIMIT,
 } from './SealevelTokenAdapter.js';
 import {
@@ -39,12 +50,9 @@ import {
 // CC program discriminator (8 bytes of 2s)
 const CC_DISCRIMINATOR = Buffer.from([2, 2, 2, 2, 2, 2, 2, 2]);
 
-// Each SerializableAccountMeta is: pubkey (32) + is_signer (1) + is_writable (1) = 34 bytes
-const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
-
 export class SealevelHypCrossCollateralAdapter
   extends SealevelHypCollateralAdapter
-  implements IHypCrossCollateralAdapter<Transaction>
+  implements IHypCrossCollateralAdapter<Transaction | VersionedTransaction>
 {
   deriveCrossCollateralStatePda(): PublicKey {
     return this.derivePda(
@@ -67,16 +75,95 @@ export class SealevelHypCrossCollateralAdapter
   ) {
     const localDomain = this.multiProvider.getDomainId(this.chainName);
     if (params.destination === localDomain) {
-      return { igpQuote: { amount: 0n } };
+      return this.quoteLocalTransferGas({
+        sender: params.sender,
+        recipient: params.recipient,
+        amount: BigInt(params.amount),
+        destination: params.destination,
+        targetRouter: padBytesToLength(addressToBytes(params.targetRouter), 32),
+      });
     }
 
-    const quote = await this.quoteTransferRemoteGas({
+    return this.quoteTransferGas({
       destination: params.destination,
       sender: params.sender,
+      recipient: params.recipient,
+      amount: BigInt(params.amount),
+      // CC fee account uses the destination warp router H256 in its
+      // standing-quote PDA seeds.
+      targetRouter: padBytesToLength(addressToBytes(params.targetRouter), 32),
     });
-    return {
-      igpQuote: { amount: BigInt(quote.igpQuote.amount) },
-    };
+  }
+
+  /**
+   * Quote a same-domain (local) CrossCollateral transfer. Local transfers make
+   * no IGP payment, but `transfer_remote_to_local` still debits the warp fee
+   * on-chain when fee_config is set (quoted against the destination router), so
+   * surface it as `tokenFeeQuote` to keep cost display and balance validation
+   * consistent with what the transaction actually charges.
+   */
+  private async quoteLocalTransferGas({
+    sender,
+    recipient,
+    amount,
+    destination,
+    targetRouter,
+  }: {
+    sender?: Address;
+    recipient?: Address;
+    amount?: bigint;
+    destination: Domain;
+    targetRouter: Uint8Array;
+  }): Promise<InterchainGasQuote> {
+    const tokenData = await this.getTokenAccountData();
+    if (!tokenData.fee_config) {
+      return { igpQuote: { amount: 0n } };
+    }
+    assert(
+      sender && recipient && amount !== undefined,
+      'sender, recipient, and amount required for Sealevel warp-fee quote',
+    );
+    const tokenFeeQuote = await this.quoteWarpFee({
+      feeConfig: tokenData.fee_config,
+      payer: new PublicKey(sender),
+      destination,
+      recipient,
+      amount,
+      targetRouter,
+    });
+    return { igpQuote: { amount: 0n }, tokenFeeQuote };
+  }
+
+  // Override base impl which seeds the standing-quote PDA with H256::zero();
+  // CC fee accounts seed with the destination warp router pulled from the
+  // on-chain remote_routers map.
+  override async quoteTransferRemoteGas(
+    params: QuoteTransferRemoteParams,
+  ): Promise<InterchainGasQuote> {
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+    const tokenData = await this.getTokenAccountData();
+    const remoteRouterBytes = tokenData.remote_routers?.get(params.destination);
+    assert(
+      remoteRouterBytes,
+      `No remote router registered for destination domain ${params.destination}`,
+    );
+    if (params.destination === localDomain) {
+      return this.quoteLocalTransferGas({
+        sender: params.sender,
+        recipient: params.recipient,
+        amount: params.amount,
+        destination: params.destination,
+        targetRouter: remoteRouterBytes,
+      });
+    }
+
+    return this.quoteTransferGas({
+      destination: params.destination,
+      sender: params.sender,
+      recipient: params.recipient,
+      amount: params.amount,
+      targetRouter: remoteRouterBytes,
+    });
   }
 
   // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_remote
@@ -101,11 +188,17 @@ export class SealevelHypCrossCollateralAdapter
     mailbox,
     randomWallet,
     igp,
+    feeSection,
+    igpQuotedSection,
   }: {
     sender: PublicKey;
     mailbox: PublicKey;
     randomWallet: PublicKey;
     igp?: IgpPaymentKeys;
+    /** Spliced after slot 9 (dispatched message PDA) when token.fee_config is Some. */
+    feeSection?: AccountMeta[];
+    /** Spliced between the gas-payment PDA and the configured IGP account when inner Igp.fee_config is Some. */
+    igpQuotedSection?: AccountMeta[];
   }): Promise<Array<AccountMeta>> {
     let keys: Array<AccountMeta> = [
       // 0.   [executable] The system program.
@@ -154,18 +247,23 @@ export class SealevelHypCrossCollateralAdapter
       },
     ];
 
+    // Fee section — spliced when token.fee_config is Some on chain.
+    if (feeSection) {
+      keys = [...keys, ...feeSection];
+    }
+
     if (igp) {
       keys = [
         ...keys,
-        // 10.   [executable] The IGP program.
+        // [executable] The IGP program.
         { pubkey: igp.programId, isSigner: false, isWritable: false },
-        // 11.   [writeable] The IGP program data.
+        // [writeable] The IGP program data.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
           isSigner: false,
           isWritable: true,
         },
-        // 12.   [writeable] Gas payment PDA.
+        // [writeable] Gas payment PDA.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
             igp.programId,
@@ -175,10 +273,14 @@ export class SealevelHypCrossCollateralAdapter
           isWritable: true,
         },
       ];
+      // Quoted-mode extension — spliced when inner Igp.fee_config is Some.
+      if (igpQuotedSection) {
+        keys = [...keys, ...igpQuotedSection];
+      }
       if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
-          // 13.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP.
+          // [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP.
           {
             pubkey: igp.overheadIgpAccount,
             isSigner: false,
@@ -188,7 +290,7 @@ export class SealevelHypCrossCollateralAdapter
       }
       keys = [
         ...keys,
-        // 14.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        // [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
         { pubkey: igp.igpAccount, isSigner: false, isWritable: true },
       ];
     }
@@ -285,24 +387,7 @@ export class SealevelHypCrossCollateralAdapter
       `HandleLocalAccountMetas simulation returned no data. The target program may not implement HandleLocalAccountMetas.\nLogs: ${logs?.join('\n')}`,
     );
 
-    const data = Buffer.from(base64Data, 'base64');
-    // First 4 bytes are the Vec length (little-endian u32)
-    const count = data.readUInt32LE(0);
-    const expectedLength = 4 + count * SERIALIZABLE_ACCOUNT_META_SIZE;
-    assert(
-      data.length >= expectedLength,
-      `HandleLocalAccountMetas returned truncated data: expected ${expectedLength} bytes, got ${data.length}`,
-    );
-    const accountMetas: Array<AccountMeta> = [];
-    for (let i = 0; i < count; i++) {
-      const offset = 4 + i * SERIALIZABLE_ACCOUNT_META_SIZE;
-      const pubkey = new PublicKey(data.subarray(offset, offset + 32));
-      const isSigner = data[offset + 32] !== 0;
-      const isWritable = data[offset + 33] !== 0;
-      accountMetas.push({ pubkey, isSigner, isWritable });
-    }
-
-    return accountMetas;
+    return parseSimulationAccountMetas(Buffer.from(base64Data, 'base64'));
   }
 
   // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_local
@@ -324,12 +409,15 @@ export class SealevelHypCrossCollateralAdapter
     senderProgram,
     amount,
     recipient,
+    feeSection,
   }: {
     sender: PublicKey;
     targetProgram: PublicKey;
     senderProgram: PublicKey;
     amount: bigint;
     recipient: Uint8Array;
+    /** Spliced after the target program when token.fee_config is Some. */
+    feeSection?: AccountMeta[];
   }): Promise<Array<AccountMeta>> {
     const handleLocalAccountMetas = await this.simulateHandleLocalAccountMetas({
       targetProgram,
@@ -370,7 +458,9 @@ export class SealevelHypCrossCollateralAdapter
       },
       // 5.   [executable] The target program.
       { pubkey: targetProgram, isSigner: false, isWritable: false },
-      // 6.   [executable] The SPL token program for the mint.
+      // Fee section — spliced when token.fee_config is Some on chain.
+      ...(feeSection ?? []),
+      // [executable] The SPL token program for the mint.
       {
         pubkey: await this.getTokenProgramId(),
         isSigner: false,
@@ -395,17 +485,32 @@ export class SealevelHypCrossCollateralAdapter
     return keys;
   }
 
-  // For remote transfers, `recipient` is a destination-chain address (e.g., Ethereum hex).
-  // For local (same-chain) transfers, `recipient` must be a valid Solana pubkey
-  // that can receive the target token (used to derive the recipient's ATA).
-  async populateTransferRemoteToTx({
+  /**
+   * Sealevel-only — returns the building blocks of a `transfer_remote_to` tx
+   * (compute-budget ixs separated from the warp ix, ALTs, fee payer, signers)
+   * without compiling them into a `Transaction` / `VersionedTransaction`. The
+   * composing layer (typically the offchain-quoted-transfer provider)
+   * prepends `SubmitFeeQuote` / `SubmitIgpQuote` ixs between the compute-
+   * budget head and the transfer ix.
+   *
+   * `scopedSalt` (optional) is the 32-byte `keccak256(payer || clientSalt)`
+   * for a same-tx offchain transient quote — threaded through to the fee +
+   * IGP cascade simulations so their PDA enumeration includes the transient
+   * quote PDA. Matches the on-chain `scoped_salt` field. Standing-only
+   * callers omit it.
+   */
+  async getTransferRemoteToIxBundle({
     amount,
     destination,
     recipient,
     fromAccountOwner,
     targetRouter,
     extraSigners,
-  }: TransferRemoteToParams): Promise<Transaction> {
+    scopedSalt,
+  }: TransferRemoteToParams & {
+    /** Sealevel-only — see method docs. */
+    scopedSalt?: Uint8Array;
+  }): Promise<SealevelTransferBundle> {
     assert(fromAccountOwner, 'fromAccountOwner required for Sealevel');
 
     const sender = new PublicKey(fromAccountOwner);
@@ -416,71 +521,68 @@ export class SealevelHypCrossCollateralAdapter
     );
     const localDomain = this.multiProvider.getDomainId(this.chainName);
 
+    const tokenData = await this.getTokenAccountData();
+    // CC fee account uses the destination warp router H256 in its
+    // standing-quote PDA seeds.
+    const feeSection = tokenData.fee_config
+      ? await this.buildFeeSectionKeys({
+          feeConfig: tokenData.fee_config,
+          payer: sender,
+          destination,
+          targetRouter: targetRouterBytes,
+          scopedSalt,
+        })
+      : undefined;
+
+    let keys: Array<AccountMeta>;
+    // Local-domain CC transfers don't have a unique-message PDA, so
+    // randomWallet is omitted and we skip pre-signing.
+    let randomWallet: Keypair | undefined;
+
     if (destination === localDomain) {
       const targetProgram = new PublicKey(targetRouter);
-      const keys = await this.getTransferRemoteToLocalKeyList({
+      keys = await this.getTransferRemoteToLocalKeyList({
         sender,
         targetProgram,
         senderProgram: this.warpProgramPubKey,
         amount: BigInt(amount),
         recipient: recipientBytes,
-      });
-
-      return this.createTransferRemoteToTx({
-        keys,
-        destination,
-        recipientBytes,
-        amount: BigInt(amount),
-        targetRouterBytes,
-        sender,
+        feeSection,
       });
     } else {
-      const randomWallet = extraSigners?.length
+      randomWallet = extraSigners?.length
         ? extraSigners[0]
         : Keypair.generate();
       const mailbox = new PublicKey(this.addresses.mailbox);
-      const keys = await this.getTransferRemoteToRemoteKeyList({
+      const igpState = await this.innerIgpFeeState.get();
+      const igpProgramId =
+        tokenData.interchain_gas_paymaster?.program_id_pubkey;
+      const igpQuotedSection =
+        igpState?.feeConfig && igpProgramId
+          ? await this.buildIgpQuotedSectionKeys({
+              igpProgramId,
+              innerIgpAccount: igpState.innerIgpAccount,
+              payer: sender,
+              destination,
+              scopedSalt,
+            })
+          : undefined;
+      keys = await this.getTransferRemoteToRemoteKeyList({
         sender,
         mailbox,
         randomWallet: randomWallet.publicKey,
         igp: await this.getIgpKeys(),
-      });
-
-      return this.createTransferRemoteToTx({
-        keys,
-        destination,
-        recipientBytes,
-        amount: BigInt(amount),
-        targetRouterBytes,
-        sender,
-        randomWallet,
+        feeSection,
+        igpQuotedSection,
       });
     }
-  }
 
-  private async createTransferRemoteToTx({
-    keys,
-    destination,
-    recipientBytes,
-    amount,
-    targetRouterBytes,
-    sender,
-    randomWallet,
-  }: {
-    keys: Array<AccountMeta>;
-    destination: number;
-    recipientBytes: Uint8Array;
-    amount: bigint;
-    targetRouterBytes: Uint8Array;
-    sender: PublicKey;
-    randomWallet?: Keypair;
-  }): Promise<Transaction> {
     const value = new SealevelInstructionWrapper({
       instruction: SealevelCCInstructionKind.TransferRemoteTo,
       data: new SealevelCCTransferRemoteToInstruction({
         destination_domain: destination,
         recipient: recipientBytes,
-        amount_or_id: amount,
+        amount_or_id: BigInt(amount),
         target_router: targetRouterBytes,
       }),
     });
@@ -499,24 +601,64 @@ export class SealevelHypCrossCollateralAdapter
       microLamports: (await this.getMedianPriorityFee()) || 0,
     });
 
+    const addressLookupTableAccounts = this.addresses.altAddresses
+      ? await this.addressLookupTableAccounts.get()
+      : [];
+
+    return {
+      computeBudgetInstructions: [
+        setComputeLimitInstruction,
+        setPriorityFeeInstruction,
+      ],
+      transferInstructions: [transferInstruction],
+      addressLookupTableAccounts,
+      feePayer: sender,
+      signers: randomWallet ? [randomWallet] : [],
+    };
+  }
+
+  // For remote transfers, `recipient` is a destination-chain address (e.g., Ethereum hex).
+  // For local (same-chain) transfers, `recipient` must be a valid Solana pubkey
+  // that can receive the target token (used to derive the recipient's ATA).
+  async populateTransferRemoteToTx(
+    params: TransferRemoteToParams,
+  ): Promise<Transaction | VersionedTransaction> {
+    const bundle = await this.getTransferRemoteToIxBundle(params);
+    const allInstructions = [
+      ...bundle.computeBudgetInstructions,
+      ...bundle.transferInstructions,
+    ];
+
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-    const tx = new Transaction({
-      feePayer: sender,
-      blockhash: recentBlockhash,
-      recentBlockhash,
-    })
-      .add(setComputeLimitInstruction)
-      .add(setPriorityFeeInstruction)
-      .add(transferInstruction);
-
-    if (randomWallet) {
-      tx.partialSign(randomWallet);
+    if (this.addresses.altAddresses) {
+      // ALT path: when the route registers ALT addresses, compile a v0
+      // message so the on-chain account-key list stays under Solana's
+      // 1232-byte tx limit (40+ accounts on new-flow fee + IGP routes).
+      const message = MessageV0.compile({
+        payerKey: bundle.feePayer,
+        instructions: allInstructions,
+        recentBlockhash,
+        addressLookupTableAccounts: bundle.addressLookupTableAccounts,
+      });
+      const versionedTx = new VersionedTransaction(message);
+      if (bundle.signers.length > 0) {
+        versionedTx.sign(bundle.signers);
+      }
+      return versionedTx;
     }
 
+    // Legacy path — unchanged for routes without ALT.
+    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+    const tx = new Transaction({
+      feePayer: bundle.feePayer,
+      blockhash: recentBlockhash,
+      recentBlockhash,
+    });
+    for (const ix of allInstructions) tx.add(ix);
+    for (const signer of bundle.signers) tx.partialSign(signer);
     return tx;
   }
 }

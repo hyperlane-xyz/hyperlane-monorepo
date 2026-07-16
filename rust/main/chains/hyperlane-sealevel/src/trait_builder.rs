@@ -10,6 +10,7 @@ use url::Url;
 use crate::{
     priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle},
     tx_submitter::config::TransactionSubmitterConfig,
+    universal_router_reveal::UniversalRouterRevealConfig,
 };
 
 /// An ALT override: if message matches matching_list, use alt_address.
@@ -41,6 +42,9 @@ pub struct ConnectionConf {
     /// Per-message ALT overrides. First matching entry wins.
     /// Falls back to `mailbox_process_alt` if no match.
     pub process_alt_overrides: Vec<ProcessAltOverride>,
+    /// When set, the relayer automatically submits `RouterInstruction::Reveal`
+    /// after confirming delivery of a UR COMMIT message to this chain.
+    pub ur_reveal: Option<UniversalRouterRevealConfig>,
 }
 
 /// An error type when parsing a connection configuration.

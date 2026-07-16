@@ -80,6 +80,7 @@ export class AleoCollateralTokenReader implements ArtifactReader<
       name: token.name,
       symbol: token.symbol,
       decimals: token.decimals,
+      scale: token.scale,
     };
 
     return {

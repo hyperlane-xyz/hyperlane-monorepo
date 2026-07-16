@@ -73,11 +73,18 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'incentiv',
     'metis',
     'ontology',
-    'prom',
-    'pulsechain',
     'taiko',
     'torus',
+
+    // Keep chains with repeatedly unreliable deployment/proposal execution on
+    // legacy IGP for now.
+    'astar',
+    'krown',
+    'prom',
+    'pulsechain',
+    'sei',
     'viction',
+    'xrplevm',
     ...getDisabledChains(),
   ]),
 );
@@ -95,6 +102,14 @@ export const chainsToSkip: ChainName[] = [
   'zksync',
   'abstract',
   'sophon',
+
+  // Swell network sunset 2026-06-30 (registry marks it disabled; kept explicit
+  // until the pinned .registryrc is bumped past the disable commit).
+  'swell',
+
+  // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
+  // pinned registry, so kept explicit here.
+  'miraclechain',
 
   ...getDisabledChains(),
 ];

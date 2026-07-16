@@ -2,6 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
+import { PublicKey } from '@solana/web3.js';
 import { z } from 'zod';
 
 import { ModuleType } from '@hyperlane-xyz/sdk';
@@ -187,6 +188,25 @@ const AgentSealevelChainMetadataSchema = z.object({
     .describe(
       'Per-message ALT overrides. Array of {matchingList, addressLookupTable} or JSON string.',
     ),
+  urReveal: z
+    .object({
+      ccsUrl: z.string().url().describe('CCS endpoint for calldata lookup'),
+      programId: z
+        .string()
+        .refine((val) => {
+          try {
+            new PublicKey(val);
+            return true;
+          } catch {
+            return false;
+          }
+        }, 'Must be a valid Solana public key (base58)')
+        .describe('Universal Router program ID (base58)'),
+    })
+    .optional()
+    .describe(
+      'When set, the relayer automatically submits RouterInstruction::Reveal after confirming delivery of a UR COMMIT message.',
+    ),
 });
 
 export type AgentSealevelChainMetadata = z.infer<
@@ -198,6 +218,8 @@ export type AgentSealevelPriorityFeeOracle =
 
 export type AgentSealevelTransactionSubmitter =
   AgentSealevelChainMetadata['transactionSubmitter'];
+
+export type AgentSealevelUrReveal = AgentSealevelChainMetadata['urReveal'];
 
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
@@ -230,6 +252,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
+        interval: ZNzUint.optional().describe(
+          'How long to wait between polls when idle/caught up, in seconds. Defaults to 5s.',
+        ),
       })
       .optional(),
   })
@@ -655,8 +680,8 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
-  interval: ZUint.optional().describe(
-    'How long to wait between checking for new checkpoints in seconds.',
+  interval: ZNzUint.optional().describe(
+    'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
 });
 

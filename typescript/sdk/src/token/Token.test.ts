@@ -3,7 +3,7 @@ import { SystemProgram } from '@solana/web3.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   TestChainName,
@@ -21,6 +21,7 @@ import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import { SealevelHypNativeAdapter } from './adapters/SealevelTokenAdapter.js';
 
 // null values represent TODOs here, ideally all standards should be tested
 const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
@@ -509,6 +510,63 @@ describe('Token', () => {
       expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
         'not found in multiProvider',
       );
+    });
+
+    it('forwards WarpCoreConfig sealevel.altAddresses to SealevelHypNativeAdapter', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
+
+      const altAddresses = {
+        core: 'AyD8sj1iCNDmF7QKytrkF35cE9NipJ4UNkCJSiPnEKAQ',
+        warpSpecific: ['9Ngnk7jVz9LFmddRPm3JknUYsbDpVQqJj1Sb3upDtRfQ'],
+      };
+      const sealevelNativeToken = new Token(
+        {
+          chainName: testSealevelChain.name,
+          standard: TokenStandard.SealevelHypNative,
+          addressOrDenom: '4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg',
+          decimals: 9,
+          symbol: 'SOL',
+          name: 'SOL',
+        },
+        {
+          sealevel: {
+            altAddresses: { [testSealevelChain.name]: altAddresses },
+          },
+        },
+      );
+
+      const adapter = sealevelNativeToken.getHypAdapter(multiProvider);
+      assert(
+        adapter instanceof SealevelHypNativeAdapter,
+        'expected SealevelHypNativeAdapter',
+      );
+      expect(adapter.addresses.altAddresses).to.deep.equal(altAddresses);
+    });
+
+    it('leaves altAddresses undefined when WarpCore options omit them', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
+
+      const sealevelNativeToken = new Token({
+        chainName: testSealevelChain.name,
+        standard: TokenStandard.SealevelHypNative,
+        addressOrDenom: '4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg',
+        decimals: 9,
+        symbol: 'SOL',
+        name: 'SOL',
+      });
+
+      const adapter = sealevelNativeToken.getHypAdapter(multiProvider);
+      assert(
+        adapter instanceof SealevelHypNativeAdapter,
+        'expected SealevelHypNativeAdapter',
+      );
+      expect(adapter.addresses.altAddresses).to.equal(undefined);
     });
   });
 

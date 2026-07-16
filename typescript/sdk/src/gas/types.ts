@@ -59,6 +59,7 @@ export enum IgpViolationType {
   Beneficiary = 'Beneficiary',
   GasOracles = 'GasOracles',
   Overhead = 'Overhead',
+  TokenGasOracles = 'TokenGasOracles',
 }
 
 export interface IgpViolation extends CheckerViolation {
@@ -85,4 +86,12 @@ export interface IgpOverheadViolation extends IgpViolation {
   contract: InterchainGasPaymaster;
   actual: ChainMap<BigNumber>;
   expected: ChainMap<BigNumber>;
+}
+
+export interface IgpTokenGasOraclesViolation extends IgpViolation {
+  subType: IgpViolationType.TokenGasOracles;
+  contract: InterchainGasPaymaster;
+  actual: ChainMap<Address>;
+  expected: ChainMap<Address>;
+  feeToken: Address;
 }

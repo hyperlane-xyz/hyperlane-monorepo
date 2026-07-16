@@ -331,6 +331,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         : undefined,
     );
 
+    // Read feeHook (IGP address for ERC20 gas payments)
+    const feeHook = await this.fetchFeeHook(warpRouteAddress);
+
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (
@@ -353,6 +356,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
+      feeHook,
       ...(predicateWrapper && { predicateWrapper }),
     };
     return derivedConfig;
@@ -429,6 +433,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         );
         if (found) return found;
       }
+    }
+    return undefined;
+  }
+
+  public async fetchFeeHook(
+    routerAddress: Address,
+  ): Promise<Address | undefined> {
+    try {
+      const router = TokenRouter__factory.connect(routerAddress, this.provider);
+      const feeHookAddress = await router.feeHook();
+      if (!isZeroishAddress(feeHookAddress)) {
+        return feeHookAddress;
+      }
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        `Token at "${routerAddress}" on chain "${this.chain}" does not support feeHook`,
+      );
     }
     return undefined;
   }
@@ -510,6 +532,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     if (this.multiProvider.isLocalRpc(chain)) {
       this.logger.debug('Skipping verification for local endpoints');
+      return { [contractType]: ContractVerificationStatus.Skipped };
+    }
+
+    // Skip chains with no Etherscan-API-compatible explorer configured. The
+    // verifier can't query them (e.g. tronscan, zksync, keyless etherscan), so
+    // a resulting `Error` status is a false-positive violation, not a real
+    // unverified contract.
+    if (!this.multiProvider.tryGetEvmExplorerMetadata(chain)) {
+      this.logger.debug(
+        `Skipping verification for ${chain}: no Etherscan-compatible explorer configured`,
+      );
       return { [contractType]: ContractVerificationStatus.Skipped };
     }
     const quietVerificationLogger = this.logger.child(

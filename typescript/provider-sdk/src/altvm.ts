@@ -66,6 +66,7 @@ export enum IsmType {
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
+  COMPOSITE = 'compositeIsm',
 }
 
 export enum HookType {

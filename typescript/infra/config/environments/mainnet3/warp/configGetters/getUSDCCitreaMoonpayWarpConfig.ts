@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
-import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
+import fastpathIsms from '../../fastpath/isms.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -26,12 +26,23 @@ import { getDomainId, getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
+  getCrossCollateralTargetRoutersByChain,
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
 } from './utils.js';
 
-const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
+const FASTPATH_CHAINS = [
+  'arbitrum',
+  'base',
+  'bsc',
+  'citrea',
+  'ethereum',
+  'katana',
+  'polygon',
+] as const;
+type FastpathChain = (typeof FASTPATH_CHAINS)[number];
+const FASTPATH_ISM_ADDRESSES = fastpathIsms as Record<FastpathChain, string>;
 
 const ROUTE_CHAINS = [
   'solanamainnet',
@@ -82,7 +93,6 @@ const QUOTE_SIGNERS = [
 ];
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
-const AMOUNT_ROUTING_THRESHOLD = 1_000_000_000;
 
 function getCctpFastRouteAddresses(): Record<EvmChain, string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
@@ -156,65 +166,12 @@ function buildRemoteIsm(
     return CCTP_FAST_ROUTE_ADDRESSES[local];
   }
 
-  if (local === 'citrea' && remote === 'ethereum') {
-    return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
-  }
-
-  if (local === 'bsc' || local === 'katana') {
-    return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
-  }
-
-  if (remote === 'bsc' || remote === 'katana') {
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        {
-          type: IsmType.AMOUNT_ROUTING,
-          threshold: AMOUNT_ROUTING_THRESHOLD,
-          lowerIsm: {
-            type: IsmType.TRUSTED_RELAYER,
-            relayer: FAST_PATH_RELAYER,
-          },
-          upperIsm: buildDefaultIsm(owner),
-        },
-        buildDefaultIsm(owner),
-      ],
-    };
+  const fastpathIsm = FASTPATH_ISM_ADDRESSES[local as FastpathChain];
+  if (fastpathIsm && FASTPATH_CHAINS.includes(remote as FastpathChain)) {
+    return fastpathIsm;
   }
 
   return buildDefaultIsm(owner);
-}
-
-function shouldIncludeInnerRoutingRemote(
-  local: (typeof ROUTE_CHAINS)[number],
-  remote: (typeof ROUTE_CHAINS)[number],
-): boolean {
-  return (
-    (isCctpChain(local) && isCctpChain(remote)) ||
-    (local === 'citrea' && remote === 'ethereum') ||
-    ((local === 'bsc' || local === 'katana') && remote !== 'solanamainnet') ||
-    remote === 'bsc' ||
-    remote === 'katana'
-  );
-}
-
-function buildInnerRoutingIsm(
-  local: (typeof ROUTE_CHAINS)[number],
-  owner: string,
-): IsmConfig {
-  const domains = Object.fromEntries(
-    ROUTE_CHAINS.filter(
-      (remote) =>
-        remote !== local && shouldIncludeInnerRoutingRemote(local, remote),
-    ).map((remote) => [remote, buildRemoteIsm(local, remote, owner)]),
-  );
-
-  return {
-    type: IsmType.ROUTING,
-    owner,
-    domains,
-  } as const;
 }
 
 function buildInterchainSecurityModule(
@@ -223,29 +180,22 @@ function buildInterchainSecurityModule(
 ): IsmConfig | undefined {
   if (local === 'solanamainnet') return undefined;
 
-  if (local === 'citrea' || local === 'bsc' || local === 'katana') {
-    // Amount routing: small txs use trusted relayer for fast finality, large use default.
-    // BSC threshold is in message units (normalized by scale to 6 dec), same value as citrea.
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        buildDefaultIsm(owner),
-        {
-          type: IsmType.AMOUNT_ROUTING,
-          threshold: AMOUNT_ROUTING_THRESHOLD,
-          lowerIsm: buildInnerRoutingIsm(local, owner),
-          upperIsm: buildDefaultIsm(owner),
-        },
-      ],
-    } as const;
-  }
-
-  // CCTP chains: route directly via CCTP fast ISM, no amount routing needed
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildInnerRoutingIsm(local, owner), buildDefaultIsm(owner)],
+    modules: [
+      {
+        type: IsmType.ROUTING,
+        owner,
+        domains: Object.fromEntries(
+          ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
+            remote,
+            buildRemoteIsm(local, remote, owner),
+          ]),
+        ),
+      } as const,
+      buildDefaultIsm(owner),
+    ],
   } as const;
 }
 
@@ -279,25 +229,41 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   return buildFastRouteHook(local, owner);
 }
 
+// Target routers (destination tokens) priced per destination, keyed by chain.
+// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
+const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
+  WarpRouteIds.USDCCitreaMoonpay,
+  WarpRouteIds.USDTCitreaMoonpay,
+]);
+
 function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
 ): TokenFeeConfigInput {
+  const offchainFee = (): TokenFeeConfigInput => ({
+    type: TokenFeeType.OffchainQuotedLinearFee,
+    owner,
+    bps: 3,
+    quoteSigners: QUOTE_SIGNERS,
+  });
+
   return {
     type: TokenFeeType.CrossCollateralRoutingFee,
     owner,
     feeContracts: Object.fromEntries(
-      destinations.map((dest) => [
-        dest,
-        {
-          [DEFAULT_ROUTER_KEY]: {
-            type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
-            bps: 3,
-            quoteSigners: QUOTE_SIGNERS,
+      destinations.map((dest) => {
+        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
+        return [
+          dest,
+          {
+            // Per-destination-token fee slots, plus a default fallback.
+            ...Object.fromEntries(
+              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
+            ),
+            [DEFAULT_ROUTER_KEY]: offchainFee(),
           },
-        },
-      ]),
+        ];
+      }),
     ),
   };
 }

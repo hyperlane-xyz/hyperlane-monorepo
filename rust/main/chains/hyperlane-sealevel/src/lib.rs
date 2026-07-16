@@ -6,6 +6,7 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
 #![deny(clippy::arithmetic_side_effects)]
 
+pub use crate::composite_ism::{MetadataSpec as CompositeIsmMetadataSpec, SealevelCompositeIsm};
 pub use crate::multisig_ism::*;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;
@@ -21,6 +22,7 @@ pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use tx_submitter::*;
 pub use tx_type::*;
+pub use universal_router_reveal::UniversalRouterRevealConfig;
 pub use validator_announce::*;
 
 mod account;
@@ -28,6 +30,7 @@ mod account;
 pub mod alt;
 /// Hyperlane Application specific functionality
 pub mod application;
+mod composite_ism;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;
@@ -45,5 +48,6 @@ mod signer;
 mod trait_builder;
 mod tx_submitter;
 mod tx_type;
+mod universal_router_reveal;
 mod utils;
 mod validator_announce;

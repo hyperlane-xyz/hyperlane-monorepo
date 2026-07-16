@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "35.2.0",
+  "version": "36.0.0",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -44,6 +44,10 @@
     "./middleware/account/*": {
       "types": "./dist/middleware/account/*.d.ts",
       "default": "./dist/middleware/account/*.js"
+    },
+    "./predicate/PredicateApiClient": {
+      "types": "./dist/predicate/PredicateApiClient.d.ts",
+      "default": "./dist/predicate/PredicateApiClient.js"
     },
     "./providers/builders/*": {
       "types": "./dist/providers/builders/*.d.ts",
@@ -113,6 +117,18 @@
       "types": "./dist/providers/SmartProvider/types.d.ts",
       "default": "./dist/providers/SmartProvider/types.js"
     },
+    "./quoted-calls/client": {
+      "types": "./dist/quoted-calls/client.d.ts",
+      "default": "./dist/quoted-calls/client.js"
+    },
+    "./quoted-calls/codec": {
+      "types": "./dist/quoted-calls/codec.d.ts",
+      "default": "./dist/quoted-calls/codec.js"
+    },
+    "./quoted-calls/types": {
+      "types": "./dist/quoted-calls/types.d.ts",
+      "default": "./dist/quoted-calls/types.js"
+    },
     "./token/*": {
       "types": "./dist/token/*.d.ts",
       "default": "./dist/token/*.js"
@@ -177,7 +193,7 @@
     "@turnkey/solana": "catalog:",
     "bignumber.js": "catalog:",
     "borsh": "catalog:",
-    "compare-versions": "^6.1.1",
+    "compare-versions": "catalog:",
     "cosmjs-types": "catalog:",
     "cross-fetch": "^3.1.5",
     "ethers": "catalog:",

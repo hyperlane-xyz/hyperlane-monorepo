@@ -431,10 +431,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
         alias: 'Binary Builders',
       },
-      {
-        address: '0x7b8606d61bc990165d1e5977037ddcf7f2de74d6',
-        alias: 'Cosmostation',
-      },
     ],
   },
 
@@ -615,10 +611,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Substance Labs',
       },
       {
-        address: '0x359042Ade900d465e96C9c7A9BF975b061c1e8f7',
-        alias: 'Cosmostation',
-      },
-      {
         address: '0xa3f19CDFa6B684b44da3cF1e2D19d5Cb916cA0EF',
         alias: 'Qubelabs',
       },
@@ -740,12 +732,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   forma: {
-    threshold: 5,
+    threshold: 4,
     validators: [
-      {
-        address: '0x5B19F64F04f495D3958804Ec416c165F00f74898',
-        alias: 'Cosmostation',
-      },
       {
         address: '0x3f869C36110F00D10dC74cca3ac1FB133cf019ad',
         alias: 'Polkachu',
@@ -774,7 +762,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fraxtal: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
@@ -788,10 +776,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x573e960e07ad74ea2c5f1e3c31b2055994b12797',
         alias: 'Imperator',
-      },
-      {
-        address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
-        alias: 'Luganodes',
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
@@ -1143,10 +1127,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       {
-        address: '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c',
-        alias: 'Cosmostation',
-      },
-      {
         address: '0x25b9a0961c51e74fd83295293bc029131bf1e05a',
         alias: 'Neutron',
       },
@@ -1391,10 +1371,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
         alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
-        alias: 'Cosmostation',
       },
       {
         address: '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
@@ -1810,7 +1786,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Eclipse',
       },
       DEFAULT_MITOSIS_VALIDATOR,
-      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xd90ea26ff731d967c5ea660851f7d63cb04ab820',
+        alias: 'DSRV',
+      },
     ],
   },
 
@@ -1985,15 +1964,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   stride: {
-    threshold: 7,
+    threshold: 5,
     validators: [
       {
         address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
         alias: 'Everstake',
-      },
-      {
-        address: '0x88f0E5528131b10e3463C4c68108217Dd33462ac',
-        alias: 'Cosmostation',
       },
       { address: '0xa3eaa1216827ad63dd9db43f6168258a89177990', alias: 'DSRV' },
       {
@@ -2150,7 +2125,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   unichain: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x9773a382342ebf604a2e5de0a1f462fb499e28b1',
@@ -2160,14 +2135,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xa2549be30fb852c210c2fe8e7639039dca779936',
         alias: 'Imperator',
       },
-
       {
         address: '0xbcbed4d11e946844162cd92c6d09d1cf146b4006',
         alias: 'Enigma',
-      },
-      {
-        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
-        alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,

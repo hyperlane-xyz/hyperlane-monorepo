@@ -13,7 +13,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawCrossCollateralWarpArtifactConfig,
   computeCCRouterGasConfigUpdates,
   computeCrossCollateralRouterUpdates,
@@ -49,11 +48,14 @@ import {
   deriveEscrowPda,
   deriveMailboxOutboxPda,
 } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import {
-  fetchTokenAccount,
+  fetchCrossCollateralTokenAccount,
+  fetchWarpProgramVersion,
   routerBytesToHex,
   routerHexToBytes,
 } from './warp-query.js';
@@ -72,17 +74,20 @@ const MAX_CC_ROUTERS_PER_TX = 20;
 
 export class SvmCrossCollateralTokenReader implements ArtifactReader<
   RawCrossCollateralWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawCrossCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      RawCrossCollateralWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchCrossCollateralTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Cross-collateral token not initialized at ${programId}`,
@@ -132,6 +137,12 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
         `warp route initialized with ${token.decimals} but mint reports ${metadata.decimals}`,
     );
 
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
+
     const config: RawCrossCollateralWarpArtifactConfig = {
       type: TokenType.crossCollateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -155,13 +166,23 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
       remoteRouters,
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
       crossCollateralRouters,
     };
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
@@ -251,7 +272,7 @@ export async function buildCrossCollateralRouterUnenrollTxs(
 export class SvmCrossCollateralTokenWriter
   extends SvmCrossCollateralTokenReader
   implements
-    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -267,7 +288,7 @@ export class SvmCrossCollateralTokenWriter
     [
       ArtifactDeployed<
         RawCrossCollateralWarpArtifactConfig,
-        DeployedWarpAddress
+        SvmDeployedWarpAddress
       >,
       SvmReceipt[],
     ]
@@ -348,12 +369,13 @@ export class SvmCrossCollateralTokenWriter
       );
     }
 
-    // Apply standard post-init config (remote routers + destination gas)
+    // Apply standard post-init config (remote routers + destination gas + fee)
     receipts.push(
       ...(await applyPostInitConfig(
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
@@ -382,7 +404,7 @@ export class SvmCrossCollateralTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawCrossCollateralWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
@@ -403,8 +425,27 @@ export class SvmCrossCollateralTokenWriter
       expectedCCRouters,
     );
 
-    // CC router updates first (need current owner before any ownership transfer)
     const txs: AnnotatedSvmTransaction[] = [];
+
+    // Program upgrade first (before any config changes)
+    let upgradingToVersion: string | undefined;
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `cross-collateral token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
+    }
+
+    // CC router updates (need current owner before any ownership transfer)
 
     if (Object.keys(toUnenroll).length > 0) {
       txs.push(
@@ -443,6 +484,9 @@ export class SvmCrossCollateralTokenWriter
         ownerAddress,
         this.rpc,
         `cross-collateral token ${programId}`,
+        this.config.feeSalt,
+        current.deployed.feeConfig,
+        upgradingToVersion,
       )),
     );
 

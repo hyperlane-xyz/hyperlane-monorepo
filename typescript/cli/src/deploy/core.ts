@@ -117,7 +117,11 @@ export async function runCoreDeploy(params: DeployParams) {
       const userAddress = signer.getSignerAddress();
       const initialBalances = await getBalances(context, [chain], userAddress);
 
-      const validatedConfig = validateCoreConfigForAltVM(config, chain);
+      const validatedConfig = validateCoreConfigForAltVM(
+        config,
+        chain,
+        protocol,
+      );
       const chainLookup = altVmChainLookup(multiProvider);
       const metadata = chainLookup.getChainMetadata(chain);
 
@@ -193,7 +197,11 @@ export async function runCoreApply(params: ApplyParams) {
         strategyUrl: params.strategyUrl,
       });
 
-      const validatedConfig = validateCoreConfigForAltVM(config, chain);
+      const validatedConfig = validateCoreConfigForAltVM(
+        config,
+        chain,
+        protocol,
+      );
       const chainLookup = altVmChainLookup(multiProvider);
       const metadata = chainLookup.getChainMetadata(chain);
 

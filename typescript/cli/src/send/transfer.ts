@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
-import { type Address, type Hex } from 'viem';
+import { type Address, type Hex, isHex } from 'viem';
 
 import {
   CrossCollateralRouter__factory,
@@ -17,8 +17,10 @@ import {
   type ChainMap,
   type ChainName,
   type CoreAddresses,
+  EvmQuotedTransferProvider,
   FeeQuotingClient,
   FeeQuotingCommand,
+  FeeQuotingV2Client,
   HyperlaneCore,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -27,6 +29,8 @@ import {
   PredicateAttestationSchema,
   ProviderType,
   type QuotedCallsParams,
+  type QuotedTransferProvider,
+  SealevelQuotedTransferProvider,
   type Token,
   TokenAmount,
   TokenPullMode,
@@ -84,6 +88,13 @@ const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
 
 function isAnnotatedTx(value: unknown): value is AnnotatedTx {
   return typeof value === 'object' && value !== null;
+}
+
+/** `addressToBytes32` output narrowed to viem's `Hex`; it is always 0x-prefixed. */
+function bytes32Hex(address: string): Hex {
+  const hex = addressToBytes32(address);
+  assert(isHex(hex), `Expected 0x-prefixed bytes32, got ${hex}`);
+  return hex;
 }
 
 function toTypedAltVmReceipt(
@@ -551,69 +562,109 @@ async function executeDelivery({
     }
   }
 
-  // Build QuotedCalls params if fee-quoting is configured
-  let quotedCalls: QuotedCallsParams | undefined;
-  if (feeQuotingUrl && !feeQuotingApiKey) {
-    log(
-      'Warning: --fee-quoting-url provided without --fee-quoting-api-key, skipping fee quoting',
-    );
-  }
+  // Build a QuotedTransferProvider if fee-quoting is configured. EVM origins
+  // get the v1 `EvmQuotedTransferProvider` (wrapper-contract path); Sealevel
+  // origins get the v2 `SealevelQuotedTransferProvider` (atomic submit-quote
+  // + transfer in one tx).
+  let quotedTransfer: QuotedTransferProvider | undefined;
+  assert(
+    !feeQuotingUrl || feeQuotingApiKey,
+    '--fee-quoting-url requires --fee-quoting-api-key',
+  );
   if (feeQuotingUrl && feeQuotingApiKey) {
-    const chainAddressesForOrigin = chainAddresses[origin];
-    const quotedCallsAddress = chainAddressesForOrigin?.quotedCalls as
-      | Address
-      | undefined;
-    assert(
-      quotedCallsAddress,
-      `No quotedCalls address found for chain ${origin}`,
-    );
+    switch (originProtocol) {
+      case ProtocolType.Ethereum:
+      case ProtocolType.Tron: {
+        const chainAddressesForOrigin = chainAddresses[origin];
+        const quotedCallsAddress = chainAddressesForOrigin?.quotedCalls as
+          | Address
+          | undefined;
+        assert(
+          quotedCallsAddress,
+          `No quotedCalls address found for chain ${origin}`,
+        );
 
-    const clientSalt = `0x${crypto.randomBytes(32).toString('hex')}` as Hex;
-    const salt = computeScopedSalt(signerAddress as Address, clientSalt);
-    const destinationDomainId = multiProvider.getDomainId(destination);
+        const clientSalt = `0x${crypto.randomBytes(32).toString('hex')}` as Hex;
+        const salt = computeScopedSalt(signerAddress as Address, clientSalt);
+        const destinationDomainId = multiProvider.getDomainId(destination);
 
-    const feeQuotingClient = new FeeQuotingClient({
-      baseUrl: feeQuotingUrl,
-      apiKey: feeQuotingApiKey,
-    });
+        const feeQuotingClient = new FeeQuotingClient({
+          baseUrl: feeQuotingUrl,
+          apiKey: feeQuotingApiKey,
+        });
 
-    const command = destToken
-      ? FeeQuotingCommand.TransferRemoteTo
-      : FeeQuotingCommand.TransferRemote;
+        const command = destToken
+          ? FeeQuotingCommand.TransferRemoteTo
+          : FeeQuotingCommand.TransferRemote;
 
-    logBlue('Fetching offchain fee quotes...');
-    const { quotes } = await feeQuotingClient.getQuote({
-      origin,
-      command,
-      router: token.addressOrDenom as Address,
-      destination: destinationDomainId,
-      salt,
-      recipient: addressToBytes32(recipient!) as Hex,
-    });
+        logBlue('Fetching offchain fee quotes...');
+        const { quotes } = await feeQuotingClient.getQuote({
+          origin,
+          command,
+          router: token.addressOrDenom as Address,
+          destination: destinationDomainId,
+          salt,
+          recipient: bytes32Hex(recipientAddress),
+          targetRouter: destToken
+            ? bytes32Hex(destToken.addressOrDenom)
+            : undefined,
+        });
 
-    quotedCalls = {
-      address: quotedCallsAddress,
-      quotes,
-      clientSalt,
-      tokenPullMode: TokenPullMode.TransferFrom,
-    };
+        const quotedCalls: QuotedCallsParams = {
+          address: quotedCallsAddress,
+          quotes,
+          clientSalt,
+          tokenPullMode: TokenPullMode.TransferFrom,
+        };
 
-    logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
-    const { feeQuotes } = await warpCore.getQuotedTransferFee({
-      originTokenAmount: new TokenAmount(amount, token),
-      destination,
-      sender: signerAddress,
-      recipient: recipient!,
-      quotedCalls,
-      destinationToken: destToken,
-    });
-    quotedCalls.feeQuotes = feeQuotes;
+        logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
+        const { feeQuotes } = await warpCore.getQuotedTransferFee({
+          originTokenAmount: new TokenAmount(amount, token),
+          destination,
+          sender: signerAddress,
+          recipient: recipientAddress,
+          quotedCalls,
+          destinationToken: destToken,
+        });
+        quotedCalls.feeQuotes = feeQuotes;
+
+        quotedTransfer = new EvmQuotedTransferProvider(quotedCalls);
+        break;
+      }
+      case ProtocolType.Sealevel: {
+        // Server's `quoteMode` config drives standing vs transient; the
+        // provider infers mode from the response and composes a single
+        // atomic tx (submitFeeQuote + transferRemote).
+        logBlue('Fetching offchain fee quote (Sealevel)...');
+        quotedTransfer = new SealevelQuotedTransferProvider({
+          feeQuotingClient: new FeeQuotingV2Client({
+            baseUrl: feeQuotingUrl,
+            apiKey: feeQuotingApiKey,
+          }),
+          connection: multiProtocolProvider.getSolanaWeb3Provider(origin),
+        });
+        break;
+      }
+      case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative:
+      case ProtocolType.Starknet:
+      case ProtocolType.Radix:
+      case ProtocolType.Aleo:
+      case ProtocolType.Unknown:
+        throw new Error(
+          `Fee quoting is not supported for ${originProtocol} origins yet; remove --fee-quoting-url to send on the unquoted path`,
+        );
+      default: {
+        const _exhaustive: never = originProtocol;
+        throw new Error(`Unhandled origin protocol: ${_exhaustive}`);
+      }
+    }
   }
 
-  if (finalAttestation && quotedCalls) {
+  if (finalAttestation && quotedTransfer) {
     throw new Error(
       'Predicate attestation (--attestation / --predicate-api-key) and fee quoting (--fee-quoting-url) cannot be used together. ' +
-        'The QuotedCalls path does not support attestation-gated transfers.',
+        'The quoted-transfer path does not support attestation-gated transfers.',
     );
   }
 
@@ -630,7 +681,7 @@ async function executeDelivery({
     ...(quote?.tokenFeeQuote && { tokenFeeQuote: quote.tokenFeeQuote }),
     recipient: recipientAddress,
     destinationToken: destToken,
-    quotedCalls,
+    quotedTransfer,
   });
 
   const txReceipts: TypedTransactionReceipt[] = [];

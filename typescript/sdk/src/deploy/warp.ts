@@ -50,6 +50,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
+import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
@@ -100,6 +101,7 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
+  protocol?: ProtocolType,
 ): ProviderWarpConfig {
   if (!SUPPORTED_ALTVM_TOKEN_TYPES.has(config.type)) {
     const supportedTypes = Array.from(SUPPORTED_ALTVM_TOKEN_TYPES).join(', ');
@@ -114,6 +116,7 @@ export function validateWarpConfigForAltVM(
       config.interchainSecurityModule as ProviderIsmConfig | string,
       chain,
       'warp config',
+      protocol,
     );
   }
 
@@ -140,6 +143,10 @@ export function validateWarpConfigForAltVM(
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
     scale,
+    contractVersion: config.contractVersion,
+    fee: config.tokenFee
+      ? tokenFeeInputToFeeConfig(config.tokenFee)
+      : undefined,
   };
 
   switch (config.type) {
@@ -398,7 +405,7 @@ export async function executeWarpDeploy(
           );
 
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(config, chain),
+            validateWarpConfigForAltVM(config, chain, chainMetadata.protocol),
             chainLookup,
           );
 
@@ -909,7 +916,11 @@ export async function enrollCrossChainRouters(
           };
 
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(expectedConfig, currentChain),
+            validateWarpConfigForAltVM(
+              expectedConfig,
+              currentChain,
+              chainMetadata.protocol,
+            ),
             chainLookup,
           );
 

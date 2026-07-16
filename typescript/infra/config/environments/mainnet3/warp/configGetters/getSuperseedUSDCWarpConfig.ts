@@ -92,6 +92,14 @@ export const getSuperseedUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.solanamainnet.USDC,
     foreignDeployment: '7aM3itqXToHXhdR97EwJjZc7fay6uBszhUs1rzJm3tto',
+    destinationGas: {
+      '5330': '64000', // superseed
+      '1': '68000', // ethereum
+      '42161': '68000', // arbitrum
+      '8453': '68000', // base
+      '10': '68000', // optimism
+      '57073': '68000', // ink
+    },
   };
 
   return {

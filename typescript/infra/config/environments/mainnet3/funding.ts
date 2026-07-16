@@ -7,6 +7,7 @@ import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredInventoryRebalancerBalances from './balances/desiredInventoryRebalancerBalances.json' with { type: 'json' };
+import desiredStableswapInventoryRebalancerBalances from './balances/desiredStableswapInventoryRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import lowUrgencyKeyFunderBalances from './balances/lowUrgencyKeyFunderBalance.json' with { type: 'json' };
 import { environment } from './chains.js';
@@ -32,6 +33,13 @@ const desiredInventoryRebalancerBalancePerChain = objMap(
   desiredInventoryRebalancerBalances,
   (_, balance) => balance.toString(),
 ) as Record<DesiredInventoryRebalancerBalanceChains, string>;
+
+type DesiredStableswapInventoryRebalancerBalanceChains =
+  keyof typeof desiredStableswapInventoryRebalancerBalances;
+const desiredStableswapInventoryRebalancerBalancePerChain = objMap(
+  desiredStableswapInventoryRebalancerBalances,
+  (_, balance) => balance.toString(),
+) as Record<DesiredStableswapInventoryRebalancerBalanceChains, string>;
 
 type LowUrgencyKeyFunderBalanceChains =
   keyof typeof lowUrgencyKeyFunderBalances;
@@ -60,17 +68,54 @@ export const keyFunderConfig: KeyFunderConfig<
       Role.Relayer,
       Role.Rebalancer,
       Role.InventoryRebalancer,
+      Role.StableswapInventoryRebalancer,
     ],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['litchain', 'artela', 'molten'],
+  chainsToSkip: [
+    'ancient8',
+    'arcadia',
+    'artela',
+    'astar',
+    'bsquared',
+    'chilizmainnet',
+    'coredao',
+    'cyber',
+    'endurance',
+    'flare',
+    'fusemainnet',
+    'gravity',
+    'incentiv',
+    'kaia',
+    'litchain',
+    'mantapacific',
+    'miraclechain',
+    'mocachain',
+    'molten',
+    'neutron',
+    'ontology',
+    'opbnb',
+    'orderly',
+    'rarichain',
+    'shibarium',
+    'sophon',
+    'stride',
+    'swell',
+    'xai',
+    'xrplevm',
+    'zeronetwork',
+    'zetachain',
+    'zircuit',
+  ],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
   desiredRebalancerBalancePerChain,
   // desired inventory rebalancer balance config
   desiredInventoryRebalancerBalancePerChain,
+  // desired stableswap inventory rebalancer balance config
+  desiredStableswapInventoryRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',

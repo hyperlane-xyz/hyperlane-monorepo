@@ -54,6 +54,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { isInitialized } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -64,6 +65,7 @@ import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
   CCIPIsmConfig,
+  CompositeIsmConfig,
   DeployedIsm,
   DeployedIsmType,
   DerivedPausableIsmConfigSchema,
@@ -132,6 +134,43 @@ const domainRoutingSetGasBuffer = (destination: ChainName) => {
   return 15;
 };
 
+/**
+ * Recursively rejects a Composite ISM (Sealevel-only) anywhere in an EVM ISM
+ * config tree, including nested under AGGREGATION/ROUTING/AMOUNT_ROUTING —
+ * called once up front so an invalid nested config is caught before any
+ * sibling module in the tree is deployed on-chain.
+ */
+export function assertNoNestedCompositeIsm(
+  config: IsmConfig,
+): asserts config is Exclude<IsmConfig, CompositeIsmConfig> {
+  if (typeof config === 'string') {
+    return;
+  }
+
+  assert(
+    config.type !== IsmType.COMPOSITE,
+    `Cannot deploy compositeIsm via the EVM ISM factory — it is Sealevel-only.`,
+  );
+
+  switch (config.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      config.modules.forEach(assertNoNestedCompositeIsm);
+      break;
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      Object.values(config.domains).forEach(assertNoNestedCompositeIsm);
+      break;
+    case IsmType.AMOUNT_ROUTING:
+      assertNoNestedCompositeIsm(config.lowerIsm);
+      assertNoNestedCompositeIsm(config.upperIsm);
+      break;
+    default:
+      break;
+  }
+}
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -190,6 +229,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     existingIsmAddress?: Address;
   }): Promise<DeployedIsm> {
     const { destination, config, origin, mailbox, existingIsmAddress } = params;
+
+    // Reject a nested Composite ISM (Sealevel-only) before deploying any
+    // sibling module in the tree — a leaf-only check would let earlier
+    // siblings in e.g. an AGGREGATION deploy before this is caught.
+    assertNoNestedCompositeIsm(config);
+
     if (typeof config === 'string') {
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
@@ -658,16 +703,29 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           await getZKSyncArtifactByContractName(config.type),
         );
         // TODO: Should verify contract here
-        logger.debug('Initialising fallback routing ISM ...');
-        receipt = await this.multiProvider.handleTx(
-          destination,
-          routingIsm['initialize(address,uint32[],address[])'](
-            config.owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
-          ),
-        );
+        // Defensive double-init guard (fresh CREATE address, so this never
+        // fires in practice; kept for safety).
+        if (
+          !(await isInitialized(
+            this.multiProvider.getProvider(destination),
+            routingIsm.address,
+          ))
+        ) {
+          logger.debug('Initialising fallback routing ISM ...');
+          receipt = await this.multiProvider.handleTx(
+            destination,
+            routingIsm['initialize(address,uint32[],address[])'](
+              config.owner,
+              safeConfigDomains,
+              submoduleAddresses,
+              overrides,
+            ),
+          );
+        } else {
+          logger.debug(
+            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized`,
+          );
+        }
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
@@ -691,12 +749,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             config.type,
             [],
           );
-          await routingIsm['initialize(address,uint32[],address[])'](
-            owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
-          );
+          // ZkSync uses deterministic addresses, so a re-run after a
+          // mid-deploy crash can land on an already-initialized contract.
+          if (
+            !(await isInitialized(
+              this.multiProvider.getProvider(destination),
+              routingIsm.address,
+            ))
+          ) {
+            await routingIsm['initialize(address,uint32[],address[])'](
+              owner,
+              safeConfigDomains,
+              submoduleAddresses,
+              overrides,
+            );
+          }
           return routingIsm;
         }
 

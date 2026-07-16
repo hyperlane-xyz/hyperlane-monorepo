@@ -9,7 +9,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
+import {
+  ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+} from '../gas/oracle/types.js';
 import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -237,10 +240,7 @@ export const IgpSchema = OwnableSchema.extend({
   tokenOracleConfig: z
     .record(
       FeeTokenAddressSchema,
-      z.record(
-        ZChainName,
-        ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
-      ),
+      z.record(ZChainName, ProtocolAgnositicGasOracleConfigSchema),
     )
     .optional(),
 });

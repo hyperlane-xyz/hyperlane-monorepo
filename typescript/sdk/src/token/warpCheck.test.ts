@@ -1,15 +1,28 @@
+import type { DerivedCollateralWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { expect } from 'chai';
 import sinon from 'sinon';
+import { zeroAddress } from 'viem';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { test1, test2, testSealevelChain } from '../consts/testChains.js';
+import {
+  test1,
+  test2,
+  test3,
+  testSealevelChain,
+} from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
-import { getScaleViolations } from './warpCheck.js';
+import {
+  altVmScaleMismatch,
+  buildAltVmWarpRouteDiff,
+  derivedWarpConfigToCheckConfig,
+  expandedDeployConfigToAltVmCheckConfig,
+  getScaleViolations,
+} from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
 const OWNER = '0x000000000000000000000000000000000000dEaD';
@@ -163,5 +176,341 @@ describe('getScaleViolations', () => {
 
     expect(violations).to.deep.equal([]);
     expect(connectStub.notCalled).to.equal(true);
+  });
+});
+
+function buildDerivedCollateralConfig(
+  overrides: Partial<DerivedCollateralWarpConfig> = {},
+): DerivedCollateralWarpConfig {
+  return {
+    decimals: 6,
+    destinationGas: {},
+    hook: MAILBOX,
+    interchainSecurityModule: MAILBOX,
+    mailbox: MAILBOX,
+    name: 'TOKEN',
+    owner: OWNER,
+    remoteRouters: {},
+    symbol: 'TOKEN',
+    token: TOKEN_A,
+    type: 'collateral',
+    ...overrides,
+  };
+}
+
+describe('derivedWarpConfigToCheckConfig', () => {
+  it('excludes decimals for CosmosNative, whose reader always returns a placeholder', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({
+        decimals: 0,
+        name: 'Unknown',
+        symbol: 'Unknown',
+      }),
+      ProtocolType.CosmosNative,
+    );
+
+    expect(result.decimals).to.equal(undefined);
+  });
+
+  it('keeps decimals for protocols with reliable on-chain metadata', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ decimals: 9 }),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.decimals).to.equal(9);
+  });
+
+  it('normalizes Starknet addresses so differently-formatted equal addresses compare equal', () => {
+    const short = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ owner: '0x1abc' }),
+      ProtocolType.Starknet,
+    );
+    const padded = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({
+        owner:
+          '0x0000000000000000000000000000000000000000000000000000000001abc',
+      }),
+      ProtocolType.Starknet,
+    );
+
+    expect(short.owner).to.equal(padded.owner);
+  });
+
+  it('never includes name/symbol, mirroring the EVM FIELDS_TO_IGNORE convention', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig(),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.not.have.property('name');
+    expect(result).to.not.have.property('symbol');
+  });
+
+  it('carries contractVersion through for comparison', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ contractVersion: '1.2.3' }),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.contractVersion).to.equal('1.2.3');
+  });
+
+  it('normalizes crossCollateralRouters to lowercased, sorted, chain-keyed lists', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: ['0x' + 'B'.repeat(64), '0x' + 'A'.repeat(64)],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.deep.equal({
+      [test2.name]: ['0x' + 'a'.repeat(64), '0x' + 'b'.repeat(64)],
+    });
+  });
+
+  it('widens a 20-byte EVM router address to bytes32 before comparing', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [ROUTER_B],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.deep.equal({
+      [test2.name]: [addressToBytes32(ROUTER_B).toLowerCase()],
+    });
+  });
+
+  it('treats an on-chain empty crossCollateralRouters map ({}) as omitted, not a real value', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {},
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.equal(undefined);
+  });
+
+  it('treats a crossCollateralRouters map with only empty chain entries ({ chain: [] }) as omitted', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.equal(undefined);
+  });
+
+  it('drops empty chain entries but keeps non-empty ones in a mixed crossCollateralRouters map', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        ...buildDerivedCollateralConfig(),
+        crossCollateralRouters: {
+          [test2.name]: [],
+          [test3.name]: [ROUTER_B],
+        },
+        type: 'crossCollateral',
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result.crossCollateralRouters).to.deep.equal({
+      [test3.name]: [addressToBytes32(ROUTER_B).toLowerCase()],
+    });
+  });
+});
+
+describe('altVmScaleMismatch', () => {
+  it('treats undefined actual and unset expected as matching identity scale', () => {
+    expect(altVmScaleMismatch(undefined, undefined)).to.equal(undefined);
+  });
+
+  it('matches a fractional on-chain scale (e.g. SVM remoteDecimalsToScale) against the equivalent expected fraction', () => {
+    expect(
+      altVmScaleMismatch(0.001, { denominator: 1000, numerator: 1 }),
+    ).to.equal(undefined);
+  });
+
+  it('flags a fractional on-chain scale against an unset (identity) expected scale', () => {
+    expect(altVmScaleMismatch(0.001, undefined)).to.not.equal(undefined);
+  });
+
+  it('flags an identity on-chain scale against a configured non-identity expected scale', () => {
+    expect(
+      altVmScaleMismatch(undefined, { denominator: 1000, numerator: 1 }),
+    ).to.not.equal(undefined);
+  });
+
+  it('matches an integer on-chain scale against an equivalent plain-number expected scale', () => {
+    expect(altVmScaleMismatch(1000, 1000)).to.equal(undefined);
+  });
+
+  // 1/scale is lossy in IEEE-754 for several of these exponents (e.g.
+  // 1/1e-5 = 99999.99999999999, not exactly 100000), which used to either
+  // throw or silently compare against the wrong fraction. These decimal
+  // deltas are routine for SVM's remoteDecimalsToScale and the Aleo reader.
+  for (const exponent of [1, 3, 5, 9, 12, 15, 18]) {
+    it(`matches a 1e-${exponent} on-chain scale against the equivalent expected fraction`, () => {
+      const scale = Math.pow(10, -exponent);
+      expect(
+        altVmScaleMismatch(scale, {
+          denominator: 10 ** exponent,
+          numerator: 1,
+        }),
+      ).to.equal(undefined);
+    });
+  }
+});
+
+describe('expandedDeployConfigToAltVmCheckConfig', () => {
+  it("treats expandWarpDeployConfig's EVM zeroAddress ISM/hook default as unset, not user-specified", () => {
+    // expandWarpDeployConfig fills in viem's zeroAddress for ISM/hook on every
+    // chain that doesn't configure them, including altVM chains -- this isn't a
+    // real user-specified value, so it must not be diffed against the actual
+    // on-chain (non-EVM-formatted) ISM/hook address.
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
+        mailbox: MAILBOX,
+        owner: OWNER,
+        token: TOKEN_A,
+        type: TokenType.collateral,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result.hook).to.equal(undefined);
+    expect(result.interchainSecurityModule).to.equal(undefined);
+  });
+});
+
+describe('buildAltVmWarpRouteDiff', () => {
+  const baseConfig = {
+    destinationGas: {},
+    mailbox: MAILBOX,
+    owner: OWNER,
+    remoteRouters: {},
+    type: TokenType.collateral,
+  };
+
+  it('does not flag an on-chain zero-address ISM/hook when the deploy config omits it', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          hook: '0x0000000000000000000000000000000000000000',
+          interchainSecurityModule:
+            '0x0000000000000000000000000000000000000000',
+        },
+      },
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a chain present on-chain but missing from the expected config', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      { [testSealevelChain.name]: { ...baseConfig } },
+      {},
+    );
+
+    expect(diff).to.deep.equal({
+      [testSealevelChain.name]: {
+        route: { actual: 'present', expected: 'missing' },
+      },
+    });
+  });
+
+  it('flags a chain expected but missing on-chain', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {},
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({
+      [testSealevelChain.name]: {
+        route: { actual: 'missing', expected: 'present' },
+      },
+    });
+  });
+
+  it('does not flag a contractVersion drift when the deploy config does not opt in', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          contractVersion: '1.0.0',
+        },
+      },
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a contractVersion mismatch when the deploy config opts in', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          contractVersion: '1.0.0',
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          contractVersion: '2.0.0',
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      contractVersion: { actual: '1.0.0', expected: '2.0.0' },
+    });
+  });
+
+  it('flags a crossCollateralRouters enrollment drift', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters: {
+            [test1.name]: ['0x' + 'a'.repeat(64)],
+          },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters: {
+            [test1.name]: ['0x' + 'a'.repeat(64), '0x' + 'b'.repeat(64)],
+          },
+        },
+      },
+    );
+
+    expect(diff).to.not.deep.equal({});
   });
 });

@@ -8,10 +8,15 @@ import {
   EvmXERC20Module,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
-  type XERC20LimitsMap,
+  type XERC20ModuleConfig,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  normalizeAddressEvm,
+  objFilter,
+} from '@hyperlane-xyz/utils';
 
 import { runSubmit } from '../config/submit.js';
 import {
@@ -62,7 +67,7 @@ const apply: CommandModuleWithWriteContext<
 > = {
   command: 'apply',
   describe:
-    'Apply XERC20 config from warp deploy config (auto-detects add/update/remove)',
+    'Apply XERC20 config from warp deploy config (auto-detects add/update/remove limits and ownership transfer for the token and its ProxyAdmin)',
   builder: {
     ...XERC20_WARP_ROUTE_BUILDER,
     chains: {
@@ -106,7 +111,9 @@ const apply: CommandModuleWithWriteContext<
             warpRouteAddress,
           );
 
-        const txs = await module.update(expectedConfig);
+        const txs = await module.update(expectedConfig, {
+          includeOwnership: true,
+        });
         if (txs.length > 0) {
           logBlue(`Generated ${txs.length} transaction(s) for ${chainName}`);
           transactions.push(...txs);
@@ -157,8 +164,7 @@ const read: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
-    const allLimits: Record<string, { type: string; limits: XERC20LimitsMap }> =
-      {};
+    const allLimits: Record<string, XERC20ModuleConfig> = {};
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
@@ -181,7 +187,9 @@ const read: CommandModuleWithContext<
         const onChainBridges = Object.keys(onChainConfig.limits);
         const expectedBridges = Object.keys(config.limits);
         const allBridges = [
-          ...new Set([...onChainBridges, ...expectedBridges]),
+          ...new Set(
+            [...onChainBridges, ...expectedBridges].map(normalizeAddressEvm),
+          ),
         ];
 
         const { xERC20 } = module.serialize();
@@ -193,6 +201,8 @@ const read: CommandModuleWithContext<
 
         allLimits[chainName] = {
           type: onChainConfig.type,
+          owner: onChainConfig.owner,
+          proxyAdmin: onChainConfig.proxyAdmin,
           limits,
         };
       } catch (error) {
