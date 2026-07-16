@@ -15,9 +15,6 @@ import {
 // any chain marked as disabled in the registry. Mirrors the alert-relevant
 // subset of `chainsToSkip` in src/config/chain.ts.
 const ADDITIONAL_NO_ALERT_CHAINS: ChainName[] = [
-  // downtime
-  'artela',
-  'molten',
   // no active warp route yet
   'mocachain',
 ];

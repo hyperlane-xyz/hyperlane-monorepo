@@ -99,19 +99,13 @@ const domainRoutingInitializationSize = (destination: ChainName) => {
     return 30;
   }
 
-  if (destination === 'shibarium' || destination === 'citrea') {
+  if (destination === 'citrea') {
     return 50;
-  }
-
-  if (destination === 'flare') {
-    return 90;
   }
 
   if (
     destination === 'sei' ||
-    destination === 'cyber' ||
     destination === 'xlayer' ||
-    destination === 'zircuit' ||
     destination === 'flowmainnet' ||
     destination === 'nibiru' ||
     destination === 'eni' ||

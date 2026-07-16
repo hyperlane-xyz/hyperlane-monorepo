@@ -293,9 +293,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // For all SVM chains, min cost is 0.50 USD to cover rent needs
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
-    ancient8: 0.5,
     blast: 0.5,
-    mantapacific: 0.5,
     taiko: 0.5,
 
     // Tron uses an energy model, not gas. Delivery costs 80-110K energy
@@ -403,12 +401,6 @@ export function getOverheadWithOverrides(
     remote === 'adichain'
   ) {
     overhead *= 2;
-
-    // Zero Network gas usage has changed recently and now requires
-    // another 3x multiplier on top of the ZKSync overhead.
-    if (remote === 'zeronetwork') {
-      overhead *= 3;
-    }
   }
 
   return overhead;

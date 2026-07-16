@@ -99,18 +99,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //   },
   // },
   // Deploy-only overrides, set when deploying contracts
-  // chilizmainnet: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
-  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
-  //   },
-  // },
   // immutablezkevmmainnet: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
-  // xrplevm: {
   //   blocks: {
   //     confirmations: 5,
   //   },

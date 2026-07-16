@@ -504,16 +504,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Not a core chain
       {
         originDomain: getDomainId('forma'),
-        destinationDomain: getDomainId('stride'),
-      },
-      // Not a core chain
-      {
-        originDomain: getDomainId('stride'),
-        destinationDomain: getDomainId('forma'),
-      },
-      // Not a core chain
-      {
-        originDomain: getDomainId('forma'),
         destinationDomain: getDomainId('celestia'),
       },
     ],
@@ -528,8 +518,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Not a core chain
       { destinationDomain: getDomainId('forma') },
-      // Temporary workaround due to funky Zeronetwork gas amounts.
-      { destinationDomain: getDomainId('zeronetwork') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
@@ -726,7 +714,6 @@ const mediumValidatorChains = [
   'ethereum',
   'linea',
   'eclipsemainnet',
-  'mantapacific',
   'celo',
   'ink',
   'unichain',
@@ -939,39 +926,6 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
-const neutron: RootAgentConfig = {
-  ...contextBase,
-  contextChainNames: {
-    validator: [],
-    relayer: ['arbitrum'],
-    scraper: [],
-  },
-  context: Contexts.Neutron,
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo: DockerImageRepos.AGENT,
-      tag: mainnetDockerTags.relayerRC,
-    },
-    blacklist,
-    gasPaymentEnforcement,
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    processAltOverrides,
-    batch: {
-      batchSizeOverrides: {
-        starknet: 16,
-        paradex: 16,
-      },
-    },
-    cache: {
-      enabled: true,
-    },
-    resources: relayerResources,
-  },
-};
-
 // Cross Collateral USDC - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDC/ctusd-config.yaml
 const fastPathUsdcMatchingList = chainMapMatchingList({
   arbitrum: '0x62fe676dff1e7ABBCcbedc8BABc993827b9fb189',
@@ -1106,6 +1060,5 @@ const fastPath: RootAgentConfig = {
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
-  [Contexts.Neutron]: neutron,
   [Contexts.FastPath]: fastPath,
 };

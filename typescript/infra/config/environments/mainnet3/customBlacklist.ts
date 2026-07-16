@@ -34,12 +34,12 @@ export const blacklistedMessageIds = [
   '0xbcc3e52dbc909f75425f4bdd83c94a31d8e3bc816422396dbe1f796ff8a5aadd',
 
   // txs between unenrolled routers of
-  // ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  // ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zoramainnet
   '0x229a832dfdfa23dfc27eb773e6b34e87f329067393f4f7b616251b3d7d52d294',
   '0xcdfd5294e8b1253263908e1919d27675f80a2e9a3bb339b759810efdbb81faa5',
 
   // txs between unenrolled routers of
-  // USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork
+  // USDT/arbitrum-ethereum-mantle-mode-polygon-scroll
   '0x10159bf1b5b2142b882cb060d1da9f9123d82974ca265ba432138221e52c2a27',
 
   // test tx when route was first deployed, no merkle tree insertion
