@@ -340,10 +340,19 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       txSubmitter: sender,
     };
 
-    const igpState = await adapter.innerIgpFeeState.get();
+    // A same-domain (local) transfer consumes no interchain message and pays
+    // no IGP on-chain, so skip IGP entirely — mirrors `buildQuotedTransferTxs`
+    // and avoids asserting on a `destination_gas` a local route need not set.
+    const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
+    const isRemoteTransfer = destinationDomainId !== localDomainId;
+
+    const igpState = isRemoteTransfer
+      ? await adapter.innerIgpFeeState.get()
+      : undefined;
     const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
     const igpAccount = igpState?.innerIgpAccount;
     const igpEnabled =
+      isRemoteTransfer &&
       !isNullish(igpProgramId) &&
       !isNullish(igpAccount) &&
       !isNullish(igpState?.feeConfig);

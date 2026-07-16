@@ -513,6 +513,34 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     expect(result.igpQuote.amount).to.equal(1200n);
   });
 
+  it('skips IGP for a same-domain (local) transfer instead of asserting on destination_gas', async () => {
+    // Same-domain (destination === origin) pays no IGP on-chain. Even with an
+    // IGP quote available and destination_gas unset, it must return 0 rather
+    // than asserting — mirrors buildQuotedTransferTxs's local gate.
+    const adapter = makeAdapter({
+      feeConfig: { feeProgram: 'x' },
+      igp: { innerIgpAccount: FEE_ACCOUNT, feeConfig: {} },
+      // destination_gas intentionally unset
+    });
+    const { warpCore, originTokenAmount } = makeWarpCore(adapter);
+    const provider = makeProvider(
+      makeClient(
+        makeQuoteEntryWithStrategy(0, 0n, 1n),
+        makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 9)),
+      ),
+    );
+
+    const result = await provider.getQuotedTransferFee({
+      warpCore,
+      originTokenAmount,
+      destination: ORIGIN, // same as origin → local transfer
+      sender: SENDER,
+      recipient: RECIPIENT,
+    });
+
+    expect(result.igpQuote.amount).to.equal(0n);
+  });
+
   it('displays the legacy on-chain IGP quote when the route has no offchain fee_config', async () => {
     // Legacy IGP (not upgraded to offchain quoting): igpState present but no
     // feeConfig → no signed IGP quote, so igpEnabled is false. The submit path
