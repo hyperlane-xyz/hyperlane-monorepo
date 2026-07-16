@@ -21,6 +21,10 @@ const DEST_PROTOCOL = ProtocolType.Ethereum;
 const ADDR = '0x' + '00'.repeat(20);
 const ROUTER_ADDRESS = '0x' + 'aa'.repeat(20);
 const ROUTER_BYTES32 = addressToBytes32(ROUTER_ADDRESS, DEST_PROTOCOL);
+const CC_ROUTER_A = '0x' + 'bb'.repeat(20);
+const CC_ROUTER_A_BYTES32 = addressToBytes32(CC_ROUTER_A, DEST_PROTOCOL);
+const CC_ROUTER_B = '0x' + 'cc'.repeat(20);
+const CC_ROUTER_B_BYTES32 = addressToBytes32(CC_ROUTER_B, DEST_PROTOCOL);
 
 // Inner leaf used by RoutingFee / CrossCollateralRoutingFee feeContracts —
 // matches TokenFeeConfig (no `address` wrapper, that's only on the outer
@@ -46,14 +50,20 @@ function makeMultiProvider(): MultiProvider {
 function callResolve(args: {
   tokenFee: DerivedTokenFeeConfig;
   remoteRouters?: Record<string, { address: string }>;
+  crossCollateralRouters?: Record<string, string[]>;
+  explicitTargetRouter?: string;
 }): string {
   return resolveTargetRouterForVariant({
     tokenFee: args.tokenFee,
-    localConfig: { remoteRouters: args.remoteRouters },
+    localConfig: {
+      remoteRouters: args.remoteRouters,
+      crossCollateralRouters: args.crossCollateralRouters,
+    },
     multiProvider: makeMultiProvider(),
     destinationChainName: DEST_CHAIN,
     destinationDomain: DEST_DOMAIN,
     destinationProtocol: DEST_PROTOCOL,
+    explicitTargetRouter: args.explicitTargetRouter,
   });
 }
 
@@ -167,5 +177,78 @@ describe('resolveTargetRouterForVariant', () => {
         remoteRouters: { [DEST_CHAIN]: { address: ROUTER_ADDRESS } },
       }),
     ).to.throw(/no leaf for destination/);
+  });
+
+  it('CCRF: resolves a crossCollateralRouters-keyed leaf when the remoteRouter has none', () => {
+    const tokenFee: DerivedTokenFeeConfig = {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: ADDR,
+      feeContracts: { [DEST_CHAIN]: { [CC_ROUTER_A_BYTES32]: LEAF } },
+      address: ADDR,
+    };
+
+    const result = callResolve({
+      tokenFee,
+      remoteRouters: { [DEST_CHAIN]: { address: ROUTER_ADDRESS } },
+      crossCollateralRouters: { [DEST_CHAIN]: [CC_ROUTER_A] },
+    });
+
+    expect(result).to.equal(CC_ROUTER_A_BYTES32);
+  });
+
+  it('CCRF: an explicit target router selects the matching leaf', () => {
+    const tokenFee: DerivedTokenFeeConfig = {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: ADDR,
+      feeContracts: {
+        [DEST_CHAIN]: {
+          [CC_ROUTER_A_BYTES32]: LEAF,
+          [CC_ROUTER_B_BYTES32]: LEAF,
+        },
+      },
+      address: ADDR,
+    };
+
+    const result = callResolve({
+      tokenFee,
+      crossCollateralRouters: { [DEST_CHAIN]: [CC_ROUTER_A, CC_ROUTER_B] },
+      explicitTargetRouter: CC_ROUTER_B,
+    });
+
+    expect(result).to.equal(CC_ROUTER_B_BYTES32);
+  });
+
+  it('CCRF: an explicit target router without a leaf throws', () => {
+    const tokenFee: DerivedTokenFeeConfig = {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: ADDR,
+      feeContracts: { [DEST_CHAIN]: { [CC_ROUTER_A_BYTES32]: LEAF } },
+      address: ADDR,
+    };
+
+    expect(() =>
+      callResolve({ tokenFee, explicitTargetRouter: CC_ROUTER_B }),
+    ).to.throw(/has no CrossCollateralRoutingFee leaf/);
+  });
+
+  it('CCRF: multiple crossCollateralRouters leaves without --target-router throws', () => {
+    const tokenFee: DerivedTokenFeeConfig = {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: ADDR,
+      feeContracts: {
+        [DEST_CHAIN]: {
+          [CC_ROUTER_A_BYTES32]: LEAF,
+          [CC_ROUTER_B_BYTES32]: LEAF,
+        },
+      },
+      address: ADDR,
+    };
+
+    expect(() =>
+      callResolve({
+        tokenFee,
+        crossCollateralRouters: { [DEST_CHAIN]: [CC_ROUTER_A, CC_ROUTER_B] },
+      }),
+    ).to.throw(/multiple router-keyed leaves/);
   });
 });

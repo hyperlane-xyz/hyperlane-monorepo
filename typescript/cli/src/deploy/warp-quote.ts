@@ -52,6 +52,7 @@ export async function runWarpQuoteCreate({
   halfAmount,
   ttl,
   quoteSignerKey,
+  targetRouter: explicitTargetRouter,
 }: {
   context: WriteCommandContext;
   warpRouteId: string;
@@ -63,6 +64,7 @@ export async function runWarpQuoteCreate({
   halfAmount: string;
   ttl: number;
   quoteSignerKey: string;
+  targetRouter?: string;
 }): Promise<void> {
   const { multiProvider, altVmSigners } = context;
 
@@ -115,6 +117,7 @@ export async function runWarpQuoteCreate({
     destinationChainName,
     destinationDomain,
     destinationProtocol,
+    explicitTargetRouter,
   });
 
   const feeAddress = resolveOffchainQuotedLeafAddress({
@@ -214,13 +217,35 @@ function resolveDestinationChainName(
   return destination;
 }
 
+// Resolves the entry for a destination in a chainName-or-domain keyed record,
+// mirroring how remoteRouters and crossCollateralRouters are keyed in the warp
+// deploy config.
+function findByDestination<T>(
+  record: Record<string, T> | undefined,
+  destinationChainName: string,
+  destinationDomain: number,
+  multiProvider: MultiProvider,
+): T | undefined {
+  if (!record) return undefined;
+  const entry = Object.entries(record).find(([key]) => {
+    const domain = multiProvider.tryGetDomainId(key);
+    if (!isNullish(domain)) return domain === destinationDomain;
+    return key === destinationChainName;
+  });
+  return entry?.[1];
+}
+
 export function resolveTargetRouterForVariant(args: {
   tokenFee: DerivedTokenFeeConfig;
-  localConfig: { remoteRouters?: Record<string, { address: string }> };
+  localConfig: {
+    remoteRouters?: Record<string, { address: string }>;
+    crossCollateralRouters?: Record<string, string[]>;
+  };
   multiProvider: MultiProvider;
   destinationChainName: string;
   destinationDomain: number;
   destinationProtocol: ProtocolType;
+  explicitTargetRouter?: string;
 }): string {
   const {
     tokenFee,
@@ -229,6 +254,7 @@ export function resolveTargetRouterForVariant(args: {
     destinationChainName,
     destinationDomain,
     destinationProtocol,
+    explicitTargetRouter,
   } = args;
   switch (tokenFee.type) {
     case TokenFeeType.LinearFee:
@@ -239,30 +265,68 @@ export function resolveTargetRouterForVariant(args: {
       return WARP_TARGET_ROUTER_NONE;
 
     case TokenFeeType.CrossCollateralRoutingFee: {
-      // SVM submit_quote does NO cascade — the signed targetRouter must
-      // match an actually-configured route key on the fee account.
-      // EVM cascades at quote-read time, so it's tolerant of either
-      // specific or DEFAULT here. Prefer a specific match, fall back to
-      // DEFAULT_ROUTER_KEY.
+      // SVM submit_quote does NO cascade — the signed targetRouter must match an
+      // actually-configured route key on the fee account. EVM cascades at
+      // quote-read time, so it's tolerant of either specific or DEFAULT here.
       const destRoutes = tokenFee.feeContracts[destinationChainName] ?? {};
-      const routers = localConfig.remoteRouters ?? {};
-      const routerEntry = Object.entries(routers).find(([key]) => {
-        const domain = multiProvider.tryGetDomainId(key);
-        if (!isNullish(domain)) return domain === destinationDomain;
-        return key === destinationChainName;
-      });
-      if (routerEntry) {
-        const destRouterBytes32 = addressToBytes32(
-          routerEntry[1].address,
+
+      // Explicit override: user targets a specific router-keyed leaf.
+      if (explicitTargetRouter) {
+        const bytes32 = addressToBytes32(
+          explicitTargetRouter,
           destinationProtocol,
         );
-        if (destRoutes[destRouterBytes32]) return destRouterBytes32;
+        assert(
+          destRoutes[bytes32],
+          `--target-router ${explicitTargetRouter} has no CrossCollateralRoutingFee leaf on ${destinationChainName} (domain ${destinationDomain}). Configured router keys: ${
+            Object.keys(destRoutes).join(', ') || '(none)'
+          }`,
+        );
+        return bytes32;
       }
+
+      // Prefer the destination's canonical remoteRouter when it has a leaf.
+      const remoteRouter = findByDestination(
+        localConfig.remoteRouters,
+        destinationChainName,
+        destinationDomain,
+        multiProvider,
+      );
+      if (remoteRouter) {
+        const bytes32 = addressToBytes32(
+          remoteRouter.address,
+          destinationProtocol,
+        );
+        if (destRoutes[bytes32]) return bytes32;
+      }
+
+      // Otherwise consult the destination's crossCollateralRouters.
+      const ccRouters =
+        findByDestination(
+          localConfig.crossCollateralRouters,
+          destinationChainName,
+          destinationDomain,
+          multiProvider,
+        ) ?? [];
+      const ccMatches = ccRouters
+        .map((address) => addressToBytes32(address, destinationProtocol))
+        .filter((bytes32) => destRoutes[bytes32]);
+      if (ccMatches.length === 1) return ccMatches[0];
+      if (ccMatches.length > 1) {
+        throw new Error(
+          `CrossCollateralRoutingFee has multiple router-keyed leaves for ${destinationChainName} (domain ${destinationDomain}); pass --target-router to choose one. Matching router keys: ${ccMatches.join(
+            ', ',
+          )}`,
+        );
+      }
+
+      // DEFAULT fallback.
       if (destRoutes[DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY]) {
         return DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY;
       }
+
       throw new Error(
-        `CrossCollateralRoutingFee has no leaf for destination ${destinationChainName} (domain ${destinationDomain}) — neither a specific router-keyed leaf nor a DEFAULT_ROUTER fallback is configured`,
+        `CrossCollateralRoutingFee has no leaf for destination ${destinationChainName} (domain ${destinationDomain}) — pass --target-router to target a specific router-keyed leaf, or configure a DEFAULT_ROUTER fallback`,
       );
     }
 

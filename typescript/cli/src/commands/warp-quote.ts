@@ -31,6 +31,7 @@ const create: CommandModuleWithWriteContext<{
   halfAmount: string;
   ttl: number;
   quoteSignerKey: string;
+  targetRouter?: string;
 }> = {
   command: 'create',
   describe:
@@ -43,6 +44,12 @@ const create: CommandModuleWithWriteContext<{
       description:
         'Remote chain name this quote applies to. The target router for cross-collateral fees is resolved from the warp config.',
       demandOption: true,
+    },
+    'target-router': {
+      type: 'string',
+      description:
+        "Cross-collateral only: submit against a specific router-keyed leaf, in the destination chain's native address format. Defaults to auto-resolution (specific router leaf, else DEFAULT).",
+      demandOption: false,
     },
     recipient: {
       type: 'string',
@@ -90,6 +97,7 @@ const create: CommandModuleWithWriteContext<{
     halfAmount,
     ttl,
     quoteSignerKey,
+    targetRouter,
   }) => {
     logCommandHeader('Hyperlane Warp Quote Create');
     await runWarpQuoteCreate({
@@ -103,6 +111,7 @@ const create: CommandModuleWithWriteContext<{
       halfAmount,
       ttl,
       quoteSignerKey,
+      targetRouter,
     });
     process.exit(0);
   },
