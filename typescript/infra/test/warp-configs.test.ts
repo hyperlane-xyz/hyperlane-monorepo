@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
   getEnvironmentConfig,

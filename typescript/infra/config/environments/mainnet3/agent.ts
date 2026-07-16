@@ -32,7 +32,6 @@ import {
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
   icaMatchingList,
-  matchingList,
   multiAddressChainMapMatchingList,
   routerMatchingList,
   senderMatchingList,
@@ -42,7 +41,7 @@ import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
-import { getDomainId, getWarpAddresses } from '../../registry.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
