@@ -276,7 +276,13 @@ async function fetchSecretMetadataOverrides(
   // verification checks (e.g. warp check) use authenticated requests.
   // These overrides live only in the PartialRegistry layer and are never
   // persisted back to the on-disk registry.
-  const explorerApiKeys = await fetchExplorerApiKeys();
+  // Only fetch from GCP when running locally (not in k8s), mirroring the Safe
+  // API key handling above: the pod has no GCP identity, and the registry
+  // already provides explorer API keys inline, so the fetch is unnecessary
+  // (and previously fatal) in-cluster.
+  const explorerApiKeys: ChainMap<string> = !inKubernetes()
+    ? await fetchExplorerApiKeys()
+    : {};
   for (const chain of chains) {
     const apiKey = explorerApiKeys[chain];
     if (!apiKey) continue;
