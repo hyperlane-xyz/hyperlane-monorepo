@@ -402,9 +402,14 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         !isNullish(gasAmount),
         `Warp route has no destination_gas configured for domain ${destinationDomainId}; transfer would fail at submit`,
       );
-      const overheadGas =
-        igpState?.gasOverheads?.get(destinationDomainId) ?? 0n;
-      igpFeeAmount = computeIgpGasFee(igpData, gasAmount + overheadGas);
+      // borsh@0.7 decodes these u64 map values as bn.js `BN`, not the `bigint`
+      // the types claim, so normalize before arithmetic: `BN + bigint`
+      // string-concatenates (silent corruption) and `BN * bigint` throws.
+      const gasBudget = BigInt(gasAmount.toString());
+      const overheadGas = BigInt(
+        (igpState?.gasOverheads?.get(destinationDomainId) ?? 0n).toString(),
+      );
+      igpFeeAmount = computeIgpGasFee(igpData, gasBudget + overheadGas);
     }
     const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
 

@@ -1,4 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import { BinaryReader, BinaryWriter } from 'borsh';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
@@ -79,12 +80,32 @@ const FEE_ACCOUNT = new PublicKey(
   'SysvarRent111111111111111111111111111111111',
 );
 
+// borsh@0.7 decodes u64 map values as bn.js `BN`, which the `bigint` types on
+// `destination_gas` / `gasOverheads` hide. Tests use both shapes.
+type U64 = bigint | ReturnType<BinaryReader['readU64']>;
+
+/**
+ * Mints a genuine borsh-decoded u64 (bn.js `BN`) — the real runtime type
+ * `destination_gas` / `gasOverheads` carry — so IGP tests exercise the same
+ * value a live account decode produces, not a hand-built `bigint`.
+ */
+function borshU64(value: number): ReturnType<BinaryReader['readU64']> {
+  const writer = new BinaryWriter();
+  writer.writeU64(value);
+  return new BinaryReader(Buffer.from(writer.toArray())).readU64();
+}
+
 interface MakeAdapterOpts {
   feeConfig: object | null;
   /** When set, makes `igpEnabled` evaluate true in the provider. */
-  igp?: { innerIgpAccount: PublicKey; feeConfig: object };
+  igp?: {
+    innerIgpAccount: PublicKey;
+    feeConfig: object;
+    /** OverheadIgp per-destination overhead, added before pricing. */
+    gasOverheads?: Map<number, U64>;
+  };
   /** Per-destination gas budget map; only consulted on the IGP path. */
-  destinationGas?: Map<number, bigint>;
+  destinationGas?: Map<number, U64>;
   /** Overrides `innerIgpFeeState.get` so tests can assert whether it fires. */
   igpGet?: sinon.SinonStub;
 }
@@ -370,14 +391,21 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     transferAmount: bigint,
     igpOpts?: {
       entry: SealevelQuoteV2Entry;
-      destinationGas?: bigint;
+      destinationGas?: U64;
+      gasOverheads?: U64;
     },
   ) {
     const { warpCore, originTokenAmount } = makeWarpCore(
       makeAdapter({
         feeConfig: { feeProgram: 'x' },
         igp: igpOpts
-          ? { innerIgpAccount: FEE_ACCOUNT, feeConfig: {} }
+          ? {
+              innerIgpAccount: FEE_ACCOUNT,
+              feeConfig: {},
+              gasOverheads: isNullish(igpOpts.gasOverheads)
+                ? undefined
+                : new Map([[DEST_DOMAIN, igpOpts.gasOverheads]]),
+            }
           : undefined,
         destinationGas:
           igpOpts && !isNullish(igpOpts.destinationGas)
@@ -460,6 +488,21 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
       destinationGas: 1000n,
     });
     expect(result.igpQuote.amount).to.equal(1000n);
+  });
+
+  it('normalizes borsh-decoded BN gas values (destination_gas + gasOverheads) before pricing', async () => {
+    // Regression: borsh@0.7 decodes u64 map values as bn.js BN. Without a
+    // BigInt normalization, BN(1000)+BN(200) concatenates to "1000200" and
+    // computeIgpGasFee's multiply throws — so live SVM preflight crashes.
+    // TER=10^19 (1.0), gas_price=1, decimals=9 → fee = (1000 + 200) * 1 = 1200.
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 9));
+    const result = await callWithAmount(warp, 1000n, {
+      entry: igp,
+      destinationGas: borshU64(1000),
+      gasOverheads: borshU64(200),
+    });
+    expect(result.igpQuote.amount).to.equal(1200n);
   });
 
   it('scales by TER when ≠ 10^19 (1.0)', async () => {
