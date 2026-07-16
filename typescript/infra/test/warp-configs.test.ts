@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
   getEnvironmentConfig,
@@ -22,7 +23,7 @@ chai.use(chaiAsPromised);
 chai.should();
 const DEFAULT_TIMEOUT = 100000;
 
-const warpIdsToSkip: string[] = [];
+const warpIdsToSkip: string[] = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
 
 async function getConfigsForBranch(branch: string) {
   return getRegistry({

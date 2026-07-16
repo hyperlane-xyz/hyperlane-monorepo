@@ -2,7 +2,10 @@ import { pick } from '@hyperlane-xyz/utils';
 
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
-import { getRenzoWarpConfigGenerator, renzoTokenPrices } from './renzo.js';
+import {
+  getRenzoWarpConfigGenerator,
+  renzoTokenPrices,
+} from './getRenzoEZETHWarpConfig.js';
 import {
   rezEthChainsToDeploy,
   rezEthValidators,

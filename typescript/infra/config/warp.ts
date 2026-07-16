@@ -15,8 +15,6 @@ import { getRouterConfigsForAllVms } from '../scripts/core-utils.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
-import { getFileSubmitterStrategyConfig } from './environments/mainnet3/warp/configGetters/utils.js';
-
 import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
 import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAppchainBaseUSDCWarpConfig.js';
 import {
@@ -84,10 +82,8 @@ import { getETHStageWarpConfig } from './environments/mainnet3/warp/configGetter
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import { getPulsechainUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getPulsechainUSDCWarpConfig.js';
 import { getRadixUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getRadixUSDCWarpConfig.js';
-import {
-  getREZBaseEthereumWarpConfig,
-  rezEthChainsToDeploy,
-} from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
+import { getEZETHFileSubmitterStrategyConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import {
   getRezStagingGnosisSafeBuilderStrategyConfig,
   getRezStagingWarpConfig,
@@ -194,11 +190,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getLUMIAGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
     getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.BaseEthereumREZ]: () =>
-    getFileSubmitterStrategyConfig(
-      rezEthChainsToDeploy,
-      '/tmp/rez-combined.json',
-    ),
+  [WarpRouteIds.BaseEthereumREZ]: getEZETHFileSubmitterStrategyConfig,
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
