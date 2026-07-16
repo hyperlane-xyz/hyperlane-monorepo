@@ -82,6 +82,7 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Feb 17, 2025 batch
   // ----------------------------------------------------------
+  arcadia: '0xD2344a364b6Dc6B2Fe0f7D836fa344d83056cbaD',
   ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 

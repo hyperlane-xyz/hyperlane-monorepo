@@ -23,6 +23,10 @@
     "amount": "0.02",
     "decimals": 9
   },
+  "arcadia": {
+    "amount": "0.000000008",
+    "decimals": 9
+  },
   "avalanche": {
     "amount": "10.0",
     "decimals": 9

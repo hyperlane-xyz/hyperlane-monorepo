@@ -131,6 +131,7 @@ pub enum KnownHyperlaneDomain {
     AppChain = 466,
     ApeChain = 33139,
     Arbitrum = 42161,
+    Arcadia = 4278608,
     Avalanche = 43114,
     Base = 8453,
     BeraChain = 80094,

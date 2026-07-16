@@ -669,6 +669,16 @@ export const validatorChainConfig = (
         'berachain',
       ),
     },
+    arcadia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('arcadia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38'],
+        },
+        'arcadia',
+      ),
+    },
     ronin: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ronin'),

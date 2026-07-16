@@ -2329,6 +2329,7 @@ export class GovernTransactionReader {
       tx.to,
       this.chainAddresses[chain].interchainAccountRouter,
     );
+    // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
     const isLegacyEthRouter = eqAddress(
       tx.to,
       this.chainAddresses.ethereum.legacyInterchainAccountRouter,

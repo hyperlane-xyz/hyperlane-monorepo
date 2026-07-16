@@ -65,6 +65,15 @@
         "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
       ]
     },
+    "arcadia": {
+      "type": "messageIdMultisigIsm",
+      "threshold": 2,
+      "validators": [
+        "0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38",
+        "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+        "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      ]
+    },
     "avalanche": {
       "type": "messageIdMultisigIsm",
       "threshold": 2,

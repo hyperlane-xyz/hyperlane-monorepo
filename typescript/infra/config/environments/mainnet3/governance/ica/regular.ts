@@ -20,6 +20,7 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
+  arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
   botanix: '0xe30183bab232021BcA9f56588CE09fF9842AB29D',
   avalanche: '0x66C21CFa8b765318a458435519A31A5cf0F7Ae4b',
   berachain: '0xb6DD23C2Bef77e90DdDBeEdEa29a56880ED750f0',

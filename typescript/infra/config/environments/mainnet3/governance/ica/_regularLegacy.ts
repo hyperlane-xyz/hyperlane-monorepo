@@ -6,6 +6,7 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
   appchain: '0x8A4E9b5B445504727D7a9377eA329Bb38700F8FA',
+  arcadia: '0x32879753603c140E34D46375F43Db8BdC9a8c545',
   avalanche: '0x3a1014df0202477a1222999c72bD36395904e8AB',
   bitlayer: '0x39EBb0D2b62D623BBEB874505079a21d05A7Ab9d',
   bob: '0x4FB145Da6407F4F485A209332a38A5327B61f83e',

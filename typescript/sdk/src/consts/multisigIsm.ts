@@ -144,6 +144,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arcadia: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   avalanche: {
     threshold: 3,
     validators: [
