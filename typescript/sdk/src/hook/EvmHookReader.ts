@@ -225,7 +225,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         this.logger.info(
           `Hook at ${address} does not support hookType() — treating as unknown hook:\n\t${e}`,
         );
-        return { type: HookType.UNKNOWN, address } as DerivedHookConfig;
+        return { type: HookType.UNKNOWN, address };
       } else {
         this.logger.debug(`${customMessage}:\n\t${e}`);
       }

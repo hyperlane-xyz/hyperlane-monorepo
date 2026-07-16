@@ -91,18 +91,19 @@ export abstract class HyperlaneRouterDeployer<
           );
           const router = this.router(contracts);
           const txOverrides = this.multiProvider.getTransactionOverrides(chain);
-          const gasLimit = txOverrides.gasLimit
-            ? BigNumber.from(txOverrides.gasLimit)
-            : addBufferToGasLimit(
-                await router.estimateGas.enrollRemoteRouters(
-                  domains,
-                  addresses,
-                ),
-              );
+          const gasLimit =
+            txOverrides.gasLimit != null
+              ? BigNumber.from(txOverrides.gasLimit)
+              : addBufferToGasLimit(
+                  await router.estimateGas.enrollRemoteRouters(
+                    domains,
+                    addresses,
+                  ),
+                );
           const enrollTx = await router.enrollRemoteRouters(
             domains,
             addresses,
-            { gasLimit, ...txOverrides },
+            { ...txOverrides, gasLimit },
           );
           await this.multiProvider.handleTx(chain, enrollTx);
         });
