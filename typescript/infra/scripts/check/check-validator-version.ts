@@ -23,10 +23,8 @@ const acceptableValidatorVersions: Record<string, string> = {
   '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'November 7 2024',
   // Nov 21 deploy
   'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'November 21 2024',
-  // Nov 21 bsquared deploy
-  'd834d8147628584acd78a81e344bff76472d707e': 'November 21 2024 (Bsquared)',
-  // Nov 21 swell/lumiaprism deploy
-  'b35c105f197267072daa14bb3d83c62410b96fac': 'November 21 2024 (Swell)',
+  // Nov 21 lumiaprism deploy
+  'b35c105f197267072daa14bb3d83c62410b96fac': 'November 21 2024 (Lumiaprism)',
   // Dec 4 deploy
   'a7f3967e047c2c5aabb8cc442e4acad435fa32ab': 'December 4 2024',
   // Dec 13 deploy

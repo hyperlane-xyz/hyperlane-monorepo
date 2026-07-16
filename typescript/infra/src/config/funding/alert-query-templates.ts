@@ -35,16 +35,8 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
     # Starknet 
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"starknet"}[1d]) - 250 or
 
-    # Neutron context
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="mantapacific", hyperlane_context="neutron"}[1d]) - 0.3 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="arbitrum", hyperlane_context="neutron"}[1d]) - 0.3 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="neutron", hyperlane_context="neutron"}[1d]) - 1500 or
-
     # Injective
-    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="injective", wallet_address!~"inj1ddw6pm84zmtpms0gpknfsejkk9v6t0ergjpl30|inj1ds32d5t26j7gauvtly86lk6uh06ear3jvqllaw"}[1d]) / 1000000000000) - 3 or
-
-    # Stride
-    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="stride"}[1d])) - 10
+    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="injective", wallet_address!~"inj1ddw6pm84zmtpms0gpknfsejkk9v6t0ergjpl30|inj1ds32d5t26j7gauvtly86lk6uh06ear3jvqllaw"}[1d]) / 1000000000000) - 3
 `;
 
 export const LOW_URGENCY_ENG_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-funder and all funds are stored in the relayer's wallet
@@ -75,16 +67,8 @@ export const LOW_URGENCY_ENG_KEY_FUNDER_FOOTER = `    # Mainnets that don't use 
     # Starknet 
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"starknet"}[1d]) - 150 or
     
-    # Neutron context
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="mantapacific", hyperlane_context="neutron"}[1d]) - 0.15 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="arbitrum", hyperlane_context="neutron"}[1d]) - 0.15 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="neutron", hyperlane_context="neutron"}[1d]) - 750 or
-
     # Injective
-    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="injective", wallet_address!~"inj1ddw6pm84zmtpms0gpknfsejkk9v6t0ergjpl30|inj1ds32d5t26j7gauvtly86lk6uh06ear3jvqllaw"}[1d]) / 1000000000000) - 1.5 or
-
-    # Stride
-    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="stride"}[1d])) - 5
+    (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="injective", wallet_address!~"inj1ddw6pm84zmtpms0gpknfsejkk9v6t0ergjpl30|inj1ds32d5t26j7gauvtly86lk6uh06ear3jvqllaw"}[1d]) / 1000000000000) - 1.5
 `;
 
 export const HIGH_URGENCY_RELAYER_HEADER = `min by (chain, wallet_address, wallet_name) (
@@ -105,8 +89,4 @@ export const HIGH_URGENCY_RELAYER_FOOTER = `    # Special contexts already have 
     # Sonic SVM
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"sonicsvm"}[1d]) - 0.075 or
 
-    # Neutron context lines stay with neutron context
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="mantapacific", hyperlane_context="neutron"}[1d]) - 0.02 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="arbitrum", hyperlane_context="neutron"}[1d]) - 0.02 or
-    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="neutron", hyperlane_context="neutron"}[1d]) - 0.7
 `;

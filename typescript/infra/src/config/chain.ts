@@ -67,31 +67,26 @@ export function getDisabledChains(): ChainName[] {
 export const legacyIgpChains: ChainName[] = Array.from(
   new Set([
     'arcadia',
-    'chilizmainnet',
     'coti',
     'electroneum',
-    'incentiv',
     'metis',
-    'ontology',
     'taiko',
     'torus',
 
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
-    'astar',
     'krown',
     'prom',
     'pulsechain',
     'sei',
     'viction',
-    'xrplevm',
     ...getDisabledChains(),
   ]),
 );
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues
+// unsupported or have known issues.
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
@@ -101,15 +96,6 @@ export const chainsToSkip: ChainName[] = [
   // mainnets
   'zksync',
   'abstract',
-  'sophon',
-
-  // Swell network sunset 2026-06-30 (registry marks it disabled; kept explicit
-  // until the pinned .registryrc is bumped past the disable commit).
-  'swell',
-
-  // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
-  // pinned registry, so kept explicit here.
-  'miraclechain',
 
   ...getDisabledChains(),
 ];

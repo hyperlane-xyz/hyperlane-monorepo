@@ -59,15 +59,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     // Squads multisig
     owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
   },
-  neutron: {
-    // Da0Da0 multisig
-    owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
-  },
-  // We intentionally cause issues if these were to be used, but satisfy the types
-  // and ensure there's an entry for each supported chain.
-  stride: {
-    owner: 'n/a - nothing owned here',
-  },
   paradex: {
     owner: '0x41e326bf455461926b9c334d02039cb0d4f09698c5158ef8d939b33b240a0e0',
   },

@@ -812,15 +812,6 @@ export async function getPendingTxsForChains(
         return;
       }
 
-      if (chain === 'endurance') {
-        rootLogger.info(
-          chalk.gray.italic(
-            `Skipping chain ${chain} as it does not have a functional safe API`,
-          ),
-        );
-        return;
-      }
-
       let safeSdk: Safe.default;
       let safeService: SafeService;
       try {

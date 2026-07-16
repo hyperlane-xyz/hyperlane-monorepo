@@ -15,13 +15,11 @@ export const awSafes: ChainMap<Address> = {
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
   ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
   hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
-  mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have safe API > 5.18.0
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   optimism: '0xbd7db3821806bc72D223F0AE521Bf82FcBd6Ef4d',
   plasma: '0xCcf5e9862D486e71aA47B87Cb3a7eEB1e1f2F624',
   viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
   worldchain: '0x95b1634566663117322999ce42cDEaEF18c089Be',
-  zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
 
   // ---------------------------------------------------------------------------
   // 2026-06-16: Inactive — own no warp routes and are not referenced as an owner
@@ -30,14 +28,11 @@ export const awSafes: ChainMap<Address> = {
   // governance owner rather than an unmaintained safe.
   // ---------------------------------------------------------------------------
   // abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
-  // ancient8: '0xD2BFA0F0654E3f2139b8cDC56c32eeC54D32b133',
   // berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   // bitlayer: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   // blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   // bob: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
-  // endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   // fraxtal: '0x66e9f52800E9F89F0569fddc594Acd5EE609f762',
-  // fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
   // gnosis: '0x0Ac72fBc82c9c39F81242229631dfC38aA13031B',
   // igra: '0x0c205894f0cA786AB1693f232F4e19a60Af5c72B',
   // ink: '0x8DEe31BF7da558ee3224D22E224e172783CA8d70',
@@ -53,12 +48,8 @@ export const awSafes: ChainMap<Address> = {
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   // soneium: '0xD97F1bc0d49f994137Acf36baE2aEd9b2E4F239a',
   // sonic: '0x7f56412491D8E77331Ff0300d3C8E42A6D233FdC',
-  // sophon: '0x3D1baf8cA4935f416671640B1Aa9E17E005986eE',
   // superseed: '0x2915Ff7B025bc65bBFfD1621F6B3d4E4295dB4F6',
-  // swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   // taiko: '0xa4864301d3fa2a3e68256309F9F0F570270a1BD0',
   // unichain: '0x028C71E99e23fD393DE4207486D1aF7FA2b26b33',
-  // zetachain: '0x9d399876522Fc5C044D048594de399A2349d6026',
-  // zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   // zksync: '0x9C81aA0cC233e9BddeA426F5d395Ab5B65135450',
 };
