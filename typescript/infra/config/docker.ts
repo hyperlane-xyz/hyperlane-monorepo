@@ -67,5 +67,5 @@ export const testnetDockerTags: BaseDockerTags = {
   validatorFastPath: '8b6fdf8-20260605-090142',
   scraper: '8b6fdf8-20260605-090142',
   // standalone services
-  keyFunder: '87f0933-20260605-085727',
+  keyFunder: '5dc6aa4-20260714-184449',
 };
