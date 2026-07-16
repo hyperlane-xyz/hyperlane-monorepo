@@ -259,6 +259,164 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
   constructor(private readonly opts: SealevelQuotedTransferProviderOpts) {}
 
   /**
+   * Shared prep for both quote entry points. Resolves the SVM adapter + token
+   * account, builds the identical warp/IGP request shapes (same salt,
+   * targetRouter, recipient, and same-domain IGP gate), and fetches the warp +
+   * optional IGP signed quotes in parallel. `getQuotedTransferFee` prices these
+   * for display; `buildQuotedTransferTxs` composes them into submit txs —
+   * keeping the derivation in one place so displayed and paid quotes can't
+   * drift.
+   */
+  private async prepareSealevelQuote({
+    warpCore,
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    warpCore: WarpCore;
+    originTokenAmount: TokenAmount<IToken>;
+    destination: ChainNameOrId;
+    sender: string;
+    recipient: string;
+    destinationToken?: IToken;
+  }) {
+    const { token } = originTokenAmount;
+    const destinationDomainId = warpCore.multiProvider.getDomainId(destination);
+    const destinationName = warpCore.multiProvider.getChainName(destination);
+    const isCC =
+      destinationToken !== undefined &&
+      warpCore.isCrossCollateralTransfer(token, destinationToken);
+
+    // Defense in depth: fail early when the warp route has no fee_config. A
+    // direct API caller (CLI, integration test) would otherwise quote against a
+    // fee account that doesn't exist and fail later with an opaque on-chain
+    // error.
+    const adapter = token.getHypAdapter(
+      warpCore.multiProvider,
+      destinationName,
+    );
+    assert(
+      adapter instanceof SealevelHypTokenAdapter,
+      `SVM warp route requires SealevelHypTokenAdapter; got ${adapter.constructor.name}`,
+    );
+    const tokenData = await adapter.getTokenAccountData();
+    assert(
+      tokenData.fee_config,
+      `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
+    );
+
+    // Always send a random client salt — the server's `quoteMode` config
+    // decides whether the returned quote is standing (`expiry > issuedAt`) or
+    // transient (`expiry === issuedAt`). Callers infer the mode from the
+    // response and use the server-echoed `clientSalt` to derive the scoped salt
+    // for the transient PDA cascade.
+    const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
+    assert(
+      rawClientSalt.length === SALT_LEN,
+      `rawClientSalt must be ${SALT_LEN} bytes`,
+    );
+
+    // Resolve `target_router` to mirror what the runtime CPI passes `QuoteFee`.
+    // CC-to-CC routes emit `transfer_remote_to` with an explicit target router
+    // (one of the destination's CC-enrolled routers, via
+    // `destinationToken.addressOrDenom`); everything else auto-resolves to the
+    // destination's standard enrolled remote router. Sending `ZERO` would miss
+    // per-domain CC fee leaves on deployments that configure them.
+    const targetRouterBytes = isCC
+      ? hexToBytes(
+          toHex(
+            addressToBytes32(
+              resolveDestinationToken({
+                multiProvider: warpCore.multiProvider,
+                originToken: token,
+                destination,
+                destinationToken,
+              }).addressOrDenom,
+            ),
+            'targetRouter bytes32 narrowing failed',
+          ),
+        )
+      : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
+
+    const recipientHex = toHex(
+      addressToBytes32(recipient),
+      'recipient bytes32 narrowing failed',
+    );
+    const saltHex = bytesToHex(rawClientSalt);
+
+    const warpReq: FeeQuotingV2WarpParams = {
+      origin: token.chainName,
+      router: token.addressOrDenom,
+      destination: destinationDomainId,
+      salt: saltHex,
+      recipient: recipientHex,
+      targetRouter: bytesToHex(targetRouterBytes),
+      txSubmitter: sender,
+    };
+
+    // A same-domain (local) transfer consumes no interchain message and pays no
+    // IGP on-chain, so skip IGP entirely: resolve the local condition first and
+    // only load IGP state for remote destinations. This avoids an unused
+    // IGP-state RPC on local transfers (which can itself fail on missing/bad
+    // IGP accounts) and prevents prepending an orphan SubmitIgpQuote ix that
+    // would strand the transient IGP quote-account rent.
+    const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
+    const isRemoteTransfer = destinationDomainId !== localDomainId;
+
+    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
+    const igpState = isRemoteTransfer
+      ? await adapter.innerIgpFeeState.get()
+      : undefined;
+    const igpAccount = igpState?.innerIgpAccount;
+    const igpEnabled =
+      isRemoteTransfer &&
+      !isNullish(igpProgramId) &&
+      !isNullish(igpAccount) &&
+      !isNullish(igpState?.feeConfig);
+    const igpReq: FeeQuotingV2IgpParams | null = igpEnabled
+      ? {
+          origin: token.chainName,
+          router: token.addressOrDenom,
+          destination: destinationDomainId,
+          salt: saltHex,
+          txSubmitter: sender,
+        }
+      : null;
+
+    // Fetch warp + (optional) IGP quotes in parallel.
+    const [warpEntry, igpEntry] = await Promise.all([
+      this.opts.feeQuotingClient.getWarpQuote(warpReq),
+      igpReq
+        ? this.opts.feeQuotingClient.getIgpQuote(igpReq)
+        : Promise.resolve(null),
+    ]);
+
+    assert(
+      warpEntry.protocol === ProtocolType.Sealevel,
+      `Expected Sealevel warp quote, got ${warpEntry.protocol}`,
+    );
+    const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
+
+    return {
+      token,
+      adapter,
+      tokenData,
+      // Narrowed by the assert above; surfaced so callers needn't re-assert.
+      feeConfig: tokenData.fee_config,
+      destinationDomainId,
+      isCC,
+      targetRouterBytes,
+      igpState,
+      igpProgramId,
+      igpAccount,
+      igpEntry,
+      decodedWarp,
+    };
+  }
+
+  /**
    * Display-time fee fetch. Hits the offchain quoter for warp (+ optional
    * IGP) signed quotes, decodes each `data` as a `FeeDataStrategy`, and
    * applies the Linear formula at `originTokenAmount.amount` to produce the
@@ -287,107 +445,23 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     igpQuote: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
   }> {
-    const { token } = originTokenAmount;
-    const destinationDomainId = warpCore.multiProvider.getDomainId(destination);
-    const destinationName = warpCore.multiProvider.getChainName(destination);
-    const isCC =
-      destinationToken !== undefined &&
-      warpCore.isCrossCollateralTransfer(token, destinationToken);
+    const {
+      token,
+      adapter,
+      tokenData,
+      destinationDomainId,
+      igpState,
+      igpEntry,
+      decodedWarp,
+    } = await this.prepareSealevelQuote({
+      warpCore,
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken,
+    });
 
-    const adapter = token.getHypAdapter(
-      warpCore.multiProvider,
-      destinationName,
-    );
-    assert(
-      adapter instanceof SealevelHypTokenAdapter,
-      `SVM warp route requires SealevelHypTokenAdapter; got ${adapter.constructor.name}`,
-    );
-    const tokenData = await adapter.getTokenAccountData();
-    assert(
-      tokenData.fee_config,
-      `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
-    );
-
-    // Match `buildQuotedTransferTxs` salt/targetRouter resolution exactly —
-    // the submit path will derive the same shape from its own fresh fetch,
-    // so the display value is representative even though the signed quotes
-    // themselves differ (one fresh per call).
-    const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
-    assert(
-      rawClientSalt.length === SALT_LEN,
-      `rawClientSalt must be ${SALT_LEN} bytes`,
-    );
-    const targetRouterBytes = isCC
-      ? hexToBytes(
-          toHex(
-            addressToBytes32(
-              resolveDestinationToken({
-                multiProvider: warpCore.multiProvider,
-                originToken: token,
-                destination,
-                destinationToken,
-              }).addressOrDenom,
-            ),
-            'targetRouter bytes32 narrowing failed',
-          ),
-        )
-      : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
-
-    const recipientHex = toHex(
-      addressToBytes32(recipient),
-      'recipient bytes32 narrowing failed',
-    );
-    const targetRouterHex = bytesToHex(targetRouterBytes);
-    const saltHex = bytesToHex(rawClientSalt);
-
-    const warpReq: FeeQuotingV2WarpParams = {
-      origin: token.chainName,
-      router: token.addressOrDenom,
-      destination: destinationDomainId,
-      salt: saltHex,
-      recipient: recipientHex,
-      targetRouter: targetRouterHex,
-      txSubmitter: sender,
-    };
-
-    // A same-domain (local) transfer consumes no interchain message and pays
-    // no IGP on-chain, so skip IGP entirely — mirrors `buildQuotedTransferTxs`
-    // and avoids asserting on a `destination_gas` a local route need not set.
-    const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
-    const isRemoteTransfer = destinationDomainId !== localDomainId;
-
-    const igpState = isRemoteTransfer
-      ? await adapter.innerIgpFeeState.get()
-      : undefined;
-    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
-    const igpAccount = igpState?.innerIgpAccount;
-    const igpEnabled =
-      isRemoteTransfer &&
-      !isNullish(igpProgramId) &&
-      !isNullish(igpAccount) &&
-      !isNullish(igpState?.feeConfig);
-    const igpReq: FeeQuotingV2IgpParams | null = igpEnabled
-      ? {
-          origin: token.chainName,
-          router: token.addressOrDenom,
-          destination: destinationDomainId,
-          salt: saltHex,
-          txSubmitter: sender,
-        }
-      : null;
-
-    const [warpEntry, igpEntry] = await Promise.all([
-      this.opts.feeQuotingClient.getWarpQuote(warpReq),
-      igpReq
-        ? this.opts.feeQuotingClient.getIgpQuote(igpReq)
-        : Promise.resolve(null),
-    ]);
-
-    assert(
-      warpEntry.protocol === ProtocolType.Sealevel,
-      `Expected Sealevel warp quote, got ${warpEntry.protocol}`,
-    );
-    const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
     const warpStrategy = decodeFeeStrategy(decodedWarp.signedQuote.data);
     const tokenFeeAmount = computeLinearFee(
       warpStrategy,
@@ -460,130 +534,26 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     recipient: string;
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
+    const {
+      token,
+      adapter,
+      feeConfig,
+      destinationDomainId,
+      isCC,
+      targetRouterBytes,
+      igpProgramId,
+      igpAccount,
+      igpEntry,
+      decodedWarp,
+    } = await this.prepareSealevelQuote({
+      warpCore,
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken,
+    });
     const senderPubkey = new PublicKey(sender);
-    const { token } = originTokenAmount;
-    const destinationDomainId = warpCore.multiProvider.getDomainId(destination);
-    const destinationName = warpCore.multiProvider.getChainName(destination);
-
-    const isCC =
-      destinationToken !== undefined &&
-      warpCore.isCrossCollateralTransfer(token, destinationToken);
-
-    // Defense in depth: fail early when the warp route has no fee_config.
-    // The UI hook (`useSvmQuotedTransfer`) is supposed to gate provider
-    // construction on this, but a direct API caller (CLI, integration test)
-    // would otherwise build a SubmitFeeQuote ix against a fee account that
-    // doesn't exist and fail later with an opaque on-chain error.
-    const adapter = token.getHypAdapter(
-      warpCore.multiProvider,
-      destinationName,
-    );
-    assert(
-      adapter instanceof SealevelHypTokenAdapter,
-      `SVM warp route requires SealevelHypTokenAdapter; got ${adapter.constructor.name}`,
-    );
-    const tokenData = await adapter.getTokenAccountData();
-    assert(
-      tokenData.fee_config,
-      `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
-    );
-
-    // 1. Always send a random client salt — the server's `quoteMode` config
-    //    decides whether the returned quote is standing (`expiry > issuedAt`)
-    //    or transient (`expiry === issuedAt`). The provider infers mode from
-    //    the response and uses the server-echoed `clientSalt` to derive the
-    //    scoped salt (for transient PDA cascade lookup).
-    const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
-    assert(
-      rawClientSalt.length === SALT_LEN,
-      `rawClientSalt must be ${SALT_LEN} bytes`,
-    );
-
-    // 2. Resolve `target_router` to mirror what the runtime CPI will pass
-    //    `QuoteFee`. For CC-to-CC routes the bundle emits `transfer_remote_to`
-    //    and the CC ix payload carries an explicit `target_router` chosen by
-    //    the user (one of the destination's CC-enrolled routers, resolved via
-    //    `destinationToken.addressOrDenom`). For everything else the base
-    //    `transfer_remote` auto-resolves to the destination's standard
-    //    enrolled remote router (`tokenData.remote_routers[dest]`, exposed
-    //    via `getRouterAddress`). Sending `ZERO` here would miss per-domain
-    //    CC fee leaves on deployments that configure them.
-    const targetRouterBytes = isCC
-      ? hexToBytes(
-          toHex(
-            addressToBytes32(
-              resolveDestinationToken({
-                multiProvider: warpCore.multiProvider,
-                originToken: token,
-                destination,
-                destinationToken,
-              }).addressOrDenom,
-            ),
-            'targetRouter bytes32 narrowing failed',
-          ),
-        )
-      : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
-
-    // 3. Build API request shape — same salt/txSubmitter for both endpoints.
-    const recipientHex = toHex(
-      addressToBytes32(recipient),
-      'recipient bytes32 narrowing failed',
-    );
-    const targetRouterHex = bytesToHex(targetRouterBytes);
-    const saltHex = bytesToHex(rawClientSalt);
-
-    const warpReq: FeeQuotingV2WarpParams = {
-      origin: token.chainName,
-      router: token.addressOrDenom,
-      destination: destinationDomainId,
-      salt: saltHex,
-      recipient: recipientHex,
-      targetRouter: targetRouterHex,
-      txSubmitter: sender,
-    };
-
-    // A same-domain (local) transfer consumes no interchain message, so the CC
-    // bundle's local branch emits no IGP section. Resolve the local condition
-    // first and only load IGP state for remote destinations: this avoids an
-    // unused IGP-state RPC on local transfers (which can itself fail on
-    // missing/bad IGP accounts) and prevents prepending an orphan
-    // SubmitIgpQuote ix that would strand the transient IGP quote-account rent.
-    const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
-    const isRemoteTransfer = destinationDomainId !== localDomainId;
-
-    const igpProgramId = tokenData.interchain_gas_paymaster?.program_id_pubkey;
-    const igpState = isRemoteTransfer
-      ? await adapter.innerIgpFeeState.get()
-      : undefined;
-    const igpAccount = igpState?.innerIgpAccount;
-    const igpEnabled =
-      isRemoteTransfer &&
-      !isNullish(igpProgramId) &&
-      !isNullish(igpAccount) &&
-      !isNullish(igpState?.feeConfig);
-    const igpReq: FeeQuotingV2IgpParams | null = igpEnabled
-      ? {
-          origin: token.chainName,
-          router: token.addressOrDenom,
-          destination: destinationDomainId,
-          salt: saltHex,
-          txSubmitter: sender,
-        }
-      : null;
-
-    // 4. Fetch warp + (optional) IGP quotes in parallel.
-    const [warpEntry, igpEntry] = await Promise.all([
-      this.opts.feeQuotingClient.getWarpQuote(warpReq),
-      igpReq
-        ? this.opts.feeQuotingClient.getIgpQuote(igpReq)
-        : Promise.resolve(null),
-    ]);
-
-    assert(
-      warpEntry.protocol === ProtocolType.Sealevel,
-      `Expected Sealevel warp quote, got ${warpEntry.protocol}`,
-    );
-    const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
 
     // 5. Derive the bundle/cascade scopedSalt from the warp response.
     //    Transient → keccak256(payer || serverEchoedClientSalt); Standing →
@@ -622,8 +592,8 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
 
     const submitFeeIx = await buildSubmitFeeQuoteIx({
       connection: this.opts.connection,
-      feeProgramId: tokenData.fee_config.feeProgram,
-      feeAccount: tokenData.fee_config.feeAccount,
+      feeProgramId: feeConfig.feeProgram,
+      feeAccount: feeConfig.feeAccount,
       payer: senderPubkey,
       signedQuote: toSealevelSvmSignedQuote(decodedWarp.signedQuote),
       scopedSalt,
