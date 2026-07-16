@@ -15,7 +15,12 @@ import {
   altVmChainLookup,
   buildFeeReadContextFromWarpDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  assert,
+  isNullish,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen, warnYellow } from '../logger.js';
@@ -119,12 +124,12 @@ export async function runWarpQuoteCreate({
   });
 
   const recipientBytes32 =
-    recipient === 'wildcard'
+    recipient === WarpQuoteAmountKind.wildcard
       ? WILDCARD_BYTES32
       : addressToBytes32(recipient, destinationProtocol);
 
   const quoteAmount: WarpQuoteAmount =
-    amount === 'wildcard'
+    amount === WarpQuoteAmountKind.wildcard
       ? WARP_QUOTE_AMOUNT_WILDCARD
       : {
           kind: WarpQuoteAmountKind.value,
@@ -258,6 +263,16 @@ export function resolveTargetRouterForVariant(args: {
       }
       throw new Error(
         `CrossCollateralRoutingFee has no leaf for destination ${destinationChainName} (domain ${destinationDomain}) — neither a specific router-keyed leaf nor a DEFAULT_ROUTER fallback is configured`,
+      );
+    }
+
+    default: {
+      const _exhaustive: never = tokenFee;
+      throw new Error(
+        `Unhandled fee type in resolveTargetRouterForVariant: ${stringifyObject(
+          _exhaustive,
+          'json',
+        )}`,
       );
     }
   }

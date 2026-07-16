@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
+import { WarpQuoteAmountKind } from '@hyperlane-xyz/provider-sdk/quote';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
@@ -45,14 +46,12 @@ const create: CommandModuleWithWriteContext<{
     },
     recipient: {
       type: 'string',
-      description:
-        "Recipient in the destination chain's native address format (e.g. 0x… for EVM, base58 for Solana), or `wildcard` for any recipient",
+      description: `Recipient in the destination chain's native address format (e.g. 0x… for EVM, base58 for Solana), or \`${WarpQuoteAmountKind.wildcard}\` for any recipient`,
       demandOption: true,
     },
     amount: {
       type: 'string',
-      description:
-        'Transfer amount the quote applies to, or `wildcard` (required for standing quotes)',
+      description: `Transfer amount the quote applies to, or \`${WarpQuoteAmountKind.wildcard}\` (required for standing quotes)`,
       demandOption: true,
     },
     'max-fee': {

@@ -163,8 +163,6 @@ async function resolveWarpQuoteReadChains(
   return argv.context.chains;
 }
 
-// `warp alt create` signs on SVM chains only; loading EVM signers for an
-// SVM/EVM warp route would prompt for keys the command never uses.
 async function resolveWarpQuoteCreateChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
@@ -176,6 +174,8 @@ async function resolveWarpQuoteCreateChains(
   return argv.context.chains;
 }
 
+// `warp alt create` signs on SVM chains only; loading EVM signers for an
+// SVM/EVM warp route would prompt for keys the command never uses.
 async function resolveWarpAltCreateChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
