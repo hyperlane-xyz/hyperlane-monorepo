@@ -167,6 +167,8 @@ const IGP_QUOTE_DATA_LEN = 33;
 const TOKEN_EXCHANGE_RATE_SCALE = 10n ** 19n;
 /** Native SOL decimals — the denomination of `compute_gas_fee`'s result. */
 const SOL_DECIMALS = 9;
+/** Max u64 — on-chain `compute_gas_fee` narrows its result with `as_u64()`. */
+const U64_MAX = 2n ** 64n - 1n;
 
 interface DecodedIgpQuoteData {
   tokenExchangeRate: bigint;
@@ -202,7 +204,8 @@ function decodeIgpQuoteData(data: Uint8Array): DecodedIgpQuoteData {
  *
  * `gasAmount` is the destination-side gas budget the warp's transferRemote
  * configures (`tokenData.destination_gas?.get(dest)`), not the transfer
- * amount.
+ * amount. Throws if the result exceeds u64, mirroring the on-chain
+ * `as_u64()` narrowing that would otherwise panic at submit.
  */
 function computeIgpGasFee(
   data: DecodedIgpQuoteData,
@@ -216,6 +219,13 @@ function computeIgpGasFee(
   } else if (data.tokenDecimals < SOL_DECIMALS) {
     originCost = originCost * 10n ** BigInt(SOL_DECIMALS - data.tokenDecimals);
   }
+  // On-chain `quote_gas_payment` narrows the result with `as_u64()`, which
+  // panics on overflow — so a fee that doesn't fit u64 is unpayable at submit.
+  // Fail the preflight here rather than display a fee the transfer can't pay.
+  assert(
+    originCost <= U64_MAX,
+    `IGP fee ${originCost} exceeds u64; on-chain quote_gas_payment would overflow`,
+  );
   return originCost;
 }
 

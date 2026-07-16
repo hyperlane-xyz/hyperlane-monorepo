@@ -610,6 +610,17 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     expect(result.igpQuote.amount).to.equal(1000n);
   });
 
+  it('rejects an IGP fee that overflows the on-chain u64', async () => {
+    // gasAmount=2^63, gas_price=4 → destCost=2^65 > u64::MAX; the on-chain
+    // quote_gas_payment as_u64() would panic, so preflight must reject rather
+    // than display a fee the transfer can never pay.
+    const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
+    const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 4n, 9));
+    await expect(
+      callWithAmount(warp, 1000n, { entry: igp, destinationGas: 2n ** 63n }),
+    ).to.be.rejectedWith(/exceeds u64/);
+  });
+
   it('rejects IGP quotes with wrong data length (17 bytes where 33 expected)', async () => {
     // Common regression pattern: someone passes a warp FeeDataStrategy
     // (17 bytes) where IgpQuoteData (33 bytes) is expected.
