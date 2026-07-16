@@ -16,6 +16,7 @@ import {
 import { Keypair } from '@solana/web3.js';
 import { isAddress } from 'viem';
 
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
 import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ProviderType } from '../providers/ProviderType.js';
@@ -361,6 +362,16 @@ export class WarpCore {
 
     // Starknet does not support gas estimation without starknet account
     if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
+
+    // Seismic's shielded execution zeroes msg.sender for unsigned eth_call/
+    // eth_estimateGas, so any handler logic keyed on msg.sender (e.g. HypERC20's
+    // _burn(msg.sender, ...)) reverts during this probe. Recovering msg.sender
+    // requires a signed read (see SeismicSigner), which needs real key material
+    // that this read-only MultiProviderAdapter never holds. The actual
+    // transferRemote signer is Seismic-aware, so the real send still works.
+    if (originMetadata.technicalStack === ChainTechnicalStack.Seismic) {
       return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
     }
 

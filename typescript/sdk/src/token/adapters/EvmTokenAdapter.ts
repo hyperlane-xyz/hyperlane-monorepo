@@ -205,7 +205,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       toEvmAddress(owner),
       toEvmAddress(spender),
     );
-    return allowance.lt(weiAmountOrId);
+    // BigNumber.from() normalizes foreign BigNumberish values (e.g. a native
+    // bigint from a provider that isn't a true ethers v5 BigNumber) so the
+    // comparison methods below are always safe to call.
+    return BigNumber.from(allowance).lt(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
@@ -217,7 +220,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       toEvmAddress(spender),
     );
 
-    return !allowance.isZero();
+    return !BigNumber.from(allowance).isZero();
   }
 
   override populateApproveTx({
@@ -280,7 +283,7 @@ export class EvmHypSyntheticAdapter
         toEvmAddress(owner),
         predicateWrapper,
       );
-      return allowance.lt(weiAmountOrId);
+      return BigNumber.from(allowance).lt(weiAmountOrId);
     }
 
     // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
