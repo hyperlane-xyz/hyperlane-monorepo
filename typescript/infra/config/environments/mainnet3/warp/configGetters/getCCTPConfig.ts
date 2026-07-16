@@ -96,6 +96,10 @@ export const getCCTPV1WarpConfig = async (
   );
 };
 
+// These V2 routes remain owned by the AW Safe on-chain (ICA migration pending),
+// so pin the config to the actual on-chain owner rather than the ICA.
+const v2SafeOwnedChains = new Set(['arbitrum', 'base']);
+
 const getCCTPV2WarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -117,8 +121,13 @@ const getCCTPV2WarpConfig = (
     const minFinalityThreshold =
       mode === 'fast' ? FAST_FINALITY_THRESHOLD : STANDARD_FINALITY_THRESHOLD;
 
+    const owner = v2SafeOwnedChains.has(chain)
+      ? (awSafes[chain] ?? config.owner)
+      : config.owner;
+
     return {
       ...config,
+      owner,
       contractVersion:
         mode === 'fast' ? CONTRACT_VERSION_FAST : CONTRACT_VERSION_STANDARD,
       maxFeeBps,
