@@ -840,7 +840,13 @@ export abstract class SealevelHypTokenAdapter
     }
 
     // -------- IGP fee quote --------
-    const destinationGas = tokenData.destination_gas?.get(destination);
+    // Same-domain (local) transfers consume no interchain message and pay no
+    // IGP, so only quote it for remote destinations.
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+    const destinationGas =
+      destination === localDomain
+        ? undefined
+        : tokenData.destination_gas?.get(destination);
     let igpQuote: Quote = { amount: 0n };
     if (!isNullish(destinationGas)) {
       const igpAdapter = this.getIgpAdapter(tokenData);
