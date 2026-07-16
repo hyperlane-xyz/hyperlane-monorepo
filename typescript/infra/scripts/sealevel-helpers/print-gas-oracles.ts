@@ -111,7 +111,6 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
@@ -120,8 +119,6 @@ function getChainConnections(
       ['solanamainnet', 'galactica'],
       ['solanamainnet', 'radix'],
       ['solanamainnet', 'carrchain'],
-      ['solanamainnet', 'incentiv'],
-      ['solanamainnet', 'litchain'],
       ['solanamainnet', 'aleo'],
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],

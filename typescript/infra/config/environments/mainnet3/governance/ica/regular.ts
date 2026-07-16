@@ -51,7 +51,6 @@ export const regularIcas: ChainMap<Address> = {
   morph: '0x1a4f0d915ce6FAe98B6b1c78FcbB8c122f30afCd',
   nibiru: '0xdb10a32F38A8c1B944277fA2Dd6Dfd89aD83480F',
   oortmainnet: '0x7038d9B38D417bB0b9f30158697e333B1dd921E3',
-  // ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',
   peaq: '0xE21447D4f0F993dD8C1C86Cd216E2E68f2a1CdcE',
   plume: '0x2E625B8191C8b1CEceAB6B6d3c833547A337e7F2',
   polygon: '0x20e52e3BeDf7BD305Ca816Dc54a0835D3bDeD820',
@@ -109,9 +108,6 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
   krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
-
-  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
-  // ----------------------------------------------------------
 
   // Mar 16, 2026
   // ----------------------------------------------------------
