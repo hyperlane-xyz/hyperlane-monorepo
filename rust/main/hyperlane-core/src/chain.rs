@@ -129,12 +129,8 @@ pub enum KnownHyperlaneDomain {
     Abstract = 2741,
     Aleo = 1634493807,
     AppChain = 466,
-    Ancient8 = 888888888,
     ApeChain = 33139,
     Arbitrum = 42161,
-    Arcadia = 4278608,
-    Artela = 11820,
-    Astar = 592,
     Avalanche = 43114,
     Base = 8453,
     BeraChain = 80094,
@@ -145,80 +141,59 @@ pub enum KnownHyperlaneDomain {
     Bob = 60808,
     Boba = 288,
     Botanix = 3637,
-    BSquared = 223,
     Celo = 42220,
-    ChilizMainnet = 1000088888,
-    CoreDao = 1116,
     Corn = 21000000,
     Coti = 2632500,
-    Cyber = 7560,
     EclipseMainnet = 1408864445,
     EdgenChain = 4207,
-    Endurance = 648,
     Ethereum = 1,
-    Flare = 14,
     FlowMainnet = 1000000747,
     Forma = 984122,
     Fraxtal = 252,
     Fuji = 43113,
-    FuseMainnet = 122,
     Galactica = 613419,
     Glue = 1300,
     Gnosis = 100,
-    Gravity = 1625,
     Guru = 260,
     HashKey = 177,
     Hemi = 43111,
     HyperEvm = 999,
     ImmutableZkEvmMainnet = 1000013371,
-    Incentiv = 24101,
     Ink = 57073,
-    Kaia = 8217,
     Katana = 747474,
     Kyve = 1264145989,
     Linea = 59144,
     Lisk = 1135,
     Lukso = 42,
     LumiaPrism = 1000073017,
-    MantaPacific = 169,
     Mantle = 5000,
     Matchain = 698,
     Metal = 1000001750,
     Metis = 1088,
-    MiracleChain = 92278,
     Mode = 34443,
-    Molten = 360,
     Morph = 2818,
     Nibiru = 6900,
     Noble = 1313817164,
-    Ontology = 58,
     OortMainnet = 970,
-    OpBnb = 204,
     Optimism = 10,
-    Orderly = 291,
     Paradex = 514051890,
     Peaq = 3338,
     Plume = 98866,
     Polygon = 137,
     Prom = 227,
     Radix = 1633970780,
-    Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
     Sei = 1329,
-    Shibarium = 109,
     SolanaMainnet = 1399811149,
     Solaxy = 1936682104,
-    Sophon = 50104,
     Soneium = 1868,
     SonicSvm = 507150715,
     Soon = 50075007,
     Sonic = 146,
     Starknet = 358974494,
-    Stride = 745,
     SubTensor = 964,
     Superseed = 5330,
-    Swell = 1923,
     Tac = 239,
     Taiko = 167000,
     Treasure = 61166,
@@ -227,13 +202,8 @@ pub enum KnownHyperlaneDomain {
     Viction = 88,
     Worldchain = 480,
     StarknetMainnet = 23448592,
-    Xai = 660279,
     Xlayer = 196,
-    XrplEvm = 1440000,
-    Zetachain = 7000,
-    Zeronetwork = 543210,
     Zksync = 324,
-    Zircuit = 48900,
 
     // -- Test chains --
     //
@@ -426,10 +396,8 @@ impl KnownHyperlaneDomain {
     pub const fn domain_protocol(self) -> HyperlaneDomainProtocol {
         use KnownHyperlaneDomain::*;
         match self {
-            Stride
             // Local chains
-            | CosmosTest99990
-            | CosmosTest99991 => HyperlaneDomainProtocol::Cosmos,
+            CosmosTest99990 | CosmosTest99991 => HyperlaneDomainProtocol::Cosmos,
             CelestiaTestnet
             | CosmosTestNative1
             | CosmosTestNative2
@@ -464,20 +432,17 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica | Gravity
-            | MiracleChain | Molten | Plume | Rarichain | Xai => {
+            ApeChain | AppChain | Arbitrum | ArbitrumSepolia | Corn | Galactica | Plume => {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
-            Ancient8 | Base | Blast | Bob | Boba | Celo | Cyber | Fraxtal | Guru | Ink | Lisk
-            | MantaPacific | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet | OpBnb
-            | Optimism | Orderly | Soneium | Superseed | Swell | Unichain | Worldchain
-            | Zircuit => HyperlaneDomainTechnicalStack::OpStack,
+            Base | Blast | Bob | Boba | Celo | Fraxtal | Guru | Ink | Lisk
+            | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet | Optimism | Soneium | Superseed | Unichain | Worldchain => HyperlaneDomainTechnicalStack::OpStack,
             LumiaPrism | Katana | Prom | Xlayer => HyperlaneDomainTechnicalStack::PolygonCDK,
-            Astar | Peaq => HyperlaneDomainTechnicalStack::PolkadotSubstrate,
+            Peaq => HyperlaneDomainTechnicalStack::PolkadotSubstrate,
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 => {
                 HyperlaneDomainTechnicalStack::Starknet
             }
-            Abstract | Sophon | Treasure | Zeronetwork | Zksync => {
+            Abstract | Treasure | Zksync => {
                 HyperlaneDomainTechnicalStack::ZkSync
             }
             _ => HyperlaneDomainTechnicalStack::Other,
