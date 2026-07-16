@@ -90,6 +90,36 @@ export function getUSDCRebalancingBridgesConfigFor(
   );
 }
 
+// Resolves the deployed router/bridge address for a chain from a registry warp
+// route, by warpId (no hardcoding). Mirrors getTBDAAddresses / getUsdtCrossCollateralRouters.
+export function getWarpRouteAddressByChain(
+  warpRouteId: WarpRouteIds,
+  chain: ChainName,
+): string {
+  const route = getRegistry().getWarpRoute(warpRouteId);
+  assert(route, `Warp route ${warpRouteId} not found in registry`);
+  const token = route.tokens.find((t) => t.chainName === chain);
+  assert(token?.addressOrDenom, `Missing ${warpRouteId} address for ${chain}`);
+  return token.addressOrDenom;
+}
+
+export function mergeAllowedBridges(
+  ...configs: (
+    | NonNullable<MovableTokenConfig['allowedRebalancingBridges']>
+    | undefined
+  )[]
+): NonNullable<MovableTokenConfig['allowedRebalancingBridges']> {
+  const result: NonNullable<MovableTokenConfig['allowedRebalancingBridges']> =
+    {};
+  for (const config of configs) {
+    if (!config) continue;
+    for (const [domain, bridges] of Object.entries(config)) {
+      result[domain] = [...(result[domain] ?? []), ...bridges];
+    }
+  }
+  return result;
+}
+
 export const getRebalancingUSDCConfigForChain = (
   currentChain: keyof typeof usdcTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
