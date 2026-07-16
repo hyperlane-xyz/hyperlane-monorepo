@@ -50,17 +50,24 @@ const ROUTES_TO_SKIP: string[] = [
   WarpRouteIds.ParadexUSDC,
 ];
 
-// Name segments that mark a warp route as a non-production (staging/test)
-// deployment. Matched against the `-`/`/`-delimited segments of the route
-// name so `USDC/moonpay-staging` is skipped but names like `attestation` are
-// not. These routes are excluded from check-warp-deploy so they don't produce
-// violations on mainnet.
-const STAGING_ROUTE_MARKERS = ['staging', 'test'];
+// Markers that identify a non-production (staging/test) warp route. Matched
+// against every `-`/`/`-delimited segment of the FULL route id, INCLUDING the
+// token symbol, so both delimited markers (`USDC/moonpay-staging`,
+// `EZETHSTAGE/renzo-stage`) and markers glommed onto the token symbol
+// (`USDCSTAGE/...`, `REZSTAGING/...`, `ETHSTAGE/...`) are caught. Whole-segment
+// equality plus a staging-suffix check keeps names like `attestation` from
+// false-matching (`test` as a substring), while still catching the suffixed
+// staging tokens.
+const STAGING_ROUTE_MARKERS = ['staging', 'stage', 'test', 'testnet'];
+const STAGING_SUFFIX_MARKERS = ['staging', 'stage'];
 
 function isStagingOrTestRoute(warpRouteId: string): boolean {
-  const [, ...rest] = warpRouteId.split('/');
-  const segments = rest.join('/').toLowerCase().split(/[-/]/);
-  return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
+  const segments = warpRouteId.toLowerCase().split(/[-/]/);
+  return segments.some(
+    (segment) =>
+      STAGING_ROUTE_MARKERS.includes(segment) ||
+      STAGING_SUFFIX_MARKERS.some((marker) => segment.endsWith(marker)),
+  );
 }
 
 async function main() {
