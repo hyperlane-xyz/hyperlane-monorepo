@@ -860,7 +860,7 @@ export abstract class SealevelHypTokenAdapter
           };
         } else {
           igpQuote = {
-            amount: await igpAdapter.quoteGasPayment(
+            amount: await this.quoteLegacyIgpGasPayment(
               destination,
               destinationGas,
               senderPubKey,
@@ -966,6 +966,24 @@ export abstract class SealevelHypTokenAdapter
       destinationDomain: destination,
       gasAmount,
     });
+  }
+
+  /**
+   * Legacy (pre-offchain-quoting) on-chain IGP gas payment for `destination`.
+   * The fallback the submit path takes when the route's IGP has no new-flow
+   * `fee_config`; 0n when the route has no IGP. Shared with the offchain-quoted
+   * display path so displayed and paid IGP fees agree on non-upgraded routes.
+   */
+  async quoteLegacyIgpGasPayment(
+    destination: Domain,
+    gasAmount: bigint,
+    sender: PublicKey,
+  ): Promise<bigint> {
+    const tokenData = await this.getTokenAccountData();
+    const igpAdapter = this.getIgpAdapter(tokenData);
+    return igpAdapter
+      ? igpAdapter.quoteGasPayment(destination, gasAmount, sender)
+      : 0n;
   }
 
   /**

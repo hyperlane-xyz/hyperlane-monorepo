@@ -97,15 +97,20 @@ function borshU64(value: number): ReturnType<BinaryReader['readU64']> {
 
 interface MakeAdapterOpts {
   feeConfig: object | null;
-  /** When set, makes `igpEnabled` evaluate true in the provider. */
+  /**
+   * IGP account state. `feeConfig` set → new-flow (`igpEnabled` true); omit it
+   * to simulate a legacy (non-upgraded) IGP route.
+   */
   igp?: {
     innerIgpAccount: PublicKey;
-    feeConfig: object;
+    feeConfig?: object;
     /** OverheadIgp per-destination overhead, added before pricing. */
     gasOverheads?: Map<number, U64>;
   };
   /** Per-destination gas budget map; only consulted on the IGP path. */
   destinationGas?: Map<number, U64>;
+  /** Stubs `quoteLegacyIgpGasPayment` for the legacy (no-fee_config) path. */
+  legacyIgpGasPayment?: bigint;
   /** Overrides `innerIgpFeeState.get` so tests can assert whether it fires. */
   igpGet?: sinon.SinonStub;
 }
@@ -126,6 +131,9 @@ function makeAdapter(opts: MakeAdapterOpts) {
     }),
   );
   adapter.getRouterAddress.resolves(Buffer.from(new Uint8Array(32).fill(0xaa)));
+  if (!isNullish(opts.legacyIgpGasPayment)) {
+    adapter.quoteLegacyIgpGasPayment.resolves(opts.legacyIgpGasPayment);
+  }
   Object.defineProperty(adapter, 'innerIgpFeeState', {
     value: { get: opts.igpGet ?? sinon.stub().resolves(opts.igp) },
   });
@@ -503,6 +511,33 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
       gasOverheads: borshU64(200),
     });
     expect(result.igpQuote.amount).to.equal(1200n);
+  });
+
+  it('displays the legacy on-chain IGP quote when the route has no offchain fee_config', async () => {
+    // Legacy IGP (not upgraded to offchain quoting): igpState present but no
+    // feeConfig → no signed IGP quote, so igpEnabled is false. The submit path
+    // falls back to on-chain quoteGasPayment, so display must mirror it rather
+    // than reporting 0.
+    const adapter = makeAdapter({
+      feeConfig: { feeProgram: 'x' },
+      igp: { innerIgpAccount: FEE_ACCOUNT }, // no feeConfig → not upgraded
+      destinationGas: new Map([[DEST_DOMAIN, 1000n]]),
+      legacyIgpGasPayment: 4242n,
+    });
+    const { warpCore, originTokenAmount } = makeWarpCore(adapter);
+    const provider = makeProvider(
+      makeClient(makeQuoteEntryWithStrategy(0, 0n, 1n)),
+    );
+
+    const result = await provider.getQuotedTransferFee({
+      warpCore,
+      originTokenAmount,
+      destination: DEST,
+      sender: SENDER,
+      recipient: RECIPIENT,
+    });
+
+    expect(result.igpQuote.amount).to.equal(4242n);
   });
 
   it('scales by TER when ≠ 10^19 (1.0)', async () => {
