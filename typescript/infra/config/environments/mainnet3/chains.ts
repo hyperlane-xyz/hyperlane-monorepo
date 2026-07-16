@@ -17,13 +17,6 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
-  incentiv: {
-    transactionOverrides: {
-      minGasPrice: 1 * 10 ** 9, // 1 gwei
-      minFeePerGas: 1 * 10 ** 9, // 1 gwei
-      minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
-    },
-  },
   ronin: {
     transactionOverrides: {
       minGasPrice: 20 * 10 ** 9, // 20 gwei
@@ -64,7 +57,6 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
 export const tokenPriceOverrides: ChainMap<string> = {
-  incentiv: '0.003',
   krown: '0.0015',
   tea: '10',
   nexus: '10',
