@@ -397,7 +397,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   ): Partial<providers.TransactionRequest> {
     const { deploymentGasLimitFallback: _, ...overrides } =
       this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
-    return overrides as Partial<providers.TransactionRequest>;
+    return overrides;
   }
 
   /**
