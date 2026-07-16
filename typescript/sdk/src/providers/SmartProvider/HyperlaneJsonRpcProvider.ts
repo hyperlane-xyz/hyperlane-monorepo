@@ -65,10 +65,14 @@ export class HyperlaneJsonRpcProvider
       result.to = null;
     }
 
+    // Call's result is a DATA type, where a bare "0x" is a legitimate,
+    // spec-compliant response (empty revert data, or a call to a
+    // non-contract address) - not a sign of a broken provider. GetBalance/
+    // GetBlock/GetBlockNumber are QUANTITY types, where a spec-compliant
+    // zero is "0x0", so a bare "0x" there does indicate a malformed response.
     if (
       result === '0x' &&
       [
-        ProviderMethod.Call,
         ProviderMethod.GetBalance,
         ProviderMethod.GetBlock,
         ProviderMethod.GetBlockNumber,
