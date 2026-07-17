@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import { constants, ethers } from 'ethers';
 
 import {
@@ -38,8 +39,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
+  fetchPackageVersion,
   isMissingSelectorCallException,
-  isMissingSelectorRevert,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
 
@@ -57,6 +58,7 @@ import {
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
@@ -482,36 +484,22 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.provider,
     );
 
-    const getQuoteSignersResult = async (): Promise<{
-      quoteSigners: string[];
-      igpVersion?: IgpVersion;
-    }> => {
-      try {
-        return { quoteSigners: await hook.quoteSigners() };
-      } catch (error) {
-        // quoteSigners() only exists on v2+ IGPs. A missing-selector revert
-        // (CALL_EXCEPTION with empty data) means this is a legacy IGP.
-        // Network errors and other transient failures must propagate so the
-        // caller can distinguish a legacy IGP from a provider outage.
-        if (!isMissingSelectorRevert(error)) throw error;
-        this.logger.debug(
-          'quoteSigners() call failed — treating as legacy IGP',
-          { address, error },
-        );
-        return { quoteSigners: [], igpVersion: IgpVersion.Legacy };
-      }
-    };
-
     // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary, quoteSignersResult] =
-      await Promise.all([
-        hook.hookType(),
-        hook.owner(),
-        hook.beneficiary(),
-        getQuoteSignersResult(),
-      ]);
+    const [hookType, owner, beneficiary, contractVersion] = await Promise.all([
+      hook.hookType(),
+      hook.owner(),
+      hook.beneficiary(),
+      fetchPackageVersion(this.provider, address, this.logger),
+    ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
+
+    // quoteSigners() only exists on v2+ IGPs. Gate on the on-chain version so a
+    // legacy IGP never reaches the call: probing it and classifying the revert
+    // is unreliable once the SmartProvider wraps the empty response.
+    const isLegacyIgp =
+      compareVersions(contractVersion, OFFCHAIN_QUOTED_IGP_VERSION) < 0;
+    const quoteSigners = isLegacyIgp ? [] : await hook.quoteSigners();
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
@@ -629,12 +617,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       overhead,
       oracleConfig,
       ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
-      ...(quoteSignersResult.igpVersion
-        ? { igpVersion: quoteSignersResult.igpVersion }
-        : {}),
-      ...(quoteSignersResult.quoteSigners.length > 0
-        ? { quoteSigners: [...quoteSignersResult.quoteSigners] }
-        : {}),
+      ...(isLegacyIgp ? { igpVersion: IgpVersion.Legacy } : {}),
+      ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
     };
 
     this._cache.set(address, config);

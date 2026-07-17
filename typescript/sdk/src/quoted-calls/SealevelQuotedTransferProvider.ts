@@ -7,6 +7,7 @@ import { addressToBytes32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProviderType } from '../providers/ProviderType.js';
 import { IToken } from '../token/IToken.js';
+import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { isHypCrossCollateralAdapter } from '../token/adapters/ITokenAdapter.js';
 import { SealevelHypCrossCollateralAdapter } from '../token/adapters/SealevelCrossCollateralAdapter.js';
@@ -95,6 +96,139 @@ export interface SealevelQuotedTransferProviderOpts {
   randomSalt?: () => Uint8Array;
 }
 
+// ============================================================
+// FeeDataStrategy decode + Linear fee math
+// ============================================================
+//
+// `SealevelSignedQuote.data` is the Borsh encoding of the on-chain
+// `FeeDataStrategy` enum: 1-byte kind + u64 LE maxFee + u64 LE halfAmount.
+// Total 17 bytes. Decoded here (rather than imported from svm-sdk) per
+// `[no-svm-sdk-dep-in-main-sdk]`.
+
+const FEE_STRATEGY_BORSH_LEN = 17;
+const FEE_STRATEGY_KIND_LINEAR = 0;
+
+interface DecodedFeeStrategy {
+  kind: number;
+  maxFee: bigint;
+  halfAmount: bigint;
+}
+
+function decodeFeeStrategy(data: Uint8Array): DecodedFeeStrategy {
+  assert(
+    data.length === FEE_STRATEGY_BORSH_LEN,
+    `FeeDataStrategy must be ${FEE_STRATEGY_BORSH_LEN} bytes, got ${data.length}`,
+  );
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    kind: dv.getUint8(0),
+    maxFee: dv.getBigUint64(1, true),
+    halfAmount: dv.getBigUint64(9, true),
+  };
+}
+
+/**
+ * Resolved fee at the given transfer amount for a Linear strategy. Formula
+ * `fee = min(amount * maxFee / (2 * halfAmount), maxFee)` mirrors the
+ * on-chain Linear fee program and is the inverse of `computeBps`.
+ *
+ * Transient quotes use this curve to encode arbitrary per-transfer fee
+ * values: the server picks (maxFee, halfAmount) so the formula yields the
+ * intended fee at the actual transfer amount.
+ *
+ * Only Linear is supported — `OffchainQuotedLinearFee` (the only strategy
+ * the offchain quoter signs) is Linear by definition.
+ */
+function computeLinearFee(
+  strategy: DecodedFeeStrategy,
+  amount: bigint,
+): bigint {
+  assert(
+    strategy.kind === FEE_STRATEGY_KIND_LINEAR,
+    `Unsupported fee strategy kind ${strategy.kind}; only Linear (0) is supported`,
+  );
+  if (strategy.halfAmount === 0n) return 0n;
+  const raw = (amount * strategy.maxFee) / (2n * strategy.halfAmount);
+  return raw > strategy.maxFee ? strategy.maxFee : raw;
+}
+
+// ============================================================
+// IgpQuoteData decode + gas-fee math
+// ============================================================
+//
+// The IGP signed quote's `data` field is a different shape from the warp
+// fee's `FeeDataStrategy` — it carries oracle-style price inputs that the
+// on-chain `compute_gas_fee` applies to the destination's `gas_amount`
+// (NOT the transfer amount). Mirrors `hyperlane-sealevel-igp/accounts.rs`'s
+// `IgpQuoteData` (33 bytes) + `compute_gas_fee`.
+
+const IGP_QUOTE_DATA_LEN = 33;
+/** Matches `TOKEN_EXCHANGE_RATE_SCALE` in the on-chain IGP program (10^19). */
+const TOKEN_EXCHANGE_RATE_SCALE = 10n ** 19n;
+/** Native SOL decimals — the denomination of `compute_gas_fee`'s result. */
+const SOL_DECIMALS = 9;
+/** Max u64 — on-chain `compute_gas_fee` narrows its result with `as_u64()`. */
+const U64_MAX = 2n ** 64n - 1n;
+
+interface DecodedIgpQuoteData {
+  tokenExchangeRate: bigint;
+  gasPrice: bigint;
+  tokenDecimals: number;
+}
+
+function decodeIgpQuoteData(data: Uint8Array): DecodedIgpQuoteData {
+  assert(
+    data.length === IGP_QUOTE_DATA_LEN,
+    `IgpQuoteData must be ${IGP_QUOTE_DATA_LEN} bytes, got ${data.length}`,
+  );
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  // u128 LE = two u64 LE halves, low half first; reassemble as BigInt.
+  const teLo = dv.getBigUint64(0, true);
+  const teHi = dv.getBigUint64(8, true);
+  const gpLo = dv.getBigUint64(16, true);
+  const gpHi = dv.getBigUint64(24, true);
+  return {
+    tokenExchangeRate: (teHi << 64n) | teLo,
+    gasPrice: (gpHi << 64n) | gpLo,
+    tokenDecimals: dv.getUint8(32),
+  };
+}
+
+/**
+ * Mirrors on-chain `compute_gas_fee` in `hyperlane-sealevel-igp/accounts.rs`.
+ * Returns the IGP payment denominated in origin native (SOL, 9 decimals).
+ *
+ *   dest_cost   = gas_amount * gas_price
+ *   origin_cost = dest_cost * token_exchange_rate / 10^19
+ *   result      = convert_decimals(origin_cost, remote_decimals → SOL_DECIMALS)
+ *
+ * `gasAmount` is the destination-side gas budget the warp's transferRemote
+ * configures (`tokenData.destination_gas?.get(dest)`), not the transfer
+ * amount. Throws if the result exceeds u64, mirroring the on-chain
+ * `as_u64()` narrowing that would otherwise panic at submit.
+ */
+function computeIgpGasFee(
+  data: DecodedIgpQuoteData,
+  gasAmount: bigint,
+): bigint {
+  const destCost = gasAmount * data.gasPrice;
+  let originCost =
+    (destCost * data.tokenExchangeRate) / TOKEN_EXCHANGE_RATE_SCALE;
+  if (data.tokenDecimals > SOL_DECIMALS) {
+    originCost = originCost / 10n ** BigInt(data.tokenDecimals - SOL_DECIMALS);
+  } else if (data.tokenDecimals < SOL_DECIMALS) {
+    originCost = originCost * 10n ** BigInt(SOL_DECIMALS - data.tokenDecimals);
+  }
+  // On-chain `quote_gas_payment` narrows the result with `as_u64()`, which
+  // panics on overflow — so a fee that doesn't fit u64 is unpayable at submit.
+  // Fail the preflight here rather than display a fee the transfer can't pay.
+  assert(
+    originCost <= U64_MAX,
+    `IGP fee ${originCost} exceeds u64; on-chain quote_gas_payment would overflow`,
+  );
+  return originCost;
+}
+
 /**
  * Inspect a decoded entry's envelope timestamps — the server signals a
  * transient quote with `expiry === issuedAt` (same u48 BE timestamp).
@@ -124,7 +258,16 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
 
   constructor(private readonly opts: SealevelQuotedTransferProviderOpts) {}
 
-  async buildQuotedTransferTxs({
+  /**
+   * Shared prep for both quote entry points. Resolves the SVM adapter + token
+   * account, builds the identical warp/IGP request shapes (same salt,
+   * targetRouter, recipient, and same-domain IGP gate), and fetches the warp +
+   * optional IGP signed quotes in parallel. `getQuotedTransferFee` prices these
+   * for display; `buildQuotedTransferTxs` composes them into submit txs —
+   * keeping the derivation in one place so displayed and paid quotes can't
+   * drift.
+   */
+  private async prepareSealevelQuote({
     warpCore,
     originTokenAmount,
     destination,
@@ -138,21 +281,18 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     sender: string;
     recipient: string;
     destinationToken?: IToken;
-  }): Promise<Array<WarpTypedTransaction>> {
-    const senderPubkey = new PublicKey(sender);
+  }) {
     const { token } = originTokenAmount;
     const destinationDomainId = warpCore.multiProvider.getDomainId(destination);
     const destinationName = warpCore.multiProvider.getChainName(destination);
-
     const isCC =
       destinationToken !== undefined &&
       warpCore.isCrossCollateralTransfer(token, destinationToken);
 
-    // Defense in depth: fail early when the warp route has no fee_config.
-    // The UI hook (`useSvmQuotedTransfer`) is supposed to gate provider
-    // construction on this, but a direct API caller (CLI, integration test)
-    // would otherwise build a SubmitFeeQuote ix against a fee account that
-    // doesn't exist and fail later with an opaque on-chain error.
+    // Defense in depth: fail early when the warp route has no fee_config. A
+    // direct API caller (CLI, integration test) would otherwise quote against a
+    // fee account that doesn't exist and fail later with an opaque on-chain
+    // error.
     const adapter = token.getHypAdapter(
       warpCore.multiProvider,
       destinationName,
@@ -167,26 +307,23 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       `Origin token on ${token.chainName} has no fee_config; offchain quoting requires a fee-enabled SVM warp route`,
     );
 
-    // 1. Always send a random client salt — the server's `quoteMode` config
-    //    decides whether the returned quote is standing (`expiry > issuedAt`)
-    //    or transient (`expiry === issuedAt`). The provider infers mode from
-    //    the response and uses the server-echoed `clientSalt` to derive the
-    //    scoped salt (for transient PDA cascade lookup).
+    // Always send a random client salt — the server's `quoteMode` config
+    // decides whether the returned quote is standing (`expiry > issuedAt`) or
+    // transient (`expiry === issuedAt`). Callers infer the mode from the
+    // response and use the server-echoed `clientSalt` to derive the scoped salt
+    // for the transient PDA cascade.
     const rawClientSalt = (this.opts.randomSalt ?? defaultRandomSalt)();
     assert(
       rawClientSalt.length === SALT_LEN,
       `rawClientSalt must be ${SALT_LEN} bytes`,
     );
 
-    // 2. Resolve `target_router` to mirror what the runtime CPI will pass
-    //    `QuoteFee`. For CC-to-CC routes the bundle emits `transfer_remote_to`
-    //    and the CC ix payload carries an explicit `target_router` chosen by
-    //    the user (one of the destination's CC-enrolled routers, resolved via
-    //    `destinationToken.addressOrDenom`). For everything else the base
-    //    `transfer_remote` auto-resolves to the destination's standard
-    //    enrolled remote router (`tokenData.remote_routers[dest]`, exposed
-    //    via `getRouterAddress`). Sending `ZERO` here would miss per-domain
-    //    CC fee leaves on deployments that configure them.
+    // Resolve `target_router` to mirror what the runtime CPI passes `QuoteFee`.
+    // CC-to-CC routes emit `transfer_remote_to` with an explicit target router
+    // (one of the destination's CC-enrolled routers, via
+    // `destinationToken.addressOrDenom`); everything else auto-resolves to the
+    // destination's standard enrolled remote router. Sending `ZERO` would miss
+    // per-domain CC fee leaves on deployments that configure them.
     const targetRouterBytes = isCC
       ? hexToBytes(
           toHex(
@@ -203,12 +340,10 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         )
       : new Uint8Array(await adapter.getRouterAddress(destinationDomainId));
 
-    // 3. Build API request shape — same salt/txSubmitter for both endpoints.
     const recipientHex = toHex(
       addressToBytes32(recipient),
       'recipient bytes32 narrowing failed',
     );
-    const targetRouterHex = bytesToHex(targetRouterBytes);
     const saltHex = bytesToHex(rawClientSalt);
 
     const warpReq: FeeQuotingV2WarpParams = {
@@ -217,16 +352,16 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       destination: destinationDomainId,
       salt: saltHex,
       recipient: recipientHex,
-      targetRouter: targetRouterHex,
+      targetRouter: bytesToHex(targetRouterBytes),
       txSubmitter: sender,
     };
 
-    // A same-domain (local) transfer consumes no interchain message, so the CC
-    // bundle's local branch emits no IGP section. Resolve the local condition
-    // first and only load IGP state for remote destinations: this avoids an
-    // unused IGP-state RPC on local transfers (which can itself fail on
-    // missing/bad IGP accounts) and prevents prepending an orphan
-    // SubmitIgpQuote ix that would strand the transient IGP quote-account rent.
+    // A same-domain (local) transfer consumes no interchain message and pays no
+    // IGP on-chain, so skip IGP entirely: resolve the local condition first and
+    // only load IGP state for remote destinations. This avoids an unused
+    // IGP-state RPC on local transfers (which can itself fail on missing/bad
+    // IGP accounts) and prevents prepending an orphan SubmitIgpQuote ix that
+    // would strand the transient IGP quote-account rent.
     const localDomainId = warpCore.multiProvider.getDomainId(token.chainName);
     const isRemoteTransfer = destinationDomainId !== localDomainId;
 
@@ -250,7 +385,7 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
         }
       : null;
 
-    // 4. Fetch warp + (optional) IGP quotes in parallel.
+    // Fetch warp + (optional) IGP quotes in parallel.
     const [warpEntry, igpEntry] = await Promise.all([
       this.opts.feeQuotingClient.getWarpQuote(warpReq),
       igpReq
@@ -263,6 +398,165 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
       `Expected Sealevel warp quote, got ${warpEntry.protocol}`,
     );
     const decodedWarp = decodeSealevelQuoteEntry(warpEntry);
+
+    return {
+      token,
+      adapter,
+      tokenData,
+      // Narrowed by the assert above; surfaced so callers needn't re-assert.
+      feeConfig: tokenData.fee_config,
+      destinationDomainId,
+      isCC,
+      targetRouterBytes,
+      igpState,
+      igpProgramId,
+      igpAccount,
+      igpEntry,
+      decodedWarp,
+    };
+  }
+
+  /**
+   * Display-time fee fetch. Hits the offchain quoter for warp (+ optional
+   * IGP) signed quotes, decodes each `data` as a `FeeDataStrategy`, and
+   * applies the Linear formula at `originTokenAmount.amount` to produce the
+   * priced tuple. Standalone from `buildQuotedTransferTxs` — the submit path
+   * re-fetches independently rather than reusing display state.
+   *
+   * `tokenFeeQuote.token` is the bridged token (matches what the on-chain
+   * fee program charges); `igpQuote.token` is the origin chain's native
+   * (SOL on Solana mainnet).
+   */
+  async getQuotedTransferFee({
+    warpCore,
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    warpCore: WarpCore;
+    originTokenAmount: TokenAmount<IToken>;
+    destination: ChainNameOrId;
+    sender: string;
+    recipient: string;
+    destinationToken?: IToken;
+  }): Promise<{
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
+  }> {
+    const {
+      token,
+      adapter,
+      tokenData,
+      destinationDomainId,
+      igpState,
+      igpEntry,
+      decodedWarp,
+    } = await this.prepareSealevelQuote({
+      warpCore,
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken,
+    });
+
+    const warpStrategy = decodeFeeStrategy(decodedWarp.signedQuote.data);
+    const tokenFeeAmount = computeLinearFee(
+      warpStrategy,
+      originTokenAmount.amount,
+    );
+    const tokenFeeQuote =
+      tokenFeeAmount > 0n ? new TokenAmount(tokenFeeAmount, token) : undefined;
+
+    const nativeToken = Token.FromChainMetadataNativeToken(
+      warpCore.multiProvider.getChainMetadata(token.chainName),
+    );
+    const gasAmountRaw = tokenData.destination_gas?.get(destinationDomainId);
+    let igpFeeAmount = 0n;
+    if (!isNullish(igpState)) {
+      // Any IGP-configured remote route needs a per-destination
+      // `destination_gas` budget: the chain's
+      // `HyperlaneGasRouterDispatch::dispatch_with_gas` unwraps it with
+      // `ok_or(InvalidArgument)` on both the signed-quote and legacy pricing
+      // paths, so assert before pricing so preflight surfaces the submit
+      // failure instead of silently displaying 0.
+      assert(
+        !isNullish(gasAmountRaw),
+        `Warp route has no destination_gas configured for domain ${destinationDomainId}; transfer would fail at submit`,
+      );
+      // borsh@0.7 decodes this u64 map value as bn.js `BN`, not the `bigint`
+      // the types claim, so normalize before arithmetic: `BN + bigint`
+      // string-concatenates (silent corruption) and `BN * bigint` throws.
+      const gasBudget = BigInt(gasAmountRaw.toString());
+
+      if (igpEntry) {
+        assert(
+          igpEntry.protocol === ProtocolType.Sealevel,
+          `Expected Sealevel IGP quote, got ${igpEntry.protocol}`,
+        );
+        const decodedIgp = decodeSealevelQuoteEntry(igpEntry);
+        const igpData = decodeIgpQuoteData(decodedIgp.signedQuote.data);
+        // For OverheadIgp configs the chain adds the per-destination overhead
+        // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
+        // here to match the submitted fee.
+        const overheadGas =
+          igpState.gasOverheads?.get(destinationDomainId) ?? 0n;
+        igpFeeAmount = computeIgpGasFee(igpData, gasBudget + overheadGas);
+      } else {
+        // Legacy IGP route (no offchain `fee_config`, so no signed IGP quote):
+        // the submit path falls back to on-chain `quoteGasPayment`, so mirror
+        // it rather than displaying 0. Pass the raw destination gas — an
+        // OverheadIgp applies its overhead on-chain, exactly as the submit
+        // path relies on.
+        igpFeeAmount = await adapter.quoteLegacyIgpGasPayment(
+          destinationDomainId,
+          gasBudget,
+          new PublicKey(sender),
+        );
+      }
+    }
+    const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
+
+    return { igpQuote, tokenFeeQuote };
+  }
+
+  async buildQuotedTransferTxs({
+    warpCore,
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    warpCore: WarpCore;
+    originTokenAmount: TokenAmount<IToken>;
+    destination: ChainNameOrId;
+    sender: string;
+    recipient: string;
+    destinationToken?: IToken;
+  }): Promise<Array<WarpTypedTransaction>> {
+    const {
+      token,
+      adapter,
+      feeConfig,
+      destinationDomainId,
+      isCC,
+      targetRouterBytes,
+      igpProgramId,
+      igpAccount,
+      igpEntry,
+      decodedWarp,
+    } = await this.prepareSealevelQuote({
+      warpCore,
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      destinationToken,
+    });
+    const senderPubkey = new PublicKey(sender);
 
     // 5. Derive the bundle/cascade scopedSalt from the warp response.
     //    Transient → keccak256(payer || serverEchoedClientSalt); Standing →
@@ -301,8 +595,8 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
 
     const submitFeeIx = await buildSubmitFeeQuoteIx({
       connection: this.opts.connection,
-      feeProgramId: tokenData.fee_config.feeProgram,
-      feeAccount: tokenData.fee_config.feeAccount,
+      feeProgramId: feeConfig.feeProgram,
+      feeAccount: feeConfig.feeAccount,
       payer: senderPubkey,
       signedQuote: toSealevelSvmSignedQuote(decodedWarp.signedQuote),
       scopedSalt,

@@ -32,7 +32,6 @@ import {
   type QuotedTransferProvider,
   SealevelQuotedTransferProvider,
   type Token,
-  TokenAmount,
   TokenPullMode,
   type TypedTransactionReceipt,
   WarpCore,
@@ -616,19 +615,8 @@ async function executeDelivery({
           clientSalt,
           tokenPullMode: TokenPullMode.TransferFrom,
         };
-
-        logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
-        const { feeQuotes } = await warpCore.getQuotedTransferFee({
-          originTokenAmount: new TokenAmount(amount, token),
-          destination,
-          sender: signerAddress,
-          recipient: recipientAddress,
-          quotedCalls,
-          destinationToken: destToken,
-        });
-        quotedCalls.feeQuotes = feeQuotes;
-
         quotedTransfer = new EvmQuotedTransferProvider(quotedCalls);
+        logBlue(`Got ${quotes.length} quote(s)`);
         break;
       }
       case ProtocolType.Sealevel: {
@@ -666,6 +654,26 @@ async function executeDelivery({
       'Predicate attestation (--attestation / --predicate-api-key) and fee quoting (--fee-quoting-url) cannot be used together. ' +
         'The quoted-transfer path does not support attestation-gated transfers.',
     );
+  }
+
+  if (quotedTransfer) {
+    logBlue('Estimating quoted transfer fees...');
+    const { igpQuote, tokenFeeQuote } = await warpCore.getQuotedTransferFee({
+      quotedTransfer,
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+      destinationToken: destToken,
+    });
+    logBlue(
+      `Quoted interchain gas fee: ${igpQuote.getDecimalFormattedAmount()} ${igpQuote.token.symbol}`,
+    );
+    if (tokenFeeQuote) {
+      logBlue(
+        `Quoted token fee: ${tokenFeeQuote.getDecimalFormattedAmount()} ${tokenFeeQuote.token.symbol}`,
+      );
+    }
   }
 
   // TODO: override hook address for self-relay
