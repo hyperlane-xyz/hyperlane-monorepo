@@ -8,6 +8,8 @@ hyperlane:
   context: hyperlane
   registryUri: ''
   rebalancerConfig: ''
+  rebalancerConfigFiles: []
+  warpRouteIds: []
   withMetrics: true
   # Used for fetching private RPC secrets
   chains: []

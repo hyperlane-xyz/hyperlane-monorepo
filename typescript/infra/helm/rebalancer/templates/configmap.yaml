@@ -5,5 +5,11 @@ metadata:
   labels:
     {{- include "hyperlane.labels" . | nindent 4 }}
 data:
+{{- if .Values.hyperlane.rebalancerConfig }}
   rebalancer-config.yaml: |
 {{ .Values.hyperlane.rebalancerConfig | indent 4 }}
+{{- end }}
+{{- range .Values.hyperlane.rebalancerConfigFiles }}
+  {{ .name }}: |
+{{ .content | indent 4 }}
+{{- end }}
