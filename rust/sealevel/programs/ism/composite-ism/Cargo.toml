@@ -23,6 +23,7 @@ access-control = { path = "../../../libraries/access-control" }
 account-utils = { path = "../../../libraries/account-utils" }
 ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../../main/hyperlane-core" }
+hyperlane-sealevel-cctp-receiver = { path = "../../hyperlane-sealevel-cctp-receiver", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 multisig-ism = { path = "../../../libraries/multisig-ism" }

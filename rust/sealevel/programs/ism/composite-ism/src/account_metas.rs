@@ -1,4 +1,5 @@
 use hyperlane_core::{Encode, HyperlaneMessage};
+use hyperlane_sealevel_cctp_receiver::accounts::derive_verified_message_pda;
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -35,7 +36,8 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
         | IsmNode::MultisigMessageId { .. }
         | IsmNode::TrustedRelayer { .. }
         | IsmNode::Pausable { .. }
-        | IsmNode::Test { .. } => false,
+        | IsmNode::Test { .. }
+        | IsmNode::CctpV2 { .. } => false,
     }
 }
 
@@ -77,7 +79,8 @@ pub(crate) fn reachable_contains_rate_limited(
         | IsmNode::MultisigMessageId { .. }
         | IsmNode::TrustedRelayer { .. }
         | IsmNode::Pausable { .. }
-        | IsmNode::Test { .. } => false,
+        | IsmNode::Test { .. }
+        | IsmNode::CctpV2 { .. } => false,
     }
 }
 
@@ -340,6 +343,22 @@ pub fn required_accounts_for_node(
 
         // No extra accounts for these leaf ISMs.
         IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(vec![]),
+
+        // One readonly account: the verified-message PDA written by
+        // hyperlane-sealevel-cctp-receiver. No metadata bytes needed — the
+        // address is fully determined by (expected_sender, message.id()).
+        IsmNode::CctpV2 {
+            expected_sender,
+            cctp_receiver_program_id,
+            ..
+        } => {
+            let (verified_key, _) = derive_verified_message_pda(
+                cctp_receiver_program_id,
+                expected_sender.as_fixed_bytes(),
+                message.id().as_fixed_bytes(),
+            );
+            Ok(vec![AccountMeta::new_readonly(verified_key, false).into()])
+        }
     }
 }
 
@@ -764,5 +783,30 @@ mod test {
             pass2[1].pubkey, domain_pda_key,
             "Routing must resolve domain_pda even with TrustedRelayer sibling before it"
         );
+    }
+
+    #[test]
+    fn test_cctp_v2_returns_derived_verified_account() {
+        let receiver_program_id = Pubkey::new_unique();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let node = IsmNode::CctpV2 {
+            source_circle_domain: 0,
+            expected_sender,
+            cctp_receiver_program_id: receiver_program_id,
+        };
+        let msg = dummy_message(ORIGIN);
+        let accounts =
+            required_accounts_for_node(&node, &[], &msg, &Pubkey::new_unique(), &no_extra())
+                .unwrap();
+
+        let (expected_key, _) = derive_verified_message_pda(
+            &receiver_program_id,
+            expected_sender.as_fixed_bytes(),
+            msg.id().as_fixed_bytes(),
+        );
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].pubkey, expected_key);
+        assert!(!accounts[0].is_signer);
+        assert!(!accounts[0].is_writable);
     }
 }

@@ -6449,6 +6449,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-cctp-receiver"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.63",
+]
+
+[[package]]
 name = "hyperlane-sealevel-composite-ism"
 version = "0.1.0"
 dependencies = [
@@ -6458,6 +6474,7 @@ dependencies = [
  "ecdsa-signature",
  "getrandom 0.2.15",
  "hyperlane-core",
+ "hyperlane-sealevel-cctp-receiver",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "multisig-ism",

@@ -509,7 +509,8 @@ fn contains_fallback_routing(node: &IsmNode) -> bool {
         | IsmNode::MultisigMessageId { .. }
         | IsmNode::TrustedRelayer { .. }
         | IsmNode::Pausable { .. }
-        | IsmNode::Test { .. } => false,
+        | IsmNode::Test { .. }
+        | IsmNode::CctpV2 { .. } => false,
     }
 }
 
@@ -622,8 +623,28 @@ fn validate_config_inner(
             }
             Ok(())
         }
+        IsmNode::CctpV2 {
+            expected_sender,
+            cctp_receiver_program_id,
+            ..
+        } => validate_cctp_v2_config(expected_sender, cctp_receiver_program_id),
         IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
     }
+}
+
+/// Validates a `CctpV2` node's config: a real (non-zero) expected sender and
+/// a real (non-default) receiver program. `source_circle_domain` has no
+/// invalid value to reject — 0 is Circle's real domain ID for Ethereum, not
+/// a sentinel for "unset" (unlike `H256`/`Pubkey`, where the zero value is
+/// unambiguous).
+fn validate_cctp_v2_config(
+    expected_sender: &H256,
+    cctp_receiver_program_id: &Pubkey,
+) -> ProgramResult {
+    if *expected_sender == H256::zero() || *cctp_receiver_program_id == Pubkey::default() {
+        return Err(Error::InvalidConfig.into());
+    }
+    Ok(())
 }
 
 /// Validates an ISM intended for storage in a domain PDA.
@@ -686,6 +707,11 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
         }
         IsmNode::Test { .. } => Ok(()),
         IsmNode::Pausable { .. } => Err(Error::PausableInDomainIsm.into()),
+        IsmNode::CctpV2 {
+            expected_sender,
+            cctp_receiver_program_id,
+            ..
+        } => validate_cctp_v2_config(expected_sender, cctp_receiver_program_id),
     }
 }
 
@@ -714,7 +740,8 @@ fn normalize_node(node: &mut IsmNode) {
         | IsmNode::MultisigMessageId { .. }
         | IsmNode::TrustedRelayer { .. }
         | IsmNode::Pausable { .. }
-        | IsmNode::Test { .. } => {}
+        | IsmNode::Test { .. }
+        | IsmNode::CctpV2 { .. } => {}
     }
 }
 
@@ -734,7 +761,8 @@ fn flip_pausable(node: &mut IsmNode, paused: bool) {
         | IsmNode::RateLimited { .. }
         | IsmNode::MultisigMessageId { .. }
         | IsmNode::TrustedRelayer { .. }
-        | IsmNode::Test { .. } => {}
+        | IsmNode::Test { .. }
+        | IsmNode::CctpV2 { .. } => {}
     }
 }
 
@@ -1014,6 +1042,42 @@ mod test {
             validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
+    }
+
+    #[test]
+    fn test_validate_config_cctp_v2_zero_expected_sender_rejected() {
+        let node = IsmNode::CctpV2 {
+            source_circle_domain: 0,
+            expected_sender: H256::zero(),
+            cctp_receiver_program_id: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_cctp_v2_default_receiver_program_rejected() {
+        let node = IsmNode::CctpV2 {
+            source_circle_domain: 0,
+            expected_sender: H256::repeat_byte(0xAA),
+            cctp_receiver_program_id: Pubkey::default(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_cctp_v2_valid_ok() {
+        let node = IsmNode::CctpV2 {
+            source_circle_domain: 0,
+            expected_sender: H256::repeat_byte(0xAA),
+            cctp_receiver_program_id: Pubkey::new_unique(),
+        };
+        assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
     }
 
     #[test]

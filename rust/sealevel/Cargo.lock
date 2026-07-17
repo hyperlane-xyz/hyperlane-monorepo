@@ -3410,6 +3410,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-cctp-hook"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-test-utils",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "hyperlane-sealevel-cctp-receiver"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-test-utils",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
@@ -3462,6 +3503,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hex",
  "hyperlane-core",
+ "hyperlane-sealevel-cctp-receiver",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",

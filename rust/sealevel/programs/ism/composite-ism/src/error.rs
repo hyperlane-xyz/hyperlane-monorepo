@@ -62,6 +62,12 @@ pub enum Error {
     PausableInDomainIsm = 28,
     #[error("BPF loader ProgramData account does not match expected address for this program")]
     InvalidProgramDataAccount = 29,
+    #[error("CCTP verified-message account does not match the expected derived address")]
+    CctpVerifiedAccountMismatch = 30,
+    #[error("No verified CCTP attestation found for this message (not yet relayed via the cctp-receiver, or wrong sender/domain)")]
+    CctpMessageNotVerified = 31,
+    #[error("CCTP verified message's source domain does not match the configured node")]
+    CctpDomainMismatch = 32,
 }
 
 impl From<Error> for ProgramError {

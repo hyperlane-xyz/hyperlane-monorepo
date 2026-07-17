@@ -126,6 +126,42 @@ pub enum IsmNode {
         /// at verify time — no mailbox inbox PDA is required.
         fallback_ism: Pubkey,
     },
+
+    /// Verifies a Circle CCTP v2 attested message whose body carries this
+    /// Hyperlane message's ID (the "Hook Message"/GMP flow — no token
+    /// mint/burn). Delegates the actual attestation-signature verification
+    /// to Circle's real, deployed `MessageTransmitterV2` program rather than
+    /// reimplementing it — this ISM cannot itself CPI into Circle's program
+    /// (that would call back into this same program, indirect self-reentrancy,
+    /// which Solana disallows with `ReentrancyNotAllowed`). Instead, a
+    /// separate `hyperlane-sealevel-cctp-receiver` program is registered as
+    /// Circle's callback `receiver`; Circle CPIs into it after verifying the
+    /// attestation, and it records a marker PDA. This node just reads that PDA.
+    ///
+    /// The PDA is derived from `[b"verified", expected_sender, message.id()]`
+    /// under `cctp_receiver_program_id` — keying by `expected_sender` (not
+    /// just the message body) means the derived address only exists if the
+    /// real CCTP `sender` matches the address *this node* is configured to
+    /// trust, folding the origin-router-enrollment check into the PDA lookup
+    /// itself (see `hyperlane-sealevel-cctp-receiver`'s docs for why keying
+    /// only by message content would allow front-running/squatting).
+    ///
+    /// One on-chain account is required (see `account_metas.rs`): the
+    /// verified-marker PDA. No metadata bytes are needed — this node ignores
+    /// `metadata` entirely, same as `TrustedRelayer`.
+    CctpV2 {
+        /// Circle domain ID expected for the origin chain this node guards
+        /// (Circle's own callback doesn't know Hyperlane domain semantics,
+        /// so we still cross-check it ourselves).
+        source_circle_domain: u32,
+        /// Expected CCTP `sender` — the enrolled origin-chain hook program's
+        /// identity. Used to derive the verified-PDA address, not compared
+        /// after the fact.
+        expected_sender: H256,
+        /// The deployed `hyperlane-sealevel-cctp-receiver` program whose PDA
+        /// we trust as proof Circle's real program validated the attestation.
+        cctp_receiver_program_id: Pubkey,
+    },
 }
 
 impl IsmNode {
@@ -141,6 +177,7 @@ impl IsmNode {
             IsmNode::RateLimited { .. } => "RateLimited",
             IsmNode::Routing => "Routing",
             IsmNode::FallbackRouting { .. } => "FallbackRouting",
+            IsmNode::CctpV2 { .. } => "CctpV2",
         }
     }
 }

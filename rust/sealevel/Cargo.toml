@@ -15,6 +15,8 @@ members = [
     "libraries/serializable-account-meta",
     "libraries/test-transaction-utils",
     "libraries/test-utils",
+    "programs/hyperlane-sealevel-cctp-hook",
+    "programs/hyperlane-sealevel-cctp-receiver",
     "programs/hyperlane-sealevel-fee",
     "programs/hyperlane-sealevel-igp",
     "programs/hyperlane-sealevel-igp-test",

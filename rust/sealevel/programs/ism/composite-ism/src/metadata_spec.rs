@@ -377,6 +377,14 @@ pub(crate) fn spec_and_accounts_for_node(
                 accounts: vec![],
             })
         }
+
+        // No metadata bytes needed — Verify() reads the verified-message PDA
+        // directly (see verify.rs); the relayer just needs the account,
+        // which required_accounts_for_node already supplies generically.
+        IsmNode::CctpV2 { .. } => Ok(MetadataSpecResult {
+            spec: Some(MetadataSpec::Null),
+            accounts: vec![],
+        }),
     }
 }
 

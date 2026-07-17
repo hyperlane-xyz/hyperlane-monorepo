@@ -1,4 +1,7 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, HyperlaneMessage};
+use hyperlane_sealevel_cctp_receiver::accounts::{
+    derive_verified_message_pda, VerifiedMessageAccount,
+};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -325,6 +328,34 @@ where
             *filled_level = adjusted - amount;
             *last_updated = now;
             *did_mutate = true;
+            Ok(())
+        }
+
+        IsmNode::CctpV2 {
+            source_circle_domain,
+            expected_sender,
+            cctp_receiver_program_id,
+        } => {
+            let verified_info = next_account_info(accounts_iter)?;
+            let (expected_key, _) = derive_verified_message_pda(
+                cctp_receiver_program_id,
+                expected_sender.as_fixed_bytes(),
+                message.id().as_fixed_bytes(),
+            );
+            if *verified_info.key != expected_key {
+                return Err(Error::CctpVerifiedAccountMismatch.into());
+            }
+            if verified_info.owner != cctp_receiver_program_id {
+                return Err(Error::CctpMessageNotVerified.into());
+            }
+
+            let verified =
+                VerifiedMessageAccount::fetch_data(&mut &verified_info.data.borrow()[..])?
+                    .ok_or(Error::CctpMessageNotVerified)?;
+            if verified.source_domain != *source_circle_domain {
+                return Err(Error::CctpDomainMismatch.into());
+            }
+
             Ok(())
         }
     }
@@ -1010,5 +1041,273 @@ mod test {
             }
         }
         buf
+    }
+
+    // --- CctpV2 tests ---
+
+    use hyperlane_sealevel_cctp_receiver::accounts::VerifiedMessage;
+
+    fn cctp_hyperlane_message() -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 69,
+            origin: ORIGIN_DOMAIN,
+            sender: H256::repeat_byte(0xaf),
+            destination: 4321,
+            recipient: H256::repeat_byte(0xbe),
+            body: vec![],
+        }
+    }
+
+    fn cctp_v2_node(
+        source_circle_domain: u32,
+        expected_sender: H256,
+        cctp_receiver_program_id: Pubkey,
+    ) -> IsmNode {
+        IsmNode::CctpV2 {
+            source_circle_domain,
+            expected_sender,
+            cctp_receiver_program_id,
+        }
+    }
+
+    /// Encodes a `VerifiedMessage` the same way `AccountData::store` would
+    /// (1-byte "initialized" prefix + Borsh body) — see
+    /// `account_utils::AccountData::fetch_data`.
+    fn encode_verified_message_account_data(msg: &VerifiedMessage) -> Vec<u8> {
+        let mut data = vec![1u8];
+        data.extend_from_slice(&borsh::to_vec(msg).unwrap());
+        data
+    }
+
+    #[test]
+    fn test_cctp_v2_verify_success() {
+        let message = cctp_hyperlane_message();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let receiver_program_id = Pubkey::new_unique();
+
+        let (verified_key, bump_seed) = derive_verified_message_pda(
+            &receiver_program_id,
+            expected_sender.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        let verified_msg = VerifiedMessage {
+            bump_seed,
+            source_domain: 0,
+        };
+        let mut data = encode_verified_message_account_data(&verified_msg);
+        let mut lamports = 0u64;
+        let verified_info = make_fake_account_info(
+            &verified_key,
+            false,
+            &mut lamports,
+            &mut data,
+            &receiver_program_id,
+        );
+
+        let mut node = cctp_v2_node(0, expected_sender, receiver_program_id);
+        let accounts = [verified_info];
+        let mut iter = accounts.iter();
+        assert!(verify_node(
+            &mut node,
+            &[],
+            &message,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_cctp_v2_wrong_account_key_rejected() {
+        let message = cctp_hyperlane_message();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let receiver_program_id = Pubkey::new_unique();
+
+        // Correctly-owned, correctly-formatted account, but at the WRONG key
+        // (as if the caller derived the PDA with a different sender/message_id).
+        let wrong_key = Pubkey::new_unique();
+        let verified_msg = VerifiedMessage {
+            bump_seed: 255,
+            source_domain: 0,
+        };
+        let mut data = encode_verified_message_account_data(&verified_msg);
+        let mut lamports = 0u64;
+        let verified_info = make_fake_account_info(
+            &wrong_key,
+            false,
+            &mut lamports,
+            &mut data,
+            &receiver_program_id,
+        );
+
+        let mut node = cctp_v2_node(0, expected_sender, receiver_program_id);
+        let accounts = [verified_info];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &message,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
+            Error::CctpVerifiedAccountMismatch.into()
+        );
+    }
+
+    #[test]
+    fn test_cctp_v2_not_owned_by_receiver_rejected() {
+        let message = cctp_hyperlane_message();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let receiver_program_id = Pubkey::new_unique();
+        let some_other_owner = Pubkey::new_unique();
+
+        let (verified_key, bump_seed) = derive_verified_message_pda(
+            &receiver_program_id,
+            expected_sender.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        let verified_msg = VerifiedMessage {
+            bump_seed,
+            source_domain: 0,
+        };
+        let mut data = encode_verified_message_account_data(&verified_msg);
+        let mut lamports = 0u64;
+        // Right key, but owned by some unrelated program — must not be trusted.
+        let verified_info = make_fake_account_info(
+            &verified_key,
+            false,
+            &mut lamports,
+            &mut data,
+            &some_other_owner,
+        );
+
+        let mut node = cctp_v2_node(0, expected_sender, receiver_program_id);
+        let accounts = [verified_info];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &message,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
+            Error::CctpMessageNotVerified.into()
+        );
+    }
+
+    #[test]
+    fn test_cctp_v2_uninitialized_account_rejected() {
+        let message = cctp_hyperlane_message();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let receiver_program_id = Pubkey::new_unique();
+
+        let (verified_key, _) = derive_verified_message_pda(
+            &receiver_program_id,
+            expected_sender.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        // Correct key and owner, but empty data — the receiver never wrote it
+        // (e.g. the relayer submitted Verify() before the receive_message
+        // instruction actually ran, or it hasn't been relayed at all).
+        let mut data: Vec<u8> = vec![];
+        let mut lamports = 0u64;
+        let verified_info = make_fake_account_info(
+            &verified_key,
+            false,
+            &mut lamports,
+            &mut data,
+            &receiver_program_id,
+        );
+
+        let mut node = cctp_v2_node(0, expected_sender, receiver_program_id);
+        let accounts = [verified_info];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &message,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
+            Error::CctpMessageNotVerified.into()
+        );
+    }
+
+    #[test]
+    fn test_cctp_v2_domain_mismatch_rejected() {
+        let message = cctp_hyperlane_message();
+        let expected_sender = H256::repeat_byte(0xAA);
+        let receiver_program_id = Pubkey::new_unique();
+
+        let (verified_key, bump_seed) = derive_verified_message_pda(
+            &receiver_program_id,
+            expected_sender.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        // Receiver recorded source_domain = 7, but the node is configured
+        // for source_circle_domain = 0.
+        let verified_msg = VerifiedMessage {
+            bump_seed,
+            source_domain: 7,
+        };
+        let mut data = encode_verified_message_account_data(&verified_msg);
+        let mut lamports = 0u64;
+        let verified_info = make_fake_account_info(
+            &verified_key,
+            false,
+            &mut lamports,
+            &mut data,
+            &receiver_program_id,
+        );
+
+        let mut node = cctp_v2_node(0, expected_sender, receiver_program_id);
+        let accounts = [verified_info];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &message,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
+            Error::CctpDomainMismatch.into()
+        );
+    }
+
+    #[test]
+    fn test_cctp_v2_different_sender_derives_different_account() {
+        // Two different `expected_sender` configs must derive different PDA
+        // addresses for the same message — this is exactly the property that
+        // prevents front-running/squatting (see cctp-receiver's docs).
+        let message = cctp_hyperlane_message();
+        let receiver_program_id = Pubkey::new_unique();
+        let sender_a = H256::repeat_byte(0xAA);
+        let sender_b = H256::repeat_byte(0xBB);
+
+        let (key_a, _) = derive_verified_message_pda(
+            &receiver_program_id,
+            sender_a.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        let (key_b, _) = derive_verified_message_pda(
+            &receiver_program_id,
+            sender_b.as_fixed_bytes(),
+            message.id().as_fixed_bytes(),
+        );
+        assert_ne!(key_a, key_b);
     }
 }
