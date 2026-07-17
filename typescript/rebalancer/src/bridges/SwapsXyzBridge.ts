@@ -1,9 +1,17 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  VersionedTransaction,
+} from '@solana/web3.js';
+import {
   ProtocolType,
   assert,
   ensure0x,
   isEVMLike,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
 import { BigNumber, Contract, Wallet, providers } from 'ethers';
 import type { Logger } from 'pino';
@@ -18,14 +26,17 @@ import type {
 } from '../interfaces/IExternalBridge.js';
 import {
   DEFAULT_RECEIPT_TIMEOUT_MS,
+  ReceiptWaitTimeoutError,
   adaptNativeReceiptTimeout,
 } from '../utils/receiptTimeout.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 import { approveErc20IfNeeded } from './erc20Approve.js';
 import {
   SwapsXyzClient,
   SwapsXyzRequestError,
   isEvmTx,
+  isSolanaTx,
   type SwapsXyzActionRequest,
   type SwapsXyzActionResponse,
 } from './SwapsXyzClient.js';
@@ -36,6 +47,9 @@ const REVERSE_QUOTE_ATTEMPTS = 4;
 const REVERSE_QUOTE_HEADROOM_BPS = 30n;
 const BPS_DENOMINATOR = 10_000n;
 const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
+const SOLANA_CONFIRM_POLL_MS = 2_000;
+const SOLANA_CONFIRM_TIMEOUT_MS = 90_000;
+const REGISTER_TX_RETRY_DELAY_MS = 2_000;
 
 export interface SwapsXyzBridgeConfig {
   apiKey: string;
@@ -43,6 +57,10 @@ export interface SwapsXyzBridgeConfig {
   defaultSlippage?: number;
   chainMetadata?: ChainMap<ChainMetadata>;
   evmProviderFactory?: (rpcUrl: string) => providers.Provider;
+  solanaConnectionFactory?: (rpcUrl: string) => Connection;
+  solanaConfirmPollMs?: number;
+  solanaConfirmTimeoutMs?: number;
+  registerTxRetryDelayMs?: number;
 }
 
 export interface SwapsXyzBridgeRoute {
@@ -63,7 +81,11 @@ export class SwapsXyzBridge implements IExternalBridge {
   private readonly chainMetadataByChainId = new Map<number, ChainMetadata>();
   private readonly tokenDecimalsCache = new Map<string, Promise<number>>();
   private readonly evmProviderFactory: (rpcUrl: string) => providers.Provider;
-  // Prevent EVM nonce races when two movements share a source chain in one cycle.
+  private readonly solanaConnectionFactory: (rpcUrl: string) => Connection;
+  private readonly solanaConfirmPollMs: number;
+  private readonly solanaConfirmTimeoutMs: number;
+  private readonly registerTxRetryDelayMs: number;
+  // Prevent source-account races when movements share a source in one cycle.
   private _executeLock: Promise<void> = Promise.resolve();
 
   constructor(
@@ -87,6 +109,15 @@ export class SwapsXyzBridge implements IExternalBridge {
     this.evmProviderFactory =
       config.evmProviderFactory ??
       ((rpcUrl) => new providers.StaticJsonRpcProvider(rpcUrl));
+    this.solanaConnectionFactory =
+      config.solanaConnectionFactory ??
+      ((rpcUrl) => new Connection(rpcUrl, 'confirmed'));
+    this.solanaConfirmPollMs =
+      config.solanaConfirmPollMs ?? SOLANA_CONFIRM_POLL_MS;
+    this.solanaConfirmTimeoutMs =
+      config.solanaConfirmTimeoutMs ?? SOLANA_CONFIRM_TIMEOUT_MS;
+    this.registerTxRetryDelayMs =
+      config.registerTxRetryDelayMs ?? REGISTER_TX_RETRY_DELAY_MS;
 
     if (config.chainMetadata) {
       for (const metadata of Object.values(config.chainMetadata)) {
@@ -297,6 +328,11 @@ export class SwapsXyzBridge implements IExternalBridge {
 
     const decimals = this.fetchTokenDecimals(chainId, token);
     this.tokenDecimalsCache.set(cacheKey, decimals);
+    void decimals.catch(() => {
+      if (this.tokenDecimalsCache.get(cacheKey) === decimals) {
+        this.tokenDecimalsCache.delete(cacheKey);
+      }
+    });
     return decimals;
   }
 
@@ -310,9 +346,15 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge: no chain metadata configured for chainId ${chainId}`,
     );
     if (metadata.protocol === ProtocolType.Sealevel) {
-      throw new Error(
-        'SwapsXyzBridge: Sealevel token decimals not yet supported',
+      const rpcUrl = metadata.rpcUrls[0]?.http;
+      assert(
+        rpcUrl,
+        `SwapsXyzBridge: no RPC URL configured for chainId ${chainId}`,
       );
+      const supply = await this.solanaConnectionFactory(rpcUrl).getTokenSupply(
+        new PublicKey(token),
+      );
+      return supply.value.decimals;
     }
     if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS) {
       return metadata.nativeToken?.decimals ?? 18;
@@ -374,7 +416,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge.execute: no RPC URL configured for chainId ${fromChain}`,
     );
     if (metadata.protocol === ProtocolType.Sealevel) {
-      throw new Error('SwapsXyzBridge: Solana execution not yet supported');
+      return this.executeSolana(quote, privateKeys, rpcUrl);
     }
     const privateKey = privateKeys[ProtocolType.Ethereum];
     assert(
@@ -385,8 +427,8 @@ export class SwapsXyzBridge implements IExternalBridge {
     const fresh = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
     );
-    this.validateActionResponse(fresh, quote.requestParams);
     assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
+    this.validateActionResponse(fresh, quote.requestParams, 'evm');
 
     const provider = this.evmProviderFactory(rpcUrl);
     const signer = new Wallet(ensure0x(privateKey), provider);
@@ -424,7 +466,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       );
     }
 
-    this.registerIfRequired(fresh, txResponse.hash);
+    await this.registerIfRequired(fresh, txResponse.hash);
     return {
       txHash: txResponse.hash,
       fromChain,
@@ -433,14 +475,105 @@ export class SwapsXyzBridge implements IExternalBridge {
     };
   }
 
+  private async executeSolana(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    rpcUrl: string,
+  ): Promise<BridgeTransferResult> {
+    const { fromChain, toChain } = quote.requestParams;
+    const rawKey = privateKeys[ProtocolType.Sealevel];
+    assert(
+      rawKey,
+      'SwapsXyzBridge.execute requires a Sealevel private key for Solana-source routes',
+    );
+    const keypair = Keypair.fromSecretKey(parseSolanaPrivateKey(rawKey));
+
+    const fresh = await this.client.getAction(
+      this.buildActionRequest(quote.requestParams),
+    );
+    assert(isSolanaTx(fresh.tx), 'SwapsXyzBridge.execute requires a Solana tx');
+    this.validateActionResponse(fresh, quote.requestParams, 'solana');
+    if (fresh.tx.payer !== undefined) {
+      const signerAddress = keypair.publicKey.toBase58();
+      assert(
+        fresh.tx.payer === signerAddress,
+        `SwapsXyzBridge.execute Solana payer ${fresh.tx.payer} does not match signer ${signerAddress}`,
+      );
+    }
+
+    const raw = Buffer.from(fresh.tx.base64Tx, 'base64');
+    let signed: Uint8Array;
+    try {
+      const vtx = VersionedTransaction.deserialize(raw);
+      vtx.sign([keypair]);
+      signed = vtx.serialize();
+    } catch {
+      const ltx = Transaction.from(raw);
+      ltx.partialSign(keypair);
+      signed = ltx.serialize();
+    }
+
+    const connection = this.solanaConnectionFactory(rpcUrl);
+    const signature = await connection.sendRawTransaction(signed, {
+      skipPreflight: false,
+      maxRetries: 5,
+    });
+    await this.confirmSolanaTransaction(connection, signature);
+    await this.registerIfRequired(fresh, signature);
+
+    return {
+      txHash: signature,
+      fromChain,
+      toChain,
+      transferId: fresh.txId,
+    };
+  }
+
+  private async confirmSolanaTransaction(
+    connection: Connection,
+    signature: string,
+  ): Promise<void> {
+    const deadline = Date.now() + this.solanaConfirmTimeoutMs;
+    for (;;) {
+      const statuses = await connection.getSignatureStatuses([signature]);
+      const status = statuses.value[0];
+      if (status?.err !== null && status?.err !== undefined) {
+        throw new Error(
+          `SwapsXyzBridge.execute Solana transaction ${signature} failed confirmation: ${JSON.stringify(status.err)}`,
+        );
+      }
+      if (
+        status?.err === null &&
+        (status.confirmationStatus === 'confirmed' ||
+          status.confirmationStatus === 'finalized')
+      ) {
+        return;
+      }
+
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, Math.min(this.solanaConfirmPollMs, remainingMs)),
+      );
+    }
+
+    // Funds may still land; the next planner cycle re-reads balances, bounding
+    // double-send exposure to one cycle.
+    throw new ReceiptWaitTimeoutError({
+      txHash: signature,
+      operation: 'solana sendRawTransaction confirm',
+      timeoutMs: this.solanaConfirmTimeoutMs,
+    });
+  }
+
   private validateActionResponse(
     response: SwapsXyzActionResponse,
     params: BridgeQuoteParams,
+    expectedVmId: 'evm' | 'solana',
   ): void {
-    assert(isEvmTx(response.tx), 'SwapsXyzBridge.execute expected an EVM tx');
     assert(
-      response.vmId === undefined || response.vmId === 'evm',
-      `SwapsXyzBridge.execute vmId ${response.vmId} does not match evm`,
+      response.vmId === undefined || response.vmId === expectedVmId,
+      `SwapsXyzBridge.execute vmId ${response.vmId} does not match ${expectedVmId}`,
     );
     if (response.amountIn.chainId !== undefined) {
       assert(
@@ -475,14 +608,32 @@ export class SwapsXyzBridge implements IExternalBridge {
     return left === right;
   }
 
-  private registerIfRequired(
+  private async registerIfRequired(
     response: SwapsXyzActionResponse,
     txHash: string,
-  ): void {
-    if (!response.requiresRegisterTransaction) return;
-    this.logger.warn(
-      { txHash, txId: response.txId },
-      'swaps.xyz transaction registration will be added in a follow-up change',
-    );
+  ): Promise<void> {
+    if (response.requiresRegisterTransaction !== true) return;
+    try {
+      await retryAsync(
+        async () => {
+          const results = await this.client.registerTxs([
+            { txId: response.txId, txHash },
+          ]);
+          const failed = results.find((result) => !result.success);
+          if (failed) {
+            throw new Error(
+              `swaps.xyz registerTxs failed: ${failed.error ?? 'unknown error'}`,
+            );
+          }
+        },
+        3,
+        this.registerTxRetryDelayMs,
+      );
+    } catch (error) {
+      this.logger.error(
+        { txId: response.txId, txHash, error },
+        'Failed to register swaps.xyz transaction after broadcast',
+      );
+    }
   }
 }

@@ -1,5 +1,14 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import { expect } from 'chai';
 import { BigNumber, Wallet, providers, utils } from 'ethers';
 import { pino } from 'pino';
@@ -32,6 +41,12 @@ const SPENDER = '0xfffffffffffffffffffffffffffffffffffffff1';
 const SENDER = '0x3333333333333333333333333333333333333333';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const SOLANA_DOMAIN = 1399811149;
+const SOLANA_TOKEN = 'So11111111111111111111111111111111111111112';
+const SOLANA_KEYPAIR = Keypair.fromSeed(new Uint8Array(32).fill(7));
+const SOLANA_PRIVATE_KEY = JSON.stringify(Array.from(SOLANA_KEYPAIR.secretKey));
+const DUMMY_SOLANA_BLOCKHASH = new PublicKey(
+  new Uint8Array(32).fill(1),
+).toBase58();
 
 const ETHEREUM_METADATA: ChainMetadata = {
   chainId: 1,
@@ -166,6 +181,10 @@ function createBridge(
     chainMetadata?: ChainMap<ChainMetadata>;
     defaultSlippage?: number;
     evmProviderFactory?: (rpcUrl: string) => providers.Provider;
+    solanaConnectionFactory?: (rpcUrl: string) => Connection;
+    solanaConfirmPollMs?: number;
+    solanaConfirmTimeoutMs?: number;
+    registerTxRetryDelayMs?: number;
   } = {},
 ): SwapsXyzBridge {
   return new SwapsXyzBridge(
@@ -174,6 +193,10 @@ function createBridge(
       chainMetadata: overrides.chainMetadata ?? CHAIN_METADATA,
       defaultSlippage: overrides.defaultSlippage,
       evmProviderFactory: overrides.evmProviderFactory,
+      solanaConnectionFactory: overrides.solanaConnectionFactory,
+      solanaConfirmPollMs: overrides.solanaConfirmPollMs,
+      solanaConfirmTimeoutMs: overrides.solanaConfirmTimeoutMs,
+      registerTxRetryDelayMs: overrides.registerTxRetryDelayMs,
     },
     logger,
     client,
@@ -250,6 +273,7 @@ function createExecuteHarness(response = actionResponse()): {
   );
   const bridge = createBridge(client, {
     evmProviderFactory: () => provider,
+    registerTxRetryDelayMs: 1,
   });
   const getActionStub = sinon.stub(client, 'getAction').resolves(response);
   const sendTransactionStub = sinon
@@ -265,6 +289,138 @@ function createExecuteHarness(response = actionResponse()): {
     getActionStub,
     sendTransactionStub,
     waitForTransactionStub,
+  };
+}
+
+function versionedSolanaTx(): string {
+  const message = new TransactionMessage({
+    payerKey: SOLANA_KEYPAIR.publicKey,
+    recentBlockhash: DUMMY_SOLANA_BLOCKHASH,
+    instructions: [
+      SystemProgram.transfer({
+        fromPubkey: SOLANA_KEYPAIR.publicKey,
+        toPubkey: Keypair.generate().publicKey,
+        lamports: 1,
+      }),
+    ],
+  }).compileToV0Message();
+  return Buffer.from(new VersionedTransaction(message).serialize()).toString(
+    'base64',
+  );
+}
+
+function legacySolanaTx(): string {
+  const transaction = new Transaction({
+    feePayer: SOLANA_KEYPAIR.publicKey,
+    recentBlockhash: DUMMY_SOLANA_BLOCKHASH,
+  }).add(
+    SystemProgram.transfer({
+      fromPubkey: SOLANA_KEYPAIR.publicKey,
+      toPubkey: Keypair.generate().publicKey,
+      lamports: 1,
+    }),
+  );
+  return transaction
+    .serialize({ requireAllSignatures: false, verifySignatures: false })
+    .toString('base64');
+}
+
+function solanaActionResponse(
+  base64Tx: string,
+  overrides: Partial<SwapsXyzActionResponse> = {},
+): SwapsXyzActionResponse {
+  return actionResponse({
+    tx: {
+      base64Tx,
+      payer: SOLANA_KEYPAIR.publicKey.toBase58(),
+      recentBlockhash: DUMMY_SOLANA_BLOCKHASH,
+    },
+    txId: 'solana-tx-1',
+    vmId: 'solana',
+    amountIn: {
+      chainId: SOLANA_DOMAIN,
+      address: SOLANA_TOKEN,
+      amount: '1000000',
+      decimals: 6,
+    },
+    amountOut: {
+      chainId: 1,
+      address: FROM_TOKEN,
+      amount: '995000',
+      decimals: 6,
+    },
+    amountOutMin: {
+      chainId: 1,
+      address: FROM_TOKEN,
+      amount: '990025',
+      decimals: 6,
+    },
+    requiresRegisterTransaction: true,
+    ...overrides,
+  });
+}
+
+function solanaBridgeQuote(): BridgeQuote<SwapsXyzBridgeRoute> {
+  return bridgeQuote(
+    quoteParams({
+      fromChain: SOLANA_DOMAIN,
+      toChain: 1,
+      fromToken: SOLANA_TOKEN,
+      toToken: FROM_TOKEN,
+      fromAddress: SOLANA_KEYPAIR.publicKey.toBase58(),
+      toAddress: SENDER,
+    }),
+  );
+}
+
+function createSolanaExecuteHarness(
+  response = solanaActionResponse(versionedSolanaTx()),
+): {
+  bridge: SwapsXyzBridge;
+  client: SwapsXyzClient;
+  connection: Connection;
+  getActionStub: sinon.SinonStub;
+  registerTxsStub: sinon.SinonStub;
+  sendRawTransactionStub: sinon.SinonStub;
+  getSignatureStatusesStub: sinon.SinonStub;
+} {
+  const client = createClient();
+  const connection = new Connection('https://solana.example.invalid');
+  const getActionStub = sinon.stub(client, 'getAction').resolves(response);
+  const registerTxsStub = sinon
+    .stub(client, 'registerTxs')
+    .resolves([{ success: true, error: null }]);
+  const sendRawTransactionStub = sinon
+    .stub(connection, 'sendRawTransaction')
+    .resolves('solana-signature');
+  const getSignatureStatusesStub = sinon
+    .stub(connection, 'getSignatureStatuses')
+    .resolves({
+      context: { slot: 1 },
+      value: [
+        {
+          slot: 1,
+          confirmations: 1,
+          err: null,
+          confirmationStatus: 'confirmed',
+        },
+      ],
+    });
+  const bridge = createBridge(client, {
+    chainMetadata: { ethereum: ETHEREUM_METADATA, solana: SOLANA_METADATA },
+    solanaConnectionFactory: () => connection,
+    solanaConfirmPollMs: 1,
+    solanaConfirmTimeoutMs: 5,
+    registerTxRetryDelayMs: 1,
+  });
+  return {
+    bridge,
+    client,
+    connection,
+    getActionStub,
+    registerTxsStub,
+    sendRawTransactionStub,
+    getSignatureStatusesStub,
   };
 }
 
@@ -454,6 +610,99 @@ describe('SwapsXyzBridge reverse quote fallback', () => {
     );
   });
 
+  it('uses Solana token supply decimals for a Solana-source fallback', async () => {
+    const client = createClient();
+    const getActionStub = sinon.stub(client, 'getAction');
+    getActionStub.onFirstCall().rejects(unsupportedDirection());
+    getActionStub.onSecondCall().resolves(
+      actionResponse({
+        amountIn: { amount: '1008000' },
+        amountOut: { amount: '1000000000000000000' },
+        amountOutMin: { amount: '1000000000000000000' },
+      }),
+    );
+    const connection = new Connection('https://solana.example.invalid');
+    const getTokenSupplyStub = sinon
+      .stub(connection, 'getTokenSupply')
+      .resolves({
+        context: { slot: 1 },
+        value: {
+          amount: '1000000',
+          decimals: 6,
+          uiAmount: 1,
+          uiAmountString: '1',
+        },
+      });
+    const bridge = createBridge(client, {
+      chainMetadata: { ethereum: ETHEREUM_METADATA, solana: SOLANA_METADATA },
+      solanaConnectionFactory: () => connection,
+    });
+
+    await bridge.quote(
+      quoteParams({
+        fromChain: SOLANA_DOMAIN,
+        toChain: 1,
+        fromToken: SOLANA_TOKEN,
+        toToken: ZERO_ADDRESS,
+        fromAmount: undefined,
+        toAmount: 1_000_000_000_000_000_000n,
+        fromAddress: SOLANA_KEYPAIR.publicKey.toBase58(),
+      }),
+    );
+
+    expect(getActionStub.secondCall.args[0].amount).to.equal('1008000');
+    expect(getTokenSupplyStub.callCount).to.equal(1);
+    expect(getTokenSupplyStub.firstCall.args[0].toBase58()).to.equal(
+      SOLANA_TOKEN,
+    );
+  });
+
+  it('evicts a rejected token-decimals lookup from the cache', async () => {
+    const client = createClient();
+    const getActionStub = sinon.stub(client, 'getAction');
+    getActionStub.onFirstCall().rejects(unsupportedDirection());
+    getActionStub.onSecondCall().rejects(unsupportedDirection());
+    getActionStub.onThirdCall().resolves(
+      actionResponse({
+        amountIn: { amount: '1008000' },
+        amountOut: { amount: '1000000000000000000' },
+        amountOutMin: { amount: '1000000000000000000' },
+      }),
+    );
+    const connection = new Connection('https://solana.example.invalid');
+    const getTokenSupplyStub = sinon.stub(connection, 'getTokenSupply');
+    getTokenSupplyStub.onFirstCall().rejects(new Error('transient RPC error'));
+    getTokenSupplyStub.onSecondCall().resolves({
+      context: { slot: 1 },
+      value: {
+        amount: '1000000',
+        decimals: 6,
+        uiAmount: 1,
+        uiAmountString: '1',
+      },
+    });
+    const bridge = createBridge(client, {
+      chainMetadata: { ethereum: ETHEREUM_METADATA, solana: SOLANA_METADATA },
+      solanaConnectionFactory: () => connection,
+    });
+    const params = quoteParams({
+      fromChain: SOLANA_DOMAIN,
+      toChain: 1,
+      fromToken: SOLANA_TOKEN,
+      toToken: ZERO_ADDRESS,
+      fromAmount: undefined,
+      toAmount: 1_000_000_000_000_000_000n,
+      fromAddress: SOLANA_KEYPAIR.publicKey.toBase58(),
+    });
+
+    const firstError = await captureError(bridge.quote(params));
+    const quote = await bridge.quote(params);
+
+    expect(firstError.message).to.equal('transient RPC error');
+    expect(quote.fromAmount).to.equal(1_008_000n);
+    expect(getTokenSupplyStub.callCount).to.equal(2);
+  });
+
   it('iteratively scales up and rewrites requestParams to exact-in', async () => {
     const client = createClient();
     const getActionStub = sinon.stub(client, 'getAction');
@@ -600,7 +849,7 @@ describe('SwapsXyzBridge.execute', () => {
     expect(getActionStub.callCount).to.equal(0);
   });
 
-  it('rejects Sealevel execution before re-quoting', async () => {
+  it('throws before re-quoting when the Sealevel private key is missing', async () => {
     const client = createClient();
     const getActionStub = sinon.stub(client, 'getAction');
     const bridge = createBridge(client, {
@@ -619,10 +868,192 @@ describe('SwapsXyzBridge.execute', () => {
       }),
     );
 
-    expect(error.message).to.equal(
-      'SwapsXyzBridge: Solana execution not yet supported',
-    );
+    expect(error.message).to.include('Sealevel private key');
     expect(getActionStub.callCount).to.equal(0);
+  });
+
+  it('signs, sends, confirms, and returns a versioned Solana transaction', async () => {
+    const harness = createSolanaExecuteHarness();
+
+    const result = await harness.bridge.execute(solanaBridgeQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(result).to.deep.equal({
+      txHash: 'solana-signature',
+      fromChain: SOLANA_DOMAIN,
+      toChain: 1,
+      transferId: 'solana-tx-1',
+    });
+    expect(harness.getActionStub.callCount).to.equal(1);
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+    const sentBytes: unknown = harness.sendRawTransactionStub.firstCall.args[0];
+    if (!(sentBytes instanceof Uint8Array)) {
+      throw new Error('Expected serialized Solana transaction bytes');
+    }
+    const signed = VersionedTransaction.deserialize(sentBytes);
+    expect(signed.signatures[0].some((byte) => byte !== 0)).to.equal(true);
+    expect(harness.sendRawTransactionStub.firstCall.args[1]).to.deep.equal({
+      skipPreflight: false,
+      maxRetries: 5,
+    });
+  });
+
+  it('signs and sends a legacy Solana transaction', async () => {
+    const harness = createSolanaExecuteHarness(
+      solanaActionResponse(legacySolanaTx()),
+    );
+
+    await harness.bridge.execute(solanaBridgeQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    const sentBytes: unknown = harness.sendRawTransactionStub.firstCall.args[0];
+    if (!(sentBytes instanceof Uint8Array)) {
+      throw new Error('Expected serialized Solana transaction bytes');
+    }
+    const signed = Transaction.from(sentBytes);
+    const payerSignature = signed.signatures.find((entry) =>
+      entry.publicKey.equals(SOLANA_KEYPAIR.publicKey),
+    );
+    expect(payerSignature?.signature).not.to.equal(null);
+    expect(payerSignature?.signature).not.to.equal(undefined);
+  });
+
+  it('rejects a Solana payer mismatch before broadcasting', async () => {
+    const mismatchedPayer = Keypair.generate().publicKey.toBase58();
+    const harness = createSolanaExecuteHarness(
+      solanaActionResponse(versionedSolanaTx(), {
+        tx: {
+          base64Tx: versionedSolanaTx(),
+          payer: mismatchedPayer,
+        },
+      }),
+    );
+
+    const error = await captureError(
+      harness.bridge.execute(solanaBridgeQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include(mismatchedPayer);
+    expect(error.message).to.include(SOLANA_KEYPAIR.publicKey.toBase58());
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('throws when Solana confirmation reports a signature error', async () => {
+    const harness = createSolanaExecuteHarness();
+    harness.getSignatureStatusesStub.resolves({
+      context: { slot: 1 },
+      value: [
+        {
+          slot: 1,
+          confirmations: 1,
+          err: { InstructionError: [0, 'Custom'] },
+          confirmationStatus: 'confirmed',
+        },
+      ],
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaBridgeQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('solana-signature');
+    expect(error.message).to.include('InstructionError');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+  });
+
+  it('times out when Solana confirmation misses its deadline', async () => {
+    const harness = createSolanaExecuteHarness();
+    harness.getSignatureStatusesStub.resolves({
+      context: { slot: 1 },
+      value: [null],
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaBridgeQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error).to.be.instanceOf(ReceiptWaitTimeoutError);
+    expect(error.message).to.include('solana-signature');
+    expect(error.message).to.include('solana sendRawTransaction confirm');
+  });
+
+  it('registers confirmed Solana-source and EVM-source-to-Solana transfers', async () => {
+    const solanaHarness = createSolanaExecuteHarness();
+    await solanaHarness.bridge.execute(solanaBridgeQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(solanaHarness.registerTxsStub.firstCall.args[0]).to.deep.equal([
+      { txId: 'solana-tx-1', txHash: 'solana-signature' },
+    ]);
+
+    sinon.restore();
+    const evmResponse = actionResponse({
+      txId: 'evm-to-solana-tx',
+      amountOut: {
+        chainId: SOLANA_DOMAIN,
+        address: SOLANA_TOKEN,
+        amount: '995000',
+      },
+      requiresRegisterTransaction: true,
+    });
+    const evmHarness = createExecuteHarness(evmResponse);
+    const registerTxsStub = sinon
+      .stub(evmHarness.client, 'registerTxs')
+      .resolves([{ success: true, error: null }]);
+    const quote = bridgeQuote(
+      quoteParams({ toChain: SOLANA_DOMAIN, toToken: SOLANA_TOKEN }),
+    );
+
+    await evmHarness.bridge.execute(quote, {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
+
+    expect(registerTxsStub.firstCall.args[0]).to.deep.equal([
+      { txId: 'evm-to-solana-tx', txHash: '0xbridge' },
+    ]);
+  });
+
+  it('does not register an EVM transfer when the flag is absent', async () => {
+    const harness = createExecuteHarness();
+    const registerTxsStub = sinon.stub(harness.client, 'registerTxs');
+
+    await harness.bridge.execute(bridgeQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
+
+    expect(registerTxsStub.callCount).to.equal(0);
+  });
+
+  it('returns the transfer after persistent registration failures', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({ requiresRegisterTransaction: true }),
+    );
+    const registerTxsStub = sinon
+      .stub(harness.client, 'registerTxs')
+      .resolves([{ success: false, error: 'indexer unavailable' }]);
+    const loggerErrorStub = sinon.stub(logger, 'error');
+
+    const result = await harness.bridge.execute(bridgeQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
+
+    expect(result.transferId).to.equal('tx-1');
+    expect(result.txHash).to.equal('0xbridge');
+    expect(registerTxsStub.callCount).to.equal(3);
+    expect(loggerErrorStub.callCount).to.equal(1);
+    expect(loggerErrorStub.firstCall.args[0]).to.include({
+      txId: 'tx-1',
+      txHash: '0xbridge',
+    });
   });
 
   it('re-quotes with forward params and returns the fresh transfer ID', async () => {
@@ -839,6 +1270,20 @@ describe('SwapsXyzBridge.getStatus', () => {
     expect(getStatusStub.firstCall.args[0]).to.deep.equal({
       txHash: '0xsource',
       chainId: 1,
+    });
+  });
+
+  it('passes the Solana domain as chainId for Solana-source status', async () => {
+    const client = createClient();
+    const getStatusStub = sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('pending'));
+
+    await createBridge(client).getStatus('solana-signature', SOLANA_DOMAIN, 1);
+
+    expect(getStatusStub.firstCall.args[0]).to.deep.equal({
+      txHash: 'solana-signature',
+      chainId: SOLANA_DOMAIN,
     });
   });
 
