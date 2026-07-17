@@ -501,7 +501,13 @@ export abstract class SealevelHypTokenAdapter
       );
       const overheadData = await overheadIgp.getAccountInfo();
       innerIgpAccount = overheadData.inner_pub_key;
-      gasOverheads = overheadData.gas_overheads;
+      // borsh@0.7 decodes these u64 map values as bn.js `BN` despite the
+      // `Map<Domain, bigint>` type; normalize at the boundary so consumers can
+      // do arithmetic without re-normalizing (mixing `BN` and `bigint` throws).
+      gasOverheads = new Map();
+      for (const [domain, overhead] of overheadData.gas_overheads) {
+        gasOverheads.set(domain, BigInt(overhead.toString()));
+      }
     } else {
       return undefined;
     }

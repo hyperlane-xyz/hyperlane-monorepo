@@ -475,44 +475,47 @@ export class SealevelQuotedTransferProvider implements QuotedTransferProvider {
     );
     const gasAmountRaw = tokenData.destination_gas?.get(destinationDomainId);
     let igpFeeAmount = 0n;
-    if (igpEntry) {
-      assert(
-        igpEntry.protocol === ProtocolType.Sealevel,
-        `Expected Sealevel IGP quote, got ${igpEntry.protocol}`,
-      );
-      const decodedIgp = decodeSealevelQuoteEntry(igpEntry);
-      const igpData = decodeIgpQuoteData(decodedIgp.signedQuote.data);
-      // `destination_gas` is the per-destination gas budget the warp route
-      // configures; this is what `transferRemote` will pay for at submit
-      // time. The chain's `HyperlaneGasRouterDispatch::dispatch_with_gas`
-      // unwraps it with `ok_or(InvalidArgument)`, so an unset entry means
-      // the transfer would fail at submit — display must surface that
-      // rather than silently reporting 0.
-      // For OverheadIgp configs, the chain adds the per-destination overhead
-      // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
-      // here to match the submitted fee.
+    if (!isNullish(igpState)) {
+      // Any IGP-configured remote route needs a per-destination
+      // `destination_gas` budget: the chain's
+      // `HyperlaneGasRouterDispatch::dispatch_with_gas` unwraps it with
+      // `ok_or(InvalidArgument)` on both the signed-quote and legacy pricing
+      // paths, so assert before pricing so preflight surfaces the submit
+      // failure instead of silently displaying 0.
       assert(
         !isNullish(gasAmountRaw),
         `Warp route has no destination_gas configured for domain ${destinationDomainId}; transfer would fail at submit`,
       );
-      // borsh@0.7 decodes these u64 map values as bn.js `BN`, not the `bigint`
+      // borsh@0.7 decodes this u64 map value as bn.js `BN`, not the `bigint`
       // the types claim, so normalize before arithmetic: `BN + bigint`
       // string-concatenates (silent corruption) and `BN * bigint` throws.
       const gasBudget = BigInt(gasAmountRaw.toString());
-      const overheadGas = BigInt(
-        (igpState?.gasOverheads?.get(destinationDomainId) ?? 0n).toString(),
-      );
-      igpFeeAmount = computeIgpGasFee(igpData, gasBudget + overheadGas);
-    } else if (!isNullish(igpState) && !isNullish(gasAmountRaw)) {
-      // Legacy IGP route (no offchain `fee_config`, so no signed IGP quote):
-      // the submit path falls back to on-chain `quoteGasPayment`, so mirror it
-      // rather than displaying 0. Pass the raw destination gas — an OverheadIgp
-      // applies its overhead on-chain, exactly as the submit path relies on.
-      igpFeeAmount = await adapter.quoteLegacyIgpGasPayment(
-        destinationDomainId,
-        BigInt(gasAmountRaw.toString()),
-        new PublicKey(sender),
-      );
+
+      if (igpEntry) {
+        assert(
+          igpEntry.protocol === ProtocolType.Sealevel,
+          `Expected Sealevel IGP quote, got ${igpEntry.protocol}`,
+        );
+        const decodedIgp = decodeSealevelQuoteEntry(igpEntry);
+        const igpData = decodeIgpQuoteData(decodedIgp.signedQuote.data);
+        // For OverheadIgp configs the chain adds the per-destination overhead
+        // before pricing (`OverheadIgp::quote_gas_payment`), so mirror that
+        // here to match the submitted fee.
+        const overheadGas =
+          igpState.gasOverheads?.get(destinationDomainId) ?? 0n;
+        igpFeeAmount = computeIgpGasFee(igpData, gasBudget + overheadGas);
+      } else {
+        // Legacy IGP route (no offchain `fee_config`, so no signed IGP quote):
+        // the submit path falls back to on-chain `quoteGasPayment`, so mirror
+        // it rather than displaying 0. Pass the raw destination gas — an
+        // OverheadIgp applies its overhead on-chain, exactly as the submit
+        // path relies on.
+        igpFeeAmount = await adapter.quoteLegacyIgpGasPayment(
+          destinationDomainId,
+          gasBudget,
+          new PublicKey(sender),
+        );
+      }
     }
     const igpQuote = new TokenAmount(igpFeeAmount, nativeToken);
 

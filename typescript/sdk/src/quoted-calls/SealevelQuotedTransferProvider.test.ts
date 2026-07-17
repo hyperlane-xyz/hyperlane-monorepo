@@ -498,17 +498,20 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     expect(result.igpQuote.amount).to.equal(1000n);
   });
 
-  it('normalizes borsh-decoded BN gas values (destination_gas + gasOverheads) before pricing', async () => {
-    // Regression: borsh@0.7 decodes u64 map values as bn.js BN. Without a
-    // BigInt normalization, BN(1000)+BN(200) concatenates to "1000200" and
-    // computeIgpGasFee's multiply throws — so live SVM preflight crashes.
+  it('normalizes the borsh-decoded BN destination_gas before pricing', async () => {
+    // Regression: borsh@0.7 decodes destination_gas u64 map values as bn.js BN.
+    // Without a BigInt normalization, BN(1000) + bigint overhead concatenates
+    // to "1000200" and computeIgpGasFee's multiply throws — so live SVM
+    // preflight crashes. gasOverheads is normalized upstream in
+    // loadInnerIgpFeeState, so it arrives here as a real bigint (still
+    // exercising the overhead-add path).
     // TER=10^19 (1.0), gas_price=1, decimals=9 → fee = (1000 + 200) * 1 = 1200.
     const warp = makeQuoteEntryWithStrategy(0, 0n, 1n);
     const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 9));
     const result = await callWithAmount(warp, 1000n, {
       entry: igp,
       destinationGas: borshU64(1000),
-      gasOverheads: borshU64(200),
+      gasOverheads: 200n,
     });
     expect(result.igpQuote.amount).to.equal(1200n);
   });
@@ -640,6 +643,32 @@ describe('SealevelQuotedTransferProvider.getQuotedTransferFee', () => {
     const igp = makeIgpEntry(encodeIgpQuoteData(10n ** 19n, 1n, 9));
     await expect(
       callWithAmount(warp, 1000n, { entry: igp /* no destinationGas */ }),
+    ).to.be.rejectedWith(/no destination_gas configured/);
+  });
+
+  it('throws when a legacy IGP route has no destination_gas for the domain', async () => {
+    // Legacy IGP (no offchain fee_config) still needs destination_gas: the
+    // submit path's on-chain quoteGasPayment unwraps it. Without the fail-fast
+    // this fell through to a 0 display while the transfer would revert at
+    // submit — the same gap the new-flow guard above closes.
+    const adapter = makeAdapter({
+      feeConfig: { feeProgram: 'x' },
+      igp: { innerIgpAccount: FEE_ACCOUNT }, // no feeConfig → legacy
+      // destination_gas intentionally unset
+    });
+    const { warpCore, originTokenAmount } = makeWarpCore(adapter);
+    const provider = makeProvider(
+      makeClient(makeQuoteEntryWithStrategy(0, 0n, 1n)),
+    );
+
+    await expect(
+      provider.getQuotedTransferFee({
+        warpCore,
+        originTokenAmount,
+        destination: DEST,
+        sender: SENDER,
+        recipient: RECIPIENT,
+      }),
     ).to.be.rejectedWith(/no destination_gas configured/);
   });
 });
