@@ -1287,6 +1287,17 @@ describe('SwapsXyzBridge.getStatus', () => {
     });
   });
 
+  it('returns not_found when the response srcChainId does not match the requested chain', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('success', { srcChainId: SOLANA_DOMAIN }));
+
+    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+
+    expect(result).to.deep.equal({ status: 'not_found' });
+  });
+
   it('maps status strings case-insensitively', async () => {
     const client = createClient();
     Object.defineProperty(client, 'getStatus', {

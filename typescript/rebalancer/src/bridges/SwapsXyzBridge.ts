@@ -189,6 +189,18 @@ export class SwapsXyzBridge implements IExternalBridge {
         txHash,
         chainId: fromChain,
       });
+      // The API's chainId param is advisory: a hash registered on a different
+      // chain is still returned. Such an entry is not our transfer.
+      if (
+        response.srcChainId !== undefined &&
+        response.srcChainId !== fromChain
+      ) {
+        this.logger.warn(
+          { txHash, fromChain, responseSrcChainId: response.srcChainId },
+          'swaps.xyz status srcChainId does not match requested chain',
+        );
+        return { status: 'not_found' };
+      }
       const rawStatus = response.status;
 
       switch (rawStatus.toLowerCase()) {
