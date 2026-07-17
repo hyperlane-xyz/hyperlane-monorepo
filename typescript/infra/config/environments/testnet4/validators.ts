@@ -139,6 +139,18 @@ export const validatorChainConfig = (
         'solanatestnet',
       ),
     },
+    solanadevnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solanadevnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanadevnet',
+      ),
+    },
     sonicsvmtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonicsvmtestnet'),

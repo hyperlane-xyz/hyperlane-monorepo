@@ -61,6 +61,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
@@ -86,6 +87,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
@@ -112,6 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // disabled temporarily until timestamps change from ms to secs (soon)
     seismictestnet: false,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
