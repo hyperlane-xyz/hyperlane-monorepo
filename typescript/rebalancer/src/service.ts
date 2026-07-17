@@ -7,7 +7,8 @@
  * environment variables and files, then starts the rebalancer in daemon mode.
  *
  * Environment Variables:
- * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
+ * - REBALANCER_CONFIG_FILE: Path to one rebalancer configuration YAML file
+ * - REBALANCER_CONFIG_FILES: Comma-separated rebalancer configuration YAML files for fleet mode (mutually exclusive with REBALANCER_CONFIG_FILE)
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
  * - HYP_INVENTORY_KEY_<PROTOCOL>: Private key for inventory operations per protocol (e.g., HYP_INVENTORY_KEY_ETHEREUM, HYP_INVENTORY_KEY_SEALEVEL)
@@ -25,6 +26,7 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
+import { type Logger } from 'pino';
 import { Keypair } from '@solana/web3.js';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -39,17 +41,160 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
+import { type InventorySignerConfig } from './core/InventoryRebalancer.js';
+import { RebalancerFleet } from './core/RebalancerFleet.js';
 import { RebalancerService } from './core/RebalancerService.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
-import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
+
+async function loadMergedRebalancerConfig(
+  configFile: string,
+  inventoryPrivateKeys: Partial<Record<ProtocolType, string>>,
+  monitorOnly: boolean,
+  logger: Logger,
+): Promise<RebalancerConfig> {
+  const rebalancerConfig = RebalancerConfig.load(configFile);
+  logger.info('✅ Loaded rebalancer configuration');
+
+  // Build consolidated inventory signers with keys embedded
+  const inventorySigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
+    {};
+
+  for (const protocol of Object.values(ProtocolType)) {
+    const privateKey = inventoryPrivateKeys[protocol];
+    if (!privateKey) continue;
+
+    let derivedAddress: string;
+
+    if (isEVMLike(protocol)) {
+      // Tron uses same hex private key format as Ethereum.
+      // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
+      derivedAddress = new Wallet(privateKey).address;
+    } else if (protocol === ProtocolType.Sealevel) {
+      const keyBytes = parseSolanaPrivateKey(privateKey);
+      const keypair = Keypair.fromSecretKey(keyBytes);
+      derivedAddress = keypair.publicKey.toBase58();
+    } else {
+      logger.warn(
+        { protocol },
+        `Unsupported protocol for inventory signer derivation, skipping`,
+      );
+      continue;
+    }
+
+    // Validate against config if present
+    const configuredAddress =
+      rebalancerConfig.inventorySigners?.[protocol]?.address;
+    if (configuredAddress) {
+      const mismatch = isEVMLike(protocol)
+        ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
+        : configuredAddress !== derivedAddress;
+      if (mismatch) {
+        throw new Error(
+          `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
+        );
+      }
+    }
+
+    inventorySigners[protocol] = {
+      address: derivedAddress,
+      key: privateKey,
+    };
+    logger.info(
+      { protocol, address: derivedAddress },
+      `✅ ${protocol} inventory signer configured`,
+    );
+  }
+
+  // Fail fast if config references protocol-specific inventory signer but key is missing
+  if (!monitorOnly) {
+    for (const protocol of Object.values(ProtocolType)) {
+      if (
+        rebalancerConfig.inventorySigners?.[protocol] &&
+        !inventoryPrivateKeys[protocol]
+      ) {
+        const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+        const hint =
+          protocol === ProtocolType.Ethereum
+            ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
+            : envKey;
+        logger.error(
+          {
+            inventorySigner:
+              rebalancerConfig.inventorySigners[protocol]?.address,
+          },
+          `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
+        );
+        process.exit(1);
+      }
+    }
+  }
+
+  // Merge runtime keys into config — start from YAML config as base, overlay runtime keys per-protocol.
+  // This preserves YAML-only signer addresses (e.g., monitor-only configs) while adding runtime keys.
+  const mergedInventorySigners: Partial<
+    Record<ProtocolType, InventorySignerConfig>
+  > = { ...rebalancerConfig.inventorySigners };
+  for (const protocol of Object.values(ProtocolType)) {
+    const runtimeSigner = inventorySigners[protocol];
+    if (runtimeSigner) {
+      mergedInventorySigners[protocol] = {
+        ...mergedInventorySigners[protocol],
+        ...runtimeSigner,
+      };
+    }
+  }
+
+  return Object.keys(mergedInventorySigners).length > 0
+    ? new RebalancerConfig(
+        rebalancerConfig.warpRouteId,
+        rebalancerConfig.strategyConfig,
+        rebalancerConfig.intentTTL,
+        mergedInventorySigners,
+        rebalancerConfig.externalBridges,
+      )
+    : rebalancerConfig;
+}
+
+function errorDetails(error: unknown): { error: string; stack?: string } {
+  if (error instanceof Error) {
+    return { error: error.message, stack: error.stack };
+  }
+  return { error: String(error) };
+}
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
   // Validate required environment variables
   const configFile = process.env.REBALANCER_CONFIG_FILE;
-  if (!configFile) {
-    rootLogger.error('REBALANCER_CONFIG_FILE environment variable is required');
+  const configFilesValue = process.env.REBALANCER_CONFIG_FILES;
+  if (configFile !== undefined && configFilesValue !== undefined) {
+    rootLogger.error(
+      'REBALANCER_CONFIG_FILE and REBALANCER_CONFIG_FILES are mutually exclusive',
+    );
     process.exit(1);
+  }
+
+  const fleetMode = configFilesValue !== undefined;
+  let configFiles: string[];
+  if (fleetMode) {
+    configFiles = configFilesValue
+      .split(',')
+      .map((file) => file.trim())
+      .filter(Boolean);
+    if (configFiles.length === 0) {
+      rootLogger.error(
+        'REBALANCER_CONFIG_FILES must contain at least one configuration file',
+      );
+      process.exit(1);
+    }
+  } else {
+    if (!configFile) {
+      rootLogger.error(
+        'REBALANCER_CONFIG_FILE environment variable is required',
+      );
+      process.exit(1);
+    }
+    configFiles = [configFile];
   }
 
   const rebalancerPrivateKey =
@@ -106,7 +251,7 @@ async function main(): Promise<void> {
   logger.info(
     {
       version: VERSION,
-      configFile,
+      ...(fleetMode ? { configFiles } : { configFile }),
       checkFrequency,
       withMetrics,
       monitorOnly,
@@ -115,9 +260,17 @@ async function main(): Promise<void> {
   );
 
   try {
-    // Load rebalancer configuration
-    const rebalancerConfig = RebalancerConfig.load(configFile);
-    logger.info('✅ Loaded rebalancer configuration');
+    const mergedRebalancerConfigs: RebalancerConfig[] = [];
+    for (const file of configFiles) {
+      mergedRebalancerConfigs.push(
+        await loadMergedRebalancerConfig(
+          file,
+          inventoryPrivateKeys,
+          monitorOnly,
+          logger,
+        ),
+      );
+    }
 
     // Initialize registry (uses env var or defaults to GitHub registry)
     // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
@@ -147,106 +300,30 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
-    // Build consolidated inventory signers with keys embedded
-    const inventorySigners: Partial<
-      Record<ProtocolType, InventorySignerConfig>
-    > = {};
-
-    for (const protocol of Object.values(ProtocolType)) {
-      const privateKey = inventoryPrivateKeys[protocol];
-      if (!privateKey) continue;
-
-      let derivedAddress: string;
-
-      if (isEVMLike(protocol)) {
-        // Tron uses same hex private key format as Ethereum.
-        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
-        derivedAddress = new Wallet(privateKey).address;
-      } else if (protocol === ProtocolType.Sealevel) {
-        const keyBytes = parseSolanaPrivateKey(privateKey);
-        const keypair = Keypair.fromSecretKey(keyBytes);
-        derivedAddress = keypair.publicKey.toBase58();
-      } else {
-        logger.warn(
-          { protocol },
-          `Unsupported protocol for inventory signer derivation, skipping`,
-        );
-        continue;
-      }
-
-      // Validate against config if present
-      const configuredAddress =
-        rebalancerConfig.inventorySigners?.[protocol]?.address;
-      if (configuredAddress) {
-        const mismatch = isEVMLike(protocol)
-          ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
-          : configuredAddress !== derivedAddress;
-        if (mismatch) {
-          throw new Error(
-            `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
-          );
-        }
-      }
-
-      inventorySigners[protocol] = {
-        address: derivedAddress,
-        key: privateKey,
-      };
-      logger.info(
-        { protocol, address: derivedAddress },
-        `✅ ${protocol} inventory signer configured`,
+    if (fleetMode) {
+      const fleet = new RebalancerFleet(
+        multiProvider,
+        registry,
+        mergedRebalancerConfigs.map((rebalancerConfig) => ({
+          rebalancerConfig,
+        })),
+        {
+          checkFrequency,
+          monitorOnly,
+          withMetrics,
+          coingeckoApiKey,
+          version: VERSION,
+        },
+        logger,
       );
+      await fleet.start();
+      return;
     }
 
-    // Fail fast if config references protocol-specific inventory signer but key is missing
-    if (!monitorOnly) {
-      for (const protocol of Object.values(ProtocolType)) {
-        if (
-          rebalancerConfig.inventorySigners?.[protocol] &&
-          !inventoryPrivateKeys[protocol]
-        ) {
-          const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
-          const hint =
-            protocol === ProtocolType.Ethereum
-              ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
-              : envKey;
-          logger.error(
-            {
-              inventorySigner:
-                rebalancerConfig.inventorySigners[protocol]?.address,
-            },
-            `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
-          );
-          process.exit(1);
-        }
-      }
+    const mergedRebalancerConfig = mergedRebalancerConfigs[0];
+    if (!mergedRebalancerConfig) {
+      throw new Error('Rebalancer configuration was not loaded');
     }
-
-    // Merge runtime keys into config — start from YAML config as base, overlay runtime keys per-protocol.
-    // This preserves YAML-only signer addresses (e.g., monitor-only configs) while adding runtime keys.
-    const mergedInventorySigners: Partial<
-      Record<ProtocolType, InventorySignerConfig>
-    > = { ...rebalancerConfig.inventorySigners };
-    for (const protocol of Object.values(ProtocolType)) {
-      const runtimeSigner = inventorySigners[protocol];
-      if (runtimeSigner) {
-        mergedInventorySigners[protocol] = {
-          ...mergedInventorySigners[protocol],
-          ...runtimeSigner,
-        };
-      }
-    }
-
-    const mergedRebalancerConfig =
-      Object.keys(mergedInventorySigners).length > 0
-        ? new RebalancerConfig(
-            rebalancerConfig.warpRouteId,
-            rebalancerConfig.strategyConfig,
-            rebalancerConfig.intentTTL,
-            mergedInventorySigners,
-            rebalancerConfig.externalBridges,
-          )
-        : rebalancerConfig;
 
     // MultiProtocolProvider will be derived from multiProvider in factory
     const multiProtocolProvider = undefined;
@@ -271,18 +348,13 @@ async function main(): Promise<void> {
     // Start the service
     await service.start();
   } catch (error) {
-    const err = error as Error;
-    logger.error(
-      { error: err.message, stack: err.stack },
-      'Failed to start rebalancer service',
-    );
+    logger.error(errorDetails(error), 'Failed to start rebalancer service');
     process.exit(1);
   }
 }
 
 // Run the service
 main().catch((error) => {
-  const err = error as Error;
-  rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
+  rootLogger.error(errorDetails(error), 'Fatal error');
   process.exit(1);
 });
