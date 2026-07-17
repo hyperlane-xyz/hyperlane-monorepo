@@ -32,6 +32,7 @@ import {
   getCheckerViolationsGaugeObj,
   warpViolationGroupings,
 } from './check-utils.js';
+import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
@@ -74,69 +75,6 @@ function isStagingOrTestRoute(warpRouteId: string): boolean {
   }
   const segments = rest.join('/').toLowerCase().split(/[-/]/);
   return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
-}
-
-interface OwnerStatusSkip {
-  warpRouteId: string;
-  chain: string;
-  // Optional: when set, only the ownerStatus violation for this exact owner is
-  // skipped; when omitted, any ownerStatus violation on the route+chain is.
-  owner?: string;
-}
-
-// Legacy warp routes whose owner on a given chain is intentionally an inactive
-// EOA (nonce 0, no code) rather than a live account or Safe. The ownerStatus
-// virtual check maps any Inactive owner to expected=Active (see
-// expandWarpDeployConfig in configUtils.ts), so these routes emit a permanent
-// ConfigMismatch that cannot be resolved without a live ownership migration.
-// Allowlist the specific {route, chain, owner} so ONLY that ownerStatus
-// violation is suppressed — every other check on the route still runs.
-const OWNER_STATUS_SKIP: OwnerStatusSkip[] = [
-  {
-    warpRouteId: 'BEST/ethereum',
-    chain: 'bsc',
-    owner: '0x081Ec7bf32dEf8730DABc19dBA69a6E86dC0Ae2E',
-  },
-  {
-    warpRouteId: 'BEST/ethereum',
-    chain: 'ethereum',
-    owner: '0x081Ec7bf32dEf8730DABc19dBA69a6E86dC0Ae2E',
-  },
-  {
-    warpRouteId: 'GNET/galactica',
-    chain: 'galactica',
-    owner: '0xFe758b0Bc6aA63Ff0Db876F3ed38204a2e413060',
-  },
-  {
-    warpRouteId: 'USDC/coti-ethereum',
-    chain: 'coti',
-    owner: '0xdF2E2886d23ba57F996C203D2Ccd9dCa6373590C',
-  },
-  {
-    warpRouteId: 'WBTC/coti-ethereum',
-    chain: 'coti',
-    owner: '0xdF2E2886d23ba57F996C203D2Ccd9dCa6373590C',
-  },
-];
-
-// ownerStatus virtual-config violations carry a field path of the form
-// `ownerStatus.<ownerAddress>`, so match on that prefix plus the allowlisted
-// route/chain/owner.
-function isSkippedOwnerStatusViolation(
-  warpRouteId: string,
-  violation: { chain: string; name: string },
-): boolean {
-  if (!violation.name.toLowerCase().includes('ownerstatus')) {
-    return false;
-  }
-  const violationName = violation.name.toLowerCase();
-  return OWNER_STATUS_SKIP.some(
-    (skip) =>
-      skip.warpRouteId === warpRouteId &&
-      skip.chain === violation.chain &&
-      (skip.owner === undefined ||
-        violationName.includes(skip.owner.toLowerCase())),
-  );
 }
 
 // Upper bound on how long a single warp route check may run before it is

@@ -587,7 +587,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const provider = this.multiProvider.getProvider(chain);
     const owner = await Ownable__factory.connect(address, provider).owner();
 
-    ownerStatus[owner] = (await isAddressActive(provider, owner))
+    ownerStatus[owner] = (await isAddressActive(
+      provider,
+      owner,
+      this.multiProvider.getProtocol(chain),
+    ))
       ? OwnerStatus.Active
       : OwnerStatus.Inactive;
 

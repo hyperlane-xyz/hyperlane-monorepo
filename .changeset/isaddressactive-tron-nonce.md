@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": patch
 ---
 
-`isAddressActive` now checks contract code first and only falls back to the account nonce when the address has no code, guarding the `eth_getTransactionCount` lookup. Chains that don't implement `eth_getTransactionCount` over JSON-RPC (e.g. tron) no longer force a false Inactive verdict for contract owners such as ICAs.
+`isAddressActive` now checks contract code first and branches on chain protocol for the liveness fallback: EVM chains use the account nonce (`eth_getTransactionCount`), while Tron — whose JSON-RPC does not implement `eth_getTransactionCount` — uses a native balance probe. This stops Tron contract owners such as ICAs from being reported as Inactive without swallowing genuine RPC errors on real EVM chains.
