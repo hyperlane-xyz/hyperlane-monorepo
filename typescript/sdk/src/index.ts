@@ -6,6 +6,26 @@ export {
 } from './fee/EvmTokenFeeReader.js';
 
 export {
+  type Eip712Signable,
+  type Eip712TypedDataDomain,
+  type Eip712TypedDataField,
+  isEip712Signable,
+  parseEip712Signable,
+} from './quote/Eip712Signable.js';
+export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
+export { EvmQuoteArtifactManager } from './quote/EvmQuoteArtifactManager.js';
+export { EvmQuoteReader } from './quote/EvmQuoteReader.js';
+export { EvmQuoteWriter } from './quote/EvmQuoteWriter.js';
+export {
+  buildEvmSignedQuoteSignable,
+  buildEvmSignedQuoteTuple,
+  OFFCHAIN_QUOTER_DOMAIN_NAME,
+  OFFCHAIN_QUOTER_DOMAIN_VERSION,
+  SIGNED_QUOTE_TYPES,
+  type EvmSignedQuoteTuple,
+} from './quote/WarpSignedQuoteEip712.js';
+
+export {
   buildExecuteCalldata,
   buildQuoteCalldata,
   type QuotedCallsTransaction,
@@ -212,6 +232,7 @@ export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export {
+  buildFeeReadContextFromWarpDeployConfig,
   executeWarpDeploy,
   enrollCrossChainRouters,
   validateWarpConfigForAltVM,
