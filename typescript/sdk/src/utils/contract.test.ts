@@ -1,9 +1,9 @@
-import { PackageVersioned__factory } from '@hyperlane-xyz/core';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { stubPackageVersion } from '../test/contractStubs.js';
 import {
   missingSelectorError,
   networkError,
@@ -84,9 +84,7 @@ describe('contract utils', () => {
     );
 
     it('returns the on-chain version', async () => {
-      sandbox.stub(PackageVersioned__factory, 'connect').returns({
-        PACKAGE_VERSION: sandbox.stub().resolves('5.4.0'),
-      } as any);
+      stubPackageVersion(sandbox, sandbox.stub().resolves('5.4.0'));
 
       const version = await fetchPackageVersion(provider, randomAddress());
 
@@ -94,9 +92,10 @@ describe('contract utils', () => {
     });
 
     it('falls back to LEGACY_PACKAGE_VERSION on a missing selector', async () => {
-      sandbox.stub(PackageVersioned__factory, 'connect').returns({
-        PACKAGE_VERSION: sandbox.stub().rejects(missingSelectorError()),
-      } as any);
+      stubPackageVersion(
+        sandbox,
+        sandbox.stub().rejects(missingSelectorError()),
+      );
 
       const version = await fetchPackageVersion(provider, randomAddress());
 
@@ -105,9 +104,7 @@ describe('contract utils', () => {
 
     it('rethrows a transient provider error', async () => {
       const transientError = networkError();
-      sandbox.stub(PackageVersioned__factory, 'connect').returns({
-        PACKAGE_VERSION: sandbox.stub().rejects(transientError),
-      } as any);
+      stubPackageVersion(sandbox, sandbox.stub().rejects(transientError));
 
       let thrown: unknown;
       try {

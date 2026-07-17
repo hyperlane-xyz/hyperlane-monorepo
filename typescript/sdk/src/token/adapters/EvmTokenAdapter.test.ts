@@ -2,7 +2,6 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypXERC20Lockbox__factory,
-  PackageVersioned__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { expect } from 'chai';
@@ -10,6 +9,7 @@ import sinon from 'sinon';
 
 import { testChainMetadata } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { stubPackageVersion } from '../../test/contractStubs.js';
 import { missingSelectorError, networkError } from '../../test/errors.js';
 import { stubMultiProtocolProvider } from '../../test/multiProviderStubs.js';
 
@@ -68,9 +68,7 @@ describe('EvmHypXERC20LockboxAdapter', () => {
   });
 
   it('falls back to the legacy package version when PACKAGE_VERSION is missing', async () => {
-    sandbox.stub(PackageVersioned__factory, 'connect').returns({
-      PACKAGE_VERSION: sandbox.stub().rejects(missingSelectorError()),
-    } as any);
+    stubPackageVersion(sandbox, sandbox.stub().rejects(missingSelectorError()));
 
     const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
       token: hypTokenAddress,
@@ -83,9 +81,7 @@ describe('EvmHypXERC20LockboxAdapter', () => {
 
   it('throws transient package version probe failures', async () => {
     const transientError = networkError();
-    sandbox.stub(PackageVersioned__factory, 'connect').returns({
-      PACKAGE_VERSION: sandbox.stub().rejects(transientError),
-    } as any);
+    stubPackageVersion(sandbox, sandbox.stub().rejects(transientError));
 
     const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
       token: hypTokenAddress,
