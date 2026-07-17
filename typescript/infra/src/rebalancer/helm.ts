@@ -315,8 +315,40 @@ export class RebalancerFleetHelmManager extends HelmManager {
       );
     }
 
+    // Collect all existing warp monitors first and confirm ONCE before
+    // uninstalling any, so declining can never leave earlier members with
+    // their monitor removed but no fleet installed.
+    const existingMonitors: { warpRouteId: string; releaseName: string }[] = [];
     for (const warpRouteId of this.fleet.warpRouteIds) {
-      await checkAndHandleExistingMonitor(warpRouteId, this.namespace);
+      const releaseName = getHelmReleaseName(
+        warpRouteId,
+        WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+      );
+      if (await HelmManager.doesHelmReleaseExist(releaseName, this.namespace)) {
+        existingMonitors.push({ warpRouteId, releaseName });
+      }
+    }
+
+    if (existingMonitors.length > 0) {
+      const monitorIds = existingMonitors
+        .map(({ warpRouteId }) => warpRouteId)
+        .join(', ');
+      const shouldReplace = await confirm({
+        message: `Warp route monitors exist for fleet members: ${monitorIds}. The rebalancer includes monitoring functionality. Replace ALL of them with the fleet rebalancer?`,
+      });
+      if (!shouldReplace) {
+        throw new Error(
+          `Deployment aborted: User chose not to replace existing monitors for fleet ${this.fleet.name}.`,
+        );
+      }
+
+      for (const { releaseName } of existingMonitors) {
+        rootLogger.info(`Uninstalling existing warp monitor: ${releaseName}`);
+        await removeHelmRelease(releaseName, this.namespace);
+        rootLogger.info(
+          `Successfully uninstalled warp monitor: ${releaseName}`,
+        );
+      }
     }
 
     this.rebalancerConfigFiles = configFiles;

@@ -11,7 +11,18 @@ export class InventoryBalanceFetcher {
     private readonly logger: Logger,
   ) {}
 
-  async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
+  /**
+   * Read the inventory wallet balance on every configured chain.
+   *
+   * Read failures are handled per `strict`:
+   * - lenient (default, monitor polling): log and report 0n for the failed
+   *   chain so a single bad RPC doesn't stall the polling loop.
+   * - strict (execution time): rethrow so the caller can fall back to a
+   *   known-good snapshot instead of silently treating the chain as empty.
+   */
+  async fetchInventoryBalances(
+    options: { strict?: boolean } = {},
+  ): Promise<ChainMap<bigint>> {
     const balances: ChainMap<bigint> = {};
 
     const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
@@ -49,6 +60,9 @@ export class InventoryBalanceFetcher {
           { chain: chainName, error: (error as Error).message },
           'Failed to read inventory balance',
         );
+        if (options.strict) {
+          throw error;
+        }
         return { chainName, balance: 0n };
       }
     });

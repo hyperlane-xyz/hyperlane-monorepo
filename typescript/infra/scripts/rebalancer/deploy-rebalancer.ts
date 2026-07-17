@@ -159,9 +159,22 @@ async function main() {
       environment,
       REBALANCER_HELM_RELEASE_PREFIX,
     );
-    const deployedIds = [
-      ...new Set(deployedPods.map((pod) => pod.warpRouteId)),
-    ].sort();
+    // Fleet-managed routes are redeployed via --fleet, not per-route;
+    // exclude them from the checkbox so selecting one can't abort the batch.
+    const fleetManagedIds = new Set(
+      rebalancerFleets.flatMap((candidate) => candidate.warpRouteIds),
+    );
+    const deployedIds = [...new Set(deployedPods.map((pod) => pod.warpRouteId))]
+      .filter((id) => {
+        if (environment === 'mainnet3' && fleetManagedIds.has(id)) {
+          rootLogger.info(
+            `Excluding fleet-managed route ${id} (redeploy it with --fleet)`,
+          );
+          return false;
+        }
+        return true;
+      })
+      .sort();
 
     if (deployedIds.length === 0) {
       rootLogger.error(

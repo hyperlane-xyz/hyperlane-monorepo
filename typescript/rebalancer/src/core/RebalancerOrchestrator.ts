@@ -246,28 +246,27 @@ export class RebalancerOrchestrator {
     event: MonitorEvent,
   ): Promise<ExecutionResult[]> {
     if (rebalancer.rebalancerType === 'inventory') {
+      // Prefer balances re-fetched at execution time (under the execution
+      // lock); fall back to the monitor-time snapshot if the strict fetch
+      // fails on any chain.
+      let balances = event.inventoryBalances;
       if (this.inventoryBalanceFetcher) {
         try {
-          const freshBalances =
-            await this.inventoryBalanceFetcher.fetchInventoryBalances();
-          (rebalancer as InventoryRebalancer).setInventoryBalances(
-            freshBalances,
-          );
+          balances = await this.inventoryBalanceFetcher.fetchInventoryBalances({
+            strict: true,
+          });
         } catch (error) {
           this.logger.warn(
-            { error },
+            {
+              error,
+              hasMonitorSnapshot: event.inventoryBalances !== undefined,
+            },
             'Fresh inventory balance fetch failed, using monitor snapshot',
           );
-          if (event.inventoryBalances) {
-            (rebalancer as InventoryRebalancer).setInventoryBalances(
-              event.inventoryBalances,
-            );
-          }
         }
-      } else if (event.inventoryBalances) {
-        (rebalancer as InventoryRebalancer).setInventoryBalances(
-          event.inventoryBalances,
-        );
+      }
+      if (balances) {
+        (rebalancer as InventoryRebalancer).setInventoryBalances(balances);
       }
     }
 
