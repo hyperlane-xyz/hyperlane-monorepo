@@ -379,6 +379,41 @@ export async function deriveEscrowPda(
   ]);
 }
 
+/**
+ * Per-Hyperlane-destination-domain CCTP send config PDA. Matches
+ * `cctp_remote_config_pda_seeds!` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/accounts.rs.
+ */
+export async function deriveCctpRemoteConfigPda(
+  programAddress: Address,
+  domain: number,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token_cctp'),
+    utf8.encode('-'),
+    utf8.encode('remote_config'),
+    utf8.encode('-'),
+    u32.encode(domain),
+  ]);
+}
+
+/**
+ * ATA-payer PDA for the CCTP token program. Matches
+ * `hyperlane_token_cctp_ata_payer_pda_seeds!` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/accounts.rs.
+ * (Distinct prefix from the generic `deriveAtaPayerPda` above, which is
+ * `hyperlane_token`-scoped and used by collateral/synthetic tokens.)
+ */
+export async function deriveCctpAtaPayerPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token_cctp'),
+    utf8.encode('-'),
+    utf8.encode('ata_payer'),
+  ]);
+}
+
 export async function deriveCrossCollateralStatePda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

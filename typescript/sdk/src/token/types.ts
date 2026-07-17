@@ -234,13 +234,17 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.collateralCctp),
     token: z.string().describe('CCTP enabled token'),
+    // EVM/Tron-only: Circle's per-chain contract addresses. Not applicable to
+    // Sealevel, where Circle's program IDs are fixed constants.
     messageTransmitter: z
       .string()
+      .optional()
       .describe('CCTP Message Transmitter contract address'),
     tokenMessenger: z
       .string()
+      .optional()
       .describe('CCTP Token Messenger contract address'),
-    cctpVersion: z.enum(['V1', 'V2']),
+    cctpVersion: z.enum(['V1', 'V2']).optional(),
     minFinalityThreshold: z.number().optional(),
     maxFeeBps: z
       .number()
@@ -250,9 +254,27 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe(
         'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
       ),
+    // Sealevel-only: per-Hyperlane-destination-domain CCTP send config
+    // (Circle domain + fee/finality), keyed by domain or chain name like
+    // remoteRouters/destinationGas.
+    remoteConfigs: z
+      .record(
+        RemoteRouterDomainOrChainNameSchema,
+        z.object({
+          circleDomain: z.number(),
+          maxFee: z.string(),
+          minFinalityThreshold: z.number(),
+        }),
+      )
+      .optional(),
     predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
-  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }))
+  .extend({
+    // EVM/Tron-only: CCIP-Read fallback URLs for fetching CCTP attestations.
+    // Not applicable to Sealevel, which has no on-chain CCIP-Read trigger.
+    urls: z.array(z.string().url()).optional(),
+  });
 
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);

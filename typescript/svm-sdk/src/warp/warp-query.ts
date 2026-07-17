@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  CCTP_PLUGIN_SIZE,
   COLLATERAL_PLUGIN_SIZE,
   decodeHyperlaneTokenAccount,
   type HyperlaneTokenAccountData,
@@ -15,6 +16,7 @@ import {
   SYNTHETIC_PLUGIN_SIZE,
 } from '../accounts/token.js';
 import {
+  deriveCctpAtaPayerPda,
   deriveCrossCollateralStatePda,
   deriveHyperlaneTokenPda,
   deriveNativeCollateralPda,
@@ -34,6 +36,7 @@ export enum SvmWarpTokenType {
   Synthetic = 'synthetic',
   Collateral = 'collateral',
   CrossCollateral = 'crossCollateral',
+  CollateralCctp = 'collateralCctp',
 }
 
 /**
@@ -79,6 +82,13 @@ export function fetchCrossCollateralTokenAccount(
   return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
 }
 
+export function fetchCctpTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, CCTP_PLUGIN_SIZE);
+}
+
 /**
  * Detects the warp token type by checking which type-specific PDA exists on-chain.
  *
@@ -96,20 +106,28 @@ export async function detectWarpTokenType(
     { address: syntheticMintPda },
     { address: escrowPda },
     { address: ccStatePda },
+    { address: cctpAtaPayerPda },
   ] = await Promise.all([
     deriveNativeCollateralPda(programId),
     deriveSyntheticMintPda(programId),
     deriveEscrowPda(programId),
     deriveCrossCollateralStatePda(programId),
+    deriveCctpAtaPayerPda(programId),
   ]);
 
-  const [nativeAccount, syntheticAccount, collateralAccount, ccStateAccount] =
-    await Promise.all([
-      fetchEncodedAccount(rpc, nativeCollateralPda),
-      fetchEncodedAccount(rpc, syntheticMintPda),
-      fetchEncodedAccount(rpc, escrowPda),
-      fetchEncodedAccount(rpc, ccStatePda),
-    ]);
+  const [
+    nativeAccount,
+    syntheticAccount,
+    collateralAccount,
+    ccStateAccount,
+    cctpAtaPayerAccount,
+  ] = await Promise.all([
+    fetchEncodedAccount(rpc, nativeCollateralPda),
+    fetchEncodedAccount(rpc, syntheticMintPda),
+    fetchEncodedAccount(rpc, escrowPda),
+    fetchEncodedAccount(rpc, ccStatePda),
+    fetchEncodedAccount(rpc, cctpAtaPayerPda),
+  ]);
 
   // CC has both escrow + CC state; check CC first to disambiguate from collateral
   if (collateralAccount.exists && ccStateAccount.exists) {
@@ -120,6 +138,7 @@ export async function detectWarpTokenType(
   if (nativeAccount.exists) matches.push(SvmWarpTokenType.Native);
   if (syntheticAccount.exists) matches.push(SvmWarpTokenType.Synthetic);
   if (collateralAccount.exists) matches.push(SvmWarpTokenType.Collateral);
+  if (cctpAtaPayerAccount.exists) matches.push(SvmWarpTokenType.CollateralCctp);
 
   assert(
     matches.length === 1,

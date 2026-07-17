@@ -38,6 +38,7 @@ export enum TokenStandard {
   SealevelHypCollateral = 'SealevelHypCollateral',
   SealevelHypSynthetic = 'SealevelHypSynthetic',
   SealevelHypCrossCollateral = 'SealevelHypCrossCollateral',
+  SealevelHypCctp = 'SealevelHypCctp',
 
   // Cosmos
   CosmosIcs20 = 'CosmosIcs20',
@@ -129,6 +130,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   SealevelHypCollateral: ProtocolType.Sealevel,
   SealevelHypSynthetic: ProtocolType.Sealevel,
   SealevelHypCrossCollateral: ProtocolType.Sealevel,
+  SealevelHypCctp: ProtocolType.Sealevel,
 
   // Cosmos
   CosmosIcs20: ProtocolType.Cosmos,
@@ -299,6 +301,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
   TokenStandard.SealevelHypCrossCollateral,
+  TokenStandard.SealevelHypCctp,
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
@@ -487,6 +490,7 @@ export const SEALEVEL_SUPPORTED_TOKEN_TYPES = [
   TokenType.synthetic,
   TokenType.native,
   TokenType.crossCollateral,
+  TokenType.collateralCctp,
 ] as const;
 
 type SealevelSupportedTokenTypes =
@@ -500,6 +504,7 @@ export const SEALEVEL_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.SealevelHypSynthetic,
   [TokenType.native]: TokenStandard.SealevelHypNative,
   [TokenType.crossCollateral]: TokenStandard.SealevelHypCrossCollateral,
+  [TokenType.collateralCctp]: TokenStandard.SealevelHypCctp,
 };
 
 // Starknet supported token types

@@ -74,6 +74,13 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
           );
         },
       },
+      collateralCctp: {
+        read: async () => {
+          throw new Error(
+            'collateralCctp tokens are not supported on Starknet',
+          );
+        },
+      },
     };
     return readers[type];
   }
@@ -107,6 +114,23 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
         update: async () => {
           throw new Error(
             'Cross-collateral tokens are not supported on Starknet',
+          );
+        },
+      },
+      collateralCctp: {
+        read: async () => {
+          throw new Error(
+            'collateralCctp tokens are not supported on Starknet',
+          );
+        },
+        create: async () => {
+          throw new Error(
+            'collateralCctp tokens are not supported on Starknet',
+          );
+        },
+        update: async () => {
+          throw new Error(
+            'collateralCctp tokens are not supported on Starknet',
           );
         },
       },

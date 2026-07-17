@@ -320,12 +320,16 @@ abstract class TokenDeployer<
     );
 
     const circleDomains = await promiseObjAll(
-      objMap(cctpConfigs, (chain, config) =>
-        IMessageTransmitter__factory.connect(
+      objMap(cctpConfigs, (chain, config) => {
+        assert(
+          config.messageTransmitter,
+          `Missing messageTransmitter for CCTP config on chain ${chain}`,
+        );
+        return IMessageTransmitter__factory.connect(
           config.messageTransmitter,
           this.multiProvider.getProvider(chain),
-        ).localDomain(),
-      ),
+        ).localDomain();
+      }),
     );
 
     const domains = Object.entries(circleDomains).map(([chain, circle]) => ({

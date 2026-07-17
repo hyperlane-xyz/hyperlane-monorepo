@@ -101,6 +101,9 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Cosmos');
       },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Cosmos');
+      },
     };
 
     return readers[type]();
@@ -148,6 +151,9 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
       },
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Cosmos');
+      },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Cosmos');
       },
     };
 

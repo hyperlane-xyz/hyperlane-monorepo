@@ -22,6 +22,10 @@ import {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './cross-collateral-token.js';
+import {
+  SvmCollateralCctpTokenReader,
+  SvmCollateralCctpTokenWriter,
+} from './collateral-cctp-token.js';
 import { SvmNativeTokenReader, SvmNativeTokenWriter } from './native-token.js';
 import {
   SvmSyntheticTokenReader,
@@ -62,6 +66,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       synthetic: () => new SvmSyntheticTokenReader(this.rpc),
       collateral: () => new SvmCollateralTokenReader(this.rpc),
       crossCollateral: () => new SvmCrossCollateralTokenReader(this.rpc),
+      collateralCctp: () => new SvmCollateralCctpTokenReader(this.rpc),
     };
 
     return readers[type]();
@@ -116,6 +121,18 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           {
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCrossCollateral,
+            },
+            ataPayerFundingAmount: this.ataPayerFundingAmount,
+            feeSalt: this.feeSalt,
+          },
+          this.rpc,
+          signer,
+        ),
+      collateralCctp: () =>
+        new SvmCollateralCctpTokenWriter(
+          {
+            program: {
+              programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCctp,
             },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
             feeSalt: this.feeSalt,

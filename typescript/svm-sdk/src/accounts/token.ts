@@ -37,6 +37,7 @@ export interface TokenFeeConfig {
 export const NATIVE_PLUGIN_SIZE = 1;
 export const SYNTHETIC_PLUGIN_SIZE = 34;
 export const COLLATERAL_PLUGIN_SIZE = 98;
+export const CCTP_PLUGIN_SIZE = 65;
 
 export interface HyperlaneTokenAccountData {
   bump: number;
@@ -173,6 +174,8 @@ function decodeHyperlaneTokenInner(
 // NativePlugin:    1 byte  (native_collateral_bump)
 // SyntheticPlugin: 34 bytes (mint:32, mint_bump:1, ata_payer_bump:1)
 // CollateralPlugin:98 bytes (spl_token_program:32, mint:32, escrow:32, escrow_bump:1, ata_payer_bump:1)
+// CctpPlugin:      65 bytes (spl_token_program:32, mint:32, ata_payer_bump:1) — no escrow,
+//                  Circle's real programs hold the token supply, not this program.
 // ---------------------------------------------------------------------------
 
 export interface NativePluginData {
@@ -227,6 +230,50 @@ export function decodeCollateralPlugin(
     escrowBump: cursor.readU8(),
     ataPayerBump: cursor.readU8(),
   };
+}
+
+export interface CctpPluginData {
+  splTokenProgram: Address;
+  mint: Address;
+  ataPayerBump: number;
+}
+
+export function decodeCctpPlugin(pluginData: Uint8Array): CctpPluginData {
+  if (pluginData.length < CCTP_PLUGIN_SIZE)
+    throw new Error(
+      `CctpPlugin: need ${CCTP_PLUGIN_SIZE} bytes, got ${pluginData.length}`,
+    );
+  const cursor = new ByteCursor(pluginData);
+  return {
+    splTokenProgram: readAddress(cursor),
+    mint: readAddress(cursor),
+    ataPayerBump: cursor.readU8(),
+  };
+}
+
+/**
+ * Per-destination-domain CCTP send config account (the `RemoteConfig` PDA).
+ * Matches `RemoteConfig` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/accounts.rs —
+ * a plain Borsh struct behind the standard 1-byte-init-flag `AccountData<T>`
+ * wrapper (no discriminator).
+ */
+export interface CctpRemoteConfigAccountData {
+  bumpSeed: number;
+  circleDomain: number;
+  maxFee: bigint;
+  minFinalityThreshold: number;
+}
+
+export function decodeCctpRemoteConfigAccount(
+  raw: Uint8Array,
+): CctpRemoteConfigAccountData | null {
+  return decodeAccountData(raw, (cursor) => ({
+    bumpSeed: cursor.readU8(),
+    circleDomain: cursor.readU32LE(),
+    maxFee: cursor.readU64LE(),
+    minFinalityThreshold: cursor.readU32LE(),
+  })).data;
 }
 
 function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {

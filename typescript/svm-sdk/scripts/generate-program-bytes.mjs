@@ -25,6 +25,7 @@ const PROGRAMS = {
   tokenNative: 'hyperlane_sealevel_token_native.so',
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
   tokenCrossCollateral: 'hyperlane_sealevel_token_cross_collateral.so',
+  tokenCctp: 'hyperlane_sealevel_token_cctp.so',
   tokenFee: 'hyperlane_sealevel_fee.so',
 };
 

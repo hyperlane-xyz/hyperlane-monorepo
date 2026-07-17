@@ -78,6 +78,9 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Aleo');
       },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Aleo');
+      },
     };
 
     return readers[type]();
@@ -113,6 +116,9 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
         ),
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Aleo');
+      },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Aleo');
       },
     };
 

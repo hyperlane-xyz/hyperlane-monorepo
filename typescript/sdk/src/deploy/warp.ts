@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  CollateralCctpWarpConfig,
   CollateralWarpConfig,
   CrossCollateralWarpConfig,
   NativeWarpConfig,
@@ -96,6 +97,7 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.collateral,
   TokenType.native,
   TokenType.crossCollateral,
+  TokenType.collateralCctp,
 ]);
 
 export function validateWarpConfigForAltVM(
@@ -192,6 +194,20 @@ export function validateWarpConfigForAltVM(
       const result: NativeWarpConfig = {
         ...baseConfig,
         type: ProviderTokenType.native,
+      };
+      return result;
+    }
+    case TokenType.collateralCctp: {
+      if (!config.token) {
+        throw new Error(
+          `CCTP token config for chain '${chain}' must specify 'token' address`,
+        );
+      }
+      const result: CollateralCctpWarpConfig = {
+        ...baseConfig,
+        type: ProviderTokenType.collateralCctp,
+        token: config.token,
+        remoteConfigs: config.remoteConfigs,
       };
       return result;
     }

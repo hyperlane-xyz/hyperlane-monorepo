@@ -163,6 +163,8 @@ export {
   deriveMailboxDispatchedMessagePda,
   deriveIgpGasPaymentPda,
   deriveFeeTransientQuotePda,
+  deriveCctpAtaPayerPda,
+  deriveCctpRemoteConfigPda,
 } from './pda.js';
 
 // Warp token transfer-remote instruction builders
@@ -179,6 +181,8 @@ export type {
 } from './instructions/token.js';
 export { getCrossCollateralTransferRemoteToInstruction } from './instructions/cross-collateral-token.js';
 export type { TransferRemoteToInstructionData } from './instructions/cross-collateral-token.js';
+export { getCctpSetRemoteConfigInstruction } from './instructions/token-cctp.js';
+export type { CctpSetRemoteConfigParams } from './instructions/token-cctp.js';
 
 // Address Lookup Table reader / writer pair. Wraps the on-chain ALT
 // program account behind the same ArtifactReader / ArtifactWriter
@@ -198,6 +202,9 @@ export {
   decodeIgpProgramDataAccount,
   decodeIgpAccount,
   decodeOverheadIgpAccount,
+  decodeCctpPlugin,
+  decodeCctpRemoteConfigAccount,
+  CCTP_PLUGIN_SIZE,
 } from './accounts/token.js';
 export {
   encodeSvmIgpQuoteContext,
@@ -244,6 +251,11 @@ export {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
+// CCTP v2 warp token reader/writer
+export {
+  SvmCollateralCctpTokenReader,
+  SvmCollateralCctpTokenWriter,
+} from './warp/collateral-cctp-token.js';
 export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
 export { isSvmDeployedWarpAddress as isSealevelDeployedWarpAddress } from './warp/types.js';
 export { isSvmDeployedIgpHook as isSealevelDeployedIgpHook } from './types.js';

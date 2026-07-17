@@ -66,6 +66,9 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Radix');
       },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Radix');
+      },
     };
 
     return readers[type]();
@@ -92,6 +95,9 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
       },
       crossCollateral: () => {
         throw new Error('Cross-collateral tokens are not supported on Radix');
+      },
+      collateralCctp: () => {
+        throw new Error('collateralCctp tokens are not supported on Radix');
       },
     };
 

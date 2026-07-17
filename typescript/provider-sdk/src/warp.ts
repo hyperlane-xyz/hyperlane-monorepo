@@ -56,6 +56,7 @@ export const TokenType = {
   collateral: 'collateral',
   native: 'native',
   crossCollateral: 'crossCollateral',
+  collateralCctp: 'collateralCctp',
 } as const;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
@@ -98,11 +99,30 @@ export interface CrossCollateralWarpConfig extends BaseWarpConfig {
   crossCollateralRouters?: Record<string, string[]>;
 }
 
+/**
+ * Per-remote-domain CCTP send config: which Circle domain a Hyperlane
+ * destination maps to, and the fee/finality parameters to use for
+ * `deposit_for_burn` calls targeting it. Keyed by chain name (Config API) or
+ * domain ID (Artifact API), mirroring `remoteRouters`/`destinationGas`.
+ */
+export interface CctpRemoteConfig {
+  circleDomain: number;
+  maxFee: string;
+  minFinalityThreshold: number;
+}
+
+export interface CollateralCctpWarpConfig extends BaseWarpConfig {
+  type: 'collateralCctp';
+  token: string;
+  remoteConfigs?: Record<string, CctpRemoteConfig>;
+}
+
 export type WarpConfig =
   | CollateralWarpConfig
   | SyntheticWarpConfig
   | NativeWarpConfig
-  | CrossCollateralWarpConfig;
+  | CrossCollateralWarpConfig
+  | CollateralCctpWarpConfig;
 
 export interface BaseDerivedWarpConfig {
   owner: string;
@@ -145,11 +165,21 @@ export interface DerivedCrossCollateralWarpConfig extends BaseDerivedWarpConfig 
   crossCollateralRouters: Record<string, string[]>;
 }
 
+export interface DerivedCollateralCctpWarpConfig extends BaseDerivedWarpConfig {
+  type: 'collateralCctp';
+  token: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  remoteConfigs: Record<string, CctpRemoteConfig>;
+}
+
 export type DerivedWarpConfig =
   | DerivedCollateralWarpConfig
   | DerivedSyntheticWarpConfig
   | DerivedNativeWarpConfig
-  | DerivedCrossCollateralWarpConfig;
+  | DerivedCrossCollateralWarpConfig
+  | DerivedCollateralCctpWarpConfig;
 
 export type WarpRouteAddresses = {
   deployedTokenRoute: string;
@@ -204,11 +234,18 @@ export interface CrossCollateralWarpArtifactConfig extends BaseWarpArtifactConfi
   crossCollateralRouters: Record<number, Set<string>>;
 }
 
+export interface CollateralCctpWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.collateralCctp;
+  token: string;
+  remoteConfigs: Record<number, CctpRemoteConfig>;
+}
+
 export interface WarpArtifactConfigs {
   collateral: CollateralWarpArtifactConfig;
   synthetic: SyntheticWarpArtifactConfig;
   native: NativeWarpArtifactConfig;
   crossCollateral: CrossCollateralWarpArtifactConfig;
+  collateralCctp: CollateralCctpWarpArtifactConfig;
 }
 
 export type WarpType = keyof WarpArtifactConfigs;
@@ -249,11 +286,15 @@ export type RawNativeWarpArtifactConfig =
 export type RawCrossCollateralWarpArtifactConfig =
   ConfigOnChain<CrossCollateralWarpArtifactConfig>;
 
+export type RawCollateralCctpWarpArtifactConfig =
+  ConfigOnChain<CollateralCctpWarpArtifactConfig>;
+
 export interface RawWarpArtifactConfigs {
   collateral: RawCollateralWarpArtifactConfig;
   synthetic: RawSyntheticWarpArtifactConfig;
   native: RawNativeWarpArtifactConfig;
   crossCollateral: RawCrossCollateralWarpArtifactConfig;
+  collateralCctp: RawCollateralCctpWarpArtifactConfig;
 }
 
 /**
@@ -382,6 +423,26 @@ export function warpConfigToArtifact(
     }
   }
 
+  // Convert remoteConfigs (CCTP) from chain names to domain IDs
+  const convertRemoteConfigs = (
+    remoteConfigs: Record<string, CctpRemoteConfig> | undefined,
+  ): Record<number, CctpRemoteConfig> => {
+    const result: Record<number, CctpRemoteConfig> = {};
+    if (!remoteConfigs) return result;
+    for (const [chainName, remoteConfig] of Object.entries(remoteConfigs)) {
+      const domainId = chainLookup.getDomainId(chainName);
+      if (isNullish(domainId)) {
+        logger?.warn(
+          `Skipping CCTP remote config for unknown chain: ${chainName}. ` +
+            `Chain not found in chain lookup.`,
+        );
+        continue;
+      }
+      result[domainId] = remoteConfig;
+    }
+    return result;
+  };
+
   const baseArtifactConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -453,6 +514,17 @@ export function warpConfigToArtifact(
         },
       };
 
+    case 'collateralCctp':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          ...baseArtifactConfig,
+          type: 'collateralCctp',
+          token: config.token,
+          remoteConfigs: convertRemoteConfigs(config.remoteConfigs),
+        },
+      };
+
     default: {
       const invalidConfig: never = config;
       throw new Error(
@@ -500,6 +572,20 @@ export function warpArtifactToDerivedConfig(
     }
     destinationGas[chainName] = gas;
   }
+
+  // Convert remoteConfigs (CCTP) from domain IDs back to chain names
+  const convertRemoteConfigsToDerived = (
+    remoteConfigs: Record<number, CctpRemoteConfig>,
+  ): Record<string, CctpRemoteConfig> => {
+    const result: Record<string, CctpRemoteConfig> = {};
+    for (const [domainIdStr, remoteConfig] of Object.entries(remoteConfigs)) {
+      const domainId = parseInt(domainIdStr);
+      const chainName = chainLookup.getChainName(domainId);
+      if (!chainName) continue;
+      result[chainName] = remoteConfig;
+    }
+    return result;
+  };
 
   // Convert ISM artifact to config if present
   assert(
@@ -599,6 +685,13 @@ export function warpArtifactToDerivedConfig(
           chainLookup,
         ),
       };
+    case 'collateralCctp':
+      return {
+        ...baseDerivedConfig,
+        type: TokenType.collateralCctp,
+        token: config.token,
+        remoteConfigs: convertRemoteConfigsToDerived(config.remoteConfigs),
+      };
     default: {
       const invalidConfig: never = config;
       throw new Error(
@@ -621,6 +714,7 @@ function getCollateralToken(config: WarpArtifactConfig): string {
   switch (config.type) {
     case TokenType.collateral:
     case TokenType.crossCollateral:
+    case TokenType.collateralCctp:
       return config.token;
     case TokenType.native:
     case TokenType.synthetic:

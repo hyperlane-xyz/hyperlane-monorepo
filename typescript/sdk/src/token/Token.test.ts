@@ -196,6 +196,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'SOL',
   },
   [TokenStandard.SealevelHypCrossCollateral]: null,
+  [TokenStandard.SealevelHypCctp]: null,
 
   // Cosmos
   [TokenStandard.CosmosIcs20]: null,
