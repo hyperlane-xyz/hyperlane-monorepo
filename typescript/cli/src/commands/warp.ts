@@ -2,7 +2,14 @@ import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
-import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
+import {
+  DEFAULT_MANUAL_POLL_INTERVAL_MS,
+  DEFAULT_MANUAL_TIMEOUT_MS,
+  ExecutionType,
+  ExternalBridgeType,
+  RebalancerConfig,
+  RebalancerService,
+} from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
@@ -13,6 +20,7 @@ import {
   difference,
   intersection,
   isEVMLike,
+  ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -695,6 +703,27 @@ export const check: CommandModuleWithContext<
   },
 };
 
+const EXECUTION_TYPES = Object.values(ExecutionType);
+const EXTERNAL_BRIDGE_TYPES = Object.values(ExternalBridgeType);
+const PROTOCOL_TYPES = Object.values(ProtocolType);
+const CHECK_FREQUENCY_OPTIONS = ['--checkFrequency', '--check-frequency'];
+
+function isExecutionType(value: string): value is ExecutionType {
+  return EXECUTION_TYPES.some((type) => type === value);
+}
+
+function isExternalBridgeType(value: string): value is ExternalBridgeType {
+  return EXTERNAL_BRIDGE_TYPES.some((type) => type === value);
+}
+
+function isCheckFrequencySet(): boolean {
+  return process.argv.some((argument) =>
+    CHECK_FREQUENCY_OPTIONS.some(
+      (option) => argument === option || argument.startsWith(`${option}=`),
+    ),
+  );
+}
+
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
   checkFrequency: number;
@@ -704,6 +733,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
   origin?: string;
   destination?: string;
   amount?: string;
+  executionType: string;
+  externalBridge?: string;
+  manualTimeout: number;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -742,13 +774,15 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     origin: {
       type: 'string',
-      description: 'The origin chain for manual rebalance',
+      description:
+        'The surplus leg for manual rebalance; receives released funds and is the external bridge source',
       demandOption: false,
       implies: 'manual',
     },
     destination: {
       type: 'string',
-      description: 'The destination chain for manual rebalance',
+      description:
+        'The deficit leg for manual rebalance; collateral is added there and transferRemote executes from it',
       demandOption: false,
       implies: 'manual',
     },
@@ -758,6 +792,27 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
       demandOption: false,
       implies: 'manual',
+    },
+    // No `implies: 'manual'` on defaulted options: yargs treats defaults as
+    // set, which would make every daemon-mode invocation fail the implication
+    executionType: {
+      type: 'string',
+      choices: EXECUTION_TYPES,
+      default: ExecutionType.MovableCollateral,
+      description: 'Execution type for manual rebalance',
+    },
+    externalBridge: {
+      type: 'string',
+      choices: EXTERNAL_BRIDGE_TYPES,
+      description:
+        'External bridge for manual inventory rebalance (required when the leg is not in the strategy config)',
+      implies: 'manual',
+    },
+    manualTimeout: {
+      type: 'number',
+      default: DEFAULT_MANUAL_TIMEOUT_MS / 60_000,
+      description:
+        'Max time in minutes to wait for a manual inventory rebalance to complete',
     },
   },
   handler: async (args) => {
@@ -771,16 +826,49 @@ export const rebalancer: CommandModuleWithWriteContext<{
       origin,
       destination,
       amount,
+      executionType: executionTypeArg,
+      externalBridge: externalBridgeArg,
+      manualTimeout,
     } = args;
 
     logCommandHeader('Hyperlane Warp Route Rebalancer');
 
     try {
+      assert(
+        isExecutionType(executionTypeArg),
+        `Invalid execution type: ${executionTypeArg}`,
+      );
+      assert(
+        manual || executionTypeArg === ExecutionType.MovableCollateral,
+        '--executionType inventory requires --manual',
+      );
+      assert(
+        externalBridgeArg === undefined ||
+          isExternalBridgeType(externalBridgeArg),
+        `Invalid external bridge: ${externalBridgeArg}`,
+      );
+
       // Load rebalancer configuration
       const rebalancerConfig = RebalancerConfig.load(configPath);
 
       // Determine execution mode
       const mode = manual ? 'manual' : 'daemon';
+
+      const inventorySignerKeysByProtocol: Partial<
+        Record<ProtocolType, string>
+      > = {};
+      for (const protocol of PROTOCOL_TYPES) {
+        const key = process.env[`HYP_INVENTORY_KEY_${protocol.toUpperCase()}`];
+        if (key) inventorySignerKeysByProtocol[protocol] = key;
+      }
+      if (
+        !inventorySignerKeysByProtocol[ProtocolType.Ethereum] &&
+        process.env.HYP_INVENTORY_KEY
+      ) {
+        inventorySignerKeysByProtocol[ProtocolType.Ethereum] =
+          process.env.HYP_INVENTORY_KEY;
+      }
+      const swapsXyzApiKey = process.env.SWAPSXYZ_API_KEY;
 
       // Create rebalancer service
       const service = new RebalancerService(
@@ -794,8 +882,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
           withMetrics,
           monitorOnly,
           coingeckoApiKey: process.env.COINGECKO_API_KEY,
+          externalBridgeApiKeys: swapsXyzApiKey
+            ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
+            : undefined,
           logger: rootLogger.child({ module: 'rebalancer' }),
         },
+        inventorySignerKeysByProtocol,
       );
 
       // Execute based on mode
@@ -811,6 +903,14 @@ export const rebalancer: CommandModuleWithWriteContext<{
           origin,
           destination,
           amount,
+          executionType: executionTypeArg,
+          externalBridge: externalBridgeArg,
+          timeoutMs: manualTimeout * 60_000,
+          pollIntervalMs: isCheckFrequencySet()
+            ? checkFrequency
+            : executionTypeArg === ExecutionType.Inventory
+              ? DEFAULT_MANUAL_POLL_INTERVAL_MS
+              : undefined,
         });
 
         logGreen('✅ Manual rebalance completed successfully');
