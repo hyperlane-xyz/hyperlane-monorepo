@@ -27,6 +27,7 @@ export interface MovableCollateralExecutionResult extends ExecutionResult<Movabl
 }
 
 export interface InventoryExecutionResult extends ExecutionResult<InventoryRoute> {
+  intentId?: string;
   messageId?: string;
   amountSent?: bigint;
 }

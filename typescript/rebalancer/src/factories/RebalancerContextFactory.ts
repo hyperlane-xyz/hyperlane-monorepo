@@ -3,6 +3,7 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  type ChainName,
   type CoreAddresses,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -69,12 +70,18 @@ import {
   normalizeToCanonical,
 } from '../utils/balanceUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
+import { deriveInventorySignerConfigs } from '../utils/inventorySigners.js';
 
 const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 function throwUnknownBridgeType(_bridgeType: never): never {
   throw new Error('Unknown bridge type');
+}
+
+export interface ManualInventoryOptions {
+  additionalInventoryChains: ChainName[];
+  requiredExternalBridges?: ExternalBridgeType[];
 }
 
 export class RebalancerContextFactory {
@@ -320,6 +327,7 @@ export class RebalancerContextFactory {
 
   public async createActionTracker(
     explorerUrlOrClient: string | IExplorerClient = DEFAULT_EXPLORER_URL,
+    overrides?: { movementStalenessMs?: number },
   ): Promise<{
     tracker: IActionTracker;
     adapter: InflightContextAdapter;
@@ -397,6 +405,7 @@ export class RebalancerContextFactory {
             .filter((address): address is Address => Boolean(address))
         : undefined,
       intentTTL: this.config.intentTTL,
+      movementStalenessMs: overrides?.movementStalenessMs,
     };
 
     // 6. Create ActionTracker
@@ -436,14 +445,32 @@ export class RebalancerContextFactory {
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
     externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
+    manualInventory?: ManualInventoryOptions,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigners } = this.config;
+    const effectiveInventorySigners: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    > = { ...this.config.inventorySigners };
+    if (manualInventory) {
+      const derivedSigners = deriveInventorySignerConfigs(
+        this.inventorySignerKeysByProtocol ?? {},
+        this.config.inventorySigners,
+        this.logger,
+      );
+      for (const protocol of Object.values(ProtocolType)) {
+        const derivedSigner = derivedSigners[protocol];
+        if (derivedSigner) effectiveInventorySigners[protocol] = derivedSigner;
+      }
+      assert(
+        Object.keys(effectiveInventorySigners).length > 0,
+        'Manual inventory rebalancing requires inventory signer keys via HYP_INVENTORY_KEY_<PROTOCOL> env vars',
+      );
+    }
 
-    if (!inventorySigners || Object.keys(inventorySigners).length === 0) {
+    if (Object.keys(effectiveInventorySigners).length === 0) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -451,10 +478,12 @@ export class RebalancerContextFactory {
     }
 
     const redactedInventorySigners = Object.fromEntries(
-      Object.entries(inventorySigners).map(([protocol, signerConfig]) => [
-        protocol,
-        signerConfig ? { address: signerConfig.address } : signerConfig,
-      ]),
+      Object.entries(effectiveInventorySigners).map(
+        ([protocol, signerConfig]) => [
+          protocol,
+          signerConfig ? { address: signerConfig.address } : signerConfig,
+        ],
+      ),
     );
 
     this.logger.debug(
@@ -465,7 +494,12 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
+    const inventoryChains = Array.from(
+      new Set([
+        ...getInventoryChainNames(this.config.strategyConfig),
+        ...(manualInventory?.additionalInventoryChains ?? []),
+      ]),
+    );
     const inventoryOriginChains = getInventoryOriginChainNames(
       this.config.strategyConfig,
     );
@@ -473,7 +507,7 @@ export class RebalancerContextFactory {
       new Set([...inventoryChains, ...inventoryOriginChains]),
     );
 
-    if (allRelevantChains.length === 0) {
+    if (allRelevantChains.length === 0 && !manualInventory) {
       this.logger.debug('No inventory chains configured');
       return null;
     }
@@ -518,7 +552,7 @@ export class RebalancerContextFactory {
           protocol,
       );
       assert(
-        this.config.inventorySigners?.[protocol]?.key ??
+        effectiveInventorySigners[protocol]?.key ??
           this.inventorySignerKeysByProtocol?.[protocol],
         `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
       );
@@ -532,13 +566,16 @@ export class RebalancerContextFactory {
           protocol,
       );
       assert(
-        inventorySigners[protocol]?.address,
+        effectiveInventorySigners[protocol]?.address,
         `Missing inventory address for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
       );
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
-      externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
+      externalBridgeRegistryOverride ??
+      this.buildExternalBridgeRegistry(
+        manualInventory?.requiredExternalBridges,
+      );
 
     if (Object.keys(externalBridgeRegistry).length === 0) {
       if (externalBridgeRegistryOverride !== undefined) {
@@ -552,7 +589,7 @@ export class RebalancerContextFactory {
       }
       const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
       for (const protocol of Object.values(ProtocolType)) {
-        const cfg = inventorySigners[protocol];
+        const cfg = effectiveInventorySigners[protocol];
         if (!cfg) continue;
         inventoryAddresses[protocol] = cfg.address;
       }
@@ -565,7 +602,7 @@ export class RebalancerContextFactory {
         Record<ProtocolType, InventorySignerConfig>
       > = {};
       for (const protocol of Object.values(ProtocolType)) {
-        const cfg = inventorySigners[protocol];
+        const cfg = effectiveInventorySigners[protocol];
         if (!cfg) continue;
         mergedSigners[protocol] = {
           address: cfg.address,
@@ -593,7 +630,7 @@ export class RebalancerContextFactory {
     // 3. Build inventory config
     const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
     for (const protocol of Object.values(ProtocolType)) {
-      const cfg = inventorySigners[protocol];
+      const cfg = effectiveInventorySigners[protocol];
       if (!cfg) continue;
       inventoryAddresses[protocol] = cfg.address;
     }
@@ -607,7 +644,7 @@ export class RebalancerContextFactory {
     const mergedSigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
       {};
     for (const protocol of Object.values(ProtocolType)) {
-      const cfg = inventorySigners[protocol];
+      const cfg = effectiveInventorySigners[protocol];
       if (!cfg) continue;
       mergedSigners[protocol] = {
         address: cfg.address,
@@ -637,14 +674,22 @@ export class RebalancerContextFactory {
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
 
-  private buildExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+  private buildExternalBridgeRegistry(
+    required?: ExternalBridgeType[],
+  ): Partial<ExternalBridgeRegistry> {
     const { externalBridges } = this.config;
     const registry: Partial<ExternalBridgeRegistry> = {};
+    const requiredBridges = new Set(required ?? []);
 
     for (const bridgeType of Object.values(ExternalBridgeType)) {
       switch (bridgeType) {
         case ExternalBridgeType.LiFi: {
           const lifiConfig = externalBridges?.lifi;
+          if (!lifiConfig?.integrator && requiredBridges.has(bridgeType)) {
+            throw new Error(
+              'LiFi is required for manual inventory rebalancing but externalBridges.lifi.integrator is not configured',
+            );
+          }
           if (lifiConfig?.integrator) {
             registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
@@ -658,7 +703,9 @@ export class RebalancerContextFactory {
           break;
         }
         case ExternalBridgeType.SwapsXyz: {
-          const swapsxyzConfig = externalBridges?.swapsxyz;
+          const swapsxyzConfig =
+            externalBridges?.swapsxyz ??
+            (requiredBridges.has(bridgeType) ? {} : undefined);
           if (swapsxyzConfig) {
             const apiKey =
               this.externalBridgeApiKeys?.[ExternalBridgeType.SwapsXyz];
@@ -701,6 +748,7 @@ export class RebalancerContextFactory {
     actionTracker: IActionTracker,
     metrics?: Metrics,
     externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
+    manualInventory?: ManualInventoryOptions,
   ): Promise<{
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -724,6 +772,7 @@ export class RebalancerContextFactory {
     const inventoryComponents = await this.createInventoryRebalancerAndConfig(
       actionTracker,
       externalBridgeRegistryOverride,
+      manualInventory,
     );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);

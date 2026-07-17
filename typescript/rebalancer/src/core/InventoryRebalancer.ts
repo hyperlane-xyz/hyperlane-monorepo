@@ -488,7 +488,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         );
       }
 
-      return [result];
+      return [{ ...result, intentId: intent.id }];
     } catch (error) {
       this.logger.error(
         {
@@ -503,6 +503,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         {
           route,
           success: false,
+          intentId: intent.id,
           error: (error as Error).message,
         },
       ];
@@ -573,7 +574,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         );
       }
 
-      return [result];
+      return [{ ...result, intentId: intent.id }];
     } catch (error) {
       this.logger.error(
         {
@@ -588,6 +589,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         {
           route,
           success: false,
+          intentId: intent.id,
           error: (error as Error).message,
         },
       ];

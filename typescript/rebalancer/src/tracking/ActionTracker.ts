@@ -36,6 +36,7 @@ export interface ActionTrackerConfig {
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
   intentTTL: number; // Max age in ms before in-progress intent is expired
+  movementStalenessMs?: number;
 }
 
 /**
@@ -604,7 +605,10 @@ export class ActionTracker implements IActionTracker {
         // Use nonPendingSince when available; fall back to createdAt for
         // pre-deploy data that lacks the field.
         const nonPendingStart = a.nonPendingSince ?? a.createdAt;
-        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
+        return (
+          now - nonPendingStart >=
+          (this.config.movementStalenessMs ?? DEFAULT_MOVEMENT_STALENESS_MS)
+        );
       });
       const staleMovementIds = new Set(staleMovements.map((a) => a.id));
 

@@ -26,7 +26,6 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
-import { Keypair } from '@solana/web3.js';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -34,7 +33,6 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
-  isEVMLike,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -42,7 +40,7 @@ import {
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { ExternalBridgeType } from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
-import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
+import { deriveInventorySignerConfigs } from './utils/inventorySigners.js';
 import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
 
 async function main(): Promise<void> {
@@ -151,55 +149,11 @@ async function main(): Promise<void> {
     );
 
     // Build consolidated inventory signers with keys embedded
-    const inventorySigners: Partial<
-      Record<ProtocolType, InventorySignerConfig>
-    > = {};
-
-    for (const protocol of Object.values(ProtocolType)) {
-      const privateKey = inventoryPrivateKeys[protocol];
-      if (!privateKey) continue;
-
-      let derivedAddress: string;
-
-      if (isEVMLike(protocol)) {
-        // Tron uses same hex private key format as Ethereum.
-        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
-        derivedAddress = new Wallet(privateKey).address;
-      } else if (protocol === ProtocolType.Sealevel) {
-        const keyBytes = parseSolanaPrivateKey(privateKey);
-        const keypair = Keypair.fromSecretKey(keyBytes);
-        derivedAddress = keypair.publicKey.toBase58();
-      } else {
-        logger.warn(
-          { protocol },
-          `Unsupported protocol for inventory signer derivation, skipping`,
-        );
-        continue;
-      }
-
-      // Validate against config if present
-      const configuredAddress =
-        rebalancerConfig.inventorySigners?.[protocol]?.address;
-      if (configuredAddress) {
-        const mismatch = isEVMLike(protocol)
-          ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
-          : configuredAddress !== derivedAddress;
-        if (mismatch) {
-          throw new Error(
-            `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
-          );
-        }
-      }
-
-      inventorySigners[protocol] = {
-        address: derivedAddress,
-        key: privateKey,
-      };
-      logger.info(
-        { protocol, address: derivedAddress },
-        `✅ ${protocol} inventory signer configured`,
-      );
-    }
+    const inventorySigners = deriveInventorySignerConfigs(
+      inventoryPrivateKeys,
+      rebalancerConfig.inventorySigners,
+      logger,
+    );
 
     // Fail fast if config references protocol-specific inventory signer but key is missing
     if (!monitorOnly) {

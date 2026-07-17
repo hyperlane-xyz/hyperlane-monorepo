@@ -1104,6 +1104,42 @@ describe('ActionTracker', () => {
       expect(failedAction?.status).to.equal('failed');
     });
 
+    it('honors a configured movement staleness window', async () => {
+      config.movementStalenessMs = DEFAULT_MOVEMENT_STALENESS_MS * 2;
+      await rebalanceIntentStore.save({
+        id: 'intent-custom-staleness',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save({
+        id: 'movement-custom-staleness',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        intentId: 'intent-custom-staleness',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(0);
+      const action = await rebalanceActionStore.get(
+        'movement-custom-staleness',
+      );
+      expect(action?.status).to.equal('in_progress');
+    });
+
     it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-undefined-status',

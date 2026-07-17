@@ -8,7 +8,11 @@
  */
 
 // Core service
-export { RebalancerService } from './core/RebalancerService.js';
+export {
+  DEFAULT_MANUAL_POLL_INTERVAL_MS,
+  DEFAULT_MANUAL_TIMEOUT_MS,
+  RebalancerService,
+} from './core/RebalancerService.js';
 export type {
   RebalancerServiceConfig,
   ManualRebalanceRequest,
@@ -22,6 +26,8 @@ export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_INTENT_TTL_S,
+  ExecutionType,
+  ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
@@ -33,6 +39,7 @@ export {
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
+export type { ManualInventoryOptions } from './factories/RebalancerContextFactory.js';
 export type {
   MinAmountStrategyConfig,
   RebalancerConfig as RebalancerConfigType,

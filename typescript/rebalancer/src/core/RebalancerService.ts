@@ -6,15 +6,20 @@ import {
   type MultiProvider,
   Token,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
-  type ExternalBridgeType,
+  DEFAULT_MOVEMENT_STALENESS_MS,
+  ExecutionType,
+  ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
-import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
+import {
+  type ManualInventoryOptions,
+  RebalancerContextFactory,
+} from '../factories/RebalancerContextFactory.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import {
   MonitorEvent,
@@ -25,15 +30,24 @@ import {
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type {
   IStrategy,
+  InventoryRoute,
   MovableCollateralRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
+import {
+  type InventoryMonitorConfig,
+  Monitor,
+  fetchInventoryBalances,
+} from '../monitor/Monitor.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
+import { InventoryRebalancer } from './InventoryRebalancer.js';
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
+
+export const DEFAULT_MANUAL_POLL_INTERVAL_MS = 15_000;
+export const DEFAULT_MANUAL_TIMEOUT_MS = 45 * 60 * 1_000;
 
 export interface RebalancerServiceConfig {
   /** Execution mode: 'manual' for one-off execution, 'daemon' for continuous monitoring */
@@ -72,6 +86,16 @@ export interface ManualRebalanceRequest {
   origin: string;
   destination: string;
   amount: string;
+  executionType?: ExecutionType;
+  externalBridge?: ExternalBridgeType;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+}
+
+function isInventoryRebalancer(
+  rebalancer: IRebalancer,
+): rebalancer is InventoryRebalancer {
+  return rebalancer.rebalancerType === 'inventory';
 }
 
 /**
@@ -127,6 +151,9 @@ export class RebalancerService {
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
   private orchestrator?: RebalancerOrchestrator;
+  private inventoryRebalancer?: InventoryRebalancer;
+  private inventoryMonitorConfig?: InventoryMonitorConfig;
+  private externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly multiProtocolProvider: MultiProtocolProvider | undefined,
@@ -144,8 +171,15 @@ export class RebalancerService {
   /**
    * Initialize the service components
    */
-  private async initialize(): Promise<void> {
+  private async initialize(options?: {
+    manualInventory?: ManualInventoryOptions;
+    movementStalenessMs?: number;
+  }): Promise<void> {
     if (this.contextFactory) {
+      assert(
+        !options,
+        'RebalancerService is already initialized; initialization options cannot be applied',
+      );
       // Already initialized
       return;
     }
@@ -186,8 +220,11 @@ export class RebalancerService {
       await this.actionTracker.initialize();
       this.logger.info('Using externally provided ActionTracker');
     } else {
-      const { tracker, adapter } =
-        await this.contextFactory.createActionTracker();
+      const { tracker, adapter } = options?.movementStalenessMs
+        ? await this.contextFactory.createActionTracker(undefined, {
+            movementStalenessMs: options.movementStalenessMs,
+          })
+        : await this.contextFactory.createActionTracker();
       this.actionTracker = tracker;
       this.inflightContextAdapter = adapter;
       await this.actionTracker.initialize();
@@ -203,10 +240,15 @@ export class RebalancerService {
       const result = await this.contextFactory.createRebalancers(
         this.actionTracker,
         this.metrics,
+        undefined,
+        options?.manualInventory,
       );
       rebalancers = result.rebalancers;
       externalBridgeRegistry = result.externalBridgeRegistry;
       inventoryConfig = result.inventoryConfig;
+      this.inventoryRebalancer = rebalancers.find(isInventoryRebalancer);
+      this.inventoryMonitorConfig = inventoryConfig;
+      this.externalBridgeRegistry = externalBridgeRegistry;
 
       if (rebalancers.length > 0) {
         this.logger.info(`${rebalancers.length} rebalancer(s) created`);
@@ -256,6 +298,13 @@ export class RebalancerService {
    * Execute a manual one-off rebalance
    */
   async executeManual(request: ManualRebalanceRequest): Promise<void> {
+    if (
+      (request.executionType ?? ExecutionType.MovableCollateral) ===
+      ExecutionType.Inventory
+    ) {
+      return this.executeManualInventory(request);
+    }
+
     await this.initialize();
 
     assert(
@@ -317,6 +366,224 @@ export class RebalancerService {
         `❌ Manual rebalance from ${origin} to ${destination} failed`,
       );
       throw error;
+    }
+  }
+
+  private resolveManualExternalBridge(
+    origin: string,
+    destination: string,
+    cliOverride?: ExternalBridgeType,
+  ): ExternalBridgeType {
+    const originConfig = getStrategyChainConfig(
+      this.rebalancerConfig.strategyConfig,
+      origin,
+    );
+    const externalBridge =
+      cliOverride ??
+      originConfig?.override?.[destination]?.externalBridge ??
+      originConfig?.externalBridge;
+    assert(
+      externalBridge,
+      `No external bridge configured for ${origin} → ${destination}. Pass an external bridge or configure one in the strategy.`,
+    );
+    return externalBridge;
+  }
+
+  private async checkManualInventoryTerminal(
+    intentId: string,
+  ): Promise<boolean> {
+    assert(this.actionTracker, 'ActionTracker must be initialized');
+    const intent = await this.actionTracker.getRebalanceIntent(intentId);
+    if (!intent) return false;
+
+    if (intent.status === 'failed' || intent.status === 'cancelled') {
+      throw new Error(
+        `Manual inventory rebalance intent ${intentId} reached terminal status ${intent.status}`,
+      );
+    }
+    if (intent.status !== 'complete') return false;
+
+    const actions = await this.actionTracker.getActionsForIntent(intentId);
+    const completedAmount = actions
+      .filter(
+        (action) =>
+          action.type === 'inventory_deposit' && action.status === 'complete',
+      )
+      .reduce((sum, action) => sum + action.amount, 0n);
+    if (completedAmount === 0n) {
+      throw new Error(
+        `Manual inventory rebalance intent ${intentId} completed without moving funds — amount below the gas-based minimum viable transfer`,
+      );
+    }
+    if (completedAmount < intent.amount) {
+      this.logger.warn(
+        {
+          intentId,
+          completedAmount: completedAmount.toString(),
+          requestedAmount: intent.amount.toString(),
+          writtenOffAmount: (intent.amount - completedAmount).toString(),
+        },
+        'Manual inventory rebalance completed with a written-off remainder',
+      );
+    }
+    this.logger.info(
+      {
+        intentId,
+        completedAmount: completedAmount.toString(),
+        requestedAmount: intent.amount.toString(),
+      },
+      '✅ Manual inventory rebalance completed successfully',
+    );
+    return true;
+  }
+
+  private async executeManualInventory(
+    request: ManualRebalanceRequest,
+  ): Promise<void> {
+    const { origin, destination, amount } = request;
+    const pollIntervalMs =
+      request.pollIntervalMs ?? DEFAULT_MANUAL_POLL_INTERVAL_MS;
+    const timeoutMs = request.timeoutMs ?? DEFAULT_MANUAL_TIMEOUT_MS;
+    const externalBridge = this.resolveManualExternalBridge(
+      origin,
+      destination,
+      request.externalBridge,
+    );
+
+    await this.initialize({
+      manualInventory: {
+        additionalInventoryChains: [origin, destination],
+        requiredExternalBridges: [externalBridge],
+      },
+      movementStalenessMs: Math.max(DEFAULT_MOVEMENT_STALENESS_MS, timeoutMs),
+    });
+
+    assert(
+      this.inventoryRebalancer,
+      'Inventory rebalancer not available. MonitorOnly mode cannot execute manual rebalances.',
+    );
+    assert(this.contextFactory, 'Rebalancer context must be initialized');
+    assert(this.actionTracker, 'ActionTracker must be initialized');
+    assert(
+      this.inventoryMonitorConfig,
+      'Inventory monitor config must be initialized',
+    );
+
+    const warpCore = this.contextFactory.getWarpCore();
+    const originToken = warpCore.tokens.find(
+      (token: Token) => token.chainName === origin,
+    );
+    if (!originToken) {
+      const error = `Origin token not found for chain ${origin}`;
+      this.logger.error(error);
+      throw new Error(error);
+    }
+
+    const amountNum = Number(amount);
+    assert(!isNaN(amountNum), 'Amount must be a valid number');
+    assert(amountNum > 0, 'Amount must be greater than 0');
+
+    // getPartiallyFulfilledInventoryIntents omits intents blocked by a
+    // non-stale in-flight movement, so also check in-progress intents directly
+    const [partialIntents, inProgressIntents] = await Promise.all([
+      this.actionTracker.getPartiallyFulfilledInventoryIntents(),
+      this.actionTracker.getActiveRebalanceIntents(),
+    ]);
+    const blockingIntentId =
+      partialIntents[0]?.intent.id ??
+      inProgressIntents.find((intent) => intent.executionMethod === 'inventory')
+        ?.id;
+    assert(
+      !blockingIntentId,
+      `Cannot start manual inventory rebalance while intent ${blockingIntentId} is active`,
+    );
+
+    const route: InventoryRoute = {
+      origin,
+      destination,
+      amount: normalizeConfiguredAmount(amount, originToken),
+      executionType: 'inventory',
+      externalBridge,
+    };
+    const deadline = Date.now() + timeoutMs;
+    let cycle = 0;
+    let firstCycle = true;
+    let intentId: string | undefined;
+
+    while (true) {
+      cycle += 1;
+      const inventoryBalances = await fetchInventoryBalances(
+        warpCore,
+        this.inventoryMonitorConfig,
+        this.logger,
+      );
+      this.inventoryRebalancer.setInventoryBalances(inventoryBalances);
+
+      await this.actionTracker.syncInventoryMovementActions(
+        this.externalBridgeRegistry,
+      );
+      await this.actionTracker.syncRebalanceActions();
+      await this.actionTracker.syncRebalanceIntents();
+
+      const intent = intentId
+        ? await this.actionTracker.getRebalanceIntent(intentId)
+        : undefined;
+      this.logger.info(
+        {
+          cycle,
+          intentId,
+          intentStatus: intent?.status ?? 'not_created',
+          origin,
+          originInventory: (inventoryBalances[origin] ?? 0n).toString(),
+          destination,
+          destinationInventory: (
+            inventoryBalances[destination] ?? 0n
+          ).toString(),
+        },
+        'Manual inventory rebalance polling cycle',
+      );
+
+      if (intentId && (await this.checkManualInventoryTerminal(intentId))) {
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        await this.actionTracker.logStoreContents();
+        throw new Error(
+          'Manual inventory rebalance timed out. In-flight external bridge transfers cannot be cancelled and will settle at the destination inventory address; in-flight transferRemote deposits are delivered by the relayer regardless. Check the destination inventory balance before re-running to avoid double-bridging.',
+        );
+      }
+
+      const wasFirstCycle = firstCycle;
+      const results = await this.inventoryRebalancer.rebalance(
+        firstCycle ? [route] : [],
+      );
+      firstCycle = false;
+
+      const result = results[0];
+      if (result) {
+        intentId ??= result.intentId;
+        if (!result.success && wasFirstCycle) {
+          if (intentId) {
+            await this.actionTracker.cancelRebalanceIntent(intentId);
+          }
+          throw new Error(
+            `Manual inventory rebalance dispatch failed: ${result.error ?? 'unknown error'}`,
+          );
+        }
+        if (!result.success) {
+          this.logger.warn(
+            { cycle, intentId, error: result.error },
+            'Manual inventory rebalance cycle failed; continuing to poll',
+          );
+        }
+      }
+
+      if (intentId && (await this.checkManualInventoryTerminal(intentId))) {
+        return;
+      }
+
+      await sleep(pollIntervalMs);
     }
   }
 
