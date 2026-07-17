@@ -1,6 +1,6 @@
 ---
 name: fund-key
-description: Autonomously remediate a low-balance PagerDuty/Grafana alert for a Hyperlane agent key (relayer / key-funder EOA) by bridging native funds from the Turnkey funder key (TaggisFunder, arbitrum) to the underfunded address, with independent on-chain receipt verification. Use ONLY after confirming the shortfall is real (not a stale-burn false positive). The live broadcast is gated behind explicit human [CONFIRM:].
+description: Autonomously remediate a low-balance PagerDuty/Grafana alert for a Hyperlane agent key (relayer / key-funder EOA) by bridging native funds from the Turnkey funder key (TaggisFunder, arbitrum) to the underfunded address, with independent on-chain receipt verification. Use ONLY after confirming the shortfall is real (not a stale-burn false positive). Broadcasts autonomously within a bounded source-spend cap; escalates instead of broadcasting on any guardrail failure.
 ---
 
 # Fund Key
@@ -10,6 +10,14 @@ funder signs an EVM-origin transaction from the Turnkey **TaggisFunder** key on
 arbitrum and bridges/swaps native funds to the underfunded address on any
 destination chain (EVM **or** alt-VM such as Tron). Rail priority: warp routes →
 swaps.xyz → LiFi. Delivery is independently verified on-chain.
+
+**Autonomous by default.** Once the shortfall is confirmed real (Step 0) and a
+route resolves within the `--max-source-spend` cap, this skill broadcasts
+WITHOUT a human confirmation gate. The safety envelope is the bounded spend cap,
+the funder-balance preflight, and the automated escalation conditions below — a
+guardrail failure escalates to a human instead of broadcasting. This full-auto
+policy is a deliberate decision by Nam (2026-07-17); the cap + preflight +
+receipt verification are what keep it safe.
 
 The funding mechanism lives in the private-agents repo:
 `typescript/stableswap-rebalancer/src/funding/fundKeyLive.ts`.
@@ -49,10 +57,11 @@ never hardcode secrets.
 | `SWAPSXYZ_API_KEY`              | `mainnet3-stableswap-rebalancer-env` GCP secret                      |
 | `RPC_URL_ARBITRUM`              | `mainnet3-stableswap-rebalancer-env` GCP secret (funder-chain RPC)   |
 
-> **Setup note:** if the `haggis-key-funder-env` secret does not yet exist,
-> the funder org id / key id / address must be provisioned into it before this
-> skill can run unattended. That is a one-time shared-infra change requiring
-> explicit confirmation.
+> **Setup note:** the `haggis-key-funder-env` secret holds the funder org id /
+> key id / address. It must exist before this skill can run unattended. The
+> `haggis@abacus-labs-dev` service account can READ secrets but cannot CREATE
+> them, so first-time provisioning requires a human with
+> `secretmanager.secrets.create` (or an IAM grant to the SA).
 
 GCP project: `abacus-labs-dev`.
 
@@ -109,20 +118,26 @@ balance preflight, prints the plan, and exits WITHOUT signing.
 
 If the plan reports `NO ROUTE` or preflight `ESCALATION`, stop and escalate.
 
-### Step 4: Present the plan and gate on confirmation
+### Step 4: Confirm the plan is inside the safety envelope
 
 Surface the resolved plan (rail, spend, deliver amount, guardrail cap, funder
-balances, preflight result). Because this moves funds irreversibly, end your
-message with `[CONFIRM: Broadcast key funding — <deliver> to <address> on <chain>, spending ~<quote> USDC (cap <cap>)]`
-and do NOT broadcast yet.
+balances, preflight result). Then verify the automated envelope before
+broadcasting:
 
-### Step 5: Broadcast on approval
+- Plan-only exited `0` (route resolved, guardrail + funder preflight passed).
+- The re-quote is comfortably under `--max-source-spend`.
+- No escalation condition from the table below is triggered.
 
-After the human approves, re-run the EXACT same command with `--broadcast`
-appended. The harness re-quotes fresh calldata, re-applies the guardrail +
-preflight at broadcast time, Turnkey-signs and broadcasts each tx in order,
-registers alt-VM broadcasts (swaps.xyz), polls settlement, then independently
-verifies the destination receipt on-chain.
+If any of these fails, **escalate to a human — do NOT broadcast**. Otherwise
+proceed directly to Step 5 (no `[CONFIRM:]` gate).
+
+### Step 5: Broadcast autonomously
+
+Re-run the EXACT same command with `--broadcast` appended. The harness re-quotes
+fresh calldata, re-applies the guardrail + preflight at broadcast time (aborting
+if the fresh quote exceeds the cap), Turnkey-signs and broadcasts each tx in
+order, registers alt-VM broadcasts (swaps.xyz), polls settlement, then
+independently verifies the destination receipt on-chain.
 
 ### Step 6: Report
 
@@ -150,10 +165,13 @@ Exit codes: `0` settled + verified, `1` failed, `2` preflight escalation,
 
 - **Funder is EVM-origin (arbitrum).** The destination may be EVM or alt-VM
   (Tron proven live; other alt-VM chains depend on swaps.xyz support).
-- **Broadcast is human-gated.** Per the Haggis confirmation convention,
-  irreversible fund movement requires an explicit `[CONFIRM:]`. This skill does
-  not auto-broadcast. (A fully autonomous no-confirm mode is possible but is a
-  deliberate policy choice, not the default.)
+- **Broadcast is autonomous (no `[CONFIRM:]`).** Per Nam's deliberate policy
+  decision (2026-07-17), this skill broadcasts without a human confirmation gate
+  once Step 0 confirms the shortfall is real and the plan clears the safety
+  envelope. The human-in-the-loop is replaced by the bounded `--max-source-spend`
+  cap, the funder-balance preflight, and the escalation table — any guardrail
+  failure escalates instead of broadcasting. Revisit this policy if the funder's
+  blast radius grows.
 - **Cap discipline.** Always pass a bounded `--max-source-spend`; the guardrail
   re-checks it against the freshly re-quoted route right before signing.
 - All three rails (warp, LiFi, swaps.xyz) are validated live with independent
