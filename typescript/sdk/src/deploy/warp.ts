@@ -171,6 +171,7 @@ export function validateWarpConfigForAltVM(
         symbol: config.symbol,
         decimals: config.decimals,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
       return result;
     }
@@ -404,8 +405,23 @@ export async function executeWarpDeploy(
             signer,
           );
 
+          // Deploy as the signer (intermediate owner), mirroring the EVM
+          // deployer (see TokenDeployer.deploy). Cross-chain router enrollment
+          // runs after deploy in enrollCrossChainRouters, submitted by the
+          // deployer key; it also hands ownership to the configured owner. If
+          // create() set the configured owner up front, the deployer could no
+          // longer sign those post-deploy enrollment txs.
+          const intermediateOwnerConfig = {
+            ...config,
+            owner: signer.getSignerAddress(),
+          };
+
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(config, chain, chainMetadata.protocol),
+            validateWarpConfigForAltVM(
+              intermediateOwnerConfig,
+              chain,
+              chainMetadata.protocol,
+            ),
             chainLookup,
           );
 
