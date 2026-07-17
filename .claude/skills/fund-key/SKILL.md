@@ -126,7 +126,7 @@ From the private-agents repo, run WITHOUT `--broadcast` first:
 ```bash
 cd /workspace/sandbox/private-agents/typescript/key-funder
 # ...export the env vars from the GCP secrets above...
-npx tsx src/funding/fundKeyLive.ts \
+pnpm exec tsx src/funding/fundKeyLive.ts \
   --dest-chain <chain> \
   --dest-address <wallet_address> \
   --shortfall <native amount to deliver> \
