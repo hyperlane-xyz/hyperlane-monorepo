@@ -76,6 +76,33 @@ function isStagingOrTestRoute(warpRouteId: string): boolean {
   return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
 }
 
+// Upper bound on how long a single warp route check may run before it is
+// abandoned. A hung/unresponsive RPC leg on one route would otherwise stall the
+// entire cron run indefinitely, starving every subsequent route of a check.
+const DEFAULT_PER_ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
+const perRouteTimeoutMs = Number(
+  process.env.WARP_CHECK_PER_ROUTE_TIMEOUT_MS ?? DEFAULT_PER_ROUTE_TIMEOUT_MS,
+);
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeoutMessage: string,
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () => reject(new Error(onTimeoutMessage)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
 async function main() {
   const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
@@ -164,15 +191,19 @@ async function main() {
 
     try {
       const warpDeployConfig = warpDeployConfigMap[warpRouteId];
-      const result = await runWarpRouteCheckFromRegistry({
-        chains,
-        multiProvider,
-        registry,
-        registryUris: registries,
-        warpRouteId,
-        warpCoreConfig: warpCoreConfigMap[warpRouteId],
-        warpDeployConfig,
-      });
+      const result = await withTimeout(
+        runWarpRouteCheckFromRegistry({
+          chains,
+          multiProvider,
+          registry,
+          registryUris: registries,
+          warpRouteId,
+          warpCoreConfig: warpCoreConfigMap[warpRouteId],
+          warpDeployConfig,
+        }),
+        perRouteTimeoutMs,
+        `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
+      );
 
       if (result.violations.length > 0) {
         logWarpRouteCheckResult(result);
