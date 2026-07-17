@@ -6,10 +6,15 @@ import {
   MIN_PROGRAM_DATA_EXTEND_BYTES,
 } from '../constants.js';
 
+import { PROGRAM_DATA_HEADER_SIZE } from './program-deployer.js';
 import {
-  extendFitsAccountLimit,
+  newBinaryFitsAccountLimit,
   requiredExtendBytes,
 } from './program-upgrade.js';
+
+// Largest program a program-data account can hold: the account cap minus the
+// fixed metadata header.
+const MAX_PROGRAM_LEN = MAX_ACCOUNT_DATA_SIZE - PROGRAM_DATA_HEADER_SIZE;
 
 describe('requiredExtendBytes', () => {
   const cases: Array<{
@@ -48,6 +53,20 @@ describe('requiredExtendBytes', () => {
       currentMaxProgramLen: 100_000,
       expected: MIN_PROGRAM_DATA_EXTEND_BYTES,
     },
+    {
+      // Near the cap, clamping a sub-minimum deficit up to the loader minimum
+      // would overflow the account; request the remaining headroom instead.
+      name: 'requests the remaining headroom rather than overflowing the cap',
+      newProgramLen: MAX_PROGRAM_LEN - 3_000,
+      currentMaxProgramLen: MAX_PROGRAM_LEN - 5_000,
+      expected: 5_000,
+    },
+    {
+      name: 'requests exactly the headroom when the binary fills the account to the cap',
+      newProgramLen: MAX_PROGRAM_LEN,
+      currentMaxProgramLen: MAX_PROGRAM_LEN - 3_000,
+      expected: 3_000,
+    },
   ];
 
   for (const { name, newProgramLen, currentMaxProgramLen, expected } of cases) {
@@ -59,45 +78,32 @@ describe('requiredExtendBytes', () => {
   }
 });
 
-describe('extendFitsAccountLimit', () => {
+describe('newBinaryFitsAccountLimit', () => {
   const cases: Array<{
     name: string;
-    currentAccountSize: number;
-    additionalBytes: number;
+    newProgramLen: number;
     expected: boolean;
   }> = [
     {
-      name: 'fits when well under the account limit',
-      currentAccountSize: 1_000_000,
-      additionalBytes: MIN_PROGRAM_DATA_EXTEND_BYTES,
+      name: 'fits when well under the maximum program size',
+      newProgramLen: 1_000_000,
       expected: true,
     },
     {
-      name: 'fits exactly at the account limit',
-      currentAccountSize: MAX_ACCOUNT_DATA_SIZE - MIN_PROGRAM_DATA_EXTEND_BYTES,
-      additionalBytes: MIN_PROGRAM_DATA_EXTEND_BYTES,
+      name: 'fits a binary exactly at the maximum program size',
+      newProgramLen: MAX_PROGRAM_LEN,
       expected: true,
     },
     {
-      name: 'does not fit one byte past the account limit',
-      currentAccountSize:
-        MAX_ACCOUNT_DATA_SIZE - MIN_PROGRAM_DATA_EXTEND_BYTES + 1,
-      additionalBytes: MIN_PROGRAM_DATA_EXTEND_BYTES,
-      expected: false,
-    },
-    {
-      name: 'does not fit when a near-full account is clamped up to the minimum extend',
-      currentAccountSize: MAX_ACCOUNT_DATA_SIZE - 1,
-      additionalBytes: MIN_PROGRAM_DATA_EXTEND_BYTES,
+      name: 'does not fit a binary one byte over the maximum program size',
+      newProgramLen: MAX_PROGRAM_LEN + 1,
       expected: false,
     },
   ];
 
-  for (const { name, currentAccountSize, additionalBytes, expected } of cases) {
+  for (const { name, newProgramLen, expected } of cases) {
     it(name, () => {
-      expect(
-        extendFitsAccountLimit(currentAccountSize, additionalBytes),
-      ).to.equal(expected);
+      expect(newBinaryFitsAccountLimit(newProgramLen)).to.equal(expected);
     });
   }
 });

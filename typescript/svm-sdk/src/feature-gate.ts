@@ -1,6 +1,6 @@
 import type { Address } from '@solana/kit';
 
-import { isNullish } from '@hyperlane-xyz/utils';
+import { eqAddressSol, isNullish } from '@hyperlane-xyz/utils';
 
 import { FEATURE_GATE_PROGRAM_ADDRESS } from './constants.js';
 import type { SvmRpc } from './types.js';
@@ -21,7 +21,10 @@ type FeatureGateAccount = {
 export function isActiveFeatureAccount(
   account: FeatureGateAccount | null,
 ): boolean {
-  if (isNullish(account) || account.owner !== FEATURE_GATE_PROGRAM_ADDRESS) {
+  if (
+    isNullish(account) ||
+    !eqAddressSol(account.owner, FEATURE_GATE_PROGRAM_ADDRESS)
+  ) {
     return false;
   }
   const data = Buffer.from(account.data[0], 'base64');

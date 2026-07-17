@@ -4,7 +4,10 @@ import {
   type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { TokenType as ArtifactTokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type RawCrossCollateralWarpArtifactConfig,
+  TokenType as ArtifactTokenType,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   SealevelSigner,
   SvmCrossCollateralTokenReader,
@@ -56,19 +59,6 @@ const LOADER_V3 = new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
 const PROGRAM_DATA_AUTHORITY_FLAG_OFFSET = 12;
 const PROGRAM_DATA_AUTHORITY_OFFSET = 13;
 const PROGRAM_DATA_HEADER_SIZE = 45;
-
-// Base config for the legacy cross-collateral route deployed directly via the
-// svm-sdk writer. Typed explicitly so a future required field on the artifact
-// config surfaces as a compile error here rather than silently defaulting.
-interface LegacyCcCreateConfig {
-  type: typeof ArtifactTokenType.crossCollateral;
-  owner: string;
-  mailbox: string;
-  token: string;
-  remoteRouters: Record<number, { address: string }>;
-  destinationGas: Record<number, string>;
-  crossCollateralRouters: Record<number, Set<string>>;
-}
 
 /**
  * Returns the set of program addresses whose ProgramData upgrade authority is
@@ -152,7 +142,7 @@ describe('hyperlane warp legacy-upgrade + fee apply CLI e2e tests (Sealevel)', f
     // 1. Deploy a pre-v1 cross-collateral route directly with legacy bytes.
     // The CLI cannot deploy legacy bytes, so the svm-sdk writer stands in for
     // a route that predates fee-program support.
-    const legacyConfig: LegacyCcCreateConfig = {
+    const legacyConfig: RawCrossCollateralWarpArtifactConfig = {
       type: ArtifactTokenType.crossCollateral,
       owner: ownerAddress,
       mailbox: mailboxAddress,

@@ -34,9 +34,13 @@ import { compareVersions } from '../version/version-query.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 /**
- * Bytes needed to grow the program-data account for a new binary, clamped up
- * to the loader's minimum single-extend size. Returns 0 when the new binary
- * already fits.
+ * Bytes needed to grow the program-data account for a new binary. Clamps up to
+ * the loader's minimum single-extend size, except near the account cap where
+ * it requests exactly the remaining headroom instead: the loader permits a
+ * sub-minimum extend that consumes the last of the space (Agave near-cap
+ * rule). Returns 0 when the new binary already fits. Callers must confirm the
+ * binary fits via `newBinaryFitsAccountLimit` — for an over-cap binary the
+ * returned headroom is insufficient.
  */
 export function requiredExtendBytes(
   newProgramLen: number,
@@ -46,23 +50,20 @@ export function requiredExtendBytes(
     return 0;
   }
 
-  return Math.max(
-    newProgramLen - currentMaxProgramLen,
-    MIN_PROGRAM_DATA_EXTEND_BYTES,
-  );
+  const deficit = newProgramLen - currentMaxProgramLen;
+  const headroom =
+    MAX_ACCOUNT_DATA_SIZE - PROGRAM_DATA_HEADER_SIZE - currentMaxProgramLen;
+  return Math.min(Math.max(deficit, MIN_PROGRAM_DATA_EXTEND_BYTES), headroom);
 }
 
 /**
- * Whether growing a program-data account of `currentAccountSize` bytes by
- * `additionalBytes` stays within Solana's account-data limit. The extend
- * clamp to the loader minimum can request growth past the cap for a near-full
- * account, which the loader would reject with an opaque error.
+ * Whether a `newProgramLen`-byte binary can fit a program-data account within
+ * Solana's account-data limit (program bytes plus the fixed metadata header).
+ * Independent of the current size: an over-cap binary cannot be extended into
+ * place at all.
  */
-export function extendFitsAccountLimit(
-  currentAccountSize: number,
-  additionalBytes: number,
-): boolean {
-  return currentAccountSize + additionalBytes <= MAX_ACCOUNT_DATA_SIZE;
+export function newBinaryFitsAccountLimit(newProgramLen: number): boolean {
+  return newProgramLen + PROGRAM_DATA_HEADER_SIZE <= MAX_ACCOUNT_DATA_SIZE;
 }
 
 /**
@@ -144,15 +145,14 @@ export async function prepareProgramUpgrade(
     currentMaxProgramLen,
   );
 
-  if (additionalBytes > 0) {
-    // The clamp to MIN_PROGRAM_DATA_EXTEND_BYTES can push a near-full account
-    // past the loader cap; fail fast with a clear message instead of the
-    // opaque on-chain loader error.
-    assert(
-      extendFitsAccountLimit(currentAccountSize, additionalBytes),
-      `Cannot upgrade ${label}: new binary needs the program-data account grown to ${currentAccountSize + additionalBytes} bytes, exceeding Solana's ${MAX_ACCOUNT_DATA_SIZE}-byte account limit`,
-    );
+  // An over-cap binary can't be extended into place; fail fast with a clear
+  // message instead of the opaque on-chain loader error.
+  assert(
+    newBinaryFitsAccountLimit(programBytes.length),
+    `Cannot upgrade ${label}: new binary of ${programBytes.length} bytes exceeds the ${MAX_ACCOUNT_DATA_SIZE - PROGRAM_DATA_HEADER_SIZE}-byte maximum program size (Solana's ${MAX_ACCOUNT_DATA_SIZE}-byte account limit)`,
+  );
 
+  if (additionalBytes > 0) {
     const checkedActive = await isFeatureActive(
       rpc,
       EXTEND_PROGRAM_CHECKED_FEATURE,
