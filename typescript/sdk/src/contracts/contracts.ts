@@ -331,12 +331,18 @@ export async function isAddressActive(
   provider: EthersLikeProvider,
   address: Address,
 ): Promise<boolean> {
-  const [code, txnCount] = await Promise.all([
-    provider.getCode(address),
-    provider.getTransactionCount(address),
-  ]);
+  const code = await provider.getCode(address);
+  if (code !== '0x') {
+    return true;
+  }
 
-  return code !== '0x' || txnCount > 0;
+  // Some chains (e.g. tron) don't implement eth_getTransactionCount over their
+  // JSON-RPC; a throwing nonce lookup must not force an Inactive verdict.
+  try {
+    return (await provider.getTransactionCount(address)) > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
