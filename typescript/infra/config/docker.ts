@@ -62,7 +62,7 @@ export const testnetDockerTags: BaseDockerTags = {
   relayer: '8b6fdf8-20260605-090142',
   relayerRC: '8b6fdf8-20260605-090142',
   relayerFastPath: '8b6fdf8-20260605-090142',
-  validator: '8b6fdf8-20260605-090142',
+  validator: '4ef51c4-20260717-113727',
   validatorRC: '8b6fdf8-20260605-090142',
   validatorFastPath: '8b6fdf8-20260605-090142',
   scraper: '8b6fdf8-20260605-090142',

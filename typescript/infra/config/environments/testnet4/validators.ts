@@ -144,7 +144,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod('solanadevnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43'],
+          [Contexts.Hyperlane]: ['0x6424142536c9e40b61076571cba83a255835b799'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
