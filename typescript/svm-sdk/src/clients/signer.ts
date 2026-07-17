@@ -69,9 +69,10 @@ export interface PrintableSvmTransaction {
   /**
    * Carried over from `SvmTransaction.waitForSlotAdvance`. A live signer
    * enforces this itself, but exported (file/Squads) transactions are signed
-   * and submitted by an external executor: when true, that executor MUST land
-   * this transaction in a strictly later slot than the previous one, otherwise
-   * the loader rejects an extend→upgrade→config sequence sharing a slot.
+   * and submitted by an external executor: when true, that executor MUST wait
+   * for the cluster slot to advance past this transaction's confirmation slot
+   * before submitting the next transaction, otherwise the loader rejects an
+   * extend→upgrade→config sequence sharing a slot.
    */
   waitForSlotAdvance?: boolean;
 }

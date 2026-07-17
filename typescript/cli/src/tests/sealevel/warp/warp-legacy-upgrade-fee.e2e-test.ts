@@ -252,6 +252,7 @@ describe('hyperlane warp legacy-upgrade + fee apply CLI e2e tests (Sealevel)', f
     console.log('[warp apply] exit code:', result.exitCode);
     console.log('[warp apply] stdout:\n', result.stdout);
     console.log('[warp apply] stderr:\n', result.stderr);
+    expect(result.exitCode, result.stderr).to.equal(0);
 
     const programsAfter = await programsOwnedBy(connection, ownerAddress);
     const newPrograms = [...programsAfter].filter(
