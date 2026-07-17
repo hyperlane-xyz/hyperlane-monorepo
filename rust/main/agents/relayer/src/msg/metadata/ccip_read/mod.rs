@@ -1,6 +1,6 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
@@ -8,6 +8,7 @@ use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
+use moka::future::Cache;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use reqwest::{header::CONTENT_TYPE, Client, Method};
 use serde::{Deserialize, Serialize};
@@ -15,10 +16,10 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt,
-    Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSigner,
+    HyperlaneSignerExt, Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
 };
-use hyperlane_ethereum::{OffchainLookup, Signers};
+use hyperlane_ethereum::OffchainLookup;
 
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 
@@ -31,6 +32,17 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+
+/// Authentication signatures are timeless and fully determined by the signer and signing hash.
+/// Keep a bounded process-local cache so CCIP pending retries and concurrent messages do not send
+/// the same digest to KMS repeatedly.
+type CcipSignatureCache = Cache<(H160, H256), String>;
+
+static CCIP_SIGNATURE_CACHE: OnceLock<CcipSignatureCache> = OnceLock::new();
+
+fn ccip_signature_cache() -> &'static CcipSignatureCache {
+    CCIP_SIGNATURE_CACHE.get_or_init(|| Cache::builder().max_capacity(10_000).build())
+}
 
 #[derive(Clone, Debug, Serialize)]
 struct OffchainLookupRequestBody {
@@ -74,8 +86,8 @@ impl Signable for HyperlaneAuthenticatedOffchainLookup {
 
 impl CcipReadIsmMetadataBuilder {
     /// Generate a relayer authentication signature (EIP-191) over call_data and sender and the url template
-    async fn generate_signature_hex(
-        signer: &Signers,
+    async fn generate_signature_hex<S: HyperlaneSigner>(
+        signer: &S,
         info: &OffchainLookup,
         url: &str,
     ) -> Result<String, MetadataBuildError> {
@@ -85,16 +97,37 @@ impl CcipReadIsmMetadataBuilder {
             call_data: info.call_data.clone().to_vec(),
             sender: info.sender.into(),
         };
-        // EIP-191 compliant signature over the signing hash of the HyperlaneOffchainLookupAttestation.
-        let signed = signer
-            .sign(signable)
+        let cache_key = (signer.eth_address(), signable.signing_hash());
+
+        ccip_signature_cache()
+            .try_get_with(cache_key, async {
+                // EIP-191 compliant signature over the signing hash of the
+                // HyperlaneOffchainLookupAttestation.
+                let signed = signer.sign(signable).await.map_err(|e| e.to_string())?;
+                let sig_bytes: [u8; 65] = signed.signature.into();
+                Ok::<_, String>(bytes_to_hex(&sig_bytes))
+            })
             .await
-            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))
+    }
 
-        let sig_bytes: [u8; 65] = signed.signature.into();
-        let sig_hex = bytes_to_hex(&sig_bytes);
+    /// GET-style CCIP requests have no request body, so there is nowhere to
+    /// send the relayer authentication signature.
+    async fn generate_signature_for_post_request<S: HyperlaneSigner>(
+        signer: Option<&S>,
+        info: &OffchainLookup,
+        url: &str,
+    ) -> Result<Option<String>, MetadataBuildError> {
+        if url.contains("{data}") {
+            return Ok(None);
+        }
 
-        Ok(sig_hex)
+        match signer {
+            Some(signer) => Self::generate_signature_hex(signer, info, url)
+                .await
+                .map(Some),
+            None => Ok(None),
+        }
     }
 
     /// Returns info on how to query for offchain information
@@ -359,11 +392,12 @@ async fn fetch_offchain_data(
     message_id: H256,
 ) -> Result<Metadata, FetchOutcome> {
     // Compute relayer authentication signature via EIP-191
-    let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
-        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
-    } else {
-        None
-    };
+    let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+        ism_builder.base.base_builder().get_signer(),
+        info,
+        url,
+    )
+    .await?;
 
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
@@ -479,12 +513,100 @@ fn create_ccip_url_regex() -> RegexSet {
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, vec};
+    use std::{
+        str::FromStr,
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+        vec,
+    };
 
-    use ethers::types::H160;
-    use hyperlane_core::SignedType;
+    use ethers::types::H160 as EthersH160;
+    use futures::future::join_all;
+    use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, SignedType, U256};
+    use hyperlane_ethereum::Signers;
 
     use super::*;
+
+    #[derive(Debug)]
+    struct CountingSigner {
+        address: H160,
+        calls: AtomicUsize,
+        failures_remaining: AtomicUsize,
+        delay: Duration,
+    }
+
+    impl CountingSigner {
+        fn new(address_byte: u8) -> Self {
+            Self {
+                address: H160::repeat_byte(address_byte),
+                calls: AtomicUsize::new(0),
+                failures_remaining: AtomicUsize::new(0),
+                delay: Duration::ZERO,
+            }
+        }
+
+        fn failing_once(address_byte: u8) -> Self {
+            Self {
+                failures_remaining: AtomicUsize::new(1),
+                ..Self::new(address_byte)
+            }
+        }
+
+        fn delayed(address_byte: u8) -> Self {
+            Self {
+                delay: Duration::from_millis(50),
+                ..Self::new(address_byte)
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl HyperlaneSigner for CountingSigner {
+        fn eth_address(&self) -> H160 {
+            self.address
+        }
+
+        async fn sign_hash(
+            &self,
+            _hash: &H256,
+        ) -> Result<HyperlaneSignature, HyperlaneSignerError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if !self.delay.is_zero() {
+                tokio::time::sleep(self.delay).await;
+            }
+            if self
+                .failures_remaining
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                let err: Box<dyn std::error::Error + Send + Sync> =
+                    Box::new(std::io::Error::other("simulated signer failure"));
+                return Err(err.into());
+            }
+
+            Ok(HyperlaneSignature {
+                r: U256::from(1),
+                s: U256::from(2),
+                v: 27,
+            })
+        }
+    }
+
+    fn test_offchain_lookup(call_data: &[u8], sender_byte: u8, url: &str) -> OffchainLookup {
+        OffchainLookup {
+            call_data: call_data.to_vec().into(),
+            sender: EthersH160::repeat_byte(sender_byte),
+            urls: vec![url.to_owned()],
+            callback_function: [0, 0, 0, 0],
+            extra_data: vec![].into(),
+        }
+    }
 
     #[tokio::test]
     async fn test_generate_signature_hex() {
@@ -500,7 +622,7 @@ mod test {
             // from TestCcipReadIsm.sol
             call_data: "callDataToReturn".as_bytes().to_vec().into(),
             // from ccipread.hardhat-test.ts
-            sender: H160::from_str("4ee6ecad1c2dae9f525404de8555724e3c35d07b").unwrap(),
+            sender: EthersH160::from_str("4ee6ecad1c2dae9f525404de8555724e3c35d07b").unwrap(),
             urls: vec![url.clone()],
             callback_function: [0, 0, 0, 0],
             extra_data: vec![].into(),
@@ -532,6 +654,114 @@ mod test {
                 .into(),
         };
         assert!(signer.verify(&signed).is_ok());
+    }
+
+    #[tokio::test]
+    async fn signature_cache_reuses_identical_signature() {
+        let signer = CountingSigner::new(0x10);
+        let url = "https://cache-reuse.example/lookup";
+        let info = test_offchain_lookup(b"cache-reuse", 0x11, url);
+
+        let first = CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+            .await
+            .unwrap();
+        let second = CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+            .await
+            .unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(signer.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn signature_cache_key_includes_signer_and_signing_hash() {
+        let signer = CountingSigner::new(0x20);
+        let other_signer = CountingSigner::new(0x21);
+        let url = "https://cache-key.example/lookup";
+        let info = test_offchain_lookup(b"cache-key", 0x22, url);
+        let other_data = test_offchain_lookup(b"other-data", 0x22, url);
+        let other_sender = test_offchain_lookup(b"cache-key", 0x23, url);
+
+        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+            .await
+            .unwrap();
+        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &other_data, url)
+            .await
+            .unwrap();
+        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &other_sender, url)
+            .await
+            .unwrap();
+        CcipReadIsmMetadataBuilder::generate_signature_hex(
+            &signer,
+            &info,
+            "https://other-url.example/lookup",
+        )
+        .await
+        .unwrap();
+        CcipReadIsmMetadataBuilder::generate_signature_hex(&other_signer, &info, url)
+            .await
+            .unwrap();
+
+        assert_eq!(signer.calls(), 4);
+        assert_eq!(other_signer.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn signature_cache_coalesces_concurrent_requests() {
+        let signer = CountingSigner::delayed(0x30);
+        let url = "https://cache-concurrent.example/lookup";
+        let info = test_offchain_lookup(b"cache-concurrent", 0x31, url);
+
+        let results = join_all(
+            (0..8).map(|_| CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)),
+        )
+        .await;
+
+        assert!(results.iter().all(Result::is_ok));
+        assert_eq!(signer.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn signature_cache_does_not_cache_errors() {
+        let signer = CountingSigner::failing_once(0x40);
+        let url = "https://cache-error.example/lookup";
+        let info = test_offchain_lookup(b"cache-error", 0x41, url);
+
+        assert!(
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+                .await
+                .is_err()
+        );
+        assert!(
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+                .await
+                .is_ok()
+        );
+        assert!(
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+                .await
+                .is_ok()
+        );
+
+        assert_eq!(signer.calls(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_request_does_not_generate_signature() {
+        let signer = CountingSigner::new(0x50);
+        let url = "https://get.example/{data}";
+        let info = test_offchain_lookup(b"get", 0x51, url);
+
+        let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+            Some(&signer),
+            &info,
+            url,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(signature, None);
+        assert_eq!(signer.calls(), 0);
     }
 
     #[test]

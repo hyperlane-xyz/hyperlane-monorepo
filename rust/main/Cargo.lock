@@ -9672,6 +9672,7 @@ dependencies = [
  "lander",
  "maplit",
  "mockall",
+ "moka",
  "num-derive",
  "num-traits",
  "once_cell",
