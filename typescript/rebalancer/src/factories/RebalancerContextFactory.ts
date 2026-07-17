@@ -647,6 +647,10 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.SwapsXyz: {
+          // Wired in a follow-up change (requires config schema + API key plumbing).
+          break;
+        }
         default: {
           // Exhaustive check - TypeScript will error if new enum value added
           const _exhaustive: never = bridgeType;

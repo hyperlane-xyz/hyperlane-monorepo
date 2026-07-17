@@ -36,6 +36,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  SwapsXyz = 'swapsxyz',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
