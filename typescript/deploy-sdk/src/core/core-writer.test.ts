@@ -355,6 +355,26 @@ describe('CoreWriter', () => {
       sinon.assert.calledWith(createVAWriterStub, 'validatorAnnounce', signer);
     });
 
+    it('should not forward config contractVersion into the create-path mailbox update', async () => {
+      // ARRANGE
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+          contractVersion: '1.0.0',
+        },
+      };
+
+      // ACT
+      const [result] = await coreWriter.create(artifact);
+
+      // ASSERT
+      expect(result.mailbox.config.contractVersion).to.be.undefined;
+    });
+
     it('should use existing ISM when DEPLOYED', async () => {
       // ARRANGE
       const artifact: ArtifactNew<MailboxArtifactConfig> = {
@@ -1422,6 +1442,66 @@ describe('CoreWriter', () => {
       );
       expect(updatedArtifact.config.requiredHook.deployed.address).to.equal(
         mockRequiredHookAddress,
+      );
+    });
+
+    it('should forward expected contractVersion into the mailbox update artifact', async () => {
+      // ARRANGE
+      const expectedContractVersion = '2.0.0';
+
+      const currentMailbox: DeployedMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+          contractVersion: '1.0.0',
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
+
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+          contractVersion: expectedContractVersion,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+      mockIsmArtifactManager.createWriter = sinon.stub().returns(mockIsmWriter);
+
+      const mockHookWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      await coreWriter.update(expectedArtifact);
+
+      // ASSERT
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const updatedArtifact = mailboxWriter.update.firstCall.args[0];
+      expect(updatedArtifact.config.contractVersion).to.equal(
+        expectedContractVersion,
       );
     });
   });

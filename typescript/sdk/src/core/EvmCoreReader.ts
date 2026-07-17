@@ -11,6 +11,7 @@ import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { fetchPackageVersion } from '../utils/contract.js';
 
 import { CoreConfig, DerivedCoreConfig } from './types.js';
 
@@ -86,6 +87,7 @@ export class EvmCoreReader implements CoreReader {
       derivedRequiredHook,
       derivedIcaRouterConfig,
       proxyAdminConfig,
+      contractVersion,
     ] = await Promise.all([
       readConfig(mailboxInstance.owner()),
       readConfig(this.evmIsmReader.deriveIsmConfig(defaultIsm)),
@@ -97,6 +99,7 @@ export class EvmCoreReader implements CoreReader {
           : undefined,
       ),
       readConfig(this.getProxyAdminConfig(mailboxProxyAdmin)),
+      fetchPackageVersion(this.provider, mailbox, this.logger),
     ]);
 
     assert(owner, `EvmCoreReader: owner read failed for ${mailbox}`);
@@ -120,6 +123,7 @@ export class EvmCoreReader implements CoreReader {
       requiredHook: derivedRequiredHook,
       interchainAccountRouter: derivedIcaRouterConfig,
       proxyAdmin: proxyAdminConfig,
+      contractVersion,
     };
     const hasLegacyIgp =
       hookTreeContainsLegacyIgp(derivedConfig.defaultHook) ||

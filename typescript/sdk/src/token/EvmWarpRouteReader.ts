@@ -22,7 +22,6 @@ import {
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   Ownable__factory,
-  PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
@@ -63,6 +62,7 @@ import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
+  fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
@@ -1624,24 +1624,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchPackageVersion(address: Address) {
-    const contractWithVersion = PackageVersioned__factory.connect(
-      address,
-      this.provider,
-    );
-
-    try {
-      return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err) {
-      if (isMissingSelectorCallException(err)) {
-        // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
-        // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
-        // The real version of a contract without this function is below 5.4.0
-        return '5.3.9';
-      } else {
-        this.logger.error(`Error when fetching package version ${err}`);
-        throw err;
-      }
-    }
+    return fetchContractPackageVersion(this.provider, address, this.logger);
   }
 
   async fetchProxyAdminConfig(
