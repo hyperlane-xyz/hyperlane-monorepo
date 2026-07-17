@@ -55,6 +55,8 @@ import {
   normalizeToCanonical,
 } from '../utils/balanceUtils.js';
 
+import { type IInventoryView, LocalInventoryView } from './InventoryView.js';
+
 /**
  * Buffer percentage to add when bridging inventory.
  * Bridges (amount * (100 + BRIDGE_BUFFER_PERCENT)) / 100 to account for slippage.
@@ -198,19 +200,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private readonly externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
   private readonly warpCore: WarpCore;
   private readonly multiProvider: MultiProvider;
-
-  /**
-   * Internal balance storage for inventory tracking.
-   * Updated via setInventoryBalances() before each rebalance cycle.
-   */
-  private inventoryBalances: Map<ChainName, bigint> = new Map();
-
-  /**
-   * Tracks inventory consumed during the current execution cycle.
-   * Cleared at the start of each execute() call.
-   * Used to prevent over-execution when multiple routes withdraw from the same chain.
-   */
-  private consumedInventory: Map<ChainName, bigint> = new Map();
+  private readonly view: IInventoryView;
 
   constructor(
     config: InventoryRebalancerConfig,
@@ -219,6 +209,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     warpCore: WarpCore,
     multiProvider: MultiProvider,
     logger: Logger,
+    inventoryView: IInventoryView = new LocalInventoryView(),
   ) {
     this.config = config;
     this.actionTracker = actionTracker;
@@ -226,6 +217,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     this.warpCore = warpCore;
     this.multiProvider = multiProvider;
     this.logger = logger;
+    this.view = inventoryView;
 
     // Validate that all tokens are collateral-backed
     // Synthetic tokens cannot be used with inventory rebalancing because:
@@ -328,14 +320,13 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Called before each rebalance cycle to update internal state.
    */
   setInventoryBalances(balances: Record<ChainName, bigint>): void {
-    this.inventoryBalances = new Map(Object.entries(balances));
+    this.view.setBalances(balances);
+    const entries = Array.from(this.view.entries());
     this.logger.debug(
       {
-        chains: Array.from(this.inventoryBalances.keys()),
+        chains: entries.map(([chain]) => chain),
         balances: Object.fromEntries(
-          Array.from(this.inventoryBalances.entries()).map(
-            ([chain, balance]) => [chain, balance.toString()],
-          ),
+          entries.map(([chain, balance]) => [chain, balance.toString()]),
         ),
       },
       'Updated inventory balances',
@@ -347,28 +338,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Returns 0n for unknown chains.
    */
   private getAvailableInventory(chain: ChainName): bigint {
-    return this.inventoryBalances.get(chain) ?? 0n;
-  }
-
-  /**
-   * Get all inventory balances.
-   */
-  private getBalances(): Map<ChainName, bigint> {
-    return this.inventoryBalances;
+    return this.view.getBalance(chain);
   }
 
   /**
    * Calculate total inventory across all chains, excluding specified chains.
    */
   private getTotalInventory(excludeChains: ChainName[]): bigint {
-    const excludeSet = new Set(excludeChains);
-    let total = 0n;
-    for (const [chain, balance] of this.inventoryBalances) {
-      if (!excludeSet.has(chain)) {
-        total += balance;
-      }
-    }
-    return total;
+    return this.view.getTotal(excludeChains);
   }
 
   private formatLocalAmount(amount: bigint, token: Token): string {
@@ -386,8 +363,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    */
   private getEffectiveAvailableInventory(chain: ChainName): bigint {
     const cached = this.getAvailableInventory(chain);
-    const consumed = this.consumedInventory.get(chain) ?? 0n;
-    const effective = cached > consumed ? cached - consumed : 0n;
+    const consumed = this.view.getConsumed(chain);
+    const effective = this.view.getEffectiveBalance(chain);
 
     if (consumed > 0n) {
       this.logger.debug(
@@ -415,7 +392,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   async rebalance(
     routes: InventoryRoute[],
   ): Promise<InventoryExecutionResult[]> {
-    this.consumedInventory.clear();
+    this.view.beginCycle();
 
     // 1. Check for existing in_progress intent
     const activeIntent = await this.getActiveInventoryIntent();
@@ -481,11 +458,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       // Update consumed inventory on success
       if (result.success && result.amountSent) {
-        const current = this.consumedInventory.get(route.destination) ?? 0n;
-        this.consumedInventory.set(
-          route.destination,
-          current + result.amountSent,
-        );
+        this.view.consume(route.destination, result.amountSent);
       }
 
       return [result];
@@ -566,11 +539,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       // Update consumed inventory on success
       if (result.success && result.amountSent) {
-        const current = this.consumedInventory.get(route.destination) ?? 0n;
-        this.consumedInventory.set(
-          route.destination,
-          current + result.amountSent,
-        );
+        this.view.consume(route.destination, result.amountSent);
       }
 
       return [result];
@@ -727,7 +696,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Calculate total inventory across all chains
-    // Note: consumedInventory tracking is handled separately within this cycle
+    // Note: consumed inventory tracking is handled separately within this cycle
     const totalInventory = this.getTotalInventory([]);
 
     this.logger.info(
@@ -1301,14 +1270,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private selectAllSourceChains(
     targetChain: ChainName,
   ): Array<{ chain: ChainName; availableAmount: bigint }> {
-    const balances = this.getBalances();
     const sources: Array<{ chain: ChainName; availableAmount: bigint }> = [];
 
-    for (const [chainName, balance] of balances) {
+    for (const [chainName] of this.view.entries()) {
       if (chainName === targetChain) continue;
 
-      const consumed = this.consumedInventory.get(chainName) ?? 0n;
-      const effectiveAvailable = balance > consumed ? balance - consumed : 0n;
+      const effectiveAvailable = this.view.getEffectiveBalance(chainName);
 
       if (effectiveAvailable > 0n) {
         sources.push({
@@ -1643,14 +1610,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       });
 
       // Track consumed inventory on source chain for this cycle
-      const currentConsumed = this.consumedInventory.get(sourceChain) ?? 0n;
-      this.consumedInventory.set(sourceChain, currentConsumed + inputRequired);
+      this.view.consume(sourceChain, inputRequired);
+      const totalConsumed = this.view.getConsumed(sourceChain);
 
       this.logger.debug(
         {
           sourceChain,
           amountConsumed: inputRequired.toString(),
-          totalConsumed: (currentConsumed + inputRequired).toString(),
+          totalConsumed: totalConsumed.toString(),
         },
         'Updated consumed inventory after LiFi bridge',
       );
