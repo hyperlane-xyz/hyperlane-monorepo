@@ -117,10 +117,6 @@ const OWNER_STATUS_SKIP: OwnerStatusSkip[] = [
     chain: 'coti',
     owner: '0xdF2E2886d23ba57F996C203D2Ccd9dCa6373590C',
   },
-  {
-    warpRouteId: 'USDT/eclipsemainnet',
-    chain: 'tron',
-  },
 ];
 
 // ownerStatus virtual-config violations carry a field path of the form
