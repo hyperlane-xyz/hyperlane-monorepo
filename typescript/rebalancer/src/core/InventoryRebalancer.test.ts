@@ -294,6 +294,7 @@ describe('InventoryRebalancer E2E', () => {
       txHash: '0xBridgeTxHash',
       fromChain: 42161,
       toChain: 1399811149,
+      transferId: 'bridge-transfer-id',
     });
   }
 
@@ -740,6 +741,9 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
       expect(actionParams.type).to.equal('inventory_movement');
+      expect(actionParams.externalBridgeTransferId).to.equal(
+        'bridge-transfer-id',
+      );
     });
 
     it('returns failure for unrelated fee-aware probe errors', async () => {

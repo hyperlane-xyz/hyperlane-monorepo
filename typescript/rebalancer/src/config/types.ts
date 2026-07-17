@@ -39,6 +39,10 @@ export enum ExternalBridgeType {
   SwapsXyz = 'swapsxyz',
 }
 
+function throwUnknownExternalBridge(_externalBridge: never): never {
+  throw new Error('Unknown external bridge');
+}
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
@@ -127,8 +131,14 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const SwapsXyzBridgeConfigSchema = z.object({
+  apiUrl: z.string().url().optional(),
+  defaultSlippage: z.number().positive().max(0.1).optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -375,13 +385,61 @@ export const RebalancerConfigSchema = z
         }
       }
 
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
+      const referencedExternalBridges = new Set<ExternalBridgeType>();
+      for (const strategy of config.strategy) {
+        for (const chainConfig of Object.values(strategy.chains)) {
+          const chainExecutionType =
+            chainConfig.executionType ?? ExecutionType.MovableCollateral;
+          if (
+            chainExecutionType === ExecutionType.Inventory &&
+            chainConfig.externalBridge
+          ) {
+            referencedExternalBridges.add(chainConfig.externalBridge);
+          }
+
+          if (chainConfig.override) {
+            for (const overrideConfig of Object.values(chainConfig.override)) {
+              const overrideExecutionType =
+                getOverrideExecutionType(overrideConfig) ?? chainExecutionType;
+              const overrideExternalBridge =
+                getOverrideExternalBridge(overrideConfig) ??
+                chainConfig.externalBridge;
+              if (
+                overrideExecutionType === ExecutionType.Inventory &&
+                overrideExternalBridge
+              ) {
+                referencedExternalBridges.add(overrideExternalBridge);
+              }
+            }
+          }
+        }
+      }
+
+      for (const externalBridge of referencedExternalBridges) {
+        switch (externalBridge) {
+          case ExternalBridgeType.LiFi:
+            if (!config.externalBridges?.lifi?.integrator) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                  'externalBridges.lifi is required when using inventory execution',
+                path: ['externalBridges', ExternalBridgeType.LiFi],
+              });
+            }
+            break;
+          case ExternalBridgeType.SwapsXyz:
+            if (!config.externalBridges?.swapsxyz) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                  'externalBridges.swapsxyz is required when using inventory execution',
+                path: ['externalBridges', ExternalBridgeType.SwapsXyz],
+              });
+            }
+            break;
+          default:
+            throwUnknownExternalBridge(externalBridge);
+        }
       }
     }
 
@@ -392,37 +450,45 @@ export const RebalancerConfigSchema = z
     ) {
       const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        const checkLifiBridge = (
+        const checkExternalBridgeConfigured = (
           externalBridge: ExternalBridgeType | undefined,
           path: (string | number)[],
         ) => {
-          if (
-            externalBridge === ExternalBridgeType.LiFi &&
-            !config.externalBridges?.lifi?.integrator
-          ) {
+          let configured = true;
+          switch (externalBridge) {
+            case undefined:
+              return;
+            case ExternalBridgeType.LiFi:
+              configured = Boolean(config.externalBridges?.lifi?.integrator);
+              break;
+            case ExternalBridgeType.SwapsXyz:
+              configured = config.externalBridges?.swapsxyz !== undefined;
+              break;
+            default:
+              throwUnknownExternalBridge(externalBridge);
+          }
+
+          if (!configured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+              message: `Chain '${chainName}' uses externalBridge: '${externalBridge}' but externalBridges.${externalBridge} is not configured`,
               path,
             });
           }
         };
 
-        checkLifiBridge(chainConfig.externalBridge, [
+        checkExternalBridgeConfigured(chainConfig.externalBridge, [
           'externalBridges',
-          'lifi',
+          chainConfig.externalBridge ?? 'unknown',
         ]);
 
         if (chainConfig.override) {
           for (const [destination, overrideConfig] of Object.entries(
             chainConfig.override,
           )) {
-            const merged = {
-              ...chainConfig,
-              ...(overrideConfig as Record<string, unknown>),
-            };
-            checkLifiBridge(
-              merged.externalBridge as ExternalBridgeType | undefined,
+            checkExternalBridgeConfigured(
+              getOverrideExternalBridge(overrideConfig) ??
+                chainConfig.externalBridge,
               [
                 'strategy',
                 strategyIndex,
@@ -528,10 +594,36 @@ export function getChainExecutionType(
 export function getOverrideExecutionType(
   overrideConfig: unknown,
 ): ExecutionType | undefined {
-  return typeof overrideConfig === 'object' &&
-    overrideConfig !== null &&
-    'executionType' in overrideConfig
-    ? (overrideConfig as { executionType?: ExecutionType }).executionType
+  if (
+    typeof overrideConfig !== 'object' ||
+    overrideConfig === null ||
+    !('executionType' in overrideConfig)
+  ) {
+    return undefined;
+  }
+
+  const { executionType } = overrideConfig;
+  return executionType === ExecutionType.MovableCollateral ||
+    executionType === ExecutionType.Inventory
+    ? executionType
+    : undefined;
+}
+
+function getOverrideExternalBridge(
+  overrideConfig: unknown,
+): ExternalBridgeType | undefined {
+  if (
+    typeof overrideConfig !== 'object' ||
+    overrideConfig === null ||
+    !('externalBridge' in overrideConfig)
+  ) {
+    return undefined;
+  }
+
+  const { externalBridge } = overrideConfig;
+  return externalBridge === ExternalBridgeType.LiFi ||
+    externalBridge === ExternalBridgeType.SwapsXyz
+    ? externalBridge
     : undefined;
 }
 
