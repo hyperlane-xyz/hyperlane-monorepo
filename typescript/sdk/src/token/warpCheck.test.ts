@@ -16,9 +16,14 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
+import type {
+  DerivedWarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 import {
   altVmScaleMismatch,
   buildAltVmWarpRouteDiff,
+  buildWarpRouteDiff,
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
@@ -512,5 +517,57 @@ describe('buildAltVmWarpRouteDiff', () => {
     );
 
     expect(diff).to.not.deep.equal({});
+  });
+});
+
+describe('buildWarpRouteDiff', () => {
+  const CHAIN = test1.name;
+  const REAL_HOOK = '0x1111111111111111111111111111111111111111';
+
+  function onChainConfig(hook: string): DerivedWarpRouteDeployConfig {
+    return {
+      [CHAIN]: {
+        destinationGas: {},
+        hook,
+        interchainSecurityModule: MAILBOX,
+        mailbox: MAILBOX,
+        owner: OWNER,
+        remoteRouters: {},
+        token: TOKEN_A,
+        type: TokenType.collateral,
+      },
+    };
+  }
+
+  function expectedConfig(): WarpRouteDeployConfigMailboxRequired {
+    return {
+      [CHAIN]: {
+        destinationGas: {},
+        interchainSecurityModule: MAILBOX,
+        mailbox: MAILBOX,
+        owner: OWNER,
+        remoteRouters: {},
+        token: TOKEN_A,
+        type: TokenType.collateral,
+      },
+    };
+  }
+
+  it('treats an on-chain zero-address hook as unset when the deploy config omits it', () => {
+    const diff = buildWarpRouteDiff({
+      onChainWarpConfig: onChainConfig(zeroAddress),
+      warpRouteConfig: expectedConfig(),
+    });
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('still flags a genuinely configured (non-zero) on-chain hook when the deploy config omits it', () => {
+    const diff = buildWarpRouteDiff({
+      onChainWarpConfig: onChainConfig(REAL_HOOK),
+      warpRouteConfig: expectedConfig(),
+    });
+
+    expect(diff[CHAIN]).to.have.nested.property('hook.actual');
   });
 });
