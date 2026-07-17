@@ -7,8 +7,14 @@ description: Autonomously remediate a low-balance PagerDuty/Grafana alert for a 
 
 Top up an underfunded Hyperlane agent key in response to a balance alert. The
 funder signs an EVM-origin transaction from the Turnkey **TaggisFunder** key on
-arbitrum and bridges/swaps native funds to the underfunded address on any
-destination chain (EVM **or** alt-VM such as Tron). Rail priority: warp routes →
+arbitrum and bridges/swaps native funds to the underfunded address. Executable
+destinations are **EVM chains and Tron ONLY** — the harness's receipt verifier
+(`buildReceiptVerifier` in `fundKeyLive.ts`) reads native balance for
+`ProtocolType.Ethereum` and `ProtocolType.Tron` and throws for any other VM
+(Solana, Starknet, Cosmos, …). A run targeting an unsupported VM resolves a
+route and then fails at the pre-broadcast baseline read, so for those
+destinations escalate to the manual non-EVM refill path
+(`learning/nonevm-key-funding-claim-igp`) instead. Rail priority: warp routes →
 swaps.xyz → LiFi. Delivery is independently verified on-chain.
 
 **Autonomous by default.** Once the shortfall is confirmed real (Step 0) and a
@@ -40,6 +46,14 @@ The funding mechanism lives in the private-agents repo:
 - **Non-EVM with a free refill source** — for non-EVM chains, first check for
   claimable IGP/ProtocolFee fees we already own (`learning/nonevm-key-funding-claim-igp`).
   Those are the preferred, free refill and avoid spending funder USDC.
+- **ATA-payer alert** — `wallet_name` matches `*/ata-payer` (the Solana / Eclipse
+  / SOON / SonicSVM ATA-payer series in `alert-query-templates.ts`). These are
+  SVM accounts with their own small per-route thresholds, NOT a
+  `DesiredRelayerBalance`, and are non-EVM (unsupported by the EVM/Tron receipt
+  verifier). Do NOT treat one as a relayer and compute a relayer-style target;
+  escalate to the manual non-EVM refill path (`learning/nonevm-key-funding-claim-igp`).
+- **Destination VM is not EVM or Tron** — the receipt verifier only supports
+  those two; escalate rather than resolving a route that will fail before signing.
 - **No route resolves** for the destination chain/asset.
 
 ## Prerequisites: Credentials
@@ -71,7 +85,12 @@ GCP project: `abacus-labs-dev`.
 
 Follow `learning/relayer-balance-alert-stale-daily-burn`:
 
-- Range-query `hyperlane_wallet_balance{chain="<chain>",wallet_name="<wallet_name>"}`
+- Range-query the EXACT alerting series. The alert groups by
+  `min by (chain, wallet_address, wallet_name)`, so pin all three plus
+  `hyperlane_context` — a query that omits `wallet_address`/context can return a
+  different relayer or context and classify the shortfall from the wrong
+  drawdown before an irreversible transfer:
+  `hyperlane_wallet_balance{chain="<chain>",wallet_address="<wallet_address>",wallet_name="<wallet_name>",hyperlane_context="<context>"}`
   over ~14d for a clean drawdown → true daily burn.
 - Compare against the threshold's implied burn. If real runway is comfortable,
   this is a stale-burn false positive → **do not fund**; propose the threshold
@@ -87,6 +106,11 @@ From the PagerDuty incident (`fetch_pagerduty_incident`) `customDetails.labels`:
 - current balance + threshold from `annotations`
 
 ### Step 2: Compute the target and shortfall
+
+First confirm `wallet_name` is a relayer or key-funder — if it matches
+`*/ata-payer`, STOP and escalate (see "When NOT to Use"; ATA payers have their
+own small per-route threshold in `alert-query-templates.ts`, not a
+`DesiredRelayerBalance`).
 
 Target = the chain's `DesiredRelayerBalance` (or the alerting threshold if
 funding a key-funder). **Shortfall (native, in whole units) = target − current**.
@@ -125,6 +149,8 @@ balances, preflight result). Then verify the automated envelope before
 broadcasting:
 
 - Plan-only exited `0` (route resolved, guardrail + funder preflight passed).
+  Note: in plan-only mode `0` means "plan resolved, NOTHING signed" — it is NOT
+  a delivery success. (`2` = preflight escalation can also occur here.)
 - The re-quote is comfortably under `--max-source-spend`.
 - No escalation condition from the table below is triggered.
 
@@ -148,8 +174,11 @@ Report from the harness output:
 - **Destination receipt: VERIFIED yes/no** (on-chain balance delta ≥ guaranteed
   minimum — not the bridge's own claim)
 
-Exit codes: `0` settled + verified, `1` failed, `2` preflight escalation,
-`3` settled but receipt NOT verified (treat as needs-human-review).
+Exit codes (broadcast mode): `0` settled + verified, `1` failed, `2` preflight
+escalation, `3` settled but receipt NOT verified (treat as needs-human-review).
+**In plan-only mode (no `--broadcast`) exit `0` means the plan resolved and
+NOTHING was signed or delivered** — never report a plan-only `0` as successful
+funding.
 
 ## Escalation / Error Handling
 
