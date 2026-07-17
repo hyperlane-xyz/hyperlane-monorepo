@@ -57,8 +57,18 @@ const ROUTES_TO_SKIP: string[] = [
 // violations on mainnet.
 const STAGING_ROUTE_MARKERS = ['staging', 'test'];
 
+// Token-symbol suffixes that mark a route as staging, e.g. `USDCSTAGE`,
+// `HYPERSTAGE`, `REZSTAGING`. The staging marker is fused onto the symbol
+// (before the first `/`) rather than living in its own chain segment, so it is
+// not caught by STAGING_ROUTE_MARKERS above.
+const STAGING_SYMBOL_SUFFIXES = ['stage', 'staging'];
+
 function isStagingOrTestRoute(warpRouteId: string): boolean {
-  const [, ...rest] = warpRouteId.split('/');
+  const [symbol = '', ...rest] = warpRouteId.split('/');
+  const lowerSymbol = symbol.toLowerCase();
+  if (STAGING_SYMBOL_SUFFIXES.some((suffix) => lowerSymbol.endsWith(suffix))) {
+    return true;
+  }
   const segments = rest.join('/').toLowerCase().split(/[-/]/);
   return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
 }
