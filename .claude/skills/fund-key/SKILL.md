@@ -20,7 +20,7 @@ policy is a deliberate decision by Nam (2026-07-17); the cap + preflight +
 receipt verification are what keep it safe.
 
 The funding mechanism lives in the private-agents repo:
-`typescript/stableswap-rebalancer/src/funding/fundKeyLive.ts`.
+`typescript/key-funder/src/funding/fundKeyLive.ts`.
 
 ## When to Use
 
@@ -100,7 +100,7 @@ expected quote (the guardrail aborts if a re-quote drifts above it).
 From the private-agents repo, run WITHOUT `--broadcast` first:
 
 ```bash
-cd /workspace/sandbox/private-agents/typescript/stableswap-rebalancer
+cd /workspace/sandbox/private-agents/typescript/key-funder
 # ...export the env vars from the GCP secrets above...
 npx tsx src/funding/fundKeyLive.ts \
   --dest-chain <chain> \
