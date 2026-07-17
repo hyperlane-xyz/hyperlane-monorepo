@@ -7,6 +7,7 @@ import {
   type WarpRouteBalance,
   type XERC20Limit,
   createWarpMetricsGauges,
+  startMetricsServer,
   updateManagedLockboxBalanceMetrics as sharedUpdateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics as sharedUpdateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics as sharedUpdateTokenBalanceMetrics,
@@ -16,6 +17,14 @@ import { type ChainName, type Token, type WarpCore } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 
 export const metricsRegister = new Registry();
+
+let metricsServerStarted = false;
+
+export function ensureMetricsServerStarted(): void {
+  if (metricsServerStarted) return;
+  metricsServerStarted = true;
+  startMetricsServer(metricsRegister);
+}
 
 // Create shared warp metrics gauges
 const gauges: WarpMetricsGauges = createWarpMetricsGauges(metricsRegister);

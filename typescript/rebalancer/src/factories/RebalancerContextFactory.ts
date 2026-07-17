@@ -42,6 +42,7 @@ import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
+import { InventoryBalanceFetcher } from '../monitor/InventoryBalanceFetcher.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
@@ -67,6 +68,7 @@ import {
   normalizeConfiguredAmount,
   normalizeToCanonical,
 } from '../utils/balanceUtils.js';
+import type { IMutex } from '../utils/mutex.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
 
 const DEFAULT_EXPLORER_URL =
@@ -714,11 +716,21 @@ export class RebalancerContextFactory {
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     metrics?: Metrics;
+    executionLock?: IMutex;
+    inventoryConfig?: InventoryMonitorConfig;
   }): RebalancerOrchestrator {
     this.logger.debug(
       { warpRouteId: this.config.warpRouteId },
       'Creating RebalancerOrchestrator',
     );
+
+    const inventoryBalanceFetcher = options.inventoryConfig
+      ? new InventoryBalanceFetcher(
+          this.warpCore,
+          options.inventoryConfig,
+          this.logger,
+        )
+      : undefined;
 
     return new RebalancerOrchestrator({
       strategy: options.strategy,
@@ -729,6 +741,8 @@ export class RebalancerContextFactory {
       rebalancers: options.rebalancers,
       externalBridgeRegistry: options.externalBridgeRegistry,
       metrics: options.metrics,
+      executionLock: options.executionLock,
+      inventoryBalanceFetcher,
     });
   }
 
