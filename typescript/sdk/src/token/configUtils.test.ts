@@ -383,7 +383,7 @@ describe('configUtils', () => {
       });
     });
 
-    it('normalizes CCRF router-keyed fee contracts recursively', () => {
+    it('excludes CCRF feeContracts (standing quotes) from the check', () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const transformedObj = transformConfigToCheck({
@@ -422,63 +422,7 @@ describe('configUtils', () => {
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
-          feeContracts: {
-            ethereum: {
-              [DEFAULT_ROUTER_KEY]: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 200n,
-              },
-              [ROUTER_KEY]: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 300n,
-              },
-            },
-          },
-        },
-      });
-    });
-
-    it('keeps only populated CCRF router entries during normalization', () => {
-      const transformedObj = transformConfigToCheck({
-        type: TokenType.collateral,
-        token: ADDRESS,
-        tokenFee: {
-          type: TokenFeeType.CrossCollateralRoutingFee,
-          owner: ADDRESS,
-          feeContracts: {
-            ethereum: {
-              [DEFAULT_ROUTER_KEY]: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 200n,
-              },
-            },
-          },
-        },
-      } as any);
-
-      expect(transformedObj).to.eql({
-        type: TokenType.collateral,
-        token: ADDRESS,
-        scale: { numerator: 1n, denominator: 1n },
-        tokenFee: {
-          type: TokenFeeType.CrossCollateralRoutingFee,
-          owner: ADDRESS,
-          feeContracts: {
-            ethereum: {
-              [DEFAULT_ROUTER_KEY]: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 200n,
-              },
-            },
-          },
+          feeContracts: {},
         },
       });
     });

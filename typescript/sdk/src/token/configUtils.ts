@@ -625,17 +625,6 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
-function normalizeCrossCollateralFeeContractsForCheck(
-  destinationConfig: Record<string, TokenFeeConfigInput>,
-) {
-  return Object.fromEntries(
-    Object.entries(destinationConfig).map(([router, nestedFee]) => [
-      router,
-      normalizeTokenFeeForCheck(nestedFee),
-    ]),
-  );
-}
-
 function normalizeTokenFeeForCheck(
   feeConfig: TokenFeeConfigInput | undefined,
 ): TokenFeeConfigInput | undefined {
@@ -661,18 +650,15 @@ function normalizeTokenFeeForCheck(
   }
 
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
-    const normalizedFeeContracts = Object.fromEntries(
-      Object.keys(feeConfig.feeContracts).map((chain) => [
-        chain,
-        normalizeCrossCollateralFeeContractsForCheck(
-          feeConfig.feeContracts[chain],
-        ),
-      ]),
-    );
+    // feeContracts here are the OffchainQuotedLinearFee "standing quote" contracts,
+    // wired dynamically per-recipient via submitQuote. The registry deploy config only
+    // holds a static snapshot, so this map always drifts from on-chain state and would
+    // otherwise emit a perpetual violation every check run. Collapse both sides to an
+    // empty map so it is excluded from the diff.
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: feeConfig.owner,
-      feeContracts: normalizedFeeContracts,
+      feeContracts: {},
     };
   }
 
