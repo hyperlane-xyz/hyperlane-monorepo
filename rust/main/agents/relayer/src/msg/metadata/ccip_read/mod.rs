@@ -1,16 +1,30 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    error::Error,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
 use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
+// reqwest 0.11's `dns::Resolve` trait uses hyper 0.14's `Name` directly (no
+// wrapper). If reqwest is bumped to 0.12+, this must switch to
+// `reqwest::dns::Name` — the 0.12 trait wraps `Name` in a private-field struct.
+use hyper::client::connect::dns::Name;
 use hyperlane_base::cache::FunctionCallCache;
 use moka::future::Cache;
-use regex::{Regex, RegexSet, RegexSetBuilder};
-use reqwest::{header::CONTENT_TYPE, Client, Method};
+use regex::Regex;
+use reqwest::{
+    dns::{Addrs, Resolve, Resolving},
+    header::CONTENT_TYPE,
+    redirect::Policy,
+    Client, Method, Url,
+};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
@@ -45,10 +59,150 @@ fn ccip_signature_cache() -> &'static CcipSignatureCache {
 }
 
 /// Process-wide client so requests to CCIP-read servers can reuse pooled connections.
-static CCIP_HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+static CCIP_HTTP_CLIENT: OnceLock<Result<Client, String>> = OnceLock::new();
 
-fn ccip_http_client() -> &'static Client {
-    CCIP_HTTP_CLIENT.get_or_init(Client::new)
+fn ccip_http_client() -> Result<&'static Client, Box<MetadataBuildError>> {
+    match CCIP_HTTP_CLIENT
+        .get_or_init(|| build_ccip_http_client(PublicDnsResolver).map_err(|err| err.to_string()))
+    {
+        Ok(client) => Ok(client),
+        Err(err) => Err(Box::new(MetadataBuildError::FailedToBuild(format!(
+            "Failed to build CCIP-read HTTP client: {err}"
+        )))),
+    }
+}
+
+fn build_ccip_http_client<R>(resolver: R) -> Result<Client, reqwest::Error>
+where
+    R: Resolve + 'static,
+{
+    Client::builder()
+        .dns_resolver(Arc::new(resolver))
+        .redirect(Policy::none())
+        .no_proxy()
+        .build()
+}
+
+#[derive(Debug)]
+struct PublicDnsResolver;
+
+impl Resolve for PublicDnsResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        Box::pin(resolve_public_host(name.as_str().to_owned()))
+    }
+}
+
+type ResolverError = Box<dyn Error + Send + Sync>;
+
+async fn resolve_public_host(host: String) -> Result<Addrs, ResolverError> {
+    let addrs = tokio::net::lookup_host((host.as_str(), 0)).await?;
+    let addrs = validate_resolved_addrs(&host, addrs)?;
+    Ok(Box::new(addrs.into_iter()))
+}
+
+fn validate_resolved_addrs(
+    host: &str,
+    addrs: impl IntoIterator<Item = SocketAddr>,
+) -> Result<Vec<SocketAddr>, ResolverError> {
+    let addrs: Vec<_> = addrs.into_iter().collect();
+    if addrs.is_empty() {
+        return Err(format!("CCIP-read host {host} resolved to no addresses").into());
+    }
+
+    if let Some(address) = addrs.iter().find(|addr| !is_public_ip(addr.ip())) {
+        return Err(format!(
+            "CCIP-read host {host} resolved to non-public address {}",
+            address.ip()
+        )
+        .into());
+    }
+
+    Ok(addrs)
+}
+
+fn validate_ccip_url(url: &str) -> Result<Url, Box<MetadataBuildError>> {
+    let url = Url::parse(url).map_err(|err| {
+        Box::new(MetadataBuildError::FailedToBuild(format!(
+            "Invalid CCIP-read URL: {err}"
+        )))
+    })?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(Box::new(MetadataBuildError::FailedToBuild(format!(
+            "Unsupported CCIP-read URL scheme: {}",
+            url.scheme()
+        ))));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(Box::new(MetadataBuildError::FailedToBuild(
+            "CCIP-read URLs must not contain credentials".to_owned(),
+        )));
+    }
+
+    let host = url.host_str().ok_or_else(|| {
+        Box::new(MetadataBuildError::FailedToBuild(
+            "CCIP-read URL has no host".to_owned(),
+        ))
+    })?;
+    let host = host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if !is_public_ip(ip) {
+            return Err(Box::new(MetadataBuildError::FailedToBuild(format!(
+                "CCIP-read URL contains non-public address {ip}"
+            ))));
+        }
+    }
+
+    Ok(url)
+}
+
+fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => is_public_ipv4(ip),
+        IpAddr::V6(ip) => is_public_ipv6(ip),
+    }
+}
+
+fn is_public_ipv4(ip: Ipv4Addr) -> bool {
+    let [a, b, c, _] = ip.octets();
+    !matches!(
+        (a, b, c),
+        (0, _, _)
+            | (10, _, _)
+            | (100, 64..=127, _)
+            | (127, _, _)
+            | (169, 254, _)
+            | (172, 16..=31, _)
+            | (192, 0, 0)
+            | (192, 0, 2)
+            | (192, 88, 99)
+            | (192, 168, _)
+            | (198, 18..=19, _)
+            | (198, 51, 100)
+            | (203, 0, 113)
+            | (224..=255, _, _)
+    )
+}
+
+fn is_public_ipv6(ip: Ipv6Addr) -> bool {
+    let octets = ip.octets();
+    if let Some(embedded) = ip.to_ipv4() {
+        return is_public_ipv4(embedded);
+    }
+
+    // Public IPv6 unicast currently lives in 2000::/3. Exclude special-purpose
+    // subranges and transition mechanisms that can embed IPv4 destinations.
+    octets[0] & 0xe0 == 0x20
+        // 2001:0000::/32 (Teredo) and 2001:0002::/48 (benchmarking)
+        && !((octets[0] == 0x20 && octets[1] == 0x01 && matches!(octets[2], 0x00 | 0x02))
+            // 2001:db8::/32 (documentation)
+            || (octets[0] == 0x20 && octets[1] == 0x01 && octets[2] == 0x0d && octets[3] == 0xb8)
+            // 2002::/16 (6to4)
+            || (octets[0] == 0x20 && octets[1] == 0x02)
+            // 3fff::/20 (documentation)
+            || (octets[0] == 0x3f && octets[1] == 0xff && octets[2] & 0xf0 == 0))
 }
 
 /// Maximum JSON response size accepted from a CCIP-read server.
@@ -289,14 +443,7 @@ async fn metadata_build(
         "Origin tx hash lookup result",
     );
 
-    let ccip_url_regex = create_ccip_url_regex();
-
     for url in info.urls.iter() {
-        if ccip_url_regex.is_match(url) {
-            tracing::warn!(?ism_address, url, message_id = ?message.id(), "Suspicious CCIP read url");
-            continue;
-        }
-
         // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 10;
@@ -457,14 +604,6 @@ async fn fetch_offchain_data(
     origin_tx_hash: Option<String>,
     message_id: H256,
 ) -> Result<Metadata, FetchOutcome> {
-    // Compute relayer authentication signature via EIP-191
-    let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
-        ism_builder.base.base_builder().get_signer(),
-        info,
-        url,
-    )
-    .await?;
-
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
     // the full address)
@@ -473,6 +612,18 @@ async fn fetch_offchain_data(
     let interpolated_url = url
         .replace("{sender}", &sender_as_bytes)
         .replace("{data}", &data_as_bytes);
+    let interpolated_url =
+        validate_ccip_url(&interpolated_url).map_err(|e| FetchOutcome::from(*e))?;
+    let client = ccip_http_client().map_err(|e| FetchOutcome::from(*e))?;
+
+    // Validate the destination before invoking a remote signer.
+    let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+        ism_builder.base.base_builder().get_signer(),
+        info,
+        url,
+    )
+    .await?;
+
     let res = if !url.contains("{data}") {
         let body = OffchainLookupRequestBody {
             sender: sender_as_bytes,
@@ -481,12 +632,12 @@ async fn fetch_offchain_data(
             origin_tx_hash,
         };
         tracing::debug!(
-            url = interpolated_url,
+            url = %interpolated_url,
             ?body,
             ?message_id,
             "Sending POST request to offchain lookup server"
         );
-        ccip_http_client()
+        client
             .request(Method::POST, interpolated_url)
             .header(CONTENT_TYPE, "application/json")
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
@@ -499,7 +650,7 @@ async fn fetch_offchain_data(
                 MetadataBuildError::FailedToBuild(msg)
             })?
     } else {
-        ccip_http_client()
+        client
             .request(Method::GET, interpolated_url)
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
             .send()
@@ -548,33 +699,20 @@ async fn fetch_offchain_data(
     decode_response_data(&json.data).map_err(|e| FetchOutcome::from(*e))
 }
 
-fn create_ccip_url_regex() -> RegexSet {
-    RegexSetBuilder::new([
-        r#"^(https?:\/\/)localhost"#,
-        r#"^(https?:\/\/)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
-        r#"localhost"#,
-        r#"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
-        r#"([-a-zA-Z0-9:%._\+~#=]*)\.local"#,
-        r#"([-a-zA-Z0-9:%._\+~#=]*)\.internal"#,
-        r#"^(https?:\/\/)([-a-zA-Z0-9:%._\+~#=]*)\.local"#,
-        r#"^(https?:\/\/)([-a-zA-Z0-9:%._\+~#=]*)\.internal"#,
-    ])
-    .case_insensitive(true)
-    .build()
-    .expect("Failed to create ccip regex")
-}
-
 #[cfg(test)]
 mod test {
     use std::{
         net::SocketAddr,
         str::FromStr,
-        sync::atomic::{AtomicUsize, Ordering},
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
         time::Duration,
         vec,
     };
 
-    use axum::{extract::ConnectInfo, routing::get, Router};
+    use axum::{extract::ConnectInfo, http::StatusCode, response::Redirect, routing::get, Router};
     use ethers::types::H160 as EthersH160;
     use futures::future::join_all;
     use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, SignedType, U256};
@@ -667,6 +805,16 @@ mod test {
         }
     }
 
+    #[derive(Debug)]
+    struct FixedResolver(SocketAddr);
+
+    impl Resolve for FixedResolver {
+        fn resolve(&self, _name: Name) -> Resolving {
+            let addrs: Addrs = Box::new(std::iter::once(self.0));
+            Box::pin(async move { Ok(addrs) })
+        }
+    }
+
     #[tokio::test]
     async fn test_ccip_http_client_reuses_connections() -> eyre::Result<()> {
         async fn peer_port(ConnectInfo(address): ConnectInfo<SocketAddr>) -> String {
@@ -684,13 +832,53 @@ mod test {
             .await
         });
 
-        let url = format!("http://{address}");
-        let first_peer_port = ccip_http_client().get(&url).send().await?.text().await?;
-        let second_peer_port = ccip_http_client().get(&url).send().await?.text().await?;
+        let client = build_ccip_http_client(FixedResolver(address))?;
+        let url = format!("http://ccip-read.example:{}", address.port());
+        let first_peer_port = client.get(&url).send().await?.text().await?;
+        let second_peer_port = client.get(&url).send().await?.text().await?;
 
         server.abort();
         assert_eq!(first_peer_port, second_peer_port);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_ccip_http_client_does_not_follow_redirects() {
+        async fn redirect() -> Redirect {
+            Redirect::temporary("/target")
+        }
+
+        let target_hits = Arc::new(AtomicUsize::new(0));
+        let target_hits_for_route = target_hits.clone();
+        let router = Router::new().route("/redirect", get(redirect)).route(
+            "/target",
+            get(move || {
+                let target_hits = target_hits_for_route.clone();
+                async move {
+                    target_hits.fetch_add(1, Ordering::Relaxed);
+                    StatusCode::OK
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+
+        let client = build_ccip_http_client(FixedResolver(address)).unwrap();
+        let response = client
+            .get(format!(
+                "http://ccip-read.example:{}/redirect",
+                address.port()
+            ))
+            .send()
+            .await
+            .unwrap();
+
+        server.abort();
+        assert_eq!(response.status().as_u16(), 307);
+        assert_eq!(target_hits.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]
@@ -967,83 +1155,78 @@ mod test {
     }
 
     #[test]
-    fn test_ccip_regex_filter() {
-        let set = create_ccip_url_regex();
-
-        let urls = [
-            "localhost",
-            "localhost:80",
-            "localhost:443",
-            "localhost/abc/def",
-            "0.0.0.0",
-            "0.0.0.0:80",
-            "0.0.0.0:443",
-            "127.0.0.1",
-            "127.0.0.1:80",
-            "127.0.0.1:443",
-            "http://localhost",
-            "http://localhost:80",
-            "http://localhost:443",
-            "http://localhost/abc/def",
-            "http://0.0.0.0",
-            "http://0.0.0.0:80",
-            "http://0.0.0.0:443",
-            "http://0.0.0.0/abc/def",
-            "http://127.0.0.1",
-            "http://127.0.0.1:80",
-            "http://127.0.0.1:443",
-            "https://localhost",
-            "https://localhost:80",
-            "https://localhost:443",
-            "https://0.0.0.0",
-            "https://0.0.0.0:80",
-            "https://0.0.0.0:443",
-            "https://127.0.0.1",
-            "https://127.0.0.1:80",
-            "https://127.0.0.1:443",
-            "abc.local",
-            "abc.def.local",
-            "abc.def.local/abc/def",
-            "abc.def.ghi.local",
-            "https://abc.local",
-            "https://abc.def.local",
-            "https://abc.def.local/abc/def",
-            "abc.internal",
-            "abc.def.internal",
-            "abc.def.internal/abc/def",
-            "abc.def.ghi.internal",
-            "https://abc.internal",
-            "https://abc.def.internal",
-            "https://abc.def.internal/abc/def",
-            "abc.def.cluster.local",
-            "abc.cluster.local",
-            "cluster.local",
-            "abc3.c.def-ghi8.internal",
-            "c.def-ghi8.internal",
-            "google.internal",
-            "https://hyperlane.xyz",
-            "https://docs.hyperlane.xyz/",
-            "http://docs.hyperlane.xyz/",
-            "http://docs.hyperlane.xyz:443",
-            "hyperlane.xyz",
-            "docs.hyperlane.xyz/",
-            "docs.hyperlane.xyz/abc/def",
-        ];
-
-        let filtered: Vec<_> = urls.into_iter().filter(|s| !set.is_match(s)).collect();
-        let expected = [
-            "https://hyperlane.xyz",
-            "https://docs.hyperlane.xyz/",
-            "http://docs.hyperlane.xyz/",
-            "http://docs.hyperlane.xyz:443",
-            "hyperlane.xyz",
-            "docs.hyperlane.xyz/",
-            "docs.hyperlane.xyz/abc/def",
-        ];
-
-        assert_eq!(filtered.len(), expected.len());
-        for (actual, expected) in filtered.into_iter().zip(expected.into_iter()) {
-            assert_eq!(actual, expected);
+    fn test_ccip_url_rejects_non_http_schemes_and_credentials() {
+        for url in [
+            "ftp://example.com/data",
+            "file:///etc/passwd",
+            "data:text/plain,test",
+            "https://user:password@example.com/data",
+            "example.com/data",
+        ] {
+            assert!(validate_ccip_url(url).is_err(), "accepted {url}");
         }
+        assert!(validate_ccip_url("https://example.com/data").is_ok());
+    }
+
+    #[test]
+    fn test_ccip_url_rejects_ipv4_literal_variants() {
+        for url in [
+            "http://127.0.0.1",
+            "http://127.1",
+            "http://2130706433",
+            "http://0x7f000001",
+            "http://0177.0.0.1",
+            "http://0x7f.0.0.1",
+            "http://10.0.0.1",
+            "http://169.254.169.254/latest/meta-data",
+            "http://192.168.1.1",
+            "http://224.0.0.1",
+        ] {
+            assert!(validate_ccip_url(url).is_err(), "accepted {url}");
+        }
+        assert!(validate_ccip_url("https://8.8.8.8/data").is_ok());
+    }
+
+    #[test]
+    fn test_ccip_url_rejects_non_public_ipv6_literals() {
+        for url in [
+            "http://[::1]",
+            "http://[::ffff:127.0.0.1]",
+            "http://[::127.0.0.1]",
+            "http://[fc00::1]",
+            "http://[fe80::1]",
+            "http://[2001:db8::1]",
+            "http://[2002:7f00:1::]",
+            "http://[3fff::1]",
+        ] {
+            assert!(validate_ccip_url(url).is_err(), "accepted {url}");
+        }
+        assert!(validate_ccip_url("https://[2606:4700:4700::1111]/data").is_ok());
+    }
+
+    #[test]
+    fn test_dns_rejects_mixed_public_and_private_answers() {
+        let answers = ["8.8.8.8:0".parse().unwrap(), "127.0.0.1:0".parse().unwrap()];
+        assert!(validate_resolved_addrs("example.com", answers).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_public_dns_resolver_rejects_localhost() {
+        assert!(resolve_public_host("localhost".to_owned()).await.is_err());
+    }
+
+    #[test]
+    fn test_dns_accepts_only_public_answers() {
+        let answers = [
+            "8.8.8.8:0".parse().unwrap(),
+            "[2606:4700:4700::1111]:0".parse().unwrap(),
+        ];
+        assert_eq!(
+            validate_resolved_addrs("example.com", answers)
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(validate_resolved_addrs("example.com", []).is_err());
     }
 }
