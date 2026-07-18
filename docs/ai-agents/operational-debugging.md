@@ -163,6 +163,16 @@ hyperlane_lander_gas_price{destination="linea"} / 1000000000
 rate(hyperlane_lander_finalized_transactions[5m])
 ```
 
+**Alert for manual Lander reorg intervention (new):**
+
+```promql
+max by (destination, signer) (
+  hyperlane_lander_reorg_manual_intervention_required
+) > 0
+```
+
+Set `for: 5m` and page the oncall. This indicates oversized nonce rollback was detected and automatic reprocessing was intentionally skipped.
+
 ### Debugging Workflow with Grafana + GCP
 
 1. **Start with Grafana metrics:**

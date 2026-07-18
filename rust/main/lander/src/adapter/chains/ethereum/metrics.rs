@@ -1,7 +1,7 @@
 use ethers_core::abi::Int;
 use prometheus::{
     opts, register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Encoder,
-    IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
 use serde_json::to_string;
 
@@ -22,6 +22,10 @@ pub struct EthereumAdapterMetrics {
     /// Counts how many times we've noticed the nonce in tx is different from nonce
     /// stored in db
     mismatch_nonce: IntGauge,
+    /// Number of nonces seen in reorg windows.
+    reorged_nonces: IntCounter,
+    /// Whether oversized reorg processing needs manual intervention.
+    reorg_manual_intervention_required: IntGauge,
 }
 
 impl EthereumAdapterMetrics {
@@ -31,6 +35,8 @@ impl EthereumAdapterMetrics {
         finalized_nonce: IntGauge,
         upper_nonce: IntGauge,
         mismatch_nonce: IntGauge,
+        reorged_nonces: IntCounter,
+        reorg_manual_intervention_required: IntGauge,
     ) -> Self {
         Self {
             domain,
@@ -38,6 +44,8 @@ impl EthereumAdapterMetrics {
             finalized_nonce,
             upper_nonce,
             mismatch_nonce,
+            reorged_nonces,
+            reorg_manual_intervention_required,
         }
     }
 
@@ -66,6 +74,15 @@ impl EthereumAdapterMetrics {
     pub fn get_mismatched_nonce(&self) -> &IntGauge {
         &self.mismatch_nonce
     }
+
+    pub fn increment_reorged_nonces(&self, amount: u64) {
+        self.reorged_nonces.inc_by(amount);
+    }
+
+    pub fn set_reorg_manual_intervention_required(&self, required: bool) {
+        self.reorg_manual_intervention_required
+            .set(if required { 1 } else { 0 });
+    }
 }
 
 #[cfg(test)]
@@ -83,6 +100,8 @@ impl EthereumAdapterMetrics {
             dispatcher_metrics.get_finalized_nonce(domain, signer),
             dispatcher_metrics.get_upper_nonce(domain, signer),
             dispatcher_metrics.get_mismatched_nonce(domain, signer),
+            dispatcher_metrics.get_reorged_nonces(domain, signer),
+            dispatcher_metrics.get_reorg_manual_intervention_required(domain, signer),
         )
     }
 

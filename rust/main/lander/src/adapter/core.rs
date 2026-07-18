@@ -26,6 +26,16 @@ pub enum AdaptsChainAction {
     OverwriteUpperNonce { nonce: Option<u64> },
 }
 
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ReorgedTransactionsInspection {
+    pub manual_intervention_required: bool,
+    pub old_finalized_nonce: Option<String>,
+    pub new_finalized_nonce: Option<String>,
+    pub reorg_start_nonce: Option<String>,
+    pub reorg_end_nonce: Option<String>,
+    pub transactions: Vec<Transaction>,
+}
+
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
@@ -145,6 +155,19 @@ pub trait AdaptsChain: Send + Sync {
     /// as part of determining which transactions need reprocessing.
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
         Ok(Vec::new())
+    }
+
+    /// Inspect transactions captured from a previously detected oversized reorg.
+    async fn inspect_reorged_transactions(
+        &self,
+    ) -> Result<ReorgedTransactionsInspection, LanderError> {
+        Ok(ReorgedTransactionsInspection::default())
+    }
+
+    /// Trigger manual reprocessing for transactions captured from a previously
+    /// detected oversized reorg.
+    async fn trigger_reprocess_reorged_transactions(&self) -> Result<usize, LanderError> {
+        Ok(0)
     }
 
     async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
