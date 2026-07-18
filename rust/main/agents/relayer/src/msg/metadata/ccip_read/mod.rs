@@ -51,6 +51,13 @@ fn ccip_http_client() -> &'static Client {
     CCIP_HTTP_CLIENT.get_or_init(Client::new)
 }
 
+/// Maximum JSON response size accepted from a CCIP-read server.
+///
+/// CCIP-read metadata has no protocol-level size limit. One MiB still permits roughly 500 KiB
+/// of binary metadata after JSON and hex encoding, while bounding memory consumed by an
+/// untrusted server response.
+const MAX_CCIP_RESPONSE_SIZE: usize = 1024 * 1024;
+
 #[derive(Clone, Debug, Serialize)]
 struct OffchainLookupRequestBody {
     pub data: String,
@@ -390,6 +397,58 @@ fn body_signals_pending(body: &str) -> bool {
     status_pending || error_pending
 }
 
+/// Reads an untrusted CCIP response incrementally, enforcing the limit against bytes received.
+/// `Content-Length` is only an early-rejection optimization because a server can omit or falsify
+/// it, and decompression can change the actual body size.
+async fn read_response_body(mut res: reqwest::Response) -> Result<String, MetadataBuildError> {
+    if res
+        .content_length()
+        .is_some_and(|length| length > MAX_CCIP_RESPONSE_SIZE as u64)
+    {
+        return Err(MetadataBuildError::FailedToBuild(format!(
+            "Offchain lookup server response exceeds the {MAX_CCIP_RESPONSE_SIZE} byte limit"
+        )));
+    }
+
+    let mut body = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|err| {
+        MetadataBuildError::FailedToBuild(format!(
+            "Failed to read offchain lookup server response: ({err})"
+        ))
+    })? {
+        if chunk.len() > MAX_CCIP_RESPONSE_SIZE.saturating_sub(body.len()) {
+            return Err(MetadataBuildError::FailedToBuild(format!(
+                "Offchain lookup server response exceeds the {MAX_CCIP_RESPONSE_SIZE} byte limit"
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+
+    String::from_utf8(body).map_err(|err| {
+        MetadataBuildError::FailedToBuild(format!(
+            "Offchain lookup server response is not valid UTF-8: ({err})"
+        ))
+    })
+}
+
+// Boxed error: `MetadataBuildError`'s largest variant is >100 bytes, which trips
+// `clippy::result_large_err` for sync fns (async fns like `read_response_body`
+// return a future and are exempt).
+fn decode_response_data(data: &str) -> Result<Metadata, Box<MetadataBuildError>> {
+    let hex_data = data.strip_prefix("0x").ok_or_else(|| {
+        Box::new(MetadataBuildError::FailedToBuild(format!(
+            "Offchain lookup server response data is missing the 0x prefix: ({data})"
+        )))
+    })?;
+
+    let metadata = hex_decode(hex_data).map_err(|err| {
+        Box::new(MetadataBuildError::FailedToBuild(format!(
+            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({data})"
+        )))
+    })?;
+    Ok(Metadata::new(metadata))
+}
+
 /// Fetch data from offchain lookup server
 async fn fetch_offchain_data(
     ism_builder: &CcipReadIsmMetadataBuilder,
@@ -454,10 +513,7 @@ async fn fetch_offchain_data(
 
     let status = res.status();
 
-    let response_body = res.text().await.map_err(|err| {
-        let error_msg = format!("Failed to read offchain lookup server response: ({err})");
-        MetadataBuildError::FailedToBuild(error_msg)
-    })?;
+    let response_body = read_response_body(res).await?;
     tracing::debug!(
         response = response_body,
         status = status.as_u16(),
@@ -489,17 +545,7 @@ async fn fetch_offchain_data(
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 
-    // remove leading 0x which hex_decode doesn't like
-    let hex_data = &json.data[2..];
-
-    let metadata = hex_decode(hex_data).map_err(|err| {
-        let msg = format!(
-            "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
-            err, json.data
-        );
-        MetadataBuildError::FailedToBuild(msg)
-    })?;
-    Ok(Metadata::new(metadata))
+    decode_response_data(&json.data).map_err(|e| FetchOutcome::from(*e))
 }
 
 fn create_ccip_url_regex() -> RegexSet {
@@ -533,6 +579,10 @@ mod test {
     use futures::future::join_all;
     use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, SignedType, U256};
     use hyperlane_ethereum::Signers;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     use super::*;
 
@@ -819,6 +869,101 @@ mod test {
         assert!(!body_signals_pending("not json"));
         // success body -> not pending
         assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
+    }
+
+    #[tokio::test]
+    async fn test_read_response_body_rejects_oversized_chunked_body() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test server must bind");
+        let addr = listener
+            .local_addr()
+            .expect("listener must have an address");
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("client must connect");
+
+            let mut request = Vec::new();
+            let mut buf = [0u8; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let count = socket
+                    .read(&mut buf)
+                    .await
+                    .expect("request must be readable");
+                if count == 0 {
+                    return;
+                }
+                request.extend_from_slice(&buf[..count]);
+            }
+
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
+                )
+                .await
+                .expect("response headers must be writable");
+
+            let chunk = vec![b'a'; 64 * 1024];
+            let mut remaining = MAX_CCIP_RESPONSE_SIZE + 1;
+            while remaining > 0 {
+                let count = remaining.min(chunk.len());
+                if socket
+                    .write_all(format!("{count:X}\r\n").as_bytes())
+                    .await
+                    .is_err()
+                    || socket.write_all(&chunk[..count]).await.is_err()
+                    || socket.write_all(b"\r\n").await.is_err()
+                {
+                    return;
+                }
+                remaining -= count;
+            }
+            let _ = socket.write_all(b"0\r\n\r\n").await;
+        });
+
+        let response = Client::new()
+            .get(format!("http://{addr}"))
+            .send()
+            .await
+            .expect("test request must receive response headers");
+        assert_eq!(response.content_length(), None);
+
+        let err = read_response_body(response)
+            .await
+            .expect_err("an oversized chunked response must be rejected");
+        assert!(err.to_string().contains("exceeds"));
+
+        tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .expect("server must stop after the response is rejected")
+            .expect("server task must not panic");
+    }
+
+    #[test]
+    fn test_decode_response_data_validates_prefix_and_hex() {
+        assert_eq!(
+            decode_response_data("0xdeadBEEF")
+                .expect("valid prefixed hex must decode")
+                .as_ref(),
+            [0xde, 0xad, 0xbe, 0xef]
+        );
+        assert!(decode_response_data("0x")
+            .expect("empty bytes are valid metadata")
+            .is_empty());
+
+        for data in ["", "0", "deadbeef", "0Xdeadbeef", "🦀"] {
+            let err = decode_response_data(data)
+                .err()
+                .expect("missing lowercase 0x prefix must be rejected without panicking");
+            assert!(err.to_string().contains("missing the 0x prefix"));
+        }
+
+        for data in ["0x0", "0xzz"] {
+            let err = decode_response_data(data)
+                .err()
+                .expect("invalid prefixed hex must be rejected without panicking");
+            assert!(err.to_string().contains("Failed to decode hex"));
+        }
     }
 
     #[test]
