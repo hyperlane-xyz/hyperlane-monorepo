@@ -51,6 +51,7 @@ Flag notes:
 
 - `--chain` = origin chain the quote is submitted on; `--destination` = the remote chain the quote applies to.
 - `--recipient` / `--amount`: for a broadly reusable standing quote, use the wildcard sentinel (`WarpQuoteAmountKind.wildcard`) for both. Recipient, when concrete, is in the **destination chain's native format** (0x… EVM, base58 Solana).
+  - **When unsure which recipient to use, ask the user — do not silently default to `wildcard`.** A recipient is only valid in the destination chain's native format, so a value that worked for one destination (e.g. a Solana base58 key) is invalid when the destination is a different protocol (e.g. an EVM chain). If the user's requested recipient can't apply to this destination, or they said "same params" but the address format doesn't fit, stop and confirm the intended recipient (concrete address vs. `wildcard`) before submitting.
 - `--max-fee` + `--half-amount`: the linear fee-curve parameters (in wei on EVM, lamports on SVM).
 - `--ttl`: seconds; on-chain expiry = now + ttl. Must be `> 0`.
 - `--target-router`: **cross-collateral only.** Submits against a specific router-keyed leaf, in the destination chain's native address format. Omit to let the CLI auto-resolve (specific router leaf if present, else the `DEFAULT` leaf). Don't set it for single-collateral routes.
@@ -78,7 +79,7 @@ cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp quote read \
    cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
    ```
    Background; wait for `Listening on http://localhost:<port>`; note port + task ID.
-3. **For create:** first `read` the current standing quotes for the lane so you can show old→new. Then run `create`. Summarize the lane (origin→destination, recipient/amount scope, maxFee/halfAmount, TTL) in plain language before the raw output.
+3. **For create:** first `read` the current standing quotes for the lane so you can show old→new. **Confirm the recipient is valid for the destination protocol; if it's ambiguous or a format mismatch, ask the user before submitting rather than defaulting to `wildcard`.** Then run `create`. Summarize the lane (origin→destination, recipient/amount scope, maxFee/halfAmount, TTL) in plain language before the raw output.
 4. **For read:** run and show output directly (no confirmation — read-only). On EVM, remember concrete recipients must be supplied via `--recipients` to be visible.
 5. **Stop the HTTP registry** background task, even on failure.
 
