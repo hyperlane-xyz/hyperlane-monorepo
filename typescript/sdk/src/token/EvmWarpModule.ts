@@ -299,6 +299,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
+      ...this.createAddDomainsUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
       // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
@@ -2078,6 +2079,49 @@ export class EvmWarpModule extends HyperlaneModule<
         ),
       },
     ];
+  }
+
+  /**
+   * Registers the Hyperlane<->Circle domain mapping (`addDomain`) for any
+   * remote chain in `expectedConfig.remoteConfigs` that isn't already
+   * configured on-chain with the expected `circleDomain` — required before
+   * `TokenBridgeCctpBase._transferRemote` can dispatch to that destination
+   * (`hyperlaneDomainToCircleDomain` reverts with `CircleDomainNotConfigured`
+   * otherwise). One `addDomain` tx per changed domain, mirroring
+   * `createSetMaxFeePpmTxs`'s single-call style rather than batching via
+   * `addDomains`, to avoid struct-array ABI-encoding ambiguity.
+   */
+  createAddDomainsUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (!isCctpTokenConfig(expectedConfig) || !expectedConfig.remoteConfigs) {
+      return [];
+    }
+
+    const actualRemoteConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      isCctpTokenConfig(actualConfig) ? (actualConfig.remoteConfigs ?? {}) : {},
+    );
+    const expectedRemoteConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteConfigs,
+    );
+
+    return Object.entries(expectedRemoteConfigs)
+      .filter(([domain, expected]) => {
+        const actual = actualRemoteConfigs[Number(domain)];
+        return !actual || actual.circleDomain !== expected.circleDomain;
+      })
+      .map(([domain, expected]) => ({
+        chainId: this.chainId,
+        annotation: `Registering Circle domain ${expected.circleDomain} for Hyperlane domain ${domain} on ${this.args.chain}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'addDomain',
+          [Number(domain), expected.circleDomain],
+        ),
+      }));
   }
 
   /**

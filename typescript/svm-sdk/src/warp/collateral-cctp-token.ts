@@ -372,6 +372,14 @@ async function sendRemoteConfigInstructions(
 
   for (const [domainStr, remoteConfig] of Object.entries(remoteConfigs ?? {})) {
     const domain = Number(domainStr);
+    assert(
+      remoteConfig.maxFee !== undefined,
+      `remoteConfigs[${domain}].maxFee is required for Sealevel CCTP routes`,
+    );
+    assert(
+      remoteConfig.minFinalityThreshold !== undefined,
+      `remoteConfigs[${domain}].minFinalityThreshold is required for Sealevel CCTP routes`,
+    );
     const { address: remoteConfigPda } = await deriveCctpRemoteConfigPda(
       programAddress,
       domain,
@@ -417,6 +425,15 @@ async function computeCctpRemoteConfigUpdateInstructions(
         expectedConfig.minFinalityThreshold;
 
     if (!changed) continue;
+
+    assert(
+      expectedConfig.maxFee !== undefined,
+      `remoteConfigs[${domain}].maxFee is required for Sealevel CCTP routes`,
+    );
+    assert(
+      expectedConfig.minFinalityThreshold !== undefined,
+      `remoteConfigs[${domain}].minFinalityThreshold is required for Sealevel CCTP routes`,
+    );
 
     const { address: remoteConfigPda } = await deriveCctpRemoteConfigPda(
       programId,

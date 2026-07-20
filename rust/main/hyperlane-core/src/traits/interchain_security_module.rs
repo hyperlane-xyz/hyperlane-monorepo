@@ -63,6 +63,9 @@ pub enum ModuleType {
     Polymer = 12,
     /// Composite ISM (Sealevel inline ISM tree) — Sealevel-only, no Solidity counterpart
     Composite = 13,
+    /// CCTP v2 message+attestation ISM (Sealevel-only, no Solidity counterpart —
+    /// EVM's equivalent TokenBridgeCctpV2 reports CcipRead instead)
+    CctpV2 = 128,
 }
 
 /// Metadata associated with an ISM verification
@@ -123,6 +126,7 @@ impl ModuleType {
             Self::OpL2ToL1 => "op_l2_to_l1",
             Self::Polymer => "polymer",
             Self::Composite => "composite",
+            Self::CctpV2 => "cctp_v2",
         }
     }
 }

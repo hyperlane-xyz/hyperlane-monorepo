@@ -2,6 +2,7 @@ mod aggregation;
 mod base;
 mod base_builder;
 mod ccip_read;
+mod cctp_v2;
 mod message_builder;
 mod multisig;
 mod null_metadata;

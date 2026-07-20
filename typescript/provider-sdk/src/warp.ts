@@ -102,14 +102,19 @@ export interface CrossCollateralWarpConfig extends BaseWarpConfig {
 
 /**
  * Per-remote-domain CCTP send config: which Circle domain a Hyperlane
- * destination maps to, and the fee/finality parameters to use for
- * `deposit_for_burn` calls targeting it. Keyed by chain name (Config API) or
- * domain ID (Artifact API), mirroring `remoteRouters`/`destinationGas`.
+ * destination maps to, and (Sealevel-only) the fee/finality parameters to
+ * use for `deposit_for_burn` calls targeting it. Keyed by chain name (Config
+ * API) or domain ID (Artifact API), mirroring `remoteRouters`/`destinationGas`.
+ *
+ * `circleDomain` is required on every VM (EVM uses it to call `addDomain`;
+ * Sealevel uses it to derive Circle PDAs). `maxFee`/`minFinalityThreshold`
+ * are Sealevel-only — EVM applies a single global fee/finality setting to
+ * every destination, so these don't apply there.
  */
 export interface CctpRemoteConfig {
   circleDomain: number;
-  maxFee: string;
-  minFinalityThreshold: number;
+  maxFee?: string;
+  minFinalityThreshold?: number;
 }
 
 export interface CollateralCctpWarpConfig extends BaseWarpConfig {
@@ -827,6 +832,7 @@ export function resolveFeeTokenFromWarpArtifactConfig(
   switch (config.type) {
     case TokenType.collateral:
     case TokenType.crossCollateral:
+    case TokenType.collateralCctp:
       return config.token;
     case TokenType.synthetic:
       return config.token;

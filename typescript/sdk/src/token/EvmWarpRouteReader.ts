@@ -365,6 +365,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       warpRouteAddress,
     );
 
+    const remoteConfigs =
+      type === TokenType.collateralCctp
+        ? await this.deriveCctpRemoteConfigs(
+            warpRouteAddress,
+            routerConfig.remoteRouters,
+          )
+        : undefined;
+
     const derivedConfig = {
       ...routerConfig,
       ...tokenConfig,
@@ -375,6 +383,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       tokenFee,
       feeHook,
       ...(predicateWrapper && { predicateWrapper }),
+      ...(remoteConfigs && { remoteConfigs }),
     };
     return derivedConfig;
   }
@@ -1146,6 +1155,38 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
     }
+  }
+
+  /**
+   * Reads back the Hyperlane->Circle domain mapping (`hyperlaneDomainToCircleDomain`)
+   * for every remote domain this token has an enrolled router for. Domains
+   * that revert with `CircleDomainNotConfigured` (never registered via
+   * `addDomain`) are omitted, so `EvmWarpModule.createAddDomainsUpdateTxs`'s
+   * diff sees them as missing and adds them.
+   */
+  private async deriveCctpRemoteConfigs(
+    hypToken: Address,
+    remoteRouters: RemoteRouters | undefined,
+  ): Promise<Record<string, { circleDomain: number }>> {
+    const tokenBridge = TokenBridgeCctpBase__factory.connect(
+      hypToken,
+      this.provider,
+    );
+    const remoteConfigs: Record<string, { circleDomain: number }> = {};
+    const domains = Object.keys(remoteRouters ?? {});
+    await Promise.all(
+      domains.map(async (domain) => {
+        try {
+          const circleDomain = await tokenBridge.hyperlaneDomainToCircleDomain(
+            Number(domain),
+          );
+          remoteConfigs[domain] = { circleDomain };
+        } catch {
+          // Not yet configured for this domain.
+        }
+      }),
+    );
+    return remoteConfigs;
   }
 
   private async deriveHypCollateralDepositAddressTokenConfig(

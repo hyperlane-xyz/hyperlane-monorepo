@@ -254,16 +254,23 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe(
         'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
       ),
-    // Sealevel-only: per-Hyperlane-destination-domain CCTP send config
-    // (Circle domain + fee/finality), keyed by domain or chain name like
-    // remoteRouters/destinationGas.
+    // Per-Hyperlane-destination-domain CCTP send config, keyed by domain or
+    // chain name like remoteRouters/destinationGas.
+    // - `circleDomain` is required on every VM: EVM uses it to call
+    //   `addDomain`/register the Hyperlane<->Circle domain mapping on-chain
+    //   (see `TokenBridgeCctpBase.addDomain`); Sealevel uses it to derive
+    //   Circle PDAs.
+    // - `maxFee`/`minFinalityThreshold` are Sealevel-only: EVM applies a
+    //   single global `maxFeeBps`/`minFinalityThreshold` to every
+    //   destination (see above), so these are meaningless per-remote-domain
+    //   there and can be omitted.
     remoteConfigs: z
       .record(
         RemoteRouterDomainOrChainNameSchema,
         z.object({
           circleDomain: z.number(),
-          maxFee: z.string(),
-          minFinalityThreshold: z.number(),
+          maxFee: z.string().optional(),
+          minFinalityThreshold: z.number().optional(),
         }),
       )
       .optional(),

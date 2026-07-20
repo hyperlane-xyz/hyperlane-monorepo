@@ -218,6 +218,46 @@ pub fn derive_custody_token_account_pda(mint: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[CUSTODY_SEED, mint.as_ref()], &token_messenger_minter::ID)
 }
 
+/// Global singleton `TokenMessenger` config PDA, seeds `["token_messenger"]`
+/// (confirmed from `token_messenger_v2/instructions/initialize.rs`). One per
+/// `TokenMessengerMinterV2` deployment, not per-mint/per-domain.
+pub const TOKEN_MESSENGER_SEED: &[u8] = b"token_messenger";
+
+pub fn derive_token_messenger_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[TOKEN_MESSENGER_SEED], &token_messenger_minter::ID)
+}
+
+/// Global singleton `TokenMinter` config PDA, seeds `["token_minter"]`
+/// (confirmed from `token_messenger_v2/instructions/initialize.rs`). One per
+/// `TokenMessengerMinterV2` deployment.
+pub const TOKEN_MINTER_SEED: &[u8] = b"token_minter";
+
+pub fn derive_token_minter_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[TOKEN_MINTER_SEED], &token_messenger_minter::ID)
+}
+
+/// Byte offset of the `fee_recipient: Pubkey` field within the
+/// `TokenMessenger` account's data (confirmed from
+/// `token_messenger_v2/state.rs`'s field order: 8-byte Anchor discriminator +
+/// `denylister`(32) + `owner`(32) + `pending_owner`(32) +
+/// `message_body_version`(4) + `authority_bump`(1) = 109).
+const TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET: usize = 109;
+
+/// Reads the `fee_recipient` field out of a `TokenMessenger` account's raw
+/// data. Mutable, admin-set by Circle (`set_fee_recipient`) — not itself a
+/// PDA, so it must be read at runtime rather than derived.
+pub fn parse_token_messenger_fee_recipient(data: &[u8]) -> Result<Pubkey, ProgramError> {
+    let end = TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET + 32;
+    if data.len() < end {
+        return Err(ProgramError::InvalidAccountData);
+    }
+    Ok(Pubkey::new_from_array(
+        data[TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET..end]
+            .try_into()
+            .unwrap(),
+    ))
+}
+
 /// Instruction args for `deposit_for_burn`. Field order matches Circle's
 /// real struct exactly (`#[repr(C)]`, explicitly not reorderable since
 /// `DepositForBurnWithHookParams` must deserialize as a prefix-compatible
@@ -640,5 +680,30 @@ mod test {
     fn test_cctp_v2_header_too_short_rejected() {
         let message = vec![0u8; CCTP_V2_HEADER_LEN - 1];
         assert!(CctpV2Header::parse(&message).is_err());
+    }
+
+    #[test]
+    fn test_token_messenger_and_token_minter_pdas_are_singletons() {
+        let (tm1, _) = derive_token_messenger_pda();
+        let (tm2, _) = derive_token_messenger_pda();
+        assert_eq!(tm1, tm2);
+        let (tmin1, _) = derive_token_minter_pda();
+        assert_ne!(tm1, tmin1);
+    }
+
+    #[test]
+    fn test_parse_token_messenger_fee_recipient() {
+        let fee_recipient = Pubkey::new_unique();
+        let mut data = vec![0u8; TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET + 32];
+        data[TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET..TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET + 32]
+            .copy_from_slice(fee_recipient.as_ref());
+        let parsed = parse_token_messenger_fee_recipient(&data).unwrap();
+        assert_eq!(parsed, fee_recipient);
+    }
+
+    #[test]
+    fn test_parse_token_messenger_fee_recipient_too_short_rejected() {
+        let data = vec![0u8; TOKEN_MESSENGER_FEE_RECIPIENT_OFFSET + 31];
+        assert!(parse_token_messenger_fee_recipient(&data).is_err());
     }
 }

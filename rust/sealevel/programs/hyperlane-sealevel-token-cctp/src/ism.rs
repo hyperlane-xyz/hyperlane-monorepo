@@ -18,21 +18,38 @@
 //! about, is that the accompanying Hyperlane `TokenMessage` actually
 //! describes the same transfer as the CCTP `BurnMessage` (amount, recipient)
 //! — mirroring EVM's `_validateTokenMessage`.
+//!
+//! `Verify()`'s two CPI-signer roles (Circle's own `payer`/`caller` params
+//! for `receive_message`) are **not** externally-supplied signer accounts —
+//! the Sealevel relayer forces any signer an ISM's account-metas response
+//! declares down to non-signer unless it matches a separately-configured
+//! `identity` key, and hard-errors if the real transaction payer appears in
+//! the list at all (`hyperlane-sealevel/src/utils.rs::sanitize_dynamic_accounts`).
+//! So both roles are filled by this program's own `ata_payer` PDA, signed
+//! for internally via `invoke_signed` — the same pattern already used here
+//! for the idempotent recipient-ATA creation.
 
+use borsh::BorshDeserialize;
 use hyperlane_core::{Decode, HyperlaneMessage};
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use hyperlane_warp_route::TokenMessage;
-use serializable_account_meta::SimulationReturnData;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    program::{invoke, invoke_signed},
+    instruction::AccountMeta,
+    program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
     sysvar::Sysvar,
 };
-use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use spl_associated_token_account::{
+    get_associated_token_address_with_program_id,
+    instruction::create_associated_token_account_idempotent,
+};
 
 use crate::{
     circle::{
@@ -61,28 +78,26 @@ pub fn process_ism_instruction(
                 .map_err(|_| ProgramError::InvalidArgument)?;
             verify(program_id, accounts, &data.metadata, &message)
         }
-        InterchainSecurityModuleInstruction::VerifyAccountMetas(_) => {
-            // No generic account-discovery support (yet) — the account list
-            // is large, fixed, and confirmed directly against Circle's
-            // source; a relayer integration builds it explicitly rather than
-            // via the fixpoint simulation loop composite-ism uses. See open
-            // items in the accompanying plan notes.
-            Err(ProgramError::InvalidInstructionData)
+        InterchainSecurityModuleInstruction::VerifyAccountMetas(data) => {
+            let account_metas = verify_account_metas(program_id, accounts, &data.metadata)?;
+            let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+                .map_err(|_| ProgramError::BorshIoError)?;
+            set_return_data(&bytes);
+            Ok(())
         }
         InterchainSecurityModuleInstruction::VerifyMetadataSpec(_) => {
+            // No generic MetadataSpec support (yet) — same reasoning
+            // composite-ism's CctpV2 node used for MetadataSpec::Null; a
+            // relayer integration builds CctpV2Metadata explicitly rather
+            // than discovering its shape generically.
             Err(ProgramError::InvalidInstructionData)
         }
     }
 }
 
 fn ism_type() -> ProgramResult {
-    use solana_program::program::set_return_data;
-    // No CCTP-specific ModuleType exists upstream; Null is the closest
-    // accurate signal ("no special relayer-side metadata construction is
-    // generically supported") — same reasoning composite-ism's CctpV2 node
-    // used for MetadataSpec::Null.
     let bytes = borsh::to_vec(&SimulationReturnData::new(
-        hyperlane_core::ModuleType::Unused as u32,
+        hyperlane_core::ModuleType::CctpV2 as u32,
     ))
     .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes);
@@ -90,47 +105,47 @@ fn ism_type() -> ProgramResult {
 }
 
 /// Accounts (every PDA we have a confirmed derivation for is independently
-/// re-derived here and checked against the supplied account — never
-/// trusted blindly just because the caller labeled it correctly):
-/// 0.  `[]` This program's persistent `HyperlaneToken<CctpPlugin>` config
+/// re-derived here and checked against the supplied account — never trusted
+/// blindly just because the caller labeled it correctly):
+/// 0.  `[]` The generic `VERIFY_ACCOUNT_METAS_PDA_SEEDS` PDA every ISM's
+///     `VerifyAccountMetas` caller bootstraps with — unused by this ISM
+///     (our persistent config lives at a different, token-lib-standard PDA,
+///     account 1 below), consumed here only to keep this account list
+///     positionally identical to whatever `VerifyAccountMetas` converges to.
+/// 1.  `[]` This program's persistent `HyperlaneToken<CctpPlugin>` config
 ///     PDA (checked against `mint_info`, below).
-/// 1.  `[signer, writable]` The payer (Circle's `receive_message` payer;
-///     also funds idempotent recipient-ATA creation via the ata_payer PDA).
-/// 2.  `[signer]` Circle's `caller` account (permissionless unless the
-///     origin's `destination_caller` was set restrictively).
-/// 3.  `[writable]` This program's ata_payer PDA (derived, checked).
-/// 4.  `[]` The recipient wallet (checked against `BurnMessage.mint_recipient`).
-/// 5.  `[writable]` The recipient's associated token account.
-/// 6.  `[writable]` The USDC mint (checked against our own config, account 0).
-/// 7.  `[executable]` The SPL token program (token or token-2022).
-/// 8.  `[executable]` The SPL associated-token-account program (unused
+/// 2.  `[writable]` This program's `ata_payer` PDA (derived, checked) —
+///     funds idempotent recipient-ATA creation, and internally signs (via
+///     `invoke_signed`) both of Circle's `payer`/`caller` roles for
+///     `receive_message`.
+/// 3.  `[]` The recipient wallet (checked against `BurnMessage.mint_recipient`).
+/// 4.  `[writable]` The recipient's associated token account.
+/// 5.  `[writable]` The USDC mint (checked against our own config, account 1).
+/// 6.  `[executable]` The SPL token program (token or token-2022).
+/// 7.  `[executable]` The SPL associated-token-account program (unused
 ///     directly — see inline note at its `next_account_info` call).
-/// 9.  `[executable]` The system program.
-/// 10. `[writable]` Circle's `message_transmitter` config PDA (derived, checked).
-/// 11. `[writable]` Circle's `used_nonce` PDA (derived from the parsed
-///     CCTP message's nonce, checked).
-/// 12. `[]` Circle's `authority_pda` (derived, checked — `MessageTransmitterV2`'s
+/// 8.  `[executable]` The system program.
+/// 9.  `[writable]` Circle's `message_transmitter` config PDA (derived, checked).
+/// 10. `[writable]` Circle's `used_nonce` PDA (derived from the parsed CCTP
+///     message's nonce, checked).
+/// 11. `[]` Circle's `authority_pda` (derived, checked — `MessageTransmitterV2`'s
 ///     own signer for its internal CPI into `TokenMessengerMinterV2`, never
 ///     signed by us).
-/// 13. `[]` Circle's `token_messenger` config. **Not independently derived —
-///     its exact PDA seed wasn't confirmed in this research pass (unlike
-///     `remote_token_messenger`/`local_token`/`token_pair`/`custody`, which
-///     were); trusted as supplied for now. Flagged as an open item.**
-/// 14. `[]` Circle's `remote_token_messenger` PDA for the burn's source
+/// 12. `[]` Circle's `token_messenger` singleton config (derived, checked).
+/// 13. `[]` Circle's `remote_token_messenger` PDA for the burn's source
 ///     domain (derived, checked).
-/// 15. `[]` Circle's `token_minter` config. **Same caveat as `token_messenger`
-///     above — not independently derived.**
-/// 16. `[writable]` Circle's `local_token` PDA for the USDC mint (derived,
+/// 14. `[]` Circle's `token_minter` singleton config (derived, checked).
+/// 15. `[writable]` Circle's `local_token` PDA for the USDC mint (derived,
 ///     checked).
-/// 17. `[writable]` Circle's `token_pair` PDA for
-///     `(source_domain, burn_token)` (derived, checked).
-/// 18. `[writable]` Circle's fee-recipient token account. **Open item: this
-///     address needs to be sourced from `TokenMinter`'s on-chain config —
-///     not independently confirmed in this pass; trusted as supplied.**
-/// 19. `[writable]` Circle's `custody_token_account` PDA for the USDC mint
+/// 16. `[writable]` Circle's `token_pair` PDA for `(source_domain,
+///     burn_token)` (derived, checked).
+/// 17. `[writable]` Circle's fee-recipient token account — the ATA of
+///     `token_messenger`'s mutable `fee_recipient` field (read from account
+///     12's data, then derived as a standard ATA; checked).
+/// 18. `[writable]` Circle's `custody_token_account` PDA for the USDC mint
 ///     (derived, checked).
-/// 20. `[]` Circle's event-CPI `event_authority` PDA (derived, checked).
-/// 21. `[executable]` `TokenMessengerMinterV2`'s own program account
+/// 19. `[]` Circle's event-CPI `event_authority` PDA (derived, checked).
+/// 20. `[executable]` `TokenMessengerMinterV2`'s own program account
 ///     (checked against the constant program ID — used both as the
 ///     `receive_message` `receiver` and as the event-CPI `program` account;
 ///     one `AccountInfo` covers both `AccountMeta` occurrences).
@@ -141,7 +156,7 @@ fn verify(
     metadata: &[u8],
     message: &HyperlaneMessage,
 ) -> ProgramResult {
-    let meta: CctpV2Metadata = borsh::BorshDeserialize::try_from_slice(metadata)
+    let meta: CctpV2Metadata = BorshDeserialize::try_from_slice(metadata)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     let header = CctpV2Header::parse(&meta.message)?;
 
@@ -172,9 +187,8 @@ fn verify(
     }
 
     let accounts_iter = &mut accounts.iter();
+    let _vam_pda_info = next_account_info(accounts_iter)?;
     let token_config_info = next_account_info(accounts_iter)?;
-    let payer_info = next_account_info(accounts_iter)?;
-    let caller_info = next_account_info(accounts_iter)?;
     let ata_payer_info = next_account_info(accounts_iter)?;
     let recipient_wallet_info = next_account_info(accounts_iter)?;
     if *recipient_wallet_info.key != burn_message.mint_recipient {
@@ -222,9 +236,17 @@ fn verify(
     if *authority_pda_info.key != expected_authority_pda {
         return Err(ProgramError::InvalidArgument);
     }
+    let (expected_token_messenger, _) = circle::derive_token_messenger_pda();
+    if *token_messenger_info.key != expected_token_messenger {
+        return Err(ProgramError::InvalidArgument);
+    }
     let (expected_remote_token_messenger, _) =
         circle::derive_remote_token_messenger_pda(header.source_domain);
     if *remote_token_messenger_info.key != expected_remote_token_messenger {
+        return Err(ProgramError::InvalidArgument);
+    }
+    let (expected_token_minter, _) = circle::derive_token_minter_pda();
+    if *token_minter_info.key != expected_token_minter {
         return Err(ProgramError::InvalidArgument);
     }
     let (expected_local_token, _) = circle::derive_local_token_pda(mint_info.key);
@@ -260,6 +282,19 @@ fn verify(
         return Err(ProgramError::InvalidArgument);
     }
 
+    let expected_fee_recipient_token_account = {
+        let fee_recipient =
+            circle::parse_token_messenger_fee_recipient(&token_messenger_info.data.borrow())?;
+        get_associated_token_address_with_program_id(
+            &fee_recipient,
+            mint_info.key,
+            token_program_info.key,
+        )
+    };
+    if *fee_recipient_token_account_info.key != expected_fee_recipient_token_account {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     // Ensure the recipient's ATA exists before Circle's mint CPI writes to
     // it — Circle's program requires the token account to already exist.
     invoke_signed(
@@ -292,9 +327,12 @@ fn verify(
         *token_program_info.key,
     );
 
+    // `ata_payer` fills both of Circle's signer roles (`payer` and
+    // `caller`) — see module docs for why these can't be externally-supplied
+    // signer accounts on Sealevel.
     let ixn = receive_message_instruction(
-        *payer_info.key,
-        *caller_info.key,
+        ata_payer_key,
+        ata_payer_key,
         *authority_pda_info.key,
         *message_transmitter_info.key,
         *used_nonce_info.key,
@@ -305,8 +343,8 @@ fn verify(
     )?;
 
     let cpi_accounts = vec![
-        payer_info.clone(),
-        caller_info.clone(),
+        ata_payer_info.clone(), // payer
+        ata_payer_info.clone(), // caller
         authority_pda_info.clone(),
         message_transmitter_info.clone(),
         used_nonce_info.clone(),
@@ -325,7 +363,118 @@ fn verify(
         mint_info.clone(),
     ];
 
-    invoke(&ixn, &cpi_accounts)?;
+    invoke_signed(
+        &ixn,
+        &cpi_accounts,
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
 
     Ok(())
+}
+
+/// Returns the account metas required for `Verify`, matching its exact
+/// layout (see doc comment above `verify`). Resolved over the fixpoint loop
+/// `get_ism_verify_account_metas` runs (`hyperlane-sealevel/src/provider.rs`):
+/// round 1 supplies only the generic VAM PDA (account 0); once this
+/// function's own response is fed back as the next round's input, our
+/// persistent token config (account 1) and, a round later, Circle's
+/// `token_messenger` singleton (account 12, needed to read its mutable
+/// `fee_recipient` field) become real, readable accounts. Converges in a
+/// small, fixed number of rounds — see module docs.
+fn verify_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    metadata: &[u8],
+) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+    let meta: CctpV2Metadata = BorshDeserialize::try_from_slice(metadata)
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
+    let header = CctpV2Header::parse(&meta.message)?;
+    let burn_message = BurnMessage::parse(header.message_body)?;
+    let remote_burn_token = burn_message.burn_token.to_bytes();
+
+    let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    let (token_config_pda, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds!(),
+        program_id,
+    );
+
+    let base: Vec<SerializableAccountMeta> = vec![
+        AccountMeta::new_readonly(vam_pda, false).into(),
+        AccountMeta::new_readonly(token_config_pda, false).into(),
+    ];
+
+    let token_config_info = match find_account(accounts, &token_config_pda) {
+        Some(info) if !info.data_is_empty() => info,
+        // Not readable yet on this round — ask for it next round.
+        _ => return Ok(base),
+    };
+
+    let token_config = hyperlane_sealevel_token_lib::accounts::HyperlaneTokenAccount::<
+        crate::accounts::CctpPlugin,
+    >::fetch_data(&mut &token_config_info.data.borrow()[..])?
+    .ok_or(ProgramError::UninitializedAccount)?;
+    let mint = token_config.plugin_data.mint;
+    let spl_token_program = token_config.plugin_data.spl_token_program;
+
+    let (ata_payer_key, _) = crate::accounts::derive_ata_payer_pda(program_id);
+    let (message_transmitter_key, _) = circle::derive_message_transmitter_pda();
+    let (used_nonce_key, _) = circle::derive_used_nonce_pda(&header.nonce);
+    let (authority_pda_key, _) = circle::derive_message_transmitter_authority_pda();
+    let (token_messenger_key, _) = circle::derive_token_messenger_pda();
+    let (remote_token_messenger_key, _) =
+        circle::derive_remote_token_messenger_pda(header.source_domain);
+    let (token_minter_key, _) = circle::derive_token_minter_pda();
+    let (local_token_key, _) = circle::derive_local_token_pda(&mint);
+    let (token_pair_key, _) =
+        circle::derive_token_pair_pda(header.source_domain, &remote_burn_token);
+    let (custody_key, _) = circle::derive_custody_token_account_pda(&mint);
+    let (event_authority_key, _) =
+        circle::derive_event_authority_pda(&circle::token_messenger_minter::ID);
+
+    let recipient_wallet = burn_message.mint_recipient;
+    let recipient_token_account =
+        get_associated_token_address_with_program_id(&recipient_wallet, &mint, &spl_token_program);
+
+    let mut result: Vec<SerializableAccountMeta> = vec![
+        AccountMeta::new_readonly(vam_pda, false).into(),
+        AccountMeta::new_readonly(token_config_pda, false).into(),
+        AccountMeta::new(ata_payer_key, false).into(),
+        AccountMeta::new_readonly(recipient_wallet, false).into(),
+        AccountMeta::new(recipient_token_account, false).into(),
+        AccountMeta::new(mint, false).into(),
+        AccountMeta::new_readonly(spl_token_program, false).into(),
+        AccountMeta::new_readonly(spl_associated_token_account::id(), false).into(),
+        AccountMeta::new_readonly(solana_system_interface::program::ID, false).into(),
+        AccountMeta::new(message_transmitter_key, false).into(),
+        AccountMeta::new(used_nonce_key, false).into(),
+        AccountMeta::new_readonly(authority_pda_key, false).into(),
+        AccountMeta::new_readonly(token_messenger_key, false).into(),
+        AccountMeta::new_readonly(remote_token_messenger_key, false).into(),
+        AccountMeta::new_readonly(token_minter_key, false).into(),
+        AccountMeta::new(local_token_key, false).into(),
+        AccountMeta::new(token_pair_key, false).into(),
+        AccountMeta::new(custody_key, false).into(),
+        AccountMeta::new_readonly(event_authority_key, false).into(),
+        AccountMeta::new_readonly(circle::token_messenger_minter::ID, false).into(),
+    ];
+
+    let fee_recipient_token_account = match find_account(accounts, &token_messenger_key) {
+        Some(info) if !info.data_is_empty() => {
+            let fee_recipient = circle::parse_token_messenger_fee_recipient(&info.data.borrow())?;
+            get_associated_token_address_with_program_id(&fee_recipient, &mint, &spl_token_program)
+        }
+        // token_messenger is now in `result` (added above) but not yet
+        // readable this round — ask for it next round.
+        _ => return Ok(result),
+    };
+    result.push(AccountMeta::new(fee_recipient_token_account, false).into());
+
+    Ok(result)
+}
+
+fn find_account<'a, 'b>(
+    accounts: &'a [AccountInfo<'b>],
+    key: &Pubkey,
+) -> Option<&'a AccountInfo<'b>> {
+    accounts.iter().find(|info| info.key == key)
 }
