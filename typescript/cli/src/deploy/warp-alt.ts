@@ -46,9 +46,14 @@ export async function runWarpAltCreate({
   const effectiveForce = force || fullForce;
 
   const existingAlts = warpCoreConfig.options?.sealevel?.altAddresses ?? {};
-  const svmChains = [
-    ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
-  ].filter((chainName) => {
+
+  const routeChains = new Set(warpCoreConfig.tokens.map((t) => t.chainName));
+  assert(
+    !chain || routeChains.has(chain),
+    `Chain "${chain}" is not part of warp route "${resolvedWarpRouteId}"`,
+  );
+
+  const svmChains = [...routeChains].filter((chainName) => {
     if (chain && chainName !== chain) return false;
     if (
       context.multiProvider.getProtocol(chainName) !== ProtocolType.Sealevel

@@ -5,7 +5,11 @@ import type { WarpCoreConfig } from '@hyperlane-xyz/sdk';
 
 import type { CommandContext } from '../context/types.js';
 
-import { getWarpCoreConfigOrExit, resolveWarpRouteId } from './warp.js';
+import {
+  findWarpTokenForChain,
+  getWarpCoreConfigOrExit,
+  resolveWarpRouteId,
+} from './warp.js';
 
 describe('resolveWarpRouteId', () => {
   const mockWarpRoutes = {
@@ -344,5 +348,29 @@ describe('getWarpCoreConfigOrExit', () => {
         'No warp route found for symbol "ETH" spanning chains: polygon',
       );
     }
+  });
+});
+
+describe('findWarpTokenForChain', () => {
+  it('returns the first matching token when a chain appears more than once', () => {
+    const config: WarpCoreConfig = {
+      tokens: [
+        { chainName: 'ethereum', addressOrDenom: '0xfirst' },
+        { chainName: 'ethereum', addressOrDenom: '0xsecond' },
+        { chainName: 'arbitrum', addressOrDenom: '0xother' },
+      ],
+    } as WarpCoreConfig;
+
+    const token = findWarpTokenForChain(config, 'ethereum');
+
+    expect(token?.addressOrDenom).to.equal('0xfirst');
+  });
+
+  it('returns undefined when the chain is absent from tokens', () => {
+    const config: WarpCoreConfig = {
+      tokens: [{ chainName: 'ethereum', addressOrDenom: '0x1' }],
+    } as WarpCoreConfig;
+
+    expect(findWarpTokenForChain(config, 'arbitrum')).to.equal(undefined);
   });
 });

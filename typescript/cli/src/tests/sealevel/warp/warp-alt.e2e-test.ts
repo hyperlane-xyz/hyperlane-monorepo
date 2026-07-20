@@ -186,6 +186,49 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     await warpCommands.altCheck(warpRouteId);
   });
 
+  it('create is a clean no-op when re-run with no flags, and rejects an out-of-route chain', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'ALTNOP';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    const config: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'No-op ALT Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    // First create registers the ALTs for the only route chain.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId);
+
+    // Re-running with no flags on the fully-registered route is a clean
+    // no-op. Assert on both the exit code and the no-op message so an
+    // unrelated startup error can't accidentally make this pass.
+    const noop = await warpCommands.altCreate(SVM_KEY, warpRouteId).nothrow();
+    expect(noop.exitCode, 'altCreate no-op should exit 0').to.equal(0);
+    expect(noop.stdout).to.include('Nothing to do');
+
+    // `--chain` for a chain that is a known registry chain but not part of
+    // this single-chain SVM route must be rejected up front. `anvil1` is
+    // registered in the multiProvider (see the drift test's remote router)
+    // so it reaches our route-membership assert rather than failing earlier
+    // on unknown-chain metadata.
+    const outOfRoute = await warpCommands
+      .altCreate(SVM_KEY, warpRouteId, { chain: 'anvil1' })
+      .nothrow();
+    expect(
+      outOfRoute.exitCode,
+      'altCreate with out-of-route chain should exit non-zero',
+    ).to.not.equal(0);
+    expect(outOfRoute.stdout).to.include('is not part of warp route');
+  });
+
   it('check exits non-zero when warp config drifts from registered ALTs', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'ALTSTL';
