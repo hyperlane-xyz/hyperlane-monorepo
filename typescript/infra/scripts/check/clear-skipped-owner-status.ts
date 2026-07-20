@@ -1,12 +1,10 @@
 import chalk from 'chalk';
-import { Registry } from 'prom-client';
-
-import { deleteMetrics } from '@hyperlane-xyz/metrics';
 
 import { checkWarpDeployConfig } from '../../config/environments/mainnet3/warp/checkWarpDeploy.js';
 import { getArgs } from '../agent-utils.js';
 
 import { warpViolationGroupings } from './check-utils.js';
+import { deleteViolationSeriesOrThrow } from './clear-utils.js';
 import { ownerStatusClearTargets } from './owner-status-skip.js';
 
 // One-time rollout clear for the legacy-EOA ownerStatus allowlist.
@@ -17,6 +15,15 @@ import { ownerStatusClearTargets } from './owner-status-skip.js';
 // stay firing forever. This script deletes exactly the series that the allowlist
 // now suppresses, derived from OWNER_STATUS_SKIP so the two can never drift.
 // Idempotent: deleting an already-absent series is a no-op.
+//
+// This is not wired into the check-warp-deploy CronJob — it is a manual one-shot
+// run at rollout, executed once after this filter merges. In-cluster:
+//   kubectl exec -n mainnet3 deploy/... -- \
+//     yarn tsx ./scripts/check/clear-skipped-owner-status.ts -e mainnet3
+// Verify afterwards that the metric dropped by querying the gateway:
+//   hyperlane_check_violations{type="ConfigMismatch"} for each (warp_route_id,
+//   chain, module="ownerStatus.<owner>") target should be absent.
+// Exits non-zero if any DELETE is not confirmed by the gateway.
 async function main() {
   const { environment, pushGateway } = await getArgs()
     .describe(
@@ -38,28 +45,36 @@ async function main() {
     ),
   );
 
+  const jobName = `check-warp-deploy-${environment}`;
   let cleared = 0;
-  for (const { warpRouteId, chain, contractName, violationType } of targets) {
+  const failures: string[] = [];
+  for (const [
+    i,
+    { warpRouteId, chain, contractName, violationType },
+  ] of targets.entries()) {
     const groupings = warpViolationGroupings(
       warpRouteId,
       chain,
       contractName,
       violationType,
     );
-    console.log(
-      chalk.yellow(
-        `[${cleared + 1}/${targets.length}] ${violationType} ${warpRouteId} ${chain} "${contractName}"`,
-      ),
-    );
-    await deleteMetrics(
-      new Registry(),
-      `check-warp-deploy-${environment}`,
-      groupings,
-    );
-    cleared++;
+    const label = `${violationType} ${warpRouteId} ${chain} "${contractName}"`;
+    console.log(chalk.yellow(`[${i + 1}/${targets.length}] ${label}`));
+    try {
+      await deleteViolationSeriesOrThrow(jobName, groupings);
+      cleared++;
+    } catch (e) {
+      failures.push(label);
+      console.error(chalk.red(`  failed: ${e}`));
+    }
   }
 
-  console.log(chalk.green(`Delete requests sent for ${cleared} series`));
+  if (failures.length > 0) {
+    throw new Error(
+      `Cleared ${cleared}/${targets.length}; ${failures.length} failed:\n  ${failures.join('\n  ')}`,
+    );
+  }
+  console.log(chalk.green(`Cleared ${cleared} series`));
 }
 
 main()

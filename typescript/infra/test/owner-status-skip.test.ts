@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { WARP_ROUTE_CHECK_TYPE } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   OWNER_STATUS_SKIP,
@@ -11,7 +12,11 @@ import {
 describe('ownerStatus skip allowlist', () => {
   const best = OWNER_STATUS_SKIP.find(
     (s) => s.warpRouteId === 'BEST/ethereum' && s.chain === 'bsc',
-  )!;
+  );
+  assert(
+    best,
+    'expected a BEST/ethereum bsc entry in OWNER_STATUS_SKIP (fixture drifted from allowlist)',
+  );
 
   it('skips the ownerStatus violation for the exact allowlisted owner', () => {
     expect(

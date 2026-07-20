@@ -330,22 +330,13 @@ export function transferOwnershipTransactions(
 export async function isAddressActive(
   provider: EthersLikeProvider,
   address: Address,
-  protocol: ProtocolType = ProtocolType.Ethereum,
 ): Promise<boolean> {
-  const code = await provider.getCode(address);
-  if (code !== '0x') {
-    return true;
-  }
+  const [code, txnCount] = await Promise.all([
+    provider.getCode(address),
+    provider.getTransactionCount(address),
+  ]);
 
-  // Tron's JSON-RPC does not implement eth_getTransactionCount, so the EVM
-  // nonce probe throws there. Branch on protocol and use a Tron-native
-  // liveness signal (balance) rather than swallowing the error, which would
-  // otherwise mask genuine RPC failures on real EVM chains as Inactive.
-  if (protocol === ProtocolType.Tron) {
-    return !(await provider.getBalance(address)).isZero();
-  }
-
-  return (await provider.getTransactionCount(address)) > 0;
+  return code !== '0x' || txnCount > 0;
 }
 
 /**
