@@ -186,6 +186,48 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     await warpCommands.altCheck(warpRouteId);
   });
 
+  it('create is a clean no-op when re-run with no flags, and rejects an invalid --chain', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'ALTNOP';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    const config: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'No-op ALT Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    // First create registers the ALTs for the only route chain.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId);
+
+    // Re-running with no flags on the fully-registered route is a clean
+    // no-op. Assert on both the exit code and the no-op message so an
+    // unrelated startup error can't accidentally make this pass.
+    const noop = await warpCommands.altCreate(SVM_KEY, warpRouteId).nothrow();
+    expect(noop.exitCode, 'altCreate no-op should exit 0').to.equal(0);
+    expect(noop.stdout).to.include('Nothing to do');
+
+    // A non-SVM `--chain` must be rejected, not silently no-op'd. `warp alt
+    // create` only operates on SVM chains, so the chain resolver rejects a
+    // non-SVM `--chain` (here `anvil1`) before ALT creation. Its error, like
+    // other yargs middleware failures, surfaces on stderr with a non-zero exit.
+    const wrongChain = await warpCommands
+      .altCreate(SVM_KEY, warpRouteId, { chain: 'anvil1' })
+      .nothrow();
+    expect(
+      wrongChain.exitCode,
+      'altCreate with a non-SVM --chain should exit non-zero',
+    ).to.not.equal(0);
+    expect(wrongChain.stderr).to.include('is not an SVM chain');
+  });
+
   it('check exits non-zero when warp config drifts from registered ALTs', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'ALTSTL';
