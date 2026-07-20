@@ -152,6 +152,7 @@ describe('CoreWriter', () => {
       createValidatorAnnounceArtifactManager: sinon.stub(),
       createFeeArtifactManager: sinon.stub(),
       getMinGas: sinon.stub(),
+      getMinGasForWarpDeploy: sinon.stub(),
       createWarpArtifactManager: sinon.stub(),
     } satisfies ProtocolProvider;
 
