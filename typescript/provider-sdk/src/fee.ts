@@ -1,9 +1,7 @@
 import {
   Logger,
   assert,
-  deepEquals,
   isNullish,
-  normalizeConfig,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -96,6 +94,18 @@ export type FeeType = (typeof FeeType)[keyof typeof FeeType];
 export interface BaseFeeConfig {
   owner: string;
   beneficiary: string;
+  /**
+   * Address of the asset the fee program receives. Populated by the warp
+   * orchestrator at deploy/update time from the paired warp route's
+   * settlement asset (see `resolveFeeTokenFromWarpArtifactConfig`). Undefined
+   * for native warps and for fee programs that are not paired with a
+   * token-bearing warp.
+   *
+   * Read paths may leave this undefined on protocols that don't persist the
+   * fee asset on-chain. On such protocols, the orchestrator re-populates this
+   * field on every write call.
+   */
+  token?: string;
 }
 
 export interface LinearFeeConfig extends BaseFeeConfig {
@@ -474,6 +484,7 @@ export function feeConfigToArtifact(
           owner: config.owner,
           beneficiary: config.beneficiary,
           routes: convertRoutesToArtifact(config.routes, chainLookup),
+          token: config.token,
         },
       };
 
@@ -485,6 +496,7 @@ export function feeConfigToArtifact(
           owner: config.owner,
           beneficiary: config.beneficiary,
           routes: convertCCRoutesToArtifact(config.routes, chainLookup),
+          token: config.token,
         },
       };
 
@@ -593,10 +605,66 @@ export function feeArtifactToDerivedConfig(
 }
 
 /**
+ * Compares two FeeParams values semantically across shape variants.
+ *
+ * - Same shape: structural compare on the relevant fields.
+ * - Cross-shape: only equal when the bps side carries resolved
+ *   `maxFee`/`halfAmount` that match the raw side. If the bps side has no
+ *   resolved values we cannot safely assume equality (the bps→raw
+ *   conversion is protocol-specific), so we return false and let the caller
+ *   treat it as "different".
+ */
+function feeParamsEqual(a: FeeParams, b: FeeParams): boolean {
+  if (a.type === FeeParamsType.bps && b.type === FeeParamsType.bps) {
+    return a.bps === b.bps;
+  }
+
+  if (a.type === FeeParamsType.raw && b.type === FeeParamsType.raw) {
+    return a.maxFee === b.maxFee && a.halfAmount === b.halfAmount;
+  }
+
+  const bpsSide = a.type === FeeParamsType.bps ? a : b;
+  const rawSide = a.type === FeeParamsType.raw ? a : b;
+  if (bpsSide.maxFee !== undefined && bpsSide.halfAmount !== undefined) {
+    return (
+      bpsSide.maxFee === rawSide.maxFee &&
+      bpsSide.halfAmount === rawSide.halfAmount
+    );
+  }
+
+  return false;
+}
+
+/**
+ * Type guard for leaf-shaped fee configs (those carrying a `params` field).
+ */
+function isLeafFeeConfig(
+  c: FeeArtifactConfig,
+): c is
+  | LinearFeeConfig
+  | RegressiveFeeConfig
+  | ProgressiveFeeConfig
+  | OffchainQuotedLinearFeeConfig {
+  return (
+    c.type === FeeType.linear ||
+    c.type === FeeType.regressive ||
+    c.type === FeeType.progressive ||
+    c.type === FeeType.offchainQuotedLinear
+  );
+}
+
+/**
  * Determines if a new fee should be deployed instead of updating the existing one.
- * Deploy new if fee type changed. For direct types (linear, regressive, progressive),
- * deploy new if config changed (immutable on EVM - constructor-set params).
- * Routing/CC routing types are mutable and can be updated in-place.
+ *
+ * A change of fee type always requires a fresh deployment (different program
+ * semantics). For matching leaf types, only `params` divergence forces a
+ * redeploy — EVM fee contracts have constructor-set immutable params, so a
+ * params change cannot be applied in place. All other leaf fields
+ * (`owner`, `beneficiary`, `token`, `quoteSigners`) are settable
+ * post-deploy on both SVM (UpdateFeeParams/SetBeneficiary/TransferOwnership/
+ * AddWildcardQuoteSigner) and EVM (transferOwnership/setBeneficiary), so
+ * they go through the writer's update path rather than triggering a
+ * redeploy. Routing/CC routing types are fully mutable.
  */
 export function shouldDeployNewFee(
   actual: FeeArtifactConfig,
@@ -608,8 +676,11 @@ export function shouldDeployNewFee(
     case FeeType.linear:
     case FeeType.regressive:
     case FeeType.progressive:
-    case FeeType.offchainQuotedLinear:
-      return !deepEquals(normalizeConfig(actual), normalizeConfig(expected));
+    case FeeType.offchainQuotedLinear: {
+      // actual.type === expected.type already; narrow actual via guard.
+      if (!isLeafFeeConfig(actual)) return true;
+      return !feeParamsEqual(actual.params, expected.params);
+    }
 
     case FeeType.routing:
     case FeeType.crossCollateralRouting:
@@ -619,6 +690,61 @@ export function shouldDeployNewFee(
       const invalidConfig: never = expected;
       throw new Error(
         `Unhandled fee type in shouldDeployNewFee: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Returns a fee artifact config identical to the input except for the
+ * `token` field, which is set to the provided value. Explicit per-variant
+ * construction so future additions to any variant break this site at
+ * compile time instead of being silently absorbed by a spread.
+ */
+export function withFeeAssetConfig(
+  config: FeeArtifactConfig,
+  token: string | undefined,
+): FeeArtifactConfig {
+  switch (config.type) {
+    case FeeType.linear:
+    case FeeType.regressive:
+    case FeeType.progressive:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        params: config.params,
+        token,
+      };
+    case FeeType.offchainQuotedLinear:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        params: config.params,
+        quoteSigners: config.quoteSigners,
+        token,
+      };
+    case FeeType.routing:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        routes: config.routes,
+        token,
+      };
+    case FeeType.crossCollateralRouting:
+      return {
+        type: config.type,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        routes: config.routes,
+        token,
+      };
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(
+        `Unsupported fee type for withFeeAssetConfig: ${JSON.stringify(invalidConfig)}`,
       );
     }
   }

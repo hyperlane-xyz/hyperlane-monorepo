@@ -10,7 +10,96 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
+  readOptionalDiscriminatedTrailing,
 } from '../../utils/sealevelSerialization.js';
+
+/**
+ * Optional warp fee configuration. Mirrors `FeeConfig` in
+ * rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs
+ * (introduced in the SVM fee-flow upgrade).
+ */
+export interface SealevelTokenFeeConfig {
+  feeProgram: PublicKey;
+  feeAccount: PublicKey;
+}
+
+/// `FeeConfig::DISCRIMINATOR` in hyperlane-sealevel-token/src/accounts.rs.
+const FEE_CONFIG_DISCRIMINATOR = Buffer.from('TOKFEEV1', 'ascii');
+const FEE_CONFIG_PAYLOAD_SIZE = 64; // 32 (feeProgram) + 32 (feeAccount)
+
+/**
+ * Decode the optional trailing FeeConfig from a Hyperlane token PDA's raw
+ * account data. Returns undefined for pre-upgrade accounts and for accounts
+ * where fee_config is absent.
+ *
+ * On-chain layout: [SealevelHyperlaneTokenData (variable)] [plugin_data
+ * (fixed per token type)] [optional fee_config trailing]. The trailing field
+ * is an `OptionalDiscriminatedData<FeeConfig>`: empty when absent, or
+ * `[DISCRIMINATOR (8)][feeProgram (32)][feeAccount (32)]` when present.
+ */
+export function decodeTrailingFeeConfig(
+  rawAccountData: Buffer,
+  consumedSize: number,
+  pluginDataSize: number,
+): SealevelTokenFeeConfig | undefined {
+  const payload = readOptionalDiscriminatedTrailing(
+    rawAccountData,
+    consumedSize + pluginDataSize,
+    FEE_CONFIG_DISCRIMINATOR,
+  );
+  if (payload === undefined) return undefined;
+
+  assert(
+    payload.length >= FEE_CONFIG_PAYLOAD_SIZE,
+    `Truncated fee_config: expected ${FEE_CONFIG_PAYLOAD_SIZE} payload bytes, got ${payload.length}`,
+  );
+  return {
+    feeProgram: new PublicKey(payload.subarray(0, 32)),
+    feeAccount: new PublicKey(payload.subarray(32, 64)),
+  };
+}
+
+/**
+ * Prefix of a fee account sufficient to extract the beneficiary owner.
+ * Mirrors `FeeAccountPrefix` in
+ * rust/sealevel/programs/hyperlane-sealevel-fee/src/accounts.rs.
+ * Trailing fields (fee_data, domain_id, min_issued_at) are left for
+ * `deserializeUnchecked` to skip — borsh-js 0.7 lacks i64 support so a
+ * full FeeAccount decoder isn't viable here.
+ */
+export class SealevelFeeAccountPrefix {
+  bump_seed!: number;
+  owner?: Uint8Array | null;
+  owner_pub_key?: PublicKey;
+  beneficiary!: Uint8Array;
+  beneficiary_pub_key!: PublicKey;
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+    this.beneficiary_pub_key = new PublicKey(this.beneficiary);
+    this.owner_pub_key = this.owner ? new PublicKey(this.owner) : undefined;
+  }
+}
+
+export const SealevelFeeAccountPrefixSchema = new Map<any, any>([
+  [
+    SealevelAccountDataWrapper,
+    // [8] = FEE_ACCT discriminator (consumed; not explicitly verified, same
+    // convention as SealevelIgpDataSchema).
+    getSealevelAccountDataSchema(SealevelFeeAccountPrefix, [8]),
+  ],
+  [
+    SealevelFeeAccountPrefix,
+    {
+      kind: 'struct',
+      fields: [
+        ['bump_seed', 'u8'],
+        ['owner', { kind: 'option', type: [32] }],
+        ['beneficiary', [32]],
+      ],
+    },
+  ],
+]);
 
 /**
  * Hyperlane Token Borsh Schema
@@ -46,6 +135,9 @@ export class SealevelHyperlaneTokenData {
   /// Remote routers.
   remote_routers?: Map<Domain, Uint8Array>;
   remote_router_pubkeys: Map<Domain, PublicKey>;
+  /// Trailing optional warp fee configuration. Hydrated post-decode via
+  /// `decodeTrailingFeeConfig`; NOT part of SealevelHyperlaneTokenDataSchema.
+  fee_config?: SealevelTokenFeeConfig;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
     this.mailbox_pubkey = new PublicKey(this.mailbox);

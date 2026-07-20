@@ -256,14 +256,6 @@
       },
       "overhead": 600000
     },
-    "sophon": {
-      "oracleConfig": {
-        "tokenExchangeRate": "1130688563792375",
-        "gasPrice": "64834012572666",
-        "tokenDecimals": 18
-      },
-      "overhead": 333774
-    },
     "starknet": {
       "oracleConfig": {
         "tokenExchangeRate": "7211161907441271",
@@ -439,14 +431,6 @@
         "tokenExchangeRate": "61107831957043",
         "gasPrice": "52099",
         "tokenDecimals": 9
-      },
-      "overhead": 600000
-    },
-    "stride": {
-      "oracleConfig": {
-        "tokenExchangeRate": "30495447069",
-        "gasPrice": "57820",
-        "tokenDecimals": 6
       },
       "overhead": 600000
     },

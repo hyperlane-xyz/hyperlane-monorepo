@@ -10,6 +10,7 @@ import {
   warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
+import { getArgs, withYes } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 import { AgentCli } from './utils.js';
@@ -108,6 +109,8 @@ async function main() {
   // whose keys / users are not chain-specific) will be attempted multiple times.
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
+  const { yes: skipConfirmation } = await withYes(getArgs()).argv;
+
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
 
@@ -118,14 +121,22 @@ async function main() {
 
   // If the current branch is not up-to-date with origin/main, prompt the user to continue
   if (commitsBehind > 0) {
-    const shouldContinue = await confirm({
-      message: chalk.yellow.bold(
-        `Warning: Current branch is ${commitsBehind} commit${
-          commitsBehind === 1 ? '' : 's'
-        } behind origin/main. Are you sure you want to continue?`,
-      ),
-      default: false,
-    });
+    const behindMessage = `Current branch is ${commitsBehind} commit${
+      commitsBehind === 1 ? '' : 's'
+    } behind origin/main.`;
+    const shouldContinue = skipConfirmation
+      ? true
+      : await confirm({
+          message: chalk.yellow.bold(
+            `Warning: ${behindMessage} Are you sure you want to continue?`,
+          ),
+          default: false,
+        });
+    if (skipConfirmation) {
+      console.log(
+        chalk.yellow.bold(`Warning: ${behindMessage} --yes set; continuing.`),
+      );
+    }
     if (!shouldContinue) {
       console.log(chalk.red.bold('Exiting...'));
       process.exit(1);

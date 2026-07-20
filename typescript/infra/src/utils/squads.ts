@@ -8,6 +8,7 @@ import {
   getProposalPda,
   getTransactionPda,
   instructions,
+  types,
 } from '@sqds/multisig';
 import chalk from 'chalk';
 import { Argv } from 'yargs';
@@ -17,7 +18,7 @@ import {
   MultiProtocolProvider,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
 
@@ -445,7 +446,7 @@ export function decodePermissions(mask: number): string {
 /**
  * Get the next available transaction index from the multisig
  */
-async function getNextSquadsTransactionIndex(
+export async function getNextSquadsTransactionIndex(
   chain: ChainName,
   mpp: MultiProtocolProvider,
 ): Promise<bigint> {
@@ -788,6 +789,248 @@ export async function submitProposalToSquads(
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to submit proposal to Squads: ${error}`),
+    );
+    throw error;
+  }
+}
+
+// ============================================================================
+// Squads Member/Threshold (ConfigTransaction) Helpers
+// ============================================================================
+
+export type AnnotatedConfigAction = {
+  action: types.ConfigAction;
+  description: string;
+};
+
+export function getMemberChanges(
+  currentMembers: PublicKey[],
+  expectedMembers: PublicKey[],
+): {
+  membersToRemove: PublicKey[];
+  membersToAdd: PublicKey[];
+} {
+  const membersToRemove = currentMembers.filter(
+    (member) => !expectedMembers.some((expected) => expected.equals(member)),
+  );
+  const membersToAdd = expectedMembers.filter(
+    (expected) => !currentMembers.some((member) => member.equals(expected)),
+  );
+
+  return { membersToRemove, membersToAdd };
+}
+
+function assertValidExpectedMembers(expectedMembers: PublicKey[]): void {
+  const seenMembers = new Set<string>();
+  for (const member of expectedMembers) {
+    const base58 = member.toBase58();
+    assert(!seenMembers.has(base58), `Duplicate Squad member ${base58}`);
+    seenMembers.add(base58);
+  }
+}
+
+/**
+ * Diffs the current Squad members/threshold against the expected set and
+ * returns the ConfigActions needed to reconcile them. Unlike Safe (which
+ * stores owners in an on-chain linked list requiring careful prevOwner
+ * bookkeeping), Squads bundles arbitrary member/threshold changes into a
+ * single ConfigTransaction applied atomically on execution, so no
+ * swap/ordering logic is required.
+ */
+export async function updateSquadsMembers({
+  chain,
+  mpp,
+  members,
+  threshold,
+  proposer,
+}: {
+  chain: ChainName;
+  mpp: MultiProtocolProvider;
+  members?: PublicKey[];
+  threshold?: number;
+  proposer?: PublicKey;
+}): Promise<AnnotatedConfigAction[]> {
+  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
+  const multisig = await accounts.Multisig.fromAccountAddress(
+    // @ts-ignore - SDK types are slightly incompatible but work at runtime
+    svmProvider,
+    multisigPda,
+  );
+
+  const currentThreshold = multisig.threshold;
+  const newThreshold = threshold ?? currentThreshold;
+  const currentMembers = multisig.members.map((member) => member.key);
+  const expectedMembers = members ?? currentMembers;
+
+  const { membersToRemove, membersToAdd } = getMemberChanges(
+    currentMembers,
+    expectedMembers,
+  );
+
+  rootLogger.info(
+    chalk.magentaBright(
+      'Members to remove:',
+      membersToRemove.map((member) => member.toBase58()),
+    ),
+  );
+  rootLogger.info(
+    chalk.magentaBright(
+      'Members to add:',
+      membersToAdd.map((member) => member.toBase58()),
+    ),
+  );
+
+  assert(expectedMembers.length >= 1, 'Squad must have at least one member');
+  assertValidExpectedMembers(expectedMembers);
+  assert(
+    newThreshold >= 1,
+    `Squad threshold ${newThreshold} must be at least 1`,
+  );
+  assert(
+    newThreshold <= expectedMembers.length,
+    `Squad threshold ${newThreshold} exceeds member count ${expectedMembers.length}`,
+  );
+  assert(
+    !proposer || expectedMembers.some((member) => member.equals(proposer)),
+    `Proposer ${proposer?.toBase58()} must remain a Squad member`,
+  );
+
+  const changes: AnnotatedConfigAction[] = [];
+
+  for (const member of membersToRemove) {
+    changes.push({
+      action: { __kind: 'RemoveMember', oldMember: member },
+      description: `Remove squad member ${member.toBase58()}`,
+    });
+  }
+
+  for (const member of membersToAdd) {
+    changes.push({
+      action: {
+        __kind: 'AddMember',
+        newMember: {
+          key: member,
+          permissions: { mask: SquadsPermission.ALL_PERMISSIONS },
+        },
+      },
+      description: `Add squad member ${member.toBase58()} with ${decodePermissions(
+        SquadsPermission.ALL_PERMISSIONS,
+      )} permissions`,
+    });
+  }
+
+  if (currentThreshold !== newThreshold) {
+    changes.push({
+      action: { __kind: 'ChangeThreshold', newThreshold },
+      description: `Change squad threshold to ${newThreshold}`,
+    });
+  }
+
+  return changes;
+}
+
+/**
+ * Build config transaction proposal instructions (create + propose in one
+ * transaction), mirroring buildSquadsVaultTransactionProposal but for
+ * member/threshold (ConfigAction) changes instead of vault instructions.
+ */
+export async function buildSquadsConfigTransactionProposal(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  actions: types.ConfigAction[],
+  creator: PublicKey,
+  memo?: string,
+): Promise<{
+  instructions: TransactionInstruction[];
+  transactionIndex: bigint;
+}> {
+  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
+
+  const configTxIx = instructions.configTransactionCreate({
+    multisigPda,
+    transactionIndex,
+    creator,
+    rentPayer: creator,
+    actions,
+    memo: memo || 'Hyperlane Squads Signer Update',
+    programId,
+  });
+
+  const proposalIx = createProposalInstruction(
+    multisigPda,
+    transactionIndex,
+    creator,
+    programId,
+  );
+
+  return {
+    instructions: [configTxIx, proposalIx],
+    transactionIndex,
+  };
+}
+
+/**
+ * Submit a member/threshold update to Squads: creates the ConfigTransaction
+ * + proposal, then approves as the proposer. Mirrors submitProposalToSquads.
+ */
+export async function submitConfigProposalToSquads(
+  chain: ChainName,
+  actions: types.ConfigAction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<void> {
+  rootLogger.info(
+    chalk.cyan('\n=== Submitting Config Transaction to Squads ==='),
+  );
+
+  try {
+    const creatorPublicKey = signerAdapter.publicKey();
+
+    const { instructions: proposalInstructions, transactionIndex } =
+      await buildSquadsConfigTransactionProposal(
+        chain,
+        mpp,
+        actions,
+        creatorPublicKey,
+        memo,
+      );
+
+    rootLogger.info(
+      chalk.gray(
+        'Submitting config transaction creation with automatic confirmation...',
+      ),
+    );
+    const createSignature =
+      await signerAdapter.buildAndSendTransaction(proposalInstructions);
+
+    rootLogger.info(
+      chalk.green(`Config transaction created: ${createSignature}`),
+    );
+    rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+
+    rootLogger.info(chalk.gray('Approving proposal as proposer...'));
+    const { multisigPda, programId } = getSquadsKeys(chain);
+    const approveIx = instructions.proposalApprove({
+      multisigPda,
+      transactionIndex,
+      member: creatorPublicKey,
+      programId,
+    });
+
+    const approveSignature = await signerAdapter.buildAndSendTransaction([
+      approveIx,
+    ]);
+    rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+    rootLogger.info(
+      chalk.green(
+        'Config transaction proposal created and approved by proposer. Other multisig members can now approve.',
+      ),
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Failed to submit config proposal to Squads: ${error}`),
     );
     throw error;
   }

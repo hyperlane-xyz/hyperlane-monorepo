@@ -1,28 +1,19 @@
-import { type NextFunction, Request, Response, Router } from 'express';
-import type { Address, Hex } from 'viem';
+import { Request, Response, Router } from 'express';
+import { type Address, isAddress } from 'viem';
 import { z } from 'zod';
 
 import { FeeQuotingCommand } from '@hyperlane-xyz/sdk';
 
-import { ApiError } from '../middleware/errorHandler.js';
 import type { QuoteService } from '../services/quoteService.js';
 
-type AsyncHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => Promise<void>;
+import { asyncHandler } from './asyncHandler.js';
+import { bytes32Schema, domainSchema } from './commonSchemas.js';
+import { parseAndValidate } from './parseAndValidate.js';
 
-/** Wrap async route handler so rejections are forwarded to Express error middleware */
-function asyncHandler(fn: AsyncHandler) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    fn(req, res, next).catch(next);
-  };
-}
-
-const addressSchema = z.string().startsWith('0x').length(42);
-const bytes32Schema = z.string().startsWith('0x').length(66);
-const domainSchema = z.string().regex(/^\d+$/);
+const addressSchema = z.custom<Address>(
+  (v): boolean => typeof v === 'string' && isAddress(v),
+  'Invalid EVM address',
+);
 
 const WarpQuerySchema = z.object({
   origin: z.string().min(1),
@@ -43,17 +34,6 @@ const IcaQuerySchema = z.object({
   salt: bytes32Schema,
 });
 
-function parseAndValidate<T>(schema: z.ZodType<T>, query: unknown): T {
-  const parsed = schema.safeParse(query);
-  if (!parsed.success) {
-    const messages = parsed.error.issues
-      .map((i) => `${i.path.join('.')}: ${i.message}`)
-      .join('; ');
-    throw new ApiError(messages, 400);
-  }
-  return parsed.data;
-}
-
 export function createQuoteRouter(quoteService: QuoteService): Router {
   const router = Router();
 
@@ -63,10 +43,10 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         command,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
-        data.recipient as Hex,
+        data.router,
+        data.destination,
+        data.salt,
+        data.recipient,
       );
       res.json(response);
     };
@@ -78,9 +58,9 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         command,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
+        data.router,
+        data.destination,
+        data.salt,
       );
       res.json(response);
     };
@@ -97,11 +77,11 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const response = await quoteService.getQuote(
         data.origin,
         FeeQuotingCommand.TransferRemoteTo,
-        data.router as Address,
-        parseInt(data.destination, 10),
-        data.salt as Hex,
-        data.recipient as Hex,
-        data.targetRouter as Hex | undefined,
+        data.router,
+        data.destination,
+        data.salt,
+        data.recipient,
+        data.targetRouter,
       );
       res.json(response);
     }),

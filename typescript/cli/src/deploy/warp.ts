@@ -19,6 +19,9 @@ import {
   CCIPContractCache,
   type ChainMap,
   type ChainName,
+  type CompositeIsmConfig,
+  type CompositeIsmNodeConfig,
+  CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
   ExplorerLicenseType,
@@ -824,6 +827,7 @@ async function updateExistingWarpRoute(
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
+              protocolType,
             );
 
             const chainLookup = altVmChainLookup(multiProvider);
@@ -943,12 +947,14 @@ type IsmDisplayConfig =
   | MultisigIsmConfig // type, validators, threshold
   | OpStackIsmConfig // type, origin, nativeBridge
   | PausableIsmConfig // type, owner, paused, ownerOverrides
-  | TrustedRelayerIsmConfig; // type, relayer
+  | TrustedRelayerIsmConfig // type, relayer
+  | CompositeIsmConfig; // type, owner, root (Sealevel-only)
 
-function transformDeployConfigForDisplay(
+export function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
 ) {
-  const transformedIsmConfigs: Record<ChainName, any[]> = {};
+  const transformedIsmConfigs: Record<ChainName, Record<string, unknown>[]> =
+    {};
   const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
     if (config.interchainSecurityModule)
       transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
@@ -972,8 +978,10 @@ function transformDeployConfigForDisplay(
   };
 }
 
-function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
-  const ismConfigs: any[] = [];
+function transformIsmConfigForDisplay(
+  ismConfig: IsmDisplayConfig,
+): Record<string, unknown>[] {
+  const ismConfigs: Record<string, unknown>[] = [];
   switch (ismConfig.type) {
     case IsmType.AGGREGATION:
       ismConfigs.push({
@@ -1045,8 +1053,131 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
           Relayer: ismConfig.relayer,
         },
       ];
+    case IsmType.COMPOSITE:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          Root: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(ismConfig.root),
+      ];
     default:
       return [ismConfig];
+  }
+}
+
+/**
+ * Flattens a routing/fallbackRouting node's domain overrides into display
+ * rows, threading `${parentPath}.domains.${chain}` through the recursion so
+ * multiple domains' rows (e.g. two different multisig configs) aren't
+ * ambiguous once flattened into one table.
+ */
+function transformCompositeIsmDomainsForDisplay(
+  domains: ChainMap<CompositeIsmNodeConfig> | undefined,
+  parentPath: string,
+): Record<string, unknown>[] {
+  if (!domains) return [];
+  return Object.entries(domains).flatMap(([chain, sub]) =>
+    transformCompositeIsmNodeForDisplay(sub, `${parentPath}.domains.${chain}`),
+  );
+}
+
+/**
+ * Recursively flattens a composite ISM's node tree into display rows, one row
+ * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
+ * node configs (subIsms, lower/upper, domains) are never printed as raw
+ * objects; each becomes its own row via recursion, tagged with its full
+ * `Path` (e.g. `root.subIsms[1].domains.ethereum`) so rows that would
+ * otherwise collide (two domains, or lower/upper both `test`) stay
+ * distinguishable once flattened into one table.
+ */
+function transformCompositeIsmNodeForDisplay(
+  node: CompositeIsmNodeConfig,
+  path: string = 'root',
+): Record<string, unknown>[] {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          SubIsms: 'See table(s) below.',
+        },
+        ...node.subIsms.flatMap((sub, i) =>
+          transformCompositeIsmNodeForDisplay(sub, `${path}.subIsms[${i}]`),
+        ),
+      ];
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          Lower: 'See table(s) below.',
+          Upper: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(node.lower, `${path}.lower`),
+        ...transformCompositeIsmNodeForDisplay(node.upper, `${path}.upper`),
+      ];
+    case CompositeIsmNodeType.ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          FallbackIsm: node.fallbackIsm,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      return [{ Path: path, Type: node.type, Relayer: node.relayer }];
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Validators: node.validators,
+          Threshold: node.threshold,
+        },
+      ];
+    case CompositeIsmNodeType.TEST:
+      return [{ Path: path, Type: node.type, Accept: node.accept }];
+    case CompositeIsmNodeType.PAUSABLE:
+      return [{ Path: path, Type: node.type, Paused: node.paused }];
+    case CompositeIsmNodeType.RATE_LIMITED:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          MaxCapacity: node.maxCapacity,
+          Mailbox: node.mailbox,
+          Recipient: node.recipient ?? 'Undefined',
+        },
+      ];
+    default: {
+      // Compile-time exhaustiveness check — but if a new node type is ever
+      // added to CompositeIsmNodeConfig without a case here, this must fail
+      // loudly at runtime too, not silently print the raw unhandled object.
+      const _exhaustive: never = node;
+      throw new Error(
+        `Unhandled composite ISM node type: ${JSON.stringify(_exhaustive)}`,
+      );
+    }
   }
 }
 

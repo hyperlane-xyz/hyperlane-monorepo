@@ -73,7 +73,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['litchain', 'artela', 'molten', 'swell', 'miraclechain'],
+  chainsToSkip: ['mocachain'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
@@ -84,7 +84,6 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredStableswapInventoryRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
-    ancient8: '0.1',
     arbitrum: '0.1',
     avalanche: '2',
     base: '0.1',
@@ -92,16 +91,12 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.1',
     bsc: '0.3',
     celo: '5',
-    cyber: '0.025',
-    endurance: '10',
     ethereum: '0.2',
     fraxtal: '0.1',
-    fusemainnet: '10',
     gnosis: '5',
     linea: '0.1',
     lisk: '0.025',
     lukso: '10',
-    mantapacific: '0.1',
     mantle: '10',
     metis: '1',
     mode: '0.1',
@@ -111,13 +106,9 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.1',
     viction: '2',
     worldchain: '0.1',
-    xai: '10',
     xlayer: '0.25',
-    zetachain: '20',
-    zircuit: '0.01',
     // ignore non-evm chains
     eclipsemainnet: '0',
-    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',

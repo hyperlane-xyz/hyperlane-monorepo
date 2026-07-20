@@ -117,6 +117,18 @@ export class IsmWriter
       return this.routingWriter.update({ artifactState, config, deployed });
     }
 
+    // Composite ISM is mutable too, but self-contained: it diffs its own tree
+    // against on-chain state (re-read internally), so it's delegated to
+    // directly rather than routed through RoutingIsmWriter's nested-artifact
+    // recursion.
+    if (config.type === AltVM.IsmType.COMPOSITE) {
+      const writer = this.artifactManager.createWriter(
+        config.type,
+        this.signer,
+      );
+      return writer.update({ artifactState, config, deployed });
+    }
+
     // Multisig and test ISMs are immutable - no updates possible
     return [];
   }

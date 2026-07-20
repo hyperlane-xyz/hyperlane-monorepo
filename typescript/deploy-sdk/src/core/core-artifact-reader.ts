@@ -129,6 +129,7 @@ export class CoreArtifactReader implements ArtifactReader<
         defaultIsm: defaultIsmArtifact,
         defaultHook: defaultHookArtifact,
         requiredHook: requiredHookArtifact,
+        contractVersion: rawMailbox.config.contractVersion,
       },
       deployed: rawMailbox.deployed,
     };

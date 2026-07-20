@@ -22,7 +22,6 @@ import {
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   Ownable__factory,
-  PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
@@ -33,6 +32,7 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  addressToBytes32,
   arrayToObject,
   assert,
   eqAddress,
@@ -55,14 +55,19 @@ import {
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
+import {
+  CrossCollateralRoutersByDomain,
+  mergeCrossCollateralRouters,
+} from '../fee/crossCollateralUtils.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
-import { DestinationGas } from '../router/types.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
+  fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
@@ -323,12 +328,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const feeDestinations = [
       ...new Set([...(domains ?? []), ...ccrEnrolledDomains]),
     ];
+    // CCR feeContracts are keyed by each destination's enrolled router address.
+    // Those keys are the normal remoteRouters, not just the MC-enrolled
+    // crossCollateralRouters, so union both — otherwise the reader misses every
+    // fee entry keyed under a normal router and reports false-positive diffs.
+    // remoteRouters omits the local domain, so add this router's own address as
+    // the key for self-domain (same-chain CCR swap) fee entries.
+    const selfDomainId = this.multiProvider.getDomainId(this.chain);
+    const feeRouterKeys = isCrossCollateralTokenConfig(tokenConfig)
+      ? mergeCrossCollateralRouters(
+          tokenConfig.crossCollateralRouters,
+          this.remoteRoutersToRouterKeys(routerConfig.remoteRouters),
+          { [selfDomainId]: [addressToBytes32(warpRouteAddress)] },
+        )
+      : undefined;
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
-      isCrossCollateralTokenConfig(tokenConfig)
-        ? tokenConfig.crossCollateralRouters
-        : undefined,
+      feeRouterKeys,
     );
 
     // Read feeHook (IGP address for ERC20 gas payments)
@@ -455,10 +472,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return undefined;
   }
 
+  private remoteRoutersToRouterKeys(
+    remoteRouters: RemoteRouters | undefined,
+  ): CrossCollateralRoutersByDomain {
+    const routerKeys: CrossCollateralRoutersByDomain = {};
+    for (const [domain, { address }] of Object.entries(remoteRouters ?? {})) {
+      routerKeys[Number(domain)] = [address];
+    }
+    return routerKeys;
+  }
+
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-    crossCollateralRouters?: Record<string, string[]>,
+    crossCollateralRouters?: CrossCollateralRoutersByDomain,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
@@ -505,18 +532,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         return undefined;
       }));
 
-    const normalizedCrossCollateralRouters = crossCollateralRouters
-      ? Object.fromEntries(
-          Object.entries(crossCollateralRouters).map(([domain, routers]) => [
-            Number(domain),
-            routers,
-          ]),
-        )
-      : undefined;
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
       routingDestinations,
-      crossCollateralRouters: normalizedCrossCollateralRouters,
+      crossCollateralRouters,
     });
   }
 
@@ -532,6 +551,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     if (this.multiProvider.isLocalRpc(chain)) {
       this.logger.debug('Skipping verification for local endpoints');
+      return { [contractType]: ContractVerificationStatus.Skipped };
+    }
+
+    // Skip chains with no Etherscan-API-compatible explorer configured. The
+    // verifier can't query them (e.g. tronscan, zksync, keyless etherscan), so
+    // a resulting `Error` status is a false-positive violation, not a real
+    // unverified contract.
+    if (!this.multiProvider.tryGetEvmExplorerMetadata(chain)) {
+      this.logger.debug(
+        `Skipping verification for ${chain}: no Etherscan-compatible explorer configured`,
+      );
       return { [contractType]: ContractVerificationStatus.Skipped };
     }
     const quietVerificationLogger = this.logger.child(
@@ -1613,24 +1643,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchPackageVersion(address: Address) {
-    const contractWithVersion = PackageVersioned__factory.connect(
-      address,
-      this.provider,
-    );
-
-    try {
-      return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err) {
-      if (isMissingSelectorCallException(err)) {
-        // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
-        // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
-        // The real version of a contract without this function is below 5.4.0
-        return '5.3.9';
-      } else {
-        this.logger.error(`Error when fetching package version ${err}`);
-        throw err;
-      }
-    }
+    return fetchContractPackageVersion(this.provider, address, this.logger);
   }
 
   async fetchProxyAdminConfig(

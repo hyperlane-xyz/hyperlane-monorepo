@@ -241,7 +241,7 @@ pub struct CoreContractAddresses {
 }
 
 /// Indexing settings
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
@@ -250,6 +250,28 @@ pub struct IndexSettings {
     pub chunk_size: u32,
     /// The indexing mode.
     pub mode: IndexMode,
+    /// How long a cursor sleeps when it's caught up and has nothing new to
+    /// index. Defaults to 5s, overridable via `index.interval` (seconds) in
+    /// the chain config.
+    pub idle_sleep_duration: Duration,
+    /// The raw `index.interval` as explicitly configured, if any. `None` means the chain didn't
+    /// set it, distinct from `idle_sleep_duration` (which always has the 5s default baked in) -
+    /// callers that need to distinguish "operator opted into a faster/slower poll" from "using
+    /// the default" (e.g. the rate-limited cursor's near-tip tip-refresh throttle, which
+    /// otherwise defaults to 30s) should use this instead.
+    pub configured_interval: Option<Duration>,
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        Self {
+            from: 0,
+            chunk_size: 0,
+            mode: IndexMode::default(),
+            idle_sleep_duration: Duration::from_secs(5),
+            configured_interval: None,
+        }
+    }
 }
 
 impl ChainConf {
@@ -1571,7 +1593,7 @@ impl ChainConf {
         B: BuildableWithProvider + Sync,
     {
         let mut signer = None;
-        if B::NEEDS_SIGNER {
+        if B::SIGNER_REQUIREMENT != h_eth::SignerRequirement::None {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();

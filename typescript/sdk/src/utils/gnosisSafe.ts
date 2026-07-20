@@ -154,11 +154,6 @@ const chainOverrides: Record<
   string,
   { multiSend: string; multiSendCallOnly: string }
 > = {
-  // zeronetwork
-  543210: {
-    multiSend: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
-    multiSendCallOnly: '0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F',
-  },
   // berachain
   80094: {
     multiSend: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',

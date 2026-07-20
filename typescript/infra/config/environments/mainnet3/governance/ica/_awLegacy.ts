@@ -10,25 +10,17 @@ export const awIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   xlayer: '0x1571c482fe9E76bbf50829912b1c746792966369',
   worldchain: '0x1996DbFcFB433737fE404F58D2c32A7f5f334210',
-  // zircuit: '0x0d67c56E818a02ABa58cd2394b95EF26db999aA3', // already has a safe
 
   // Aug 5, 2024 batch
   // ----------------------------------------------------------
-  cyber: '0x984Fe5a45Ac4aaeC4E4655b50f776aB79c9Be19F',
   lisk: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   lukso: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
 
   // Aug 26, 2024 batch
   // ----------------------------------------------------------
-  astar: '0x6b241544eBa7d89B51b72DF85a0342dAa37371Ca',
   bitlayer: '0xe6239316cA60814229E801fF0B9DD71C9CA29008',
-  coredao: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
-  flare: '0x689b8DaBBF2f9Fd83D37427A062B30edF463e20b',
-  molten: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
-  shibarium: '0x6348FAe3a8374dbAAaE84EEe5458AE4063Fe2be7',
 
   // Sep 9, 2024 batch
   // ----------------------------------------------------------
@@ -40,29 +32,20 @@ export const awIcasLegacy: ChainMap<Address> = {
   avalanche: '0x8c8695cD9905e22d84E466804ABE55408A87e595',
   polygon: '0xBDD25dd5203fedE33FD631e30fEF9b9eF2598ECE',
   gnosis: '0xD42125a4889A7A36F32d7D12bFa0ae52B0AD106b',
-  ancient8: '0xA9FD5BeB556AB1859D7625B381110a257f56F98C',
   mantle: '0x08C880b88335CA3e85Ebb4E461245a7e899863c9',
   bob: '0xc99e58b9A4E330e2E4d09e2c94CD3c553904F588',
-  zetachain: '0xc876B8e63c3ff5b636d9492715BE375644CaD345',
-  fusemainnet: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
-  endurance: '0x470E04D8a3b7938b385093B93CeBd8Db7A1E557C',
   // sei: '0xabad187003EdeDd6C720Fc633f929EA632996567', // renzo chain
 
   // Oct 30, 2024 batch
   // ----------------------------------------------------------
   apechain: '0xe68b0aB6BB8c11D855556A5d3539524f6DB3bdc6',
-  gravity: '0x3104ADE26e21AEbdB325321433541DfE8B5dCF23',
-  kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
-  chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
-  rarichain: '0xD0A4Ad2Ca0251BBc6541f8c2a594F1A82b67F114',
   prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
 
   // Nov 21, 2024 batch
@@ -70,7 +53,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   boba: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
-  bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
 
   // Dec 4, 2024 batch
@@ -87,7 +69,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Jan 13, 2025 batch
   // ----------------------------------------------------------
-  artela: '0x745CEA119757ea3e27093da590bC91f408bD4448',
   hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
 
   // Feb 3, 2025 batch
@@ -113,7 +94,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   coti: '0x294589E4913A132A49F7830a2A219363A25c0529',
   // nibiru: '0x40cD75e80d04663FAe0CE30687504074F163C346', // temporary while looking into decimals
-  opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
 
   // Jun 5, 2025 - oUSDT v2
@@ -122,7 +102,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Jun 21, 2025 - oUSDT v3
   // ----------------------------------------------------------
-  swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687',
   botanix: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9',
 
   // Jun 30, 2025 - cctp upgrade

@@ -172,13 +172,23 @@ jobs:
           - synthetic-token
           - collateral-token
           - cross-collateral-token
+          - composite-ism
           - provider
           - read-token
           - program-upgrade
           - igp-program-upgrade
+          - mailbox-program-upgrade
           - warp-alt-simulation-parity
           - warp-fee-config
+          - warp-quote-reader
+          - warp-quote-writer
           - warp-transfer-remote-with-fees
+          - fee-linear
+          - fee-progressive
+          - fee-regressive
+          - fee-routing
+          - fee-cross-collateral-routing
+          - fee-offchain-quoted-linear
         include:
           - test: read-token
             continue-on-error: true

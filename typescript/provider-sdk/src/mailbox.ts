@@ -34,6 +34,7 @@ export interface MailboxArtifactConfig {
   defaultIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>; // ISM artifact reference
   defaultHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
   requiredHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
+  contractVersion?: string;
 }
 
 /**
@@ -144,7 +145,8 @@ export function mailboxArtifactToDerivedCoreConfig(
     ) => DerivedHookConfig;
   },
 ): DerivedCoreConfig {
-  const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
+  const { defaultIsm, defaultHook, requiredHook, owner, contractVersion } =
+    artifact.config;
 
   return {
     owner,
@@ -157,6 +159,7 @@ export function mailboxArtifactToDerivedCoreConfig(
     requiredHook: fromOnChainArtifact(requiredHook, 'requiredHook', (a) =>
       converters.hookArtifactToDerivedConfig(a, chainLookup),
     ),
+    contractVersion,
   };
 }
 

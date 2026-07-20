@@ -1,7 +1,15 @@
 import { compareVersions } from 'compare-versions';
 import { providers } from 'ethers';
 
-import { Address, chunk, isNullish, strip0x } from '@hyperlane-xyz/utils';
+import { PackageVersioned__factory } from '@hyperlane-xyz/core';
+import {
+  Address,
+  Logger,
+  chunk,
+  isNullish,
+  rootLogger,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 /**
  * Returns true when the deployed contract version is already at or above the
@@ -102,4 +110,33 @@ export async function contractHasString(
     }
   }
   return true;
+}
+
+/**
+ * Version reported for contracts that predate PACKAGE_VERSION (introduced in
+ * @hyperlane-xyz/core@5.4.0); such a contract reverts the call with empty
+ * return data (missing selector).
+ * https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
+ */
+export const LEGACY_PACKAGE_VERSION = '5.3.9';
+
+/**
+ * Reads a contract's PACKAGE_VERSION(), returning LEGACY_PACKAGE_VERSION for
+ * pre-5.4.0 contracts (missing selector). Real RPC/provider errors propagate.
+ */
+export async function fetchPackageVersion(
+  provider: providers.Provider,
+  address: Address,
+  logger: Logger = rootLogger,
+): Promise<string> {
+  try {
+    return await PackageVersioned__factory.connect(
+      address,
+      provider,
+    ).PACKAGE_VERSION();
+  } catch (error) {
+    if (isMissingSelectorCallException(error)) return LEGACY_PACKAGE_VERSION;
+    logger.error(`Error fetching package version for ${address}:`, error);
+    throw error;
+  }
 }

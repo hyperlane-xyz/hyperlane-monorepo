@@ -226,6 +226,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      token: mintPda,
       fee: token.feeConfig
         ? {
             artifactState: ArtifactState.UNDERIVED,
@@ -391,10 +392,28 @@ export class SvmSyntheticTokenWriter
       )),
     );
 
+    const deployedConfig: RawSyntheticWarpArtifactConfig = {
+      type: tokenConfig.type,
+      owner: tokenConfig.owner,
+      mailbox: tokenConfig.mailbox,
+      interchainSecurityModule: tokenConfig.interchainSecurityModule,
+      hook: tokenConfig.hook,
+      fee: tokenConfig.fee,
+      remoteRouters: tokenConfig.remoteRouters,
+      destinationGas: tokenConfig.destinationGas,
+      name: tokenConfig.name,
+      symbol: tokenConfig.symbol,
+      decimals: tokenConfig.decimals,
+      metadataUri: tokenConfig.metadataUri,
+      scale: tokenConfig.scale,
+      contractVersion: tokenConfig.contractVersion,
+      token: mintPda,
+    };
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: tokenConfig,
+        config: deployedConfig,
         deployed: { address: programAddress },
       },
       receipts,

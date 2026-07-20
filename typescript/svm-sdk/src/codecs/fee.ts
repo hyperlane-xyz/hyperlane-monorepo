@@ -1,6 +1,6 @@
 import type { ReadonlyUint8Array } from '@solana/kit';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import {
   FeeDataKind,
@@ -87,6 +87,79 @@ export function decodeBTreeSetH160(cursor: ByteCursor): string[] {
     signers.push(h160ToSigner(cursor.readBytes(20)));
   }
   return signers;
+}
+
+// ====== Fee quote context (signed bytes) ======
+
+/**
+ * Wildcard recipient sentinel — `H256::repeat_byte(0xFF)` on-chain. When the
+ * signed `recipient` slot equals this value, the on-chain context-match check
+ * skips the equality test and accepts any recipient. Mirrors EVM's
+ * `_matchesTransient` wildcard pattern.
+ *
+ * Returns a fresh array on each call so the shared sentinel can't be mutated
+ * by a consumer.
+ */
+export function wildcardRecipient(): Uint8Array {
+  return new Uint8Array(32).fill(0xff);
+}
+
+/**
+ * Wildcard amount sentinel — `u64::MAX` on-chain. Offchain signers use this
+ * when the actual transfer amount isn't known at sign time; the on-chain
+ * `validate` skips the equality check and accepts any amount.
+ */
+export const WILDCARD_AMOUNT: bigint = (1n << 64n) - 1n;
+
+/**
+ * Inputs to the offchain fee-program signer. `targetRouter`'s presence is
+ * the runtime discriminator between the 44-byte Leaf / Routing context and
+ * the 76-byte Cross-Collateral Routing context — the on-chain fee program
+ * tells the two apart by length.
+ */
+export interface SvmFeeQuoteContextInput {
+  destinationDomain: number;
+  /** 32-byte recipient (H256). */
+  recipient: Uint8Array;
+  /** u64 amount being transferred. */
+  amount: bigint;
+  /**
+   * 32-byte destination warp router (H256). When set, the result is the
+   * 76-byte Cross-Collateral context the on-chain `CrossCollateralRouting`
+   * leaf expects. When omitted, the result is the 44-byte Leaf/Routing
+   * context.
+   */
+  targetRouter?: Uint8Array;
+}
+
+/**
+ * Composes the bytes the offchain signer hashes into the signed quote's
+ * `context` slot for a fee-program quote. Mirrors `FeeQuoteContext` /
+ * `CcFeeQuoteContext` on the Rust side.
+ *
+ *     [0:4]   destination_domain (u32 LE)
+ *     [4:36]  recipient           (H256)
+ *     [36:44] amount              (u64 LE)
+ *     [44:76] target_router       (H256, CC only)
+ */
+export function encodeSvmFeeQuoteContext(
+  input: SvmFeeQuoteContextInput,
+): ReadonlyUint8Array {
+  ensureLength(input.recipient, 32, 'recipient');
+  if (isNullish(input.targetRouter)) {
+    return concatBytes(
+      u32le(input.destinationDomain),
+      input.recipient,
+      u64le(input.amount),
+    );
+  }
+  ensureLength(input.targetRouter, 32, 'targetRouter');
+  return concatBytes(
+    u32le(input.destinationDomain),
+    input.recipient,
+    u64le(input.amount),
+    input.targetRouter,
+  );
 }
 
 // ====== SvmSignedQuote (shared with IGP) ======

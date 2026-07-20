@@ -12,7 +12,7 @@ import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
-import { deriveAtaPayerPda } from '../pda.js';
+import { deriveAtaPayerPda, deriveSyntheticMintPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import {
@@ -136,6 +136,14 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
         'https://test.example.com/metadata.json',
       );
       expect(token.config.mailbox).to.equal(mailboxAddress);
+    });
+
+    it('should expose the deployed mint pda as config.token', async () => {
+      const { address: expectedMintPda } = await deriveSyntheticMintPda(
+        address(deployedProgramId),
+      );
+      const readArtifact = await writer.read(deployedProgramId);
+      expect(readArtifact.config.token).to.equal(expectedMintPda);
     });
   });
 });

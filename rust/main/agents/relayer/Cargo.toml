@@ -24,8 +24,10 @@ ethers.workspace = true
 eyre.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+hyper.workspace = true
 itertools.workspace = true
 maplit.workspace = true
+moka = { workspace = true, features = ["future"] }
 num-derive.workspace = true
 num-traits.workspace = true
 parking_lot.workspace = true
@@ -41,6 +43,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = [
     "rt",
     "macros",
+    "net",
     "parking_lot",
     "rt-multi-thread",
 ] }

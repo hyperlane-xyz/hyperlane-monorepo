@@ -1,4 +1,5 @@
 import type { DeployedWarpAddress } from '@hyperlane-xyz/provider-sdk/warp';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import type { TokenFeeConfig } from '../accounts/token.js';
 import type { SvmProgramTarget } from '../types.js';
@@ -33,4 +34,18 @@ export type SvmWarpTokenConfig = Readonly<{
  */
 export interface SvmDeployedWarpAddress extends DeployedWarpAddress {
   feeConfig?: TokenFeeConfig;
+}
+
+/**
+ * Narrow the abstract `DeployedWarpAddress` (returned by
+ * `IRawWarpArtifactManager.readWarpToken`) to the Sealevel variant. Sealevel
+ * warp readers always declare `feeConfig` as an own property on the deployed
+ * shape (assigned to `undefined` when the token has no fee_config wired on
+ * chain); non-Sealevel impls don't declare the field at all. That structural
+ * presence is the runtime discriminator.
+ */
+export function isSvmDeployedWarpAddress(
+  deployed: DeployedWarpAddress,
+): deployed is SvmDeployedWarpAddress {
+  return !isNullish(deployed) && 'feeConfig' in deployed;
 }

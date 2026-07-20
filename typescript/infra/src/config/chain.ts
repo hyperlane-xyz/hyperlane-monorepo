@@ -67,31 +67,26 @@ export function getDisabledChains(): ChainName[] {
 export const legacyIgpChains: ChainName[] = Array.from(
   new Set([
     'arcadia',
-    'chilizmainnet',
     'coti',
     'electroneum',
-    'incentiv',
     'metis',
-    'ontology',
     'taiko',
     'torus',
 
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
-    'astar',
     'krown',
     'prom',
     'pulsechain',
     'sei',
     'viction',
-    'xrplevm',
     ...getDisabledChains(),
   ]),
 );
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues
+// unsupported or have known issues.
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
@@ -101,15 +96,6 @@ export const chainsToSkip: ChainName[] = [
   // mainnets
   'zksync',
   'abstract',
-  'sophon',
-
-  // Swell network sunset 2026-06-30 (registry marks it disabled; kept explicit
-  // until the pinned .registryrc is bumped past the disable commit).
-  'swell',
-
-  // Miraclechain network sunset 2026-06-30. Not yet marked disabled in the
-  // pinned registry, so kept explicit here.
-  'miraclechain',
 
   ...getDisabledChains(),
 ];
@@ -276,7 +262,13 @@ async function fetchSecretMetadataOverrides(
   // verification checks (e.g. warp check) use authenticated requests.
   // These overrides live only in the PartialRegistry layer and are never
   // persisted back to the on-disk registry.
-  const explorerApiKeys = await fetchExplorerApiKeys();
+  // Only fetch from GCP when running locally (not in k8s), mirroring the Safe
+  // API key handling above: the pod has no GCP identity, and the registry
+  // already provides explorer API keys inline, so the fetch is unnecessary
+  // (and previously fatal) in-cluster.
+  const explorerApiKeys: ChainMap<string> = !inKubernetes()
+    ? await fetchExplorerApiKeys()
+    : {};
   for (const chain of chains) {
     const apiKey = explorerApiKeys[chain];
     if (!apiKey) continue;

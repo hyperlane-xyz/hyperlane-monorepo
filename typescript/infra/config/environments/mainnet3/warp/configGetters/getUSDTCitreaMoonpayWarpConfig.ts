@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
-import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
+import fastpathIsms from '../../fastpath/isms.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -29,10 +29,17 @@ import {
   getRebalancingBridgesConfigFor,
 } from './utils.js';
 
-const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
-// Threshold in message units (6-decimal normalized via scale); BSC's 18-dec token is
-// scaled to 6-dec message amounts so the same value applies: 1000 USDT = 1_000_000_000.
-const AMOUNT_ROUTING_THRESHOLD = 1_000_000_000;
+const FASTPATH_CHAINS = [
+  'arbitrum',
+  'base',
+  'bsc',
+  'citrea',
+  'ethereum',
+  'katana',
+  'polygon',
+] as const;
+type FastpathChain = (typeof FASTPATH_CHAINS)[number];
+const FASTPATH_ISM_ADDRESSES = fastpathIsms as Record<FastpathChain, string>;
 
 const ownersByChain = {
   arbitrum: awIcas.arbitrum,
@@ -148,88 +155,47 @@ function buildDefaultIsm(owner: string): IsmConfig {
   };
 }
 
-const TRUSTED_RELAYER_CHAINS = ['bsc', 'katana'] as const;
-type TrustedRelayerChain = (typeof TRUSTED_RELAYER_CHAINS)[number];
-
-function isTrustedRelayerChain(chain: string): chain is TrustedRelayerChain {
-  return TRUSTED_RELAYER_CHAINS.includes(chain as TrustedRelayerChain);
+function isCctpChain(chain: ChainName): chain is EvmChain {
+  return CCTP_CHAINS.includes(chain as EvmChain);
 }
 
-function buildInnerRoutingIsm(
-  local: EvmChain | TrustedRelayerChain,
+function buildRemoteIsm(
+  local: (typeof ROUTE_CHAINS)[number],
+  remote: (typeof ROUTE_CHAINS)[number],
   owner: string,
 ): IsmConfig {
-  if (isTrustedRelayerChain(local)) {
-    const domains: Record<string, IsmConfig> = Object.fromEntries(
-      ROUTE_CHAINS.filter(
-        (chain) => chain !== local && chain !== 'solanamainnet',
-      ).map((chain) => [
-        chain,
-        {
-          type: IsmType.TRUSTED_RELAYER,
-          relayer: FAST_PATH_RELAYER,
-        } as IsmConfig,
-      ]),
-    );
-    return { type: IsmType.ROUTING, owner, domains } as const;
+  if (isCctpChain(local) && isCctpChain(remote)) {
+    return CCTP_FAST_ROUTE_ADDRESSES[local];
   }
 
-  const domains: Record<string, IsmConfig> = Object.fromEntries(
-    CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
-      remote,
-      CCTP_FAST_ROUTE_ADDRESSES[local] as IsmConfig,
-    ]),
-  );
-
-  for (const chain of TRUSTED_RELAYER_CHAINS) {
-    domains[chain] = {
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        {
-          type: IsmType.AMOUNT_ROUTING,
-          threshold: AMOUNT_ROUTING_THRESHOLD,
-          lowerIsm: {
-            type: IsmType.TRUSTED_RELAYER,
-            relayer: FAST_PATH_RELAYER,
-          },
-          upperIsm: buildDefaultIsm(owner),
-        },
-        buildDefaultIsm(owner),
-      ],
-    };
+  const fastpathIsm = FASTPATH_ISM_ADDRESSES[local as FastpathChain];
+  if (fastpathIsm && FASTPATH_CHAINS.includes(remote as FastpathChain)) {
+    return fastpathIsm;
   }
 
-  return {
-    type: IsmType.ROUTING,
-    owner,
-    domains,
-  } as const;
+  return buildDefaultIsm(owner);
 }
 
 function buildInterchainSecurityModule(
-  local: EvmChain | TrustedRelayerChain,
+  local: (typeof ROUTE_CHAINS)[number],
   owner: string,
 ): IsmConfig {
-  if (isTrustedRelayerChain(local)) {
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        buildDefaultIsm(owner),
-        {
-          type: IsmType.AMOUNT_ROUTING,
-          threshold: AMOUNT_ROUTING_THRESHOLD,
-          lowerIsm: buildInnerRoutingIsm(local, owner),
-          upperIsm: buildDefaultIsm(owner),
-        },
-      ],
-    } as const;
-  }
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildInnerRoutingIsm(local, owner), buildDefaultIsm(owner)],
+    modules: [
+      {
+        type: IsmType.ROUTING,
+        owner,
+        domains: Object.fromEntries(
+          ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
+            remote,
+            buildRemoteIsm(local, remote, owner),
+          ]),
+        ),
+      } as const,
+      buildDefaultIsm(owner),
+    ],
   } as const;
 }
 

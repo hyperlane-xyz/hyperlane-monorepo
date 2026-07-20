@@ -108,6 +108,34 @@ function parseAleoIdentifier(raw: string): string {
 }
 
 /**
+ * Converts the v2 ARC-20 warp token standard's on-chain local_decimals/
+ * remote_decimals fields into the scale multiplier convention used elsewhere
+ * in the SDK (mirrors svm-sdk's remoteDecimalsToScale). Returns undefined for
+ * identity scale (remote === local) or when either side is unavailable.
+ */
+export function localRemoteDecimalsToScale(
+  localDecimals: number | undefined,
+  remoteDecimals: number | undefined,
+): number | undefined {
+  if (isNullish(localDecimals) || isNullish(remoteDecimals)) return undefined;
+  const diff = remoteDecimals - localDecimals;
+  return diff === 0 ? undefined : Math.pow(10, diff);
+}
+
+/**
+ * Converts hyp_native's on-chain `scale` field — a base-10 exponent (see
+ * `pow 10u64 r0.scale` in the hyp_native program) — into the SDK's scale
+ * multiplier convention used elsewhere (undefined for identity, i.e.
+ * exponent 0).
+ */
+export function nativeScaleExponentToMultiplier(
+  exponent: number | undefined,
+): number | undefined {
+  if (isNullish(exponent) || exponent === 0) return undefined;
+  return Math.pow(10, exponent);
+}
+
+/**
  * Query token metadata from an ARC-20 token program via its view functions.
  */
 export async function getArc20TokenMetadata(
@@ -304,6 +332,16 @@ interface AleoWarpTokenMetadata {
   ism: string;
   hook: string;
   token_id?: string;
+  // Present on collateral/synthetic tokens regardless of v1 vs v2 (verified
+  // live on-chain for a v1 synthetic token) -- getWarpTokenMetadata reads the
+  // same app_metadata mapping either way, so no version branching is needed
+  // here. Native tokens use a different Metadata struct (a single `scale`
+  // field, not a local/remote decimals pair) and never have these.
+  local_decimals?: number;
+  remote_decimals?: number;
+  // Native-only: base-10 exponent (see nativeScaleExponentToMultiplier).
+  // Collateral/synthetic tokens never have this field.
+  scale?: number;
 }
 
 async function getWarpTokenMetadata(
@@ -337,6 +375,9 @@ async function getWarpTokenMetadata(
   const ism = metadata['ism'];
   const hook = metadata['hook'];
   const tokenId = metadata['token_id'];
+  const localDecimals = metadata['local_decimals'];
+  const remoteDecimals = metadata['remote_decimals'];
+  const scale = metadata['scale'];
 
   assert(
     typeof tokenType === 'number',
@@ -358,6 +399,18 @@ async function getWarpTokenMetadata(
     isNullish(tokenId) || typeof tokenId === 'string',
     `Expected token_id field to be a string in app_metadata for token ${tokenAddress} but got ${typeof tokenId}`,
   );
+  assert(
+    isNullish(localDecimals) || typeof localDecimals === 'number',
+    `Expected local_decimals field to be a number in app_metadata for token ${tokenAddress} but got ${typeof localDecimals}`,
+  );
+  assert(
+    isNullish(remoteDecimals) || typeof remoteDecimals === 'number',
+    `Expected remote_decimals field to be a number in app_metadata for token ${tokenAddress} but got ${typeof remoteDecimals}`,
+  );
+  assert(
+    isNullish(scale) || typeof scale === 'number',
+    `Expected scale field to be a number in app_metadata for token ${tokenAddress} but got ${typeof scale}`,
+  );
 
   return {
     token_type: tokenType,
@@ -365,6 +418,9 @@ async function getWarpTokenMetadata(
     ism,
     hook,
     token_id: tokenId,
+    local_decimals: localDecimals,
+    remote_decimals: remoteDecimals,
+    scale,
   };
 }
 
@@ -465,6 +521,8 @@ export async function getNativeWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
+  const scale = nativeScaleExponentToMultiplier(metadata.scale);
+
   return {
     type: AleoTokenType.NATIVE,
     owner: metadata.token_owner,
@@ -472,6 +530,7 @@ export async function getNativeWarpTokenConfig(
     ism,
     hook,
     remoteRouters,
+    scale,
   };
 }
 
@@ -544,6 +603,11 @@ export async function getCollateralWarpTokenConfig(
     tokenId,
   );
 
+  const scale = localRemoteDecimalsToScale(
+    metadata.local_decimals,
+    metadata.remote_decimals,
+  );
+
   return {
     type: AleoTokenType.COLLATERAL,
     owner: metadata.token_owner,
@@ -555,6 +619,7 @@ export async function getCollateralWarpTokenConfig(
     name,
     symbol,
     decimals,
+    scale,
   };
 }
 
@@ -612,6 +677,11 @@ export async function getSyntheticWarpTokenConfig(
     tokenId,
   );
 
+  const scale = localRemoteDecimalsToScale(
+    metadata.local_decimals,
+    metadata.remote_decimals,
+  );
+
   return {
     type: AleoTokenType.SYNTHETIC,
     owner: metadata.token_owner,
@@ -622,5 +692,6 @@ export async function getSyntheticWarpTokenConfig(
     name,
     symbol,
     decimals,
+    scale,
   };
 }

@@ -14,9 +14,9 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H512};
 use prometheus::IntGauge;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{error::TryRecvError, Receiver, UnboundedSender};
 use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
@@ -41,6 +41,7 @@ pub struct MessageDbLoader {
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     nonce_iterator: ForwardBackwardIterator,
     max_retries: u32,
+    index_notifications: Option<Receiver<H512>>,
 }
 
 #[derive(Debug)]
@@ -249,6 +250,8 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.drain_index_notifications();
+
         // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
@@ -319,7 +322,7 @@ impl DbLoaderExt for MessageDbLoader {
                 self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            self.wait_for_index_notification().await;
         }
         Ok(())
     }
@@ -337,6 +340,7 @@ impl MessageDbLoader {
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
+        index_notifications: Option<Receiver<H512>>,
     ) -> Self {
         Self {
             message_whitelist,
@@ -348,6 +352,48 @@ impl MessageDbLoader {
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
             max_retries,
+            index_notifications,
+        }
+    }
+
+    /// Discard already-observed index notifications so this receiver cannot
+    /// backpressure the message indexer while the loader is processing a backlog.
+    fn drain_index_notifications(&mut self) {
+        let mut disconnected = false;
+        if let Some(receiver) = self.index_notifications.as_mut() {
+            loop {
+                match receiver.try_recv() {
+                    Ok(_) => {}
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if disconnected {
+            self.index_notifications = None;
+        }
+    }
+
+    /// Wake as soon as the message indexer stores new logs, retaining the
+    /// periodic poll as a safety fallback for missed or unavailable notifications.
+    async fn wait_for_index_notification(&mut self) {
+        const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+        let Some(receiver) = self.index_notifications.as_mut() else {
+            tokio::time::sleep(FALLBACK_POLL_INTERVAL).await;
+            return;
+        };
+
+        let disconnected = tokio::select! {
+            notification = receiver.recv() => notification.is_none(),
+            _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => false,
+        };
+
+        if disconnected {
+            self.index_notifications = None;
         }
     }
 

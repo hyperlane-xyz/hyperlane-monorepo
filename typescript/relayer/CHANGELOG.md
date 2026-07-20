@@ -1,5 +1,34 @@
 # @hyperlane-xyz/relayer
 
+## 1.1.36
+
+### Patch Changes
+
+- Updated dependencies [92909f8]
+- Updated dependencies [262073e]
+- Updated dependencies [df34a68]
+- Updated dependencies [262073e]
+- Updated dependencies [af8e1f6]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [c7895b6]
+- Updated dependencies [262073e]
+- Updated dependencies [6e803be]
+- Updated dependencies [cb0c7c9]
+- Updated dependencies [a82c918]
+- Updated dependencies [262073e]
+- Updated dependencies [351cf01]
+- Updated dependencies [5122e71]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [31f8b51]
+- Updated dependencies [955281d]
+- Updated dependencies [9c8b435]
+  - @hyperlane-xyz/sdk@37.0.0
+  - @hyperlane-xyz/metrics@0.2.29
+  - @hyperlane-xyz/utils@37.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 1.1.35
 
 ### Patch Changes

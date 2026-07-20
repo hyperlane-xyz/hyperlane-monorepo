@@ -118,6 +118,7 @@ jobs:
           - warp-check-ica
           # other
           - warp-init
+          - warp-quote
           - warp-read
           - warp-rebalancer
           - warp-send
@@ -520,6 +521,7 @@ jobs:
       matrix:
         test:
           - core-deploy
+          - core-composite-ism
     steps:
       - uses: actions/checkout@v6
         with:
@@ -547,11 +549,13 @@ jobs:
         test:
           - core-deploy
           - core-apply
+          - core-composite-ism
           - hook-igp
           - warp-alt
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply
+          - warp-quote
           - warp-read
     steps:
       - uses: actions/checkout@v6
