@@ -12,7 +12,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { type WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import { type WarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainMap,
   type ChainName,
@@ -30,12 +30,13 @@ export async function nativeBalancesAreSufficient(
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
-  // When `minGas === GasAction.WARP_DEPLOY_GAS` and a per-chain WarpConfig is
-  // available, the AltVM branch consults `getMinGasForWarpDeploy(warpConfig)`
-  // instead of the flat `getMinGas().WARP_DEPLOY_GAS` — the flat value only
-  // sizes the base router case and under-funds feature-heavy deploys
-  // (cross-collateral, fee program, custom ISM/hook).
-  warpConfigByChain?: ChainMap<WarpConfig>,
+  // When `minGas === GasAction.WARP_DEPLOY_GAS` and a per-chain
+  // WarpArtifactConfig is available, the AltVM branch consults
+  // `getMinGasForWarpDeploy(warpConfig)` instead of the flat
+  // `getMinGas().WARP_DEPLOY_GAS` — the flat value only sizes the base router
+  // case and under-funds feature-heavy deploys (cross-collateral, fee program,
+  // custom ISM/hook).
+  warpConfigByChain?: ChainMap<WarpArtifactConfig>,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {

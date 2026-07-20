@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import path from 'path';
 
 import { type GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { type WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import { type WarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
@@ -46,11 +46,12 @@ export async function runPreflightChecksForChains({
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
-  // Per-chain warp config, only passed when `minGas === WARP_DEPLOY_GAS`.
-  // Threaded down to `nativeBalancesAreSufficient` so the AltVM branch can
-  // size the preflight against feature-composed deploy cost instead of the
-  // flat base-router constant.
-  warpConfigByChain?: ChainMap<WarpConfig>;
+  // Per-chain warp artifact config, only passed when
+  // `minGas === WARP_DEPLOY_GAS`. Threaded down to
+  // `nativeBalancesAreSufficient` so the AltVM branch can size the preflight
+  // against feature-composed deploy cost instead of the flat base-router
+  // constant.
+  warpConfigByChain?: ChainMap<WarpArtifactConfig>;
 }) {
   log('Running pre-flight checks for chains...');
   const { multiProvider, skipConfirmation, altVmSigners } = context;
