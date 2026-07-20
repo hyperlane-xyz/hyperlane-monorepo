@@ -14,7 +14,7 @@ import {
   TransactionSubmitterConfig,
 } from './submitter.js';
 import { type FeeReadContext, IRawFeeArtifactManager } from './fee.js';
-import { IRawWarpArtifactManager, type WarpConfig } from './warp.js';
+import { IRawWarpArtifactManager, type WarpArtifactConfig } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
 export type SignerConfig = Pick<
@@ -131,8 +131,11 @@ export interface ProtocolProvider {
    * Prefer this over `getMinGas().WARP_DEPLOY_GAS` for warp-deploy preflights;
    * the flat constant sizes only the base case and under-funds feature-heavy
    * deploys.
+   *
+   * Return value uses the same protocol-native unit as `getMinGas()`
+   * (lamports on Sealevel, usun on Tron, ugas on Cosmos, etc.).
    */
-  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint;
+  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint;
 }
 
 /**
