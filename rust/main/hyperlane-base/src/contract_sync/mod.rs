@@ -632,6 +632,8 @@ where
                 index_settings.chunk_size,
                 index_settings.from,
                 watermark,
+                index_settings.idle_sleep_duration,
+                index_settings.configured_interval,
             )
             .await?,
         ))
@@ -676,6 +678,7 @@ where
                 index_settings.chunk_size,
                 index_settings.from,
                 index_settings.mode,
+                index_settings.idle_sleep_duration,
             )
             .await?,
         ))

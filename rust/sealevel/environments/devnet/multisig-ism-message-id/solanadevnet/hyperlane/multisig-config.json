@@ -1,0 +1,169 @@
+{
+  "arbitrumsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"
+    ]
+  },
+  "basesepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
+    ]
+  },
+  "bsctestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
+      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
+      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
+    ]
+  },
+  "fuji": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
+      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
+      "0x43e915573d9f1383cbf482049e4a012290759e7f"
+    ]
+  },
+  "optimismsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x03efe4d0632ee15685d7e8f46dea0a874304aa29"
+    ]
+  },
+  "polygonamoy": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
+    ]
+  },
+  "solanatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ]
+  },
+  "sonicsvmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"
+    ]
+  },
+  "eclipsetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf344f34abca9a444545b5295066348a0ae22dda3"
+    ]
+  },
+  "aleotestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x7233d80194c69af6b84b0786a7fd2a7294396ca8"
+    ]
+  },
+  "celosepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6"
+    ]
+  },
+  "radixtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xeddaf7958627cfd35400c95db19a656a4a8a92c6"
+    ]
+  },
+  "tronshasta": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x189ea37efb3764ab638cbaecbe764a8e814e7583"
+    ]
+  },
+  "somniatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"
+    ]
+  },
+  "cotitestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x5c535dff16237a2cae97c97f9556404cd230c9c0"
+    ]
+  },
+  "kyvetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"
+    ]
+  },
+  "modetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"
+    ]
+  },
+  "celestiatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3e0227b7f129576c53ff5d98d17c9b8433445094"
+    ]
+  },
+  "hyperliquidevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xea673a92a23ca319b9d85cc16b248645cd5158da"
+    ]
+  },
+  "paradexsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8"
+    ]
+  },
+  "starknetsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xd07272cc3665d6e383a319691dcce5731ecf54a5"
+    ]
+  },
+  "seismictestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xcfa3ec84fe69dde351760e9fdb667af912cb8368"
+    ]
+  },
+  "sepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
+      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
+      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  }
+}

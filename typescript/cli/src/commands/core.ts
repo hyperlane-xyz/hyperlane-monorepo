@@ -245,6 +245,14 @@ export const check: CommandModuleWithContext<{
       mailbox,
     });
 
+    // Mirror warpCheck.ts: if the user did not specify contractVersion in
+    // their YAML, drop it from the on-chain side before diffing so
+    // existing configs do not fail check against a newly-versioned
+    // mailbox program.
+    if (!expectedCoreConfig.contractVersion) {
+      onChainCoreConfig.contractVersion = undefined;
+    }
+
     const { mergedObject, isInvalid } = diffObjMerge(
       normalizeConfig(onChainCoreConfig),
       normalizeConfig(expectedCoreConfig),

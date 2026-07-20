@@ -5,7 +5,11 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { ChainNameOrId } from '../types.js';
 
 import { ChainMetadataManager } from './ChainMetadataManager.js';
-import { ChainMetadata } from './chainMetadataTypes.js';
+import {
+  BlockExplorer,
+  ChainMetadata,
+  ExplorerFamily,
+} from './chainMetadataTypes.js';
 
 describe(ChainMetadataManager.name, () => {
   let manager: ChainMetadataManager;
@@ -140,4 +144,89 @@ describe(ChainMetadataManager.name, () => {
       });
     });
   });
+
+  describe(
+    ChainMetadataManager.prototype.tryGetEvmExplorerMetadata.name,
+    () => {
+      const etherscanExplorer: BlockExplorer = {
+        name: 'Etherscan',
+        url: 'https://etherscan.example.com',
+        apiUrl: 'https://api.etherscan.example.com/api',
+        apiKey: 'test-key',
+        family: ExplorerFamily.Etherscan,
+      };
+      const etherscanNoKeyExplorer: BlockExplorer = {
+        name: 'Etherscan',
+        url: 'https://etherscan.example.com',
+        apiUrl: 'https://api.etherscan.example.com/api',
+        family: ExplorerFamily.Etherscan,
+      };
+      const blockscoutExplorer: BlockExplorer = {
+        name: 'Blockscout',
+        url: 'https://blockscout.example.com',
+        apiUrl: 'https://blockscout.example.com/api',
+        family: ExplorerFamily.Blockscout,
+      };
+      const tronScanExplorer: BlockExplorer = {
+        name: 'TronScan',
+        url: 'https://tronscan.example.com',
+        apiUrl: 'https://tronscan.example.com/#/api',
+        family: ExplorerFamily.TronScan,
+      };
+
+      interface Case {
+        description: string;
+        blockExplorers: BlockExplorer[];
+        expectedFamily: ExplorerFamily | null;
+      }
+
+      const cases: Case[] = [
+        {
+          description:
+            'TronScan default with no compatible fallback returns null',
+          blockExplorers: [tronScanExplorer],
+          expectedFamily: null,
+        },
+        {
+          description: 'Etherscan with an api key returns the explorer',
+          blockExplorers: [etherscanExplorer],
+          expectedFamily: ExplorerFamily.Etherscan,
+        },
+        {
+          description: 'Blockscout returns the explorer',
+          blockExplorers: [blockscoutExplorer],
+          expectedFamily: ExplorerFamily.Blockscout,
+        },
+        {
+          description:
+            'Etherscan without an api key falls back to Blockscout when present',
+          blockExplorers: [etherscanNoKeyExplorer, blockscoutExplorer],
+          expectedFamily: ExplorerFamily.Blockscout,
+        },
+      ];
+
+      for (const c of cases) {
+        it(c.description, () => {
+          const chainManager = new ChainMetadataManager({
+            testchain: {
+              chainId: 12345,
+              domainId: 12345,
+              name: 'testchain',
+              protocol: ProtocolType.Ethereum,
+              rpcUrls: [{ http: 'https://testchain.example.com' }],
+              blockExplorers: c.blockExplorers,
+            },
+          });
+
+          const result = chainManager.tryGetEvmExplorerMetadata('testchain');
+
+          if (c.expectedFamily === null) {
+            expect(result).to.equal(null);
+          } else {
+            expect(result?.family).to.equal(c.expectedFamily);
+          }
+        });
+      }
+    },
+  );
 });

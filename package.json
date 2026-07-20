@@ -16,7 +16,7 @@
     "test": "turbo run test --continue",
     "test:ci": "turbo run test:ci",
     "coverage": "turbo run coverage",
-    "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
+    "version:prepare": "pnpm changeset version && pnpm install && turbo run version:update && pnpm install",
     "version:check": "pnpm changeset status",
     "release": "pnpm build && pnpm build:zk && pnpm changeset publish",
     "spellcheck": "typos --config .spellcheck/typos.toml",

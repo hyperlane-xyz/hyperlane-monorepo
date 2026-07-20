@@ -39,6 +39,10 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     this.rpcUrls = rpcUrls;
   }
 
+  getRpc(): SvmRpc {
+    return this.rpc;
+  }
+
   // ### QUERY BASE ###
 
   async isHealthy(): Promise<boolean> {

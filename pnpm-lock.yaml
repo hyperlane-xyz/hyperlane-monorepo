@@ -495,8 +495,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@provablehq/sdk':
-        specifier: 0.9.15
-        version: 0.9.15
+        specifier: 0.11.3
+        version: 0.11.3
       bignumber.js:
         specifier: 'catalog:'
         version: 9.3.1
@@ -546,6 +546,9 @@ importers:
       ts-node:
         specifier: 'catalog:'
         version: 10.9.2(@types/node@24.10.9)(typescript@6.0.2)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -1036,12 +1039,18 @@ importers:
       '@google-cloud/pino-logging-gcp-config':
         specifier: 'catalog:'
         version: 1.3.0
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@hyperlane-xyz/sealevel-sdk':
+        specifier: workspace:*
+        version: link:../svm-sdk
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -1622,6 +1631,9 @@ importers:
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@hyperlane-xyz/tron-sdk':
+        specifier: workspace:*
+        version: link:../tron-sdk
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2405,9 +2417,15 @@ importers:
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
+      '@noble/curves':
+        specifier: ^1.9.0
+        version: 1.9.7
       '@noble/hashes':
         specifier: ^1.7.1
         version: 1.8.0
+      '@solana-program/address-lookup-table':
+        specifier: ^0.11.0
+        version: 0.11.0(@solana/kit@6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10))
       '@solana-program/loader-v3':
         specifier: ^0.3.0
         version: 0.3.0(@solana/kit@6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10))
@@ -2420,6 +2438,9 @@ importers:
       '@solana/kit':
         specifier: 'catalog:'
         version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
+      compare-versions:
+        specifier: 'catalog:'
+        version: 6.1.1
     devDependencies:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
@@ -2754,17 +2775,17 @@ importers:
         specifier: ^1.23.28
         version: 1.26.3(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@provablehq/aleo-types':
-        specifier: 0.3.0-alpha.1
-        version: 0.3.0-alpha.1
+        specifier: 1.0.0
+        version: 1.0.0
       '@provablehq/aleo-wallet-adaptor-react':
-        specifier: 0.3.0-alpha.1
-        version: 0.3.0-alpha.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 1.0.0
+        version: 1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@provablehq/aleo-wallet-adaptor-shield':
-        specifier: 0.3.0-alpha.1
-        version: 0.3.0-alpha.1
+        specifier: 1.0.0
+        version: 1.0.0
       '@provablehq/aleo-wallet-standard':
-        specifier: 0.3.0-alpha.1
-        version: 0.3.0-alpha.1
+        specifier: 1.0.0
+        version: 1.0.0
       '@radixdlt/babylon-gateway-api-sdk':
         specifier: 'catalog:'
         version: 1.10.1
@@ -5650,6 +5671,10 @@ packages:
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
     engines: {node: ^14.21.3 || >=16}
 
+  '@noble/ciphers@2.2.0':
+    resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
+    engines: {node: '>= 20.19.0'}
+
   '@noble/curves@1.2.0':
     resolution: {integrity: sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw==}
 
@@ -5688,6 +5713,10 @@ packages:
     resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
     engines: {node: ^14.21.3 || >=16}
 
+  '@noble/curves@2.2.0':
+    resolution: {integrity: sha512-T/BoHgFXirb0ENSPBquzX0rcjXeM6Lo892a2jlYJkqk83LqZx0l1Of7DzlKJ6jkpvMrkHSnAcgb5JegL8SeIkQ==}
+    engines: {node: '>= 20.19.0'}
+
   '@noble/ed25519@2.0.0':
     resolution: {integrity: sha512-/extjhkwFupyopDrt80OMWKdLgP429qLZj+z6sYJz90rF2Iz0gjZh2ArMKPImUl13Kx+0EXI2hN9T/KJV0/Zng==}
 
@@ -5724,6 +5753,10 @@ packages:
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@2.2.0':
+    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
+    engines: {node: '>= 20.19.0'}
 
   '@noble/secp256k1@1.7.1':
     resolution: {integrity: sha512-hOUk6AyBFmqVrv7k5WAw/LpszxVbj9gGN4JRkIX52fdFAj1UA61KXmZDvqVEm+pOyec3+fIeZB02LYa/pWOArw==}
@@ -6291,29 +6324,29 @@ packages:
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
-  '@provablehq/aleo-types@0.3.0-alpha.1':
-    resolution: {integrity: sha512-DoW4jHF7nqqbvqFbCK0k1Ei5iIMjA6Yq+3A/5Y79d3Uhw9hzvPjASrWt2e40/6A8TBaSVboJ4Z1huaQYWOBBuA==}
+  '@provablehq/aleo-types@1.0.0':
+    resolution: {integrity: sha512-r7yMj8q2EO74JrTXDUTcWiFP/wWJMUDBlkTuEN2dSJ3wDdrL/ys5JAMvCcAmOMYKDUIq+9NXQulQ56P+6KNIVg==}
 
-  '@provablehq/aleo-wallet-adaptor-core@0.3.0-alpha.1':
-    resolution: {integrity: sha512-+1ruZ7zpGh35BipFeWdkxP1BIKsT3rE0IiW/pe3o3x3qHLPGxpsoZ1AX6uA3O7k1ckTYNqlH9JucGBfOpD5KDQ==}
+  '@provablehq/aleo-wallet-adaptor-core@1.0.0':
+    resolution: {integrity: sha512-gZ2eCQ31a5wN5zoUllNwyzTdfjDw9SsdxnW7Lbmwk/PxbdbRTcfsW2jctmOH/WLuovhVjpVFbFF2RjHBZWMwLw==}
 
-  '@provablehq/aleo-wallet-adaptor-react@0.3.0-alpha.1':
-    resolution: {integrity: sha512-SSWOngt42DhjEe1bEe9Rxnz/b/4qvWJxkal0fkYoULhrRapRVQ1YtTU8o01SX/K6eo+F4p1Qn87T3A0Y5BbT4w==}
+  '@provablehq/aleo-wallet-adaptor-react@1.0.0':
+    resolution: {integrity: sha512-HaCXO0gCoxb1BvLrt1QU06lASRV3C9W/XxvZrsZxFehklUWvuUWluCpbhuzrH13hwV6r70Vn5Ab7so18rndj1g==}
     peerDependencies:
       react: ^18.0.0
       react-dom: ^18.0.0
 
-  '@provablehq/aleo-wallet-adaptor-shield@0.3.0-alpha.1':
-    resolution: {integrity: sha512-0nnSs8FNuDK/8Tt3X0mMQ/UVL36N+wKVxVrpdy2kAj1bnKH4+mCJmzdWG20LjEXd0ksyIlk7/CVN3dPJSGYdCQ==}
+  '@provablehq/aleo-wallet-adaptor-shield@1.0.0':
+    resolution: {integrity: sha512-TvDfe4yKHIeMuoVyQz7KCXrgmcl2MwtA0ta/F7KbE1lMlt/YL+ZJq5dVEP+ab7RYZQ0ztt018IPtMWzPgLInBQ==}
 
-  '@provablehq/aleo-wallet-standard@0.3.0-alpha.1':
-    resolution: {integrity: sha512-D5A2r4X2smlx7dO7fnjVfh/RGZgxYeTkjCS4PZRI/GRpj81uNEu+6tDyrPqoWzcNM8bV3pAV87eUT41KeytJ9Q==}
+  '@provablehq/aleo-wallet-standard@1.0.0':
+    resolution: {integrity: sha512-3QVgBd9Mq0y769VRj6a5FIzWEI5TPQ2CzwgpMurq8JwHxKLRry9Zze0XF92dWAqE6ILvvPCew3pwapC8gerYQA==}
 
-  '@provablehq/sdk@0.9.15':
-    resolution: {integrity: sha512-i4afwCH8oO/qoF+OgrHh32RH2qnDPiqeZmQt2Rzro/KSiq3BmjdWSQu7fmLf9qfeyQTOKP9uEMJVBYs0MmE6BQ==}
+  '@provablehq/sdk@0.11.3':
+    resolution: {integrity: sha512-3vxTFXqiQHm9PHlceANvrAcoS1NhyJEe/RRREgdW+6zVmMg5+i5AA2q4XzgUVDJ8Pdhu7VpdUtunKzEejQ/BcQ==}
 
-  '@provablehq/wasm@0.9.15':
-    resolution: {integrity: sha512-7aWOfvosDYG97S4OiQYY3Q+t95zdkt2wQ4oPTDHwRz4f+7shgYoQDkfm3QIepuf+82jvQ8jJrbBNVl/UNrYoSQ==}
+  '@provablehq/wasm@0.11.3':
+    resolution: {integrity: sha512-/ZJZXHK7Rvsv4AsgFgqKe6/6EYvenpJ38UlxigwtAwyhNwtx5wzQMMrkJkf2+WpcCoo3VlWeLWFW3Nw1hfjrog==}
 
   '@radix-ui/number@1.0.1':
     resolution: {integrity: sha512-T5gIdVO2mmPW3NNhjNgEP3cqMXjXL9UbO0BzWcXfvdBs+BohbQxvd/K5hSVKmn9/lbTdsQVKbUcP5WLCwvUbBg==}
@@ -7630,6 +7663,9 @@ packages:
     resolution: {integrity: sha512-zaYmoH0NWWtvnJjC9/CBseXMtKHm/tm40sz3YfJRxeQjyzRqNQPgivpd9R/oDJCYj999mzdW382p/qi2ypjLww==}
     engines: {node: '>=6'}
 
+  '@serenity-kit/noble-sodium@0.2.3':
+    resolution: {integrity: sha512-/IQuvJHJXg8M8SvrZexB/kI5vP0jkoMhNglFpm12h1SitJldncoOA0aF5asvtybJ8nldnkA/HwGEvEL7t+VIyw==}
+
   '@sinclair/typebox@0.27.8':
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
 
@@ -7914,6 +7950,11 @@ packages:
 
   '@solana-mobile/wallet-standard-mobile@0.4.4':
     resolution: {integrity: sha512-LMvqkS5/aEH+EiDje9Dk351go6wO3POysgmobM4qm8RsG5s6rDAW3U0zA+5f2coGCTyRx8BKE1I/9nHlwtBuow==}
+
+  '@solana-program/address-lookup-table@0.11.0':
+    resolution: {integrity: sha512-loC6VTEhmhYSq2ElZrv+V9uHp/Te6A7rllLIArk9c3A5+5V7sRhVsxZvsPGcv/WMXLgqmXR+Vl7WF7QSV3tXNQ==}
+    peerDependencies:
+      '@solana/kit': ^6.0
 
   '@solana-program/loader-v3@0.3.0':
     resolution: {integrity: sha512-xEMQ+JOTKCInROozoTmHJk+atFxYSuLQ+KevKxpib+2uZzXV/Z58LqF9nYLKQpZMi8sk06CUeSsa9N0Hdiha1g==}
@@ -21576,6 +21617,8 @@ snapshots:
 
   '@noble/ciphers@1.3.0': {}
 
+  '@noble/ciphers@2.2.0': {}
+
   '@noble/curves@1.2.0':
     dependencies:
       '@noble/hashes': 1.3.2
@@ -21616,6 +21659,10 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
+  '@noble/curves@2.2.0':
+    dependencies:
+      '@noble/hashes': 2.2.0
+
   '@noble/ed25519@2.0.0': {}
 
   '@noble/hashes@1.2.0': {}
@@ -21635,6 +21682,8 @@ snapshots:
   '@noble/hashes@1.7.2': {}
 
   '@noble/hashes@1.8.0': {}
+
+  '@noble/hashes@2.2.0': {}
 
   '@noble/secp256k1@1.7.1': {}
 
@@ -22153,42 +22202,43 @@ snapshots:
 
   '@protobufjs/utf8@1.1.0': {}
 
-  '@provablehq/aleo-types@0.3.0-alpha.1': {}
+  '@provablehq/aleo-types@1.0.0': {}
 
-  '@provablehq/aleo-wallet-adaptor-core@0.3.0-alpha.1':
+  '@provablehq/aleo-wallet-adaptor-core@1.0.0':
     dependencies:
-      '@provablehq/aleo-types': 0.3.0-alpha.1
-      '@provablehq/aleo-wallet-standard': 0.3.0-alpha.1
+      '@provablehq/aleo-types': 1.0.0
+      '@provablehq/aleo-wallet-standard': 1.0.0
 
-  '@provablehq/aleo-wallet-adaptor-react@0.3.0-alpha.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@provablehq/aleo-wallet-adaptor-react@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@provablehq/aleo-types': 0.3.0-alpha.1
-      '@provablehq/aleo-wallet-adaptor-core': 0.3.0-alpha.1
-      '@provablehq/aleo-wallet-standard': 0.3.0-alpha.1
+      '@provablehq/aleo-types': 1.0.0
+      '@provablehq/aleo-wallet-adaptor-core': 1.0.0
+      '@provablehq/aleo-wallet-standard': 1.0.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@provablehq/aleo-wallet-adaptor-shield@0.3.0-alpha.1':
+  '@provablehq/aleo-wallet-adaptor-shield@1.0.0':
     dependencies:
-      '@provablehq/aleo-types': 0.3.0-alpha.1
-      '@provablehq/aleo-wallet-adaptor-core': 0.3.0-alpha.1
-      '@provablehq/aleo-wallet-standard': 0.3.0-alpha.1
+      '@provablehq/aleo-types': 1.0.0
+      '@provablehq/aleo-wallet-adaptor-core': 1.0.0
+      '@provablehq/aleo-wallet-standard': 1.0.0
 
-  '@provablehq/aleo-wallet-standard@0.3.0-alpha.1':
+  '@provablehq/aleo-wallet-standard@1.0.0':
     dependencies:
-      '@provablehq/aleo-types': 0.3.0-alpha.1
+      '@provablehq/aleo-types': 1.0.0
       eventemitter3: 5.0.1
 
-  '@provablehq/sdk@0.9.15':
+  '@provablehq/sdk@0.11.3':
     dependencies:
-      '@provablehq/wasm': 0.9.15
+      '@provablehq/wasm': 0.11.3
       '@scure/base': 2.0.0
+      '@serenity-kit/noble-sodium': 0.2.3
       comlink: 4.4.2
       core-js: 3.47.0
       mime: 4.1.0
       xmlhttprequest-ssl: 4.0.0
 
-  '@provablehq/wasm@0.9.15': {}
+  '@provablehq/wasm@0.11.3': {}
 
   '@radix-ui/number@1.0.1':
     dependencies:
@@ -24209,6 +24259,12 @@ snapshots:
       '@sentry/types': 5.30.0
       tslib: 1.14.1
 
+  '@serenity-kit/noble-sodium@0.2.3':
+    dependencies:
+      '@noble/ciphers': 2.2.0
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+
   '@sinclair/typebox@0.27.8': {}
 
   '@sindresorhus/is@5.6.0': {}
@@ -24660,6 +24716,10 @@ snapshots:
       - react
       - react-native
       - typescript
+
+  '@solana-program/address-lookup-table@0.11.0(@solana/kit@6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@solana/kit': 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
 
   '@solana-program/loader-v3@0.3.0(@solana/kit@6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10))':
     dependencies:

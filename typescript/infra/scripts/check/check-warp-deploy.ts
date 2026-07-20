@@ -30,6 +30,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import {
   getCheckWarpDeployArgs,
   getCheckerViolationsGaugeObj,
+  warpViolationGroupings,
 } from './check-utils.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -47,17 +48,64 @@ const ROUTES_TO_SKIP: string[] = [
   'GAME/base-form',
   // Skip until Paradex executes hyperevm upgrade on their side
   WarpRouteIds.ParadexUSDC,
+  // Staging route: not auto-skipped by isStagingOrTestRoute since the STAGE
+  // marker is in the symbol before the first `/`, not a chain segment.
+  WarpRouteIds.EclipseUSDCSTAGE,
 ];
+
+// Name segments that mark a warp route as a non-production (staging/test)
+// deployment. Matched against the `-`/`/`-delimited segments of the route
+// name so `USDC/moonpay-staging` is skipped but names like `attestation` are
+// not. These routes are excluded from check-warp-deploy so they don't produce
+// violations on mainnet.
+const STAGING_ROUTE_MARKERS = ['staging', 'test'];
+
+// Token-symbol suffixes that mark a route as staging, e.g. `USDCSTAGE`,
+// `HYPERSTAGE`, `REZSTAGING`. The staging marker is fused onto the symbol
+// (before the first `/`) rather than living in its own chain segment, so it is
+// not caught by STAGING_ROUTE_MARKERS above.
+const STAGING_SYMBOL_SUFFIXES = ['stage', 'staging'];
+
+function isStagingOrTestRoute(warpRouteId: string): boolean {
+  const [symbol = '', ...rest] = warpRouteId.split('/');
+  const lowerSymbol = symbol.toLowerCase();
+  if (STAGING_SYMBOL_SUFFIXES.some((suffix) => lowerSymbol.endsWith(suffix))) {
+    return true;
+  }
+  const segments = rest.join('/').toLowerCase().split(/[-/]/);
+  return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
+}
+
+// Upper bound on how long a single warp route check may run before it is
+// abandoned. A hung/unresponsive RPC leg on one route would otherwise stall the
+// entire cron run indefinitely, starving every subsequent route of a check.
+const DEFAULT_PER_ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
+const perRouteTimeoutMs = Number(
+  process.env.WARP_CHECK_PER_ROUTE_TIMEOUT_MS ?? DEFAULT_PER_ROUTE_TIMEOUT_MS,
+);
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeoutMessage: string,
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () => reject(new Error(onTimeoutMessage)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
 
 async function main() {
   const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
-
-  const metricsRegister = new Registry();
-  const checkerViolationsGauge = new Gauge(
-    getCheckerViolationsGaugeObj(metricsRegister),
-  );
-  metricsRegister.registerMetric(checkerViolationsGauge);
 
   const failedWarpRoutesChecks: string[] = [];
 
@@ -143,37 +191,27 @@ async function main() {
 
     try {
       const warpDeployConfig = warpDeployConfigMap[warpRouteId];
-      const result = await runWarpRouteCheckFromRegistry({
-        chains,
-        multiProvider,
-        registry,
-        registryUris: registries,
-        warpRouteId,
-        warpCoreConfig: warpCoreConfigMap[warpRouteId],
-        warpDeployConfig,
-      });
+      const result = await withTimeout(
+        runWarpRouteCheckFromRegistry({
+          chains,
+          multiProvider,
+          registry,
+          registryUris: registries,
+          warpRouteId,
+          warpCoreConfig: warpCoreConfigMap[warpRouteId],
+          warpDeployConfig,
+        }),
+        perRouteTimeoutMs,
+        `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
+      );
 
       if (result.violations.length > 0) {
         logWarpRouteCheckResult(result);
         if (pushMetrics) {
-          pushWarpViolationsMetrics(
-            checkerViolationsGauge,
-            result,
-            warpRouteId,
-          );
+          await pushWarpViolationsMetrics(result, warpRouteId, environment);
         }
       } else {
         console.info(chalk.green(`warp checker found no violations`));
-      }
-
-      if (pushMetrics) {
-        await submitMetrics(
-          metricsRegister,
-          `check-warp-deploy-${environment}`,
-          {
-            overwriteAllMetrics: true,
-          },
-        );
       }
     } catch (e) {
       console.error(
@@ -371,7 +409,11 @@ async function getWarpIdsToCheck({
         (environment === 'mainnet3' && !isTestnet) ||
         (environment === 'testnet4' && isTestnet);
 
-      if (!shouldCheck || ROUTES_TO_SKIP.includes(warpRouteId)) {
+      if (
+        !shouldCheck ||
+        ROUTES_TO_SKIP.includes(warpRouteId) ||
+        isStagingOrTestRoute(warpRouteId)
+      ) {
         return false;
       }
 
@@ -549,13 +591,23 @@ async function isTestnetRoute(
   return false;
 }
 
-function pushWarpViolationsMetrics(
-  checkerViolationsGauge: Gauge<string>,
+// Each violation is pushed to PushGateway under its own group, keyed by an
+// alert_key grouping label. This makes every violation an independently
+// addressable series that can be cleared on its own (DELETE / push 0) without
+// touching any other violation. We do NOT overwrite the whole job group: a run
+// that does not observe a given violation must leave that series untouched, so
+// stale RPCs or a partial run can never silently auto-clear a real alert.
+// Clearing is exclusively the human-confirmed action (see clear-warp-violation).
+async function pushWarpViolationsMetrics(
   result: WarpRouteCheckResult,
   warpRouteId: string,
+  environment: string,
 ) {
   for (const violation of result.violations) {
-    checkerViolationsGauge
+    const register = new Registry();
+    const gauge = new Gauge(getCheckerViolationsGaugeObj(register));
+    register.registerMetric(gauge);
+    gauge
       .labels({
         actual: violation.actual,
         chain: violation.chain,
@@ -568,6 +620,20 @@ function pushWarpViolationsMetrics(
         warp_route_id: warpRouteId,
       })
       .set(1);
+
+    const groupings = warpViolationGroupings(
+      warpRouteId,
+      violation.chain,
+      violation.name,
+      violation.type,
+    );
+
+    // PUT (overwriteAllMetrics) is safe here because this group holds exactly
+    // one series; it keeps the single-series group clean across refreshes.
+    await submitMetrics(register, `check-warp-deploy-${environment}`, {
+      groupings,
+      overwriteAllMetrics: true,
+    });
     console.log(
       `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
     );

@@ -129,6 +129,16 @@ export const getAleoUSDCWarpConfig = async (
     token: tokens.solanamainnet.USDC,
     foreignDeployment: 'EiUymjh3vJ2486ozY24s1A1YWXoH6QnSGjWuP95ph35G',
     gas: 300_000,
+    destinationGas: {
+      '1634493807': '64000', // aleo
+      '42161': '68000', // arbitrum
+      '43114': '68000', // avalanche
+      '8453': '68000', // base
+      '56': '68000', // bsc
+      '1': '68000', // ethereum
+      '10': '68000', // optimism
+      '137': '68000', // polygon
+    },
   };
 
   return {

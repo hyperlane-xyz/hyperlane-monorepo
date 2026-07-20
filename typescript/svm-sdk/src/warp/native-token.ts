@@ -9,7 +9,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawNativeWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -24,10 +23,16 @@ import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { writableAccount } from '../instructions/utils.js';
 import { deriveNativeCollateralPda } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
+import {
+  fetchNativeTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -43,17 +48,17 @@ const SOL_DECIMALS = 9;
 
 export class SvmNativeTokenReader implements ArtifactReader<
   RawNativeWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchNativeTokenAccount(this.rpc, programId);
     assert(!isNullish(token), `Native token not initialized at ${programId}`);
 
     const remoteRouters: Record<number, { address: string }> = {};
@@ -65,6 +70,12 @@ export class SvmNativeTokenReader implements ArtifactReader<
     for (const [domain, gas] of token.destinationGas.entries()) {
       destinationGas[domain] = gas.toString();
     }
+
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
 
     const config: RawNativeWarpArtifactConfig = {
       type: TokenType.native,
@@ -86,19 +97,29 @@ export class SvmNativeTokenReader implements ArtifactReader<
       destinationGas,
       decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
 
 export class SvmNativeTokenWriter
   extends SvmNativeTokenReader
-  implements ArtifactWriter<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+  implements ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -112,7 +133,7 @@ export class SvmNativeTokenWriter
     artifact: ArtifactNew<RawNativeWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -163,6 +184,7 @@ export class SvmNativeTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
@@ -179,7 +201,7 @@ export class SvmNativeTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawNativeWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
@@ -190,13 +212,38 @@ export class SvmNativeTokenWriter
       `Cannot update native token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    let upgradingToVersion: string | undefined;
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `native token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.rpc,
       `native token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
+      upgradingToVersion,
     );
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

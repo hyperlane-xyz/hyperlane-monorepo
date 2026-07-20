@@ -1,5 +1,40 @@
 # @hyperlane-xyz/tron-sdk
 
+## 23.1.4
+
+### Patch Changes
+
+- Updated dependencies [961a89d]
+  - @hyperlane-xyz/provider-sdk@7.2.0
+  - @hyperlane-xyz/utils@38.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 23.1.3
+
+### Patch Changes
+
+- Updated dependencies [df34a68]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/utils@37.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 23.1.2
+
+### Patch Changes
+
+- aa41ce4: SVM fee program management was added to the SVM SDK with full create, read, and update support for all 6 fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting). The provider-sdk fee types were refactored with a FeeParams discriminated union (bps vs raw), PascalCase FeeType/FeeStrategyType values, expanded DerivedFeeConfig with resolved bigint fields, and a required FeeReadContext parameter on createFeeArtifactManager. Shared BPS fee utilities (computeBps, bpsToRawFeeParams, constants) were consolidated into provider-sdk as the single source of truth — sdk and svm-sdk now import from provider-sdk. The EVM SDK TokenFeeType was converted from enum to const object for structural compatibility. Legacy pre-fee program bytes were preserved for upgrade testing. The repeated account-decoding boilerplate in the fee and token decoders was consolidated into a shared decodeDiscriminatedAccount helper.
+- 823eca3: TronWallet now uses the provided RPC URL's host for building, signing and broadcasting transactions instead of silently redirecting non-TronGrid/localhost hosts to the public https://api.trongrid.io endpoint. This fixes private/custom Tron RPCs being ignored for broadcasting (which caused rate-limiting/429s and leaked transactions to a third party). API keys via `custom_rpc_header` continue to work. As an intended behavior change, an RPC that serves eth JSON-RPC but not the Tron HTTP API (`/wallet/*`) will now fail loudly instead of silently succeeding by routing broadcasts through public TronGrid; such setups should point the RPC at a full Tron HTTP API host (or TronGrid with an API key via `custom_rpc_header`).
+- Updated dependencies [9cd7606]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 23.1.1
 
 ### Patch Changes

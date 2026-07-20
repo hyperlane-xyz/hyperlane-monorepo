@@ -4,16 +4,19 @@ import { pino } from 'pino';
 import request from 'supertest';
 import type { Address, Hex } from 'viem';
 
-import { HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
+import {
+  type DerivedTokenRouterConfig,
+  HookType,
+  TokenFeeType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { ZERO_ADDRESS } from '../../src/constants.js';
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createQuoteRouter } from '../../src/routes/quote.js';
-import {
-  QuoteService,
-  type ChainQuoteContext,
-} from '../../src/services/quoteService.js';
+import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
+import { QuoteService } from '../../src/services/quoteService.js';
 
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as Hex;
@@ -34,50 +37,56 @@ const WARP_PARAMS = `origin=ethereum&router=${ROUTER}&destination=42161&salt=${S
 const ICA_PARAMS = `origin=ethereum&router=${ROUTER}&destination=42161&salt=${SALT}`;
 
 function createTestApp(): Express {
-  const routers = new Map();
-  routers.set(ROUTER as Address, {
-    feeToken: FEE_TOKEN,
-    derivedConfig: {
-      hook: {
-        type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        address: IGP_ADDRESS,
-        owner: ZERO_ADDRESS,
-        beneficiary: ZERO_ADDRESS,
-        oracleKey: ZERO_ADDRESS,
-        overhead: {},
-        oracleConfig: {},
-        quoteSigners: [TEST_SIGNER],
-      },
-      tokenFee: {
-        type: TokenFeeType.OffchainQuotedLinearFee,
-        address: FEE_CONTRACT,
-        token: FEE_TOKEN,
-        owner: ZERO_ADDRESS,
-        maxFee: 0n,
-        halfAmount: 1n,
-        bps: 0n,
-        quoteSigners: [TEST_SIGNER],
-      },
-    } as any,
-  });
+  const logger = pino({ level: 'silent' });
+  const derivedConfig = {
+    hook: {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      address: IGP_ADDRESS,
+      owner: ZERO_ADDRESS,
+      beneficiary: ZERO_ADDRESS,
+      oracleKey: ZERO_ADDRESS,
+      overhead: {},
+      oracleConfig: {},
+      quoteSigners: [TEST_SIGNER],
+    },
+    tokenFee: {
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      address: FEE_CONTRACT,
+      token: FEE_TOKEN,
+      owner: ZERO_ADDRESS,
+      maxFee: 0n,
+      halfAmount: 1n,
+      bps: 0n,
+      quoteSigners: [TEST_SIGNER],
+    },
+  } as unknown as DerivedTokenRouterConfig;
 
-  const chainContexts = new Map<string, ChainQuoteContext>();
-  chainContexts.set('ethereum', {
-    chainName: 'ethereum',
-    quotedCallsAddress: QUOTED_CALLS,
-    routers,
+  const evm = EvmQuoteService.fromState({
+    signerKey: TEST_PRIVATE_KEY,
+    logger,
+    routes: [
+      {
+        origin: 'ethereum',
+        warpRouter: ROUTER,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
+        feeToken: FEE_TOKEN,
+        derivedConfig,
+      },
+    ],
   });
 
   const quoteService = new QuoteService({
-    signerKey: TEST_PRIVATE_KEY,
+    services: new Map([[ProtocolType.Ethereum, evm]]),
+    protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
     quoteExpiry: 300,
+    transientBuffer: 240,
     multiProvider: {
       getChainName: (d: number) => (d === 42161 ? 'arbitrum' : `chain-${d}`),
       getChainId: () => 1,
     } as any,
-    chainContexts,
-    logger: pino({ level: 'silent' }),
+    logger,
   });
 
   const app = express();

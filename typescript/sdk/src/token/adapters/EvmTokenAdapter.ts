@@ -62,7 +62,7 @@ import { OnchainHookType } from '../../hook/types.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
-  isMissingSelectorCallException,
+  fetchPackageVersion,
   isValidContractVersion,
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
@@ -205,7 +205,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       toEvmAddress(owner),
       toEvmAddress(spender),
     );
-    return allowance.lt(weiAmountOrId);
+    // BigNumber.from() normalizes foreign BigNumberish values (e.g. a native
+    // bigint from a provider that isn't a true ethers v5 BigNumber) so the
+    // comparison methods below are always safe to call.
+    return BigNumber.from(allowance).lt(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
@@ -217,7 +220,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       toEvmAddress(spender),
     );
 
-    return !allowance.isZero();
+    return !BigNumber.from(allowance).isZero();
   }
 
   override populateApproveTx({
@@ -280,7 +283,7 @@ export class EvmHypSyntheticAdapter
         toEvmAddress(owner),
         predicateWrapper,
       );
-      return allowance.lt(weiAmountOrId);
+      return BigNumber.from(allowance).lt(weiAmountOrId);
     }
 
     // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
@@ -444,16 +447,11 @@ export class EvmHypSyntheticAdapter
   }
 
   async getContractPackageVersion() {
-    try {
-      return await this.contract.PACKAGE_VERSION();
-    } catch (err) {
-      if (isMissingSelectorCallException(err)) {
-        // PACKAGE_VERSION was introduced in v5.4.0
-        return '5.3.9';
-      }
-      this.logger.error(`Error when fetching package version ${err}`);
-      throw err;
-    }
+    return fetchPackageVersion(
+      this.getProvider(),
+      this.contract.address,
+      this.logger,
+    );
   }
 
   async quoteTransferRemoteGas({

@@ -1,3 +1,9 @@
+import {
+  type Address,
+  getAddressDecoder,
+  type ReadonlyUint8Array,
+} from '@solana/kit';
+
 import { ByteCursor } from './binary.js';
 
 export interface DecodedAccountData<T> {
@@ -6,7 +12,7 @@ export interface DecodedAccountData<T> {
 }
 
 export function decodeAccountData<T>(
-  raw: Uint8Array,
+  raw: ReadonlyUint8Array,
   decodeInner: (cursor: ByteCursor) => T,
 ): DecodedAccountData<T> {
   if (raw.length === 0) return { initialized: false, data: null };
@@ -31,4 +37,39 @@ export function decodeDiscriminatorPrefixed<T>(
     throw new Error('Invalid discriminator');
   }
   return decodeInner(cursor);
+}
+
+export function decodeDiscriminatedAccount<T>(
+  raw: Uint8Array,
+  discriminator: Uint8Array,
+  inner: (cursor: ByteCursor) => T,
+): T | null {
+  return decodeAccountData(raw, (cursor) =>
+    decodeDiscriminatorPrefixed(cursor, discriminator, inner),
+  ).data;
+}
+
+/** Builds an 8-byte discriminator from an ASCII string. */
+export function ascii8(value: string): Uint8Array {
+  if (value.length !== 8) {
+    throw new Error(`Expected 8-char discriminator, got ${value}`);
+  }
+  return Uint8Array.from(value, (char) => char.charCodeAt(0));
+}
+
+const addressDecoder = getAddressDecoder();
+
+/** Reads a 32-byte Pubkey as a base58 Address. */
+export function readAddress(cursor: ByteCursor): Address {
+  return addressDecoder.decode(cursor.readBytes(32));
+}
+
+/** Reads a Borsh `Option<Pubkey>`: 0 ⇒ null, 1 ⇒ address, other ⇒ throws. */
+export function readOptionAddress(cursor: ByteCursor): Address | null {
+  const tag = cursor.readU8();
+  if (tag === 0) return null;
+  if (tag !== 1) {
+    throw new Error(`Invalid Option tag: ${tag}`);
+  }
+  return readAddress(cursor);
 }

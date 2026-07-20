@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/fee-quoting",
-  "version": "27.2.18",
+  "version": "27.3.1",
   "private": true,
   "description": "Offchain fee quoting service and client for Hyperlane",
   "license": "Apache-2.0",
@@ -19,14 +19,17 @@
     "dev": "tsx watch scripts/run-server.ts",
     "start": "tsx scripts/run-server.ts",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "test:ci": "pnpm test",
     "coverage": "c8 pnpm test",
     "lint": "eslint -c ./eslint.config.mjs",
     "format": "oxfmt --write ./src"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/sealevel-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.17.1",

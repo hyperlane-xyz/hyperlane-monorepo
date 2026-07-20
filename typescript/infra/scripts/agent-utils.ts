@@ -656,7 +656,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain] && chain !== 'zeronetwork') {
+        if (chainMetadata[chain]) {
           acc[chain] = chainMetadata[chain];
         }
         return acc;

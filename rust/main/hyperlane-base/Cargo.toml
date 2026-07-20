@@ -32,6 +32,7 @@ mockall.workspace = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-sdk.workspace = true
@@ -74,7 +75,9 @@ rusoto_kms = "*"
 rusoto_sts = "*"
 
 [dev-dependencies]
+aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 color-eyre.workspace = true
+hyper = "0.14"
 reqwest.workspace = true
 tempfile.workspace = true
 tracing-test.workspace = true

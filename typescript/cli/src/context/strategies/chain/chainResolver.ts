@@ -38,7 +38,9 @@ import { requestAndSaveApiKeys } from '../../apiKeys.js';
 export async function resolveChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
+  const commandKey = `${argv._[0]}:${argv._[1] || ''}${
+    argv._[2] ? `:${argv._[2]}` : ''
+  }`.trim() as CommandType;
 
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
@@ -52,7 +54,15 @@ export async function resolveChains(
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
+    case CommandType.WARP_ALT_CHECK:
+    case CommandType.WARP_ALT_READ:
       return resolveWarpReadChains(argv);
+    case CommandType.WARP_QUOTE_READ:
+      return resolveWarpQuoteReadChains(argv);
+    case CommandType.WARP_ALT_CREATE:
+      return resolveWarpAltCreateChains(argv);
+    case CommandType.WARP_QUOTE_CREATE:
+      return resolveWarpQuoteCreateChains(argv);
     case CommandType.WARP_APPLY:
       return resolveWarpConfigChains(argv);
     case CommandType.WARP_CHECK:
@@ -71,6 +81,7 @@ export async function resolveChains(
     case CommandType.ISM_DEPLOY:
     case CommandType.ISM_READ:
     case CommandType.HOOK_DEPLOY:
+    case CommandType.HOOK_APPLY:
     case CommandType.HOOK_READ:
       return resolveChain(argv);
     case CommandType.ICA_DEPLOY:
@@ -116,6 +127,86 @@ async function resolveWarpReadChains(
   assert(
     argv.context.chains && argv.context.chains.length !== 0,
     'No chains found set in parameters',
+  );
+
+  return argv.context.chains;
+}
+
+// Unlike `resolveWarpReadChains`, this respects --chain even though a
+// warpRouteId is always present, so a single-chain read on a mixed EVM/SVM
+// route only provisions providers/signers for that chain.
+async function resolveWarpQuoteReadChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  if (argv.warpRouteId) {
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    if (!argv.chain) {
+      argv.context.chains = warpCoreConfig.tokens.map(
+        (token) => token.chainName,
+      );
+    }
+  }
+
+  if (argv.chain) {
+    argv.context.chains = await resolveChain(argv);
+  }
+
+  assert(
+    argv.context.chains && argv.context.chains.length !== 0,
+    'No chains found set in parameters',
+  );
+
+  return argv.context.chains;
+}
+
+async function resolveWarpQuoteCreateChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  assert(
+    argv.chain,
+    '`warp quote create` requires --chain (the chain submitting the quote tx)',
+  );
+  argv.context.chains = await resolveChain(argv);
+  return argv.context.chains;
+}
+
+// `warp alt create` signs on SVM chains only; loading EVM signers for an
+// SVM/EVM warp route would prompt for keys the command never uses.
+async function resolveWarpAltCreateChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+
+  if (argv.chain) {
+    assert(
+      multiProvider.getProtocol(argv.chain) === ProtocolType.Sealevel,
+      `Chain "${argv.chain}" is not an SVM chain — \`warp alt create\` only supports SVM chains`,
+    );
+    argv.context.chains = await resolveChain(argv);
+  } else {
+    assert(
+      argv.warpRouteId,
+      'Either --warp-route-id or --chain must be provided',
+    );
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    argv.context.chains = warpCoreConfig.tokens
+      .map((token) => token.chainName)
+      .filter(
+        (chain) => multiProvider.getProtocol(chain) === ProtocolType.Sealevel,
+      );
+  }
+
+  assert(
+    argv.context.chains && argv.context.chains.length !== 0,
+    'No SVM chains found for `warp alt create`',
   );
 
   return argv.context.chains;

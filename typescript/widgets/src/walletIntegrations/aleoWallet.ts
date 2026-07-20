@@ -1,4 +1,3 @@
-import { Network } from '@provablehq/aleo-types';
 import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,7 +6,7 @@ import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/Minim
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { useAleoPopup } from './aleo/AleoProviders.js';
-import { getAdapter } from './aleo/utils.js';
+import { getAdapter, getAleoNetwork } from './aleo/utils.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
 export function useAleoAccount(
@@ -25,7 +24,7 @@ export function useAleoAccount(
 
     const handleAccountSwitched = async () => {
       await adapterInstance.connect(
-        Network.MAINNET,
+        getAleoNetwork(),
         WalletDecryptPermission.AutoDecrypt,
         [],
       );

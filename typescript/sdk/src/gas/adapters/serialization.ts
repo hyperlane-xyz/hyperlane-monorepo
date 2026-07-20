@@ -1,13 +1,88 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { Domain } from '@hyperlane-xyz/utils';
+import { Domain, assert, toHexString } from '@hyperlane-xyz/utils';
 
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
   getSealevelSimulationReturnDataSchema,
+  readOptionalDiscriminatedTrailing,
 } from '../../utils/sealevelSerialization.js';
+
+/**
+ * Offchain quoting configuration on an Igp account (trailing optional field
+ * introduced in the SVM fee-flow upgrade). Mirrors `IgpFeeConfig` in
+ * rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs.
+ */
+export interface SealevelIgpFeeConfig {
+  /// Authorized secp256k1 signer addresses (0x-prefixed hex, 20 bytes each).
+  signers: string[];
+  /// Hyperlane domain ID for cross-chain replay prevention.
+  domain_id: number;
+  /// Emergency revocation threshold (Unix timestamp).
+  min_issued_at: bigint;
+}
+
+/// `IgpFeeConfig::DISCRIMINATOR` in hyperlane-sealevel-igp/src/accounts.rs.
+const IGP_FEE_CONFIG_DISCRIMINATOR = Buffer.from('IGPFEEV1', 'ascii');
+const H160_BYTES = 20;
+const U32_BYTES = 4;
+const I64_BYTES = 8;
+
+/**
+ * Decode the optional trailing IgpFeeConfig from an Igp account's raw data.
+ * The trailing field is an `OptionalDiscriminatedData<IgpFeeConfig>`: empty
+ * when absent, or `[DISCRIMINATOR (8)][signers (borsh set)][domain_id (u32)]
+ * [min_issued_at (i64)]` when present.
+ *
+ * The payload is hand-decoded (no borsh dependency) because borsh-js 0.7
+ * lacks native i64 support for `min_issued_at`.
+ */
+export function decodeTrailingIgpFeeConfig(
+  rawAccountData: Buffer,
+  consumedSize: number,
+): SealevelIgpFeeConfig | undefined {
+  const payload = readOptionalDiscriminatedTrailing(
+    rawAccountData,
+    consumedSize,
+    IGP_FEE_CONFIG_DISCRIMINATOR,
+  );
+  if (payload === undefined) return undefined;
+
+  let offset = 0;
+  assert(
+    payload.length >= offset + U32_BYTES,
+    `Truncated igp.fee_config: signers length prefix missing`,
+  );
+  const signersLen = payload.readUInt32LE(offset);
+  offset += U32_BYTES;
+
+  const payloadEnd = offset + signersLen * H160_BYTES + U32_BYTES + I64_BYTES;
+  assert(
+    payload.length >= payloadEnd,
+    `Truncated igp.fee_config: expected payload through offset ${payloadEnd}, got ${payload.length}`,
+  );
+
+  const signers: string[] = [];
+  for (let i = 0; i < signersLen; i++) {
+    signers.push(
+      toHexString(Buffer.from(payload.subarray(offset, offset + H160_BYTES))),
+    );
+    offset += H160_BYTES;
+  }
+  const domain_id = payload.readUInt32LE(offset);
+  offset += U32_BYTES;
+  // Use DataView for i64 — Node's readBigInt64LE is missing from common
+  // browser Buffer polyfills (e.g., Turbopack).
+  const min_issued_at = new DataView(
+    payload.buffer,
+    payload.byteOffset + offset,
+    I64_BYTES,
+  ).getBigInt64(0, true);
+
+  return { signers, domain_id, min_issued_at };
+}
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L24
 export enum SealevelInterchainGasPaymasterType {
@@ -151,6 +226,9 @@ export class SealevelIgpData {
   beneficiary!: Uint8Array; // 32 bytes
   beneficiary_pub_key!: PublicKey;
   gas_oracles!: Map<number, SealevelGasOracle>;
+  /// Trailing optional offchain-quoting configuration. Hydrated post-decode
+  /// via `decodeTrailingIgpFeeConfig`; NOT part of SealevelIgpDataSchema.
+  fee_config?: SealevelIgpFeeConfig;
 
   constructor(fields: any) {
     Object.assign(this, fields);
@@ -185,7 +263,9 @@ export const SealevelIgpDataSchema = new Map<any, any>([
  * IGP instruction Borsh Schema
  */
 
-// Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/8f8853bcd7105a6dd7af3a45c413b137ded6e888/rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs#L19-L42
+// Should match Instruction in
+// rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs
+// (extended in the fee-flow upgrade after Claim=10).
 export enum SealevelIgpInstruction {
   Init,
   InitIgp,
@@ -198,7 +278,51 @@ export enum SealevelIgpInstruction {
   SetDestinationGasOverheads,
   SetGasOracleConfigs,
   Claim,
+  SetIgpQuoteConfig,
+  SetIgpQuoteSigner,
+  SetIgpMinIssuedAt,
+  SubmitIgpQuote,
+  CloseIgpTransientQuote,
+  CloseIgpStandingQuote,
+  GetIgpQuoteAccountMetas,
 }
+
+/// Simulation-only instruction returning the account metas required for an
+/// IGP quote (new flow). Mirrors `GetIgpQuoteAccountMetas` in
+/// rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs.
+export class SealevelGetIgpQuoteAccountMetasInstruction {
+  destination_domain!: number;
+  sender!: Uint8Array; // 32 bytes (Pubkey)
+  scoped_salt!: Uint8Array | null; // 32 bytes if Some, null = standing only
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelGetIgpQuoteAccountMetasSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelGetIgpQuoteAccountMetasInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelGetIgpQuoteAccountMetasInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['destination_domain', 'u32'],
+        ['sender', [32]],
+        ['scoped_salt', { kind: 'option', type: [32] }],
+      ],
+    },
+  ],
+]);
 
 export class SealevelIgpQuoteGasPaymentInstruction {
   destination_domain!: number;

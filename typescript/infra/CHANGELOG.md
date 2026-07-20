@@ -1,5 +1,109 @@
 # @hyperlane-xyz/infra
 
+## 38.0.0
+
+### Patch Changes
+
+- Updated dependencies [961a89d]
+- Updated dependencies [2208b91]
+- Updated dependencies [2208b91]
+- Updated dependencies [2208b91]
+- Updated dependencies [197b1e0]
+- Updated dependencies [293abdc]
+  - @hyperlane-xyz/sdk@38.0.0
+  - @hyperlane-xyz/sealevel-sdk@38.0.0
+  - @hyperlane-xyz/provider-sdk@7.2.0
+  - @hyperlane-xyz/http-registry-server@38.0.0
+  - @hyperlane-xyz/keyfunder@0.1.37
+  - @hyperlane-xyz/metrics@0.2.30
+  - @hyperlane-xyz/rebalancer@27.3.9
+  - @hyperlane-xyz/relayer@1.1.37
+  - @hyperlane-xyz/deploy-sdk@7.2.0
+  - @hyperlane-xyz/tron-sdk@23.1.4
+  - @hyperlane-xyz/utils@38.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 37.0.0
+
+### Patch Changes
+
+- Updated dependencies [92909f8]
+- Updated dependencies [262073e]
+- Updated dependencies [df34a68]
+- Updated dependencies [262073e]
+- Updated dependencies [af8e1f6]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [c7895b6]
+- Updated dependencies [262073e]
+- Updated dependencies [6e803be]
+- Updated dependencies [cb0c7c9]
+- Updated dependencies [a82c918]
+- Updated dependencies [262073e]
+- Updated dependencies [351cf01]
+- Updated dependencies [5122e71]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [c4b3ff5]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+- Updated dependencies [955281d]
+- Updated dependencies [5122e71]
+- Updated dependencies [9c8b435]
+  - @hyperlane-xyz/sdk@37.0.0
+  - @hyperlane-xyz/sealevel-sdk@37.0.0
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/deploy-sdk@7.1.0
+  - @hyperlane-xyz/http-registry-server@37.0.0
+  - @hyperlane-xyz/keyfunder@0.1.36
+  - @hyperlane-xyz/metrics@0.2.29
+  - @hyperlane-xyz/rebalancer@27.3.8
+  - @hyperlane-xyz/relayer@1.1.36
+  - @hyperlane-xyz/tron-sdk@23.1.3
+  - @hyperlane-xyz/utils@37.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 36.0.0
+
+### Patch Changes
+
+- 019201a: Fixed ISM initialization guard on retry, added in-place ISM sub-module updates for AGGREGATION and AMOUNT_ROUTING containers (with side-effect-free preflight, duplicate-key checks, CCIP cache propagation, and nested RATE_LIMITED support), and made Safe nonce fetching queue-aware with a manual override escape hatch.
+- d9f9d58: The CROSS/moonpay USDC and USDT warp route fee configs were given per-destination-token granularity by emitting a CrossCollateralRoutingFee leaf for each enrolled destination router (alongside the existing default-router fallback), allowing distinct fees per destination token.
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [019201a]
+- Updated dependencies [cc722b8]
+- Updated dependencies [9cd7606]
+- Updated dependencies [2821252]
+- Updated dependencies [a6a3a33]
+- Updated dependencies [2821252]
+- Updated dependencies [d288e7b]
+- Updated dependencies [d288e7b]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+- Updated dependencies [d288e7b]
+- Updated dependencies [5a5968f]
+- Updated dependencies [cf6857e]
+- Updated dependencies [823eca3]
+- Updated dependencies [5527cd0]
+- Updated dependencies [32b87ad]
+- Updated dependencies [cf6857e]
+  - @hyperlane-xyz/sdk@36.0.0
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/deploy-sdk@7.0.0
+  - @hyperlane-xyz/sealevel-sdk@36.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.2
+  - @hyperlane-xyz/metrics@0.2.28
+  - @hyperlane-xyz/http-registry-server@36.0.0
+  - @hyperlane-xyz/keyfunder@0.1.35
+  - @hyperlane-xyz/rebalancer@27.3.7
+  - @hyperlane-xyz/relayer@1.1.35
+  - @hyperlane-xyz/core@11.3.1
+
 ## 35.2.0
 
 ### Patch Changes

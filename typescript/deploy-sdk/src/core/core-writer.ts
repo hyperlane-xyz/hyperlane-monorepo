@@ -349,6 +349,7 @@ export class CoreWriter extends CoreArtifactReader {
           artifactState: ArtifactState.UNDERIVED,
           deployed: { address: newRequiredHookAddress },
         },
+        contractVersion: expectedConfig.contractVersion,
       },
       deployed: currentArtifact.deployed,
     };

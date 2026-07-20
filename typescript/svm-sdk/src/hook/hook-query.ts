@@ -16,6 +16,7 @@ import {
   deriveOverheadIgpAccountPda,
 } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
+import { queryProgramVersionWithOwnerFallback } from '../version/version-query.js';
 
 export const decodeHookAccount = {
   igpProgramData: decodeIgpProgramDataAccount,
@@ -56,6 +57,31 @@ export async function fetchOverheadIgpAccount(
   const raw = await fetchAccountDataRaw(rpc, overheadIgpPda);
   if (!raw || raw.length === 0) return null;
   return decodeOverheadIgpAccount(raw);
+}
+
+/**
+ * Queries the on-chain program version for an IGP program.
+ *
+ * Uses the IGP owner as the simulation fee payer when present, falling
+ * back to a known-funded mainnet address when the owner is null or the
+ * owner-paid simulation fails (e.g. production owner has no SOL).
+ *
+ * With the default `allowFailure: true`, returns null when both attempts
+ * fail (e.g. fallback payer absent on this chain), so reads never break.
+ * When `allowFailure` is false, the last infra error propagates so writers
+ * can distinguish a failed probe from a genuinely pre-versioned program —
+ * pre-versioned still yields `null` because `queryProgramVersion`
+ * classifies that case itself.
+ */
+export async function fetchIgpProgramVersion(
+  rpc: Rpc<SolanaRpcApi>,
+  programId: Address,
+  owner: Address | null,
+  { allowFailure = true }: { allowFailure?: boolean } = {},
+): Promise<string | null> {
+  return queryProgramVersionWithOwnerFallback(rpc, programId, owner, {
+    allowFailure,
+  });
 }
 
 export async function detectHookType(

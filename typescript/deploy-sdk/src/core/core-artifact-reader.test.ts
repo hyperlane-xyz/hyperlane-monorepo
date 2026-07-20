@@ -58,6 +58,8 @@ describe('CoreArtifactReader', () => {
   let chainMetadata: ChainMetadataForAltVM;
   let coreReader: CoreArtifactReader;
 
+  const mockContractVersion = '1.2.3';
+
   const mockRawMailbox: DeployedRawMailboxArtifact = {
     artifactState: ArtifactState.DEPLOYED,
     config: {
@@ -74,6 +76,7 @@ describe('CoreArtifactReader', () => {
         artifactState: ArtifactState.UNDERIVED,
         deployed: { address: mockRequiredHookAddress },
       },
+      contractVersion: mockContractVersion,
     },
     deployed: { address: mockMailboxAddress, domainId: mockDomainId },
   };
@@ -187,6 +190,7 @@ describe('CoreArtifactReader', () => {
       expect(result.config.requiredHook).to.deep.equal(
         mockExpandedRequiredHook,
       );
+      expect(result.config.contractVersion).to.equal(mockContractVersion);
 
       sinon.assert.calledOnceWithExactly(readMailboxStub, mockMailboxAddress);
       sinon.assert.calledOnceWithExactly(mockIsmReader.read, mockIsmAddress);
@@ -259,6 +263,7 @@ describe('CoreArtifactReader', () => {
             artifactState: ArtifactState.UNDERIVED,
             deployed: { address: ZERO_ADDRESS_HEX_32 },
           },
+          contractVersion: mockContractVersion,
         },
         deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
@@ -273,6 +278,7 @@ describe('CoreArtifactReader', () => {
       // ASSERT
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(result.config.owner).to.equal(mockOwner);
+      expect(result.config.contractVersion).to.equal(mockContractVersion);
 
       // Nested artifacts should remain UNDERIVED (not expanded)
       expect(result.config.defaultIsm.artifactState).to.equal(
@@ -333,6 +339,7 @@ describe('CoreArtifactReader', () => {
       expect(result.defaultIsm).to.be.an('object');
       expect(result.defaultHook).to.be.an('object');
       expect(result.requiredHook).to.be.an('object');
+      expect(result.contractVersion).to.equal(mockContractVersion);
 
       sinon.assert.calledOnce(readMailboxStub);
       sinon.assert.calledOnce(mockIsmReader.read);
