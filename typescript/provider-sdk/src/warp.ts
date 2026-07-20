@@ -889,6 +889,67 @@ export function computeCrossCollateralRouterUpdates(
   return { toEnroll, toUnenroll };
 }
 
+// Warp Deploy Gas Composition
+
+/**
+ * Per-protocol breakdown of the additive deltas that
+ * {@link composeWarpDeployGas} sums into a total warp-deploy cost. Every
+ * field is in the same protocol-native unit as `getMinGas()` (lamports on
+ * Sealevel, sun on Tron, ugas on Cosmos, etc.).
+ */
+export interface WarpDeployGasBreakdown {
+  /** Base router deploy cost. */
+  base: bigint;
+  /** Extra cost when the warp type is `crossCollateral`. */
+  crossCollateralExtra: bigint;
+  /** Cost of deploying a fresh fee program. */
+  feeProgram: bigint;
+  /** Cost of deploying a fresh custom ISM. */
+  customIsm: bigint;
+  /** Cost of deploying a fresh custom hook / IGP. */
+  customHook: bigint;
+}
+
+/**
+ * Composes the per-chain warp-deploy cost from a per-protocol breakdown of
+ * constants and the shape of the {@link WarpArtifactConfig}.
+ *
+ * Uses {@link isArtifactNew} to detect fresh deploys: an ism/hook/fee whose
+ * `artifactState` is DEPLOYED or UNDERIVED contributes nothing (the contract
+ * already exists on-chain and no deploy cost is incurred); a NEW artifact
+ * contributes its protocol-specific delta.
+ *
+ * Return value uses the same protocol-native unit as `getMinGas()` (lamports
+ * on Sealevel, sun on Tron, ugas on Cosmos, etc.).
+ */
+export function composeWarpDeployGas(
+  warpConfig: WarpArtifactConfig,
+  breakdown: WarpDeployGasBreakdown,
+): bigint {
+  let total = breakdown.base;
+
+  if (warpConfig.type === TokenType.crossCollateral) {
+    total += breakdown.crossCollateralExtra;
+  }
+
+  if (warpConfig.fee !== undefined && isArtifactNew(warpConfig.fee)) {
+    total += breakdown.feeProgram;
+  }
+
+  if (
+    warpConfig.interchainSecurityModule !== undefined &&
+    isArtifactNew(warpConfig.interchainSecurityModule)
+  ) {
+    total += breakdown.customIsm;
+  }
+
+  if (warpConfig.hook !== undefined && isArtifactNew(warpConfig.hook)) {
+    total += breakdown.customHook;
+  }
+
+  return total;
+}
+
 export interface CCGasConfigDiff {
   toEnroll: Array<{ domain: number; gas: string }>;
   toUnenroll: number[];
