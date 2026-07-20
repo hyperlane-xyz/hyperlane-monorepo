@@ -99,7 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -200,7 +200,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -301,7 +301,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
