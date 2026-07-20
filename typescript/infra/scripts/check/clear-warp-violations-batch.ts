@@ -45,12 +45,18 @@ function parseRows(contents: string): ClearRow[] {
       errors.push(`line ${lineNo}: expected 4 tab-columns, got ${cols.length}`);
       return;
     }
-    const [warpRouteId, chain, contractName, violationType] = cols;
-    if (warpRouteId.trim() === '' || chain.trim() === '') {
+    // Trim every field so the derived PushGateway grouping key matches the
+    // stored series exactly: a stray space would change alert_key, and DELETE
+    // still returns 202 on a miss, so an untrimmed row could report success
+    // while leaving the real series firing.
+    const [warpRouteId, chain, contractName, violationType] = cols.map((c) =>
+      c.trim(),
+    );
+    if (warpRouteId === '' || chain === '') {
       errors.push(`line ${lineNo}: warp_route_id and chain must be non-empty`);
       return;
     }
-    if (violationType.trim() === '') {
+    if (violationType === '') {
       errors.push(`line ${lineNo}: type must be non-empty`);
       return;
     }

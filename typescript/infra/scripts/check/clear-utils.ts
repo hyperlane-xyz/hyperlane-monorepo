@@ -1,7 +1,6 @@
-import { Registry } from 'prom-client';
+import { Pushgateway, Registry } from 'prom-client';
 
-import { getPushGateway } from '@hyperlane-xyz/metrics';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 // Shared PushGateway delete helper for the clear-* scripts.
 //
@@ -12,6 +11,12 @@ import { assert, rootLogger } from '@hyperlane-xyz/utils';
 // is a verified removal, so this helper instead throws unless the gateway
 // confirms the delete with a 2xx status. Callers must let the throw propagate
 // (or record the failure) so the process exits non-zero.
+
+// Finite request timeout so a dead/wedged PushGateway makes the delete fail fast
+// instead of hanging the one-shot clear forever. prom-client applies this
+// constructor timeout to delete() too. `getPushGateway` from @hyperlane-xyz/metrics
+// hardcodes no timeout, so the default gateway is built directly here.
+const PUSHGATEWAY_TIMEOUT_MS = 30_000;
 
 // The subset of prom-client's Pushgateway we depend on. Declared here (rather
 // than typing against the concrete class) so tests can inject a stub and
@@ -28,10 +33,25 @@ function hasStatusCode(x: unknown): x is { statusCode: unknown } {
   return typeof x === 'object' && x !== null && 'statusCode' in x;
 }
 
+// Resolve the real PushGateway from PROMETHEUS_PUSH_GATEWAY, with a finite
+// request timeout. Returns null when unset so the caller's assert can fail
+// loudly rather than silently reporting a clear that never happened.
+function defaultPushGateway(): DeletableGateway | null {
+  const addr = process.env['PROMETHEUS_PUSH_GATEWAY'];
+  if (!addr) {
+    return null;
+  }
+  return new Pushgateway(
+    addr,
+    { timeout: PUSHGATEWAY_TIMEOUT_MS },
+    new Registry(),
+  );
+}
+
 export async function deleteViolationSeriesOrThrow(
   jobName: string,
   groupings: Record<string, string>,
-  gateway: DeletableGateway | null = getPushGateway(new Registry(), rootLogger),
+  gateway: DeletableGateway | null = defaultPushGateway(),
 ): Promise<void> {
   assert(
     gateway,
