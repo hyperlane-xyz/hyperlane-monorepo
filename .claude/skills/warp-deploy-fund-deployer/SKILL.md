@@ -142,33 +142,52 @@ When an alternative venue produces a price, log which venue and the value (so th
 
 ---
 
-## Step 5: Check Deployer Native Gas Balance Per Chain
+## Step 5: Check Deployer Native Gas Balance Per Chain (Protocol-Agnostic)
 
-For each chain in the warp route, check the deployer's native token balance:
+For each chain in the warp route, resolve the deployer's per-protocol address from the key-context artifact (`keys.<protocol>.address`) and check the native balance against the chain's per-protocol `WARP_DEPLOY_GAS` requirement. This flow works uniformly across every altvm protocol (EVM / Sealevel / Cosmos / Aleo / Radix / Starknet / Tron) — do **not** branch on protocol type or special-case any chain.
 
-```bash
-cast balance <DEPLOYER_ADDRESS> --rpc-url <RPC_URL> --ether
+### The interfaces you use
+
+- `getProtocolProvider(protocol).getMinGas(): MinimumRequiredGasByAction` — per-protocol required gas constants. Every protocol client (EVM / SVM / Tron / Cosmos / Aleo / Radix / Starknet) exposes this. Reference: `typescript/svm-sdk/src/clients/protocol.ts:114`, `typescript/tron-sdk/src/clients/protocol.ts:102`, `typescript/radix-sdk/src/clients/protocol.ts:125`, etc. The action for this skill is `WARP_DEPLOY_GAS`.
+- `IProvider.getBalance(req: ReqGetBalance): Promise<bigint>` on the altvm provider (or `signer.getBalance({ address, denom })` on the AltVM signer). Interface defined at `typescript/provider-sdk/src/altvm.ts:176`; implemented in each altvm SDK's `clients/provider.ts`.
+- For EVM chains: `multiProvider.getProvider(chain).getBalance(address)` returns wei directly. The pattern in `typescript/cli/src/utils/balances.ts` (`nativeBalancesAreSufficient`, called internally by `hyperlane warp deploy`) is the canonical reference — this skill's role is to preflight the same check so shortfalls are caught before deploy starts.
+
+### Required calculation
+
+For each chain:
+
+- `requiredUnits = protocolClient.getMinGas().WARP_DEPLOY_GAS`
+- `requiredNative = requiredUnits × gasPrice` (units × price per unit). For EVM, `gasPrice` from `provider.getGasPrice()`. For non-EVM, `gasPrice` from `multiProvider.getChainMetadata(chain).gasPrice.amount`. Some protocols encode gas differently — trust the shared calculation in `nativeBalancesAreSufficient` (`typescript/cli/src/utils/balances.ts:79-92`) as ground truth.
+- `actualBalance = signer.getBalance({ address, denom })` (or `provider.getBalance(address)` for EVM).
+- `usdValue = actualBalance × nativeToken.usd` — CoinGecko rate for the native symbol.
+
+### Reporting
+
+Per chain, emit one of:
+
+- ✅ **OK** — actual ≥ required (with 2× buffer)
+- ⚠️ **LOW** — 0 < actual < required (fund + continue)
+- ❌ **EMPTY** — actual = 0 (fund + flag)
+
 ```
-
-Compare against `required_with_buffer` from Step 4.
-
-For each chain, report one of:
-
-- ✅ **OK** — balance >= required (with buffer)
-- ⚠️ **LOW** — balance > 0 but < required (warn + include in funding)
-- ❌ **EMPTY** — balance = 0 (critical + include in funding)
-
-When reporting, always show both the native amount and USD value:
-
-```
-Chain: ethereum
-  Gas price: 0.13 gwei → requires 0.0078 ETH (2x buffer) = ~16.09 USD
-  Balance:   0.002 ETH (~4.13 USD)
+Chain: ethereum (evm)
+  WARP_DEPLOY_GAS: 30_000_000 × 0.13 gwei → 0.0078 ETH (2× buffer) = ~16.09 USD
+  Balance:         0.002 ETH (~4.13 USD)
   ⚠️  SHORT: fund 0.006 ETH (~12.38 USD more)
-  ⚠️  WARNING: >10 USD needed — gas is currently elevated on ethereum
+
+Chain: solanamainnet (svm)
+  WARP_DEPLOY_GAS: 2_600_000_000 lamports = 2.6 SOL = ~$520
+  Balance:         0.3 SOL (~$60)
+  ⚠️  SHORT: fund 2.3 SOL (~$460 more)
+
+Chain: tron (tron)
+  WARP_DEPLOY_GAS: 1_000_000_000 sun × price → …
+  …
 ```
 
-**Note for Solana (Sealevel)**: `cast balance` and `eth_gasPrice` do not apply. Solana requires ~2.5 SOL for rent on new deployments (~500 USD+). Warn the user to fund manually if Solana is in the route.
+**⚠️ Warning threshold**: If any chain's required amount (with buffer) exceeds 10 USD, warn explicitly before running funding commands.
+
+Do NOT emit any Solana- or Tron-specific manual-fund warning. The interface handles every protocol uniformly; if a chain's balance is short, the funding script in Step 8 tops it up automatically for every protocol it supports.
 
 ---
 
@@ -427,9 +446,8 @@ Once all chains are funded, run `/warp-deploy-init-route` to generate the deploy
 
 ## Notes
 
-- The preflight formula uses 30,000,000 gas units (from `WARP_DEPLOY_GAS` in the CLI) as a conservative upper bound. Typical EVM warp route deployments use 3–5M gas, but the formula buffers significantly to avoid underfunding.
+- The required-gas value is protocol-specific and pulled from `getProtocolProvider(protocol).getMinGas().WARP_DEPLOY_GAS`. EVM uses 30_000_000 gas units (conservative upper bound; typical deploys use 3–5M). Sealevel uses 2_600_000_000 lamports (~2.6 SOL — covers program-account rent + token PDA rent + ATA payer). Tron / Cosmos / Aleo / Radix / Starknet each have their own constants defined in `typescript/<protocol>-sdk/src/clients/protocol.ts`.
 - The 10 USD threshold is conservative for most chains. Ethereum mainnet and Solana may need significantly more.
-- For Solana (Sealevel), `cast balance` does not work — use `solana balance <ADDRESS>` if the Solana CLI is available, otherwise skip and warn the user to check manually.
 - The deployer only needs collateral token for **testing** a transfer after deployment. 1 USD is enough; do not request more.
 - If the ticket specifies this is a **mainnet production deploy** (not test), note that the deployer may need significantly more gas than 10 USD per chain.
 - The funding script pulls from the Hyperlane deployer key configured in the environment — ensure `HYP_KEY` or equivalent is set, or that the infra environment secrets are accessible.
