@@ -14,7 +14,10 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import type {
+  IRawWarpArtifactManager,
+  WarpConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
@@ -34,6 +37,22 @@ import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { SvmProvider } from './provider.js';
 import { SvmSigner } from './signer.js';
+
+// Warp-deploy cost breakdown for Sealevel. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape.
+//
+// Numbers observed from live cross-collateral + fee-program deploys on
+// mainnet-beta; the base value matches the flat WARP_DEPLOY_GAS used before
+// this method existed (~2.6 SOL covers program account rent + token PDA rent
+// + ATA payer funding for a base router).
+const WARP_DEPLOY_BASE_LAMPORTS = 2_600_000_000n; // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS = 1_100_000_000n; // + crossCollateral router extras (~1.1 SOL)
+const WARP_DEPLOY_FEE_PROGRAM_LAMPORTS = 2_500_000_000n; // + fee program deploy (~2.5 SOL, separate program)
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// custom ISM / hook deploys on Sealevel yet, so these currently contribute
+// nothing until real numbers land.
+const WARP_DEPLOY_CUSTOM_ISM_LAMPORTS = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (config.hook object)
 
 export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -114,13 +133,44 @@ export class SvmProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 10_000_000_000n,
-      // ~2.6 SOL covers program account rent + token PDA rent + ATA payer funding
-      WARP_DEPLOY_GAS: 2_600_000_000n,
+      // Base-router case: ~2.6 SOL covers program account rent + token PDA
+      // rent + ATA payer funding. Feature-heavy deploys (cross-collateral,
+      // fee program, custom ISM/hook) need more — use getMinGasForWarpDeploy
+      // for the composable equivalent.
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_LAMPORTS,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,
       HOOK_DEPLOY_GAS: 0n,
     };
+  }
+
+  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
+    let total = WARP_DEPLOY_BASE_LAMPORTS;
+
+    if (warpConfig.type === 'crossCollateral') {
+      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS;
+    }
+
+    // A string fee/ism/hook value references an existing on-chain contract
+    // by address — no deploy cost. An object value triggers a fresh deploy
+    // whose rent/storage footprint is added to the preflight budget.
+    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
+      total += WARP_DEPLOY_FEE_PROGRAM_LAMPORTS;
+    }
+
+    if (
+      warpConfig.interchainSecurityModule !== undefined &&
+      typeof warpConfig.interchainSecurityModule === 'object'
+    ) {
+      total += WARP_DEPLOY_CUSTOM_ISM_LAMPORTS;
+    }
+
+    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
+      total += WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS;
+    }
+
+    return total;
   }
 
   private getRpcUrls(chainMetadata: ChainMetadataForAltVM): string[] {
