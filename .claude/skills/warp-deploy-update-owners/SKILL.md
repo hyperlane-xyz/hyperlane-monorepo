@@ -139,6 +139,29 @@ pnpm --silent -C typescript/cli hyperlane warp apply \
 
 Where `<WARP_ROUTE_ID>` is the stable route ID from init-route Step 7a (e.g. `USDS/igra` or `USDS/ethereum-igra`).
 
+**Ownership transfer is protocol-agnostic.** The deploy.yaml lists the target `owner` per chain. `warp apply` emits a `transferOwnership` (or protocol equivalent) signed by the current owner — which is the deployer key on freshly-deployed routes. It does not matter what TYPE the new owner is (EOA, Safe, ICA, Squads multisig PDA, timelock, Turnkey wallet, Privy wallet, custom multisig, etc.) — the transfer just writes the address into the router's `owner` slot. No approval flow, no proposal step, no multisig signing is needed at this stage: only the current owner (deployer) signs. Any subsequent operation on the route will require the new owner to sign per whatever their type dictates.
+
+**BUT — target-owner existence sanity check.** Before running warp apply, verify per chain that the target owner address in the deploy.yaml is actually usable on chain. Transferring ownership to a nonexistent contract (typo, wrong chain, un-deployed multisig, wrong ICA derivation) permanently bricks the route. The check is protocol-specific but the pattern is uniform:
+
+| Protocol   | Check                                                                 | Interpretation                                                                                                       |
+| ---------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| EVM / Tron | `cast code <owner> --rpc-url <rpc>` (or equivalent via multiProvider) | `0x` → EOA, `0xef0100…` (EIP-7702) → delegated EOA, anything else → contract with code                               |
+| Sealevel   | `getAccountInfo(pubkey)` via SVM SDK provider                         | Null → address has never had state on this chain; non-null → account exists (may be executable / PDA / plain wallet) |
+| Cosmos     | Address decodes + `bank.balance` or `auth.account` query              | Address exists in bank / auth module                                                                                 |
+| Others     | Per-protocol equivalent from the altvm SDK's provider                 | Existence signal                                                                                                     |
+
+For each target owner in the deploy.yaml:
+
+1. Run the per-protocol existence probe.
+2. Cross-reference against the artifact context if `/warp-deploy-validate-owners` produced one — its owner-type classification tells you whether "no code" is expected (EOA) or a problem (missing multisig / ICA).
+3. Decision:
+   - Address has code / account state AND was classified as a contract-type owner (Safe / ICA / Squads / timelock / other multisig) → ✅ proceed
+   - Address has NO code / no account state AND is expected to be an EOA (matches the deployer's own address for a self-owned staging route, or explicitly classified as EOA in validate-owners with `allowSelfOwned: true`) → ✅ proceed
+   - Address has NO code / no account state AND is expected to be a contract → ❌ HALT. The multisig / ICA doesn't exist on this chain. Do NOT run warp apply.
+   - Address has code but classification is unknown → surface to the user with the on-chain snippet + require an explicit [CONFIRM:] before proceeding
+
+Show the sanity-check result per chain in a table BEFORE the warp apply CONFIRM gate. If any chain is ❌, halt the whole flow.
+
 Show the user the exact command, then end your message with this marker (this MUST be the very last thing in your message):
 
 ```test
@@ -149,8 +172,9 @@ If the user confirms, run it. Show the full output on completion.
 
 **On failure:** stop the HTTP registry (Step 10e), show the error, and stop. Do not proceed to Step 11. Common issues:
 
-- Deployer key no longer has funds → top up and retry
-- ICA address not yet deployed → deploy ICA first, then retry
+- Deployer key no longer has funds on the chain that failed → top up per protocol via `/warp-deploy-fund-deployer` and retry.
+- Owner address in the deploy.yaml doesn't exist on chain (typo, wrong chain, un-deployed contract) — should have been caught by the sanity check above; if not, correct the deploy.yaml and retry.
+- Deploy.yaml drift vs on-chain state → run `hyperlane warp read` to diff, correct the deploy.yaml, retry.
 
 ### 10e: Verify the Route with Comprehensive `warp check`
 
