@@ -214,22 +214,22 @@
       "proxyAdmin": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "rpcUrls": [
         {
-          "http": "https://base.drpc.org"
-        },
-        {
-          "http": "https://mainnet.base.org"
+          "http": "https://base-pokt.nodies.app"
         },
         {
           "http": "https://base.public.blockpi.network/v1/rpc/public"
         },
         {
-          "http": "https://base.llamarpc.com"
+          "http": "https://mainnet.base.org"
+        },
+        {
+          "http": "https://base.drpc.org"
         },
         {
           "http": "https://1rpc.io/base"
         },
         {
-          "http": "https://base-pokt.nodies.app"
+          "http": "https://base.llamarpc.com"
         }
       ],
       "staticAggregationHookFactory": "0x4f0547800Db0a2427F7367960dc331f8Cbe2e270",
@@ -440,6 +440,12 @@
       "proxyAdmin": "0x65993Af9D0D3a64ec77590db7ba362D6eB78eF70",
       "rpcUrls": [
         {
+          "http": "https://bsc.blockrazor.xyz"
+        },
+        {
+          "http": "https://bsc-pokt.nodies.app"
+        },
+        {
           "http": "https://bsc.drpc.org"
         },
         {
@@ -447,12 +453,6 @@
         },
         {
           "http": "https://binance.llamarpc.com"
-        },
-        {
-          "http": "https://bsc.blockrazor.xyz"
-        },
-        {
-          "http": "https://bsc-pokt.nodies.app"
         }
       ],
       "staticAggregationHookFactory": "0x73AC2db1efB07A3432a2A1128e40a63DA149351f",
@@ -3803,6 +3803,13 @@
     },
     "hyperevm": {
       "blockExplorers": [
+        {
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=999",
+          "family": "etherscan",
+          "name": "HyperEVM Scan",
+          "url": "https://hyperevmscan.io"
+        },
         {
           "apiUrl": "https://www.hyperscan.com/api",
           "family": "blockscout",
