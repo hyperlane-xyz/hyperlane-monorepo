@@ -5,9 +5,6 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
-  "tronshasta": {
-    "validators": ["0x189ea37efb3764ab638cbaecbe764a8e814e7583"]
-  },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
   },
@@ -17,9 +14,6 @@
       "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
-  },
-  "celestiatestnet": {
-    "validators": ["0x3e0227b7f129576c53ff5d98d17c9b8433445094"]
   },
   "celosepolia": {
     "validators": ["0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6"]
@@ -56,10 +50,16 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "solanadevnet": {
+    "validators": ["0x6424142536c9e40b61076571cba83a255835b799"]
+  },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   },
   "somniatestnet": {
     "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
+  },
+  "tronshasta": {
+    "validators": ["0x189ea37efb3764ab638cbaecbe764a8e814e7583"]
   }
 }

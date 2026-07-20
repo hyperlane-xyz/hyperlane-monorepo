@@ -180,6 +180,8 @@ jobs:
           - mailbox-program-upgrade
           - warp-alt-simulation-parity
           - warp-fee-config
+          - warp-quote-reader
+          - warp-quote-writer
           - warp-transfer-remote-with-fees
           - fee-linear
           - fee-progressive

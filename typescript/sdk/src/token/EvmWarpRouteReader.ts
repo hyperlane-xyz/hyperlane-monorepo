@@ -32,6 +32,7 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  addressToBytes32,
   arrayToObject,
   assert,
   eqAddress,
@@ -54,12 +55,16 @@ import {
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
+import {
+  CrossCollateralRoutersByDomain,
+  mergeCrossCollateralRouters,
+} from '../fee/crossCollateralUtils.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
-import { DestinationGas } from '../router/types.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
   fetchPackageVersion as fetchContractPackageVersion,
@@ -323,12 +328,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const feeDestinations = [
       ...new Set([...(domains ?? []), ...ccrEnrolledDomains]),
     ];
+    // CCR feeContracts are keyed by each destination's enrolled router address.
+    // Those keys are the normal remoteRouters, not just the MC-enrolled
+    // crossCollateralRouters, so union both — otherwise the reader misses every
+    // fee entry keyed under a normal router and reports false-positive diffs.
+    // remoteRouters omits the local domain, so add this router's own address as
+    // the key for self-domain (same-chain CCR swap) fee entries.
+    const selfDomainId = this.multiProvider.getDomainId(this.chain);
+    const feeRouterKeys = isCrossCollateralTokenConfig(tokenConfig)
+      ? mergeCrossCollateralRouters(
+          tokenConfig.crossCollateralRouters,
+          this.remoteRoutersToRouterKeys(routerConfig.remoteRouters),
+          { [selfDomainId]: [addressToBytes32(warpRouteAddress)] },
+        )
+      : undefined;
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
-      isCrossCollateralTokenConfig(tokenConfig)
-        ? tokenConfig.crossCollateralRouters
-        : undefined,
+      feeRouterKeys,
     );
 
     // Read feeHook (IGP address for ERC20 gas payments)
@@ -455,10 +472,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return undefined;
   }
 
+  private remoteRoutersToRouterKeys(
+    remoteRouters: RemoteRouters | undefined,
+  ): CrossCollateralRoutersByDomain {
+    const routerKeys: CrossCollateralRoutersByDomain = {};
+    for (const [domain, { address }] of Object.entries(remoteRouters ?? {})) {
+      routerKeys[Number(domain)] = [address];
+    }
+    return routerKeys;
+  }
+
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-    crossCollateralRouters?: Record<string, string[]>,
+    crossCollateralRouters?: CrossCollateralRoutersByDomain,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
@@ -505,18 +532,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         return undefined;
       }));
 
-    const normalizedCrossCollateralRouters = crossCollateralRouters
-      ? Object.fromEntries(
-          Object.entries(crossCollateralRouters).map(([domain, routers]) => [
-            Number(domain),
-            routers,
-          ]),
-        )
-      : undefined;
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
       routingDestinations,
-      crossCollateralRouters: normalizedCrossCollateralRouters,
+      crossCollateralRouters,
     });
   }
 

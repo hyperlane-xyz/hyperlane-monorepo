@@ -479,11 +479,12 @@ interface ResolvedSvmWarpQuote {
  * `FeeStrategy` leaves (no nested `RoutingFee` allowed) — so the walk is a
  * single branch + lookup, no recursion.
  *
- * CC branch: if the exact `targetRouter` is unconfigured but a
- * `DEFAULT_ROUTER_KEY` entry exists, the DEFAULT-router fallback leaf is
- * used and signed against `DEFAULT_ROUTER`. The on-chain CC submit handler
- * accepts this for both standing and transient quotes (it rejects only
- * `H256::zero()`), so the caller can sign blindly.
+ * If the exact `targetRouter` is unconfigured but a `DEFAULT_ROUTER_KEY`
+ * entry exists, the walker falls back to the DEFAULT leaf for both standing
+ * and transient bindings. The on-chain CC submit handler enforces scope via
+ * `CcQuoteFeeValidation::{Specific, Default}`, so the off-chain only needs
+ * to pick the right leaf and sign — mirrors EVM's
+ * `feeContracts[dest][router] ?? DEFAULT_ROUTER` cascade.
  *
  * Only `quoteSigners` and the CC-vs-non-CC discriminator are read off the
  * leaf — the strategy params signed on the wire come from

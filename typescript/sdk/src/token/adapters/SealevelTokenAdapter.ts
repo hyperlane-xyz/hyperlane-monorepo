@@ -468,6 +468,10 @@ export abstract class SealevelHypTokenAdapter
         // after the cascade on the new-flow QuoteGasPayment / PayForGas
         // account list.
         overheadIgpAccount?: PublicKey;
+        // Set only when overheadIgpAccount is set. Mirrors on-chain
+        // OverheadIgp.gas_overhead(dest), added to the warp's base gas
+        // before feeding the inner IGP's quote_gas_payment.
+        gasOverheads?: Map<Domain, bigint>;
         feeConfig: SealevelIgpFeeConfig | undefined;
       }
     | undefined
@@ -480,6 +484,7 @@ export abstract class SealevelHypTokenAdapter
 
     let innerIgpAccount: PublicKey;
     let overheadIgpAccount: PublicKey | undefined;
+    let gasOverheads: Map<Domain, bigint> | undefined;
     if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
       innerIgpAccount = igpConfig.igp_account_pub_key;
     } else if (
@@ -496,6 +501,13 @@ export abstract class SealevelHypTokenAdapter
       );
       const overheadData = await overheadIgp.getAccountInfo();
       innerIgpAccount = overheadData.inner_pub_key;
+      // borsh@0.7 decodes these u64 map values as bn.js `BN` despite the
+      // `Map<Domain, bigint>` type; normalize at the boundary so consumers can
+      // do arithmetic without re-normalizing (mixing `BN` and `bigint` throws).
+      gasOverheads = new Map();
+      for (const [domain, overhead] of overheadData.gas_overheads) {
+        gasOverheads.set(domain, BigInt(overhead.toString()));
+      }
     } else {
       return undefined;
     }
@@ -512,6 +524,7 @@ export abstract class SealevelHypTokenAdapter
     return {
       innerIgpAccount,
       overheadIgpAccount,
+      gasOverheads,
       feeConfig: innerInfo.fee_config,
     };
   }
@@ -827,7 +840,13 @@ export abstract class SealevelHypTokenAdapter
     }
 
     // -------- IGP fee quote --------
-    const destinationGas = tokenData.destination_gas?.get(destination);
+    // Same-domain (local) transfers consume no interchain message and pay no
+    // IGP, so only quote it for remote destinations.
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+    const destinationGas =
+      destination === localDomain
+        ? undefined
+        : tokenData.destination_gas?.get(destination);
     let igpQuote: Quote = { amount: 0n };
     if (!isNullish(destinationGas)) {
       const igpAdapter = this.getIgpAdapter(tokenData);
@@ -853,7 +872,7 @@ export abstract class SealevelHypTokenAdapter
           };
         } else {
           igpQuote = {
-            amount: await igpAdapter.quoteGasPayment(
+            amount: await this.quoteLegacyIgpGasPayment(
               destination,
               destinationGas,
               senderPubKey,
@@ -959,6 +978,24 @@ export abstract class SealevelHypTokenAdapter
       destinationDomain: destination,
       gasAmount,
     });
+  }
+
+  /**
+   * Legacy (pre-offchain-quoting) on-chain IGP gas payment for `destination`.
+   * The fallback the submit path takes when the route's IGP has no new-flow
+   * `fee_config`; 0n when the route has no IGP. Shared with the offchain-quoted
+   * display path so displayed and paid IGP fees agree on non-upgraded routes.
+   */
+  async quoteLegacyIgpGasPayment(
+    destination: Domain,
+    gasAmount: bigint,
+    sender: PublicKey,
+  ): Promise<bigint> {
+    const tokenData = await this.getTokenAccountData();
+    const igpAdapter = this.getIgpAdapter(tokenData);
+    return igpAdapter
+      ? igpAdapter.quoteGasPayment(destination, gasAmount, sender)
+      : 0n;
   }
 
   /**
