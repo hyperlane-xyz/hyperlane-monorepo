@@ -4,7 +4,7 @@ import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
   type AltVM,
-  type GasAction,
+  GasAction,
   ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -12,6 +12,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { type WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainMap,
   type ChainName,
@@ -29,6 +30,12 @@ export async function nativeBalancesAreSufficient(
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
+  // When `minGas === GasAction.WARP_DEPLOY_GAS` and a per-chain WarpConfig is
+  // available, the AltVM branch consults `getMinGasForWarpDeploy(warpConfig)`
+  // instead of the flat `getMinGas().WARP_DEPLOY_GAS` — the flat value only
+  // sizes the base router case and under-funds feature-heavy deploys
+  // (cross-collateral, fee program, custom ISM/hook).
+  warpConfigByChain?: ChainMap<WarpConfig>,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
@@ -80,11 +87,14 @@ export async function nativeBalancesAreSufficient(
           return;
         }
 
-        const ALT_VM_GAS = getProtocolProvider(protocol).getMinGas();
+        const protocolProvider = getProtocolProvider(protocol);
+        const warpConfig = warpConfigByChain?.[chain];
+        const requiredGasUnits =
+          minGas === GasAction.WARP_DEPLOY_GAS && warpConfig
+            ? protocolProvider.getMinGasForWarpDeploy(warpConfig)
+            : protocolProvider.getMinGas()[minGas];
         requiredMinBalanceNativeDenom = BigNumber.from(
-          new BN(gasPrice.amount)
-            .times(ALT_VM_GAS[minGas].toString())
-            .toFixed(0),
+          new BN(gasPrice.amount).times(requiredGasUnits.toString()).toFixed(0),
         );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,

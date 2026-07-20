@@ -9,7 +9,10 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type WarpConfig,
+  warpConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
   type ChainAddresses,
@@ -162,10 +165,27 @@ export async function runWarpRouteDeploy({
       isEVMLike(chainMetadata[chain].protocol) || !!altVmSigners[chain],
   );
 
+  // Build per-chain WarpConfigs for AltVM chains so the preflight balance
+  // check can size the deploy budget against feature-composed cost (fee
+  // program, cross-collateral extras, custom ISM/hook) instead of the flat
+  // base-router constant. EVM chains use ETHEREUM_MINIMUM_GAS and are not
+  // included in this map.
+  const warpConfigByChain: ChainMap<WarpConfig> = {};
+  for (const chain of deploymentChains) {
+    const protocolType = chainMetadata[chain].protocol;
+    if (isEVMLike(protocolType)) continue;
+    warpConfigByChain[chain] = validateWarpConfigForAltVM(
+      warpDeployConfig[chain],
+      chain,
+      protocolType,
+    );
+  }
+
   await runPreflightChecksForChains({
     context,
     chains: deploymentChains,
     minGas: GasAction.WARP_DEPLOY_GAS,
+    warpConfigByChain,
   });
 
   const initialBalances = await getBalances(context, deploymentChains);
