@@ -1647,7 +1647,13 @@
       "interchainSecurityModule": "4Q1eZAovdqhihCCZyabX4u5rCJPq5R8YgyKVDCdjzTNV",
       "mailbox": "5yM5YrrzHCrp4ZPLKN9Y2eUAqEWsTbBqaorgbngQcR54",
       "merkleTreeHook": "5yM5YrrzHCrp4ZPLKN9Y2eUAqEWsTbBqaorgbngQcR54",
-      "validatorAnnounce": "7TfjfmTCuZVSq9mour8obQz2pXGNiEz29EqEEDnoexQ9"
+      "validatorAnnounce": "7TfjfmTCuZVSq9mour8obQz2pXGNiEz29EqEEDnoexQ9",
+      "gasCurrencyCoinGeckoId": "solana",
+      "index": {
+        "from": 1,
+        "mode": "sequence",
+        "chunk": 20
+      }
     }
   }
 }
