@@ -545,7 +545,7 @@ Show the user the exact command with the resolved secret/env-var NAMES substitut
 The HTTP registry MUST be running before the deploy command. Starting it later or skipping it means the deploy falls back to public-RPC gas estimates and is exposed to OOG / nonce errors on chains with flaky public free-tier RPCs (notably base, optimism, drpc-routed chains).
 
 ```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
+cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
 Run with `run_in_background: true`. Wait for the log line `Server running` (the actual line emitted by `typescript/http-registry-server/HttpServer.ts`; it includes the port in JSON metadata). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.

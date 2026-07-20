@@ -120,7 +120,7 @@ Write the updated deploy.yaml back to the registry path. Show the user the diff 
 First, start the HTTP registry in the background to use private RPC URLs:
 
 ```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
+cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
 Run with `run_in_background: true`. Wait for the log line `Server running` and note the port (typically `3333`) and the background task ID — needed to stop the server after this step.

@@ -330,7 +330,7 @@ Read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-
 ### 9a: Start the HTTP Registry
 
 ```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
+cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
 Run with `run_in_background: true`. Wait for `Listening on http://localhost:<port>`. Note the port and task ID.

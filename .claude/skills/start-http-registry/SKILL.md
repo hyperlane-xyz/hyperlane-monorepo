@@ -13,10 +13,14 @@ Start the http-registry server in the background.
    ```bash
    git rev-parse --show-toplevel
    ```
-2. Run the command with `run_in_background: true`, prefixing with `cd` to the monorepo root:
+2. Run the command with `run_in_background: true`, prefixing with `cd` to the monorepo root AND `CI=false` inline (see next paragraph for why):
+
    ```bash
-   cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry
+   cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry
    ```
+
+   **Why `CI=false`**: the infra HTTP registry wraps `getRegistryForEnvironment` (`typescript/infra/config/registry.ts:192`), which merges filesystem chain metadata with per-chain RPC overrides. The override source is CI-gated: `CI !== 'true'` → **GCP Secret Manager** (private / keyed URLs like Alchemy, Dwellir, Ankr, TronGrid); `CI === 'true'` → `MAINNET3_<CHAIN>_RPC_URLS` env vars (the GitHub-Actions injection path). On Haggis workers and any environment where those env vars aren't set, `CI=true` silently falls back to the public on-disk registry URLs — which are rate-limited (e.g. Tron's public trongrid.io = 3 rps unauthenticated → 429 during broadcasts). Prefix inline so the setting is scoped to this single invocation; do NOT `export CI=false` globally — other flows in the same session may legitimately need `CI=true`.
+
 3. Wait for the log line `Server running` in the background task's output before any downstream consumer hits the server. This is the canonical readiness signal.
 4. **Verify the server is reachable using the `/readiness` endpoint, NOT the root path** — the root returns `404` by design and is not a liveness signal:
 

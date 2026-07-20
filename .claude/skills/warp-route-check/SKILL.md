@@ -38,9 +38,10 @@ This skill requires the following tools and setup:
 3. **Optional: http_registry shell function** (add to ~/.zshrc or ~/.bashrc):
    ```bash
    function http_registry() {
-     pnpm -C $HYPERLANE_MONOREPO/typescript/infra start:http-registry
+     CI=false pnpm -C $HYPERLANE_MONOREPO/typescript/infra start:http-registry
    }
    ```
+   The inline `CI=false` forces the infra registry's per-chain RPC overrides to load from GCP Secret Manager (private keyed URLs) instead of `MAINNET3_<CHAIN>_RPC_URLS` env vars. On Haggis workers and any environment where those env vars aren't set, the default `CI=true` silently falls back to public rate-limited RPCs (e.g. Tron's trongrid.io at 3 rps → 429 during broadcasts).
 
 ### Environment Variables (Optional)
 
@@ -89,7 +90,8 @@ echo "✅ Registry found at $REGISTRY_PATH"
 if type http_registry >/dev/null 2>&1; then
   HTTP_REGISTRY_CMD="http_registry"
 elif [ -n "$HYPERLANE_MONOREPO" ] && [ -d "$HYPERLANE_MONOREPO/typescript/infra" ]; then
-  HTTP_REGISTRY_CMD="pnpm -C $HYPERLANE_MONOREPO/typescript/infra start:http-registry"
+  # See the top-of-file note on CI=false — required so the infra registry loads private RPC overrides from GCP.
+  HTTP_REGISTRY_CMD="CI=false pnpm -C $HYPERLANE_MONOREPO/typescript/infra start:http-registry"
 else
   echo "❌ Cannot start HTTP registry. Please either:"
   echo "  1. Set HYPERLANE_MONOREPO env var pointing to monorepo, OR"
