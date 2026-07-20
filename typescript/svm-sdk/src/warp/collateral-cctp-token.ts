@@ -136,12 +136,15 @@ export class SvmCollateralCctpTokenReader implements ArtifactReader<
       name: metadata.name,
       symbol: metadata.symbol,
       decimals: token.decimals,
-      interchainSecurityModule: token.interchainSecurityModule
-        ? {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: token.interchainSecurityModule },
-          }
-        : undefined,
+      // Hardcoded on-chain to the program's own address regardless of the
+      // (now-unused) stored config field — see
+      // `processor.rs::interchain_security_module`. Reported here as such
+      // rather than read from raw storage, since raw storage is never
+      // actually consulted for this answer.
+      interchainSecurityModule: {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: programId },
+      },
       hook: token.interchainGasPaymaster
         ? {
             artifactState: ArtifactState.UNDERIVED,
@@ -339,6 +342,9 @@ export class SvmCollateralCctpTokenWriter
       this.config.feeSalt,
       current.deployed.feeConfig,
       upgradingToVersion,
+      // The ISM is hardcoded on-chain to this program's own address —
+      // SetInterchainSecurityModule is rejected outright, so never diff it.
+      true,
     );
     txs.push(...configUpdateTxs);
 

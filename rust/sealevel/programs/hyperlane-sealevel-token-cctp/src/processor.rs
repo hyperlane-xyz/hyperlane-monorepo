@@ -10,11 +10,12 @@ use hyperlane_sealevel_token_lib::{
     instruction::{Init, Instruction as TokenIxn, TransferRemoteWithMemo},
     processor::HyperlaneSealevelToken,
 };
+use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
-    program::invoke,
+    program::{invoke, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -135,10 +136,10 @@ pub fn process_instruction(
     })
 }
 
-/// Initializes the program. Set `interchain_security_module: Some(program_id)`
-/// at init time so this program is self-referential (its own ISM) — the
-/// generic library's `interchain_security_module()` getter simply returns
-/// whatever's configured here, and Mailbox sends `Verify()` to that address.
+/// Initializes the program. Whatever `init.interchain_security_module` is
+/// set to is irrelevant — see `interchain_security_module()` below, which
+/// hardcodes the answer to this program's own address regardless of any
+/// stored config.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     HyperlaneSealevelToken::<CctpPlugin>::initialize(program_id, accounts, init)
 }
@@ -370,25 +371,39 @@ fn transfer_ownership(
 }
 
 /// Gets the interchain security module, returning it as a serialized
-/// `Option<Pubkey>` — self-referential (set to this program's own address
-/// at `Init` time), same convention as EVM's
-/// `TokenBridgeCctpV2.interchainSecurityModule() == address(this)`.
-fn interchain_security_module(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    HyperlaneSealevelToken::<CctpPlugin>::interchain_security_module(program_id, accounts)
+/// `Option<Pubkey>`. Hardcoded to this program's own address rather than
+/// reading the generic (settable, defaults-to-`None`) config field — the
+/// mint only ever happens inside this program's own `Verify()`, so nothing
+/// else may ever be configured as the ISM. Matches EVM's
+/// `TokenBridgeCctpV2.interchainSecurityModule() == address(this)`, which is
+/// similarly hardcoded rather than storage-backed.
+fn interchain_security_module(program_id: &Pubkey, _accounts: &[AccountInfo]) -> ProgramResult {
+    let ism = Some(*program_id);
+    set_return_data(&borsh::to_vec(&ism).map_err(|_| ProgramError::BorshIoError)?);
+    Ok(())
 }
 
-fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResult {
-    HyperlaneSealevelToken::<CctpPlugin>::interchain_security_module_account_metas(program_id)
+/// No accounts needed — unlike the generic library's version, this doesn't
+/// read the token config PDA at all (the answer is always `program_id`).
+fn interchain_security_module_account_metas(_program_id: &Pubkey) -> ProgramResult {
+    let bytes = borsh::to_vec(&SimulationReturnData::new(Vec::<
+        serializable_account_meta::SerializableAccountMeta,
+    >::new()))
+    .map_err(|_| ProgramError::BorshIoError)?;
+    set_return_data(&bytes);
+    Ok(())
 }
 
+/// Rejected outright — the ISM is hardcoded to this program's own address
+/// (see `interchain_security_module()` above) and can never be anything
+/// else, so silently accepting a new value here would just store a config
+/// field nothing ever reads. Fail closed rather than mask that.
 fn set_interchain_security_module(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    new_ism: Option<Pubkey>,
+    _program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    _new_ism: Option<Pubkey>,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<CctpPlugin>::set_interchain_security_module(
-        program_id, accounts, new_ism,
-    )
+    Err(ProgramError::InvalidInstructionData)
 }
 
 fn set_interchain_gas_paymaster(

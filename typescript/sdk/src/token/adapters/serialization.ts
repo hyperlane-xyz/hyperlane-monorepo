@@ -102,6 +102,39 @@ export const SealevelFeeAccountPrefixSchema = new Map<any, any>([
 ]);
 
 /**
+ * Per-destination-domain CCTP send config. Mirrors `RemoteConfig` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/accounts.rs.
+ */
+export class SealevelCctpRemoteConfig {
+  bump_seed!: number;
+  circle_domain!: number;
+  max_fee!: bigint;
+  min_finality_threshold!: number;
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelCctpRemoteConfigSchema = new Map<any, any>([
+  [
+    SealevelAccountDataWrapper,
+    getSealevelAccountDataSchema(SealevelCctpRemoteConfig),
+  ],
+  [
+    SealevelCctpRemoteConfig,
+    {
+      kind: 'struct',
+      fields: [
+        ['bump_seed', 'u8'],
+        ['circle_domain', 'u32'],
+        ['max_fee', 'u64'],
+        ['min_finality_threshold', 'u32'],
+      ],
+    },
+  ],
+]);
+
+/**
  * Hyperlane Token Borsh Schema
  */
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26

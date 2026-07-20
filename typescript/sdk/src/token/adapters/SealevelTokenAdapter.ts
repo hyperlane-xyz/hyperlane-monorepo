@@ -1652,7 +1652,7 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 }
 
-interface KeyListParams {
+export interface KeyListParams {
   sender: PublicKey;
   mailbox: PublicKey;
   randomWallet: PublicKey;

@@ -14,6 +14,7 @@ import {
   hasChainMetadata,
 } from './hypTokenAdapterUtils.js';
 import { TokenStandard } from '../TokenStandard.js';
+import { SealevelHypCctpAdapter } from './SealevelCctpAdapter.js';
 import { SealevelHypCrossCollateralAdapter } from './SealevelCrossCollateralAdapter.js';
 
 export function createSealevelHypAdapter(
@@ -70,6 +71,18 @@ export function createSealevelHypAdapter(
         'collateralAddressOrDenom required for Sealevel hyp cross-collateral tokens',
       );
       return new SealevelHypCrossCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+        altAddresses,
+      });
+    case TokenStandard.SealevelHypCctp:
+      assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom required for Sealevel hyp CCTP tokens',
+      );
+      return new SealevelHypCctpAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,

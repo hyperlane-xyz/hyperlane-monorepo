@@ -332,6 +332,14 @@ export async function computeWarpTokenUpdateInstructions(
   feeSalt: Uint8Array = DEFAULT_FEE_SALT,
   currentOnChainFeeConfig?: TokenFeeConfig,
   upgradingToVersion?: string,
+  /**
+   * Set by callers whose program hardcodes its own ISM (e.g. CCTP — the
+   * mint only ever happens inside that program's own `Verify()`, so nothing
+   * else may ever be configured as the ISM, and the on-chain
+   * `SetInterchainSecurityModule` instruction is rejected outright). Skips
+   * the ISM half of this diff so `update()` never emits a doomed-to-fail tx.
+   */
+  skipIsmDiff = false,
 ): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
 
@@ -340,7 +348,10 @@ export async function computeWarpTokenUpdateInstructions(
 
   const currentIsm = current.interchainSecurityModule?.deployed?.address;
   const expectedIsm = expected.interchainSecurityModule?.deployed?.address;
-  if (!eqOptionalAddress(currentIsm, expectedIsm, eqAddressSol)) {
+  if (
+    !skipIsmDiff &&
+    !eqOptionalAddress(currentIsm, expectedIsm, eqAddressSol)
+  ) {
     configInstructions.push(
       await getTokenSetInterchainSecurityModuleInstruction(
         programId,
