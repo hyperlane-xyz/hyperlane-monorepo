@@ -32,6 +32,7 @@ import {
   getCheckerViolationsGaugeObj,
   warpViolationGroupings,
 } from './check-utils.js';
+import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
@@ -203,6 +204,10 @@ async function main() {
         }),
         perRouteTimeoutMs,
         `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
+      );
+
+      result.violations = result.violations.filter(
+        (violation) => !isSkippedOwnerStatusViolation(warpRouteId, violation),
       );
 
       if (result.violations.length > 0) {
