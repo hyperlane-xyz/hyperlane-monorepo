@@ -340,6 +340,17 @@ pub fn deposit_for_burn_instruction(
 /// `receiver` here is `token_messenger_minter::ID` and the trailing
 /// `remaining_accounts` are `TokenMessengerMinterV2`'s own mint-side
 /// accounts (see [`handle_receive_message_remaining_accounts`]).
+///
+/// `ReceiveMessageContext` (Circle's Anchor accounts struct for this
+/// instruction) is itself annotated `#[event_cpi]`, which injects two
+/// required accounts — `event_authority` and `program`, self-referencing
+/// `MessageTransmitterV2` for its own `emit_cpi!(MessageReceived)` — right
+/// after `system_program` and *before* anything Anchor treats as
+/// `remaining_accounts`. Omitting them silently shifts every account meant
+/// for the receiver by two slots (confirmed by an on-chain
+/// `ConstraintSeeds` revert on the receiver's `event_authority`, which is
+/// really its own DIFFERENT event_authority, keyed under
+/// `token_messenger_minter::ID` instead).
 #[allow(clippy::too_many_arguments)]
 pub fn receive_message_instruction(
     payer: Pubkey,
@@ -361,6 +372,9 @@ pub fn receive_message_instruction(
         .map_err(|_| ProgramError::BorshIoError)?,
     );
 
+    let (message_transmitter_event_authority, _) =
+        derive_event_authority_pda(&message_transmitter::ID);
+
     let mut accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(caller, true),
@@ -369,6 +383,9 @@ pub fn receive_message_instruction(
         AccountMeta::new(used_nonce, false),
         AccountMeta::new_readonly(token_messenger_minter::ID, false),
         AccountMeta::new_readonly(system_program, false),
+        // MessageTransmitterV2's own #[event_cpi]-injected pair.
+        AccountMeta::new_readonly(message_transmitter_event_authority, false),
+        AccountMeta::new_readonly(message_transmitter::ID, false),
     ];
     accounts.extend_from_slice(remaining_accounts);
 

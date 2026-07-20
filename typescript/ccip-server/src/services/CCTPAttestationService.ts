@@ -71,34 +71,55 @@ class CCTPAttestationService {
     ).toNumber();
   }
 
-  _getAttestationUrlV1(cctpMessage: string, transactionHash: string): string {
-    const sourceDomain = this._getSourceDomainFromMessage(cctpMessage);
+  _getAttestationUrlV1(sourceDomain: number, transactionHash: string): string {
     return `${this.url}/v1/messages/${sourceDomain}/${transactionHash}`;
   }
 
-  _getAttestationUrlV2(cctpMessage: string, transactionHash: string): string {
-    const sourceDomain = this._getSourceDomainFromMessage(cctpMessage);
+  _getAttestationUrlV2(sourceDomain: number, transactionHash: string): string {
     return `${this.url}/v2/messages/${sourceDomain}?transactionHash=${transactionHash}`;
   }
 
+  /**
+   * `messageInfo` is a discriminated union because the two origin VM types resolve
+   * `version`/`sourceDomain` differently:
+   *  - EVM: derived from the raw CCTP message bytes recovered from the origin
+   *    receipt's `MessageSent` log — also used below to disambiguate a
+   *    multi-message transaction by byte-exact comparison.
+   *  - Sealevel: there's no EVM-style receipt/log to recover message bytes from
+   *    (Circle's Sealevel programs persist the message in an on-chain account
+   *    instead), so callers pass the statically-known domain/version instead.
+   *    Disambiguation isn't possible without the message bytes, so this path
+   *    only supports the (99.99%-common) single-message-per-transaction case.
+   */
   async getAttestation(
-    cctpMessage: string,
     transactionHash: string,
     messageId: string,
     logger: Logger,
+    messageInfo:
+      | { cctpMessage: string }
+      | { sourceDomain: number; version: bigint },
   ) {
-    const version = this._getCCTPVersionFromMessage(cctpMessage);
+    const version =
+      'cctpMessage' in messageInfo
+        ? this._getCCTPVersionFromMessage(messageInfo.cctpMessage)
+        : messageInfo.version;
+    const sourceDomain =
+      'cctpMessage' in messageInfo
+        ? this._getSourceDomainFromMessage(messageInfo.cctpMessage)
+        : messageInfo.sourceDomain;
 
     const context = {
-      cctpMessage,
+      ...('cctpMessage' in messageInfo
+        ? { cctpMessage: messageInfo.cctpMessage }
+        : { sourceDomain }),
       transactionHash,
     };
 
     let url;
     if (version == this.CCTP_VERSION_1) {
-      url = this._getAttestationUrlV1(cctpMessage, transactionHash);
+      url = this._getAttestationUrlV1(sourceDomain, transactionHash);
     } else if (version == this.CCTP_VERSION_2) {
-      url = this._getAttestationUrlV2(cctpMessage, transactionHash);
+      url = this._getAttestationUrlV2(sourceDomain, transactionHash);
     } else {
       logger.error(
         {
@@ -212,7 +233,19 @@ class CCTPAttestationService {
     let matchingMessage: CCTPMessageEntry;
     if (json.messages.length === 1) {
       matchingMessage = json.messages[0];
+    } else if (!('cctpMessage' in messageInfo)) {
+      // No local message bytes to disambiguate with (Sealevel origin) — refuse
+      // to guess which entry belongs to this message rather than risk pairing
+      // the wrong message with the wrong attestation.
+      logger.error(
+        { ...context, messageId, messageCount: json.messages.length },
+        'Cannot disambiguate multiple CCTP messages without message bytes',
+      );
+      throw new Error(
+        `Cannot disambiguate ${json.messages.length} CCTP messages for ${messageId} without decoded message bytes`,
+      );
     } else {
+      const cctpMessage = messageInfo.cctpMessage;
       const normalizeCctpMessageV2 = (hex: string): string => {
         const bytes = ethers.utils.arrayify(hex);
         bytes.fill(0, 12, 44); // nonce

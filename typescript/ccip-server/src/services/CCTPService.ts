@@ -1,3 +1,4 @@
+import bs58 from 'bs58';
 import { ethers } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
@@ -8,7 +9,11 @@ import {
   IMessageTransmitter__factory,
 } from '@hyperlane-xyz/core';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { parseMessage } from '@hyperlane-xyz/utils';
+import {
+  ParsedMessage,
+  ProtocolType,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
 import {
@@ -30,6 +35,15 @@ const EnvSchema = z.object({
   CCTP_ATTESTATION_URL: z.string().url(),
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
+
+/**
+ * Circle's domain ID for Solana, constant across environments (mainnet/devnet)
+ * — see developers.circle.com/cctp/cctp-supported-blockchains. Matches
+ * `CCTP_SOLANA_DOMAIN` in rust/sealevel/programs/hyperlane-sealevel-token-cctp.
+ * The only Sealevel CCTP origin supported today; extend to a chain-name-keyed
+ * map if/when another Sealevel CCTP deployment exists.
+ */
+const CCTP_SOLANA_DOMAIN = 5;
 
 class CCTPService extends BaseService {
   // External Services
@@ -191,6 +205,13 @@ class CCTPService extends BaseService {
     const messageId: string = ethers.utils.keccak256(message);
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
+    const parsedMessage = parseMessage(message);
+    const originProtocol = this.multiProvider.getProtocol(parsedMessage.origin);
+
+    if (originProtocol === ProtocolType.Sealevel) {
+      return this.getSealevelCCTPAttestation(parsedMessage, messageId, log);
+    }
+
     let txHash: string | undefined = originTxHash;
 
     if (txHash) {
@@ -212,8 +233,6 @@ class CCTPService extends BaseService {
 
     log.info({ txHash, messageId }, 'Retrieved transaction hash');
 
-    const parsedMessage = parseMessage(message);
-
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
       .getTransactionReceipt(txHash);
@@ -225,12 +244,9 @@ class CCTPService extends BaseService {
     );
 
     const [relayedCctpMessage, attestation] =
-      await this.cctpAttestationService.getAttestation(
+      await this.cctpAttestationService.getAttestation(txHash, messageId, log, {
         cctpMessage,
-        txHash,
-        messageId,
-        log,
-      );
+      });
 
     log.info(
       {
@@ -240,6 +256,55 @@ class CCTPService extends BaseService {
         relayedCctpMessage,
       },
       'CCTP attestation retrieved successfully',
+    );
+
+    return [relayedCctpMessage, attestation];
+  }
+
+  /**
+   * Sealevel origins have no EVM-style transaction receipt or ABI-encoded
+   * `MessageSent` log to recover the CCTP message bytes from — Circle's
+   * Sealevel programs persist the message in an on-chain account instead
+   * (`message_sent_event_data`), which isn't decoded here (see
+   * `getAttestation`'s doc comment). Circle's own v2 API accepts a lookup by
+   * transaction hash alone, so we skip local message recovery entirely and
+   * trust its response for the (99.99%-common) single-message-per-tx case.
+   *
+   * The relayer's `origin_tx_hash` request field is always ignored for this
+   * path: it's populated as a fixed 32-byte value sized for EVM tx hashes,
+   * too narrow for a 64-byte Sealevel transaction signature, so it's never
+   * usable here — the real signature always comes from the scraper.
+   */
+  private async getSealevelCCTPAttestation(
+    parsedMessage: ParsedMessage,
+    messageId: string,
+    logger: Logger,
+  ) {
+    const rawTxHash =
+      await this.hyperlaneService.getOriginTransactionHashByMessageId(
+        messageId,
+        logger,
+      );
+    const txSignature = bs58.encode(ethers.utils.arrayify(rawTxHash));
+    logger.info(
+      { txSignature, messageId, origin: parsedMessage.origin },
+      'Resolved Sealevel origin transaction signature',
+    );
+
+    const [relayedCctpMessage, attestation] =
+      await this.cctpAttestationService.getAttestation(
+        txSignature,
+        messageId,
+        logger,
+        {
+          sourceDomain: CCTP_SOLANA_DOMAIN,
+          version: this.cctpAttestationService.CCTP_VERSION_2,
+        },
+      );
+
+    logger.info(
+      { messageId, attestation, relayedCctpMessage },
+      'CCTP attestation retrieved successfully (Sealevel origin)',
     );
 
     return [relayedCctpMessage, attestation];

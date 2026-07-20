@@ -144,11 +144,20 @@ fn ism_type() -> ProgramResult {
 ///     12's data, then derived as a standard ATA; checked).
 /// 18. `[writable]` Circle's `custody_token_account` PDA for the USDC mint
 ///     (derived, checked).
-/// 19. `[]` Circle's event-CPI `event_authority` PDA (derived, checked).
+/// 19. `[]` Circle's event-CPI `event_authority` PDA (derived, checked) —
+///     `TokenMessengerMinterV2`'s own, for its `handle_receive_finalized_message`
+///     `#[event_cpi]`.
 /// 20. `[executable]` `TokenMessengerMinterV2`'s own program account
 ///     (checked against the constant program ID — used both as the
 ///     `receive_message` `receiver` and as the event-CPI `program` account;
 ///     one `AccountInfo` covers both `AccountMeta` occurrences).
+/// 21. `[executable]` `MessageTransmitterV2`'s own program account (derived,
+///     checked) — required for `invoke_signed` to locate/call it as the
+///     `receive_message` CPI target.
+/// 22. `[]` `MessageTransmitterV2`'s own event-CPI `event_authority` PDA
+///     (derived, checked) — its `receive_message` instruction is itself
+///     `#[event_cpi]`-annotated for its own `emit_cpi!(MessageReceived)`,
+///     distinct from account 19 above (different program, different PDA).
 #[allow(clippy::too_many_arguments)]
 fn verify(
     program_id: &Pubkey,
@@ -216,6 +225,8 @@ fn verify(
     let custody_token_account_info = next_account_info(accounts_iter)?;
     let event_authority_info = next_account_info(accounts_iter)?;
     let token_messenger_minter_program_info = next_account_info(accounts_iter)?;
+    let message_transmitter_program_info = next_account_info(accounts_iter)?;
+    let message_transmitter_event_authority_info = next_account_info(accounts_iter)?;
 
     let (ata_payer_key, ata_payer_bump) = crate::accounts::derive_ata_payer_pda(program_id);
     if *ata_payer_info.key != ata_payer_key {
@@ -223,6 +234,15 @@ fn verify(
     }
     if *token_messenger_minter_program_info.key != circle::token_messenger_minter::ID {
         return Err(ProgramError::IncorrectProgramId);
+    }
+    if *message_transmitter_program_info.key != circle::message_transmitter::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let (expected_message_transmitter_event_authority, _) =
+        circle::derive_event_authority_pda(&circle::message_transmitter::ID);
+    if *message_transmitter_event_authority_info.key != expected_message_transmitter_event_authority
+    {
+        return Err(ProgramError::InvalidArgument);
     }
     let (expected_message_transmitter, _) = circle::derive_message_transmitter_pda();
     if *message_transmitter_info.key != expected_message_transmitter {
@@ -361,6 +381,8 @@ fn verify(
         token_program_info.clone(),
         event_authority_info.clone(),
         mint_info.clone(),
+        message_transmitter_program_info.clone(),
+        message_transmitter_event_authority_info.clone(),
     ];
 
     invoke_signed(
@@ -373,14 +395,16 @@ fn verify(
 }
 
 /// Returns the account metas required for `Verify`, matching its exact
-/// layout (see doc comment above `verify`). Resolved over the fixpoint loop
-/// `get_ism_verify_account_metas` runs (`hyperlane-sealevel/src/provider.rs`):
-/// round 1 supplies only the generic VAM PDA (account 0); once this
-/// function's own response is fed back as the next round's input, our
-/// persistent token config (account 1) and, a round later, Circle's
-/// `token_messenger` singleton (account 12, needed to read its mutable
-/// `fee_recipient` field) become real, readable accounts. Converges in a
-/// small, fixed number of rounds — see module docs.
+/// layout (see doc comment above `verify`) — including position, which
+/// matters: this is consumed positionally via `next_account_info` there.
+/// Resolved over the fixpoint loop `get_ism_verify_account_metas` runs
+/// (`hyperlane-sealevel/src/provider.rs`): round 1 supplies only the generic
+/// VAM PDA (account 0); once this function's own response is fed back as
+/// the next round's input, our persistent token config (account 1) and,
+/// a round later, Circle's `token_messenger` singleton (account 12, needed
+/// to read its mutable `fee_recipient` field) become real, readable
+/// accounts. Converges in a small, fixed number of rounds — see module
+/// docs.
 fn verify_account_metas(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -435,6 +459,13 @@ fn verify_account_metas(
     let recipient_token_account =
         get_associated_token_address_with_program_id(&recipient_wallet, &mint, &spl_token_program);
 
+    // Positions 0-16 exactly, matching `verify()`'s parse order. Everything
+    // from `fee_recipient_token_account` (17) onward is appended below, in
+    // order — NOT included here — since `fee_recipient_token_account`'s
+    // value depends on `token_messenger`'s live data (fetched in a later
+    // round), and it must land at position 17, not after the accounts that
+    // don't depend on it (custody/event_authority/program accounts at
+    // 18-22, which final `verify()` expects strictly after it).
     let mut result: Vec<SerializableAccountMeta> = vec![
         AccountMeta::new_readonly(vam_pda, false).into(),
         AccountMeta::new_readonly(token_config_pda, false).into(),
@@ -453,9 +484,6 @@ fn verify_account_metas(
         AccountMeta::new_readonly(token_minter_key, false).into(),
         AccountMeta::new(local_token_key, false).into(),
         AccountMeta::new(token_pair_key, false).into(),
-        AccountMeta::new(custody_key, false).into(),
-        AccountMeta::new_readonly(event_authority_key, false).into(),
-        AccountMeta::new_readonly(circle::token_messenger_minter::ID, false).into(),
     ];
 
     let fee_recipient_token_account = match find_account(accounts, &token_messenger_key) {
@@ -467,7 +495,14 @@ fn verify_account_metas(
         // readable this round — ask for it next round.
         _ => return Ok(result),
     };
-    result.push(AccountMeta::new(fee_recipient_token_account, false).into());
+    let (message_transmitter_event_authority_key, _) =
+        circle::derive_event_authority_pda(&circle::message_transmitter::ID);
+    result.push(AccountMeta::new(fee_recipient_token_account, false).into()); // 17
+    result.push(AccountMeta::new(custody_key, false).into()); // 18
+    result.push(AccountMeta::new_readonly(event_authority_key, false).into()); // 19
+    result.push(AccountMeta::new_readonly(circle::token_messenger_minter::ID, false).into()); // 20
+    result.push(AccountMeta::new_readonly(circle::message_transmitter::ID, false).into()); // 21
+    result.push(AccountMeta::new_readonly(message_transmitter_event_authority_key, false).into()); // 22
 
     Ok(result)
 }

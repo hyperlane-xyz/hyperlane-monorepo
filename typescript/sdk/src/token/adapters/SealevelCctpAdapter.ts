@@ -78,6 +78,12 @@ export class SealevelHypCctpAdapter extends SealevelHypTokenAdapter {
     this.pendingEventDataAccount = eventDataKeypair.publicKey;
     try {
       const bundle = await super.getTransferRemoteIxBundle(params);
+      // `getTransferRemoteIxBundle`'s return value is the only channel back
+      // to the caller — callers that pre-generate `params.extraSigners` (e.g.
+      // WarpCore, for re-signing on blockhash-expiry resubmit) only learn
+      // about signers appended to that same array, not ones in `bundle.signers`.
+      // Push here too so this CCTP-only ephemeral signer isn't silently dropped.
+      params.extraSigners?.push(eventDataKeypair);
       return { ...bundle, signers: [...bundle.signers, eventDataKeypair] };
     } finally {
       this.pendingDestination = undefined;
