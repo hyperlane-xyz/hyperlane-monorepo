@@ -186,7 +186,7 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     await warpCommands.altCheck(warpRouteId);
   });
 
-  it('create is a clean no-op when re-run with no flags, and rejects an out-of-route chain', async function () {
+  it('create is a clean no-op when re-run with no flags, and rejects an invalid --chain', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'ALTNOP';
     const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
@@ -214,19 +214,18 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     expect(noop.exitCode, 'altCreate no-op should exit 0').to.equal(0);
     expect(noop.stdout).to.include('Nothing to do');
 
-    // `--chain` for a chain that is a known registry chain but not part of
-    // this single-chain SVM route must be rejected up front. `anvil1` is
-    // registered in the multiProvider (see the drift test's remote router)
-    // so it reaches our route-membership assert rather than failing earlier
-    // on unknown-chain metadata.
-    const outOfRoute = await warpCommands
+    // A non-SVM `--chain` must be rejected, not silently no-op'd. `warp alt
+    // create` only operates on SVM chains, so the chain resolver rejects a
+    // non-SVM `--chain` (here `anvil1`) before ALT creation. Its error, like
+    // other yargs middleware failures, surfaces on stderr with a non-zero exit.
+    const wrongChain = await warpCommands
       .altCreate(SVM_KEY, warpRouteId, { chain: 'anvil1' })
       .nothrow();
     expect(
-      outOfRoute.exitCode,
-      'altCreate with out-of-route chain should exit non-zero',
+      wrongChain.exitCode,
+      'altCreate with a non-SVM --chain should exit non-zero',
     ).to.not.equal(0);
-    expect(outOfRoute.stdout).to.include('is not part of warp route');
+    expect(wrongChain.stderr).to.include('is not an SVM chain');
   });
 
   it('check exits non-zero when warp config drifts from registered ALTs', async function () {
