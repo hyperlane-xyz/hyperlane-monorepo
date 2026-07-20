@@ -80,6 +80,21 @@ describe('deleteViolationSeriesOrThrow', () => {
     }
   });
 
+  it('rejects when the delete hangs past the deadline', async () => {
+    const hanging: DeletableGateway = {
+      // Never resolves — simulates a server that accepts the DELETE and never
+      // responds (prom-client's own timeout does not abort this).
+      delete: () => new Promise<{ resp?: unknown }>(() => {}),
+    };
+    const err = await captureError(
+      deleteViolationSeriesOrThrow(JOB, GROUPINGS, hanging, 20),
+    );
+    expect(err).to.be.instanceOf(Error);
+    if (err instanceof Error) {
+      expect(err.message).to.match(/timed out after 20ms/);
+    }
+  });
+
   it('resolves on a 2xx status', async () => {
     const err = await captureError(
       deleteViolationSeriesOrThrow(
