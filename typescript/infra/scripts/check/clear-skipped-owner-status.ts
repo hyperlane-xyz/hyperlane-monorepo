@@ -17,12 +17,41 @@ import { ownerStatusClearTargets } from './owner-status-skip.js';
 // Idempotent: deleting an already-absent series is a no-op.
 //
 // This is not wired into the check-warp-deploy CronJob — it is a manual one-shot
-// run at rollout, executed once after this filter merges. In-cluster:
-//   kubectl exec -n mainnet3 deploy/... -- \
-//     yarn tsx ./scripts/check/clear-skipped-owner-status.ts -e mainnet3
-// Verify afterwards that the metric dropped by querying the gateway:
-//   hyperlane_check_violations{type="ConfigMismatch"} for each (warp_route_id,
-//   chain, module="ownerStatus.<owner>") target should be absent.
+// run at rollout, executed once after this filter merges. The chart deploys a
+// CronJob (no long-lived pod to `kubectl exec` into), so launch a Job reusing
+// the CronJob's image, PushGateway env, and secret:
+//   NS=mainnet3
+//   IMAGE=$(kubectl -n $NS get cronjob check-warp-deploy \
+//     -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
+//   PGW=$(kubectl -n $NS get cronjob check-warp-deploy -o jsonpath=\
+//     '{.spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name=="PROMETHEUS_PUSH_GATEWAY")].value}')
+//   kubectl -n $NS apply -f - <<EOF
+//   apiVersion: batch/v1
+//   kind: Job
+//   metadata: { name: clear-skipped-owner-status }
+//   spec:
+//     backoffLimit: 0
+//     template:
+//       spec:
+//         restartPolicy: Never
+//         containers:
+//         - name: clear-skipped-owner-status
+//           image: $IMAGE
+//           # `args` (not `command`) preserves docker-entrypoint.sh, which pins
+//           # the registry commit; mirrors the CronJob container invocation.
+//           args: [pnpm, exec, tsx,
+//             ./typescript/infra/scripts/check/clear-skipped-owner-status.ts,
+//             -e, mainnet3]
+//           env: [{ name: PROMETHEUS_PUSH_GATEWAY, value: "$PGW" }]
+//           envFrom: [{ secretRef: { name: check-warp-deploy-env-var-secret } }]
+//   EOF
+//   kubectl -n $NS logs -f job/clear-skipped-owner-status
+// Verify each target series is gone (via Prometheus or the gateway's /metrics).
+// pushWarpViolationsMetrics always sets module="warp" and stores the module path
+// in `contract_name`, so the selector is:
+//   hyperlane_check_violations{module="warp",warp_route_id="<id>",chain="<chain>",
+//     contract_name="ownerStatus.<owner>",type="ConfigMismatch"}
+// must return no series for every OWNER_STATUS_SKIP entry.
 // Exits non-zero if any DELETE is not confirmed by the gateway.
 async function main() {
   const { environment, pushGateway } = await getArgs()
