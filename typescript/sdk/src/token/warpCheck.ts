@@ -782,7 +782,9 @@ export function buildWarpRouteDiff({
         // zero address, but the expected config omits the field. Treat a
         // zero-address on-chain hook as unset so it doesn't diff against the
         // omitted expected value; a genuinely configured (non-zero) hook still
-        // surfaces as a violation. Mirrors the altVM path in buildAltVmWarpRouteDiff.
+        // surfaces as a violation. (This differs from buildAltVmWarpRouteDiff,
+        // which clears the actual hook for any nullish expected hook and so does
+        // not surface a non-zero mismatch.)
         if (eqAddress(derivedHookAddress(currentDeployedConfig), zeroAddress)) {
           currentDeployedConfig.hook = undefined;
         }
