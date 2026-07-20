@@ -353,13 +353,13 @@ describe('getWarpCoreConfigOrExit', () => {
 
 describe('findWarpTokenForChain', () => {
   it('returns the first matching token when a chain appears more than once', () => {
-    const config: WarpCoreConfig = {
+    const config = {
       tokens: [
         { chainName: 'ethereum', addressOrDenom: '0xfirst' },
         { chainName: 'ethereum', addressOrDenom: '0xsecond' },
         { chainName: 'arbitrum', addressOrDenom: '0xother' },
       ],
-    } as WarpCoreConfig;
+    };
 
     const token = findWarpTokenForChain(config, 'ethereum');
 
@@ -367,9 +367,9 @@ describe('findWarpTokenForChain', () => {
   });
 
   it('returns undefined when the chain is absent from tokens', () => {
-    const config: WarpCoreConfig = {
+    const config = {
       tokens: [{ chainName: 'ethereum', addressOrDenom: '0x1' }],
-    } as WarpCoreConfig;
+    };
 
     expect(findWarpTokenForChain(config, 'arbitrum')).to.equal(undefined);
   });

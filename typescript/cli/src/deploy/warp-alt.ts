@@ -53,7 +53,8 @@ export async function runWarpAltCreate({
     `Chain "${chain}" is not part of warp route "${resolvedWarpRouteId}"`,
   );
 
-  const svmChains = [...routeChains].filter((chainName) => {
+  // SVM chains in the route (respecting --chain narrowing).
+  const svmRouteChains = [...routeChains].filter((chainName) => {
     if (chain && chainName !== chain) return false;
     if (
       context.multiProvider.getProtocol(chainName) !== ProtocolType.Sealevel
@@ -61,6 +62,17 @@ export async function runWarpAltCreate({
       logGray(`Skipping ${chainName} — not an SVM chain`);
       return false;
     }
+    return true;
+  });
+  assert(
+    svmRouteChains.length > 0,
+    chain
+      ? `Chain "${chain}" is not an SVM chain`
+      : `Warp route "${resolvedWarpRouteId}" has no SVM chains`,
+  );
+
+  // Of those, the ones that still need ALTs.
+  const svmChains = svmRouteChains.filter((chainName) => {
     if (existingAlts[chainName] && !effectiveForce) {
       logGray(
         `Skipping ${chainName} — ALTs already registered. Re-run with --force to recreate only the warp-specific ALTs (reusing the core ALT) or --full-force to recreate everything (existing frozen ALTs cannot be reclaimed).`,
@@ -70,10 +82,10 @@ export async function runWarpAltCreate({
     return true;
   });
 
-  // Skipping every chain (e.g. re-running a fully-registered route without
-  // flags) is an intentional no-op, not a failure.
+  // Every SVM chain in the route is already registered (e.g. re-running a
+  // fully-registered route without flags) — an intentional no-op, not a failure.
   if (svmChains.length === 0) {
-    logGreen('✅ Nothing to do — no SVM chains require ALT creation');
+    logGreen('✅ Nothing to do — all SVM chains already have ALTs registered');
     return;
   }
 

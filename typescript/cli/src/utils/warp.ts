@@ -61,10 +61,10 @@ export async function getWarpCoreConfigOrExit({
  * entry they operate on, otherwise `create` freezes the ALT set for one token
  * while `check` validates a different one.
  */
-export function findWarpTokenForChain(
-  warpCoreConfig: WarpCoreConfig,
+export function findWarpTokenForChain<T extends { chainName: ChainName }>(
+  warpCoreConfig: { tokens: readonly T[] },
   chainName: ChainName,
-): WarpCoreConfig['tokens'][number] | undefined {
+): T | undefined {
   return warpCoreConfig.tokens.find((t) => t.chainName === chainName);
 }
 
