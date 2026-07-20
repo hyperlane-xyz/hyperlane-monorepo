@@ -15,7 +15,10 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type IRawWarpArtifactManager,
+  type WarpConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type FeeReadContext,
   type IRawFeeArtifactManager,
@@ -25,6 +28,18 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TronProvider } from './provider.js';
 import { TronSigner } from './signer.js';
+
+// Warp-deploy cost breakdown for Tron. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape.
+//
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// feature-heavy warp deploys on Tron yet, so all extras currently contribute
+// nothing and getMinGasForWarpDeploy returns getMinGas().WARP_DEPLOY_GAS.
+const WARP_DEPLOY_BASE_SUN = BigInt(1e9); // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_SUN = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_SUN = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_SUN = 0n; // + custom hook / IGP (config.hook object)
 
 export class TronProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -102,11 +117,39 @@ export class TronProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e9),
-      WARP_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_SUN,
       ISM_DEPLOY_GAS: BigInt(1e9),
       HOOK_DEPLOY_GAS: BigInt(1e9),
       TEST_SEND_GAS: BigInt(1e9),
       AVS_GAS: BigInt(1e9),
     };
+  }
+
+  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
+    let total = WARP_DEPLOY_BASE_SUN;
+
+    if (warpConfig.type === 'crossCollateral') {
+      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN;
+    }
+
+    // A string fee/ism/hook value references an existing on-chain contract
+    // by address — no deploy cost. An object value triggers a fresh deploy
+    // whose footprint is added to the preflight budget.
+    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
+      total += WARP_DEPLOY_FEE_PROGRAM_SUN;
+    }
+
+    if (
+      warpConfig.interchainSecurityModule !== undefined &&
+      typeof warpConfig.interchainSecurityModule === 'object'
+    ) {
+      total += WARP_DEPLOY_CUSTOM_ISM_SUN;
+    }
+
+    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
+      total += WARP_DEPLOY_CUSTOM_HOOK_SUN;
+    }
+
+    return total;
   }
 }

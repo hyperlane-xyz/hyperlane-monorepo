@@ -19,7 +19,10 @@ import {
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  IRawWarpArtifactManager,
+  WarpConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -33,6 +36,18 @@ import { NETWORKS, RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
+
+// Warp-deploy cost breakdown for Radix. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape.
+//
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// feature-heavy warp deploys on Radix yet, so all extras currently contribute
+// nothing and getMinGasForWarpDeploy returns getMinGas().WARP_DEPLOY_GAS.
+const WARP_DEPLOY_BASE_XRD = 0n; // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_XRD = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_XRD = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_XRD = 0n; // + custom hook / IGP (config.hook object)
 
 export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -125,12 +140,40 @@ export class RadixProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_XRD,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,
       HOOK_DEPLOY_GAS: 0n,
     };
+  }
+
+  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
+    let total = WARP_DEPLOY_BASE_XRD;
+
+    if (warpConfig.type === 'crossCollateral') {
+      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD;
+    }
+
+    // A string fee/ism/hook value references an existing on-chain contract
+    // by address — no deploy cost. An object value triggers a fresh deploy
+    // whose footprint is added to the preflight budget.
+    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
+      total += WARP_DEPLOY_FEE_PROGRAM_XRD;
+    }
+
+    if (
+      warpConfig.interchainSecurityModule !== undefined &&
+      typeof warpConfig.interchainSecurityModule === 'object'
+    ) {
+      total += WARP_DEPLOY_CUSTOM_ISM_XRD;
+    }
+
+    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
+      total += WARP_DEPLOY_CUSTOM_HOOK_XRD;
+    }
+
+    return total;
   }
 
   /**
