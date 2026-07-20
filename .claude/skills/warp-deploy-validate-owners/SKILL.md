@@ -112,14 +112,14 @@ For chains where the owner is a Squads multisig:
 - Phase A: surface this as a **`Squads validation TODO — Phase 2`** warning row for now. EVM routes that touch SVM via Squads owners still proceed (the EVM-side validation passes); the SVM-side Squads validation requires per-protocol skill work that lands in Phase 2.
 - For Phase 2 (future): use the SVM SDK to read the multisig PDA on Solana and confirm the Squads V4 layout. If invalid, reject.
 
-### 3d. Reject if EOA (including EIP-7702 delegations)
+### 3d. Reject if EOA (including EIP-7702 delegations), with a self-owned staging exception
 
 If a chain's owner is an EVM address, run `cast code <address> --rpc-url <rpc>` and reject when the result indicates an EOA. There are **two** EOA shapes to catch:
 
 1. **Plain EOA** — `cast code` returns `0x` (no code). Classic externally-owned account.
 2. **EIP-7702-delegated EOA** — `cast code` returns `0xef0100<20-byte-delegate-address>` (46 chars total, starts with `0xef0100`). Post-EIP-7702 EOAs that have delegated to a smart account contract still have a private key behind them and remain EOAs for ownership purposes. Detect by checking that the code matches the regex `^0xef0100[0-9a-fA-F]{40}$`.
 
-If either shape matches, the owner is an EOA. **Stop the flow** with a clear error:
+If either shape matches AND the address does NOT match the deployer's own address for that protocol (from the key-context artifact's `keys.<protocol>.address`), the owner is a third-party EOA. **Stop the flow** with a clear error:
 
 - Which chain
 - Which address
@@ -127,7 +127,15 @@ If either shape matches, the owner is an EOA. **Stop the flow** with a clear err
 - Why this is rejected (EOAs are never valid as long-term production owners — even delegated ones can be drained by the EOA private key holder)
 - What the operator should do (replace with a Safe / ICA / Squads address; update the Linear ticket; rerun)
 
-This catches accidental owner misconfigurations before deploy.
+**Self-owned exception (staging / test routes)**: if the owner address matches the deployer's own address (`keys.<protocol>.address` in the key-context artifact), classify as `⚠️ SELF-OWNED EOA` instead of rejecting. Surface it clearly to the user with a warning that:
+
+- This is only appropriate for staging / test routes where the deployer intends to remain the sole owner (typical for internal Haggis test runs from a Linear ticket labeled `[STAGING]` or explicitly self-owned)
+- For a real production route the owner should be transferred later to a multisig / ICA
+- Downstream skills (init-route, update-owners) will accept the `⚠️` classification and proceed
+
+Apply the same self-owned exception uniformly across protocols: if `owner == keys.sealevel.address` on a Sealevel chain, or `owner == keys.tron.address` on Tron, etc., classify as `⚠️ SELF-OWNED EOA` and continue.
+
+Third-party EOAs (any EOA that isn't the deployer's own address) remain hard-rejected. This catches the accidental misconfiguration where a Safe address was mistyped or the wrong chain's owner was pasted in.
 
 ### 3e. Confirm address format per protocol
 
@@ -147,16 +155,17 @@ A format mismatch is a stop condition — surface to the user.
 Output a per-chain resolution table summarizing the validation:
 
 ```
-Chain         | Owner Type | Address                                       | Status        | Notes
-ethereum      | Safe       | 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6    | ✅ VALID       | AW Safe; VERSION() = "1.3.0"
-arbitrum      | ICA        | 0xD2757B…1A45                                 | ✅ EXISTS      | derived from ethereum Safe
-solanamainnet | Squads     | BNGDJ1h…URwJ                                  | ⚠️ TODO        | Phase 2 Squads validation pending
-new-chain     | Safe       | 0x1234…5678                                   | ❌ EOA REJECT  | no code at address; not a Safe
+Chain         | Owner Type       | Address                                       | Status              | Notes
+ethereum      | Safe             | 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6    | ✅ VALID             | AW Safe; VERSION() = "1.3.0"
+arbitrum      | ICA              | 0xD2757B…1A45                                 | ✅ EXISTS            | derived from ethereum Safe
+solanamainnet | Squads           | BNGDJ1h…URwJ                                  | ⚠️ TODO              | Phase 2 Squads validation pending
+mode          | EOA (self-owned) | 0x3f13C1…0913                                 | ⚠️ SELF-OWNED EOA    | matches deployer keys.ethereum.address; staging route
+new-chain     | Safe             | 0x1234…5678                                   | ❌ EOA REJECT        | no code at address; third-party EOA
 ```
 
 If any row is ❌, **stop** — surface the rejections to the user. Do not proceed to `/warp-deploy-init-route` until every row is ✅ or ⚠️.
 
-If every row is ✅ or ⚠️ (TODO), the route is cleared for the downstream `init-route` step.
+If every row is ✅ or ⚠️ (TODO / SELF-OWNED EOA), the route is cleared for the downstream `init-route` step. Note the ⚠️ SELF-OWNED EOA rows in the resolution artifact so downstream skills can distinguish "deployer will remain owner (staging)" from "deployer transfers to real owner (production)".
 
 ---
 
