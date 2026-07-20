@@ -11,6 +11,8 @@ import {
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
@@ -24,6 +26,7 @@ import {
   CollateralCctpWarpConfig,
   CollateralWarpConfig,
   CrossCollateralWarpConfig,
+  DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
   NativeWarpConfig,
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
@@ -100,6 +103,58 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.collateralCctp,
 ]);
 
+/**
+ * Builds a `FeeReadContext` directly from a warp deploy config, bypassing
+ * `validateWarpConfigForAltVM` + `warpConfigToArtifact` +
+ * `buildFeeReadContextFromWarpArtifactConfig`. The read flow only needs the
+ * per-domain router set, not the full `ProviderWarpConfig` conversion, so
+ * this works for any token type (including EVM-only `xerc20`,
+ * `fastCollateral`, etc.) that the AltVM validator would reject.
+ *
+ * Mirrors `buildFeeReadContextFromWarpArtifactConfig` (provider-sdk) — same
+ * `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` injection so CC default-router
+ * quotes remain visible to the reader.
+ */
+export function buildFeeReadContextFromWarpDeployConfig(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  chainLookup: ChainLookup,
+): FeeReadContext {
+  const knownRoutersPerDomain: Record<number, Set<string>> = {};
+
+  for (const [chainNameOrId, router] of Object.entries(
+    config.remoteRouters ?? {},
+  )) {
+    const domain = chainLookup.getDomainId(chainNameOrId);
+    if (isNullish(domain)) continue;
+    const existing = knownRoutersPerDomain[domain] ?? new Set();
+    knownRoutersPerDomain[domain] = new Set([
+      ...existing,
+      addressToBytes32(router.address),
+      DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+    ]);
+  }
+
+  if (
+    config.type === TokenType.crossCollateral &&
+    config.crossCollateralRouters
+  ) {
+    for (const [chainNameOrId, routers] of Object.entries(
+      config.crossCollateralRouters,
+    )) {
+      const domain = chainLookup.getDomainId(chainNameOrId);
+      if (isNullish(domain)) continue;
+      const existing = knownRoutersPerDomain[domain] ?? new Set();
+      knownRoutersPerDomain[domain] = new Set([
+        ...existing,
+        ...routers.map((r) => addressToBytes32(r)),
+        DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+      ]);
+    }
+  }
+
+  return { knownRoutersPerDomain };
+}
+
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
@@ -173,6 +228,7 @@ export function validateWarpConfigForAltVM(
         symbol: config.symbol,
         decimals: config.decimals,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
       return result;
     }
@@ -420,8 +476,23 @@ export async function executeWarpDeploy(
             signer,
           );
 
+          // Deploy as the signer (intermediate owner), mirroring the EVM
+          // deployer (see TokenDeployer.deploy). Cross-chain router enrollment
+          // runs after deploy in enrollCrossChainRouters, submitted by the
+          // deployer key; it also hands ownership to the configured owner. If
+          // create() set the configured owner up front, the deployer could no
+          // longer sign those post-deploy enrollment txs.
+          const intermediateOwnerConfig = {
+            ...config,
+            owner: signer.getSignerAddress(),
+          };
+
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(config, chain, chainMetadata.protocol),
+            validateWarpConfigForAltVM(
+              intermediateOwnerConfig,
+              chain,
+              chainMetadata.protocol,
+            ),
             chainLookup,
           );
 

@@ -87,6 +87,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  token?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -150,6 +151,8 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  /** Address of the token the adapter deployed (populated post-deploy). */
+  token?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -222,6 +225,12 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   symbol: string;
   decimals: number;
   metadataUri?: string;
+  /**
+   * Address of the token the hyp adapter deployed alongside the synthetic
+   * warp. Populated by the protocol-specific reader/writer after deploy.
+   * Undefined before the warp is deployed.
+   */
+  token?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -487,6 +496,7 @@ export function warpConfigToArtifact(
           symbol: config.symbol,
           decimals: config.decimals,
           metadataUri: config.metadataUri,
+          token: config.token,
         },
       };
 
@@ -635,7 +645,7 @@ export function warpArtifactToDerivedConfig(
     feeConfig = feeArtifactToDerivedConfig(
       config.fee,
       chainLookup,
-      getCollateralToken(config),
+      resolveFeeTokenFromWarpArtifactConfig(config) ?? ZERO_ADDRESS,
     );
   }
 
@@ -667,6 +677,7 @@ export function warpArtifactToDerivedConfig(
         ...baseDerivedConfig,
         type: TokenType.synthetic,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
 
     case 'native':
@@ -704,29 +715,6 @@ export function warpArtifactToDerivedConfig(
 // Warp Config Utilities
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
-/**
- * Returns the collateral token address from a warp artifact config.
- * Collateral and crossCollateral types have a token field;
- * native and synthetic use the zero address (no collateral token).
- */
-function getCollateralToken(config: WarpArtifactConfig): string {
-  switch (config.type) {
-    case TokenType.collateral:
-    case TokenType.crossCollateral:
-    case TokenType.collateralCctp:
-      return config.token;
-    case TokenType.native:
-    case TokenType.synthetic:
-      return ZERO_ADDRESS;
-    default: {
-      const _exhaustive: never = config;
-      throw new Error(
-        `Unhandled warp token type: ${JSON.stringify(_exhaustive)}`,
-      );
-    }
-  }
-}
 
 // Cross-Collateral Router Utilities
 
@@ -823,6 +811,36 @@ export function buildFeeReadContextFromWarpArtifactConfig(
   return { knownRoutersPerDomain };
 }
 
+/**
+ * Returns the settlement asset address the warp route operates against, when
+ * applicable. Used by the warp orchestrator to populate the paired fee
+ * config's `token` field at deploy/update time.
+ *
+ * - `collateral` / `crossCollateral`: the configured collateral token.
+ * - `synthetic`: the token the adapter deployed (populated post-deploy by the
+ *   protocol-specific writer/reader; undefined before deploy).
+ * - `native`: undefined.
+ */
+export function resolveFeeTokenFromWarpArtifactConfig(
+  config: WarpArtifactConfig,
+): string | undefined {
+  switch (config.type) {
+    case TokenType.collateral:
+    case TokenType.crossCollateral:
+      return config.token;
+    case TokenType.synthetic:
+      return config.token;
+    case TokenType.native:
+      return undefined;
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(
+        `Unsupported warp type for resolveFeeTokenFromWarpArtifactConfig: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
+  }
+}
+
 // Warp Router Update Utilities
 
 export interface WarpRouterDiff {
@@ -877,12 +895,6 @@ export function computeRemoteRoutersUpdates(
     expectedRoutersConfig.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId];
-    assert(
-      !isNullish(expectedDestinationGas),
-      `Missing destination gas for domain ${domainId} in expected router configuration`,
-    );
     const currentRouterAddress = Object.prototype.hasOwnProperty.call(
       currentRoutersConfig.remoteRouters,
       domainId,
@@ -891,6 +903,13 @@ export function computeRemoteRoutersUpdates(
       : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
+    // When the expected config omits gas for an existing router, keep the
+    // current on-chain value instead of zeroing it. For a new router — or a
+    // domain that only has an orphaned gas entry and no enrolled router — fall
+    // back to '0' rather than reusing a stale value, matching EVM behavior.
+    const expectedDestinationGas =
+      expectedRoutersConfig.destinationGas[domainId] ??
+      (currentRouterAddress ? currentDestinationGas : '0');
 
     const needsUpdate =
       !currentRouterAddress ||

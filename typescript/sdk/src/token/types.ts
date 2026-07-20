@@ -365,6 +365,7 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   initialSupply: z.string().or(z.number()).optional(),
   predicateWrapper: PredicateWrapperConfigSchema.optional(),
   metadataUri: z.string().url().optional(),
+  token: z.string().optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);

@@ -62,7 +62,7 @@ import { OnchainHookType } from '../../hook/types.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
-  isMissingSelectorCallException,
+  fetchPackageVersion,
   isValidContractVersion,
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
@@ -447,16 +447,11 @@ export class EvmHypSyntheticAdapter
   }
 
   async getContractPackageVersion() {
-    try {
-      return await this.contract.PACKAGE_VERSION();
-    } catch (err) {
-      if (isMissingSelectorCallException(err)) {
-        // PACKAGE_VERSION was introduced in v5.4.0
-        return '5.3.9';
-      }
-      this.logger.error(`Error when fetching package version ${err}`);
-      throw err;
-    }
+    return fetchPackageVersion(
+      this.getProvider(),
+      this.contract.address,
+      this.logger,
+    );
   }
 
   async quoteTransferRemoteGas({

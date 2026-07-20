@@ -25,6 +25,7 @@ import { ChainName } from '../types.js';
 
 import { encodeAbiParameters, zeroAddress } from 'viem';
 
+import { EvmQuotedTransferProvider } from '../quoted-calls/EvmQuotedTransferProvider.js';
 import type {
   QuotedCallsParams,
   SubmitQuoteCommand,
@@ -1512,24 +1513,23 @@ describe('WarpCore', () => {
       } as any);
 
     try {
-      const quotedCalls: QuotedCallsParams = {
+      const quotedTransfer = new EvmQuotedTransferProvider({
         address: MOCK_QUOTED_CALLS_ADDRESS,
         quotes: [MOCK_SUBMIT_QUOTE],
         clientSalt: MOCK_CLIENT_SALT,
         tokenPullMode: TokenPullMode.TransferFrom,
-      };
+      });
 
       const result = await warpCore.getQuotedTransferFee({
+        quotedTransfer,
         originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
         destination: test2.name,
         sender: MOCK_ADDRESS,
         recipient: MOCK_ADDRESS,
-        quotedCalls,
       });
 
       expect(result.igpQuote.amount).to.equal(500n);
       expect(result.tokenFeeQuote?.amount).to.equal(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
-      expect(result.feeQuotes).to.have.length(2);
     } finally {
       providerStub.restore();
     }
@@ -1585,48 +1585,6 @@ describe('WarpCore', () => {
       providerStub.restore();
       adapterStubs.forEach((s) => s.restore());
     }
-  });
-
-  it('Skips quoteExecute when feeQuotes are pre-provided', async () => {
-    const precomputedFeeQuotes = [
-      [] as Array<{ token: `0x${string}`; amount: bigint }>,
-      [
-        { token: zeroAddress as `0x${string}`, amount: 500n },
-        {
-          token: evmHypSynthetic.addressOrDenom as `0x${string}`,
-          amount: TRANSFER_AMOUNT + 100n,
-        },
-      ],
-    ];
-
-    const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getAdapter').returns({
-        isApproveRequired: () => Promise.resolve(false),
-        isRevokeApprovalRequired: () => Promise.resolve(false),
-      } as any),
-    );
-
-    const quotedCalls: QuotedCallsParams = {
-      address: MOCK_QUOTED_CALLS_ADDRESS,
-      quotes: [MOCK_SUBMIT_QUOTE],
-      clientSalt: MOCK_CLIENT_SALT,
-      tokenPullMode: TokenPullMode.TransferFrom,
-      feeQuotes: precomputedFeeQuotes,
-    };
-
-    const result = await warpCore.getTransferRemoteTxs({
-      originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
-      destination: test2.name,
-      sender: MOCK_ADDRESS,
-      recipient: MOCK_ADDRESS,
-      quotedCalls,
-    });
-
-    // No approval needed, just Transfer
-    expect(result.length).to.equal(1);
-    expect(result[0].category).to.equal(WarpTxCategory.Transfer);
-
-    adapterStubs.forEach((s) => s.restore());
   });
 
   it('Routes ERC4626 collateral tokens through getBridgedSupply in getTokenCollateral', async () => {

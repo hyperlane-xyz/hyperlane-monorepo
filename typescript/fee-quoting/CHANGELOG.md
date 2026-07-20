@@ -1,5 +1,42 @@
 # @hyperlane-xyz/fee-quoting
 
+## 27.3.0
+
+### Minor Changes
+
+- 262073e: The SVM quote service was changed to substitute the user-supplied `recipient` with `WILDCARD_RECIPIENT` (`0xff × 32`) when signing standing-mode warp quotes — transient mode is unchanged. SVM standing quotes are stored at a PDA keyed by `(fee_account, dest_domain, target_router)` with no recipient in the seeds, so signing the user's actual recipient partitioned the standing PDA per recipient and prevented reuse. The on-chain consume handler already has a wildcard-recipient fallback (fee program `processor/quote.rs`) that accepts the substituted value, so standing quotes became universally consumable as designed. EVM behavior is unchanged — EVM quotes are recipient-bound by the wrapper contract's exec-time verification, not by a PDA lookup, so the substitution doesn't apply there.
+
+### Patch Changes
+
+- Updated dependencies [92909f8]
+- Updated dependencies [262073e]
+- Updated dependencies [df34a68]
+- Updated dependencies [262073e]
+- Updated dependencies [af8e1f6]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [c7895b6]
+- Updated dependencies [262073e]
+- Updated dependencies [6e803be]
+- Updated dependencies [cb0c7c9]
+- Updated dependencies [a82c918]
+- Updated dependencies [262073e]
+- Updated dependencies [351cf01]
+- Updated dependencies [5122e71]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [c4b3ff5]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+- Updated dependencies [955281d]
+- Updated dependencies [5122e71]
+- Updated dependencies [9c8b435]
+  - @hyperlane-xyz/sdk@37.0.0
+  - @hyperlane-xyz/sealevel-sdk@37.0.0
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/utils@37.0.0
+
 ## 27.2.19
 
 ### Patch Changes

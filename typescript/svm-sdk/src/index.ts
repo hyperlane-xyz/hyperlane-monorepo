@@ -19,6 +19,7 @@ export type { SolanaRpcClient } from './rpc.js';
 
 // RPC + Signer
 export { createRpc } from './rpc.js';
+export { FALLBACK_SIMULATION_PAYER } from './version/version-query.js';
 
 // Artifact managers
 export { SvmMailboxArtifactManager as SealevelMailboxArtifactManager } from './core/mailbox-artifact-manager.js';
@@ -70,6 +71,19 @@ export {
   signSvmQuote,
 } from './quote-signing.js';
 export type { SignSvmQuoteArgs } from './quote-signing.js';
+
+export { SvmPrivateKeyQuoteSigner } from './quote/SvmPrivateKeyQuoteSigner.js';
+export { SvmQuoteArtifactManager } from './quote/SvmQuoteArtifactManager.js';
+export { SvmQuoteReader } from './quote/SvmQuoteReader.js';
+export {
+  isSvmQuoteSignable,
+  parseSvmQuoteSignable,
+  type SvmQuoteSignable,
+} from './quote/SvmQuoteSignable.js';
+export {
+  SvmQuoteWriter,
+  type SvmQuoteWriterConfig,
+} from './quote/SvmQuoteWriter.js';
 
 export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
 export {
@@ -278,5 +292,9 @@ export {
 
 // Fee program
 export { SvmFeeArtifactManager } from './fee/fee-artifact-manager.js';
-export { DEFAULT_FEE_SALT, deriveFeeSalt } from './fee/types.js';
+export {
+  DEFAULT_FEE_SALT,
+  deriveFeeSalt,
+  resolveFeeSalt,
+} from './fee/types.js';
 export type { SvmDeployedFee } from './fee/types.js';

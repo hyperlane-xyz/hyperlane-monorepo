@@ -168,6 +168,49 @@ function decodeSimulationReturnDataString(raw: Uint8Array): string {
 }
 
 /**
+ * Queries the on-chain program version using the supplied owner as the
+ * simulation fee payer when present, falling back to a known-funded
+ * mainnet address if the owner is null or its simulation fails (e.g.
+ * production owners — multisigs, governance — often don't hold SOL).
+ *
+ * By default throws on infra failure of the fallback path so real RPC errors
+ * are not masked as pre-versioning programs (which `queryProgramVersion`
+ * already classifies and returns `null` for via the simulation error code).
+ * Pass `allowFailure` to instead return `null` on fallback infra failure, for
+ * best-effort read paths that must never break.
+ */
+export async function queryProgramVersionWithOwnerFallback(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+  { allowFailure = false }: { allowFailure?: boolean } = {},
+): Promise<string | null> {
+  if (owner) {
+    try {
+      return await queryProgramVersion(rpc, programId, owner);
+    } catch (err) {
+      logger.debug(
+        'Owner-as-payer simulation failed; retrying with fallback payer',
+        { programId, owner, err },
+      );
+    }
+  }
+  try {
+    return await queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
+  } catch (err) {
+    logger.debug('Fallback-payer simulation failed', {
+      programId,
+      allowFailure,
+      err,
+    });
+
+    if (!allowFailure) throw err;
+
+    return null;
+  }
+}
+
+/**
  * Compares two semver version strings.
  * Uses the `compare-versions` library (same as the EVM SDK).
  * @returns -1 if a < b, 0 if equal, 1 if a > b.

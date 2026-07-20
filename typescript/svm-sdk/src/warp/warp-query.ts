@@ -1,11 +1,6 @@
 import { type Address, fetchEncodedAccount } from '@solana/kit';
 
-import {
-  assert,
-  fromHexString,
-  rootLogger,
-  toHexString,
-} from '@hyperlane-xyz/utils';
+import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 import {
   CCTP_PLUGIN_SIZE,
@@ -24,12 +19,7 @@ import {
   deriveEscrowPda,
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
-import {
-  FALLBACK_SIMULATION_PAYER,
-  queryProgramVersion,
-} from '../version/version-query.js';
-
-const logger = rootLogger.child({ module: 'warp-query' });
+import { queryProgramVersionWithOwnerFallback } from '../version/version-query.js';
 
 export enum SvmWarpTokenType {
   Native = 'native',
@@ -152,30 +142,13 @@ export async function detectWarpTokenType(
   return result;
 }
 
-/**
- * Queries the on-chain program version for a warp token program.
- *
- * Uses the token owner as the simulation fee payer when present, falling
- * back to a known-funded mainnet address when the owner is null or the
- * owner-paid simulation fails (e.g. production owner has no SOL).
- */
+/** Queries the on-chain program version for a warp token program. */
 export async function fetchWarpProgramVersion(
   rpc: SvmRpc,
   programId: Address,
   owner: Address | null,
 ): Promise<string | null> {
-  if (owner) {
-    try {
-      return await queryProgramVersion(rpc, programId, owner);
-    } catch (err) {
-      logger.debug(
-        'Owner-as-payer simulation failed; retrying with fallback payer',
-        { programId, owner, err },
-      );
-    }
-  }
-
-  return queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
+  return queryProgramVersionWithOwnerFallback(rpc, programId, owner);
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

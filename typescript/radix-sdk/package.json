@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/radix-sdk",
-  "version": "36.0.0",
+  "version": "37.0.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
   "keywords": [
     "blockchain",

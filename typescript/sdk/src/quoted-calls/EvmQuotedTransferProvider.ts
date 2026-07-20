@@ -45,9 +45,59 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
   constructor(private readonly params: QuotedCallsParams) {}
 
   /**
-   * Fee-quoting eth_call. Returns structured fee data (matching
-   * `getInterchainTransferFee` shape) plus the raw per-command quotes that
-   * `buildQuotedTransferTxs` needs.
+   * Runs the `QuotedCalls.quoteExecute` eth_call and returns the raw decoded
+   * per-command `Quote[][]` plus the resolved transfer params. Shared between
+   * the public display-time and submit-time paths so both hit the same
+   * code; eth_call is read-only and deterministic for a given
+   * `(quotes, clientSalt, block)`, so display and submit will compute the
+   * same priced fees.
+   */
+  private async runQuoteExecute({
+    warpCore,
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    warpCore: WarpCore;
+    originTokenAmount: TokenAmount<IToken>;
+    destination: ChainNameOrId;
+    sender: string;
+    recipient: string;
+    destinationToken?: IToken;
+  }): Promise<{
+    feeQuotes: Quote[][];
+    transferParams: ReturnType<
+      EvmQuotedTransferProvider['resolveExecuteParams']
+    >;
+  }> {
+    assert(isAddress(sender), `Invalid EVM sender address: ${sender}`);
+    const transferParams = this.resolveExecuteParams({
+      warpCore,
+      originTokenAmount,
+      destination,
+      recipient,
+      destinationToken,
+    });
+    const quoteTx = buildQuoteCalldata(transferParams);
+    const provider = warpCore.multiProvider.getEthersV5Provider(
+      originTokenAmount.token.chainName,
+    );
+    const quoteResult = await provider.call({
+      to: quoteTx.to,
+      data: quoteTx.data,
+      from: sender,
+    });
+    const feeQuotes = decodeQuoteExecuteResult(
+      toHex(quoteResult, 'quoteExecute eth_call returned non-hex result'),
+    );
+    return { feeQuotes, transferParams };
+  }
+
+  /**
+   * Fee-quoting eth_call. Returns the priced display tuple matching
+   * `getInterchainTransferFee` shape.
    */
   async getQuotedTransferFee({
     warpCore,
@@ -66,32 +116,17 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
   }): Promise<{
     igpQuote: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
-    /** Raw per-command quotes — pass via params.feeQuotes to skip re-quoting. */
-    feeQuotes: Quote[][];
   }> {
-    assert(isAddress(sender), `Invalid EVM sender address: ${sender}`);
-
     const { token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
-
-    const transferParams = this.resolveExecuteParams({
+    const { feeQuotes, transferParams } = await this.runQuoteExecute({
       warpCore,
       originTokenAmount,
       destination,
+      sender,
       recipient,
       destinationToken,
     });
-
-    const quoteTx = buildQuoteCalldata(transferParams);
-    const provider = warpCore.multiProvider.getEthersV5Provider(originName);
-    const quoteResult = await provider.call({
-      to: quoteTx.to,
-      data: quoteTx.data,
-      from: sender,
-    });
-    const feeQuotes = decodeQuoteExecuteResult(
-      toHex(quoteResult, 'quoteExecute eth_call returned non-hex result'),
-    );
     const { nativeValue, tokenTotals } = extractQuoteTotals(feeQuotes);
 
     // For native routes, quoteTransferRemote includes the transfer amount in
@@ -130,7 +165,7 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
       }
     }
 
-    return { igpQuote, tokenFeeQuote, feeQuotes };
+    return { igpQuote, tokenFeeQuote };
   }
 
   async buildQuotedTransferTxs({
@@ -148,33 +183,19 @@ export class EvmQuotedTransferProvider implements QuotedTransferProvider {
     recipient: string;
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
-    assert(isAddress(sender), `Invalid EVM sender address: ${sender}`);
-
     const { token } = originTokenAmount;
     const transactions: Array<WarpTypedTransaction> = [];
 
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
 
-    const transferParams = this.resolveExecuteParams({
+    const { feeQuotes, transferParams } = await this.runQuoteExecute({
       warpCore,
       originTokenAmount,
       destination,
+      sender,
       recipient,
       destinationToken,
     });
-
-    let feeQuotes = this.params.feeQuotes;
-    if (!feeQuotes) {
-      const fees = await this.getQuotedTransferFee({
-        warpCore,
-        originTokenAmount,
-        destination,
-        sender,
-        recipient,
-        destinationToken,
-      });
-      feeQuotes = fees.feeQuotes;
-    }
 
     const { tokenTotals } = extractQuoteTotals(feeQuotes);
     const tokenKey = toAddress(

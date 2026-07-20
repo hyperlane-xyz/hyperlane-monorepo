@@ -1,5 +1,46 @@
 # @hyperlane-xyz/infra
 
+## 37.0.0
+
+### Patch Changes
+
+- Updated dependencies [92909f8]
+- Updated dependencies [262073e]
+- Updated dependencies [df34a68]
+- Updated dependencies [262073e]
+- Updated dependencies [af8e1f6]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [c7895b6]
+- Updated dependencies [262073e]
+- Updated dependencies [6e803be]
+- Updated dependencies [cb0c7c9]
+- Updated dependencies [a82c918]
+- Updated dependencies [262073e]
+- Updated dependencies [351cf01]
+- Updated dependencies [5122e71]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [262073e]
+- Updated dependencies [c4b3ff5]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+- Updated dependencies [955281d]
+- Updated dependencies [5122e71]
+- Updated dependencies [9c8b435]
+  - @hyperlane-xyz/sdk@37.0.0
+  - @hyperlane-xyz/sealevel-sdk@37.0.0
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/deploy-sdk@7.1.0
+  - @hyperlane-xyz/http-registry-server@37.0.0
+  - @hyperlane-xyz/keyfunder@0.1.36
+  - @hyperlane-xyz/metrics@0.2.29
+  - @hyperlane-xyz/rebalancer@27.3.8
+  - @hyperlane-xyz/relayer@1.1.36
+  - @hyperlane-xyz/tron-sdk@23.1.3
+  - @hyperlane-xyz/utils@37.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 36.0.0
 
 ### Patch Changes

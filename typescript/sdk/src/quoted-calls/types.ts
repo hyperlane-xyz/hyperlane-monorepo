@@ -221,6 +221,4 @@ export interface QuotedCallsParams {
   tokenPullMode: TokenPullMode;
   /** Required when tokenPullMode === Permit2 */
   permit2Data?: Permit2Data;
-  /** Pre-computed fee quotes from getQuotedTransferFee. If provided, skips quoteExecute eth_call. */
-  feeQuotes?: Array<Array<{ token: Address; amount: bigint }>>;
 }

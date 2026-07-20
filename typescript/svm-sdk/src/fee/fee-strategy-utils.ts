@@ -4,6 +4,7 @@ import {
   type FeeStrategy,
   FeeStrategyType,
   bpsToRawFeeParams,
+  computeBps,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { assert, isNullish, setEquality } from '@hyperlane-xyz/utils';
 
@@ -19,7 +20,9 @@ const ASSUMED_MAX_AMOUNT = 10n ** 8n;
 /**
  * Resolves provider-sdk FeeParams to raw bigint maxFee/halfAmount.
  * For 'raw' type: converts strings directly.
- * For 'bps' type: computes u64-safe raw params from bps value.
+ * For 'bps' type: prefers the populated maxFee/halfAmount when present
+ * (readers carry on-chain raw values alongside bps so callers don't have
+ * to re-derive); otherwise computes u64-safe raw params from bps.
  */
 export function resolveRawFeeParams(params: FeeParams): SvmFeeParams {
   switch (params.type) {
@@ -29,6 +32,12 @@ export function resolveRawFeeParams(params: FeeParams): SvmFeeParams {
         halfAmount: BigInt(params.halfAmount),
       };
     case FeeParamsType.bps:
+      if (params.maxFee !== undefined && params.halfAmount !== undefined) {
+        return {
+          maxFee: BigInt(params.maxFee),
+          halfAmount: BigInt(params.halfAmount),
+        };
+      }
       return bpsToRawFeeParams(params.bps, MAX_U64, ASSUMED_MAX_AMOUNT);
     default: {
       const _exhaustive: never = params;
@@ -79,7 +88,8 @@ export function leafDataToFeeStrategy(
   return {
     type: strategyType,
     params: {
-      type: FeeParamsType.raw,
+      type: FeeParamsType.bps,
+      bps: computeBps(feeData.params.maxFee, feeData.params.halfAmount),
       maxFee: feeData.params.maxFee.toString(),
       halfAmount: feeData.params.halfAmount.toString(),
     },
@@ -162,7 +172,8 @@ export function feeStrategiesEqual(a: FeeStrategy, b: FeeStrategy): boolean {
 export function routeDataToFeeStrategy(route: RouteDomainData): FeeStrategy {
   const { maxFee, halfAmount } = route.feeData.params;
   const params: FeeParams = {
-    type: FeeParamsType.raw,
+    type: FeeParamsType.bps,
+    bps: computeBps(maxFee, halfAmount),
     maxFee: maxFee.toString(),
     halfAmount: halfAmount.toString(),
   };

@@ -57,8 +57,12 @@ export async function resolveChains(
     case CommandType.WARP_ALT_CHECK:
     case CommandType.WARP_ALT_READ:
       return resolveWarpReadChains(argv);
+    case CommandType.WARP_QUOTE_READ:
+      return resolveWarpQuoteReadChains(argv);
     case CommandType.WARP_ALT_CREATE:
       return resolveWarpAltCreateChains(argv);
+    case CommandType.WARP_QUOTE_CREATE:
+      return resolveWarpQuoteCreateChains(argv);
     case CommandType.WARP_APPLY:
       return resolveWarpConfigChains(argv);
     case CommandType.WARP_CHECK:
@@ -125,6 +129,48 @@ async function resolveWarpReadChains(
     'No chains found set in parameters',
   );
 
+  return argv.context.chains;
+}
+
+// Unlike `resolveWarpReadChains`, this respects --chain even though a
+// warpRouteId is always present, so a single-chain read on a mixed EVM/SVM
+// route only provisions providers/signers for that chain.
+async function resolveWarpQuoteReadChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  if (argv.warpRouteId) {
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    if (!argv.chain) {
+      argv.context.chains = warpCoreConfig.tokens.map(
+        (token) => token.chainName,
+      );
+    }
+  }
+
+  if (argv.chain) {
+    argv.context.chains = await resolveChain(argv);
+  }
+
+  assert(
+    argv.context.chains && argv.context.chains.length !== 0,
+    'No chains found set in parameters',
+  );
+
+  return argv.context.chains;
+}
+
+async function resolveWarpQuoteCreateChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  assert(
+    argv.chain,
+    '`warp quote create` requires --chain (the chain submitting the quote tx)',
+  );
+  argv.context.chains = await resolveChain(argv);
   return argv.context.chains;
 }
 

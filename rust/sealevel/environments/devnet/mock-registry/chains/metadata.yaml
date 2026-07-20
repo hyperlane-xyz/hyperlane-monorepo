@@ -1,0 +1,138 @@
+arbitrumsepolia:
+  domainId: 421614
+  isTestnet: true
+  name: arbitrumsepolia
+  rpcUrls:
+  - http: http://placeholder
+basesepolia:
+  domainId: 84532
+  isTestnet: true
+  name: basesepolia
+  rpcUrls:
+  - http: http://placeholder
+bsctestnet:
+  domainId: 97
+  isTestnet: true
+  name: bsctestnet
+  rpcUrls:
+  - http: http://placeholder
+fuji:
+  domainId: 43113
+  isTestnet: true
+  name: fuji
+  rpcUrls:
+  - http: http://placeholder
+optimismsepolia:
+  domainId: 11155420
+  isTestnet: true
+  name: optimismsepolia
+  rpcUrls:
+  - http: http://placeholder
+polygonamoy:
+  domainId: 80002
+  isTestnet: true
+  name: polygonamoy
+  rpcUrls:
+  - http: http://placeholder
+solanatestnet:
+  domainId: 1399811150
+  isTestnet: true
+  name: solanatestnet
+  rpcUrls:
+  - http: http://placeholder
+sonicsvmtestnet:
+  domainId: 15153042
+  isTestnet: true
+  name: sonicsvmtestnet
+  rpcUrls:
+  - http: http://placeholder
+eclipsetestnet:
+  domainId: 239092742
+  isTestnet: true
+  name: eclipsetestnet
+  rpcUrls:
+  - http: http://placeholder
+aleotestnet:
+  domainId: 1617853565
+  isTestnet: true
+  name: aleotestnet
+  rpcUrls:
+  - http: http://placeholder
+celosepolia:
+  domainId: 11142220
+  isTestnet: true
+  name: celosepolia
+  rpcUrls:
+  - http: http://placeholder
+radixtestnet:
+  domainId: 1280787160
+  isTestnet: true
+  name: radixtestnet
+  rpcUrls:
+  - http: http://placeholder
+tronshasta:
+  domainId: 346621343
+  isTestnet: true
+  name: tronshasta
+  rpcUrls:
+  - http: http://placeholder
+somniatestnet:
+  domainId: 50312
+  isTestnet: true
+  name: somniatestnet
+  rpcUrls:
+  - http: http://placeholder
+cotitestnet:
+  domainId: 7082400
+  isTestnet: true
+  name: cotitestnet
+  rpcUrls:
+  - http: http://placeholder
+kyvetestnet:
+  domainId: 1262571342
+  isTestnet: true
+  name: kyvetestnet
+  rpcUrls:
+  - http: http://placeholder
+modetestnet:
+  domainId: 919
+  isTestnet: true
+  name: modetestnet
+  rpcUrls:
+  - http: http://placeholder
+celestiatestnet:
+  domainId: 1297040200
+  isTestnet: true
+  name: celestiatestnet
+  rpcUrls:
+  - http: http://placeholder
+hyperliquidevmtestnet:
+  domainId: 998
+  isTestnet: true
+  name: hyperliquidevmtestnet
+  rpcUrls:
+  - http: http://placeholder
+paradexsepolia:
+  domainId: 12263410
+  isTestnet: true
+  name: paradexsepolia
+  rpcUrls:
+  - http: http://placeholder
+starknetsepolia:
+  domainId: 23448591
+  isTestnet: true
+  name: starknetsepolia
+  rpcUrls:
+  - http: http://placeholder
+seismictestnet:
+  domainId: 5124
+  isTestnet: true
+  name: seismictestnet
+  rpcUrls:
+  - http: http://placeholder
+sepolia:
+  domainId: 11155111
+  isTestnet: true
+  name: sepolia
+  rpcUrls:
+  - http: http://placeholder

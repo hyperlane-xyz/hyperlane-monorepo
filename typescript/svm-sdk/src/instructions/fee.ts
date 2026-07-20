@@ -5,10 +5,15 @@ import type {
   ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
-import { getAddressCodec } from '@solana/kit';
+import {
+  address as parseAddress,
+  fetchEncodedAccount,
+  getAddressCodec,
+} from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { fetchMintTokenProgram } from '../accounts/mint.js';
 import { concatBytes, i64le, option, u8, u32le } from '../codecs/binary.js';
 import {
   encodeBTreeSetH160,
@@ -28,6 +33,7 @@ import {
 } from '../codecs/fee.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
+  deriveAssociatedTokenAddress,
   deriveCrossCollateralRoutePda,
   deriveFeeAccountPda,
   deriveRouteDomainPda,
@@ -35,6 +41,8 @@ import {
 } from '../pda.js';
 import { simulateInstructionAccountMetas } from '../simulation.js';
 import type { SvmRpc } from '../types.js';
+
+import { getCreateAssociatedTokenIdempotentInstruction } from './spl-token.js';
 import {
   buildInstruction,
   type InstructionAccountMeta,
@@ -573,4 +581,88 @@ export async function simulateSubmitQuoteAccountMetas(args: {
   return metas.map((m, i) =>
     i === 1 ? writableSignerAddress(args.payerSubstitution) : m,
   );
+}
+
+export interface BuildBeneficiaryAtaIxArgs {
+  rpc: SvmRpc;
+  payer: Address;
+  beneficiary: Address;
+  /**
+   * Address of the asset the fee program receives. When undefined or empty
+   * (native fees, or a fee program not paired with a token-bearing warp) no
+   * setup is needed and the helper returns null.
+   */
+  feeToken: string | undefined;
+}
+
+/**
+ * Returns an idempotent create-Associated-Token-Account instruction for
+ * `(beneficiary, feeToken)` so the next fee-bearing transfer can credit the
+ * beneficiary's ATA. Returns null when `feeToken` is undefined/empty (native
+ * flows / no setup needed).
+ *
+ * Not a pure instruction builder — performs one RPC call to detect whether
+ * the mint is classic SPL or Token-2022. We deliberately do not pre-check
+ * ATA existence here: the SPL associated-token program's `CreateIdempotent`
+ * is itself a no-op when the ATA already exists, so an existence check would
+ * just add an RPC round-trip per call. Callers that want to omit a tx when
+ * nothing else changes are responsible for that decision at the writer level.
+ */
+export async function buildBeneficiaryAtaIx(
+  args: BuildBeneficiaryAtaIxArgs,
+): Promise<Instruction | null> {
+  if (!args.feeToken) {
+    return null;
+  }
+
+  const mint = parseAddress(args.feeToken);
+  const tokenProgram = await fetchMintTokenProgram(args.rpc, mint);
+  const ata = await deriveAssociatedTokenAddress({
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
+
+  return getCreateAssociatedTokenIdempotentInstruction({
+    payer: args.payer,
+    ata: ata.address,
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
+}
+
+export interface BeneficiaryAtaExistsArgs {
+  rpc: SvmRpc;
+  beneficiary: Address;
+  /** See {@link BuildBeneficiaryAtaIxArgs.feeToken}. */
+  feeToken: string | undefined;
+}
+
+/**
+ * Returns whether the `(beneficiary, feeToken)` Associated Token Account
+ * already exists on-chain. Derives the ATA the same way
+ * {@link buildBeneficiaryAtaIx} does. Returns false when `feeToken` is
+ * undefined/empty (native flows — nothing to create).
+ *
+ * Writers use this to skip emitting a standalone idempotent create-ATA tx when
+ * nothing else changed, so a no-op update converges to zero transactions.
+ */
+export async function beneficiaryAtaExists(
+  args: BeneficiaryAtaExistsArgs,
+): Promise<boolean> {
+  if (!args.feeToken) {
+    return false;
+  }
+
+  const mint = parseAddress(args.feeToken);
+  const tokenProgram = await fetchMintTokenProgram(args.rpc, mint);
+  const ata = await deriveAssociatedTokenAddress({
+    wallet: args.beneficiary,
+    mint,
+    tokenProgram,
+  });
+
+  const account = await fetchEncodedAccount(args.rpc, ata.address);
+  return account.exists;
 }
