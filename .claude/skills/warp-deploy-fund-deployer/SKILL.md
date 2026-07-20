@@ -303,7 +303,7 @@ If any chain needs funding, proceed to Step 8.
 
 For every chain with insufficient gas or collateral, generate the exact funding commands using the deployer funding script.
 
-**The script must be run from the `typescript/infra` directory:**
+**The script must be run from the `typescript/infra` directory**, and every invocation MUST be prefixed with `CI=false` (scoped to the single command — do NOT `export CI=false` globally). Without this, `getRegistryForEnvironment` on Haggis workers and other CI-flagged environments silently loads public rate-limited RPCs (e.g. Tron's trongrid.io at 3 rps → 429 during broadcasts) instead of the private GCP-stored keyed endpoints. See the CI-mode section in `[[reference-haggis-sandbox]]` for the full explanation.
 
 ```bash
 cd typescript/infra
@@ -312,7 +312,7 @@ cd typescript/infra
 ### Gas funding (native token — no `-t` or `-s` flag)
 
 ```bash
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient <DEPLOYER_ADDRESS> \
   --amount <AMOUNT> \
   -e mainnet3 \
@@ -322,7 +322,7 @@ pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
 ### Collateral token funding by symbol (preferred for known tokens like USDC)
 
 ```bash
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient <DEPLOYER_ADDRESS> \
   --amount <AMOUNT> \
   -e mainnet3 \
@@ -333,7 +333,7 @@ pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
 ### Collateral token funding by contract address (for unknown/custom tokens)
 
 ```bash
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient <DEPLOYER_ADDRESS> \
   --amount <AMOUNT> \
   -e mainnet3 \
@@ -344,7 +344,7 @@ pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
 **For tokens not on CoinGecko** (new launches, testnet tokens, internal tokens): the agent should first exhaust the alternative price venues per Step 4 / Step 6 (CoinMarketCap → Binance → Uniswap on-chain quote). Only when **all** of those fail should the agent ask the user for a manual `--price <usd-per-unit>` override. Example, passing a manual price of $0.50 as a last resort:
 
 ```bash
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient <DEPLOYER_ADDRESS> \
   --amount <AMOUNT> \
   -e mainnet3 \
@@ -369,37 +369,37 @@ Example for the USDC/Igra route with deployer `0x93842986B424Fda7C9A90A7D2f88602
 cd typescript/infra
 
 # Gas — arbitrum (needs 10 USD / ETH price)
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 0.0053 -e mainnet3 -c arbitrum
 
 # Gas — optimism
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 0.0053 -e mainnet3 -c optimism
 
 # Gas — ethereum (top up to reach 10 USD)
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 0.0031 -e mainnet3 -c ethereum
 
 # Gas — avalanche
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1.24 -e mainnet3 -c avalanche
 
 # Gas — polygon
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 118 -e mainnet3 -c polygon
 
 # USDC collateral — 1 USDC per collateral chain
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c ethereum -s USDC
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c arbitrum -s USDC
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c base -s USDC
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c optimism -s USDC
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c avalanche -s USDC
-pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
+CI=false pnpm tsx scripts/funding/fund-wallet-from-deployer-key.ts \
   --recipient 0x93842986B424Fda7C9A90A7D2f88602C1c88d7dC --amount 1 -e mainnet3 -c polygon -s USDC
 ```
 
