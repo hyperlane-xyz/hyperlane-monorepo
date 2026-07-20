@@ -199,10 +199,23 @@ Compose the deploy.yaml using the extracted details and mailbox addresses.
 - Per-chain router config (token type + ISM + hook + fee + proxyAdmin + remoteRouters + destinationGas): `typescript/sdk/src/token/types.ts` — `HypTokenRouterConfigSchema` is the per-chain entry; `HypTokenConfig` is the token-type discriminated union (collateral, native, synthetic, xerc20, opL1/L2, cctp, everclear, depositAddress, crossCollateral, unknown).
 - ISMs: `typescript/sdk/src/ism/types.ts` — `IsmConfigSchema` union, plus per-type schemas (`PausableIsmConfigSchema`, `RateLimitedIsmConfigSchema`, `AggregationIsmConfigSchema`, `RoutingIsmConfigSchema`, etc.). Threshold semantics: `staticAggregationIsm` with `threshold = modules.length` is AND across all modules; `threshold: 1` is OR.
 - Hooks: `typescript/sdk/src/hook/types.ts` — `HookConfigSchema` union. Note `defaultHook` is the sentinel that means "use mailbox default"; `fallbackRoutingHook` is the standard pattern for "default hook on most chains, custom hook on a specific chain".
-- Fees: `typescript/sdk/src/fee/types.ts` — `TokenFeeConfigSchema` discriminated union (`LinearFee`, `OffchainQuotedLinearFee`, `RoutingFee`, `CrossCollateralRoutingFee`, etc.). `RoutingFee` is the outer wrapper that maps destination chain → inner `LinearFee`; the `bps` field on `LinearFee` is immutable at the contract level so a bps edit redeploys the contract.
+- Fees: `typescript/sdk/src/fee/types.ts` — `TokenFeeConfigSchema` discriminated union (`LinearFee`, `OffchainQuotedLinearFee`, `RoutingFee`, `CrossCollateralRoutingFee`, etc.). The `bps` field on `LinearFee` is immutable at the contract level so a bps edit redeploys the contract.
 - Shared mixins: `typescript/sdk/src/types.ts` — `OwnableSchema` (`owner` + optional `ownerOverrides`) and `PausableSchema` (Ownable + `paused: boolean`). Many ISM / hook configs extend these, so `owner` is required on more types than the schema name alone suggests.
 
-Reference existing production deploy.yamls in the registry (`deployments/warp_routes/*/*-deploy.yaml`) — grep for the token type, ISM composition, or hook pattern you want, then copy the canonical shape.
+**Token-type ⇔ fee-wrapper coupling (mandatory pairing).** The outer fee wrapper on a chain's `tokenFee` block is constrained by the chain's token `type`:
+
+| Chain `type`                         | Outer `tokenFee.type`         | Inner (per-destination) fee shape                                                                                           |
+| ------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `synthetic` / `syntheticRebase`      | `RoutingFee`                  | `feeContracts: Record<destChain, LinearFee \| OffchainQuotedLinearFee \| …>` — single-level nesting                         |
+| `collateral` / `collateralVault` / … | `RoutingFee`                  | Same as synthetic                                                                                                           |
+| `crossCollateral`                    | `CrossCollateralRoutingFee`   | `feeContracts: Record<destChain, Record<routerKey-bytes32, LinearFee \| OffchainQuotedLinearFee \| …>>` — two-level nesting |
+| `native` / `nativeScaled`            | `RoutingFee` (if fees needed) | Same as synthetic                                                                                                           |
+
+Cross-collateral routers MUST be paired with `CrossCollateralRoutingFee` — the inner `routerKey` layer maps the on-chain router (per `crossCollateralRouters` in the same chain block) to its fee contract. Attempting to use `RoutingFee` on a `crossCollateral` chain (or `CrossCollateralRoutingFee` on a plain collateral / synthetic chain) fails Zod validation at parse time.
+
+**SVM-specific fields on fee configs**: on Sealevel chains, fee contracts can carry `beneficiary: <base58>` (the account that accrues collected fees, distinct from `owner` which controls limits). `OffchainQuotedLinearFee` also takes `quoteSigners: [EVM hex address, …]` — EVM addresses regardless of the fee contract's own protocol. Both fields visible in `USDCFEE/sol-deploy.yaml` and `USDTFEE/sol-deploy.yaml` on internal test branches; grep the registry for `OffchainQuotedLinearFee` for the current live shape.
+
+Reference existing production deploy.yamls in the registry (`deployments/warp_routes/*/*-deploy.yaml`) — grep for the token type + protocol combination you want (e.g. a `crossCollateral` chain with `type: LinearFee` inside `RoutingFee` on a `synthetic` chain in the same route), then copy the canonical shape. Different protocols may need different fields (e.g. `foreignDeployment` on Sealevel synthetics, `gas: 300000` on Sealevel entries, `contractVersion` on newer Sealevel deploys); the schema is protocol-aware.
 
 **Multi-collateral format** (multiple collateral chains + one synthetic): same as standard but repeated for each collateral chain, each with its own `token` address and `owner`:
 
