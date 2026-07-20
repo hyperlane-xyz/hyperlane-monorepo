@@ -43,6 +43,13 @@ export const ASSOCIATED_TOKEN_PROGRAM_ADDRESS =
 export const METAPLEX_METADATA_PROGRAM_ADDRESS =
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;
 
+// Circle's CCTP V2 programs. Matches
+// rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/circle.rs.
+export const CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS =
+  'CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe' as Address;
+export const CCTP_MESSAGE_TRANSMITTER_PROGRAM_ADDRESS =
+  'CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC' as Address;
+
 // Hand-rolled to avoid adding @solana-program/compute-budget as a dependency.
 export const COMPUTE_BUDGET_PROGRAM_ID = castAddress(
   'ComputeBudget111111111111111111111111111111',

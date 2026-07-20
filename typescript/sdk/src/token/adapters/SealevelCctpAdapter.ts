@@ -1,4 +1,7 @@
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 import {
   AccountMeta,
   Keypair,
@@ -93,7 +96,7 @@ export class SealevelHypCctpAdapter extends SealevelHypTokenAdapter {
 
   // Should match the account list `transfer_remote_with_memo` consumes in
   // rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/processor.rs
-  // (indices 0-18) — this program parses these itself to perform the real
+  // (indices 0-21) — this program parses these itself to perform the real
   // Circle burn CPI, before delegating the remaining accounts to the generic
   // library's transfer_remote dispatch (built by `super` below).
   override async getTransferInstructionKeyList(
@@ -114,6 +117,20 @@ export class SealevelHypCctpAdapter extends SealevelHypTokenAdapter {
     ];
   }
 
+  /**
+   * This program's `ata_payer` PDA — signs (via `invoke_signed`) both the
+   * escrow-ATA creation and Circle's `owner` role for the burn, so Circle
+   * records this PDA (not the sender) as the burn's `messageSender`. Matches
+   * `TokenBridgeCctpBase.cctpAuthorityOverrides` on the EVM side, which is
+   * configured with this exact PDA per Sealevel origin domain.
+   */
+  private deriveAtaPayer(): PublicKey {
+    return this.derivePda(
+      ['hyperlane_token_cctp', '-', 'ata_payer'],
+      this.warpProgramPubKey,
+    );
+  }
+
   private async buildCctpBurnAccountMetas(
     sender: PublicKey,
     destination: Domain,
@@ -121,14 +138,16 @@ export class SealevelHypCctpAdapter extends SealevelHypTokenAdapter {
   ): Promise<AccountMeta[]> {
     const remoteConfig = await this.getRemoteConfig(destination);
     const tokenProgramId = await this.getTokenProgramId();
-    const burnTokenAccount = await this.deriveAssociatedTokenAccount(sender);
+    const ownerTokenAccount = await this.deriveAssociatedTokenAccount(sender);
+    const ataPayer = this.deriveAtaPayer();
+    const ataPayerAta = await this.deriveAssociatedTokenAccount(ataPayer);
 
     const senderAuthority = this.derivePda(
       ['sender_authority'],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
     const denylistAccount = this.derivePda(
-      ['denylist_account', sender.toBuffer()],
+      ['denylist_account', ataPayer.toBuffer()],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
     const messageTransmitter = this.derivePda(
@@ -172,49 +191,61 @@ export class SealevelHypCctpAdapter extends SealevelHypTokenAdapter {
         isSigner: false,
         isWritable: false,
       },
-      // 2. [signer] The token owner (burns from their own USDC account).
+      // 2. [signer] The sender wallet — authorizes the escrow transfer out
+      //    of their own USDC account. No longer passed to Circle as `owner`.
       { pubkey: sender, isSigner: true, isWritable: false },
-      // 3. [signer, writable] The event-rent payer for Circle's CPI.
+      // 3. [writable] The sender's USDC token account (escrow transfer source).
+      { pubkey: ownerTokenAccount, isSigner: false, isWritable: true },
+      // 4. [signer, writable] The event-rent payer for Circle's CPI.
       { pubkey: sender, isSigner: true, isWritable: true },
-      // 4. [writable] The owner's USDC token account (burned from).
-      { pubkey: burnTokenAccount, isSigner: false, isWritable: true },
-      // 5. [] TokenMessengerMinterV2's sender_authority PDA.
+      // 5. [writable] This program's `ata_payer` PDA.
+      { pubkey: ataPayer, isSigner: false, isWritable: true },
+      // 6. [writable] ata_payer's own associated token account for the USDC
+      //    mint (escrow account — burned from).
+      { pubkey: ataPayerAta, isSigner: false, isWritable: true },
+      // 7. [] TokenMessengerMinterV2's sender_authority PDA.
       { pubkey: senderAuthority, isSigner: false, isWritable: false },
-      // 6. [] The owner's denylist_account PDA.
+      // 8. [] ata_payer's denylist_account PDA.
       { pubkey: denylistAccount, isSigner: false, isWritable: false },
-      // 7. [writable] Circle's message_transmitter global config PDA.
+      // 9. [writable] Circle's message_transmitter global config PDA.
       { pubkey: messageTransmitter, isSigner: false, isWritable: true },
-      // 8. [] Circle's token_messenger singleton config.
+      // 10. [] Circle's token_messenger singleton config.
       { pubkey: tokenMessenger, isSigner: false, isWritable: false },
-      // 9. [] The remote_token_messenger PDA for the destination Circle domain.
+      // 11. [] The remote_token_messenger PDA for the destination Circle domain.
       { pubkey: remoteTokenMessenger, isSigner: false, isWritable: false },
-      // 10. [] Circle's token_minter singleton config.
+      // 12. [] Circle's token_minter singleton config.
       { pubkey: tokenMinter, isSigner: false, isWritable: false },
-      // 11. [writable] The local_token PDA for the USDC mint.
+      // 13. [writable] The local_token PDA for the USDC mint.
       { pubkey: localToken, isSigner: false, isWritable: true },
-      // 12. [writable] The USDC mint.
+      // 14. [writable] The USDC mint.
       { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
-      // 13. [signer, writable] A fresh, uninitialized account for Circle's
+      // 15. [signer, writable] A fresh, uninitialized account for Circle's
       //     message_sent_event_data.
       { pubkey: eventDataAccount, isSigner: true, isWritable: true },
-      // 14. [] MessageTransmitterV2's own program account.
+      // 16. [] MessageTransmitterV2's own program account.
       {
         pubkey: MESSAGE_TRANSMITTER_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },
-      // 15. [] TokenMessengerMinterV2's own program account.
+      // 17. [] TokenMessengerMinterV2's own program account.
       {
         pubkey: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },
-      // 16. [executable] The SPL token program.
+      // 18. [executable] The SPL token program.
       { pubkey: tokenProgramId, isSigner: false, isWritable: false },
-      // 17. [executable] The system program.
+      // 19. [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // 18. [] TokenMessengerMinterV2's event_authority PDA.
+      // 20. [] TokenMessengerMinterV2's event_authority PDA.
       { pubkey: eventAuthority, isSigner: false, isWritable: false },
+      // 21. [executable] The SPL associated-token-account program.
+      {
+        pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
     ];
   }
 

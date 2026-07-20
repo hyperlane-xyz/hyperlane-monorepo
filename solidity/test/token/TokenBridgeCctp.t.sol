@@ -264,6 +264,53 @@ contract TokenBridgeCctpV1Test is Test {
         tbOrigin.addDomain(destination, cctpDestination);
     }
 
+    function test_setCctpAuthorityOverride_revertsWhen_callerIsNotTheOwner()
+        public
+    {
+        vm.prank(evil);
+        _expectCallerIsNotTheOwnerRevert();
+        tbOrigin.setCctpAuthorityOverride(destination, bytes32(uint256(1)));
+    }
+
+    function test_setCctpAuthorityOverride_revertsWhen_zeroValue() public {
+        vm.expectRevert(
+            TokenBridgeCctpBase.InvalidCctpAuthorityOverride.selector
+        );
+        tbOrigin.setCctpAuthorityOverride(destination, bytes32(0));
+    }
+
+    function test_cctpAuthorityOverride_defaultsToUnset() public {
+        assertEq(tbOrigin.cctpAuthorityOverrides(destination), bytes32(0));
+    }
+
+    function test_setCctpAuthorityOverride() public {
+        bytes32 authority = bytes32(uint256(0xbeef));
+
+        vm.expectEmit(true, true, true, true, address(tbOrigin));
+        emit TokenBridgeCctpBase.CctpAuthorityOverrideSet(
+            destination,
+            authority
+        );
+        tbOrigin.setCctpAuthorityOverride(destination, authority);
+
+        assertEq(tbOrigin.cctpAuthorityOverrides(destination), authority);
+    }
+
+    function test_setCctpAuthorityOverride_revertsWhen_alreadySet() public {
+        tbOrigin.setCctpAuthorityOverride(
+            destination,
+            bytes32(uint256(0xbeef))
+        );
+
+        vm.expectRevert(
+            TokenBridgeCctpBase.CctpAuthorityOverrideAlreadySet.selector
+        );
+        tbOrigin.setCctpAuthorityOverride(
+            destination,
+            bytes32(uint256(0xdead))
+        );
+    }
+
     function test_quoteTransferRemote_getCorrectQuote() public virtual {
         Quote[] memory quotes = tbOrigin.quoteTransferRemote(
             destination,
@@ -1486,6 +1533,45 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
     }
 
+    function test_transferRemoteCctp_usesCctpAuthorityOverride_asDestinationCaller()
+        public
+    {
+        bytes32 authority = bytes32(uint256(0xbeef));
+        tbOrigin.setCctpAuthorityOverride(destination, authority);
+
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        uint256 tokenQuote = quote[1].amount;
+        uint256 fastFee = quote[2].amount;
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote + fastFee);
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeCall(
+                ITokenMessengerV2.depositForBurn,
+                (
+                    tokenQuote + fastFee,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin),
+                    authority,
+                    fastFee,
+                    minFinalityThreshold
+                )
+            )
+        );
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+    }
+
     function test_transferRemoteCctp_withFeeRecipient() public override {
         LinearFee feeContract = new LinearFee(
             address(tokenOrigin),
@@ -1844,6 +1930,37 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 finalityThreshold,
                 abi.encode(messageId)
             );
+    }
+
+    function test_verify_succeedsWithCctpAuthorityOverride_asBurnSender()
+        public
+    {
+        address authorityAddress = address(0xCAFE);
+        tbDestination.setCctpAuthorityOverride(
+            origin,
+            authorityAddress.addressToBytes32()
+        );
+
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
+
+        // Circle recorded the override authority as the burn sender, not
+        // hyperlaneMessage.sender() (address(tbOrigin)) — this must now
+        // succeed instead of reverting with InvalidBurnSender.
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount,
+            authorityAddress
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        assertTrue(tbDestination.verify(metadata, message));
     }
 
     function test_verify_returnsTrue_afterDirectDelivery(

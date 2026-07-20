@@ -11,6 +11,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  CCTP_MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+  CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
   LOADER_V3_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
 } from './constants.js';
@@ -412,6 +414,75 @@ export async function deriveCctpAtaPayerPda(
     utf8.encode('-'),
     utf8.encode('ata_payer'),
   ]);
+}
+
+/**
+ * Circle `TokenMessengerMinterV2` PDAs used by the CCTP warp token's burn
+ * CPI (`processor.rs::transfer_remote_with_memo`) and mint CPI
+ * (`ism.rs::verify`). Fixed/global — not per-transfer — so these belong in
+ * the warp route's Address Lookup Table.
+ */
+export async function deriveCctpSenderAuthorityPda(): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('sender_authority'),
+  ]);
+}
+
+/** Circle `MessageTransmitterV2`'s own global config PDA. */
+export async function deriveCctpMessageTransmitterPda(): Promise<PdaWithBump> {
+  return derive(CCTP_MESSAGE_TRANSMITTER_PROGRAM_ADDRESS, [
+    utf8.encode('message_transmitter'),
+  ]);
+}
+
+/** Keyed by whatever `owner` is passed to Circle's `deposit_for_burn` — the
+ * CCTP warp program's own `ata_payer` PDA, not any individual end user. */
+export async function deriveCctpDenylistAccountPda(
+  owner: Address,
+): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('denylist_account'),
+    addressEncoder.encode(owner),
+  ]);
+}
+
+export async function deriveCctpTokenMessengerPda(): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('token_messenger'),
+  ]);
+}
+
+export async function deriveCctpTokenMinterPda(): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('token_minter'),
+  ]);
+}
+
+export async function deriveCctpLocalTokenPda(
+  mint: Address,
+): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('local_token'),
+    addressEncoder.encode(mint),
+  ]);
+}
+
+/** Seeded by Circle's *decimal string* domain representation (not raw u32
+ * bytes) — matches `SealevelHypCctpAdapter.buildCctpBurnAccountMetas` in
+ * `@hyperlane-xyz/sdk`. */
+export async function deriveCctpRemoteTokenMessengerPda(
+  circleDomain: number,
+): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('remote_token_messenger'),
+    utf8.encode(circleDomain.toString()),
+  ]);
+}
+
+export async function deriveCctpEventAuthorityPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [utf8.encode('__event_authority')]);
 }
 
 export async function deriveCrossCollateralStatePda(

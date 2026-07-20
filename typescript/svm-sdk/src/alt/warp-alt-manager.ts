@@ -19,6 +19,10 @@ import {
   type SvmDeployedAlt,
 } from './address-lookup-table.js';
 import {
+  SvmCctpTokenAltReader,
+  SvmCctpTokenAltWriter,
+} from './cctp-token-alt-writer.js';
+import {
   SvmCollateralTokenAltReader,
   SvmCollateralTokenAltWriter,
 } from './collateral-token-alt-writer.js';
@@ -96,11 +100,13 @@ export class SvmWarpAltManager {
           this.altWriter,
           existingCoreAlt,
         ),
-      collateralCctp: () => {
-        throw new Error(
-          'Address Lookup Table support is not yet implemented for collateralCctp warp tokens.',
-        );
-      },
+      collateralCctp: () =>
+        new SvmCctpTokenAltWriter(
+          this.chainName,
+          this.rpc,
+          this.altWriter,
+          existingCoreAlt,
+        ),
     };
 
     return writers[type]();
@@ -173,11 +179,8 @@ export class SvmWarpAltReader {
           this.rpc,
           this.altReader,
         ),
-      collateralCctp: () => {
-        throw new Error(
-          'Address Lookup Table support is not yet implemented for collateralCctp warp tokens.',
-        );
-      },
+      collateralCctp: () =>
+        new SvmCctpTokenAltReader(this.chainName, this.rpc, this.altReader),
     };
 
     return readers[type]();

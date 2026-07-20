@@ -15,17 +15,23 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
-    program::{invoke, set_return_data},
+    program::{invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
     sysvar::Sysvar,
 };
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use spl_token_2022::instruction::transfer_checked;
 
 use crate::{
-    accounts::{derive_remote_config_pda, CctpPlugin, RemoteConfig, RemoteConfigAccount},
+    accounts::{
+        derive_ata_payer_pda, derive_remote_config_pda, CctpPlugin, RemoteConfig,
+        RemoteConfigAccount,
+    },
     cctp_remote_config_pda_seeds,
     circle::{self, deposit_for_burn_instruction, DepositForBurnParams},
+    hyperlane_token_cctp_ata_payer_pda_seeds,
     instruction::{CctpInstruction, SetRemoteConfig},
     ism::process_ism_instruction,
 };
@@ -144,38 +150,56 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     HyperlaneSealevelToken::<CctpPlugin>::initialize(program_id, accounts, init)
 }
 
-/// Burns USDC via a direct CPI into Circle's real
-/// `TokenMessengerMinterV2.deposit_for_burn`, then delegates the remaining
-/// accounts to the generic library's dispatch machinery (which calls
-/// `CctpPlugin::transfer_in` — a no-op, since the burn already happened
-/// here).
+/// Escrows the sender's USDC into this program's `ata_payer` PDA's own
+/// associated token account, then burns from there via a direct CPI into
+/// Circle's real `TokenMessengerMinterV2.deposit_for_burn` — passing
+/// `ata_payer` itself as Circle's `owner`, so Circle records `ata_payer` as
+/// the burn's `messageSender`. This is what lets the EVM side recognize the
+/// burn: `TokenBridgeCctpBase.cctpAuthorityOverrides` is configured with
+/// this exact `ata_payer` PDA per Sealevel origin domain, since a Solana
+/// program can never make its own literal address appear as a CPI signer —
+/// only PDAs derived from it, which is why `owner` can't be this program's
+/// `program_id` and must instead be a PDA it signs for via `invoke_signed`.
+///
+/// Finally delegates the remaining accounts to the generic library's
+/// dispatch machinery (which calls `CctpPlugin::transfer_in` — a no-op,
+/// since the burn already happened here).
 ///
 /// Accounts, in order:
 /// 0.  `[]` This program's `HyperlaneToken<CctpPlugin>` config PDA (to
-///     confirm `burn_token_mint` matches the configured mint).
+///     confirm `burn_token_mint` matches the configured mint, and to read
+///     `decimals` for the escrow transfer).
 /// 1.  `[]` The remote-config PDA for `transfer.xfer.destination_domain`.
-/// 2.  `[signer]` The token owner (burns from their own USDC account).
-/// 3.  `[signer, writable]` The event-rent payer for Circle's CPI.
-/// 4.  `[writable]` The owner's USDC token account (burned from).
-/// 5.  `[]` `TokenMessengerMinterV2`'s `sender_authority` PDA (Circle signs
+/// 2.  `[signer]` The sender wallet — authorizes the escrow transfer out of
+///     their own USDC account. No longer passed to Circle as `owner`.
+/// 3.  `[writable]` The sender's USDC token account (escrow transfer source).
+/// 4.  `[signer, writable]` The event-rent payer for Circle's CPI.
+/// 5.  `[writable]` This program's `ata_payer` PDA (derived, checked) — funds
+///     idempotent escrow-ATA creation and signs, via `invoke_signed`, both
+///     the escrow ATA creation and Circle's `owner` role below.
+/// 6.  `[writable]` `ata_payer`'s own associated token account for the USDC
+///     mint (escrow account — burned from).
+/// 7.  `[]` `TokenMessengerMinterV2`'s `sender_authority` PDA (Circle signs
 ///     this internally via its own `invoke_signed` — we never sign it).
-/// 6.  `[]` The owner's `denylist_account` PDA.
-/// 7.  `[writable]` Circle's `message_transmitter` global config PDA.
-/// 8.  `[]` Circle's `token_messenger` singleton config (trusted as
+/// 8.  `[]` `ata_payer`'s `denylist_account` PDA.
+/// 9.  `[writable]` Circle's `message_transmitter` global config PDA.
+/// 10. `[]` Circle's `token_messenger` singleton config (trusted as
 ///     supplied — seeds not independently confirmed, same open item noted
 ///     in `ism.rs`).
-/// 9.  `[]` The `remote_token_messenger` PDA for the destination Circle
+/// 11. `[]` The `remote_token_messenger` PDA for the destination Circle
 ///     domain.
-/// 10. `[]` Circle's `token_minter` singleton config (same caveat as 8).
-/// 11. `[writable]` The `local_token` PDA for the USDC mint.
-/// 12. `[writable]` The USDC mint.
-/// 13. `[signer, writable]` A fresh, uninitialized account for Circle's
+/// 12. `[]` Circle's `token_minter` singleton config (same caveat as 10).
+/// 13. `[writable]` The `local_token` PDA for the USDC mint.
+/// 14. `[writable]` The USDC mint.
+/// 15. `[signer, writable]` A fresh, uninitialized account for Circle's
 ///     `message_sent_event_data`.
-/// 14. `[]` `MessageTransmitterV2`'s own program account.
-/// 15. `[]` `TokenMessengerMinterV2`'s own program account.
-/// 16. `[executable]` The SPL token program.
-/// 17. `[executable]` The system program.
-/// 18. `[]` `TokenMessengerMinterV2`'s `event_authority` PDA.
+/// 16. `[]` `MessageTransmitterV2`'s own program account.
+/// 17. `[]` `TokenMessengerMinterV2`'s own program account.
+/// 18. `[executable]` The SPL token program.
+/// 19. `[executable]` The system program.
+/// 20. `[]` `TokenMessengerMinterV2`'s `event_authority` PDA.
+/// 21. `[executable]` The SPL associated-token-account program (needed for
+///     idempotent escrow-ATA creation).
 ///
 /// Followed by whatever accounts `HyperlaneSealevelToken::transfer_remote_with_memo`
 /// itself requires (see `hyperlane-sealevel-token-collateral`'s account list
@@ -190,8 +214,10 @@ fn transfer_remote_with_memo(
     let token_config_info = next_account_info(accounts_iter)?;
     let remote_config_info = next_account_info(accounts_iter)?;
     let owner_info = next_account_info(accounts_iter)?;
+    let owner_token_account_info = next_account_info(accounts_iter)?;
     let event_rent_payer_info = next_account_info(accounts_iter)?;
-    let burn_token_account_info = next_account_info(accounts_iter)?;
+    let ata_payer_info = next_account_info(accounts_iter)?;
+    let ata_payer_ata_info = next_account_info(accounts_iter)?;
     let sender_authority_info = next_account_info(accounts_iter)?;
     let denylist_account_info = next_account_info(accounts_iter)?;
     let message_transmitter_info = next_account_info(accounts_iter)?;
@@ -206,6 +232,12 @@ fn transfer_remote_with_memo(
     let token_program_info = next_account_info(accounts_iter)?;
     let system_program_info = next_account_info(accounts_iter)?;
     let event_authority_info = next_account_info(accounts_iter)?;
+    // Not referenced directly (same reasoning as `ism.rs`'s recipient-ATA
+    // creation: invoke_signed() resolves the CPI target from the built
+    // Instruction's own program_id, cross-checked against the current
+    // instruction's full account set — this account just needs to be
+    // present somewhere in that set, which consuming it here satisfies).
+    let _ata_program_info = next_account_info(accounts_iter)?;
 
     let token_config =
         HyperlaneTokenAccount::<CctpPlugin>::fetch_data(&mut &token_config_info.data.borrow()[..])?
@@ -223,11 +255,19 @@ fn transfer_remote_with_memo(
         RemoteConfigAccount::fetch_data(&mut &remote_config_info.data.borrow()[..])?
             .ok_or(ProgramError::UninitializedAccount)?;
 
+    let (ata_payer_key, ata_payer_bump) = derive_ata_payer_pda(program_id);
+    if *ata_payer_info.key != ata_payer_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     let (expected_sender_authority, _) = circle::derive_token_messenger_sender_authority_pda();
     if *sender_authority_info.key != expected_sender_authority {
         return Err(ProgramError::InvalidArgument);
     }
-    let (expected_denylist_account, _) = circle::derive_denylist_account_pda(owner_info.key);
+    // Circle's denylist is keyed by whatever `owner` we pass it below —
+    // `ata_payer`, not the real sender — so this can only ever block the
+    // whole route, never an individual end user.
+    let (expected_denylist_account, _) = circle::derive_denylist_account_pda(&ata_payer_key);
     if *denylist_account_info.key != expected_denylist_account {
         return Err(ProgramError::InvalidArgument);
     }
@@ -262,6 +302,47 @@ fn transfer_remote_with_memo(
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
+    // Ensure `ata_payer`'s own escrow ATA exists before transferring into it.
+    invoke_signed(
+        &create_associated_token_account_idempotent(
+            ata_payer_info.key,
+            ata_payer_info.key,
+            burn_token_mint_info.key,
+            token_program_info.key,
+        ),
+        &[
+            ata_payer_info.clone(),
+            ata_payer_ata_info.clone(),
+            ata_payer_info.clone(),
+            burn_token_mint_info.clone(),
+            system_program_info.clone(),
+            token_program_info.clone(),
+        ],
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
+    account_utils::verify_rent_exempt(ata_payer_info, &Rent::get()?)?;
+
+    // Move the sender's USDC into escrow — authorized by the sender
+    // themselves, who is a normal signer of this transaction.
+    invoke(
+        &transfer_checked(
+            token_program_info.key,
+            owner_token_account_info.key,
+            burn_token_mint_info.key,
+            ata_payer_ata_info.key,
+            owner_info.key,
+            &[],
+            amount,
+            token_config.decimals,
+        )?,
+        &[
+            owner_token_account_info.clone(),
+            burn_token_mint_info.clone(),
+            ata_payer_ata_info.clone(),
+            owner_info.clone(),
+        ],
+    )?;
+
     let params = DepositForBurnParams {
         amount,
         destination_domain: remote_config.circle_domain,
@@ -275,9 +356,9 @@ fn transfer_remote_with_memo(
     };
 
     let ixn = deposit_for_burn_instruction(
-        *owner_info.key,
+        ata_payer_key,
         *event_rent_payer_info.key,
-        *burn_token_account_info.key,
+        *ata_payer_ata_info.key,
         *message_transmitter_info.key,
         *token_messenger_info.key,
         *token_minter_info.key,
@@ -288,13 +369,13 @@ fn transfer_remote_with_memo(
         params,
     )?;
 
-    invoke(
+    invoke_signed(
         &ixn,
         &[
-            owner_info.clone(),
+            ata_payer_info.clone(),
             event_rent_payer_info.clone(),
             sender_authority_info.clone(),
-            burn_token_account_info.clone(),
+            ata_payer_ata_info.clone(),
             denylist_account_info.clone(),
             message_transmitter_info.clone(),
             token_messenger_info.clone(),
@@ -309,6 +390,7 @@ fn transfer_remote_with_memo(
             system_program_info.clone(),
             event_authority_info.clone(),
         ],
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
     )?;
 
     let remaining: Vec<AccountInfo> = accounts_iter.cloned().collect();

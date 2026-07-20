@@ -6,6 +6,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import {
   Artifact,
   ArtifactReader,
+  ArtifactState,
   isArtifactDeployed,
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -69,6 +70,7 @@ export class WarpTokenReader implements ArtifactReader<
     // Expand nested ISM artifact if present
     const expandedIsmArtifact = await this.expandIsmArtifact(
       rawArtifact.config.interchainSecurityModule,
+      address,
     );
 
     // Expand nested Hook artifact if present
@@ -100,6 +102,7 @@ export class WarpTokenReader implements ArtifactReader<
    */
   private async expandIsmArtifact(
     ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
+    warpTokenAddress?: string,
   ): Promise<DeployedIsmArtifact | undefined> {
     if (!ismArtifact) {
       return undefined;
@@ -107,6 +110,15 @@ export class WarpTokenReader implements ArtifactReader<
 
     // If ISM is underived (just an address), read it recursively to get full config
     if (isArtifactUnderived(ismArtifact)) {
+      // Self-ISM: the warp token program verifies inline and is its own ISM
+      // (e.g. Sealevel CCTP). Not a standalone ISM type — nothing to detect.
+      if (ismArtifact.deployed.address === warpTokenAddress) {
+        return {
+          artifactState: ArtifactState.DEPLOYED,
+          config: { type: 'unknownIsm' },
+          deployed: ismArtifact.deployed,
+        };
+      }
       return this.ismReader.read(ismArtifact.deployed.address);
     }
 

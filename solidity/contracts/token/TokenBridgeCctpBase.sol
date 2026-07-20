@@ -67,6 +67,8 @@ abstract contract TokenBridgeCctpBase is
     error InvalidMintRecipient();
     error InvalidMessageId();
     error InvalidPostDispatchSender();
+    error CctpAuthorityOverrideAlreadySet();
+    error InvalidCctpAuthorityOverride();
 
     uint256 private constant _SCALE = 1;
 
@@ -91,6 +93,22 @@ abstract contract TokenBridgeCctpBase is
     /// @notice Maps messageId to whether or not the message has been verified
     /// by the CCTP message transmitter
     mapping(bytes32 messageId => bool verified) public isVerified;
+
+    /// @notice Per-domain override of the identity used for destinationCaller
+    /// (outbound) and expected burn messageSender (inbound), for chains that
+    /// can't use their router address as their own identity (e.g. Sealevel).
+    /// Set-once and permanent per domain.
+    mapping(uint32 hyperlaneDomain => bytes32) public cctpAuthorityOverrides;
+
+    /**
+     * @notice Emitted when a CCTP authority override is set for a domain.
+     * @param hyperlaneDomain The Hyperlane domain.
+     * @param authority The identity now used for that domain's destinationCaller/burn-sender checks.
+     */
+    event CctpAuthorityOverrideSet(
+        uint32 indexed hyperlaneDomain,
+        bytes32 authority
+    );
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
@@ -160,6 +178,10 @@ abstract contract TokenBridgeCctpBase is
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         bytes32 ism = _mustHaveRemoteRouter(_destination);
+        bytes32 cctpAuthority = cctpAuthorityOverrides[_destination];
+        bytes32 destinationCaller = cctpAuthority != bytes32(0)
+            ? cctpAuthority
+            : ism;
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint256 burnAmount = _amount + externalFee;
         _bridgeViaCircle(
@@ -167,7 +189,7 @@ abstract contract TokenBridgeCctpBase is
             _recipient,
             burnAmount,
             externalFee,
-            ism
+            destinationCaller
         );
 
         bytes memory _message = TokenMessage.format(_recipient, burnAmount);
@@ -218,6 +240,26 @@ abstract contract TokenBridgeCctpBase is
         }
     }
 
+    /**
+     * @notice Sets the CCTP authority override for a domain (see
+     * `cctpAuthorityOverrides` doc comment). Settable only once per domain —
+     * the value is permanent for a given deployed remote program, so
+     * there is deliberately no way to change or clear it afterwards.
+     * @param _hyperlaneDomain The Hyperlane domain.
+     * @param _authority The identity to use for this domain's
+     * destinationCaller/burn-sender checks.
+     */
+    function setCctpAuthorityOverride(
+        uint32 _hyperlaneDomain,
+        bytes32 _authority
+    ) external onlyOwner {
+        if (_authority == bytes32(0)) revert InvalidCctpAuthorityOverride();
+        if (cctpAuthorityOverrides[_hyperlaneDomain] != bytes32(0))
+            revert CctpAuthorityOverrideAlreadySet();
+        cctpAuthorityOverrides[_hyperlaneDomain] = _authority;
+        emit CctpAuthorityOverrideSet(_hyperlaneDomain, _authority);
+    }
+
     function hyperlaneDomainToCircleDomain(
         uint32 _hyperlaneDomain
     ) public view returns (uint32) {
@@ -247,7 +289,7 @@ abstract contract TokenBridgeCctpBase is
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal pure virtual;
+    ) internal view virtual;
 
     function _validateHookMessage(
         bytes calldata hyperlaneMessage,

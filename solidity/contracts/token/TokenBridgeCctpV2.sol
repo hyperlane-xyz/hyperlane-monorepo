@@ -147,13 +147,18 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal pure override {
+    ) internal view override {
         bytes29 burnMessage = cctpMessage._getMessageBody();
         burnMessage._validateBurnMessageFormat();
 
         bytes32 circleBurnSender = burnMessage._getMessageSender();
-        if (circleBurnSender != hyperlaneMessage.sender())
-            revert InvalidBurnSender();
+        bytes32 cctpAuthority = cctpAuthorityOverrides[
+            hyperlaneMessage.origin()
+        ];
+        bytes32 expectedBurnSender = cctpAuthority != bytes32(0)
+            ? cctpAuthority
+            : hyperlaneMessage.sender();
+        if (circleBurnSender != expectedBurnSender) revert InvalidBurnSender();
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
 

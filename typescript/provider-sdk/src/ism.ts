@@ -36,6 +36,7 @@ export interface IsmConfigs {
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
   compositeIsm: CompositeIsmConfig;
+  unknownIsm: UnknownIsmConfig;
 }
 
 export type IsmType = keyof IsmConfigs;
@@ -56,6 +57,18 @@ export interface MultisigIsmConfig {
 
 export interface TestIsmConfig {
   type: 'testIsm';
+}
+
+/**
+ * A program that verifies messages inline rather than being a standalone
+ * ISM (e.g. a token program that is its own ISM). Opaque by definition —
+ * only the address (tracked separately via `deployed`) identifies it.
+ * Index signature mirrors `@hyperlane-xyz/sdk`'s zod `.passthrough()`-derived
+ * `UnknownIsmConfig`, so this structurally satisfies that type too.
+ */
+export interface UnknownIsmConfig {
+  type: 'unknownIsm';
+  [key: string]: unknown;
 }
 
 export interface DomainRoutingIsmConfig {
@@ -141,6 +154,7 @@ export interface IsmArtifactConfigs {
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
   compositeIsm: CompositeIsmArtifactConfig;
+  unknownIsm: UnknownIsmConfig;
 }
 
 /**
@@ -226,6 +240,7 @@ export interface RawIsmArtifactConfigs {
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
   compositeIsm: CompositeIsmArtifactConfig;
+  unknownIsm: UnknownIsmConfig;
 }
 
 /**
@@ -598,6 +613,12 @@ export function ismArtifactToDerivedConfig(
         type: 'compositeIsm',
         owner: config.owner,
         root: compositeIsmNodeArtifactToConfig(config.root, chainLookup),
+        address,
+      };
+
+    case 'unknownIsm':
+      return {
+        ...config,
         address,
       };
 

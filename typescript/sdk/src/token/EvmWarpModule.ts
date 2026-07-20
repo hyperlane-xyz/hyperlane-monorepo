@@ -1,4 +1,5 @@
 // import { expect } from 'chai';
+import { PublicKey } from '@solana/web3.js';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish, constants, providers } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
@@ -40,8 +41,10 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
+import { BaseSealevelAdapter } from '../app/MultiProtocolApp.js';
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
@@ -300,6 +303,10 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createAddDomainsUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createCctpAuthorityOverrideUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
       // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
@@ -2122,6 +2129,83 @@ export class EvmWarpModule extends HyperlaneModule<
           [Number(domain), expected.circleDomain],
         ),
       }));
+  }
+
+  /**
+   * Auto-derives and sets the CCTP authority override for enrolled Sealevel
+   * remote routers (their `ata_payer` PDA) — no manual deploy.yaml field
+   * needed. Only emits a tx when unset, since the value is set-once on-chain.
+   */
+  async createCctpAuthorityOverrideUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (!isCctpTokenConfig(expectedConfig) || !expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    const expectedRemoteRouters = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteRouters,
+    );
+
+    const sealevelRemoteRouters = Object.entries(expectedRemoteRouters).filter(
+      ([domain]) =>
+        this.multiProvider.getProtocol(Number(domain)) ===
+        ProtocolType.Sealevel,
+    );
+
+    if (sealevelRemoteRouters.length === 0) {
+      return [];
+    }
+
+    const contract = TokenBridgeCctpV2__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    const txs: AnnotatedEV5Transaction[] = [];
+    for (const [domain, { address }] of sealevelRemoteRouters) {
+      // `cctpAuthorityOverrides` may not exist yet on the currently-deployed
+      // implementation — this same update batch can include the proxy
+      // upgrade that introduces it (queued ahead of this tx, so it runs
+      // first on-chain). A plain public-mapping getter can only revert
+      // because the selector doesn't exist yet, never due to state, so
+      // treating a revert here as "unset" is safe: post-upgrade the mapping
+      // starts empty regardless.
+      let currentOverride = ZERO_ADDRESS_HEX_32;
+      try {
+        currentOverride = await contract.cctpAuthorityOverrides(Number(domain));
+      } catch (error) {
+        this.logger.debug(
+          `cctpAuthorityOverrides call failed on ${this.args.chain}, ` +
+            `assuming pre-upgrade implementation and treating domain ${domain} as unset`,
+          { error },
+        );
+      }
+      if (currentOverride !== ZERO_ADDRESS_HEX_32) {
+        continue;
+      }
+
+      const programPubKey = new PublicKey(Buffer.from(strip0x(address), 'hex'));
+      const ataPayerPda = BaseSealevelAdapter.derivePda(
+        ['hyperlane_token_cctp', '-', 'ata_payer'],
+        programPubKey,
+      );
+      const authority = `0x${ataPayerPda.toBuffer().toString('hex')}`;
+
+      txs.push({
+        chainId: this.chainId,
+        annotation: `Setting CCTP authority override ${authority} (Sealevel ata_payer PDA) for Hyperlane domain ${domain} on ${this.args.chain}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setCctpAuthorityOverride',
+          [Number(domain), authority],
+        ),
+      });
+    }
+
+    return txs;
   }
 
   /**

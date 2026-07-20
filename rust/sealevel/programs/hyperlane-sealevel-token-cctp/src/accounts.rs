@@ -27,9 +27,13 @@ macro_rules! cctp_remote_config_pda_seeds {
     }};
 }
 
-/// Seeds for the ATA-payer PDA (funds idempotent recipient ATA creation
-/// during `Verify()`, before Circle's mint CPI). Same purpose and naming
-/// convention as `hyperlane-sealevel-token-collateral`'s ATA payer.
+/// Seeds for the ATA-payer PDA. Funds idempotent ATA creation on both
+/// sides (the recipient's ATA during `Verify()`'s mint CPI, and its own
+/// escrow ATA during `TransferRemote`'s burn CPI) and signs, via
+/// `invoke_signed`, every role Circle's CPIs require a real signer for —
+/// including acting as `owner` of the escrowed burn, so Circle records this
+/// PDA (not the end user) as the burn's `messageSender`. Same purpose and
+/// naming convention as `hyperlane-sealevel-token-collateral`'s ATA payer.
 #[macro_export]
 macro_rules! hyperlane_token_cctp_ata_payer_pda_seeds {
     () => {{

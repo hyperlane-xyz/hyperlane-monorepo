@@ -35,7 +35,9 @@ import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import {
   convertLegacySolanaTransaction,
+  convertVersionedSolanaTransaction,
   isLegacySolanaTransaction,
+  isVersionedSolanaTransaction,
 } from '../legacy-compat.js';
 import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
 import { createRpc } from '../rpc.js';
@@ -518,12 +520,21 @@ export class SvmSigner
   async sendAndConfirmTransaction(
     transaction: WithExtraSigners<SendableSvmTransaction>,
   ): Promise<SvmReceipt> {
-    const tx = isLegacySolanaTransaction(transaction)
-      ? await convertLegacySolanaTransaction(
-          transaction,
-          transaction.extraSigners,
-        )
-      : transaction;
+    let tx: SendableSvmTransaction;
+    if (isLegacySolanaTransaction(transaction)) {
+      tx = await convertLegacySolanaTransaction(
+        transaction,
+        transaction.extraSigners,
+      );
+    } else if (isVersionedSolanaTransaction(transaction)) {
+      tx = await convertVersionedSolanaTransaction(
+        transaction,
+        this.rpc,
+        transaction.extraSigners,
+      );
+    } else {
+      tx = transaction;
+    }
 
     const receipt = await this.send(tx);
     return this.fetchTransactionMeta(receipt);
