@@ -1,5 +1,26 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 28.1.4
+
+### Patch Changes
+
+- Updated dependencies [961a89d]
+  - @hyperlane-xyz/provider-sdk@7.2.0
+  - @hyperlane-xyz/starknet-core@38.0.0
+  - @hyperlane-xyz/utils@38.0.0
+
+## 28.1.3
+
+### Patch Changes
+
+- Updated dependencies [df34a68]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/starknet-core@37.0.0
+  - @hyperlane-xyz/utils@37.0.0
+
 ## 28.1.2
 
 ### Patch Changes

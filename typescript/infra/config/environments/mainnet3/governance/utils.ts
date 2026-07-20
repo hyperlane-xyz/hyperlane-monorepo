@@ -13,9 +13,19 @@ import { irregularSafes } from './safe/irregular.js';
 import { ousdtSafes } from './safe/ousdt.js';
 import { regularSafes } from './safe/regular.js';
 import { warpFeesSafes } from './safe/warpFees.js';
-import { awSigners, awThreshold } from './signers/aw.js';
+import {
+  awSigners,
+  awSvmSigners,
+  awSvmThreshold,
+  awThreshold,
+} from './signers/aw.js';
 import { irregularSigners, irregularThreshold } from './signers/irregular.js';
-import { regularSigners, regularThreshold } from './signers/regular.js';
+import {
+  regularSigners,
+  regularSvmSigners,
+  regularSvmThreshold,
+  regularThreshold,
+} from './signers/regular.js';
 import { warpFeesSigners, warpFeesThreshold } from './signers/warpFees.js';
 import { awTimelocks } from './timelock/aw.js';
 import { regularTimelocks } from './timelock/regular.js';
@@ -116,6 +126,33 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
     default:
       throw new Error(
         `Unsupported method for governance type: ${governanceType}`,
+      );
+  }
+}
+
+/**
+ * SVM signer sets for governance types whose Squads vaults are managed via
+ * this repo. Only Regular and AbacusWorks currently have SVM signer sets
+ * configured (see governance/signers/*.ts).
+ */
+export function getGovernanceSvmSigners(governanceType: GovernanceType): {
+  signers: Address[];
+  threshold: number;
+} {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return {
+        signers: regularSvmSigners,
+        threshold: regularSvmThreshold,
+      };
+    case GovernanceType.AbacusWorks:
+      return {
+        signers: awSvmSigners,
+        threshold: awSvmThreshold,
+      };
+    default:
+      throw new Error(
+        `Unsupported governance type for SVM signers: ${governanceType}`,
       );
   }
 }
