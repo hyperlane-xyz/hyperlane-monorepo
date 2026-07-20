@@ -1,11 +1,11 @@
 ---
-'@hyperlane-xyz/provider-sdk': minor
-'@hyperlane-xyz/sealevel-sdk': minor
-'@hyperlane-xyz/tron-sdk': minor
-'@hyperlane-xyz/cosmos-sdk': minor
-'@hyperlane-xyz/aleo-sdk': minor
-'@hyperlane-xyz/radix-sdk': minor
-'@hyperlane-xyz/starknet-sdk': minor
+'@hyperlane-xyz/provider-sdk': major
+'@hyperlane-xyz/sealevel-sdk': major
+'@hyperlane-xyz/tron-sdk': major
+'@hyperlane-xyz/cosmos-sdk': major
+'@hyperlane-xyz/aleo-sdk': major
+'@hyperlane-xyz/radix-sdk': major
+'@hyperlane-xyz/starknet-sdk': major
 '@hyperlane-xyz/cli': minor
 ---
 
