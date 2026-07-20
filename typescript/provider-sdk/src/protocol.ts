@@ -14,7 +14,7 @@ import {
   TransactionSubmitterConfig,
 } from './submitter.js';
 import { type FeeReadContext, IRawFeeArtifactManager } from './fee.js';
-import { IRawWarpArtifactManager } from './warp.js';
+import { IRawWarpArtifactManager, type WarpConfig } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
 export type SignerConfig = Pick<
@@ -121,6 +121,18 @@ export interface ProtocolProvider {
   ): IRawFeeArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
+
+  /**
+   * Returns the minimum native-token amount needed to deploy ONE chain's
+   * portion of a warp route given its config. Composes the base router deploy
+   * cost with additive deltas for detected features (fee program, cross-
+   * collateral extras, custom ISM / hook / IGP deploy).
+   *
+   * Prefer this over `getMinGas().WARP_DEPLOY_GAS` for warp-deploy preflights;
+   * the flat constant sizes only the base case and under-funds feature-heavy
+   * deploys.
+   */
+  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint;
 }
 
 /**
