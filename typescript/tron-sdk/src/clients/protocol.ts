@@ -16,8 +16,9 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  composeWarpDeployGas,
   type IRawWarpArtifactManager,
-  type WarpConfig,
+  type WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type FeeReadContext,
@@ -125,31 +126,13 @@ export class TronProtocolProvider implements ProtocolProvider {
     };
   }
 
-  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
-    let total = WARP_DEPLOY_BASE_SUN;
-
-    if (warpConfig.type === 'crossCollateral') {
-      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN;
-    }
-
-    // A string fee/ism/hook value references an existing on-chain contract
-    // by address — no deploy cost. An object value triggers a fresh deploy
-    // whose footprint is added to the preflight budget.
-    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
-      total += WARP_DEPLOY_FEE_PROGRAM_SUN;
-    }
-
-    if (
-      warpConfig.interchainSecurityModule !== undefined &&
-      typeof warpConfig.interchainSecurityModule === 'object'
-    ) {
-      total += WARP_DEPLOY_CUSTOM_ISM_SUN;
-    }
-
-    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
-      total += WARP_DEPLOY_CUSTOM_HOOK_SUN;
-    }
-
-    return total;
+  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_SUN,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_SUN,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_SUN,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_SUN,
+    });
   }
 }

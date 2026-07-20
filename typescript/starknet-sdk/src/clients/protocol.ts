@@ -18,8 +18,9 @@ import {
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import {
+  composeWarpDeployGas,
   IRawWarpArtifactManager,
-  WarpConfig,
+  WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -128,31 +129,13 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     };
   }
 
-  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
-    let total = WARP_DEPLOY_BASE_FRI;
-
-    if (warpConfig.type === 'crossCollateral') {
-      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI;
-    }
-
-    // A string fee/ism/hook value references an existing on-chain contract
-    // by address — no deploy cost. An object value triggers a fresh deploy
-    // whose footprint is added to the preflight budget.
-    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
-      total += WARP_DEPLOY_FEE_PROGRAM_FRI;
-    }
-
-    if (
-      warpConfig.interchainSecurityModule !== undefined &&
-      typeof warpConfig.interchainSecurityModule === 'object'
-    ) {
-      total += WARP_DEPLOY_CUSTOM_ISM_FRI;
-    }
-
-    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
-      total += WARP_DEPLOY_CUSTOM_HOOK_FRI;
-    }
-
-    return total;
+  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_FRI,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_FRI,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_FRI,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_FRI,
+    });
   }
 }

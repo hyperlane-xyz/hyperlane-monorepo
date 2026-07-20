@@ -16,8 +16,9 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  composeWarpDeployGas,
   type IRawWarpArtifactManager,
-  type WarpConfig,
+  type WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type FeeReadContext,
@@ -156,31 +157,13 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     };
   }
 
-  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
-    let total = WARP_DEPLOY_BASE_UGAS;
-
-    if (warpConfig.type === 'crossCollateral') {
-      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_UGAS;
-    }
-
-    // A string fee/ism/hook value references an existing on-chain contract
-    // by address — no deploy cost. An object value triggers a fresh deploy
-    // whose footprint is added to the preflight budget.
-    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
-      total += WARP_DEPLOY_FEE_PROGRAM_UGAS;
-    }
-
-    if (
-      warpConfig.interchainSecurityModule !== undefined &&
-      typeof warpConfig.interchainSecurityModule === 'object'
-    ) {
-      total += WARP_DEPLOY_CUSTOM_ISM_UGAS;
-    }
-
-    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
-      total += WARP_DEPLOY_CUSTOM_HOOK_UGAS;
-    }
-
-    return total;
+  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_UGAS,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_UGAS,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_UGAS,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_UGAS,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_UGAS,
+    });
   }
 }

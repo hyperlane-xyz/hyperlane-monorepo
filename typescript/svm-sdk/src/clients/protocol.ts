@@ -14,9 +14,10 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import type {
-  IRawWarpArtifactManager,
-  WarpConfig,
+import {
+  composeWarpDeployGas,
+  type IRawWarpArtifactManager,
+  type WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
@@ -45,14 +46,14 @@ import { SvmSigner } from './signer.js';
 // mainnet-beta; the base value matches the flat WARP_DEPLOY_GAS used before
 // this method existed (~2.6 SOL covers program account rent + token PDA rent
 // + ATA payer funding for a base router).
-const WARP_DEPLOY_BASE_LAMPORTS = 2_600_000_000n; // base router deploy
-const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS = 1_100_000_000n; // + crossCollateral router extras (~1.1 SOL)
-const WARP_DEPLOY_FEE_PROGRAM_LAMPORTS = 2_500_000_000n; // + fee program deploy (~2.5 SOL, separate program)
+export const WARP_DEPLOY_BASE_LAMPORTS = 2_600_000_000n; // base router deploy
+export const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS = 1_100_000_000n; // + crossCollateral router extras (~1.1 SOL)
+export const WARP_DEPLOY_FEE_PROGRAM_LAMPORTS = 2_500_000_000n; // + fee program deploy (~2.5 SOL, separate program)
 // TODO: fill from observed deploy — we don't have a measured breakdown for
 // custom ISM / hook deploys on Sealevel yet, so these currently contribute
 // nothing until real numbers land.
-const WARP_DEPLOY_CUSTOM_ISM_LAMPORTS = 0n; // + custom ISM (config.interchainSecurityModule object)
-const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (config.hook object)
+export const WARP_DEPLOY_CUSTOM_ISM_LAMPORTS = 0n; // + custom ISM (config.interchainSecurityModule object)
+export const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (config.hook object)
 
 export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -145,32 +146,14 @@ export class SvmProtocolProvider implements ProtocolProvider {
     };
   }
 
-  getMinGasForWarpDeploy(warpConfig: WarpConfig): bigint {
-    let total = WARP_DEPLOY_BASE_LAMPORTS;
-
-    if (warpConfig.type === 'crossCollateral') {
-      total += WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS;
-    }
-
-    // A string fee/ism/hook value references an existing on-chain contract
-    // by address — no deploy cost. An object value triggers a fresh deploy
-    // whose rent/storage footprint is added to the preflight budget.
-    if (warpConfig.fee !== undefined && typeof warpConfig.fee === 'object') {
-      total += WARP_DEPLOY_FEE_PROGRAM_LAMPORTS;
-    }
-
-    if (
-      warpConfig.interchainSecurityModule !== undefined &&
-      typeof warpConfig.interchainSecurityModule === 'object'
-    ) {
-      total += WARP_DEPLOY_CUSTOM_ISM_LAMPORTS;
-    }
-
-    if (warpConfig.hook !== undefined && typeof warpConfig.hook === 'object') {
-      total += WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS;
-    }
-
-    return total;
+  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_LAMPORTS,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_LAMPORTS,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_LAMPORTS,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS,
+    });
   }
 
   private getRpcUrls(chainMetadata: ChainMetadataForAltVM): string[] {
