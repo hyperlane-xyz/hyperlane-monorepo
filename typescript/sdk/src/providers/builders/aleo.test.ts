@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { createLazyAleoProvider } from './aleo.js';
+import { createLazyAleoProvider } from './aleo.browser.js';
 
 describe('createLazyAleoProvider', () => {
   it('loads and reuses the Aleo runtime on first async provider use', async () => {
