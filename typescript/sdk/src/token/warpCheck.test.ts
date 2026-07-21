@@ -11,6 +11,7 @@ import {
   test2,
   test3,
   testSealevelChain,
+  testStarknetChain,
 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -591,7 +592,9 @@ describe('buildAltVmWarpRouteDiff', () => {
     expect(diff).to.not.deep.equal({});
   });
 
-  it('does not flag a destinationGas that reads back 0 on-chain but has a non-zero expected default', () => {
+  it('flags a zero-vs-nonzero destinationGas drift on an IGP-capable altVM origin (not scoped as no-IGP)', () => {
+    // Sealevel consumes destination_gas, so an on-chain 0 against a non-zero
+    // expected is a real regression that must NOT be suppressed.
     const diff = buildAltVmWarpRouteDiff(
       {
         [testSealevelChain.name]: {
@@ -607,26 +610,51 @@ describe('buildAltVmWarpRouteDiff', () => {
       },
     );
 
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '0', expected: '64000' },
+      },
+    });
+  });
+
+  it('does not flag a zero on-chain destinationGas on a no-IGP origin', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '0' },
+        },
+      },
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      new Set([testStarknetChain.name]),
+    );
+
     expect(diff).to.deep.equal({});
   });
 
-  it('flags a destinationGas mismatch when the on-chain value is non-zero', () => {
+  it('flags a non-zero destinationGas mismatch even on a no-IGP origin', () => {
     const diff = buildAltVmWarpRouteDiff(
       {
-        [testSealevelChain.name]: {
+        [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '5000000' },
         },
       },
       {
-        [testSealevelChain.name]: {
+        [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '64000' },
         },
       },
+      new Set([testStarknetChain.name]),
     );
 
-    expect(diff[testSealevelChain.name]).to.deep.include({
+    expect(diff[testStarknetChain.name]).to.deep.include({
       destinationGas: {
         [test1.name]: { actual: '5000000', expected: '64000' },
       },
