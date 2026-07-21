@@ -469,6 +469,30 @@ async function getAltVmOnChainDerivedConfigs({
   );
 }
 
+// On altVM origins (notably Starknet/paradex) a per-destination gas that was never
+// set on-chain reads back as 0 from the contract's `destination_gas` entrypoint.
+// The expected side derives a non-zero EVM `gasOverhead` default for every remote
+// (see getGasConfig in configUtils.ts), so comparing the two would false-flag every
+// route that never set per-domain gas on-chain -- and these chains have no IGP that
+// consumes the value anyway. Mirror the ISM/hook zero-address normalization below:
+// treat a 0 on-chain gas as "unset" and drop that destination from both sides. A
+// genuinely-configured (non-zero) on-chain gas still diffs normally.
+export function normalizeAltVmDestinationGas(
+  actual: Record<string, string>,
+  expected: Record<string, string>,
+): { actual: Record<string, string>; expected: Record<string, string> } {
+  const normalizedActual: Record<string, string> = {};
+  const normalizedExpected: Record<string, string> = { ...expected };
+  for (const [chain, gas] of Object.entries(actual)) {
+    if (BigInt(gas) === 0n) {
+      delete normalizedExpected[chain];
+      continue;
+    }
+    normalizedActual[chain] = gas;
+  }
+  return { actual: normalizedActual, expected: normalizedExpected };
+}
+
 export function buildAltVmWarpRouteDiff(
   onChainConfigs: Record<string, AltVmCheckConfig>,
   expectedConfigs: Record<string, AltVmCheckConfig>,
@@ -495,6 +519,11 @@ export function buildAltVmWarpRouteDiff(
     // rarely set explicitly, so only compare when the deploy config opts in.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
+    const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
+      normalizeAltVmDestinationGas(
+        actual.destinationGas,
+        expected.destinationGas,
+      );
     const normalizedActual: AltVmCheckConfig = {
       ...actual,
       interchainSecurityModule: isNullish(expected.interchainSecurityModule)
@@ -505,10 +534,12 @@ export function buildAltVmWarpRouteDiff(
         ? undefined
         : actual.contractVersion,
       scale: undefined,
+      destinationGas: normalizedActualGas,
     };
     const normalizedExpected: AltVmCheckConfig = {
       ...expected,
       scale: undefined,
+      destinationGas: normalizedExpectedGas,
     };
 
     const { mergedObject, isInvalid } = diffObjMerge(

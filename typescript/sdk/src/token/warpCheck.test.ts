@@ -27,6 +27,7 @@ import {
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
+  normalizeAltVmDestinationGas,
   normalizeAltVmExpectedTokenType,
 } from './warpCheck.js';
 
@@ -588,6 +589,99 @@ describe('buildAltVmWarpRouteDiff', () => {
     );
 
     expect(diff).to.not.deep.equal({});
+  });
+
+  it('does not flag a destinationGas that reads back 0 on-chain but has a non-zero expected default', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '0' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a destinationGas mismatch when the on-chain value is non-zero', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '5000000', expected: '64000' },
+      },
+    });
+  });
+
+  it('does not flag a matching non-zero destinationGas', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+});
+
+describe('normalizeAltVmDestinationGas', () => {
+  it('drops destinations whose on-chain gas is 0 from both sides', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '0' },
+      { starknet: '64000' },
+    );
+
+    expect(actual).to.deep.equal({});
+    expect(expected).to.deep.equal({});
+  });
+
+  it('retains destinations with a non-zero on-chain gas', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '5000000' },
+      { starknet: '64000' },
+    );
+
+    expect(actual).to.deep.equal({ starknet: '5000000' });
+    expect(expected).to.deep.equal({ starknet: '64000' });
+  });
+
+  it('normalizes a mix of zero and non-zero on-chain gas independently', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '0', arbitrum: '5000000' },
+      { starknet: '64000', arbitrum: '5000000' },
+    );
+
+    expect(actual).to.deep.equal({ arbitrum: '5000000' });
+    expect(expected).to.deep.equal({ arbitrum: '5000000' });
   });
 });
 
