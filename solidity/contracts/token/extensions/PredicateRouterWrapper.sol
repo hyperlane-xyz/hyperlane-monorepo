@@ -70,9 +70,8 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper {
     // ============ Views ============
 
     function tokenType() public view returns (TokenType) {
-        address tokenAddress = address(token);
-        if (tokenAddress == address(0)) return TokenType.Native;
-        if (tokenAddress == address(warpRoute)) return TokenType.Synthetic;
+        if (token == address(0)) return TokenType.Native;
+        if (token == address(warpRoute)) return TokenType.Synthetic;
         return TokenType.Collateral;
     }
 
