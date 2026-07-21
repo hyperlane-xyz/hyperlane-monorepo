@@ -33,15 +33,13 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
-  ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { ExternalBridgeType } from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
-import { deriveInventorySignerConfigs } from './utils/inventorySigners.js';
-import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
+import { getInventorySignerKeysFromEnv } from './utils/inventorySigners.js';
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -61,24 +59,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Build per-protocol private key map from env vars.
-  // Naming: HYP_INVENTORY_KEY_<UPPERCASE_PROTOCOL> (e.g., HYP_INVENTORY_KEY_ETHEREUM).
-  // HYP_INVENTORY_KEY (no suffix) is kept as backward-compatible fallback for Ethereum only.
-  const inventoryPrivateKeys: Partial<Record<ProtocolType, string>> = {};
-  for (const protocol of Object.values(ProtocolType)) {
-    const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
-    const val = process.env[envKey];
-    if (val) {
-      inventoryPrivateKeys[protocol] = val;
-    }
-  }
-  // Backward compat: HYP_INVENTORY_KEY (no suffix) as Ethereum fallback
-  if (
-    !inventoryPrivateKeys[ProtocolType.Ethereum] &&
-    process.env.HYP_INVENTORY_KEY
-  ) {
-    inventoryPrivateKeys[ProtocolType.Ethereum] = process.env.HYP_INVENTORY_KEY;
-  }
+  const inventoryPrivateKeys = getInventorySignerKeysFromEnv(process.env);
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -148,63 +129,6 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
-    // Build consolidated inventory signers with keys embedded
-    const inventorySigners = deriveInventorySignerConfigs(
-      inventoryPrivateKeys,
-      rebalancerConfig.inventorySigners,
-      logger,
-    );
-
-    // Fail fast if config references protocol-specific inventory signer but key is missing
-    if (!monitorOnly) {
-      for (const protocol of Object.values(ProtocolType)) {
-        if (
-          rebalancerConfig.inventorySigners?.[protocol] &&
-          !inventoryPrivateKeys[protocol]
-        ) {
-          const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
-          const hint =
-            protocol === ProtocolType.Ethereum
-              ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
-              : envKey;
-          logger.error(
-            {
-              inventorySigner:
-                rebalancerConfig.inventorySigners[protocol]?.address,
-            },
-            `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
-          );
-          process.exit(1);
-        }
-      }
-    }
-
-    // Merge runtime keys into config — start from YAML config as base, overlay runtime keys per-protocol.
-    // This preserves YAML-only signer addresses (e.g., monitor-only configs) while adding runtime keys.
-    const mergedInventorySigners: Partial<
-      Record<ProtocolType, InventorySignerConfig>
-    > = { ...rebalancerConfig.inventorySigners };
-    for (const protocol of Object.values(ProtocolType)) {
-      const runtimeSigner = inventorySigners[protocol];
-      if (runtimeSigner) {
-        mergedInventorySigners[protocol] = {
-          ...mergedInventorySigners[protocol],
-          ...runtimeSigner,
-        };
-      }
-    }
-
-    const mergedRebalancerConfig =
-      Object.keys(mergedInventorySigners).length > 0
-        ? new RebalancerConfig(
-            rebalancerConfig.warpRouteId,
-            rebalancerConfig.strategyConfig,
-            rebalancerConfig.intentTTL,
-            mergedInventorySigners,
-            rebalancerConfig.externalBridges,
-          )
-        : rebalancerConfig;
-
     // MultiProtocolProvider will be derived from multiProvider in factory
     const multiProtocolProvider = undefined;
 
@@ -213,7 +137,7 @@ async function main(): Promise<void> {
       multiProvider,
       multiProtocolProvider,
       registry,
-      mergedRebalancerConfig,
+      rebalancerConfig,
       {
         mode: 'daemon',
         checkFrequency,
@@ -226,6 +150,7 @@ async function main(): Promise<void> {
         logger,
         version: VERSION,
       },
+      inventoryPrivateKeys,
     );
 
     // Start the service

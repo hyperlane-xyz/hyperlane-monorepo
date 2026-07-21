@@ -3,7 +3,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
 import {
-  DEFAULT_MANUAL_POLL_INTERVAL_MS,
   DEFAULT_MANUAL_TIMEOUT_MS,
   ExecutionType,
   ExternalBridgeType,
@@ -706,7 +705,6 @@ export const check: CommandModuleWithContext<
 const EXECUTION_TYPES = Object.values(ExecutionType);
 const EXTERNAL_BRIDGE_TYPES = Object.values(ExternalBridgeType);
 const PROTOCOL_TYPES = Object.values(ProtocolType);
-const CHECK_FREQUENCY_OPTIONS = ['--checkFrequency', '--check-frequency'];
 
 function isExecutionType(value: string): value is ExecutionType {
   return EXECUTION_TYPES.some((type) => type === value);
@@ -716,26 +714,18 @@ function isExternalBridgeType(value: string): value is ExternalBridgeType {
   return EXTERNAL_BRIDGE_TYPES.some((type) => type === value);
 }
 
-function isCheckFrequencySet(): boolean {
-  return process.argv.some((argument) =>
-    CHECK_FREQUENCY_OPTIONS.some(
-      (option) => argument === option || argument.startsWith(`${option}=`),
-    ),
-  );
-}
-
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  checkFrequency: number;
+  checkFrequency?: number;
   withMetrics: boolean;
   monitorOnly: boolean;
   manual?: boolean;
   origin?: string;
   destination?: string;
   amount?: string;
-  executionType: string;
+  executionType?: string;
   externalBridge?: string;
-  manualTimeout: number;
+  manualTimeout?: number;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -749,9 +739,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     checkFrequency: {
       type: 'number',
-      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
+      description: 'Daemon balance polling frequency in ms (default: 60000)',
       demandOption: false,
-      default: 60000,
     },
     withMetrics: {
       type: 'boolean',
@@ -793,13 +782,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: false,
       implies: 'manual',
     },
-    // No `implies: 'manual'` on defaulted options: yargs treats defaults as
-    // set, which would make every daemon-mode invocation fail the implication
     executionType: {
       type: 'string',
       choices: EXECUTION_TYPES,
-      default: ExecutionType.MovableCollateral,
       description: 'Execution type for manual rebalance',
+      implies: 'manual',
     },
     externalBridge: {
       type: 'string',
@@ -810,9 +797,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     manualTimeout: {
       type: 'number',
-      default: DEFAULT_MANUAL_TIMEOUT_MS / 60_000,
       description:
         'Max time in minutes to wait for a manual inventory rebalance to complete',
+      implies: 'manual',
     },
   },
   handler: async (args) => {
@@ -828,18 +815,19 @@ export const rebalancer: CommandModuleWithWriteContext<{
       amount,
       executionType: executionTypeArg,
       externalBridge: externalBridgeArg,
-      manualTimeout,
+      manualTimeout: manualTimeoutArg,
     } = args;
 
     logCommandHeader('Hyperlane Warp Route Rebalancer');
 
     try {
+      const executionType = executionTypeArg ?? ExecutionType.MovableCollateral;
       assert(
-        isExecutionType(executionTypeArg),
-        `Invalid execution type: ${executionTypeArg}`,
+        isExecutionType(executionType),
+        `Invalid execution type: ${executionType}`,
       );
       assert(
-        manual || executionTypeArg === ExecutionType.MovableCollateral,
+        manual || executionType === ExecutionType.MovableCollateral,
         '--executionType inventory requires --manual',
       );
       assert(
@@ -847,6 +835,24 @@ export const rebalancer: CommandModuleWithWriteContext<{
           isExternalBridgeType(externalBridgeArg),
         `Invalid external bridge: ${externalBridgeArg}`,
       );
+      assert(
+        externalBridgeArg === undefined ||
+          executionType === ExecutionType.Inventory,
+        '--externalBridge requires --executionType inventory',
+      );
+      assert(
+        manualTimeoutArg === undefined ||
+          executionType === ExecutionType.Inventory,
+        '--manualTimeout requires --executionType inventory',
+      );
+      const manualTimeoutMinutes =
+        manualTimeoutArg ?? DEFAULT_MANUAL_TIMEOUT_MS / 60_000;
+      if (executionType === ExecutionType.Inventory) {
+        assert(
+          Number.isFinite(manualTimeoutMinutes) && manualTimeoutMinutes > 0,
+          '--manualTimeout must be greater than 0',
+        );
+      }
 
       // Load rebalancer configuration
       const rebalancerConfig = RebalancerConfig.load(configPath);
@@ -878,7 +884,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         rebalancerConfig,
         {
           mode,
-          checkFrequency,
+          checkFrequency: manual ? undefined : (checkFrequency ?? 60_000),
           withMetrics,
           monitorOnly,
           coingeckoApiKey: process.env.COINGECKO_API_KEY,
@@ -899,19 +905,18 @@ export const rebalancer: CommandModuleWithWriteContext<{
           process.exit(1);
         }
 
-        await service.executeManual({
-          origin,
-          destination,
-          amount,
-          executionType: executionTypeArg,
-          externalBridge: externalBridgeArg,
-          timeoutMs: manualTimeout * 60_000,
-          pollIntervalMs: isCheckFrequencySet()
-            ? checkFrequency
-            : executionTypeArg === ExecutionType.Inventory
-              ? DEFAULT_MANUAL_POLL_INTERVAL_MS
-              : undefined,
-        });
+        if (executionType === ExecutionType.Inventory) {
+          await service.executeManual({
+            origin,
+            destination,
+            amount,
+            executionType,
+            externalBridge: externalBridgeArg,
+            timeoutMs: manualTimeoutMinutes * 60_000,
+          });
+        } else {
+          await service.executeManual({ origin, destination, amount });
+        }
 
         logGreen('✅ Manual rebalance completed successfully');
       } else {

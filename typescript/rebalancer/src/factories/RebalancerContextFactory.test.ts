@@ -21,12 +21,23 @@ import {
   ExternalBridgeType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
+import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import { TEST_ADDRESSES } from '../test/helpers.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 import { RebalancerContextFactory } from './RebalancerContextFactory.js';
 
 const testLogger = pino({ level: 'silent' });
+
+function createMockExternalBridge(): IExternalBridge {
+  return {
+    externalBridgeId: ExternalBridgeType.LiFi,
+    logger: testLogger,
+    quote: Sinon.stub(),
+    execute: Sinon.stub(),
+    getStatus: Sinon.stub(),
+  };
+}
 
 function createMockRegistry(): IRegistry {
   return {
@@ -777,17 +788,19 @@ describe('RebalancerContextFactory', () => {
     it('creates inventory components from runtime keys and additional chains', async () => {
       const factory = await createManualFactory();
 
-      const result = await factory.createRebalancers(
-        createMockActionTracker(),
-        undefined,
-        undefined,
-        { additionalInventoryChains: inventoryChains },
-      );
+      const result = await factory.createManualInventoryContext({
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        externalBridge: ExternalBridgeType.LiFi,
+        actionTracker: createMockActionTracker(),
+        externalBridgeRegistryOverride: {
+          [ExternalBridgeType.LiFi]: createMockExternalBridge(),
+        },
+      });
 
-      expect(result.rebalancers.some((r) => r.rebalancerType === 'inventory'))
-        .to.be.true;
-      expect(result.inventoryConfig?.chains).to.have.members(inventoryChains);
-      expect(result.inventoryConfig?.inventoryAddresses).to.deep.equal({
+      expect(result.inventoryRebalancer.rebalancerType).to.equal('inventory');
+      expect(result.inventoryConfig.chains).to.have.members(inventoryChains);
+      expect(result.inventoryConfig.inventoryAddresses).to.deep.equal({
         [ProtocolType.Ethereum]: new Wallet(inventoryPrivateKey).address,
       });
     });
@@ -796,12 +809,15 @@ describe('RebalancerContextFactory', () => {
       const factory = await createManualFactory({ includeKeys: false });
 
       const error = await getErrorMessage(() =>
-        factory.createRebalancers(
-          createMockActionTracker(),
-          undefined,
-          undefined,
-          { additionalInventoryChains: inventoryChains },
-        ),
+        factory.createManualInventoryContext({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          externalBridge: ExternalBridgeType.LiFi,
+          actionTracker: createMockActionTracker(),
+          externalBridgeRegistryOverride: {
+            [ExternalBridgeType.LiFi]: createMockExternalBridge(),
+          },
+        }),
       );
 
       expect(error).to.contain('HYP_INVENTORY_KEY_<PROTOCOL>');
@@ -812,15 +828,12 @@ describe('RebalancerContextFactory', () => {
         swapsXyzApiKey: 'test-api-key',
       });
 
-      const result = await factory.createRebalancers(
-        createMockActionTracker(),
-        undefined,
-        undefined,
-        {
-          additionalInventoryChains: inventoryChains,
-          requiredExternalBridges: [ExternalBridgeType.SwapsXyz],
-        },
-      );
+      const result = await factory.createManualInventoryContext({
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        externalBridge: ExternalBridgeType.SwapsXyz,
+        actionTracker: createMockActionTracker(),
+      });
 
       expect(result.externalBridgeRegistry[ExternalBridgeType.SwapsXyz]).to
         .exist;
@@ -830,15 +843,12 @@ describe('RebalancerContextFactory', () => {
       const factory = await createManualFactory();
 
       const error = await getErrorMessage(() =>
-        factory.createRebalancers(
-          createMockActionTracker(),
-          undefined,
-          undefined,
-          {
-            additionalInventoryChains: inventoryChains,
-            requiredExternalBridges: [ExternalBridgeType.SwapsXyz],
-          },
-        ),
+        factory.createManualInventoryContext({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          externalBridge: ExternalBridgeType.SwapsXyz,
+          actionTracker: createMockActionTracker(),
+        }),
       );
 
       expect(error).to.contain('SWAPSXYZ_API_KEY is not set');
@@ -848,15 +858,12 @@ describe('RebalancerContextFactory', () => {
       const factory = await createManualFactory();
 
       const error = await getErrorMessage(() =>
-        factory.createRebalancers(
-          createMockActionTracker(),
-          undefined,
-          undefined,
-          {
-            additionalInventoryChains: inventoryChains,
-            requiredExternalBridges: [ExternalBridgeType.LiFi],
-          },
-        ),
+        factory.createManualInventoryContext({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          externalBridge: ExternalBridgeType.LiFi,
+          actionTracker: createMockActionTracker(),
+        }),
       );
 
       expect(error).to.contain('integrator is not configured');
@@ -866,12 +873,15 @@ describe('RebalancerContextFactory', () => {
       const factory = await createManualFactory();
 
       const error = await getErrorMessage(() =>
-        factory.createRebalancers(
-          createMockActionTracker(),
-          undefined,
-          undefined,
-          { additionalInventoryChains: ['ethereum', 'optimism'] },
-        ),
+        factory.createManualInventoryContext({
+          origin: 'ethereum',
+          destination: 'optimism',
+          externalBridge: ExternalBridgeType.LiFi,
+          actionTracker: createMockActionTracker(),
+          externalBridgeRegistryOverride: {
+            [ExternalBridgeType.LiFi]: createMockExternalBridge(),
+          },
+        }),
       );
 
       expect(error).to.contain(
@@ -879,10 +889,12 @@ describe('RebalancerContextFactory', () => {
       );
     });
 
-    it('still skips inventory components without manual options or YAML signers', async () => {
+    it('skips inventory components without runtime or YAML signers', async () => {
       const factory = await createManualFactory({ includeKeys: false });
 
-      const result = await factory.createRebalancers(createMockActionTracker());
+      const result = await factory.createRebalancers({
+        actionTracker: createMockActionTracker(),
+      });
 
       expect(result.rebalancers.some((r) => r.rebalancerType === 'inventory'))
         .to.be.false;

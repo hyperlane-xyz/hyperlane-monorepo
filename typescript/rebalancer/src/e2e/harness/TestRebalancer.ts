@@ -354,8 +354,9 @@ export class TestRebalancerBuilder {
     );
 
     const strategy = await contextFactory.createStrategy();
-    const { tracker, adapter } =
-      await contextFactory.createActionTracker(mockExplorer);
+    const { tracker, adapter } = await contextFactory.createActionTracker({
+      explorerUrlOrClient: mockExplorer,
+    });
 
     await tracker.initialize();
     this.logger.info('ActionTracker initialized with mock explorer');
@@ -369,11 +370,10 @@ export class TestRebalancerBuilder {
         : undefined;
     const rebalancerComponents =
       this.executionMode === 'execute' || isAnyInventoryMode
-        ? await contextFactory.createRebalancers(
-            tracker,
-            undefined,
+        ? await contextFactory.createRebalancers({
+            actionTracker: tracker,
             externalBridgeRegistryOverride,
-          )
+          })
         : undefined;
     const rebalancers =
       this.executionMode === 'execute'

@@ -202,13 +202,12 @@ describe('Mixed WeightedStrategy E2E', function () {
     const context = await buildContext('ERC20_INVENTORY_BALANCED');
 
     const { rebalancers, inventoryConfig } =
-      await context.contextFactory.createRebalancers(
-        context.tracker,
-        undefined,
-        {
+      await context.contextFactory.createRebalancers({
+        actionTracker: context.tracker,
+        externalBridgeRegistryOverride: {
           [ExternalBridgeType.LiFi]: mockBridge,
         },
-      );
+      });
 
     expect(inventoryConfig).to.exist;
     expect(inventoryConfig!.chains).to.have.members([

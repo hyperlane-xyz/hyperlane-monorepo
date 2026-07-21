@@ -6,7 +6,13 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  ProtocolType,
+  fromWei,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -36,44 +42,23 @@ export async function fetchInventoryBalances(
 
   const readPromises = inventoryConfig.chains.map(async (chainName) => {
     const token = warpCore.tokens.find((t) => t.chainName === chainName);
-    if (!token) {
-      logger.warn({ chain: chainName }, 'No token found for inventory chain');
-      return { chainName, balance: 0n };
-    }
-
-    try {
-      const address = inventoryConfig.inventoryAddresses[token.protocol];
-      if (!address) {
-        logger.warn(
-          { chain: chainName, protocol: token.protocol },
-          'No inventory address for chain protocol, skipping',
-        );
-        return { chainName, balance: 0n };
-      }
-      const adapter = token.getAdapter(warpCore.multiProvider);
-      const balance = await adapter.getBalance(address);
-      logger.debug(
-        {
-          chain: chainName,
-          token: token.addressOrDenom,
-          balance: balance.toString(),
-        },
-        'Read inventory balance',
-      );
-      return { chainName, balance };
-    } catch (error) {
-      logger.error(
-        {
-          chain: chainName,
-          error:
-            typeof error === 'object' && error !== null && 'message' in error
-              ? error.message
-              : undefined,
-        },
-        'Failed to read inventory balance',
-      );
-      return { chainName, balance: 0n };
-    }
+    assert(token, `No token found for inventory chain ${chainName}`);
+    const address = inventoryConfig.inventoryAddresses[token.protocol];
+    assert(
+      address,
+      `No inventory address for chain ${chainName} protocol ${token.protocol}`,
+    );
+    const adapter = token.getAdapter(warpCore.multiProvider);
+    const balance = await adapter.getBalance(address);
+    logger.debug(
+      {
+        chain: chainName,
+        token: token.addressOrDenom,
+        balance: balance.toString(),
+      },
+      'Read inventory balance',
+    );
+    return { chainName, balance };
   });
 
   const results = await Promise.all(readPromises);
@@ -201,11 +186,7 @@ export class Monitor implements IMonitor {
             const tokensByChain = new Map(
               this.warpCore.tokens.map((token) => [token.chainName, token]),
             );
-            // CAST: inventoryBalances keys come from configured monitor chains,
-            // but Object.entries widens them to string.
-            const inventoryBalanceEntries = Object.entries(
-              inventoryBalances,
-            ) as [ChainName, bigint][];
+            const inventoryBalanceEntries = Object.entries(inventoryBalances);
             this.logger.info(
               {
                 chainsMonitored: Object.keys(inventoryBalances).length,

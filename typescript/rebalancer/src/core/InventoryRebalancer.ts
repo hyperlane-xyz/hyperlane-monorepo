@@ -95,6 +95,8 @@ type InventoryMovementExecutionResult =
       success: false;
       error: string;
     };
+
+type InventoryRouteExecutionResult = Omit<InventoryExecutionResult, 'intentId'>;
 const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
   'balance may be insufficient',
   'transfer amount exceeds balance',
@@ -615,7 +617,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private async executeRoute(
     route: InventoryRoute,
     intent: RebalanceIntent,
-  ): Promise<InventoryExecutionResult> {
+  ): Promise<InventoryRouteExecutionResult> {
     const { origin, destination, amount } = route;
 
     this.logger.info(
@@ -1091,7 +1093,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     route: InventoryRoute,
     intent: RebalanceIntent,
     fulfilledCanonicalAmount: bigint,
-  ): Promise<InventoryExecutionResult> {
+  ): Promise<InventoryRouteExecutionResult> {
     const { origin, destination, amount } = route;
 
     const originToken = this.getTokenForChain(origin);

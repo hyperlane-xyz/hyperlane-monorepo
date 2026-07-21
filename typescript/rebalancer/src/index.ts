@@ -9,12 +9,13 @@
 
 // Core service
 export {
-  DEFAULT_MANUAL_POLL_INTERVAL_MS,
   DEFAULT_MANUAL_TIMEOUT_MS,
   RebalancerService,
 } from './core/RebalancerService.js';
 export type {
   RebalancerServiceConfig,
+  ManualInventoryRebalanceRequest,
+  ManualMovableCollateralRebalanceRequest,
   ManualRebalanceRequest,
 } from './core/RebalancerService.js';
 
@@ -39,7 +40,6 @@ export {
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
-export type { ManualInventoryOptions } from './factories/RebalancerContextFactory.js';
 export type {
   MinAmountStrategyConfig,
   RebalancerConfig as RebalancerConfigType,

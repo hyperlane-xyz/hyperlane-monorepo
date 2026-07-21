@@ -4,7 +4,10 @@ import { Keypair } from '@solana/web3.js';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { deriveInventorySignerConfigs } from './inventorySigners.js';
+import {
+  deriveInventorySignerConfigs,
+  getInventorySignerKeysFromEnv,
+} from './inventorySigners.js';
 
 describe('deriveInventorySignerConfigs', () => {
   const evmKey =
@@ -42,5 +45,29 @@ describe('deriveInventorySignerConfigs', () => {
         },
       ),
     ).to.throw('inventorySigners.ethereum mismatch');
+  });
+
+  it('retains configured signers without runtime keys', () => {
+    const configured = {
+      [ProtocolType.Ethereum]: {
+        address: new Wallet(evmKey).address,
+      },
+    };
+
+    expect(deriveInventorySignerConfigs({}, configured)).to.deep.equal(
+      configured,
+    );
+  });
+
+  it('reads protocol keys and uses the legacy Ethereum fallback', () => {
+    expect(
+      getInventorySignerKeysFromEnv({
+        HYP_INVENTORY_KEY: 'legacy',
+        HYP_INVENTORY_KEY_SEALEVEL: 'sealevel',
+      }),
+    ).to.deep.equal({
+      [ProtocolType.Ethereum]: 'legacy',
+      [ProtocolType.Sealevel]: 'sealevel',
+    });
   });
 });

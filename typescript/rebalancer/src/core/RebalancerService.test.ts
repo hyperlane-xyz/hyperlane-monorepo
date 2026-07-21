@@ -5,6 +5,7 @@ import Sinon from 'sinon';
 
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -16,7 +17,10 @@ import {
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IInventoryRebalancer,
+  IRebalancer,
+} from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
@@ -114,7 +118,11 @@ function createMockToken(chainName: string): Token {
     decimals: 18,
     addressOrDenom: getTestAddress(chainName),
     standard: 'EvmHypCollateral',
+    protocol: ProtocolType.Ethereum,
     isCollateralized: () => true,
+    getAdapter: Sinon.stub().returns({
+      getBalance: Sinon.stub().resolves(MANUAL_INVENTORY_AMOUNT),
+    }),
   } as unknown as Token;
 }
 
@@ -191,7 +199,7 @@ function createMockActionTracker(): MockActionTracker {
   };
 }
 
-interface MockInventoryRebalancer extends IRebalancer {
+interface MockInventoryRebalancer extends IInventoryRebalancer {
   rebalance: Sinon.SinonStub;
   setInventoryBalances: Sinon.SinonStub;
 }
@@ -229,6 +237,7 @@ function createMockContextFactory(
     inventoryRebalancer?: MockInventoryRebalancer;
     inventoryConfig?: InventoryMonitorConfig;
     createRebalancers?: Sinon.SinonStub;
+    createManualInventoryContext?: Sinon.SinonStub;
   } = {},
 ): RebalancerContextFactory {
   const warpCore = overrides.warpCore ?? createMockWarpCore();
@@ -250,7 +259,9 @@ function createMockContextFactory(
   }
   const inventoryConfig = overrides.inventoryRebalancer
     ? (overrides.inventoryConfig ?? {
-        inventoryAddresses: {},
+        inventoryAddresses: {
+          [ProtocolType.Ethereum]: TEST_ADDRESSES.signer,
+        },
         chains: warpCore.tokens.map((token) => token.chainName),
       })
     : undefined;
@@ -260,6 +271,15 @@ function createMockContextFactory(
       rebalancers,
       externalBridgeRegistry: {},
       inventoryConfig,
+    });
+  const createManualInventoryContext =
+    overrides.createManualInventoryContext ??
+    Sinon.stub().resolves({
+      actionTracker,
+      externalBridgeRegistry: { [ExternalBridgeType.LiFi]: {} },
+      inventoryConfig,
+      inventoryRebalancer: overrides.inventoryRebalancer,
+      warpCore,
     });
 
   return {
@@ -275,6 +295,7 @@ function createMockContextFactory(
       tracker: actionTracker,
       adapter: inflightAdapter,
     }),
+    createManualInventoryContext,
     createOrchestrator: (options: {
       strategy: IStrategy;
       actionTracker: IActionTracker;
@@ -344,7 +365,7 @@ function createCompletedDeposit(amount: bigint): RebalanceAction {
 interface ManualInventoryTestSetup {
   actionTracker: MockActionTracker;
   contextFactoryCreate: Sinon.SinonStub;
-  createRebalancers: Sinon.SinonStub;
+  createManualInventoryContext: Sinon.SinonStub;
   inventoryRebalancer: MockInventoryRebalancer;
   logger: typeof testLogger;
   movableRebalancer: ReturnType<typeof createMockRebalancer>;
@@ -385,20 +406,24 @@ function setupManualInventoryTest(
     },
   ]);
 
-  const createRebalancers = Sinon.stub().resolves({
-    rebalancers: [movableRebalancer, inventoryRebalancer],
-    externalBridgeRegistry: {},
+  const createManualInventoryContext = Sinon.stub().resolves({
+    actionTracker,
+    externalBridgeRegistry: { [ExternalBridgeType.LiFi]: {} },
     inventoryConfig: {
-      inventoryAddresses: {},
+      inventoryAddresses: {
+        [ProtocolType.Ethereum]: TEST_ADDRESSES.signer,
+      },
       chains: [origin, destination],
     },
+    inventoryRebalancer,
+    warpCore,
   });
   const contextFactory = createMockContextFactory({
     warpCore,
     rebalancer: movableRebalancer,
     inventoryRebalancer,
     actionTracker,
-    createRebalancers,
+    createManualInventoryContext,
   });
   const contextFactoryCreate = sandbox
     .stub(RebalancerContextFactory, 'create')
@@ -414,7 +439,7 @@ function setupManualInventoryTest(
   return {
     actionTracker,
     contextFactoryCreate,
-    createRebalancers,
+    createManualInventoryContext,
     inventoryRebalancer,
     logger,
     movableRebalancer,
@@ -431,7 +456,6 @@ function createManualInventoryRequest(
     amount: '100',
     executionType: ExecutionType.Inventory,
     externalBridge: ExternalBridgeType.LiFi,
-    pollIntervalMs: 1,
     timeoutMs: 50,
     ...overrides,
   };
@@ -884,7 +908,7 @@ describe('RebalancerService', () => {
       expect(setup.contextFactoryCreate.called).to.be.false;
     });
 
-    it('supports off-config inventory legs through manual inventory options', async () => {
+    it('supports off-config inventory legs through the manual context', async () => {
       const origin = 'optimism';
       const destination = 'base';
       const setup = setupManualInventoryTest(sandbox, { origin, destination });
@@ -893,9 +917,10 @@ describe('RebalancerService', () => {
         createManualInventoryRequest({ origin, destination }),
       );
 
-      expect(setup.createRebalancers.firstCall.args[3]).to.deep.equal({
-        additionalInventoryChains: [origin, destination],
-        requiredExternalBridges: [ExternalBridgeType.LiFi],
+      expect(setup.createManualInventoryContext.firstCall.args[0]).to.include({
+        origin,
+        destination,
+        externalBridge: ExternalBridgeType.LiFi,
       });
       const route = setup.inventoryRebalancer.rebalance.firstCall.args[0][0];
       expect(route.origin).to.equal(origin);
@@ -993,73 +1018,6 @@ describe('RebalancerService', () => {
       ).to.be.true;
     });
 
-    it('warns after a later failed cycle and continues until completion', async () => {
-      const setup = setupManualInventoryTest(sandbox);
-      const warning = sandbox.spy(setup.logger, 'warn');
-      setup.actionTracker.getRebalanceIntent.resolves(
-        createManualIntent('in_progress'),
-      );
-      setup.inventoryRebalancer.rebalance.resetBehavior();
-      setup.inventoryRebalancer.rebalance.onFirstCall().resolves([
-        {
-          route: createManualInventoryRequest(),
-          success: true,
-          intentId: MANUAL_INTENT_ID,
-        },
-      ]);
-      setup.inventoryRebalancer.rebalance.onSecondCall().callsFake(async () => {
-        setup.actionTracker.getRebalanceIntent.resolves(
-          createManualIntent('complete'),
-        );
-        return [
-          {
-            route: createManualInventoryRequest(),
-            success: false,
-            intentId: MANUAL_INTENT_ID,
-            error: 'retryable failure',
-          },
-        ];
-      });
-
-      await setup.service.executeManual(createManualInventoryRequest());
-
-      expect(setup.inventoryRebalancer.rebalance.callCount).to.equal(2);
-      expect(
-        warning.calledWithMatch(
-          Sinon.match.has('error', 'retryable failure'),
-          'Manual inventory rebalance cycle failed; continuing to poll',
-        ),
-      ).to.be.true;
-    });
-
-    it('keeps polling when the inventory rebalancer returns no results', async () => {
-      const setup = setupManualInventoryTest(sandbox);
-      setup.actionTracker.getRebalanceIntent.resolves(
-        createManualIntent('in_progress'),
-      );
-      setup.inventoryRebalancer.rebalance.resetBehavior();
-      setup.inventoryRebalancer.rebalance.onFirstCall().resolves([
-        {
-          route: createManualInventoryRequest(),
-          success: true,
-          intentId: MANUAL_INTENT_ID,
-        },
-      ]);
-      setup.inventoryRebalancer.rebalance.onSecondCall().callsFake(async () => {
-        setup.actionTracker.getRebalanceIntent.resolves(
-          createManualIntent('complete'),
-        );
-        return [];
-      });
-
-      await setup.service.executeManual(createManualInventoryRequest());
-
-      expect(setup.inventoryRebalancer.rebalance.callCount).to.equal(2);
-      expect(
-        setup.inventoryRebalancer.rebalance.secondCall.args[0],
-      ).to.deep.equal([]);
-    });
-
     it('rejects a partially fulfilled inventory intent before dispatch', async () => {
       const setup = setupManualInventoryTest(sandbox);
       setup.actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
@@ -1104,16 +1062,13 @@ describe('RebalancerService', () => {
       expect(setup.inventoryRebalancer.rebalance.calledOnce).to.be.true;
     });
 
-    it('rejects inventory initialization options on a second manual run', async () => {
+    it('supports a second attended manual run', async () => {
       const setup = setupManualInventoryTest(sandbox);
       await setup.service.executeManual(createManualInventoryRequest());
+      await setup.service.executeManual(createManualInventoryRequest());
 
-      await expect(
-        setup.service.executeManual(createManualInventoryRequest()),
-      ).to.be.rejectedWith(
-        'already initialized; initialization options cannot be applied',
-      );
-      expect(setup.inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(setup.inventoryRebalancer.rebalance.callCount).to.equal(2);
+      expect(setup.createManualInventoryContext.callCount).to.equal(2);
     });
   });
 

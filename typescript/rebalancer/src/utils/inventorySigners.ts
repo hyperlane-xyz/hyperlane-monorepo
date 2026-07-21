@@ -14,7 +14,7 @@ export function deriveInventorySignerConfigs(
   logger?: Logger,
 ): Partial<Record<ProtocolType, InventorySignerConfig>> {
   const inventorySigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
-    {};
+    { ...existingSigners };
 
   for (const protocol of Object.values(ProtocolType)) {
     const privateKey = keysByProtocol[protocol];
@@ -57,4 +57,19 @@ export function deriveInventorySignerConfigs(
   }
 
   return inventorySigners;
+}
+
+export function getInventorySignerKeysFromEnv(
+  env: Record<string, string | undefined>,
+): Partial<Record<ProtocolType, string>> {
+  const keys: Partial<Record<ProtocolType, string>> = {};
+  for (const protocol of Object.values(ProtocolType)) {
+    const key = env[`HYP_INVENTORY_KEY_${protocol.toUpperCase()}`];
+    if (key) keys[protocol] = key;
+  }
+
+  if (!keys[ProtocolType.Ethereum] && env.HYP_INVENTORY_KEY) {
+    keys[ProtocolType.Ethereum] = env.HYP_INVENTORY_KEY;
+  }
+  return keys;
 }
