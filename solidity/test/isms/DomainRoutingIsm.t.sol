@@ -189,13 +189,27 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
             address(hook)
         );
 
-        ism = new DefaultFallbackRoutingIsm(address(mailbox));
-        ism.initialize(address(this));
+        ism = new DefaultFallbackRoutingIsm(
+            address(mailbox),
+            address(this),
+            new uint32[](0),
+            new IInterchainSecurityModule[](0)
+        );
     }
 
     function testConstructorReverts() public {
         vm.expectRevert("MailboxClient: invalid mailbox");
-        new DefaultFallbackRoutingIsm(address(0));
+        new DefaultFallbackRoutingIsm(
+            address(0),
+            address(this),
+            new uint32[](0),
+            new IInterchainSecurityModule[](0)
+        );
+    }
+
+    function testConstructorDisablesReinitialization() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        ism.initialize(address(this));
     }
 
     function testRemoveIsms(uint32 domain, uint8 count) public override {
