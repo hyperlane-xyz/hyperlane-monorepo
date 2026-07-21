@@ -2,7 +2,7 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram } from '../artifacts.js';
+import { type AleoProgram } from '../programs.js';
 import {
   getFileOverrideProgramId,
   loadProgramsInDeployOrder,
