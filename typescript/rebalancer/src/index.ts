@@ -8,9 +8,14 @@
  */
 
 // Core service
-export { RebalancerService } from './core/RebalancerService.js';
+export {
+  DEFAULT_MANUAL_TIMEOUT_MS,
+  RebalancerService,
+} from './core/RebalancerService.js';
 export type {
   RebalancerServiceConfig,
+  ManualInventoryRebalanceRequest,
+  ManualMovableCollateralRebalanceRequest,
   ManualRebalanceRequest,
 } from './core/RebalancerService.js';
 
@@ -22,6 +27,8 @@ export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_INTENT_TTL_S,
+  ExecutionType,
+  ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
   RebalancerBaseChainConfigSchema,

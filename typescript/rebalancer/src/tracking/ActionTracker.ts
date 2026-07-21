@@ -3,7 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import {
+  addressToByteHexString,
+  assert,
+  isEVMLike,
+  parseWarpRouteMessage,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
@@ -11,6 +17,7 @@ import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ExplorerMessage,
   IExplorerClient,
+  ProtocolAddress,
 } from '../utils/ExplorerClient.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
@@ -34,8 +41,9 @@ export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
-  inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
+  inventorySignerAddresses?: ProtocolAddress[]; // Optional - for excluding inventory signers from user transfers query
   intentTTL: number; // Max age in ms before in-progress intent is expired
+  movementStalenessMs?: number;
 }
 
 /**
@@ -106,7 +114,12 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug('Syncing transfers');
 
     // Build list of addresses to exclude (rebalancer + optional inventory signer)
-    const excludeTxSenders = [this.config.rebalancerAddress];
+    const excludeTxSenders: ProtocolAddress[] = [
+      {
+        address: this.config.rebalancerAddress,
+        protocol: ProtocolType.Ethereum,
+      },
+    ];
     if (this.config.inventorySignerAddresses) {
       excludeTxSenders.push(...this.config.inventorySignerAddresses);
     }
@@ -604,7 +617,10 @@ export class ActionTracker implements IActionTracker {
         // Use nonPendingSince when available; fall back to createdAt for
         // pre-deploy data that lacks the field.
         const nonPendingStart = a.nonPendingSince ?? a.createdAt;
-        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
+        return (
+          now - nonPendingStart >=
+          (this.config.movementStalenessMs ?? DEFAULT_MOVEMENT_STALENESS_MS)
+        );
       });
       const staleMovementIds = new Set(staleMovements.map((a) => a.id));
 
@@ -964,6 +980,7 @@ export class ActionTracker implements IActionTracker {
         !isNaN(createdAt),
         `Invalid send_occurred_at timestamp: ${msg.send_occurred_at}`,
       );
+      const isInventoryDeposit = this.isInventorySignerMessage(msg);
       const intent: RebalanceIntent = {
         id: uuidv4(),
         status: 'in_progress',
@@ -972,6 +989,7 @@ export class ActionTracker implements IActionTracker {
         amount,
         priority: undefined,
         strategyType: undefined,
+        executionMethod: isInventoryDeposit ? 'inventory' : undefined,
         createdAt,
         updatedAt: Date.now(),
       };
@@ -982,11 +1000,10 @@ export class ActionTracker implements IActionTracker {
         'Created synthetic RebalanceIntent',
       );
 
-      // Create action (recovered actions are always rebalance_message type)
       const action: RebalanceAction = {
         id: msg.msg_id,
         status: 'in_progress',
-        type: 'rebalance_message',
+        type: isInventoryDeposit ? 'inventory_deposit' : 'rebalance_message',
         intentId: intent.id,
         messageId: msg.msg_id,
         txHash: msg.origin_tx_hash,
@@ -1016,5 +1033,18 @@ export class ActionTracker implements IActionTracker {
         'Failed to parse message body during recovery, skipping action',
       );
     }
+  }
+
+  private isInventorySignerMessage(msg: ExplorerMessage): boolean {
+    const protocol = this.core.multiProvider.getProtocol(msg.origin_domain_id);
+    return Boolean(
+      this.config.inventorySignerAddresses?.some((signer) => {
+        if (signer.protocol !== protocol) return false;
+        const signerHex = isEVMLike(protocol)
+          ? signer.address
+          : addressToByteHexString(signer.address, protocol);
+        return signerHex.toLowerCase() === msg.origin_tx_sender.toLowerCase();
+      }),
+    );
   }
 }

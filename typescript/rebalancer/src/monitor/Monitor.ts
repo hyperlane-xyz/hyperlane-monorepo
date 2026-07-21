@@ -6,7 +6,13 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  ProtocolType,
+  fromWei,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -25,6 +31,43 @@ import { getConfirmedBlockTag } from '../utils/blockTag.js';
 export interface InventoryMonitorConfig {
   inventoryAddresses: Partial<Record<ProtocolType, Address>>;
   chains: ChainName[];
+}
+
+export async function fetchInventoryBalances(
+  warpCore: WarpCore,
+  inventoryConfig: InventoryMonitorConfig,
+  logger: Logger,
+): Promise<ChainMap<bigint>> {
+  const balances: ChainMap<bigint> = {};
+
+  const readPromises = inventoryConfig.chains.map(async (chainName) => {
+    const token = warpCore.tokens.find((t) => t.chainName === chainName);
+    assert(token, `No token found for inventory chain ${chainName}`);
+    const address = inventoryConfig.inventoryAddresses[token.protocol];
+    assert(
+      address,
+      `No inventory address for chain ${chainName} protocol ${token.protocol}`,
+    );
+    const adapter = token.getAdapter(warpCore.multiProvider);
+    const balance = await adapter.getBalance(address);
+    logger.debug(
+      {
+        chain: chainName,
+        token: token.addressOrDenom,
+        balance: balance.toString(),
+      },
+      'Read inventory balance',
+    );
+    return { chainName, balance };
+  });
+
+  const results = await Promise.all(readPromises);
+
+  for (const { chainName, balance } of results) {
+    balances[chainName] = balance;
+  }
+
+  return balances;
 }
 
 /**
@@ -143,11 +186,7 @@ export class Monitor implements IMonitor {
             const tokensByChain = new Map(
               this.warpCore.tokens.map((token) => [token.chainName, token]),
             );
-            // CAST: inventoryBalances keys come from configured monitor chains,
-            // but Object.entries widens them to string.
-            const inventoryBalanceEntries = Object.entries(
-              inventoryBalances,
-            ) as [ChainName, bigint][];
+            const inventoryBalanceEntries = Object.entries(inventoryBalances);
             this.logger.info(
               {
                 chainsMonitored: Object.keys(inventoryBalances).length,
@@ -265,56 +304,11 @@ export class Monitor implements IMonitor {
 
   private async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
     if (!this.inventoryConfig) return {};
-
-    const balances: ChainMap<bigint> = {};
-
-    const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
-      const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
-      if (!token) {
-        this.logger.warn(
-          { chain: chainName },
-          'No token found for inventory chain',
-        );
-        return { chainName, balance: 0n };
-      }
-
-      try {
-        const address =
-          this.inventoryConfig!.inventoryAddresses[token.protocol];
-        if (!address) {
-          this.logger.warn(
-            { chain: chainName, protocol: token.protocol },
-            'No inventory address for chain protocol, skipping',
-          );
-          return { chainName, balance: 0n };
-        }
-        const adapter = token.getAdapter(this.warpCore.multiProvider);
-        const balance = await adapter.getBalance(address);
-        this.logger.debug(
-          {
-            chain: chainName,
-            token: token.addressOrDenom,
-            balance: balance.toString(),
-          },
-          'Read inventory balance',
-        );
-        return { chainName, balance };
-      } catch (error) {
-        this.logger.error(
-          { chain: chainName, error: (error as Error).message },
-          'Failed to read inventory balance',
-        );
-        return { chainName, balance: 0n };
-      }
-    });
-
-    const results = await Promise.all(readPromises);
-
-    for (const { chainName, balance } of results) {
-      balances[chainName] = balance;
-    }
-
-    return balances;
+    return fetchInventoryBalances(
+      this.warpCore,
+      this.inventoryConfig,
+      this.logger,
+    );
   }
 
   stop(): Promise<void> {

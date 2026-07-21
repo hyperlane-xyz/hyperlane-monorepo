@@ -322,6 +322,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(results[0].route).to.deep.equal(route);
+      expect(results[0].intentId).to.equal('intent-1');
 
       // Verify: transferRemote was called via adapter
       expect(adapterStub.quoteTransferRemoteGas.calledOnce).to.be.true;
@@ -784,6 +785,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('No inventory available');
+      expect(results[0].intentId).to.equal('intent-1');
 
       // Verify: No transferRemote attempted
       expect(warpCore.getTransferRemoteTxs.called).to.be.false;
@@ -817,6 +819,7 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: Only ONE route processed (single-intent architecture)
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
+      expect(results[0].intentId).to.equal('intent-1');
 
       // Verify: Only one intent created
       expect(actionTracker.createRebalanceIntent.calledOnce).to.be.true;
@@ -858,6 +861,7 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: Existing intent was continued (not new route)
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
+      expect(results[0].intentId).to.equal('existing-intent');
 
       // Verify: No new intent was created (existing was used)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;

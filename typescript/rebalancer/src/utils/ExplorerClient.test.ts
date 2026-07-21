@@ -175,6 +175,9 @@ describe('ExplorerClient', () => {
           bridges: [bridgeAddr],
           routersByDomain: { 1: evmAddr, 1399811149: solAddr },
           rebalancerAddress: rebalancerAddr,
+          inventorySignerAddresses: [
+            { protocol: ProtocolType.Sealevel, address: solAddr },
+          ],
         },
         testLogger,
       );
@@ -182,17 +185,15 @@ describe('ExplorerClient', () => {
       expect(fetchStub.calledOnce).to.be.true;
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
 
-      // bridges encoded as EVM bytea (20-byte)
-      expect(body.variables.senders).to.deep.equal([
+      expect(body.variables.senders).to.include(
         '\\x1234567890abcdef1234567890abcdef12345678',
-      ]);
-      expect(body.variables.recipients).to.deep.equal([
+      );
+      expect(body.variables.recipients).to.include(
         '\\x1234567890abcdef1234567890abcdef12345678',
-      ]);
-      // rebalancer encoded as EVM bytea
-      expect(body.variables.txSenders).to.deep.equal([
+      );
+      expect(body.variables.txSenders).to.include(
         '\\xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-      ]);
+      );
 
       // originTxRecipients: EVM router as 20-byte bytea, Solana as 32-byte bytea
       const expectedEvmBytea = '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
@@ -206,6 +207,11 @@ describe('ExplorerClient', () => {
 
       expect(body.variables.originTxRecipients).to.include(expectedEvmBytea);
       expect(body.variables.originTxRecipients).to.include(expectedSolBytea);
+      expect(body.variables.senders).to.include(expectedEvmBytea);
+      expect(body.variables.senders).to.include(expectedSolBytea);
+      expect(body.variables.recipients).to.include(expectedEvmBytea);
+      expect(body.variables.recipients).to.include(expectedSolBytea);
+      expect(body.variables.txSenders).to.include(expectedSolBytea);
       // 32 bytes = 64 hex chars + 2-char \\x prefix
       expect(expectedSolBytea.length).to.equal(66);
     });

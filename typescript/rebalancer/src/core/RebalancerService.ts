@@ -10,7 +10,9 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
-  type ExternalBridgeType,
+  DEFAULT_MOVEMENT_STALENESS_MS,
+  ExecutionType,
+  ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -25,6 +27,7 @@ import {
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type {
   IStrategy,
+  InventoryRoute,
   MovableCollateralRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -33,7 +36,10 @@ import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
+import { ManualInventoryRebalanceRunner } from './ManualInventoryRebalanceRunner.js';
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
+
+export const DEFAULT_MANUAL_TIMEOUT_MS = 45 * 60 * 1_000;
 
 export interface RebalancerServiceConfig {
   /** Execution mode: 'manual' for one-off execution, 'daemon' for continuous monitoring */
@@ -68,11 +74,25 @@ export interface RebalancerServiceConfig {
   actionTracker?: IActionTracker;
 }
 
-export interface ManualRebalanceRequest {
+interface ManualRebalanceRequestBase {
   origin: string;
   destination: string;
   amount: string;
 }
+
+export interface ManualMovableCollateralRebalanceRequest extends ManualRebalanceRequestBase {
+  executionType?: ExecutionType.MovableCollateral;
+}
+
+export interface ManualInventoryRebalanceRequest extends ManualRebalanceRequestBase {
+  executionType: ExecutionType.Inventory;
+  externalBridge?: ExternalBridgeType;
+  timeoutMs?: number;
+}
+
+export type ManualRebalanceRequest =
+  | ManualMovableCollateralRebalanceRequest
+  | ManualInventoryRebalanceRequest;
 
 /**
  * RebalancerService is the main orchestrator for the Hyperlane Warp Route Rebalancer.
@@ -117,6 +137,7 @@ export interface ManualRebalanceRequest {
  */
 export class RebalancerService {
   private isExiting = false;
+  private initialized = false;
   private logger: Logger;
   private contextFactory?: RebalancerContextFactory;
   private monitor?: Monitor;
@@ -145,34 +166,23 @@ export class RebalancerService {
    * Initialize the service components
    */
   private async initialize(): Promise<void> {
-    if (this.contextFactory) {
-      // Already initialized
-      return;
-    }
+    if (this.initialized) return;
 
     this.logger.info('Initializing RebalancerService...');
 
     // Create context factory
-    this.contextFactory = await RebalancerContextFactory.create(
-      this.rebalancerConfig,
-      this.multiProvider,
-      this.multiProtocolProvider,
-      this.registry,
-      this.logger,
-      this.inventorySignerKeysByProtocol,
-      this.config.externalBridgeApiKeys,
-    );
+    const contextFactory = await this.getContextFactory();
 
     // Create metrics if enabled
     if (this.config.withMetrics) {
-      this.metrics = await this.contextFactory.createMetrics(
+      this.metrics = await contextFactory.createMetrics(
         this.config.coingeckoApiKey,
       );
       this.logger.info('Metrics collection enabled');
     }
 
     // Create strategy
-    this.strategy = await this.contextFactory.createStrategy(this.metrics);
+    this.strategy = await contextFactory.createStrategy(this.metrics);
 
     // Create or use provided ActionTracker for tracking inflight actions
     // Must be created BEFORE rebalancer since rebalancer needs it
@@ -186,8 +196,7 @@ export class RebalancerService {
       await this.actionTracker.initialize();
       this.logger.info('Using externally provided ActionTracker');
     } else {
-      const { tracker, adapter } =
-        await this.contextFactory.createActionTracker();
+      const { tracker, adapter } = await contextFactory.createActionTracker();
       this.actionTracker = tracker;
       this.inflightContextAdapter = adapter;
       await this.actionTracker.initialize();
@@ -200,14 +209,13 @@ export class RebalancerService {
     let inventoryConfig: InventoryMonitorConfig | undefined;
 
     if (!this.config.monitorOnly) {
-      const result = await this.contextFactory.createRebalancers(
-        this.actionTracker,
-        this.metrics,
-      );
+      const result = await contextFactory.createRebalancers({
+        actionTracker: this.actionTracker,
+        metrics: this.metrics,
+      });
       rebalancers = result.rebalancers;
       externalBridgeRegistry = result.externalBridgeRegistry;
       inventoryConfig = result.inventoryConfig;
-
       if (rebalancers.length > 0) {
         this.logger.info(`${rebalancers.length} rebalancer(s) created`);
       }
@@ -217,21 +225,20 @@ export class RebalancerService {
       );
     }
 
-    // Set instance variable for backward compatibility with executeManual
-    // (Task 5 will remove this when refactoring executeManual)
+    // Manual movable-collateral execution uses the first configured rebalancer.
     if (rebalancers.length > 0) {
       this.rebalancer = rebalancers[0];
     }
 
     if (this.mode === 'daemon') {
       const checkFrequency = this.config.checkFrequency ?? 60_000;
-      this.monitor = this.contextFactory.createMonitor(
+      this.monitor = contextFactory.createMonitor(
         checkFrequency,
         inventoryConfig,
       );
     }
 
-    this.orchestrator = this.contextFactory.createOrchestrator({
+    this.orchestrator = contextFactory.createOrchestrator({
       strategy: this.strategy,
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
@@ -250,12 +257,30 @@ export class RebalancerService {
       },
       'RebalancerService initialized',
     );
+    this.initialized = true;
+  }
+
+  private async getContextFactory(): Promise<RebalancerContextFactory> {
+    this.contextFactory ??= await RebalancerContextFactory.create(
+      this.rebalancerConfig,
+      this.multiProvider,
+      this.multiProtocolProvider,
+      this.registry,
+      this.logger,
+      this.inventorySignerKeysByProtocol,
+      this.config.externalBridgeApiKeys,
+    );
+    return this.contextFactory;
   }
 
   /**
    * Execute a manual one-off rebalance
    */
   async executeManual(request: ManualRebalanceRequest): Promise<void> {
+    if (request.executionType === ExecutionType.Inventory) {
+      return this.executeManualInventory(request);
+    }
+
     await this.initialize();
 
     assert(
@@ -269,7 +294,7 @@ export class RebalancerService {
       `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
     );
 
-    const warpCore = this.contextFactory!.getWarpCore();
+    const warpCore = (await this.getContextFactory()).getWarpCore();
     const originToken = warpCore.tokens.find(
       (t: Token) => t.chainName === origin,
     );
@@ -318,6 +343,80 @@ export class RebalancerService {
       );
       throw error;
     }
+  }
+
+  private resolveManualExternalBridge(
+    origin: string,
+    destination: string,
+    cliOverride?: ExternalBridgeType,
+  ): ExternalBridgeType {
+    const originConfig = getStrategyChainConfig(
+      this.rebalancerConfig.strategyConfig,
+      origin,
+    );
+    const externalBridge =
+      cliOverride ??
+      originConfig?.override?.[destination]?.externalBridge ??
+      originConfig?.externalBridge;
+    assert(
+      externalBridge,
+      `No external bridge configured for ${origin} → ${destination}. Pass an external bridge or configure one in the strategy.`,
+    );
+    return externalBridge;
+  }
+
+  private async executeManualInventory(
+    request: ManualInventoryRebalanceRequest,
+  ): Promise<void> {
+    assert(
+      !this.config.monitorOnly,
+      'MonitorOnly mode cannot execute manual rebalances.',
+    );
+    const { origin, destination, amount } = request;
+    const timeoutMs = request.timeoutMs ?? DEFAULT_MANUAL_TIMEOUT_MS;
+    assert(
+      Number.isFinite(timeoutMs) && timeoutMs > 0,
+      'Manual inventory timeout must be greater than 0',
+    );
+    const externalBridge = this.resolveManualExternalBridge(
+      origin,
+      destination,
+      request.externalBridge,
+    );
+    const contextFactory = await this.getContextFactory();
+    const warpCore = contextFactory.getWarpCore();
+    const originToken = warpCore.tokens.find(
+      (token: Token) => token.chainName === origin,
+    );
+    if (!originToken) {
+      const error = `Origin token not found for chain ${origin}`;
+      this.logger.error(error);
+      throw new Error(error);
+    }
+
+    const amountNum = Number(amount);
+    assert(!isNaN(amountNum), 'Amount must be a valid number');
+    assert(amountNum > 0, 'Amount must be greater than 0');
+
+    const route: InventoryRoute = {
+      origin,
+      destination,
+      amount: normalizeConfiguredAmount(amount, originToken),
+      executionType: 'inventory',
+      externalBridge,
+    };
+    const context = await contextFactory.createManualInventoryContext({
+      origin,
+      destination,
+      externalBridge,
+      actionTracker: this.config.actionTracker,
+      movementStalenessMs: Math.max(DEFAULT_MOVEMENT_STALENESS_MS, timeoutMs),
+    });
+    await context.actionTracker.initialize();
+    await new ManualInventoryRebalanceRunner({
+      ...context,
+      logger: this.logger,
+    }).run(route, timeoutMs);
   }
 
   /**

@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import { addressToByteHexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_INTENT_TTL_MS,
@@ -65,6 +66,7 @@ describe('ActionTracker', () => {
       adapter: adapterStub,
       multiProvider: {
         getChainName: multiProviderGetChainName,
+        getProtocol: Sinon.stub().returns(ProtocolType.Ethereum),
       },
     } as any;
 
@@ -83,8 +85,8 @@ describe('ActionTracker', () => {
       transferStore,
       rebalanceIntentStore,
       rebalanceActionStore,
-      explorerClient as any,
-      core as any,
+      explorerClient,
+      core,
       config,
       testLogger,
     );
@@ -133,6 +135,45 @@ describe('ActionTracker', () => {
       expect(actions[0].id).to.equal('0xmsg1');
       expect(actions[0].status).to.equal('in_progress');
       expect(actions[0].messageId).to.equal('0xmsg1');
+    });
+
+    it('classifies recovered Sealevel signer messages as inventory deposits', async () => {
+      const inventorySigner = 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo';
+      config.inventorySignerAddresses = [
+        {
+          protocol: ProtocolType.Sealevel,
+          address: inventorySigner,
+        },
+      ];
+      core.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
+      explorerClient.getInflightRebalanceActions.resolves([
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: addressToByteHexString(
+            inventorySigner,
+            ProtocolType.Sealevel,
+          ),
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
+        },
+      ]);
+
+      await tracker.initialize();
+
+      expect((await rebalanceIntentStore.getAll())[0].executionMethod).to.equal(
+        'inventory',
+      );
+      expect((await rebalanceActionStore.getAll())[0].type).to.equal(
+        'inventory_deposit',
+      );
     });
 
     it('should use send_occurred_at for createdAt when available', async () => {
@@ -1104,6 +1145,42 @@ describe('ActionTracker', () => {
       expect(failedAction?.status).to.equal('failed');
     });
 
+    it('honors a configured movement staleness window', async () => {
+      config.movementStalenessMs = DEFAULT_MOVEMENT_STALENESS_MS * 2;
+      await rebalanceIntentStore.save({
+        id: 'intent-custom-staleness',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save({
+        id: 'movement-custom-staleness',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        intentId: 'intent-custom-staleness',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(0);
+      const action = await rebalanceActionStore.get(
+        'movement-custom-staleness',
+      );
+      expect(action?.status).to.equal('in_progress');
+    });
+
     it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-undefined-status',
@@ -1459,7 +1536,12 @@ describe('ActionTracker', () => {
 
       const params = call.args[0];
       expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
-      expect(params.excludeTxSenders).to.deep.equal([config.rebalancerAddress]);
+      expect(params.excludeTxSenders).to.deep.equal([
+        {
+          address: config.rebalancerAddress,
+          protocol: ProtocolType.Ethereum,
+        },
+      ]);
     });
   });
 

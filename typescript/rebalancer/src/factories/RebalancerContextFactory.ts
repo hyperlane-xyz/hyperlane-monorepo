@@ -3,6 +3,7 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  type ChainName,
   type CoreAddresses,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -69,12 +70,48 @@ import {
   normalizeToCanonical,
 } from '../utils/balanceUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
+import { deriveInventorySignerConfigs } from '../utils/inventorySigners.js';
 
 const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 function throwUnknownBridgeType(_bridgeType: never): never {
   throw new Error('Unknown bridge type');
+}
+
+export interface CreateActionTrackerOptions {
+  explorerUrlOrClient?: string | IExplorerClient;
+  movementStalenessMs?: number;
+}
+
+export interface CreateRebalancersOptions {
+  actionTracker: IActionTracker;
+  metrics?: Metrics;
+  externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>;
+}
+
+export interface ManualInventoryContext {
+  actionTracker: IActionTracker;
+  externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+  inventoryConfig: InventoryMonitorConfig;
+  inventoryRebalancer: InventoryRebalancer;
+  warpCore: WarpCore;
+}
+
+export interface CreateManualInventoryContextOptions {
+  origin: ChainName;
+  destination: ChainName;
+  externalBridge: ExternalBridgeType;
+  actionTracker?: IActionTracker;
+  explorerUrlOrClient?: string | IExplorerClient;
+  externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>;
+  movementStalenessMs?: number;
+}
+
+interface CreateInventoryComponentsOptions {
+  additionalInventoryChains?: ChainName[];
+  requiredExternalBridges?: ExternalBridgeType[];
+  externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>;
 }
 
 export class RebalancerContextFactory {
@@ -95,8 +132,8 @@ export class RebalancerContextFactory {
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
-    private readonly inventorySignerKeysByProtocol?: Partial<
-      Record<ProtocolType, string>
+    private readonly inventorySigners: Partial<
+      Record<ProtocolType, InventorySignerConfig>
     >,
     private readonly externalBridgeApiKeys?: Partial<
       Record<ExternalBridgeType, string>
@@ -172,6 +209,11 @@ export class RebalancerContextFactory {
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
+    const inventorySigners = deriveInventorySignerConfigs(
+      inventorySignerKeysByProtocol ?? {},
+      config.inventorySigners,
+      logger,
+    );
 
     logger.debug(
       {
@@ -187,7 +229,7 @@ export class RebalancerContextFactory {
       extendedMultiProtocolProvider,
       registry,
       logger,
-      inventorySignerKeysByProtocol,
+      inventorySigners,
       externalBridgeApiKeys,
     );
   }
@@ -319,7 +361,7 @@ export class RebalancerContextFactory {
   }
 
   public async createActionTracker(
-    explorerUrlOrClient: string | IExplorerClient = DEFAULT_EXPLORER_URL,
+    options: CreateActionTrackerOptions = {},
   ): Promise<{
     tracker: IActionTracker;
     adapter: InflightContextAdapter;
@@ -339,6 +381,8 @@ export class RebalancerContextFactory {
       RebalanceActionStatus
     >();
 
+    const explorerUrlOrClient =
+      options.explorerUrlOrClient ?? DEFAULT_EXPLORER_URL;
     const explorerClient =
       typeof explorerUrlOrClient === 'string'
         ? new ExplorerClient(explorerUrlOrClient, (domain) =>
@@ -388,15 +432,14 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
-      inventorySignerAddresses: this.config.inventorySigners
-        ? Object.values(ProtocolType)
-            .filter((protocol) => isEVMLike(protocol))
-            .map(
-              (protocol) => this.config.inventorySigners?.[protocol]?.address,
-            )
-            .filter((address): address is Address => Boolean(address))
-        : undefined,
+      inventorySignerAddresses: Object.values(ProtocolType).flatMap(
+        (protocol) => {
+          const signer = this.inventorySigners[protocol];
+          return signer ? [{ protocol, address: signer.address }] : [];
+        },
+      ),
       intentTTL: this.config.intentTTL,
+      movementStalenessMs: options.movementStalenessMs,
     };
 
     // 6. Create ActionTracker
@@ -435,15 +478,13 @@ export class RebalancerContextFactory {
    */
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
-    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
+    options: CreateInventoryComponentsOptions = {},
   ): Promise<{
-    inventoryRebalancer: IRebalancer;
+    inventoryRebalancer: InventoryRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigners } = this.config;
-
-    if (!inventorySigners || Object.keys(inventorySigners).length === 0) {
+    if (Object.keys(this.inventorySigners).length === 0) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -451,7 +492,7 @@ export class RebalancerContextFactory {
     }
 
     const redactedInventorySigners = Object.fromEntries(
-      Object.entries(inventorySigners).map(([protocol, signerConfig]) => [
+      Object.entries(this.inventorySigners).map(([protocol, signerConfig]) => [
         protocol,
         signerConfig ? { address: signerConfig.address } : signerConfig,
       ]),
@@ -465,7 +506,12 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
+    const inventoryChains = Array.from(
+      new Set([
+        ...getInventoryChainNames(this.config.strategyConfig),
+        ...(options.additionalInventoryChains ?? []),
+      ]),
+    );
     const inventoryOriginChains = getInventoryOriginChainNames(
       this.config.strategyConfig,
     );
@@ -518,8 +564,7 @@ export class RebalancerContextFactory {
           protocol,
       );
       assert(
-        this.config.inventorySigners?.[protocol]?.key ??
-          this.inventorySignerKeysByProtocol?.[protocol],
+        this.inventorySigners[protocol]?.key,
         `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
       );
     }
@@ -532,68 +577,18 @@ export class RebalancerContextFactory {
           protocol,
       );
       assert(
-        inventorySigners[protocol]?.address,
+        this.inventorySigners[protocol]?.address,
         `Missing inventory address for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
       );
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
-      externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
+      options.externalBridgeRegistryOverride ??
+      this.buildExternalBridgeRegistry(options.requiredExternalBridges);
 
-    if (Object.keys(externalBridgeRegistry).length === 0) {
-      if (externalBridgeRegistryOverride !== undefined) {
-        this.logger.debug(
-          'No external bridges in override registry, skipping inventory components',
-        );
-      } else {
-        this.logger.debug(
-          'No external bridges configured, skipping inventory components',
-        );
-      }
-      const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
-      for (const protocol of Object.values(ProtocolType)) {
-        const cfg = inventorySigners[protocol];
-        if (!cfg) continue;
-        inventoryAddresses[protocol] = cfg.address;
-      }
-      const inventoryConfig: InventoryMonitorConfig = {
-        inventoryAddresses,
-        chains: allRelevantChains,
-      };
-      // Merge config addresses with runtime keys
-      const mergedSigners: Partial<
-        Record<ProtocolType, InventorySignerConfig>
-      > = {};
-      for (const protocol of Object.values(ProtocolType)) {
-        const cfg = inventorySigners[protocol];
-        if (!cfg) continue;
-        mergedSigners[protocol] = {
-          address: cfg.address,
-          key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocol],
-        };
-      }
-      const inventoryRebalancer = new InventoryRebalancer(
-        {
-          inventorySigners: mergedSigners,
-          inventoryChains,
-        },
-        actionTracker,
-        externalBridgeRegistryOverride ?? {},
-        this.warpCore,
-        this.multiProvider,
-        this.logger,
-      );
-      return {
-        inventoryRebalancer,
-        externalBridgeRegistry: externalBridgeRegistryOverride ?? {},
-        inventoryConfig,
-      };
-    }
-
-    // 3. Build inventory config
     const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
     for (const protocol of Object.values(ProtocolType)) {
-      const cfg = inventorySigners[protocol];
+      const cfg = this.inventorySigners[protocol];
       if (!cfg) continue;
       inventoryAddresses[protocol] = cfg.address;
     }
@@ -602,21 +597,9 @@ export class RebalancerContextFactory {
       chains: allRelevantChains,
     };
 
-    // 4. Create InventoryRebalancer
-    // Merge config addresses with runtime keys
-    const mergedSigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
-      {};
-    for (const protocol of Object.values(ProtocolType)) {
-      const cfg = inventorySigners[protocol];
-      if (!cfg) continue;
-      mergedSigners[protocol] = {
-        address: cfg.address,
-        key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocol],
-      };
-    }
     const inventoryRebalancer = new InventoryRebalancer(
       {
-        inventorySigners: mergedSigners,
+        inventorySigners: this.inventorySigners,
         inventoryChains,
       },
       actionTracker,
@@ -637,14 +620,22 @@ export class RebalancerContextFactory {
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
 
-  private buildExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+  private buildExternalBridgeRegistry(
+    required?: ExternalBridgeType[],
+  ): Partial<ExternalBridgeRegistry> {
     const { externalBridges } = this.config;
     const registry: Partial<ExternalBridgeRegistry> = {};
+    const requiredBridges = new Set(required ?? []);
 
     for (const bridgeType of Object.values(ExternalBridgeType)) {
       switch (bridgeType) {
         case ExternalBridgeType.LiFi: {
           const lifiConfig = externalBridges?.lifi;
+          if (!lifiConfig?.integrator && requiredBridges.has(bridgeType)) {
+            throw new Error(
+              'LiFi is required for manual inventory rebalancing but externalBridges.lifi.integrator is not configured',
+            );
+          }
           if (lifiConfig?.integrator) {
             registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
@@ -658,7 +649,9 @@ export class RebalancerContextFactory {
           break;
         }
         case ExternalBridgeType.SwapsXyz: {
-          const swapsxyzConfig = externalBridges?.swapsxyz;
+          const swapsxyzConfig =
+            externalBridges?.swapsxyz ??
+            (requiredBridges.has(bridgeType) ? {} : undefined);
           if (swapsxyzConfig) {
             const apiKey =
               this.externalBridgeApiKeys?.[ExternalBridgeType.SwapsXyz];
@@ -697,11 +690,11 @@ export class RebalancerContextFactory {
    * @param metrics - Optional Metrics instance
    * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
-  public async createRebalancers(
-    actionTracker: IActionTracker,
-    metrics?: Metrics,
-    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
-  ): Promise<{
+  public async createRebalancers({
+    actionTracker,
+    metrics,
+    externalBridgeRegistryOverride,
+  }: CreateRebalancersOptions): Promise<{
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig?: InventoryMonitorConfig;
@@ -723,7 +716,7 @@ export class RebalancerContextFactory {
     // Check if any chains use inventory execution type
     const inventoryComponents = await this.createInventoryRebalancerAndConfig(
       actionTracker,
-      externalBridgeRegistryOverride,
+      { externalBridgeRegistryOverride },
     );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);
@@ -732,6 +725,49 @@ export class RebalancerContextFactory {
     }
 
     return { rebalancers, externalBridgeRegistry, inventoryConfig };
+  }
+
+  public async createManualInventoryContext({
+    origin,
+    destination,
+    externalBridge,
+    actionTracker: actionTrackerOverride,
+    explorerUrlOrClient,
+    externalBridgeRegistryOverride,
+    movementStalenessMs,
+  }: CreateManualInventoryContextOptions): Promise<ManualInventoryContext> {
+    const actionTracker =
+      actionTrackerOverride ??
+      (
+        await this.createActionTracker({
+          explorerUrlOrClient,
+          movementStalenessMs,
+        })
+      ).tracker;
+    const inventoryComponents = await this.createInventoryRebalancerAndConfig(
+      actionTracker,
+      {
+        additionalInventoryChains: [origin, destination],
+        requiredExternalBridges: [externalBridge],
+        externalBridgeRegistryOverride,
+      },
+    );
+    assert(
+      inventoryComponents,
+      'Manual inventory rebalancing requires inventory signer keys via HYP_INVENTORY_KEY_<PROTOCOL> environment variables',
+    );
+    assert(
+      inventoryComponents.externalBridgeRegistry[externalBridge],
+      `External bridge ${externalBridge} is not available for manual inventory rebalancing`,
+    );
+
+    return {
+      actionTracker,
+      externalBridgeRegistry: inventoryComponents.externalBridgeRegistry,
+      inventoryConfig: inventoryComponents.inventoryConfig,
+      inventoryRebalancer: inventoryComponents.inventoryRebalancer,
+      warpCore: this.warpCore,
+    };
   }
 
   /**

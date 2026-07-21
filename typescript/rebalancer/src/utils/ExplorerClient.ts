@@ -15,15 +15,20 @@ export type InflightRebalanceQueryParams = {
 
 export type UserTransferQueryParams = {
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
-  excludeTxSenders: string[]; // Addresses to exclude (rebalancer + inventory signer)
+  excludeTxSenders: ProtocolAddress[]; // Addresses to exclude (rebalancer + inventory signer)
   limit?: number;
+};
+
+export type ProtocolAddress = {
+  address: string;
+  protocol: ProtocolType;
 };
 
 export type RebalanceActionQueryParams = {
   bridges: string[]; // Bridge contract addresses
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   rebalancerAddress: string; // Include rebalancer's txs
-  inventorySignerAddresses?: string[]; // Optional: also include inventory signers' txs (for inventory_deposit actions)
+  inventorySignerAddresses?: ProtocolAddress[]; // Optional: also include inventory signers' txs (for inventory_deposit actions)
   limit?: number;
 };
 
@@ -76,6 +81,15 @@ export class ExplorerClient implements IExplorerClient {
     return addr.replace(/^0x/i, '\\x').toLowerCase();
   }
 
+  private protocolAddressToBytea({
+    address,
+    protocol,
+  }: ProtocolAddress): string {
+    if (isEVMLike(protocol)) return this.toBytea(address);
+    return addressToByteHexString(address, protocol)
+      .replace(/^0x/i, '\\x')
+      .toLowerCase();
+  }
   /**
    * Normalize all hex fields in Explorer response from PostgreSQL bytea format (\\x) to standard hex (0x)
    */
@@ -245,8 +259,9 @@ export class ExplorerClient implements IExplorerClient {
       ),
       originDomains: domains,
       destDomains: domains,
-      // NOTE: excludeTxSenders are always EVM addresses
-      excludeTxSenders: excludeTxSenders.map((a) => this.toBytea(a)),
+      excludeTxSenders: excludeTxSenders.map((address) =>
+        this.protocolAddressToBytea(address),
+      ),
       limit,
     };
 
@@ -322,8 +337,8 @@ export class ExplorerClient implements IExplorerClient {
 
   /**
    * Query inflight rebalance actions from the Explorer.
-   * Returns messages where sender/recipient are bridges, tx sender is the rebalancer,
-   * and origin_tx_recipient is one of this warp route's routers.
+   * Returns messages sent between configured bridges or warp routers by the
+   * rebalancer or an inventory signer.
    */
   async getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
@@ -345,20 +360,23 @@ export class ExplorerClient implements IExplorerClient {
     // NOTE: rebalancerAddress is always an EVM address (rebalancer signer)
     const txSenders = [this.toBytea(rebalancerAddress)];
     if (inventorySignerAddresses) {
-      for (const addr of inventorySignerAddresses) {
-        // NOTE: inventorySignerAddresses are filtered to ProtocolType.Ethereum
-        txSenders.push(this.toBytea(addr));
+      for (const address of inventorySignerAddresses) {
+        txSenders.push(this.protocolAddressToBytea(address));
       }
     }
 
+    const routeAddresses = routerEntries.map(([domain, address]) =>
+      this.toBytea(address, Number(domain)),
+    );
+
     const variables = {
-      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
-      senders: bridges.map((a) => this.toBytea(a)),
-      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
-      recipients: bridges.map((a) => this.toBytea(a)),
-      originTxRecipients: routerEntries.map(([domain, addr]) =>
-        this.toBytea(addr, Number(domain)),
-      ),
+      senders: [
+        ...new Set([...bridges.map((a) => this.toBytea(a)), ...routeAddresses]),
+      ],
+      recipients: [
+        ...new Set([...bridges.map((a) => this.toBytea(a)), ...routeAddresses]),
+      ],
+      originTxRecipients: routeAddresses,
       originDomains: domains,
       destDomains: domains,
       txSenders,
