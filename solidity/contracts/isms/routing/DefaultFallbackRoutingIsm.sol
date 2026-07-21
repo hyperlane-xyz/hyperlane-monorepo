@@ -16,7 +16,19 @@ contract DefaultFallbackRoutingIsm is DomainRoutingIsm, MailboxClient {
     using Address for address;
     using TypeCasts for bytes32;
 
-    constructor(address _mailbox) MailboxClient(_mailbox) {}
+    constructor(
+        address _mailbox,
+        address _owner,
+        uint32[] memory _domains,
+        IInterchainSecurityModule[] memory _modules
+    ) MailboxClient(_mailbox) {
+        require(_domains.length == _modules.length, "length mismatch");
+        for (uint256 i = 0; i < _domains.length; i++) {
+            _set(_domains[i], address(_modules[i]));
+        }
+        _transferOwnership(_owner);
+        _disableInitializers();
+    }
 
     function module(
         uint32 origin
