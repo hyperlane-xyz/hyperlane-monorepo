@@ -42,4 +42,4 @@ spec:
             {{- end }}
             envFrom:
             - secretRef:
-                name: monorepo-checks-env-var-secret
+                name: check-warp-deploy-env-var-secret

@@ -10,7 +10,10 @@ import { HelmManager } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
 
 export class MonorepoChecksHelmManager extends HelmManager {
-  readonly helmReleaseName: string = 'monorepo-checks';
+  // Retains the legacy release name so this deploys as an in-place upgrade of
+  // the existing check-warp-deploy release (reusing its synced env secret)
+  // rather than a new release requiring a fresh secret sync + old-release teardown.
+  readonly helmReleaseName: string = 'check-warp-deploy';
   readonly helmChartPath: string = join(
     getInfraPath(),
     './helm/monorepo-checks/',
