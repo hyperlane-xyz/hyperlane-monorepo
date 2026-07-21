@@ -2,8 +2,10 @@ import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
+  ArbitrumOrbitBridgeConfig,
   ChainConfig,
   KeyFunderConfig,
   ResolvedKeyConfig,
@@ -15,11 +17,26 @@ const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
 
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
 
+const ARBITRUM_ORBIT_INBOX_ABI = [
+  'function depositEth() external payable returns (uint256)',
+];
+
+interface ArbitrumOrbitInbox {
+  depositEth(
+    overrides: ethers.PayableOverrides,
+  ): Promise<ethers.providers.TransactionResponse>;
+  [key: string]: unknown;
+}
+
 export interface KeyFunderOptions {
   logger: Logger;
   metrics?: KeyFunderMetrics;
   skipIgpClaim?: boolean;
   igp?: HyperlaneIgp;
+  arbitrumOrbitInboxFactory?: (
+    inbox: string,
+    signer: ethers.Signer,
+  ) => ArbitrumOrbitInbox;
 }
 
 export class KeyFunder {
@@ -89,6 +106,10 @@ export class KeyFunder {
 
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
+    }
+
+    if (chainConfig.bridge) {
+      await this.bridgeIfRequired(chain, chainConfig);
     }
 
     try {
@@ -199,6 +220,110 @@ export class KeyFunder {
       );
       logger.info('IGP claim completed');
     }
+  }
+
+  private async bridgeIfRequired(
+    chain: string,
+    chainConfig: ChainConfig,
+  ): Promise<void> {
+    const bridgeConfig = chainConfig.bridge;
+    if (!bridgeConfig) {
+      return;
+    }
+
+    return this.bridgeToArbitrumOrbit(chain, bridgeConfig);
+  }
+
+  private async bridgeToArbitrumOrbit(
+    chain: string,
+    bridgeConfig: ArbitrumOrbitBridgeConfig,
+  ): Promise<void> {
+    const logger = this.options.logger.child({
+      chain,
+      parentChain: bridgeConfig.parentChain,
+      operation: 'bridge',
+      bridgeType: bridgeConfig.type,
+    });
+
+    const childFunderAddress = await this.multiProvider.getSignerAddress(chain);
+    const childBalance = await this.multiProvider
+      .getProvider(chain)
+      .getBalance(childFunderAddress);
+    const threshold = ethers.utils.parseEther(bridgeConfig.threshold);
+
+    if (childBalance.gte(threshold)) {
+      logger.debug(
+        {
+          childFunderAddress,
+          childBalance: ethers.utils.formatEther(childBalance),
+          threshold: ethers.utils.formatEther(threshold),
+        },
+        'Bridge balance sufficient, skipping',
+      );
+      return;
+    }
+
+    const targetBalance = ethers.utils.parseEther(bridgeConfig.targetBalance);
+    const bridgeAmount = targetBalance.sub(childBalance);
+    const parentSigner = this.multiProvider.getSigner(bridgeConfig.parentChain);
+    const [parentFunderAddress, parentBalance] = await Promise.all([
+      parentSigner.getAddress(),
+      parentSigner.getBalance(),
+    ]);
+
+    assert(
+      parentBalance.gte(bridgeAmount),
+      `Insufficient parent funder balance on ${bridgeConfig.parentChain}: has ${ethers.utils.formatEther(parentBalance)}, needs ${ethers.utils.formatEther(bridgeAmount)}`,
+    );
+
+    logger.info(
+      {
+        amount: ethers.utils.formatEther(bridgeAmount),
+        childBalance: ethers.utils.formatEther(childBalance),
+        childFunderAddress,
+        inbox: bridgeConfig.inbox,
+        parentFunderAddress,
+        parentBalance: ethers.utils.formatEther(parentBalance),
+        targetBalance: ethers.utils.formatEther(targetBalance),
+      },
+      'Bridging funds via Arbitrum Orbit inbox',
+    );
+
+    const inbox = this.createArbitrumOrbitInbox(
+      bridgeConfig.inbox,
+      parentSigner,
+    );
+    const tx = await inbox.depositEth({
+      ...this.multiProvider.getTransactionOverrides(bridgeConfig.parentChain),
+      value: bridgeAmount,
+    });
+    const receipt = await this.multiProvider.handleTx(
+      bridgeConfig.parentChain,
+      tx,
+    );
+
+    logger.info(
+      {
+        txHash: receipt.transactionHash,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(
+          bridgeConfig.parentChain,
+          {
+            hash: receipt.transactionHash,
+          },
+        ),
+      },
+      'Bridge transaction completed',
+    );
+  }
+
+  private createArbitrumOrbitInbox(
+    inbox: string,
+    signer: ethers.Signer,
+  ): ethers.Contract | ArbitrumOrbitInbox {
+    if (this.options.arbitrumOrbitInboxFactory) {
+      return this.options.arbitrumOrbitInboxFactory(inbox, signer);
+    }
+    return new ethers.Contract(inbox, ARBITRUM_ORBIT_INBOX_ABI, signer);
   }
 
   private async fundKeys(
