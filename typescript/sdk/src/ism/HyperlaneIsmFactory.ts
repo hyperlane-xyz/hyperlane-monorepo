@@ -174,7 +174,7 @@ export function assertNoNestedCompositeIsm(
  * or someone else's initialize() call, can leave a routing ISM correctly
  * owned but wired to the wrong submodules.
  */
-async function assertSubmodulesMatchExpected(
+export async function assertSubmodulesMatchExpected(
   routingIsm:
     | DomainRoutingIsm
     | IncrementalDomainRoutingIsm
@@ -190,9 +190,20 @@ async function assertSubmodulesMatchExpected(
     existingDomains.length === expectedDomains.length,
     `Routing ISM at ${routingIsm.address} on ${destination} was front-run: it has ${existingDomains.length} domains configured, expected ${expectedDomains.length} — refusing to proceed`,
   );
+  // Combined with the length check above, confirming every expected domain is
+  // present on-chain proves the two domain sets are exactly equal.
+  const existingDomainSet = new Set(existingDomains);
   for (let i = 0; i < expectedDomains.length; i++) {
     const domain = expectedDomains[i];
     const expectedModule = expectedModules[i];
+    // module() reverts with a raw "No ISM found for origin" string for a
+    // domain that isn't configured (or, on DefaultFallbackRoutingIsm, silently
+    // falls back to the mailbox default ISM instead) — check set membership
+    // first so a missing domain always surfaces as this clear message.
+    assert(
+      existingDomainSet.has(domain),
+      `Routing ISM at ${routingIsm.address} on ${destination} was front-run: expected domain ${domain} is not configured on-chain — refusing to proceed`,
+    );
     const actualModule = await routingIsm.module(domain);
     assert(
       eqAddress(actualModule, expectedModule),
