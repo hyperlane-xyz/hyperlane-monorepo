@@ -186,7 +186,8 @@ where
         tx: &TypedTransaction,
         function: &Function,
     ) -> ChainResult<U256> {
-        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let tx = tx_with_estimate_gas_sender(tx.clone(), self.provider.default_sender());
+        let contract_call = self.build_contract_call::<()>(tx, function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
@@ -230,6 +231,7 @@ where
         precursors: Vec<(TypedTransaction, Function)>,
     ) -> ChainResult<U256> {
         let (multi_tx, multi_function) = multi_precursor;
+        let multi_tx = tx_with_estimate_gas_sender(multi_tx, self.provider.default_sender());
         let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
         let contract_calls = self.create_contract_calls(precursors);
 
@@ -302,6 +304,15 @@ where
     fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
     }
+}
+
+fn tx_with_estimate_gas_sender(mut tx: TypedTransaction, sender: Option<H160>) -> TypedTransaction {
+    if tx.from().is_none() {
+        if let Some(sender) = sender {
+            tx.set_from(sender);
+        }
+    }
+    tx
 }
 
 impl<M> EthereumProvider<M>
@@ -575,4 +586,33 @@ where
         };
     }
     Err(not_found_error(id).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers_core::types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest};
+
+    use super::*;
+
+    #[test]
+    fn tx_with_estimate_gas_sender_sets_missing_from() {
+        let sender = H160::repeat_byte(0x11);
+        let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest::default());
+
+        let tx = tx_with_estimate_gas_sender(tx, Some(sender));
+
+        assert_eq!(tx.from(), Some(&sender));
+    }
+
+    #[test]
+    fn tx_with_estimate_gas_sender_preserves_existing_from() {
+        let existing_sender = H160::repeat_byte(0x22);
+        let default_sender = H160::repeat_byte(0x33);
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest::default());
+        tx.set_from(existing_sender);
+
+        let tx = tx_with_estimate_gas_sender(tx, Some(default_sender));
+
+        assert_eq!(tx.from(), Some(&existing_sender));
+    }
 }
