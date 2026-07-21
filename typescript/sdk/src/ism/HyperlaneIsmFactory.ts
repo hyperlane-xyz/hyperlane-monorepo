@@ -165,6 +165,42 @@ export function assertNoNestedCompositeIsm(
   }
 }
 
+/**
+ * Asserts that every domain -> submodule mapping already configured on a
+ * routing ISM found already-initialized matches what this deploy expected to
+ * configure. Owner matching alone isn't sufficient: a resumed deploy whose
+ * nested submodules landed on different addresses than this attempt (e.g. a
+ * raw-CREATE nested routing ISM re-deployed with a new nonce-based address),
+ * or someone else's initialize() call, can leave a routing ISM correctly
+ * owned but wired to the wrong submodules.
+ */
+async function assertSubmodulesMatchExpected(
+  routingIsm:
+    | DomainRoutingIsm
+    | IncrementalDomainRoutingIsm
+    | DefaultFallbackRoutingIsm,
+  expectedDomains: number[],
+  expectedModules: Address[],
+  destination: ChainName,
+): Promise<void> {
+  const existingDomains = (await routingIsm.domains()).map((domain) =>
+    domain.toNumber(),
+  );
+  assert(
+    existingDomains.length === expectedDomains.length,
+    `Routing ISM at ${routingIsm.address} on ${destination} was front-run: it has ${existingDomains.length} domains configured, expected ${expectedDomains.length} — refusing to proceed`,
+  );
+  for (let i = 0; i < expectedDomains.length; i++) {
+    const domain = expectedDomains[i];
+    const expectedModule = expectedModules[i];
+    const actualModule = await routingIsm.module(domain);
+    assert(
+      eqAddress(actualModule, expectedModule),
+      `Routing ISM at ${routingIsm.address} on ${destination} was front-run: domain ${domain} routes to ${actualModule}, expected ${expectedModule} — refusing to proceed`,
+    );
+  }
+}
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -724,8 +760,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             eqAddress(existingOwner, config.owner),
             `Fallback routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${config.owner} — refusing to proceed`,
           );
+          await assertSubmodulesMatchExpected(
+            routingIsm,
+            safeConfigDomains,
+            submoduleAddresses,
+            destination,
+          );
           logger.debug(
-            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized with the expected owner`,
+            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized with the expected owner and submodules`,
           );
         }
       } else {
@@ -774,6 +816,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             assert(
               eqAddress(existingOwner, owner),
               `Routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${owner} — refusing to proceed`,
+            );
+            await assertSubmodulesMatchExpected(
+              routingIsm,
+              safeConfigDomains,
+              submoduleAddresses,
+              destination,
             );
           }
           return routingIsm;
