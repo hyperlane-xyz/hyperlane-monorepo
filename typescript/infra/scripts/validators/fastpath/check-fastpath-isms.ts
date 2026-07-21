@@ -57,7 +57,7 @@ export type FastpathIsmViolationType =
   | 'validators'
   | 'threshold';
 
-export type FastpathIsmCheckStatus = 'ok' | 'missing' | 'mismatch';
+export type FastpathIsmCheckStatus = 'ok' | 'missing' | 'mismatch' | 'error';
 
 export interface FastpathIsmViolation {
   actual: string;
@@ -86,6 +86,7 @@ export interface FastpathIsmChecksOptions {
 }
 
 export interface FastpathIsmChecksResult {
+  erroredCount: number;
   results: FastpathIsmCheckResult[];
   violations: FastpathIsmViolation[];
   violationsCount: number;
@@ -139,9 +140,12 @@ async function main() {
     return;
   }
 
-  if (checkResult.violationsCount > 0) {
+  if (checkResult.violationsCount > 0 || checkResult.erroredCount > 0) {
     rootLogger.error(
-      { count: checkResult.violationsCount },
+      {
+        erroredCount: checkResult.erroredCount,
+        violationsCount: checkResult.violationsCount,
+      },
       'Some ISMs failed checks',
     );
     process.exitCode = 1;
@@ -207,21 +211,91 @@ export async function runFastpathIsmChecks({
       continue;
     }
 
-    const provider = multiProvider.getProvider(destination);
-    const destDomain = multiProvider.getDomainId(destination);
-    // Static ISMs ignore message content — any origin domain works.
-    const dummyMsg = buildDummyMessage(1, destDomain);
+    // Isolate per-destination on-chain failures: a transient RPC error on one
+    // destination must not discard mismatches already collected for others, nor
+    // prevent them from reaching PushGateway. The destination is recorded as
+    // errored so the overall check still exits non-zero.
+    try {
+      const provider = multiProvider.getProvider(destination);
+      const destDomain = multiProvider.getDomainId(destination);
+      // Static ISMs ignore message content — any origin domain works.
+      const dummyMsg = buildDummyMessage(1, destDomain);
 
-    const topIsm = IInterchainSecurityModule__factory.connect(
-      ismAddress,
-      provider,
-    );
-    const moduleType = await topIsm.moduleType();
+      const topIsm = IInterchainSecurityModule__factory.connect(
+        ismAddress,
+        provider,
+      );
+      const moduleType = await topIsm.moduleType();
 
-    if (moduleType !== ModuleType.MESSAGE_ID_MULTISIG) {
-      rootLogger.warn(
-        { destination, ismAddress, moduleType },
-        'Expected messageId multisig ISM',
+      if (moduleType !== ModuleType.MESSAGE_ID_MULTISIG) {
+        rootLogger.warn(
+          { destination, ismAddress, moduleType },
+          'Expected messageId multisig ISM',
+        );
+        results.push({
+          actualValidators: [],
+          destination,
+          expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
+          expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
+          ismAddress,
+          moduleType,
+          status: 'mismatch',
+          violations: [
+            {
+              actual: String(moduleType),
+              destination,
+              expected: String(ModuleType.MESSAGE_ID_MULTISIG),
+              type: 'moduleType',
+            },
+          ],
+        });
+        continue;
+      }
+
+      const multisigIsm = IMultisigIsm__factory.connect(ismAddress, provider);
+      const [validators, threshold] =
+        await multisigIsm.validatorsAndThreshold(dummyMsg);
+
+      const validatorsMatch =
+        validators.length === DEFAULT_FASTPATH_VALIDATORS.length &&
+        DEFAULT_FASTPATH_VALIDATORS.every((v) =>
+          validators.some((w) => w.toLowerCase() === v.toLowerCase()),
+        );
+      const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
+      const violations: FastpathIsmViolation[] = [];
+      if (!validatorsMatch) {
+        violations.push({
+          actual: validators.join(', '),
+          destination,
+          expected: DEFAULT_FASTPATH_VALIDATORS.join(', '),
+          type: 'validators',
+        });
+      }
+      if (!thresholdMatch) {
+        violations.push({
+          actual: String(threshold),
+          destination,
+          expected: String(DEFAULT_FASTPATH_THRESHOLD),
+          type: 'threshold',
+        });
+      }
+      results.push({
+        actualThreshold: threshold,
+        actualValidators: [...validators],
+        destination,
+        expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
+        expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
+        ismAddress,
+        moduleType,
+        status: violations.length === 0 ? 'ok' : 'mismatch',
+        violations,
+      });
+
+      rootLogger.info({ destination }, 'MessageId multisig ISM checked');
+    } catch (error) {
+      rootLogger.error(
+        { destination, ismAddress, error },
+        'Failed to check fastpath ISM',
       );
       results.push({
         actualValidators: [],
@@ -229,68 +303,22 @@ export async function runFastpathIsmChecks({
         expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
         expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
         ismAddress,
-        moduleType,
-        status: 'mismatch',
-        violations: [
-          {
-            actual: String(moduleType),
-            destination,
-            expected: String(ModuleType.MESSAGE_ID_MULTISIG),
-            type: 'moduleType',
-          },
-        ],
-      });
-      continue;
-    }
-
-    const multisigIsm = IMultisigIsm__factory.connect(ismAddress, provider);
-    const [validators, threshold] =
-      await multisigIsm.validatorsAndThreshold(dummyMsg);
-
-    const validatorsMatch =
-      validators.length === DEFAULT_FASTPATH_VALIDATORS.length &&
-      DEFAULT_FASTPATH_VALIDATORS.every((v) =>
-        validators.some((w) => w.toLowerCase() === v.toLowerCase()),
-      );
-    const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
-    const violations: FastpathIsmViolation[] = [];
-    if (!validatorsMatch) {
-      violations.push({
-        actual: validators.join(', '),
-        destination,
-        expected: DEFAULT_FASTPATH_VALIDATORS.join(', '),
-        type: 'validators',
+        status: 'error',
+        violations: [],
       });
     }
-    if (!thresholdMatch) {
-      violations.push({
-        actual: String(threshold),
-        destination,
-        expected: String(DEFAULT_FASTPATH_THRESHOLD),
-        type: 'threshold',
-      });
-    }
-    results.push({
-      actualThreshold: threshold,
-      actualValidators: [...validators],
-      destination,
-      expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
-      expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
-      ismAddress,
-      moduleType,
-      status: violations.length === 0 ? 'ok' : 'mismatch',
-      violations,
-    });
-
-    rootLogger.info({ destination }, 'MessageId multisig ISM checked');
   }
 
   const violations = results.flatMap((result) => result.violations);
+  const erroredCount = results.filter(
+    (result) => result.status === 'error',
+  ).length;
   if (pushMetrics && violations.length > 0) {
     await pushFastpathIsmViolationMetrics(violations, environment);
   }
 
   return {
+    erroredCount,
     results,
     violations,
     violationsCount: violations.length,

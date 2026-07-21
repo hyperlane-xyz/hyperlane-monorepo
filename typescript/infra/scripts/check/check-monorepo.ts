@@ -43,7 +43,7 @@ const MONOREPO_CHECK_RUNNERS: Record<MonorepoCheckName, MonorepoCheckRunner> = {
   [MonorepoCheckName.Fastpath]: async ({ environment, pushMetrics }) => {
     const result = await runFastpathIsmChecks({ environment, pushMetrics });
     return {
-      failedCount: 0,
+      failedCount: result.erroredCount,
       violationsCount: result.violationsCount,
     };
   },
