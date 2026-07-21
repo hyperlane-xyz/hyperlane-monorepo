@@ -164,9 +164,11 @@ async function main() {
               rootLogger.info(
                 `[${chainName}] Requested Heimdall fast-track${canonicalUrl ? `: ${canonicalUrl}` : ''}`,
               );
-            } catch (error) {
+            } catch (error: unknown) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
               rootLogger.warn(
-                `[${chainName}] Failed to request Heimdall fast-track for ${safeTxHash}; the Safe transaction was proposed successfully: ${String(error)}`,
+                `[${chainName}] Failed to request Heimdall fast-track for ${safeTxHash}; the Safe transaction was proposed successfully: ${errorMessage}`,
               );
             }
           }),
