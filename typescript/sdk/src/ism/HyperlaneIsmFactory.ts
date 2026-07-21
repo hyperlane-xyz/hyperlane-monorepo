@@ -697,8 +697,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           await getZKSyncArtifactByContractName(config.type),
         );
         // TODO: Should verify contract here
-        // Defensive double-init guard (fresh CREATE address, so this never
-        // fires in practice; kept for safety).
         if (
           !(await isInitialized(
             this.multiProvider.getProvider(destination),
@@ -716,8 +714,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             ),
           );
         } else {
+          // Already initialized by the time we got here — either a resumed
+          // deploy, or someone else won the race on this ISM's permissionless
+          // one-time initialize(). Refuse to proceed silently if it's the
+          // latter: a hijacked owner here would otherwise be treated as a
+          // successful deploy.
+          const existingOwner = await routingIsm.owner();
+          assert(
+            eqAddress(existingOwner, config.owner),
+            `Fallback routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${config.owner} — refusing to proceed`,
+          );
           logger.debug(
-            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized`,
+            `Skipping initialization of fallback routing ISM at ${routingIsm.address} — already initialized with the expected owner`,
           );
         }
       } else {
@@ -756,6 +764,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
               safeConfigDomains,
               submoduleAddresses,
               overrides,
+            );
+          } else {
+            // Already initialized — either a resumed deploy landing on the
+            // same deterministic address, or someone else won the race on
+            // this ISM's permissionless one-time initialize(). Refuse to
+            // proceed silently if it's the latter.
+            const existingOwner = await routingIsm.owner();
+            assert(
+              eqAddress(existingOwner, owner),
+              `Routing ISM at ${routingIsm.address} on ${destination} was front-run: address ${existingOwner} initialized it before this deploy could, and now owns it instead of the expected owner ${owner} — refusing to proceed`,
             );
           }
           return routingIsm;
