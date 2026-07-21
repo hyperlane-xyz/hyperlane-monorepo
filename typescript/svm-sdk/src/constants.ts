@@ -20,8 +20,23 @@ export const SPL_NOOP_PROGRAM_ADDRESS =
 export const LOADER_V3_PROGRAM_ADDRESS =
   'BPFLoaderUpgradeab1e11111111111111111111111' as Address;
 
+export const FEATURE_GATE_PROGRAM_ADDRESS = castAddress(
+  'Feature111111111111111111111111111111111111',
+);
+
+// Feature gate for the ExtendProgramChecked instruction (variant 9). When
+// inactive on a cluster, the legacy ExtendProgram (variant 6) must be used.
+export const EXTEND_PROGRAM_CHECKED_FEATURE = castAddress(
+  '2oMRZEDWT2tqtYMofhmmfQ8SsjqUFzT6sYXppQDavxwz',
+);
+
 // Solana hard limit on account data size.
 export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;
+
+// Minimum bytes a single program-data extend may add. The BPF upgradeable
+// loader rejects smaller extends ("requires a minimum of 10240 additional
+// bytes"); larger single extends are permitted.
+export const MIN_PROGRAM_DATA_EXTEND_BYTES = 10 * 1024;
 
 // Fixed base fee per signature on Solana.
 // https://solana.com/docs/core/fees#base-fee

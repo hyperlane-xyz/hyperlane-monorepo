@@ -37,6 +37,15 @@ export interface SvmTransaction {
    * only need to track the ALT pubkey — not its contents.
    */
   addressLookupTables?: Address[];
+  /**
+   * Block until the cluster slot advances past the slot this transaction
+   * confirmed in before the signer reports it done. Lets a caller guarantee
+   * the next transaction it sends executes in a strictly later slot — e.g. an
+   * Upgrade must not share the slot its program-data was extended in, and a
+   * program is not invocable in the slot it is upgraded. A generic delivery
+   * hint: the signer has no notion of what the transaction does.
+   */
+  waitForSlotAdvance?: boolean;
 }
 
 export interface SvmReceipt {
