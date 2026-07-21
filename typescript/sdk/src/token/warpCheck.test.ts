@@ -27,6 +27,7 @@ import {
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
+  normalizeAltVmExpectedTokenType,
 } from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
@@ -407,6 +408,29 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
 
     expect(result.hook).to.equal(undefined);
     expect(result.interchainSecurityModule).to.equal(undefined);
+  });
+});
+
+describe('normalizeAltVmExpectedTokenType', () => {
+  it("maps the paradex-only 'collateralDex' annotation to collateral", () => {
+    // collateralDex is a registry-only annotation with no SDK TokenType; the leg
+    // is a standard collateral router on-chain, so the checker must treat the two
+    // as equivalent instead of false-flagging a `type` ConfigMismatch.
+    expect(normalizeAltVmExpectedTokenType('collateralDex')).to.equal(
+      TokenType.collateral,
+    );
+  });
+
+  it('leaves known token types unchanged', () => {
+    expect(normalizeAltVmExpectedTokenType(TokenType.collateral)).to.equal(
+      TokenType.collateral,
+    );
+    expect(normalizeAltVmExpectedTokenType(TokenType.synthetic)).to.equal(
+      TokenType.synthetic,
+    );
+    expect(normalizeAltVmExpectedTokenType(TokenType.native)).to.equal(
+      TokenType.native,
+    );
   });
 });
 
