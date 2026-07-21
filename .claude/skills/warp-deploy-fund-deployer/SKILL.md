@@ -197,14 +197,14 @@ The flat `getMinGas().WARP_DEPLOY_GAS` constant on these SDKs is calibrated for 
 
 **SVM (solanamainnet, eclipsemainnet) — required floor in SOL:**
 
-| Route shape (this chain)                                      | Floor   | Composition                                                      |
-| ------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| Base collateral / synthetic router, no fee                    | 2.6 SOL | Program + token PDA + ATA payer rent                             |
-| `crossCollateral` router, no fee                              | 3.7 SOL | Base 2.6 + cross-collateral extra 1.1                            |
-| `synthetic` / `collateral` router + fee program on this chain | 5.1 SOL | Base 2.6 + fee program 2.5                                       |
-| `crossCollateral` router + fee program on this chain          | 6.2 SOL | Base 2.6 + cross-collateral 1.1 + fee 2.5                        |
-| Any of the above + custom ISM deployment on this chain        | +?      | Not yet quantified — capture the actual during deploy and log it |
-| Any of the above + custom hook deployment on this chain       | +?      | Not yet quantified — capture the actual during deploy and log it |
+| Route shape (this chain)                                      | Floor    | Notes                                                                                                                                   |
+| ------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Base collateral / synthetic router, no fee                    | 2.6 SOL  | Program + token PDA + ATA payer rent. Empirically validated on prior deploys.                                                           |
+| `crossCollateral` router, no fee                              | ≥3.7 SOL | Composed: base 2.6 + cross-collateral extra 1.1. Not yet empirically validated — bias high and log the actual.                          |
+| `synthetic` / `collateral` router + fee program on this chain | ≥5.1 SOL | Composed: base 2.6 + fee program 2.5. Not yet empirically validated — bias high and log the actual.                                     |
+| `crossCollateral` router + fee program on this chain          | 6.5 SOL  | Composed constants sum to 6.2 (2.6 + 1.1 + 2.5); observed cost exceeds that — use 6.5 until the actual is measured with more precision. |
+| Any of the above + custom ISM deployment on this chain        | +?       | Not yet quantified — capture the actual during deploy and log it.                                                                       |
+| Any of the above + custom hook deployment on this chain       | +?       | Not yet quantified — capture the actual during deploy and log it.                                                                       |
 
 **Tron (tron) — required floor in TRX:**
 
@@ -242,13 +242,13 @@ Chain: ethereum (evm)  [gas-market]
   ⚠️  SHORT: fund 0.006 ETH (~12.38 USD more)
 
 Chain: solanamainnet (svm)  [null-gasPrice — CLI preflight does NOT apply]
-  Route shape on this chain: crossCollateral router + fee program
-  Applied floor:  6.2 SOL (base 2.6 + cross-collateral 1.1 + fee program 2.5)
+  Route shape on this chain: crossCollateral router + fee program  (example — actual shape comes from the ticket)
+  Applied floor:  6.5 SOL (composed 2.6 + 1.1 + 2.5 = 6.2, observed slightly higher; log the actual once known)
   Balance:        0.3 SOL
-  ⚠️  SHORT: fund 5.9 SOL more
+  ⚠️  SHORT: fund 6.2 SOL more
 
 Chain: tron (tron)  [null-gasPrice — CLI preflight does NOT apply]
-  Route shape on this chain: cross-collateral + fee
+  Route shape on this chain: cross-collateral + fee  (example — actual shape comes from the ticket)
   Applied floor:  1500 TRX  (conservative; capture the deploy's actual consumption during the run and log it)
   Balance:        0 TRX
   ❌  EMPTY: fund 1500 TRX
