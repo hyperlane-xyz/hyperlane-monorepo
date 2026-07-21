@@ -555,6 +555,7 @@ jobs:
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply
+          - warp-legacy-upgrade-fee
           - warp-quote
           - warp-read
     steps:
