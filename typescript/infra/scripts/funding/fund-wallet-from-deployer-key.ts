@@ -35,13 +35,18 @@ const logger = rootLogger.child({
   module: 'fund-hot-wallet',
 });
 /**
- * For solana deployments at least 2.5 SOL are needed for rent.
- * As of 11/09/2025 the price is ~$227 meaning that 2.5 SOL are
- * ~$600.
+ * Non-EVM chains need larger native amounts than gasPrice × units would suggest,
+ * and the required amount varies by route shape. On Sealevel a vanilla
+ * synthetic/collateral router needs ~2.6 SOL of rent-exempt reserves, but a
+ * cross-collateral router paired with a fee program can exceed 6 SOL; extra
+ * ISM/hook programs push it higher still. Tron uses energy + bandwidth
+ * rather than a gas price, so its floors are per-shape TRX amounts.
+ * See the shape tables in .claude/skills/warp-deploy-fund-deployer before
+ * choosing an --amount for those chains.
  *
- * Ethereum mainnet deployments can be expensive too depending
- * on network activity. As the price is ~$4400, $1000 should be enough
- * to cover mainnet costs
+ * Ethereum mainnet deployments can be expensive too depending on network
+ * activity — $1000 is the ceiling per single-chain funding call so a
+ * misestimate can't wire the entire deployer key in one shot.
  */
 const MAX_FUNDING_AMOUNT_IN_USD = 1000;
 

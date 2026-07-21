@@ -114,7 +114,11 @@ export class SvmProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 10_000_000_000n,
-      // ~2.6 SOL covers program account rent + token PDA rent + ATA payer funding
+      // Vanilla synthetic/collateral router: program account rent + token PDA
+      // rent + ATA payer funding. Undercounts cross-collateral and fee-program
+      // deploys, which add their own rent-exempt reserves — use a
+      // shape-aware value for those (see the fund-deployer skill's SOL floor
+      // table).
       WARP_DEPLOY_GAS: 2_600_000_000n,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
