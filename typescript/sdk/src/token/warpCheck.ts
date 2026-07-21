@@ -88,6 +88,19 @@ function isSupportedAltVmProtocol(protocol: ProtocolType | null): boolean {
   return protocol !== null && ALTVM_CHECK_PROTOCOLS.has(protocol);
 }
 
+// Protocols with no interchain gas paymaster: their routers never consume a
+// per-destination gas, so the on-chain `destination_gas` is always 0 and the
+// EVM-derived expected default is meaningless. Only these origins get the
+// zero-destinationGas normalization (see normalizeAltVmDestinationGas).
+// IGP-capable altVM protocols (e.g. Sealevel, CosmosNative) keep the drift.
+const NO_IGP_ALTVM_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
+  ProtocolType.Starknet,
+]);
+
+function isNoIgpAltVmProtocol(protocol: ProtocolType | null): boolean {
+  return protocol !== null && NO_IGP_ALTVM_PROTOCOLS.has(protocol);
+}
+
 type ObjectDiffMap = Exclude<ObjectDiff, ObjectDiff[] | undefined>;
 type ObjectDiffLeaf = Exclude<ObjectDiffMap[string], ObjectDiff | undefined>;
 
@@ -469,9 +482,38 @@ async function getAltVmOnChainDerivedConfigs({
   );
 }
 
+// On no-IGP altVM origins (Starknet/paradex) a per-destination gas that was never
+// set on-chain reads back as 0 from the contract's `destination_gas` entrypoint.
+// The expected side derives a non-zero EVM `gasOverhead` default for every remote
+// (see getGasConfig in configUtils.ts), so comparing the two would false-flag every
+// route that never set per-domain gas on-chain -- and these chains have no IGP that
+// consumes the value anyway. Mirror the ISM/hook zero-address normalization below:
+// treat a 0 on-chain gas as "unset" and drop that destination from both sides. A
+// genuinely-configured (non-zero) on-chain gas still diffs normally.
+//
+// This is applied ONLY to no-IGP origins (see isNoIgpAltVmProtocol). IGP-capable
+// altVM protocols (Sealevel, CosmosNative, ...) consume destination_gas, so a
+// zero-vs-nonzero drift there is a real regression and must still be flagged.
+export function normalizeAltVmDestinationGas(
+  actual: Record<string, string>,
+  expected: Record<string, string>,
+): { actual: Record<string, string>; expected: Record<string, string> } {
+  const normalizedActual: Record<string, string> = {};
+  const normalizedExpected: Record<string, string> = { ...expected };
+  for (const [chain, gas] of Object.entries(actual)) {
+    if (BigInt(gas) === 0n) {
+      delete normalizedExpected[chain];
+      continue;
+    }
+    normalizedActual[chain] = gas;
+  }
+  return { actual: normalizedActual, expected: normalizedExpected };
+}
+
 export function buildAltVmWarpRouteDiff(
   onChainConfigs: Record<string, AltVmCheckConfig>,
   expectedConfigs: Record<string, AltVmCheckConfig>,
+  noIgpChains: ReadonlySet<string> = new Set(),
 ): Record<string, ObjectDiff> {
   const diff: Record<string, ObjectDiff> = {};
 
@@ -495,6 +537,13 @@ export function buildAltVmWarpRouteDiff(
     // rarely set explicitly, so only compare when the deploy config opts in.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
+    const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
+      noIgpChains.has(chain)
+        ? normalizeAltVmDestinationGas(
+            actual.destinationGas,
+            expected.destinationGas,
+          )
+        : { actual: actual.destinationGas, expected: expected.destinationGas };
     const normalizedActual: AltVmCheckConfig = {
       ...actual,
       interchainSecurityModule: isNullish(expected.interchainSecurityModule)
@@ -505,10 +554,12 @@ export function buildAltVmWarpRouteDiff(
         ? undefined
         : actual.contractVersion,
       scale: undefined,
+      destinationGas: normalizedActualGas,
     };
     const normalizedExpected: AltVmCheckConfig = {
       ...expected,
       scale: undefined,
+      destinationGas: normalizedExpectedGas,
     };
 
     const { mergedObject, isInvalid } = diffObjMerge(
@@ -740,9 +791,16 @@ export async function checkWarpRouteDeployConfig({
     }
   }
 
+  const noIgpAltVmChains = new Set(
+    Object.keys(altVmExpectedConfigs).filter((chain) =>
+      isNoIgpAltVmProtocol(multiProvider.tryGetProtocol(chain)),
+    ),
+  );
+
   const rawAltVmDiff = buildAltVmWarpRouteDiff(
     altVmOnChainConfigs,
     altVmExpectedConfigs,
+    noIgpAltVmChains,
   );
 
   for (const chain of Object.keys(altVmExpectedConfigs)) {
