@@ -83,7 +83,7 @@ export function useAleoTransactionFns(
         transaction,
       });
 
-      const adapterInstance = getAdapter();
+      const adapterInstance = await getAdapter();
       const transactionResult = await adapterInstance.executeTransaction({
         program: transaction.programName,
         function: transaction.functionName,
@@ -123,7 +123,7 @@ export function useAleoTransactionFns(
         } catch (err) {
           if (attempts >= MAX_POLLING_ATTEMPTS) {
             throw new Error(
-              `Failed to get transaction status from ${transactionResult.transactionId} after ${MAX_POLLING_ATTEMPTS} attempts: ${err}`,
+              `Failed to get transaction status from ${transactionResult.transactionId} after ${MAX_POLLING_ATTEMPTS} attempts: ${String(err)}`,
             );
           }
         }
