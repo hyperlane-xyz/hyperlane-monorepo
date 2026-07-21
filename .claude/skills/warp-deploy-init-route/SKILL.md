@@ -18,23 +18,46 @@ If you are _unsure_ about a chain, treat it as unverified — run `/warp-deploy-
 
 The gate is **per-chain**, not per-run. If a prior session already left `ethereum` at ✅ OK and nothing has changed since (no other deploys draining the key), skipping re-check on that chain is fine. Any chain that is unverified OR short must be resolved before Step 1.
 
-**Why**: an under-funded chain fails mid-deploy after partial contract deployment on other chains, leaving orphaned artifacts that need manual cleanup before a retry. Fund-deployer's role is to catch shortfalls up front. The reactive text at `## Step 8b` ("insufficient gas → run /warp-deploy-fund-deployer first") is a defensive fallback for state that decayed between preflight and deploy — it is not a substitute for the preflight itself.
+**Why**: an under-funded chain fails mid-deploy after partial contract deployment on other chains, leaving orphaned artifacts that need manual cleanup before a retry. Fund-deployer's role is to catch shortfalls up front. The reactive text later in Step 8 ("insufficient gas → run /warp-deploy-fund-deployer first") is a defensive fallback for state that decayed between preflight and deploy — it is not a substitute for the preflight itself.
 
 ## Run Log (mandatory)
 
-Append entries to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry) at every milestone in this skill. Entry format:
+Every milestone in this skill must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
 
-```markdown
-### <ISO-timestamp> — warp-deploy-init-route — <step-label>
+**Primary target — Linear document.** One document per ticket, titled `<ticket-id> — run log`. On skill entry, look for the document via `list_documents` filtered on the ticket; if it doesn't exist, create it via `save_document`. Subsequent entries fetch the current body via `get_document`, append the new entry, and save the concatenated body via `save_document` with the same id.
 
-- expected: <what the skill text predicted / requested>
-- actual: <what actually happened / observed output>
-- notes: <deviations, blockers, gas actuals, unexpected 404s, retry counts, session-restore anomalies>
-```
+**Fallback — local file.** Only when Linear document tools are unavailable in the current agent context: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file may not survive session-restore; copy it to durable storage (paste into the Linear ticket, upload as an attachment, etc.) at each significant milestone so the retrospective still has data if the worker resets.
 
-Log at least: (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any gas number, timing, or output diverges from what this skill's text predicts, LOG THAT — the diff is the input to the next skill revision.
+Every entry has two parts:
 
-Do not skip entries when things go smoothly; success data grounds the retrospective as much as failure data. This log is the ground truth the retrospective is built from — reconstructed-from-memory retros are unreliable (see `[[reference-haggis-sandbox]]` §session-restore).
+1. **Machine-parseable rows** — one per chain the step touched, when the step deals with per-chain state. Pipe-delimited so the retrospective can grep floor-vs-actual diffs mechanically:
+
+   ```
+   chain | protocol | shape | floor | actual | verdict
+   ```
+
+   Format-only examples (values below are illustrative — the actual chain, shape, and floor for a run come from the ticket, not from these rows; a route can have any combination of protocols and shapes):
+
+   ```
+   ethereum       | evm | collateral+RoutingFee            | 0.008 ETH | 0.007 ETH | ✅ OK
+   solanamainnet  | svm | crossCollateral+fee              | 6.5 SOL   | pending   | ⚠️  shortfall funded
+   ```
+
+   Use `pending` for the actual until it's known; append a post-hoc row once the actual is measured (during or after deploy). Whatever shape / protocol / units the current route uses, the row keeps the same six columns.
+
+2. **Prose entry:**
+
+   ```markdown
+   ### <ISO-timestamp> — warp-deploy-init-route — <step-label>
+
+   - expected: <what the skill text predicted / requested>
+   - actual: <what actually happened / observed output>
+   - notes: <deviations, blockers, gas actuals, unexpected 404s, retry counts, session-restore anomalies>
+   ```
+
+Log at least: (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision.
+
+Do not skip entries when things go smoothly; success data grounds the retrospective as much as failure data.
 
 ## Input
 
