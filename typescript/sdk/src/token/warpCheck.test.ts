@@ -261,6 +261,36 @@ describe('derivedWarpConfigToCheckConfig', () => {
     expect(result.contractVersion).to.equal('1.2.3');
   });
 
+  it('keeps token for collateral types (a real configured value)', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ token: TOKEN_A }),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.have.property('token');
+  });
+
+  it('drops token for synthetic types, whose mint is a deterministic deployment artifact', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        decimals: 6,
+        destinationGas: {},
+        hook: MAILBOX,
+        interchainSecurityModule: MAILBOX,
+        mailbox: MAILBOX,
+        name: 'TOKEN',
+        owner: OWNER,
+        remoteRouters: {},
+        symbol: 'TOKEN',
+        token: TOKEN_A,
+        type: TokenType.synthetic,
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.not.have.property('token');
+  });
+
   it('normalizes crossCollateralRouters to lowercased, sorted, chain-keyed lists', () => {
     const result = derivedWarpConfigToCheckConfig(
       {
@@ -407,6 +437,23 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
 
     expect(result.hook).to.equal(undefined);
     expect(result.interchainSecurityModule).to.equal(undefined);
+  });
+
+  it('drops token for synthetic types so it mirrors the reader-side exclusion', () => {
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        token: TOKEN_A,
+        type: TokenType.synthetic,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result).to.not.have.property('token');
   });
 });
 

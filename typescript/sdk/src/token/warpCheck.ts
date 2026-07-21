@@ -48,7 +48,7 @@ import {
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
-import { TokenType } from './config.js';
+import { TokenType, isSyntheticTokenType } from './config.js';
 import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -221,7 +221,17 @@ export function derivedWarpConfigToCheckConfig(
   if (protocol !== ProtocolType.CosmosNative && !isNullish(decimals)) {
     result.decimals = decimals;
   }
-  if ('token' in config && typeof config.token === 'string') {
+  // A synthetic token's `token` (the SVM mint / cosmos denom) is a deterministic
+  // deployment artifact derived from the deployed router, not a user-configured
+  // value -- the SVM reader populates it while the deploy-config-derived expected
+  // side has no counterpart, producing a spurious ConfigMismatch. Skip it here so
+  // both sides stay symmetric; the router that determines the mint is checked via
+  // remoteRouters. See expandedDeployConfigToAltVmCheckConfig for the mirror.
+  if (
+    !isSyntheticTokenType(config.type) &&
+    'token' in config &&
+    typeof config.token === 'string'
+  ) {
     result.token = normalizeAddress(config.token, protocol);
   }
   if (!isNullish(config.contractVersion)) {
@@ -351,7 +361,14 @@ export function expandedDeployConfigToAltVmCheckConfig(
     result.decimals = config.decimals;
   }
 
-  if ('token' in config && typeof config.token === 'string') {
+  // Mirror of derivedWarpConfigToCheckConfig: a synthetic token's `token` is a
+  // deterministic deployment artifact, not user config, so it's excluded from
+  // the diff to avoid a spurious mismatch against the reader-populated value.
+  if (
+    !isSyntheticTokenType(config.type) &&
+    'token' in config &&
+    typeof config.token === 'string'
+  ) {
     result.token = normalizeAddress(config.token, protocol);
   }
 

@@ -47,6 +47,9 @@ const ROUTES_TO_SKIP: string[] = [
   'AIXBT/base-form',
   'FORM/ethereum-form',
   'GAME/base-form',
+  // On-chain router set diverges from the registry config (misconfigured
+  // enrollment); excluded from checking until the route is reconciled.
+  'SMOL/arbitrum-abstract-ethereum-solanamainnet-base',
   // Skip until Paradex executes hyperevm upgrade on their side
   WarpRouteIds.ParadexUSDC,
   // Staging route: not auto-skipped by isStagingOrTestRoute since the STAGE
