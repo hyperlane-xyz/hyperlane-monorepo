@@ -24,7 +24,13 @@ The gate is **per-chain**, not per-run. If a prior session already left `ethereu
 
 Every milestone in this skill must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
 
-**Primary target — Linear document.** One document per ticket, titled `<ticket-id> — run log`. On skill entry, look for the document via `list_documents` filtered on the ticket; if it doesn't exist, create it via `save_document`. Subsequent entries fetch the current body via `get_document`, append the new entry, and save the concatenated body via `save_document` with the same id.
+**Primary target — Linear document.** One document per ticket, titled exactly `<ticket-id> — run log`. Use whatever Linear tooling the current agent has (MCP integration, CLI script, direct API call, etc.) to:
+
+- **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
+- **If no document with that title exists, create one** with the exact title above.
+- **Append entries as read-modify-write:** fetch the current body, append the new entry, save the concatenated body under the same document. See the single-writer note below — concurrent appends will silently drop entries.
+
+**Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
 
 **Fallback — local file.** Only when Linear document tools are unavailable in the current agent context: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file may not survive session-restore; copy it to durable storage (paste into the Linear ticket, upload as an attachment, etc.) at each significant milestone so the retrospective still has data if the worker resets.
 
