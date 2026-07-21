@@ -49,7 +49,8 @@ export interface KeyFunderConfig<
   lowUrgencyKeyFunderBalances?: ChainMap<string>;
 }
 
-export interface CheckWarpDeployConfig extends CronJobConfig {
+export interface MonorepoChecksConfig extends CronJobConfig {
+  checks: string[];
   registryCommit?: string;
 }
 

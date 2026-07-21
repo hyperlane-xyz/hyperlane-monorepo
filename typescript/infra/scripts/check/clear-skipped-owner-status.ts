@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { checkWarpDeployConfig } from '../../config/environments/mainnet3/warp/checkWarpDeploy.js';
+import { monorepoChecksConfig } from '../../config/environments/mainnet3/monorepoChecks.js';
 import { getArgs } from '../agent-utils.js';
 
 import { warpViolationGroupings } from './check-utils.js';
@@ -16,14 +16,14 @@ import { ownerStatusClearTargets } from './owner-status-skip.js';
 // now suppresses, derived from OWNER_STATUS_SKIP so the two can never drift.
 // Idempotent: deleting an already-absent series is a no-op.
 //
-// This is not wired into the check-warp-deploy CronJob — it is a manual one-shot
+// This is not wired into the monorepo-checks CronJob — it is a manual one-shot
 // run at rollout, executed once after this filter merges. The chart deploys a
 // CronJob (no long-lived pod to `kubectl exec` into), so launch a Job reusing
 // the CronJob's image, PushGateway env, and secret:
 //   NS=mainnet3
-//   IMAGE=$(kubectl -n $NS get cronjob check-warp-deploy \
+//   IMAGE=$(kubectl -n $NS get cronjob monorepo-checks \
 //     -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
-//   PGW=$(kubectl -n $NS get cronjob check-warp-deploy -o jsonpath=\
+//   PGW=$(kubectl -n $NS get cronjob monorepo-checks -o jsonpath=\
 //     '{.spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name=="PROMETHEUS_PUSH_GATEWAY")].value}')
 //   kubectl -n $NS apply -f - <<EOF
 //   apiVersion: batch/v1
@@ -43,7 +43,7 @@ import { ownerStatusClearTargets } from './owner-status-skip.js';
 //             ./typescript/infra/scripts/check/clear-skipped-owner-status.ts,
 //             -e, mainnet3]
 //           env: [{ name: PROMETHEUS_PUSH_GATEWAY, value: "$PGW" }]
-//           envFrom: [{ secretRef: { name: check-warp-deploy-env-var-secret } }]
+//           envFrom: [{ secretRef: { name: monorepo-checks-env-var-secret } }]
 //   EOF
 //   kubectl -n $NS logs -f job/clear-skipped-owner-status
 // Verify each target series is gone (via Prometheus or the gateway's /metrics).
@@ -64,7 +64,7 @@ async function main() {
   const gatewayAddr =
     pushGateway ??
     process.env['PROMETHEUS_PUSH_GATEWAY'] ??
-    checkWarpDeployConfig.prometheusPushGateway;
+    monorepoChecksConfig.prometheusPushGateway;
   process.env['PROMETHEUS_PUSH_GATEWAY'] = gatewayAddr;
 
   const targets = ownerStatusClearTargets();

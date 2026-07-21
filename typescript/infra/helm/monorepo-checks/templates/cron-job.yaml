@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: check-warp-deploy
+  name: monorepo-checks
 spec:
   schedule: "{{ .Values.cronjob.schedule }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
@@ -15,7 +15,7 @@ spec:
         spec:
           restartPolicy: Never
           containers:
-          - name: check-warp-deploy
+          - name: monorepo-checks
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: Always
             # Use `args` instead of `command` to preserve the Docker ENTRYPOINT.
@@ -25,10 +25,14 @@ spec:
             - pnpm
             - exec
             - tsx
-            - ./typescript/infra/scripts/check/check-warp-deploy.ts
+            - ./typescript/infra/scripts/check/check-monorepo.ts
             - -e
             - {{ .Values.hyperlane.runEnv }}
             - --pushMetrics
+            - --checks
+            {{- range .Values.hyperlane.checks }}
+            - {{ . }}
+            {{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
@@ -38,4 +42,4 @@ spec:
             {{- end }}
             envFrom:
             - secretRef:
-                name: check-warp-deploy-env-var-secret
+                name: monorepo-checks-env-var-secret

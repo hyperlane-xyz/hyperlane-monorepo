@@ -5,19 +5,19 @@ import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
-import { CheckWarpDeployConfig } from '../config/funding.js';
+import { MonorepoChecksConfig } from '../config/funding.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
 
-export class CheckWarpDeployHelmManager extends HelmManager {
-  readonly helmReleaseName: string = 'check-warp-deploy';
+export class MonorepoChecksHelmManager extends HelmManager {
+  readonly helmReleaseName: string = 'monorepo-checks';
   readonly helmChartPath: string = join(
     getInfraPath(),
-    './helm/check-warp-deploy/',
+    './helm/monorepo-checks/',
   );
 
   constructor(
-    readonly config: CheckWarpDeployConfig,
+    readonly config: MonorepoChecksConfig,
     readonly agentConfig: AgentContextConfig,
   ) {
     super();
@@ -25,14 +25,14 @@ export class CheckWarpDeployHelmManager extends HelmManager {
 
   static forEnvironment(
     environment: DeployEnvironment,
-  ): CheckWarpDeployHelmManager | undefined {
+  ): MonorepoChecksHelmManager | undefined {
     const envConfig = getEnvironmentConfig(environment);
-    if (!envConfig.checkWarpDeployConfig) {
+    if (!envConfig.monorepoChecksConfig) {
       return undefined;
     }
     const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
-    return new CheckWarpDeployHelmManager(
-      envConfig.checkWarpDeployConfig,
+    return new MonorepoChecksHelmManager(
+      envConfig.monorepoChecksConfig,
       agentConfig,
     );
   }
@@ -47,9 +47,10 @@ export class CheckWarpDeployHelmManager extends HelmManager {
         schedule: this.config.cronSchedule,
       },
       hyperlane: {
-        runEnv: this.agentConfig.runEnv,
         chains: this.agentConfig.environmentChainNames,
+        checks: this.config.checks,
         registryCommit: this.config.registryCommit,
+        runEnv: this.agentConfig.runEnv,
       },
       infra: {
         prometheusPushGateway: this.config.prometheusPushGateway,

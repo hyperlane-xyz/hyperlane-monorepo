@@ -9,16 +9,26 @@
  *     [--chains arbitrum base ...]
  */
 import { ethers } from 'ethers';
+import path from 'path';
+import { Gauge, Registry } from 'prom-client';
+import { pathToFileURL } from 'url';
 
 import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
+import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { ModuleType } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../../config/contexts.js';
+import { DeployEnvironment } from '../../../src/config/deploy-environment.js';
+import { getInfraPath } from '../../../src/utils/utils.js';
+import {
+  checkerViolationGroupings,
+  getCheckerViolationsGaugeObj,
+} from '../../check/check-utils.js';
 import {
   getAgentConfig,
   getArgs as getBaseArgs,
@@ -40,6 +50,46 @@ const DEFAULT_FASTPATH_THRESHOLD = 2;
 
 // Non-zero dummy address — avoids the addressToBytes zero-check in formatMessage.
 const DUMMY_ADDRESS_BYTES32 = ethers.utils.hexZeroPad('0x01', 32);
+
+export type FastpathIsmViolationType =
+  | 'missing'
+  | 'moduleType'
+  | 'validators'
+  | 'threshold';
+
+export type FastpathIsmCheckStatus = 'ok' | 'missing' | 'mismatch';
+
+export interface FastpathIsmViolation {
+  actual: string;
+  destination: string;
+  expected: string;
+  type: FastpathIsmViolationType;
+}
+
+export interface FastpathIsmCheckResult {
+  actualThreshold?: number;
+  actualValidators: string[];
+  destination: string;
+  expectedThreshold: number;
+  expectedValidators: string[];
+  ismAddress: string;
+  moduleType?: number;
+  status: FastpathIsmCheckStatus;
+  violations: FastpathIsmViolation[];
+}
+
+export interface FastpathIsmChecksOptions {
+  chains?: string[];
+  environment: DeployEnvironment;
+  ismsFile?: string;
+  pushMetrics?: boolean;
+}
+
+export interface FastpathIsmChecksResult {
+  results: FastpathIsmCheckResult[];
+  violations: FastpathIsmViolation[];
+  violationsCount: number;
+}
 
 function buildDummyMessage(originDomain: number, destDomain: number): string {
   return ethers.utils.solidityPack(
@@ -75,10 +125,55 @@ type IsmRow = {
 async function main() {
   const { environment, chains, ismsFile } = await getArgs().argv;
 
-  const ismAddresses = readJson<Record<string, string>>(ismsFile);
+  const checkResult = await runFastpathIsmChecks({
+    chains,
+    environment,
+    ismsFile,
+  });
+
+  logFastpathIsmCheckResults(checkResult.results);
+
+  if (checkResult.results.length === 0) {
+    rootLogger.error('No ISM checks completed');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (checkResult.violationsCount > 0) {
+    rootLogger.error(
+      { count: checkResult.violationsCount },
+      'Some ISMs failed checks',
+    );
+    process.exitCode = 1;
+  } else {
+    rootLogger.info('All ISMs ok ✅');
+  }
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main()
+    .then(() => process.exit(process.exitCode ?? 0))
+    .catch((err) => {
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    });
+}
+
+export async function runFastpathIsmChecks({
+  chains,
+  environment,
+  ismsFile,
+  pushMetrics = false,
+}: FastpathIsmChecksOptions): Promise<FastpathIsmChecksResult> {
+  const resolvedIsmsFile =
+    ismsFile ?? path.join(getInfraPath(), getFastpathIsmsFile(environment));
+  const ismAddresses = readJson<Record<string, string>>(resolvedIsmsFile);
 
   // Expected destinations come from the fastpath agent config, not from the
-  // artifact being checked — a truncated isms.json must fail the missing
+  // artifact being checked: a truncated isms.json must fail the missing
   // chain, not silently drop it from the checked set.
   const agentConfig = getAgentConfig(Contexts.FastPath, environment);
   const fastpathChains = agentConfig.contextChainNames.validator;
@@ -87,18 +182,27 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
-  const rows: IsmRow[] = [];
+  const results: FastpathIsmCheckResult[] = [];
 
   for (const destination of destinations) {
     const ismAddress = ismAddresses[destination];
     if (!ismAddress) {
       rootLogger.warn({ destination }, 'No ISM address found');
-      rows.push({
+      results.push({
+        actualValidators: [],
         destination,
+        expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
+        expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
         ismAddress: '',
-        validators: '',
-        threshold: 0,
-        ok: '❌',
+        status: 'missing',
+        violations: [
+          {
+            actual: '',
+            destination,
+            expected: 'configured ISM address',
+            type: 'missing',
+          },
+        ],
       });
       continue;
     }
@@ -119,12 +223,22 @@ async function main() {
         { destination, ismAddress, moduleType },
         'Expected messageId multisig ISM',
       );
-      rows.push({
+      results.push({
+        actualValidators: [],
         destination,
+        expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
+        expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
         ismAddress,
-        validators: '',
-        threshold: 0,
-        ok: '❌',
+        moduleType,
+        status: 'mismatch',
+        violations: [
+          {
+            actual: String(moduleType),
+            destination,
+            expected: String(ModuleType.MESSAGE_ID_MULTISIG),
+            type: 'moduleType',
+          },
+        ],
       });
       continue;
     }
@@ -139,37 +253,113 @@ async function main() {
         validators.some((w) => w.toLowerCase() === v.toLowerCase()),
       );
     const thresholdMatch = threshold === DEFAULT_FASTPATH_THRESHOLD;
-    rows.push({
+    const violations: FastpathIsmViolation[] = [];
+    if (!validatorsMatch) {
+      violations.push({
+        actual: validators.join(', '),
+        destination,
+        expected: DEFAULT_FASTPATH_VALIDATORS.join(', '),
+        type: 'validators',
+      });
+    }
+    if (!thresholdMatch) {
+      violations.push({
+        actual: String(threshold),
+        destination,
+        expected: String(DEFAULT_FASTPATH_THRESHOLD),
+        type: 'threshold',
+      });
+    }
+    results.push({
+      actualThreshold: threshold,
+      actualValidators: [...validators],
       destination,
+      expectedThreshold: DEFAULT_FASTPATH_THRESHOLD,
+      expectedValidators: DEFAULT_FASTPATH_VALIDATORS,
       ismAddress,
-      validators: [...validators].join(', '),
-      threshold,
-      ok: validatorsMatch && thresholdMatch ? '✅' : '❌',
+      moduleType,
+      status: violations.length === 0 ? 'ok' : 'mismatch',
+      violations,
     });
 
     rootLogger.info({ destination }, 'MessageId multisig ISM checked');
   }
 
-  console.table(rows);
-
-  if (rows.length === 0) {
-    rootLogger.error('No ISM checks completed');
-    process.exitCode = 1;
-    return;
+  const violations = results.flatMap((result) => result.violations);
+  if (pushMetrics && violations.length > 0) {
+    await pushFastpathIsmViolationMetrics(violations, environment);
   }
 
-  const failures = rows.filter((r) => r.ok === '❌');
-  if (failures.length > 0) {
-    rootLogger.error({ count: failures.length }, 'Some ISMs failed checks');
-    process.exitCode = 1;
-  } else {
-    rootLogger.info('All ISMs ok ✅');
-  }
+  return {
+    results,
+    violations,
+    violationsCount: violations.length,
+  };
 }
 
-main()
-  .then(() => process.exit(process.exitCode ?? 0))
-  .catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
-    process.exit(1);
-  });
+function getFastpathIsmsFile(environment: DeployEnvironment): string {
+  return path.join(
+    'config',
+    'environments',
+    environment,
+    'fastpath',
+    'isms.json',
+  );
+}
+
+function logFastpathIsmCheckResults(results: FastpathIsmCheckResult[]) {
+  const rows: IsmRow[] = results.map((result) => ({
+    destination: result.destination,
+    ismAddress: result.ismAddress,
+    ok: result.status === 'ok' ? '✅' : '❌',
+    threshold: result.actualThreshold ?? 0,
+    validators: result.actualValidators.join(', '),
+  }));
+
+  console.table(rows);
+}
+
+async function pushFastpathIsmViolationMetrics(
+  violations: FastpathIsmViolation[],
+  environment: DeployEnvironment,
+) {
+  assert(violations.length > 0, 'No fastpath ISM violations to push');
+
+  for (const violation of violations) {
+    const register = new Registry();
+    const gauge = new Gauge(getCheckerViolationsGaugeObj(register));
+    register.registerMetric(gauge);
+    gauge
+      .labels({
+        actual: violation.actual,
+        chain: violation.destination,
+        contract_name: 'ism',
+        expected: violation.expected,
+        module: 'fastpath-ism',
+        remote: '',
+        sub_type: '',
+        type: violation.type,
+        warp_route_id: '',
+      })
+      .set(1);
+
+    const groupings = checkerViolationGroupings([
+      'fastpath-ism',
+      violation.destination,
+      'ism',
+      violation.type,
+    ]);
+
+    await submitMetrics(register, `fastpath-isms-${environment}`, {
+      groupings,
+      overwriteAllMetrics: true,
+    });
+    rootLogger.info(
+      {
+        destination: violation.destination,
+        type: violation.type,
+      },
+      'Fastpath ISM violation pushed to metrics',
+    );
+  }
+}

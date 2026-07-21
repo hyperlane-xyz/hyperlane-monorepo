@@ -1,5 +1,5 @@
 import { Contexts } from '../../config/contexts.js';
-import { CheckWarpDeployHelmManager } from '../../src/check-warp-deploy/helm.js';
+import { MonorepoChecksHelmManager } from '../../src/monorepo-checks/helm.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { assertCorrectKubeContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
@@ -13,9 +13,9 @@ async function main() {
 
   await assertCorrectKubeContext(envConfig);
 
-  const manager = CheckWarpDeployHelmManager.forEnvironment(environment);
+  const manager = MonorepoChecksHelmManager.forEnvironment(environment);
   if (!manager) {
-    throw new Error('No checkWarpDeployConfig found');
+    throw new Error('No monorepoChecksConfig found');
   }
 
   await manager.runHelmCommand(HelmCommand.InstallOrUpgrade);

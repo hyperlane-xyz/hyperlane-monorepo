@@ -3,7 +3,7 @@ import { Registry } from 'prom-client';
 
 import { deleteMetrics } from '@hyperlane-xyz/metrics';
 
-import { checkWarpDeployConfig } from '../../config/environments/mainnet3/warp/checkWarpDeploy.js';
+import { monorepoChecksConfig } from '../../config/environments/mainnet3/monorepoChecks.js';
 import { getArgs } from '../agent-utils.js';
 
 import { warpViolationGroupings } from './check-utils.js';
@@ -46,7 +46,7 @@ async function main() {
   const gatewayAddr =
     pushGateway ??
     process.env['PROMETHEUS_PUSH_GATEWAY'] ??
-    checkWarpDeployConfig.prometheusPushGateway;
+    monorepoChecksConfig.prometheusPushGateway;
   process.env['PROMETHEUS_PUSH_GATEWAY'] = gatewayAddr;
 
   const groupings = warpViolationGroupings(

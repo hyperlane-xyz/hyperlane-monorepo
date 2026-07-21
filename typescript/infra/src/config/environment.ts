@@ -15,7 +15,7 @@ import { Role } from '../roles.js';
 
 import { RootAgentConfig } from './agent/agent.js';
 import type { DeployEnvironment } from './deploy-environment.js';
-import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
+import { KeyFunderConfig, MonorepoChecksConfig } from './funding.js';
 import { InfrastructureConfig } from './infrastructure.js';
 
 export type EnvironmentConfig = {
@@ -45,7 +45,7 @@ export type EnvironmentConfig = {
     role?: Role,
   ) => Promise<ChainMap<CloudAgentKey>>;
   keyFunderConfig?: KeyFunderConfig<string[]>;
-  checkWarpDeployConfig?: CheckWarpDeployConfig;
+  monorepoChecksConfig?: MonorepoChecksConfig;
 };
 
 export function getOwnerConfigForAddress(owner: string): OwnableConfig {
