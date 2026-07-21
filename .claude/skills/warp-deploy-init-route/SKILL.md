@@ -7,6 +7,35 @@ description: First step of deploying a new warp route (steps 1–9). Reads a Lin
 
 You are generating the initial `deploy.yaml` for a new Hyperlane warp route deployment.
 
+## PREREQUISITE (per-chain gate): confirmed sufficient deployer funds
+
+Before running `warp deploy`, EVERY chain in the route must be in one of two states:
+
+1. **Verified sufficient** — the deployer's native balance (and, on collateral chains, ≥ 1 USD of the collateral token) has been checked via `/warp-deploy-fund-deployer` — or an equivalent manual check appropriate to the chain's billing model — and reported ✅ OK **for the route's shape** (base-collateral vs cross-collateral vs cross-collateral + fee program each require different floors on non-EVM chains; see `/warp-deploy-fund-deployer` Step 5's shape table).
+2. **Verified short and topped up** — a `⚠️ LOW` / `❌ EMPTY` was funded to ✅ OK before proceeding.
+
+If you are _unsure_ about a chain, treat it as unverified — run `/warp-deploy-fund-deployer <ticket-id>` and let it check. It is a preflight, not an unconditional funding action: chains already at ✅ OK are skipped, only shortfalls trigger transfers.
+
+The gate is **per-chain**, not per-run. If a prior session already left `ethereum` at ✅ OK and nothing has changed since (no other deploys draining the key), skipping re-check on that chain is fine. Any chain that is unverified OR short must be resolved before Step 1.
+
+**Why**: an under-funded chain fails mid-deploy after partial contract deployment on other chains, leaving orphaned artifacts that need manual cleanup before a retry. Fund-deployer's role is to catch shortfalls up front. The reactive text at `## Step 8b` ("insufficient gas → run /warp-deploy-fund-deployer first") is a defensive fallback for state that decayed between preflight and deploy — it is not a substitute for the preflight itself.
+
+## Run Log (mandatory)
+
+Append entries to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry) at every milestone in this skill. Entry format:
+
+```markdown
+### <ISO-timestamp> — warp-deploy-init-route — <step-label>
+
+- expected: <what the skill text predicted / requested>
+- actual: <what actually happened / observed output>
+- notes: <deviations, blockers, gas actuals, unexpected 404s, retry counts, session-restore anomalies>
+```
+
+Log at least: (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any gas number, timing, or output diverges from what this skill's text predicts, LOG THAT — the diff is the input to the next skill revision.
+
+Do not skip entries when things go smoothly; success data grounds the retrospective as much as failure data. This log is the ground truth the retrospective is built from — reconstructed-from-memory retros are unreliable (see `[[reference-haggis-sandbox]]` §session-restore).
+
 ## Input
 
 The user provides:
