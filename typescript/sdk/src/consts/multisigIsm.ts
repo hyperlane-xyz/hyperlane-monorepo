@@ -618,10 +618,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 4,
     validators: [
       {
-        address: '0x3f869C36110F00D10dC74cca3ac1FB133cf019ad',
-        alias: 'Polkachu',
-      },
-      {
         address: '0xE74c7632aF1De54D208f1b9e18B22988dDc8C4CE',
         alias: 'Imperator',
       },
