@@ -186,7 +186,16 @@ where
         tx: &TypedTransaction,
         function: &Function,
     ) -> ChainResult<U256> {
-        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let mut tx = tx.clone();
+        // Set the `from` address if not already set, so that chains that check
+        // sender balance during gas estimation don't fail due to zero address
+        // having no funds.
+        if tx.from().is_none() {
+            if let Some(signer) = self.get_signer() {
+                tx.set_from(signer);
+            }
+        }
+        let contract_call = self.build_contract_call::<()>(tx, function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
