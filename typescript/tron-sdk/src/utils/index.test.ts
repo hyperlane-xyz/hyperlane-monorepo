@@ -57,7 +57,7 @@ const cases: Case[] = [
       result: 'FAILED',
       contractResult: [ERROR_STRING_REVERT_DATA],
     }),
-    expectedError: /Tron Transaction Failed: .+ \(txid: abc123\)/,
+    expectedError: /Tron Transaction Failed: boom \(txid: abc123\)/,
   },
   {
     name: 'throws on REVERT with unknown reason when no data present',
