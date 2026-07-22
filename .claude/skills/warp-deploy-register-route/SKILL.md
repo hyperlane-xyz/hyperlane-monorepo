@@ -7,6 +7,12 @@ description: Post-registry-merge steps for a new warp route deployment. Adds the
 
 You are completing the post-registry-merge steps for a new warp route deployment.
 
+## Run Log (mandatory)
+
+Maintain the durable run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Key the document by the ticket ID (or, for a route-ID-only batch with no ticket, the primary warp route ID). Use `warp-deploy-register-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the warp route ID(s) being registered, (b) the `warpIds.ts` enum edit, (c) the `.registryrc` bump commit, (d) the `pnpm agent-configs` run, (e) the warp monitor / rebalancer deploy result, (f) the monorepo PR URL, (g) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
+
 ## Input
 
 The user provides one or more warp route IDs in the format `TOKEN/chain` (stable ID — just the primary new/synthetic chain), and/or one or more Linear ticket URLs. Multiple routes can be batched into a single PR.

@@ -22,49 +22,9 @@ The gate is **per-chain**, not per-run. If a prior session already left `ethereu
 
 ## Run Log (mandatory)
 
-Every milestone in this skill must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
-**Primary target — Linear document.** One document per ticket, titled exactly `<ticket-id> — run log`. Use whatever Linear tooling the current agent has (MCP integration, CLI script, direct API call, etc.) to:
-
-- **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
-- **If no document with that title exists, create one** with the exact title above.
-- **Append entries as read-modify-write:** fetch the current body, append the new entry, save the concatenated body under the same document. See the single-writer note below — concurrent appends will silently drop entries.
-- **Surface the document URL as proof (hard gate).** As soon as the document is created (or located on a resumed run), report its URL and exact title back to the operator through whatever channel this agent communicates on, and repeat the URL at skill exit. Claiming "run log updated" without ever surfacing a URL does NOT satisfy this requirement — an unshared log is unverifiable and counts as no log. Do not report this skill as complete until the document exists, carries the milestone entries listed below, and its URL has been surfaced.
-
-**Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
-
-**Fallback — local file.** Only when Linear document tools are unavailable in the current agent context: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file may not survive session-restore; copy it to durable storage (paste into the Linear ticket, upload as an attachment, etc.) at each significant milestone so the retrospective still has data if the worker resets.
-
-Every entry has two parts:
-
-1. **Machine-parseable rows** — one per chain the step touched, when the step deals with per-chain state. Pipe-delimited so the retrospective can grep floor-vs-actual diffs mechanically:
-
-   ```
-   chain | protocol | shape | floor | actual | verdict
-   ```
-
-   Format-only examples (values below are illustrative — the actual chain, shape, and floor for a run come from the ticket, not from these rows; a route can have any combination of protocols and shapes):
-
-   ```
-   ethereum       | evm | collateral+RoutingFee            | 0.008 ETH | 0.007 ETH | ✅ OK
-   solanamainnet  | svm | crossCollateral+fee              | 6.5 SOL   | pending   | ⚠️  shortfall funded
-   ```
-
-   Use `pending` for the actual until it's known; append a post-hoc row once the actual is measured (during or after deploy). Whatever shape / protocol / units the current route uses, the row keeps the same six columns.
-
-2. **Prose entry:**
-
-   ```markdown
-   ### <ISO-timestamp> — warp-deploy-init-route — <step-label>
-
-   - expected: <what the skill text predicted / requested>
-   - actual: <what actually happened / observed output>
-   - notes: <deviations, blockers, gas actuals, unexpected 404s, retry counts, session-restore anomalies>
-   ```
-
-Log at least: (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision.
-
-Do not skip entries when things go smoothly; success data grounds the retrospective as much as failure data.
+**Log at least:** (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision. Log smooth steps too — success data grounds the retrospective as much as failure data.
 
 ## Input
 
@@ -582,7 +542,7 @@ For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<pr
 
 Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (stale-gas underflow → mid-deploy out-of-gas on opstack chains in particular).
 
-The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the key-value expansion legend (see `/warp-deploy-validate-owners` for the canonical table; the same mapping applies here).
+The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. For each protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the canonical key-value expansion legend in `/warp-key-value-expansion`.
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
@@ -625,7 +585,7 @@ Tell the user upfront:
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`, with the port substituted from Step 8a. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
+Then run the deploy command from `typescript/cli`, with the port substituted from Step 8a. Always include `--yes`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \

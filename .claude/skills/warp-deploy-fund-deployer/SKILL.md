@@ -9,49 +9,9 @@ You are checking whether a deployer wallet has sufficient funds (gas + collatera
 
 ## Run Log (mandatory)
 
-Every milestone in this skill must append an entry to a durable, per-ticket run log — durable meaning it survives a worker restart / session restore. The worker's local filesystem (`~/.hyperlane/`) does NOT qualify on its own: it is ephemeral and vanishes on restore, which is the exact event the log exists to survive.
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-fund-deployer` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
-**Primary target — Linear document.** One document per ticket, titled exactly `<ticket-id> — run log`. Use whatever Linear tooling the current agent has (MCP integration, CLI script, direct API call, etc.) to:
-
-- **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
-- **If no document with that title exists, create one** with the exact title above.
-- **Append entries as read-modify-write:** fetch the current body, append the new entry, save the concatenated body under the same document. See the single-writer note below — concurrent appends will silently drop entries.
-- **Surface the document URL as proof (hard gate).** As soon as the document is created (or located on a resumed run), report its URL and exact title back to the operator through whatever channel this agent communicates on, and repeat the URL at skill exit. Claiming "run log updated" without ever surfacing a URL does NOT satisfy this requirement — an unshared log is unverifiable and counts as no log. Do not report this skill as complete until the document exists, carries the milestone entries listed below, and its URL has been surfaced.
-
-**Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
-
-**Fallback — local file.** Only when Linear document tools are unavailable in the current agent context: write to `~/.hyperlane/run-logs/<ticket-id>.md` (create the file on the first entry). Flag the fallback explicitly in the first entry, and note that this file may not survive session-restore; copy it to durable storage (paste into the Linear ticket, upload as an attachment, etc.) at each significant milestone so the retrospective still has data if the worker resets.
-
-Every entry has two parts:
-
-1. **Machine-parseable rows** — one per chain checked or funded. Pipe-delimited so the retrospective can grep floor-vs-actual diffs mechanically:
-
-   ```
-   chain | protocol | shape | floor | actual | verdict
-   ```
-
-   Format-only examples (values below are illustrative — the actual chain, shape, and floor for a run come from the ticket, not from these rows; a route can have any combination of protocols and shapes):
-
-   ```
-   ethereum       | evm | collateral+RoutingFee            | 0.008 ETH | 0.007 ETH | ✅ OK
-   solanamainnet  | svm | crossCollateral+fee              | 6.5 SOL   | 0.3 SOL   | ⚠️  shortfall funded to 6.5
-   ```
-
-   Whatever shape / protocol / units the current route uses, keep the same six columns. Once the deploy runs and the actual on-chain consumption is known, append a post-hoc row for each chain so the next Step-5 revision can compare floor to reality.
-
-2. **Prose entry:**
-
-   ```markdown
-   ### <ISO-timestamp> — warp-deploy-fund-deployer — <step-label>
-
-   - expected: <what the skill text predicted / requested>
-   - actual: <what actually happened / observed output>
-   - notes: <deviations, blockers, gas actuals vs floors, price-venue fallbacks, retry counts, session-restore anomalies>
-   ```
-
-Log at least: (a) skill entry with the ticket ID + deployer address, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every balance-check result per chain (expected floor vs actual balance, in native token units + USD), (d) every funding-command execution (amount, tx hash, wall-clock), (e) skill exit (success or bail-out).
-
-Do not skip entries when things go smoothly; success data grounds the retrospective as much as failure data.
+**Log at least:** (a) skill entry with the ticket ID + deployer address, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every balance-check result per chain (expected floor vs actual balance, in native token units + USD), (d) every funding-command execution (amount, tx hash, wall-clock), (e) skill exit (success or bail-out). Once the deploy runs and the actual on-chain consumption is known, append a post-hoc row per chain so the next floor revision can compare floor to reality. Log smooth steps too — success data grounds the retrospective as much as failure data.
 
 ## Input
 

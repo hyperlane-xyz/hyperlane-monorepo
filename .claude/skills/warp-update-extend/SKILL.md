@@ -7,6 +7,12 @@ description: Add a new chain to an existing warp route owned by a customer. Read
 
 You are adding a new chain to an existing Hyperlane warp route. The route is owned by the customer (their Gnosis Safe on ethereum, ICAs on other chains). You will deploy the new chain contracts with a deployer key, and generate transaction files for existing chains that the customer must sign.
 
+## Run Log (mandatory)
+
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update-extend` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the ticket ID + warp route ID + the new chain, (b) every `[CONFIRM:]` gate — before and after the response, (c) the new-chain contract deploy (deployed addresses + tx hashes), (d) the `warp apply` run for existing chains, (e) the emitted customer transaction-file paths (one per signer/chain), (f) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
+
 ## Input
 
 The user provides:
@@ -19,7 +25,7 @@ If missing, ask now.
 
 This skill runs `warp apply` to extend a warp route to a new chain. It needs a deployer key matching the new chain's protocol to sign the new-chain deployment txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
 
-For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`.
+For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the canonical key-value expansion legend in `/warp-key-value-expansion`.
 
 ### Ownership model (read before Step 5/6)
 
@@ -337,7 +343,7 @@ Run with `run_in_background: true`. Wait for `Listening on http://localhost:<por
 
 ### 9b: Build and Show the Command
 
-The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
+The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp apply \

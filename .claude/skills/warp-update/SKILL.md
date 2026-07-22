@@ -15,6 +15,12 @@ For UPDATES to an already-deployed warp route. Batches any combination of these 
 
 For a brand-new warp route deployment use `/warp-deploy-init-route`. For adding a new chain that doesn't yet have any of the route's contracts on it use `/warp-update-extend` (it has the extra deploy-on-new-chain step this skill skips).
 
+## Run Log (mandatory)
+
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the ticket ID + warp route ID + the change types detected, (b) every `[CONFIRM:]` gate — before and after the response, (c) the surgical deploy.yaml edits made, (d) the `warp apply` run (any newly deployed contract addresses + tx/receipt refs), (e) the fork-simulate-verify verdict from `/warp-route-check`, (f) the propose handoff (batch → signer per `/warp-update-propose`), (g) the registry PR URL, (h) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
+
 ## Input
 
 - **Linear ticket ID** (required, e.g. `AW-123`)
@@ -260,7 +266,7 @@ After a writeMode-enabled run, before committing anything from the registry chec
 
 ### 6b: Build and Run the Warp Apply Command
 
-Use the key-context artifact to resolve per-protocol key values (see the key-value expansion legend in `/warp-deploy-validate-owners`):
+Use the key-context artifact to resolve per-protocol key values (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp apply \

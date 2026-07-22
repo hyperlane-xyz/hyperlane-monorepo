@@ -169,13 +169,7 @@ The private key value is consumed inside subprocess invocations and never printe
 
 #### Source-agnostic key-value pattern
 
-The derivation commands below take `<KEY_VALUE>` — substitute it from the `source` field per the legend (same legend downstream skills use):
-
-| `source` field | Expansion of `<KEY_VALUE>`                                                                                                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gcp-secret`   | `"$(gcloud secrets versions access latest --secret=<name>)"`                                                                                                                                          |
-| `env-var`      | `"$<name>"` (env var must be exported in the shell session)                                                                                                                                           |
-| `keystore`     | `"$(cat <path>)"` for plaintext-key files; for encrypted keystores, halt with a clear error and ask the user to supply the derived address directly — encrypted-keystore unlocking is Phase 2 wiring. |
+The derivation commands below take `<KEY_VALUE>` — substitute it from the `source` field per the canonical legend in `/warp-key-value-expansion` (the same legend every downstream skill uses).
 
 #### `ethereum` (EVM)
 

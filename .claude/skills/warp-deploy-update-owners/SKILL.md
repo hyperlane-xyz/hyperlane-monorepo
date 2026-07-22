@@ -7,6 +7,12 @@ description: Post-deployment ownership transfer and registry PR for a warp route
 
 You are transferring ownership of a newly deployed warp route and opening the registry PR.
 
+## Run Log (mandatory)
+
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-update-owners` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the ticket ID + warp route ID, (b) every `[CONFIRM:]` gate — before and after the response, (c) every ICA deployed (chain + resolved address), (d) the `warp apply` ownership transfer per chain (target owner + tx hash), (e) the comprehensive `warp check` verdict, (f) the registry PR URL, (g) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
+
 ## Input
 
 The user provides (or you have from a prior `/warp-deploy-init` session):
@@ -20,7 +26,7 @@ If any of the above are missing, ask the user before proceeding.
 
 This skill runs `warp apply` to transfer ownership and needs a deployer key per protocol to sign the txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
 
-For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the key-value expansion legend in `/warp-deploy-validate-owners`. Display the resolved name + derived address from the artifact at every `[CONFIRM:]` gate so the human can spot a wrong-key foot-gun.
+For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the canonical key-value expansion legend in `/warp-key-value-expansion`. Display the resolved name + derived address from the artifact at every `[CONFIRM:]` gate so the human can spot a wrong-key foot-gun.
 
 ### Reading the Linear Ticket
 
@@ -125,7 +131,7 @@ cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --wr
 
 Run with `run_in_background: true`. Wait for the log line `Server running` and note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
 
-Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the key-value expansion legend in `/warp-deploy-validate-owners`):
+Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
 ```bash
 

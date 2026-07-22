@@ -19,7 +19,7 @@ If the user provides explicit per-chain owner addresses (overriding the ticket),
 
 ### Key Context (Prerequisite)
 
-Before running Step 3a (`hyperlane ica deploy`), this skill needs a deployer key with permission to sign on the origin chain (typically `ethereum`). It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first. Read `keys.ethereum.name`, `keys.ethereum.source`, and `keys.ethereum.address` from the artifact — see the "Key-value expansion" legend in Step 3a for how to substitute these into the `--key.<protocol>` flag based on `source`.
+Before running Step 3a (`hyperlane ica deploy`), this skill needs a deployer key with permission to sign on the origin chain (typically `ethereum`). It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first. Read `keys.ethereum.name`, `keys.ethereum.source`, and `keys.ethereum.address` from the artifact — see `/warp-key-value-expansion` for how to substitute these into the `--key.<protocol>` flag based on `source`.
 
 ---
 
@@ -67,19 +67,7 @@ pnpm --silent -C typescript/cli hyperlane ica deploy \
   --key.ethereum <KEY_ETHEREUM_VALUE>
 ```
 
-**Key flag is required.** `ica deploy` is a sign command (it submits an `enrollRemoteRouter` tx on the origin chain). Read `keys.ethereum.name` and `keys.ethereum.source` from the key-context artifact and expand `<KEY_ETHEREUM_VALUE>` per the `source` field — see the "Key-value expansion" legend below. Never combine `--key` (legacy) with `--key.<protocol>`. Before running, end your message with a `[CONFIRM:]` marker because deploying ICAs is destructive (spends gas + creates contracts).
-
-#### Key-value expansion (applies to every `--key.<protocol> <KEY_VALUE>` placeholder in this skill and the rest of the warp-deploy chain)
-
-| `source` field | Expansion of `<KEY_VALUE>`                                                                                                                                                                                     | Notes                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `gcp-secret`   | `"$(gcloud secrets versions access latest --secret=<name>)"`                                                                                                                                                   | The raw private key value is consumed inline by the CLI process and never lives in conversation logs or shell history. |
-| `env-var`      | `"$<name>"`                                                                                                                                                                                                    | The env var must be exported in the shell session before running the command.                                          |
-| `keystore`     | Phase A2.5: halt with a clear error — the CLI's keystore-flag wiring is not yet plumbed through this skill. Ask the user to convert to env-var or gcp-secret form, or supply the derived private key directly. | Phase 2 wiring.                                                                                                        |
-
-Always display the resolved secret NAME (or env var name) and the corresponding derived `address` from the artifact in the message that precedes the `[CONFIRM:]`. The human approving the gate sees both: which key Haggis picked, and which signer that key produces. That disclosure is the safeguard against wrong-key foot-guns.
-
-**Always invoke the CLI via `pnpm --silent …` for any command that takes a `--key.<protocol>` flag.** Without `--silent`, pnpm prints an execution banner of the form `$ node ./dist/cli.js <cmd> … --key.ethereum 0x<rawkey>` after shell substitution — that banner echoes the resolved argv into stdout, defeating the `gcloud secrets versions access` substitution that's supposed to keep the raw key out of logs. `--silent` suppresses the banner entirely. This is non-negotiable for sign commands; the leak applies to every `--key.<protocol>` flag in the warp-deploy chain.
+**Key flag is required.** `ica deploy` is a sign command (it submits an `enrollRemoteRouter` tx on the origin chain). Read `keys.ethereum.name` and `keys.ethereum.source` from the key-context artifact and expand `<KEY_ETHEREUM_VALUE>` per the canonical legend in `/warp-key-value-expansion` — which also carries the mandatory `pnpm --silent` rule and the requirement to display the resolved key name + derived address before the `[CONFIRM:]` gate. Never combine `--key` (legacy) with `--key.<protocol>`. Before running, end your message with a `[CONFIRM:]` marker because deploying ICAs is destructive (spends gas + creates contracts).
 
 ```test
 [CONFIRM: Deploy ICA on <chain> from <origin> owner <owner>]
