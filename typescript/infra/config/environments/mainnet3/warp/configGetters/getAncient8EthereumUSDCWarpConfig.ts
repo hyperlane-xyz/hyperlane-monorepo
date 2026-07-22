@@ -13,8 +13,11 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { regularIcas } from '../../governance/ica/regular.js';
 import { regularSafes } from '../../governance/safe/regular.js';
+
+// Legacy ProxyAdmin owner for the Ancient8 synthetic leg, as recorded in the
+// registry deploy config. regularIcas has no ancient8 entry.
+const ANCIENT8_PROXY_ADMIN_OWNER = '0x72Ba22a1a8B8c2b7B1795a35a1E05c058217E9a7';
 
 export const getAncient8EthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -54,12 +57,15 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
+    // regularIcas has no ancient8 entry, so pin the legacy ProxyAdmin owner
+    // (recorded in the registry deploy config) directly. Set
+    // ownerOverrides.proxyAdmin since config expansion gives it precedence.
     ownerOverrides: {
       ...abacusWorksEnvOwnerConfig.ancient8.ownerOverrides,
-      proxyAdmin: regularIcas.ancient8,
+      proxyAdmin: ANCIENT8_PROXY_ADMIN_OWNER,
     },
     proxyAdmin: {
-      owner: regularIcas.ancient8,
+      owner: ANCIENT8_PROXY_ADMIN_OWNER,
     },
   };
 
