@@ -45,18 +45,7 @@ This is the opposite of the initial-deploy flow (`/warp-deploy-init-route`), whe
 
 ## Step 1: Fetch the Linear Ticket
 
-Extract the issue ID (e.g. `ENG-3516`) and query:
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $LINEAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
-```
-
-**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user to export it and restart.
-
-Show the ticket title and description.
+Fetch the ticket per `/fetch-linear-ticket`, then read the new-chain extension details from the returned description.
 
 ---
 

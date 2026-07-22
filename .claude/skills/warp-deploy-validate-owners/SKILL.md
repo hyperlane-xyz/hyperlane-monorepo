@@ -25,7 +25,7 @@ Before running Step 3a (`hyperlane ica deploy`), this skill needs a deployer key
 
 ## Step 1: Fetch the Linear Ticket
 
-Use the Linear MCP `get_issue` tool to fetch the ticket and read the `Multisig for Ownership` table. For each chain row, extract:
+Fetch the ticket per `/fetch-linear-ticket` and read the `Multisig for Ownership` table from the returned description. For each chain row, extract:
 
 - Chain name
 - Owner address

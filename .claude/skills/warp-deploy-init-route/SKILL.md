@@ -49,22 +49,7 @@ A pure-EVM route uses one ethereum key + one EVM owner address across all EVM ch
 
 ## Step 1: Fetch the Linear Ticket
 
-Extract the issue ID from the URL or input (e.g. `ENG-3516`).
-
-Query the Linear GraphQL API:
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $LINEAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
-```
-
-**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user:
-
-> `LINEAR_API_KEY` is not set or invalid. Please export it in your shell: `export LINEAR_API_KEY=<your-key>` and restart Claude Code, then try again.
-
-Show the user the ticket title and description before proceeding.
+Fetch the ticket per `/fetch-linear-ticket` — it extracts the issue ID, fetches via the agent's Linear integration or the GraphQL API + `LINEAR_API_KEY`, halts if neither is configured, and shows the title + description. Extract the Step 2 fields from that returned description.
 
 ---
 

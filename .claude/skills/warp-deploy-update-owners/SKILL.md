@@ -30,7 +30,7 @@ For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<pr
 
 ### Reading the Linear Ticket
 
-Fetch the Linear ticket to extract:
+Fetch the ticket per `/fetch-linear-ticket`, then extract from the returned description:
 
 - Warp route ID (e.g. `RISE/bsc-ethereum`)
 - Chains involved

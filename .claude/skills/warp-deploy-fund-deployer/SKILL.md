@@ -30,20 +30,7 @@ For each protocol resolved in the artifact, the recipient address for funding on
 
 ## Step 1: Fetch the Linear Ticket
 
-Extract the issue ID from the URL or input (e.g. `ENG-3516`).
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $LINEAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
-```
-
-**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user:
-
-> `LINEAR_API_KEY` is not set or invalid. Please export it: `export LINEAR_API_KEY=<your-key>` and restart Claude Code.
-
-Show the ticket title and description to the user before proceeding.
+Fetch the ticket per `/fetch-linear-ticket`. Read the token, chains, and "Did they send funds" details from the returned description.
 
 ---
 

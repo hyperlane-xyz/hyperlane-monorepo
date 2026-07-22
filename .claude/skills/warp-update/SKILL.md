@@ -43,7 +43,7 @@ If any of those artifacts is missing when this skill starts, invoke the correspo
 
 ## Step 1: Read the Linear Ticket and Identify Requested Changes
 
-Use the Linear MCP `get_issue` tool to fetch the ticket. Parse the description for change instructions. Common targets:
+Fetch the ticket per `/fetch-linear-ticket`. Parse the returned description for change instructions. Common targets:
 
 | Ticket language                                                       | deploy.yaml target                                                                       |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
