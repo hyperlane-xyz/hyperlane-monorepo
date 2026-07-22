@@ -42,6 +42,15 @@ export const OWNER_STATUS_SKIP: OwnerStatusSkip[] = [
     chain: 'coti',
     owner: '0xdF2E2886d23ba57F996C203D2Ccd9dCa6373590C',
   },
+  // Tron has no nonces, so TronJsonRpcProvider.getTransactionCount always
+  // returns 0; any Tron EOA owner (no contract code) therefore derives as
+  // Inactive and gets forced to expected=Active. This owner is the intended
+  // on-chain owner, so allowlist the ownerStatus violation.
+  {
+    warpRouteId: 'USDT/eclipsemainnet',
+    chain: 'tron',
+    owner: '0x74E009ed8f6d7BBEce015c8A1E7076084e8aEBA6',
+  },
 ];
 
 // ownerStatus virtual-config violations carry a field path of the form
