@@ -35,7 +35,6 @@ import {
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
-import { isClearedIcaOwnerStatusViolation } from './resolve-ica-owner-status.js';
 
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
@@ -192,9 +191,10 @@ async function main() {
     Array.from(warpConfigChains),
   );
 
-  // Used to resolve Inactive ownerStatus false positives where a nonce-less /
-  // lazily-deployed leaf owner (Tron, AltVM) is a governance ICA of an
-  // Ethereum Safe. Scoped to chains the checker's multiProvider covers.
+  // Passed into the SDK check to resolve Inactive ownerStatus false positives
+  // where a nonce-less / lazily-deployed leaf owner (Tron, AltVM) is a
+  // governance ICA of an Ethereum Safe. Scoped to chains the checker's
+  // multiProvider covers.
   const interchainAccountApp = InterchainAccount.fromAddressesMap(
     await registry.getAddresses(),
     multiProvider,
@@ -215,23 +215,14 @@ async function main() {
           warpRouteId,
           warpCoreConfig: warpCoreConfigMap[warpRouteId],
           warpDeployConfig,
+          interchainAccount: interchainAccountApp,
         }),
         perRouteTimeoutMs,
         `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
       );
 
-      const clearedIcaOwnerStatus = await Promise.all(
-        result.violations.map((violation) =>
-          isClearedIcaOwnerStatusViolation(
-            warpDeployConfig,
-            interchainAccountApp,
-            violation,
-          ),
-        ),
-      );
       result.violations = result.violations.filter(
-        (violation, i) =>
-          !clearedIcaOwnerStatus[i] &&
+        (violation) =>
           !isSkippedOwnerStatusViolation(warpRouteId, violation) &&
           !isContractVerificationViolation(violation),
       );
@@ -279,6 +270,7 @@ async function runWarpRouteCheckFromRegistry({
   chains,
   warpCoreConfig,
   warpDeployConfig,
+  interchainAccount,
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
@@ -287,6 +279,7 @@ async function runWarpRouteCheckFromRegistry({
   warpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpRouteId: string;
+  interchainAccount?: InterchainAccount;
 }): Promise<WarpRouteCheckResult> {
   const loadedConfigs = await loadWarpConfigsFromRegistry({
     registry,
@@ -306,6 +299,7 @@ async function runWarpRouteCheckFromRegistry({
     multiProvider,
     warpCoreConfig: filteredConfigs.warpCoreConfig,
     warpDeployConfig: filteredConfigs.warpDeployConfig,
+    interchainAccount,
   });
 }
 
