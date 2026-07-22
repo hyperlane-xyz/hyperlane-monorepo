@@ -16,6 +16,7 @@ Every milestone in this skill must append an entry to a durable, per-ticket run 
 - **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
 - **If no document with that title exists, create one** with the exact title above.
 - **Append entries as read-modify-write:** fetch the current body, append the new entry, save the concatenated body under the same document. See the single-writer note below — concurrent appends will silently drop entries.
+- **Surface the document URL as proof (hard gate).** As soon as the document is created (or located on a resumed run), report its URL and exact title back to the operator through whatever channel this agent communicates on, and repeat the URL at skill exit. Claiming "run log updated" without ever surfacing a URL does NOT satisfy this requirement — an unshared log is unverifiable and counts as no log. Do not report this skill as complete until the document exists, carries the milestone entries listed below, and its URL has been surfaced.
 
 **Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
 
@@ -154,6 +155,8 @@ Add a **2× safety buffer** on top of this: gas prices can spike between check t
 required_with_buffer = required_native * 2
 ```
 
+> **This floor is a deliberate conservative CEILING, not a cost estimate.** `WARP_DEPLOY_GAS = 30_000_000` is the SDK's upper-bound constant; a typical single-chain EVM warp deploy actually burns ~3–5M gas, so `30M × 2×` over-provisions the real single-attempt cost by roughly **5–10×**. That is intentional — an out-of-gas failure mid-deploy is far worse than leaving unused native in the deployer key (the excess is not lost; it stays available for later deploys). Consequences to keep in mind: the balance check may report `⚠️ LOW` and fund a chain that already had enough for the actual burn, and the >10 USD warning below may trip on the ceiling even when the true cost is under $10. Present the number to the operator as a conservative ceiling, never as "this deploy will cost X". The precise per-route-shape figure comes from `getMinGasForWarpDeploy(config)` on `IProtocolProvider` (PR #9075) — once that lands, consume it instead of this flat ceiling. Until then, always log the **actual** post-deploy burn next to this floor (see the Run Log) so the estimate can be tightened.
+
 Fetch native token USD prices via CoinGecko to display USD equivalents (for informational purposes and to trigger the >10 USD warning):
 
 ```bash
@@ -183,7 +186,7 @@ If CoinGecko fails for a chain, **do not silently fall back to 0 USD** — that 
 
 When an alternative venue produces a price, log which venue and the value (so the operator can audit). The fund-wallet script's `MAX_FUNDING_AMOUNT_IN_USD` safety bound stays in force regardless of which source produced the price.
 
-**⚠️ Warning threshold**: If the required amount (with buffer) exceeds **10 USD**, warn the user explicitly before running funding commands. This is a signal that gas is unusually expensive on that chain right now.
+**⚠️ Warning threshold**: If the required amount (with buffer) exceeds **10 USD**, warn the user explicitly before running funding commands. On gas-market chains this is the conservative ceiling described above, so it may exceed $10 even when the true deploy cost is well under it — frame the warning as "conservative ceiling ≈ $X (actual typically far lower)", not as a firm cost, and still surface it so the operator can sanity-check an unusually high number (e.g. a genuine gas spike).
 
 ---
 
@@ -218,11 +221,12 @@ Interfaces: `getProtocolProvider(protocol).getMinGas()` per altvm SDK (`typescri
 
 The flat `getMinGas().WARP_DEPLOY_GAS` constant on these SDKs is calibrated for a **vanilla synthetic-or-collateral** router. It's silently wrong for cross-collateral + fee routes: on SVM those add per-program rent-exempt reserves that a single flat number can't express; on Tron the extra energy/bandwidth needed for the additional contracts likewise isn't captured. Use the shape-aware floors below, matched to what the ticket says the route will look like on this chain.
 
-**Determining a chain's route shape from the ticket** (before deploy.yaml exists):
+**Determining a chain's route shape from the ticket** (before deploy.yaml exists). "Shape" here is the on-chain **token type** deployed on this chain — that is what sets the floor — NOT the route's topology. Do not confuse a **multi-collateral** route (more than one collateral chain) with the `crossCollateral` token type: multi-collateral is simply several independent plain `collateral` routers, whereas `crossCollateral` is a distinct token type (collateral↔collateral swaps backed by shared cross-collateral routers) with a higher per-chain floor. They are orthogonal — a route can have many collateral chains and none of them be `crossCollateral`.
 
-- Multiple collateral chains in the ticket → each collateral chain is a `crossCollateral` router
-- Ticket has a Warp Fee row set → each chain quoting a fee has a fee program
-- Ticket calls for a custom ISM or hook beyond the mailbox default → each such chain deploys an extra program
+- Read each chain's token type from its per-chain designation in the ticket (`collateral` / `synthetic` / `native` / `crossCollateral`). Several collateral chains on their own → each is a plain `collateral` router (base floor), **not** `crossCollateral`.
+- Classify a chain as `crossCollateral` **only** when the ticket explicitly calls for cross-collateral / collateral-swap behavior on it — never merely because the route lists multiple collateral chains.
+- Ticket has a Warp Fee row set → each chain quoting a fee has a fee program.
+- Ticket calls for a custom ISM or hook beyond the mailbox default → each such chain deploys an extra program.
 
 **SVM (solanamainnet, eclipsemainnet) — required floor in SOL:**
 
