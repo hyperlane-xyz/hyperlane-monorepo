@@ -279,6 +279,8 @@ cast call <TOKEN_ADDRESS> "decimals()(uint8)" --rpc-url <RPC_URL>
 
 Convert: `balance / 10^decimals` = human-readable amount.
 
+**On Tron:** `cast` / `eth_call` against the public trongrid JSON-RPC endpoint is **unsupported** and the `balanceOf` / `decimals` calls above will fail. Read Tron contract state via TronGrid's HTTP API (`triggerconstantcontract` for `balanceOf`; the `/v1/accounts` endpoint for native TRX, as in Step 5), or point `--rpc-url` at a keyed Tron RPC (e.g. Alchemy) that does support `eth_call`. Resolve the keyed endpoint through the `CI=false` HTTP-registry path, never the public default.
+
 For price of the collateral token, use CoinGecko contract address lookup:
 
 ```bash
