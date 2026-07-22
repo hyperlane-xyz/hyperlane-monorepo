@@ -446,8 +446,7 @@ solanamainnet:
 
 **Rules:**
 
-- **Top-level chain entries must be in alphabetical order by chain name.** E.g. `arbitrum:` before `base:` before `ethereum:`. The registry CI / CodeRabbit blocks PRs where chain entries aren't sorted.
-- **Keys within each chain entry must also be in strict alphabetical order.** E.g. `decimals` before `mailbox` before `name` before `owner` before `symbol` before `token` before `tokenFee` before `type`. When adding any field, insert it at its alphabetical position; never tack new keys onto the top or bottom of an entry.
+- **Alphabetical sort, both levels** (top-level chain entries AND keys within each entry) per `/registry-yaml-sort-policy` — that skill carries the canonical `deploy.yaml` key order. Insert every field at its alphabetical position; CI / CodeRabbit blocks unsorted PRs.
 - `token` field only present on `collateral`, `collateralVault`, and `collateralVaultRebase` types
 - `name` and `symbol` omitted on `native` type; `decimals` IS included
 - `collateralChainName` is REQUIRED on every `syntheticRebase` chain; omit on all other types

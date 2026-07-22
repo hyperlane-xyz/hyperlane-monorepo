@@ -210,8 +210,7 @@ tron:
 **Rules:**
 
 - **Only append the new chain — do NOT modify any existing chain entries**
-- **Top-level chain entries must be in alphabetical order by chain name.** Insert the new chain at its alphabetical position; do NOT append at the top or bottom. E.g. adding `kava` to an `arbitrum + ethereum` route produces `arbitrum`, `ethereum`, `kava` — but inserting `base` into the same route would produce `arbitrum`, `base`, `ethereum`. Re-sort if needed; CI blocks PRs where chains aren't sorted.
-- **Keys within the new chain entry must also be in strict alphabetical order.** E.g. `decimals` before `mailbox` before `name` before `owner` before `symbol` before `token` before `type`. (Re-sort the inline template above if you edit it.)
+- **Alphabetical sort, both levels** per `/registry-yaml-sort-policy` — that skill carries the canonical `deploy.yaml` key order. Insert the new chain at its alphabetical position among the top-level entries (do NOT append at the top or bottom), and keep the keys within the new entry alphabetical (re-sort the inline template above if you edit it). CI blocks unsorted PRs.
 - Copy `decimals`, `name`, `symbol` from existing entries
 - `owner` is always the customer's ICA or Safe address from Step 5 — never the deployer
 

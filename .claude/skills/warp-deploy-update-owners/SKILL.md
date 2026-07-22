@@ -229,10 +229,7 @@ For minimal-tool sandboxes (no `ps`/`lsof`/`pkill`/`fuser`), use the `/proc` cmd
 
 ## Step 11: Add CoinGecko ID and Finalize Config
 
-> **YAML sort-order rules (applies to every edit in this step and any registry YAML edit in this skill).** The registry CI / CodeRabbit policy is strict on two levels of alphabetical sorting:
->
-> 1. **Chain entries at the top level must be in alphabetical order by chain name.** E.g. an arbitrum + base + ethereum route has `arbitrum:` before `base:` before `ethereum:`. If you're inserting a new chain or restructuring an existing file, re-sort the top level by chain name.
-> 2. **Keys within each chain entry must be in strict alphabetical order.** When adding a new field (e.g. `coinGeckoId`, `logoURI`), insert it at its alphabetical position — never at the top, bottom, or "after a specific sibling key". Example final key order for a config.yaml token block: `addressOrDenom`, `chainName`, `coinGeckoId`, `connections`, `decimals`, `logoURI`, `name`, `standard`, `symbol`, `tokenType`.
+> **YAML sort-order rules** (apply to every edit in this step and any registry YAML edit in this skill): top-level chain entries AND keys within each entry must be in strict alphabetical order, per `/registry-yaml-sort-policy` — that skill carries the canonical `config.yaml` token-block key order (`addressOrDenom`, `chainName`, `coinGeckoId`, `connections`, `decimals`, `logoURI`, `name`, `standard`, `symbol`, `tokenType`). Insert each new field (e.g. `coinGeckoId`, `logoURI`) at its alphabetical position.
 
 ### 11a: Look Up CoinGecko ID
 
@@ -258,12 +255,7 @@ If no logo is attached to the ticket and no local file exists, skip this step.
 
 ### 11b-check: Verify Sort Order Before Step 11c
 
-Before showing the file for review, confirm both invariants on the final config.yaml:
-
-- Top-level chain entries are in alphabetical order by chain name.
-- Within each chain's token block, all keys are in alphabetical order (visual scan against the canonical key list above is sufficient; for stronger confidence pipe through `yq` and compare).
-
-If either invariant fails, fix the file before proceeding to 11c. The registry CI / CodeRabbit will block the PR otherwise.
+Before showing the file for review, verify both sort invariants on the final config.yaml per `/registry-yaml-sort-policy` (visual scan against its canonical config.yaml key order, or pipe through `yq`). If either fails, fix the file before proceeding to 11c — the registry CI / CodeRabbit will otherwise block the PR.
 
 ### 11c: Show Final Config for Review
 

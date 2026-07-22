@@ -143,7 +143,7 @@ Show the user the current YAML content + the flavor (YAML / getter-backed + whic
 
 For each requested change from Step 1, target the precise field. Parse the YAML, mutate the target, serialize back. Do NOT do a global string replace — that's how field-targeting bugs sneak in.
 
-Preserve the existing YAML formatting (alphabetical chain order at the top level AND alphabetical keys within each chain entry, per the rule in `/warp-deploy-init-route` Step 4). The registry CI / CodeRabbit enforces both invariants.
+Preserve the existing YAML formatting (alphabetical chain order at the top level AND alphabetical keys within each chain entry, per `/registry-yaml-sort-policy`). The registry CI / CodeRabbit enforces both invariants.
 
 ### 3a: Plain YAML Route — Edit the Registry File Directly
 
