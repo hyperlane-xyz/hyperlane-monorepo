@@ -1,3 +1,20 @@
+## [2.3.0] - 2026-07-20
+
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* feat: cache AWS KMS signer construction (#9030)
+* feat: enforce S3 checkpoint object size cap during download, not before (#9029)
+* feat: index same chain ccr swaps (#8796)
+* feat: relayer api (#8364)
+* feat: sealevel metaswaps reveals (#8930)
+* feat: static interval override for idle indexing and validator checkpoint polling (#8989)
+* feat: tron ccip support (#8849)
+* fix(agents): remove rusoto-based AWS region validation for signer config (#8670)
+* fix(agents): scale wallet balance metric by configured native token decimals (#9017)
+* fix: install explicit rustls CryptoProvider to fix TLS backend regression (#9001)
+* fix: process gas estimation for trusted relayer isms (#8457)
+* fix: skip scraper lookup for txHash (#8517)
+* refactor(evm): remove evm tron techstack (#8408)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)
