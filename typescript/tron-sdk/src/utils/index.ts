@@ -2,7 +2,7 @@ import { TronWeb } from 'tronweb';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { IABI } from './types.js';
+import { IABI, TronReceipt } from './types.js';
 import { BigNumber, providers } from 'ethers';
 
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
@@ -23,6 +23,40 @@ export function decodeRevertReason(hex: string, tronweb: any): string {
   } catch {
     return `Could not decode hex: ${hex}`;
   }
+}
+
+/** Subset of a Tron transaction-info receipt needed to detect execution failure. */
+export type TronReceiptResult = Pick<
+  TronReceipt,
+  'receipt' | 'resMessage' | 'contractResult'
+>;
+
+/**
+ * Throws when a mined Tron transaction reverted or failed on-chain.
+ *
+ * Tron surfaces execution failures through `getTransactionInfo` rather than the
+ * broadcast result, so both the ethers-compatible wallet path (TronWallet) and
+ * the AltVM provider path (TronProvider) must inspect the receipt to fail
+ * loudly, mirroring EVM's CALL_EXCEPTION on a status-0 receipt.
+ */
+export function assertTronReceiptSuccess(
+  info: TronReceiptResult,
+  tronweb: TronWeb,
+  txid: string,
+): void {
+  const result = info.receipt?.result;
+  if (result !== 'REVERT' && result !== 'FAILED') {
+    return;
+  }
+
+  let revertReason = 'Unknown Error';
+  if (info.resMessage) {
+    revertReason = tronweb.toUtf8(info.resMessage);
+  } else if (info.contractResult && info.contractResult[0]) {
+    revertReason = decodeRevertReason(info.contractResult[0], tronweb);
+  }
+
+  throw new Error(`Tron Transaction Failed: ${revertReason} (txid: ${txid})`);
 }
 
 export async function createDeploymentTransaction(
