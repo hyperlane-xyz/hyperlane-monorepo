@@ -270,6 +270,18 @@ Invoke `/start-http-registry` with `--writeMode` so newly-deployed contract addr
 
 After a writeMode-enabled run, before committing anything from the registry checkout: scope `git add` to ONLY the warp route config files (`deployments/warp_routes/<TOKEN>/...`). Do not stage chain-metadata files; if a private/API-keyed RPC override was supplied at runtime, it could have landed in a write-route mutation, and an unscoped commit would publish the API key.
 
+### 6a-check: Resuming after a failed / interrupted / wiped run (idempotency)
+
+`warp apply` deploys new contracts during an update — a bps change forces a `LinearFee` redeploy (bps is immutable), and a new ISM / hook / router deploys fresh too. Those deploys are **irreversible mainnet gas**, and on-chain deploys survive a worker/session wipe while the local registry edits, strategy file, and branch state do NOT. So a blind re-run after an interruption redeploys a fresh set and **orphans the previous one** (unrecoverable).
+
+Before (re-)running apply where a prior attempt may already have deployed:
+
+1. Check the run log (`/warp-run-log`) — the prior run records each newly-deployed address as a milestone. Cross-check against on-chain state (`warp read`) to see whether the target contracts (the new `LinearFee`, the composed ISM/hook stack, a new router) already exist and match the intended config.
+2. If a matching set already exists, **reuse it** — wire those addresses into the deploy.yaml instead of letting apply redeploy. Redeploying orphans the earlier contracts and can leave the route pointing at the wrong set.
+3. The moment the deploy phase of apply completes, record every deployed address to the run log immediately — before any further step — so a mid-run wipe doesn't force a blind redeploy next time.
+
+The fork-simulate-verify gate (Step 8) runs before any propose, but the _deploy_ inside apply is the irreversible step, so this idempotency check is what prevents duplicate mainnet deploys.
+
 ### 6b: Build and Run the Warp Apply Command
 
 Use the key-context artifact to resolve per-protocol key values (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
