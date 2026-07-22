@@ -13,6 +13,10 @@ import {
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
   ContractType,
   getCompiledContract,
 } from '@hyperlane-xyz/starknet-core';
@@ -83,14 +87,22 @@ function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
   return tokenTypeByClassHash;
 }
 
+// Warp-deploy cost breakdown for Starknet. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (fri).
+//
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// feature-heavy warp deploys on Starknet yet, so all extras currently
+// contribute nothing.
+const WARP_DEPLOY_BASE_FRI = BigInt(3e8); // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_FRI = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_FRI = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_FRI = 0n; // + custom hook / IGP (config.hook object)
+
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
-  static connect(
-    rpcUrls: string[],
-    _chainId: string | number,
-    extraParams?: { metadata?: ChainMetadataForAltVM },
-  ): StarknetProvider {
-    assert(extraParams?.metadata, 'metadata missing for Starknet provider');
-    const metadata = extraParams.metadata;
+  static connect(metadata: ChainMetadataForAltVM): StarknetProvider {
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
     assert(rpcUrls.length > 0, 'at least one rpc url is required');
 
     const blockTime = metadata.blocks?.estimateBlockTime;
@@ -114,6 +126,18 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     protected readonly metadata: ChainMetadataForAltVM,
     protected readonly rpcUrls: string[],
   ) {}
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_FRI,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_FRI,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_FRI,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_FRI,
+    });
+  }
 
   getRawProvider(): RpcProvider {
     return this.provider;

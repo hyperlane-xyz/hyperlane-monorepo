@@ -14,11 +14,7 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  composeWarpDeployGas,
-  type IRawWarpArtifactManager,
-  type WarpArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
@@ -36,37 +32,19 @@ import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
-import { SvmProvider } from './provider.js';
+import { SvmProvider, WARP_DEPLOY_BASE_LAMPORTS } from './provider.js';
 import { SvmSigner } from './signer.js';
-
-// Warp-deploy cost breakdown for Sealevel. Composed additively in
-// getMinGasForWarpDeploy() based on the WarpConfig shape.
-//
-// Numbers observed from live cross-collateral + fee-program deploys on
-// mainnet-beta; the base value matches the flat WARP_DEPLOY_GAS used before
-// this method existed (~2.6 SOL covers program account rent + token PDA rent
-// + ATA payer funding for a base router).
-export const WARP_DEPLOY_BASE_LAMPORTS = 2_600_000_000n; // base router deploy
-export const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS = 1_100_000_000n; // + crossCollateral router extras (~1.1 SOL)
-export const WARP_DEPLOY_FEE_PROGRAM_LAMPORTS = 2_500_000_000n; // + fee program deploy (~2.5 SOL, separate program)
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// custom ISM / hook deploys on Sealevel yet, so these currently contribute
-// nothing until real numbers land.
-export const WARP_DEPLOY_CUSTOM_ISM_LAMPORTS = 0n; // + custom ISM (config.interchainSecurityModule object)
-export const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (config.hook object)
 
 export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SvmProvider.connect(rpcUrls, chainMetadata.chainId);
+    return SvmProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SvmSigner.connectWithSigner(rpcUrls, config.privateKey);
+    return SvmSigner.connectWithSigner(chainMetadata, config.privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -144,16 +122,6 @@ export class SvmProtocolProvider implements ProtocolProvider {
       ISM_DEPLOY_GAS: 0n,
       HOOK_DEPLOY_GAS: 0n,
     };
-  }
-
-  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
-    return composeWarpDeployGas(warpConfig, {
-      base: WARP_DEPLOY_BASE_LAMPORTS,
-      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS,
-      feeProgram: WARP_DEPLOY_FEE_PROGRAM_LAMPORTS,
-      customIsm: WARP_DEPLOY_CUSTOM_ISM_LAMPORTS,
-      customHook: WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS,
-    });
   }
 
   private getRpcUrls(chainMetadata: ChainMetadataForAltVM): string[] {

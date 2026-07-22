@@ -17,11 +17,7 @@ import {
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import {
-  composeWarpDeployGas,
-  IRawWarpArtifactManager,
-  WarpArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -33,41 +29,26 @@ import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { StarknetProvider } from './provider.js';
 import { StarknetSigner } from './signer.js';
 
-// Warp-deploy cost breakdown for Starknet. Composed additively in
-// getMinGasForWarpDeploy() based on the WarpConfig shape.
-//
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// feature-heavy warp deploys on Starknet yet, so all extras currently
-// contribute nothing and getMinGasForWarpDeploy returns
-// getMinGas().WARP_DEPLOY_GAS.
-const WARP_DEPLOY_BASE_FRI = BigInt(3e8); // base router deploy
-const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI = 0n; // + crossCollateral router extras
-const WARP_DEPLOY_FEE_PROGRAM_FRI = 0n; // + fee program (config.fee object)
-const WARP_DEPLOY_CUSTOM_ISM_FRI = 0n; // + custom ISM (config.interchainSecurityModule object)
-const WARP_DEPLOY_CUSTOM_HOOK_FRI = 0n; // + custom hook / IGP (config.hook object)
+// Base router deploy cost in native denom (fri), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// StarknetProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_FRI = BigInt(3e8);
 
 export class StarknetProtocolProvider implements ProtocolProvider {
   async createProvider(
     chainMetadata: ChainMetadataForAltVM,
   ): Promise<IProvider> {
-    const rpcUrls = (chainMetadata.rpcUrls ?? []).map(({ http }) => http);
-    assert(rpcUrls.length > 0, 'rpc urls undefined for Starknet');
-    return StarknetProvider.connect(rpcUrls, chainMetadata.chainId, {
-      metadata: chainMetadata,
-    });
+    return StarknetProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    const rpcUrls = (chainMetadata.rpcUrls ?? []).map(({ http }) => http);
-    assert(rpcUrls.length > 0, 'rpc urls undefined for Starknet');
     assert(config.privateKey, 'privateKey missing for Starknet signer');
     assert(config.accountAddress, 'accountAddress missing for Starknet signer');
 
-    return StarknetSigner.connectWithSigner(rpcUrls, config.privateKey, {
-      metadata: chainMetadata,
+    return StarknetSigner.connectWithSigner(chainMetadata, config.privateKey, {
       accountAddress: config.accountAddress,
     });
   }
@@ -127,15 +108,5 @@ export class StarknetProtocolProvider implements ProtocolProvider {
       ISM_DEPLOY_GAS: BigInt(5e7),
       HOOK_DEPLOY_GAS: BigInt(5e7),
     };
-  }
-
-  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
-    return composeWarpDeployGas(warpConfig, {
-      base: WARP_DEPLOY_BASE_FRI,
-      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI,
-      feeProgram: WARP_DEPLOY_FEE_PROGRAM_FRI,
-      customIsm: WARP_DEPLOY_CUSTOM_ISM_FRI,
-      customHook: WARP_DEPLOY_CUSTOM_HOOK_FRI,
-    });
   }
 }

@@ -26,6 +26,10 @@ export const TEST_COSMOS_CHAIN_METADATA: TestChainMetadata = {
       http: 'http://127.0.0.1:26657',
     },
   ],
+  gasPrice: {
+    amount: '0.2',
+    denom: 'uhyp',
+  },
   rpcPort: 26657,
   rpcUrl: 'http://127.0.0.1:26657',
   restPort: 1317,

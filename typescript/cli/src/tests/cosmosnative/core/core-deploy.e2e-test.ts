@@ -64,13 +64,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
       'hyp',
     );
 
-    signer = await CosmosNativeSigner.connectWithSigner(
-      chainMetadata.rpcUrls.map((rpc) => rpc.http),
-      wallet,
-      {
-        metadata: chainMetadata,
-      },
-    );
+    signer = await CosmosNativeSigner.connectWithSigner(chainMetadata, wallet);
 
     initialOwnerAddress = signer.getSignerAddress();
   });

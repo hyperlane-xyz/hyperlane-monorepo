@@ -18,11 +18,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  composeWarpDeployGas,
-  type IRawWarpArtifactManager,
-  type WarpArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type FeeReadContext,
   type IRawFeeArtifactManager,
@@ -46,37 +42,23 @@ import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
 
-// Warp-deploy cost breakdown for Aleo. Composed additively in
-// getMinGasForWarpDeploy() based on the WarpConfig shape.
-//
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// feature-heavy warp deploys on Aleo yet, so all extras currently contribute
-// nothing and getMinGasForWarpDeploy returns getMinGas().WARP_DEPLOY_GAS.
-const WARP_DEPLOY_BASE_MICROCREDITS = 0n; // base router deploy
-const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS = 0n; // + crossCollateral router extras
-const WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS = 0n; // + fee program (config.fee object)
-const WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS = 0n; // + custom ISM (config.interchainSecurityModule object)
-const WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS = 0n; // + custom hook / IGP (config.hook object)
+// Base router deploy cost in native denom (microcredits), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// AleoProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_MICROCREDITS = 0n;
 
 export class AleoProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return AleoProvider.connect(rpcUrls, chainMetadata.chainId);
+    return AleoProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return AleoSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return AleoSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -226,15 +208,5 @@ export class AleoProtocolProvider implements ProtocolProvider {
       ISM_DEPLOY_GAS: 0n,
       HOOK_DEPLOY_GAS: 0n,
     };
-  }
-
-  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
-    return composeWarpDeployGas(warpConfig, {
-      base: WARP_DEPLOY_BASE_MICROCREDITS,
-      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS,
-      feeProgram: WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS,
-      customIsm: WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS,
-      customHook: WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS,
-    });
   }
 }

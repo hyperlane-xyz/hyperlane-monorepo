@@ -4,6 +4,7 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -20,16 +21,6 @@ import {
 } from '../utils/utils.js';
 
 import { RadixProvider } from './provider.js';
-
-type RadixSignerMetadata = {
-  chainId?: string | number;
-  gatewayUrls?: { http: string }[];
-  packageAddress?: string;
-};
-
-type RadixSignerConnectionParams = {
-  metadata?: RadixSignerMetadata;
-};
 
 export class RadixSigner
   extends RadixProvider
@@ -52,17 +43,13 @@ export class RadixSigner
   }
 
   static async connectWithSigner(
-    rpcUrls: string[],
+    metadata: ChainMetadataForAltVM,
     privateKey: string,
-    extraParams?: RadixSignerConnectionParams,
   ): Promise<RadixSigner> {
-    assert(extraParams, `extra params not defined`);
-
-    const metadata = extraParams.metadata;
-    assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+    assert(metadata.chainId, `chainId not defined in chain metadata`);
 
     const networkId = parseInt(metadata.chainId.toString());
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
 
     const account = await generateNewEd25519VirtualAccount(
       strip0x(privateKey),
@@ -74,6 +61,7 @@ export class RadixSigner
       rpcUrls,
       gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
       packageAddress: metadata.packageAddress,
+      chainMetadata: metadata,
     });
   }
 

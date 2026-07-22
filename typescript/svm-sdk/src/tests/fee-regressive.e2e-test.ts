@@ -33,7 +33,7 @@ describe('SVM Regressive Fee E2E Tests', function () {
   before(async () => {
     const rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     const signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);

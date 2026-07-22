@@ -14,10 +14,7 @@ describe('SVM Provider E2E Tests', function () {
   let provider: SvmProvider;
 
   before(async () => {
-    provider = await SvmProvider.connect(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
-      String(TEST_SVM_CHAIN_METADATA.domainId),
-    );
+    provider = await SvmProvider.connect(TEST_SVM_CHAIN_METADATA);
   });
 
   describe('estimateTransactionFee', () => {

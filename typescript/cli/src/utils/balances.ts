@@ -84,19 +84,32 @@ export async function nativeBalancesAreSufficient(
           `nativeToken denom is not defined on chain ${chain}`,
         );
 
-        if (!gasPrice) {
-          return;
+        if (minGas === GasAction.WARP_DEPLOY_GAS) {
+          const warpConfig = warpConfigByChain?.[chain];
+          assert(
+            warpConfig,
+            `warpConfig required for warp-deploy preflight on ${chain}`,
+          );
+          // The signer returns a final native-denom amount composed from the
+          // warp config (base router + feature deltas), so no gas-price
+          // multiplication is applied here.
+          const requiredNativeDenom =
+            await signer.getMinGasForWarpDeploy(warpConfig);
+          requiredMinBalanceNativeDenom = BigNumber.from(
+            requiredNativeDenom.toString(),
+          );
+        } else {
+          // The legacy gas-units path needs a gas price to size the balance;
+          // skip only THIS chain when it lacks one (e.g. Sealevel).
+          if (!gasPrice) continue;
+          const requiredGasUnits =
+            getProtocolProvider(protocol).getMinGas()[minGas];
+          requiredMinBalanceNativeDenom = BigNumber.from(
+            new BN(gasPrice.amount)
+              .times(requiredGasUnits.toString())
+              .toFixed(0),
+          );
         }
-
-        const protocolProvider = getProtocolProvider(protocol);
-        const warpConfig = warpConfigByChain?.[chain];
-        const requiredGasUnits =
-          minGas === GasAction.WARP_DEPLOY_GAS && warpConfig
-            ? protocolProvider.getMinGasForWarpDeploy(warpConfig)
-            : protocolProvider.getMinGas()[minGas];
-        requiredMinBalanceNativeDenom = BigNumber.from(
-          new BN(gasPrice.amount).times(requiredGasUnits.toString()).toFixed(0),
-        );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,
           nativeToken.decimals,

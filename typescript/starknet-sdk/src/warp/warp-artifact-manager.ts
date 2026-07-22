@@ -37,11 +37,7 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
   private readonly provider: StarknetProvider;
 
   constructor(chainMetadata: ChainMetadataForAltVM) {
-    this.provider = StarknetProvider.connect(
-      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
-      chainMetadata.chainId,
-      { metadata: chainMetadata },
-    );
+    this.provider = StarknetProvider.connect(chainMetadata);
   }
 
   supportsHookUpdates(): boolean {

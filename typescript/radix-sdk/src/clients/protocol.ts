@@ -19,11 +19,7 @@ import {
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import {
-  composeWarpDeployGas,
-  IRawWarpArtifactManager,
-  WarpArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -38,39 +34,23 @@ import { RadixSigner } from './signer.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-// Warp-deploy cost breakdown for Radix. Composed additively in
-// getMinGasForWarpDeploy() based on the WarpConfig shape.
-//
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// feature-heavy warp deploys on Radix yet, so all extras currently contribute
-// nothing and getMinGasForWarpDeploy returns getMinGas().WARP_DEPLOY_GAS.
-const WARP_DEPLOY_BASE_XRD = 0n; // base router deploy
-const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD = 0n; // + crossCollateral router extras
-const WARP_DEPLOY_FEE_PROGRAM_XRD = 0n; // + fee program (config.fee object)
-const WARP_DEPLOY_CUSTOM_ISM_XRD = 0n; // + custom ISM (config.interchainSecurityModule object)
-const WARP_DEPLOY_CUSTOM_HOOK_XRD = 0n; // + custom hook / IGP (config.hook object)
+// Base router deploy cost in native denom (XRD), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// RadixProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_XRD = 0n;
 
 export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return RadixProvider.connect(rpcUrls, chainMetadata.chainId, {
-      metadata: chainMetadata,
-    });
+    return RadixProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return RadixSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return RadixSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -147,16 +127,6 @@ export class RadixProtocolProvider implements ProtocolProvider {
       ISM_DEPLOY_GAS: 0n,
       HOOK_DEPLOY_GAS: 0n,
     };
-  }
-
-  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
-    return composeWarpDeployGas(warpConfig, {
-      base: WARP_DEPLOY_BASE_XRD,
-      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD,
-      feeProgram: WARP_DEPLOY_FEE_PROGRAM_XRD,
-      customIsm: WARP_DEPLOY_CUSTOM_ISM_XRD,
-      customHook: WARP_DEPLOY_CUSTOM_HOOK_XRD,
-    });
   }
 
   /**

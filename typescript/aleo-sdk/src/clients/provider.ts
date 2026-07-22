@@ -2,6 +2,11 @@ import { U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -40,9 +45,23 @@ interface TransactionFeeCache {
   };
 }
 
+// Warp-deploy cost breakdown for Aleo. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (microcredits).
+//
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// feature-heavy warp deploys on Aleo yet, so all extras currently contribute
+// nothing.
+const WARP_DEPLOY_BASE_MICROCREDITS = 0n; // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS = 0n; // + custom hook / IGP (config.hook object)
+
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
   private transactionFeeCache: TransactionFeeCache = {};
   private signerTransferCache = new Map<string, boolean>();
+  protected readonly chainMetadata: ChainMetadataForAltVM;
 
   private async hasSignerTransferFunctions(
     programId: string,
@@ -56,15 +75,30 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return hasSigner;
   }
 
-  static async connect(
-    rpcUrls: string[],
-    chainId: string | number,
-  ): Promise<AleoProvider> {
-    return new AleoProvider(rpcUrls, chainId);
+  static async connect(metadata: ChainMetadataForAltVM): Promise<AleoProvider> {
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
+    return new AleoProvider(rpcUrls, metadata.chainId, metadata);
   }
 
-  constructor(rpcUrls: string[], chainId: string | number) {
+  constructor(
+    rpcUrls: string[],
+    chainId: string | number,
+    chainMetadata: ChainMetadataForAltVM,
+  ) {
     super(rpcUrls, chainId);
+    this.chainMetadata = chainMetadata;
+  }
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_MICROCREDITS,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS,
+    });
   }
 
   protected generateSuffix(n: number): string {

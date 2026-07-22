@@ -17,6 +17,7 @@ import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '../constants.js';
 import type { SvmDeployedFee } from '../fee/types.js';
 import { deriveAssociatedTokenAddress } from '../pda.js';
 import type { createRpc } from '../rpc.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { airdropSol, createSplMint } from '../testing/setup.js';
 
 /** Any fee config with params — covers leaf types and offchainQuotedLinear. */
@@ -218,15 +219,14 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
   });
 
   it('should transfer ownership and new owner can update', async () => {
-    const { writer, reader, rpc, rpcUrl, makeConfig, makeWriter } =
-      getContext();
+    const { writer, reader, rpc, makeConfig, makeWriter } = getContext();
     const [deployed] = await writer.create({ config: makeConfig() });
 
     // Create a new owner signer and fund it
     const newOwnerKey =
       '0x0000000000000000000000000000000000000000000000000000000000000002';
     const newOwnerSigner = await SvmSigner.connectWithSigner(
-      [rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       newOwnerKey,
     );
     await airdropSol(

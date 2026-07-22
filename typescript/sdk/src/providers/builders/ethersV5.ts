@@ -1,4 +1,4 @@
-import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
+import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import type {
   EthersV5Provider,
   GnosisTxBuilderProvider,
@@ -16,14 +16,10 @@ const DEFAULT_RETRY_OPTIONS: SmartProviderOptions = {
 
 export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
   EthersV5Provider
-> = (
-  rpcUrls: RpcUrl[],
-  network: number | string,
-  retryOverride?: SmartProviderOptions,
-) => {
+> = (metadata: ChainMetadata, retryOverride?: SmartProviderOptions) => {
   const provider = new HyperlaneSmartProvider(
-    network,
-    rpcUrls,
+    metadata.chainId,
+    metadata.rpcUrls,
     undefined,
     retryOverride || DEFAULT_RETRY_OPTIONS,
   );
@@ -32,24 +28,21 @@ export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
 
 export const defaultGnosisTxBuilderProviderBuilder: ProviderBuilderFn<
   GnosisTxBuilderProvider
-> = (rpcUrls, network, retryOverride) => ({
+> = (metadata, retryOverride) => ({
   type: ProviderType.GnosisTxBuilder,
-  provider: defaultEthersV5ProviderBuilder(rpcUrls, network, retryOverride)
-    .provider,
+  provider: defaultEthersV5ProviderBuilder(metadata, retryOverride).provider,
 });
 
 export function defaultFuelProviderBuilder(
-  rpcUrls: RpcUrl[],
-  _network: number | string,
+  metadata: ChainMetadata,
 ): EthersV5Provider {
-  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  if (!metadata.rpcUrls.length) throw new Error('No RPC URLs provided');
   throw new Error('TODO fuel support');
 }
 
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
-  rpcUrls: RpcUrl[],
-  network: number | string,
+  metadata: ChainMetadata,
 ): EthersV5Provider['provider'] {
-  return defaultEthersV5ProviderBuilder(rpcUrls, network).provider;
+  return defaultEthersV5ProviderBuilder(metadata).provider;
 }

@@ -18,7 +18,11 @@ import type {
   WarpArtifactConfig,
   WarpDeployGasBreakdown,
 } from './warp.js';
-import { TokenType, composeWarpDeployGas } from './warp.js';
+import {
+  TokenType,
+  composeWarpDeployGas,
+  nativeAmountFromGasUnits,
+} from './warp.js';
 
 // Arbitrary constants so the helper's logic is tested independently of any
 // specific SDK's real numbers.
@@ -268,4 +272,54 @@ describe('composeWarpDeployGas', () => {
     const config = collateral({ fee: feeMissingState });
     expect(composeWarpDeployGas(config, BREAKDOWN)).to.equal(100n + 1_000n);
   });
+});
+
+interface NativeAmountCase {
+  name: string;
+  gasUnits: bigint;
+  amount: string;
+  expected: bigint;
+}
+
+const nativeAmountCases: NativeAmountCase[] = [
+  {
+    name: 'integer gas price multiplies exactly',
+    gasUnits: 1_000n,
+    amount: '5',
+    expected: 5_000n,
+  },
+  {
+    name: 'fractional gas price floors the product',
+    gasUnits: 1_000n,
+    amount: '0.025',
+    expected: 25n,
+  },
+  {
+    name: 'flooring drops the remainder',
+    gasUnits: 3n,
+    amount: '0.4',
+    expected: 1n,
+  },
+  {
+    name: 'trailing-zero fraction is handled',
+    gasUnits: 1_000_000n,
+    amount: '0.0000000001',
+    expected: 0n,
+  },
+  {
+    name: 'zero gas price yields zero',
+    gasUnits: 1_000n,
+    amount: '0',
+    expected: 0n,
+  },
+];
+
+describe('nativeAmountFromGasUnits', () => {
+  for (const c of nativeAmountCases) {
+    it(c.name, () => {
+      expect(
+        nativeAmountFromGasUnits(c.gasUnits, { amount: c.amount }),
+      ).to.equal(c.expected);
+    });
+  }
 });

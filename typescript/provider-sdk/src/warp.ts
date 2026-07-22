@@ -894,8 +894,9 @@ export function computeCrossCollateralRouterUpdates(
 /**
  * Per-protocol breakdown of the additive deltas that
  * {@link composeWarpDeployGas} sums into a total warp-deploy cost. Every
- * field is in the same protocol-native unit as `getMinGas()` (lamports on
- * Sealevel, sun on Tron, ugas on Cosmos, etc.).
+ * field is in the protocol-defined unit: gas units for gas-metered protocols
+ * (Cosmos), native denom for rent/fee-metered protocols (lamports on Sealevel,
+ * sun on Tron, etc.).
  */
 export interface WarpDeployGasBreakdown {
   /** Base router deploy cost. */
@@ -919,8 +920,9 @@ export interface WarpDeployGasBreakdown {
  * already exists on-chain and no deploy cost is incurred); a NEW artifact
  * contributes its protocol-specific delta.
  *
- * Return value uses the same protocol-native unit as `getMinGas()` (lamports
- * on Sealevel, sun on Tron, ugas on Cosmos, etc.).
+ * Return value uses the protocol-defined unit: gas units for gas-metered
+ * protocols (Cosmos), native denom for rent/fee-metered protocols (lamports
+ * on Sealevel, sun on Tron, etc.).
  */
 export function composeWarpDeployGas(
   warpConfig: WarpArtifactConfig,
@@ -948,6 +950,23 @@ export function composeWarpDeployGas(
   }
 
   return total;
+}
+
+/**
+ * Converts a gas-unit amount into the chain's native denom by multiplying by a
+ * (possibly fractional) gas price, flooring the result. The gas price `amount`
+ * is a decimal string (e.g. "0.025"); the multiplication is done with integer
+ * math to avoid floating-point precision loss on large gas-unit values.
+ */
+export function nativeAmountFromGasUnits(
+  gasUnits: bigint,
+  gasPrice: { amount: string },
+): bigint {
+  const [whole, fraction = ''] = gasPrice.amount.split('.');
+  const scale = BigInt(fraction.length);
+  const scaledPrice = BigInt(`${whole}${fraction}` || '0');
+  const denominator = 10n ** scale;
+  return (gasUnits * scaledPrice) / denominator;
 }
 
 export interface CCGasConfigDiff {

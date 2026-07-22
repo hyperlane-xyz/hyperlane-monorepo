@@ -15,11 +15,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  composeWarpDeployGas,
-  type IRawWarpArtifactManager,
-  type WarpArtifactConfig,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type FeeReadContext,
   type IRawFeeArtifactManager,
@@ -35,38 +31,23 @@ import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 
-// Warp-deploy cost breakdown for Cosmos-native. Composed additively in
-// getMinGasForWarpDeploy() based on the WarpConfig shape.
-//
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// feature-heavy warp deploys on Cosmos-native yet, so all extras currently
-// contribute nothing and getMinGasForWarpDeploy returns
-// getMinGas().WARP_DEPLOY_GAS.
-const WARP_DEPLOY_BASE_UGAS = BigInt(3e6); // base router deploy
-const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_UGAS = 0n; // + crossCollateral router extras
-const WARP_DEPLOY_FEE_PROGRAM_UGAS = 0n; // + fee program (config.fee object)
-const WARP_DEPLOY_CUSTOM_ISM_UGAS = 0n; // + custom ISM (config.interchainSecurityModule object)
-const WARP_DEPLOY_CUSTOM_HOOK_UGAS = 0n; // + custom hook / IGP (config.hook object)
+// Base router deploy cost in gas units (ugas), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// CosmosNativeProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_UGAS = BigInt(3e6);
 
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
+    return CosmosNativeProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return CosmosNativeSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -155,15 +136,5 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
       ISM_DEPLOY_GAS: BigInt(5e5),
       HOOK_DEPLOY_GAS: BigInt(5e5),
     };
-  }
-
-  getMinGasForWarpDeploy(warpConfig: WarpArtifactConfig): bigint {
-    return composeWarpDeployGas(warpConfig, {
-      base: WARP_DEPLOY_BASE_UGAS,
-      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_UGAS,
-      feeProgram: WARP_DEPLOY_FEE_PROGRAM_UGAS,
-      customIsm: WARP_DEPLOY_CUSTOM_ISM_UGAS,
-      customHook: WARP_DEPLOY_CUSTOM_HOOK_UGAS,
-    });
   }
 }

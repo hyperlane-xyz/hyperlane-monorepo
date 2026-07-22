@@ -95,12 +95,9 @@ function reconnectSigner(
 function getHaasMultiProvider(baseMultiProvider: MultiProvider): MultiProvider {
   const haasMultiProvider = new MultiProvider(baseMultiProvider.metadata, {
     ...baseMultiProvider.options,
-    providerBuilder: (rpcUrls, network) =>
-      defaultEthersV5ProviderBuilder(
-        rpcUrls,
-        network,
-        HAAS_SMART_PROVIDER_OPTIONS,
-      ).provider,
+    providerBuilder: (metadata) =>
+      defaultEthersV5ProviderBuilder(metadata, HAAS_SMART_PROVIDER_OPTIONS)
+        .provider,
   });
 
   if (baseMultiProvider.useSharedSigner) {

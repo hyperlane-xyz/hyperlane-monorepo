@@ -1217,7 +1217,6 @@ describe('WarpTokenWriter', () => {
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: () => currentFeeCreateManager,
           getMinGas: Sinon.stub(),
-          getMinGasForWarpDeploy: Sinon.stub().returns(0n),
           createWarpArtifactManager: Sinon.stub(),
         }));
       }
@@ -1400,7 +1399,6 @@ describe('WarpTokenWriter', () => {
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: () => currentMockFeeArtifactManager,
           getMinGas: Sinon.stub(),
-          getMinGasForWarpDeploy: Sinon.stub().returns(0n),
           createWarpArtifactManager: Sinon.stub(),
         }));
       }
@@ -1593,7 +1591,6 @@ describe('WarpTokenWriter', () => {
           createValidatorAnnounceArtifactManager: Sinon.stub(),
           createFeeArtifactManager: Sinon.stub().returns(null),
           getMinGas: Sinon.stub(),
-          getMinGasForWarpDeploy: Sinon.stub().returns(0n),
           createWarpArtifactManager: Sinon.stub(),
         }));
       }
