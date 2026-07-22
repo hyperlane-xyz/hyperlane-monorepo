@@ -36,6 +36,13 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     // for the hook module. The hook configuration is the Ethereum
     // default hook for the Ancient8 remote (no routing).
     hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
+    // The ProxyAdmin is owned by the legacy Safe, not the standard AW owner.
+    // Set ownerOverrides.proxyAdmin (not just proxyAdmin.owner) since config
+    // expansion gives ownerOverrides.proxyAdmin precedence.
+    ownerOverrides: {
+      ...abacusWorksEnvOwnerConfig.ethereum.ownerOverrides,
+      proxyAdmin: regularSafes.ethereum,
+    },
     proxyAdmin: {
       owner: regularSafes.ethereum,
     },
@@ -47,6 +54,10 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
+    ownerOverrides: {
+      ...abacusWorksEnvOwnerConfig.ancient8.ownerOverrides,
+      proxyAdmin: regularIcas.ancient8,
+    },
     proxyAdmin: {
       owner: regularIcas.ancient8,
     },
