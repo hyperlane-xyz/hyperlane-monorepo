@@ -55,6 +55,20 @@ From the `warp read` output, build a flat list of `(chain, artifactType, address
 | `fee:routing` | `<chain>.tokenFee.{address, owner}` (synthetic side only)                                    | nested | ✅                      |
 | `fee:linear`  | each `<chain>.tokenFee.feeContracts.<other-chain>.{address, owner, bps}`                     | nested | ✅                      |
 
+### xERC20 / xERC20-lockbox routes — the underlying token is a SEPARATE artifact
+
+When a chain's token standard is xERC20 or xERC20-lockbox (router types like `HypVSXERC20`, `EvmHypXERC20Lockbox`, …), the **underlying xERC20 token** is a distinct contract from the warp router, with its OWN owner and its OWN ProxyAdmin. `warp read` reports the router's owner, not the token's — enumerate two extra artifacts:
+
+| Artifact type       | How to resolve the address                                                                | Owner controls                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `xerc20:token`      | lockbox route → `lockbox.XERC20()`; otherwise the router's wrapped/collateral-token field | `setBufferCap` / `setRateLimitPerSecond` / `addBridge` / `removeBridge` — NOT the router |
+| `xerc20:proxyAdmin` | the token's own ProxyAdmin (distinct from the router's `proxyAdmin`)                      | token-implementation upgrades                                                            |
+
+Owner-classification caveats for these two (they are NOT the router owner):
+
+- The token owner is **frequently externally governed** (Velo / customer / third party) and may be entirely out of our control — classify it, but flag when we can't operate it.
+- The token may be **non-`Ownable`** (EIP-7281 doesn't mandate Ownable — it can be AccessControl or custom, with no `owner()`). If `owner()` reverts, record `owner: null`, `type: non-ownable`, and ASK THE USER — do not throw.
+
 ### ISM and hook artifacts (flat-or-nested — walk the tree)
 
 `interchainSecurityModule` and `hook` are NOT always flat addresses. They can be either:

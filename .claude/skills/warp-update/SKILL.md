@@ -57,6 +57,12 @@ Fetch the ticket per `/fetch-linear-ticket`. Parse the returned description for 
 
 If the ticket combines multiple changes, parse them all. The skill applies the batched edits in a single `warp apply` run.
 
+### 1c: xERC20 routes — token ownership is NOT a `warp apply` change
+
+On an xERC20 / xERC20-lockbox route, the warp config's `owner` is the **router** owner. `warp apply` manages the router / ISM / hook / rate-limit config only — it does **not** transfer the underlying xERC20 token's ownership or its ProxyAdmin. Those are a separate contract (`xerc20:token` / `xerc20:proxyAdmin` — see `/warp-update-resolve-artifacts`) and move via **`hyperlane xerc20 apply`**, which is config-driven and submitted through the same strategy/submitter machinery (a Safe / ICA / timelock owner all work — do NOT route xERC20 ownership through the infra check-deploy path). In that command's config the top-level `owner` is the **token** owner, and the ProxyAdmin owner resolves as `ownerOverrides.proxyAdmin ?? proxyAdmin.owner ?? owner` (unspecified → token and ProxyAdmin both go to `owner`). Never conflate the two `owner` meanings: it is the router owner under `warp apply`, the token owner under `xerc20 apply`. The token may also be externally governed or non-`Ownable` (per `/warp-update-resolve-artifacts`), in which case we can't transfer it — surface that instead of emitting a doomed `transferOwnership`.
+
+If a run changes both xERC20 bridge limits (`setBufferCap` / `addBridge` / `setRateLimitPerSecond`) AND token ownership, sequence **limits/bridges first, ownership handoff last** — both are `onlyOwner`, so once ownership moves to a Safe/timelock the deployer can no longer set limits.
+
 ### 1a: ISM and Hook Targeting (flat vs nested)
 
 `interchainSecurityModule` and `hook` can each be either a flat string address (for "use mailbox default" or an existing custom contract) OR a nested object describing the on-chain structure. Common nested shapes:
