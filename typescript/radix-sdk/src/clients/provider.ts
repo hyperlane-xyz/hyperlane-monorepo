@@ -17,10 +17,14 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-// Base router deploy cost in native denom (XRD), used to size warp-deploy
-// balance checks. All extras currently contribute nothing until measured
-// numbers land.
-const WARP_DEPLOY_BASE_XRD = 0n;
+// Warp-deploy cost breakdown for Radix. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (XRD, 18 decimals).
+//
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_XRD = 7_000_000_000_000_000_000n; // 7 XRD base router deploy
 const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD = 0n;
 const WARP_DEPLOY_FEE_PROGRAM_XRD = 0n;
 const WARP_DEPLOY_CUSTOM_ISM_XRD = 0n;

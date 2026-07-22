@@ -47,12 +47,12 @@ interface TransactionFeeCache {
 
 // Warp-deploy cost breakdown for Aleo. Composed additively in
 // getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
-// denom (microcredits).
+// denom (microcredits, 6 decimals).
 //
-// TODO: fill from observed deploy — we don't have a measured breakdown for
-// feature-heavy warp deploys on Aleo yet, so all extras currently contribute
-// nothing.
-const WARP_DEPLOY_BASE_MICROCREDITS = 0n; // base router deploy
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_MICROCREDITS = 100_000_000n; // 100 credits base router deploy
 const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS = 0n; // + crossCollateral router extras
 const WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS = 0n; // + fee program (config.fee object)
 const WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS = 0n; // + custom ISM (config.interchainSecurityModule object)
