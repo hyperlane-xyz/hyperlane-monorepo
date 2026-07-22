@@ -2336,7 +2336,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6107,7 +6107,7 @@ dependencies = [
  "hyperlane-starknet",
  "hyperlane-test",
  "hyperlane-tron",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "maplit",
  "mockall",
  "moka",
@@ -6164,7 +6164,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex 0.4.3",
  "hyperlane-application",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "num 0.4.3",
  "num-derive",
  "num-traits",
@@ -6213,7 +6213,7 @@ dependencies = [
  "ibc-proto",
  "injective-protobuf",
  "injective-std",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "once_cell",
  "pin-project",
  "protobuf 2.28.0",
@@ -6226,7 +6226,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "url",
@@ -6288,7 +6288,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "num 0.4.3",
  "num-traits",
  "reqwest 0.11.27",
@@ -6364,7 +6364,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "once_cell",
  "radix-common",
  "radix-engine-interface",
@@ -6414,6 +6414,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-token-cctp",
  "hyperlane-sealevel-validator-announce",
  "hyperlane-warp-route",
  "jsonrpc-core",
@@ -6468,6 +6469,37 @@ dependencies = [
  "solana-loader-v3-interface 6.1.0",
  "solana-program 3.0.0",
  "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.63",
+]
+
+[[package]]
+name = "hyperlane-sealevel-connection-client"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "borsh 1.6.0",
+ "hyperlane-core",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "solana-program 3.0.0",
+]
+
+[[package]]
+name = "hyperlane-sealevel-fee"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.63",
 ]
@@ -6560,6 +6592,60 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-cctp"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-warp-route",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
+ "spl-associated-token-account",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror 1.0.63",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-lib"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-warp-route",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror 1.0.63",
+]
+
+[[package]]
 name = "hyperlane-sealevel-validator-announce"
 version = "0.1.0"
 dependencies = [
@@ -6633,7 +6719,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "num 0.4.3",
  "num-traits",
  "prost 0.13.4",
@@ -7353,7 +7439,7 @@ dependencies = [
  "hyperlane-radix",
  "hyperlane-sealevel",
  "hyperlane-tron",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "mockall",
  "prometheus",
  "radix-common",
@@ -7403,7 +7489,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -9670,7 +9756,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-sealevel",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "lander",
  "maplit",
  "mockall",
@@ -9693,7 +9779,7 @@ dependencies = [
  "tokio",
  "tokio-metrics",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tower-http",
  "tracing",
  "tracing-futures",
@@ -10652,7 +10738,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "migration",
  "num-bigint 0.4.6",
  "num-traits",
@@ -14213,6 +14299,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-security-txt"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c94a02d486b28f219a4f8f5d7dd93cbfbb93c9f466cb7871c22e50cd5ae9a7a2"
+
+[[package]]
 name = "solana-seed-derivable"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15087,6 +15179,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-associated-token-account"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0242277e290c023de8826f504abcf9206b3cd4e18d9ace4ec59a698b2828e88b"
+dependencies = [
+ "borsh 1.6.0",
+ "num-derive",
+ "num-traits",
+ "solana-account-info 3.1.0",
+ "solana-cpi 3.1.0",
+ "solana-instruction 3.1.0",
+ "solana-msg 3.0.0",
+ "solana-program-entrypoint 3.1.1",
+ "solana-program-error 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-rent 3.1.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+ "solana-sysvar 3.1.1",
+ "spl-associated-token-account-interface",
+ "spl-token-2022-interface",
+ "spl-token-interface",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "spl-associated-token-account-interface"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15145,6 +15263,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-elgamal-registry-interface"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065f54100d118d24036283e03120b2f60cb5b7d597d3db649e13690e22d41398"
+dependencies = [
+ "bytemuck",
+ "solana-instruction 3.1.0",
+ "solana-program-error 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-zk-sdk 4.0.0",
+ "spl-token-confidential-transfer-proof-extraction",
+]
+
+[[package]]
 name = "spl-generic-token"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15183,7 +15316,7 @@ dependencies = [
  "bytemuck_derive",
  "solana-program 2.3.0",
  "solana-zk-sdk 2.3.13",
- "spl-program-error",
+ "spl-program-error 0.5.0",
 ]
 
 [[package]]
@@ -15214,8 +15347,23 @@ dependencies = [
  "num-derive",
  "num-traits",
  "solana-program 2.3.0",
- "spl-program-error-derive",
+ "spl-program-error-derive 0.4.1",
  "thiserror 1.0.63",
+]
+
+[[package]]
+name = "spl-program-error"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c4f6cf26cb6768110bf024bc7224326c720d711f7ad25d16f40f6cee40edb2d"
+dependencies = [
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-msg 3.0.0",
+ "solana-program-error 3.0.0",
+ "spl-program-error-derive 0.6.0",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -15228,6 +15376,108 @@ dependencies = [
  "quote 1.0.42",
  "sha2 0.10.8",
  "syn 2.0.109",
+]
+
+[[package]]
+name = "spl-program-error-derive"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ec8965aa4dc6c74701cbb48b9cad5af35b9a394514934949edbb357b78f840d"
+dependencies = [
+ "proc-macro2",
+ "quote 1.0.42",
+ "sha2 0.10.8",
+ "syn 2.0.109",
+]
+
+[[package]]
+name = "spl-tlv-account-resolution"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6927f613c9d7ce20835d3cefb602137cab2518e383a047c0eaa58054a60644c8"
+dependencies = [
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-account-info 3.1.0",
+ "solana-instruction 3.1.0",
+ "solana-program-error 3.0.0",
+ "solana-pubkey 3.0.0",
+ "spl-discriminator 0.5.1",
+ "spl-pod 0.7.1",
+ "spl-program-error 0.8.0",
+ "spl-type-length-value 0.9.0",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "spl-token"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "878b0183d51fcd8a53e1604f4c13321894cf53227e6773c529b0d03d499a8dfd"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-account-info 3.1.0",
+ "solana-cpi 3.1.0",
+ "solana-instruction 3.1.0",
+ "solana-msg 3.0.0",
+ "solana-program-entrypoint 3.1.1",
+ "solana-program-error 3.0.0",
+ "solana-program-memory 3.1.0",
+ "solana-program-option 3.0.0",
+ "solana-program-pack 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-rent 3.1.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-sysvar 3.1.1",
+ "spl-token-interface",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "spl-token-2022"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552427d9117528d037daa0e70416d51322c8a33241317210f230304d852be61e"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-account-info 3.1.0",
+ "solana-clock 3.0.0",
+ "solana-cpi 3.1.0",
+ "solana-instruction 3.1.0",
+ "solana-msg 3.0.0",
+ "solana-program-entrypoint 3.1.1",
+ "solana-program-error 3.0.0",
+ "solana-program-memory 3.1.0",
+ "solana-program-option 3.0.0",
+ "solana-program-pack 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-rent 3.1.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-security-txt",
+ "solana-system-interface 2.0.0",
+ "solana-sysvar 3.1.1",
+ "solana-zk-sdk 4.0.0",
+ "spl-elgamal-registry-interface",
+ "spl-memo-interface",
+ "spl-pod 0.7.1",
+ "spl-token-2022-interface",
+ "spl-token-confidential-transfer-ciphertext-arithmetic",
+ "spl-token-confidential-transfer-proof-extraction",
+ "spl-token-confidential-transfer-proof-generation",
+ "spl-token-group-interface",
+ "spl-token-metadata-interface",
+ "spl-transfer-hook-interface",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -15256,6 +15506,18 @@ dependencies = [
  "spl-token-metadata-interface",
  "spl-type-length-value 0.9.0",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "spl-token-confidential-transfer-ciphertext-arithmetic"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afbeb07f737d868f145512a4bcf9f59da275b7a3483df0add3f71eb812b689fb"
+dependencies = [
+ "base64 0.22.1",
+ "bytemuck",
+ "solana-curve25519",
+ "solana-zk-sdk 4.0.0",
 ]
 
 [[package]]
@@ -15347,6 +15609,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-transfer-hook-interface"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c34b46b8f39bc64a9ab177a0ea8e9a58826db76f8d9d154a2400ee60baef7b1e"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "solana-account-info 3.1.0",
+ "solana-cpi 3.1.0",
+ "solana-instruction 3.1.0",
+ "solana-msg 3.0.0",
+ "solana-program-error 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+ "spl-discriminator 0.5.1",
+ "spl-pod 0.7.1",
+ "spl-program-error 0.8.0",
+ "spl-tlv-account-resolution",
+ "spl-type-length-value 0.9.0",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "spl-type-length-value"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15356,7 +15644,7 @@ dependencies = [
  "solana-program 2.3.0",
  "spl-discriminator 0.3.0",
  "spl-pod 0.4.0",
- "spl-program-error",
+ "spl-program-error 0.5.0",
 ]
 
 [[package]]
@@ -17336,7 +17624,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "k256 0.13.4",
  "mockall",
  "prometheus",
@@ -17349,7 +17637,7 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-test",
@@ -17705,7 +17993,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

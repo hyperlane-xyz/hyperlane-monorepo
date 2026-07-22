@@ -45,6 +45,45 @@ macro_rules! hyperlane_token_cctp_ata_payer_pda_seeds {
     }};
 }
 
+/// Seeds for the per-message staged-metadata PDA. Holds the raw Circle CCTP
+/// `message`/`attestation` bytes so `Verify()` can read them from account
+/// data instead of instruction data — the transaction embedding both the
+/// full Hyperlane message *and* this payload inline exceeds Solana's
+/// tx-size limit. Seeded by the **Hyperlane** message id (not Circle's own
+/// CCTP nonce) so both the staging call and `Verify()`/`VerifyAccountMetas`
+/// can derive it from data they always have on hand — the Hyperlane message
+/// itself — without needing to have already parsed Circle's message first.
+#[macro_export]
+macro_rules! cctp_stage_metadata_pda_seeds {
+    ($message_id:expr) => {{
+        &[
+            b"hyperlane_token_cctp",
+            b"-",
+            b"stage_metadata",
+            b"-",
+            $message_id,
+        ]
+    }};
+
+    ($message_id:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane_token_cctp",
+            b"-",
+            b"stage_metadata",
+            b"-",
+            $message_id,
+            &[$bump_seed],
+        ]
+    }};
+}
+
+pub fn derive_stage_metadata_pda(program_id: &Pubkey, message_id: &[u8; 32]) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        crate::cctp_stage_metadata_pda_seeds!(message_id),
+        program_id,
+    )
+}
+
 /// Plugin data for the Hyperlane token program's generic `HyperlaneToken<T>`
 /// wrapper. Deliberately minimal: no escrow/pooled balance (unlike
 /// `CollateralPlugin`) — CCTP burns/mints native USDC directly via Circle's
@@ -129,5 +168,16 @@ mod test {
         let (pda_0, _) = derive_remote_config_pda(&program_id, 0);
         let (pda_5, _) = derive_remote_config_pda(&program_id, 5);
         assert_ne!(pda_0, pda_5);
+    }
+
+    #[test]
+    fn test_stage_metadata_pda_distinct_per_message_id_and_deterministic() {
+        let program_id = Pubkey::new_unique();
+        let (pda_a, _) = derive_stage_metadata_pda(&program_id, &[0x01; 32]);
+        let (pda_b, _) = derive_stage_metadata_pda(&program_id, &[0x02; 32]);
+        assert_ne!(pda_a, pda_b);
+
+        let (pda_a_again, _) = derive_stage_metadata_pda(&program_id, &[0x01; 32]);
+        assert_eq!(pda_a, pda_a_again);
     }
 }

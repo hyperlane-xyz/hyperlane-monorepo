@@ -15,6 +15,10 @@ use solana_program::program_error::ProgramError;
 pub const SET_REMOTE_CONFIG_DISCRIMINATOR: [u8; 8] =
     [0x94, 0x96, 0x95, 0x24, 0xfe, 0x6a, 0x7b, 0x2f];
 
+/// `sha256("hyperlane-token-cctp:stage-verify-metadata")[..8]`.
+pub const STAGE_VERIFY_METADATA_DISCRIMINATOR: [u8; 8] =
+    [0x51, 0xe9, 0x3c, 0x92, 0x96, 0x84, 0xb6, 0xdf];
+
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct SetRemoteConfig {
     pub destination_domain: u32,
@@ -23,10 +27,34 @@ pub struct SetRemoteConfig {
     pub min_finality_threshold: u32,
 }
 
+/// Args for [`CctpInstruction::StageVerifyMetadata`] — see its variant doc.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct StageVerifyMetadata {
+    /// The Hyperlane message id this payload is for — keys the staging PDA.
+    /// Not derived from `message` below: that's Circle's own CCTP message,
+    /// a distinct artifact from the Hyperlane message being verified.
+    pub message_id: [u8; 32],
+    /// Circle's raw CCTP v2 message bytes (header + `BurnMessage` body).
+    pub message: Vec<u8>,
+    /// Circle's off-chain attestation over `message`.
+    pub attestation: Vec<u8>,
+}
+
 /// This program's custom instruction namespace.
 #[derive(Debug, PartialEq)]
 pub enum CctpInstruction {
     SetRemoteConfig(SetRemoteConfig),
+    /// Writes `{message, attestation}` into a PDA keyed by the CCTP nonce
+    /// parsed out of `message`, so the ISM's `Verify()` instruction can read
+    /// them from account data instead of embedding them inline — the
+    /// combined size of the raw Hyperlane message, this payload, and the
+    /// ~23 accounts `Verify()` needs for Circle's CPI exceeds Solana's
+    /// transaction size limit otherwise. Permissionless and idempotent:
+    /// content is self-validating (Circle's attestation is checked by
+    /// `Verify()`'s CPI into `receive_message`, so staging garbage here
+    /// just fails that check later, and the PDA's nonce-derived address
+    /// can't be pre-empted before the real nonce exists).
+    StageVerifyMetadata(StageVerifyMetadata),
 }
 
 impl CctpInstruction {
@@ -41,6 +69,11 @@ impl CctpInstruction {
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 Ok(Self::SetRemoteConfig(config))
             }
+            d if d == STAGE_VERIFY_METADATA_DISCRIMINATOR => {
+                let params = StageVerifyMetadata::try_from_slice(rest)
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
+                Ok(Self::StageVerifyMetadata(params))
+            }
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -52,6 +85,12 @@ impl CctpInstruction {
                 buf.extend_from_slice(&SET_REMOTE_CONFIG_DISCRIMINATOR);
                 buf.extend_from_slice(
                     &borsh::to_vec(config).map_err(|_| ProgramError::BorshIoError)?,
+                );
+            }
+            Self::StageVerifyMetadata(params) => {
+                buf.extend_from_slice(&STAGE_VERIFY_METADATA_DISCRIMINATOR);
+                buf.extend_from_slice(
+                    &borsh::to_vec(params).map_err(|_| ProgramError::BorshIoError)?,
                 );
             }
         }
@@ -79,6 +118,27 @@ mod test {
             circle_domain: 0,
             max_fee: 100,
             min_finality_threshold: 2000,
+        });
+        let encoded = ixn.encode().unwrap();
+        let decoded = CctpInstruction::decode(&encoded).unwrap();
+        assert_eq!(ixn, decoded);
+    }
+
+    #[test]
+    fn test_stage_verify_metadata_discriminator_matches_sha256() {
+        let computed = solana_program::hash::hash(b"hyperlane-token-cctp:stage-verify-metadata");
+        assert_eq!(
+            &computed.to_bytes()[..8],
+            &STAGE_VERIFY_METADATA_DISCRIMINATOR[..]
+        );
+    }
+
+    #[test]
+    fn test_stage_verify_metadata_roundtrip() {
+        let ixn = CctpInstruction::StageVerifyMetadata(StageVerifyMetadata {
+            message_id: [0x77; 32],
+            message: vec![0xAA; 376],
+            attestation: vec![0xBB; 130],
         });
         let encoded = ixn.encode().unwrap();
         let decoded = CctpInstruction::decode(&encoded).unwrap();

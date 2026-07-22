@@ -63,6 +63,9 @@ hyperlane-sealevel-composite-ism = { path = "../../../sealevel/programs/ism/comp
 hyperlane-sealevel-multisig-ism-message-id = { path = "../../../sealevel/programs/ism/multisig-ism-message-id", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-cctp = { path = "../../../sealevel/programs/hyperlane-sealevel-token-cctp", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/validator-announce", features = [
     "no-entrypoint",
 ] }

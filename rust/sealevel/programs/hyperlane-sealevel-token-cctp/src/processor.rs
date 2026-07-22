@@ -33,7 +33,7 @@ use crate::{
     circle::{self, deposit_for_burn_instruction, DepositForBurnParams},
     hyperlane_token_cctp_ata_payer_pda_seeds,
     instruction::{CctpInstruction, SetRemoteConfig},
-    ism::process_ism_instruction,
+    ism::{process_ism_instruction, stage_verify_metadata},
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -99,6 +99,17 @@ pub fn process_instruction(
     if let Ok(CctpInstruction::SetRemoteConfig(config)) = CctpInstruction::decode(instruction_data)
     {
         return set_remote_config(program_id, accounts, config).map_err(|err| {
+            msg!("{}", err);
+            err
+        });
+    }
+
+    // Stages {message, attestation} ahead of `Verify()` — see module docs
+    // on `StageVerifyMetadata`.
+    if let Ok(CctpInstruction::StageVerifyMetadata(params)) =
+        CctpInstruction::decode(instruction_data)
+    {
+        return stage_verify_metadata(program_id, accounts, params).map_err(|err| {
             msg!("{}", err);
             err
         });

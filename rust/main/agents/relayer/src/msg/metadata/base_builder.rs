@@ -21,7 +21,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256, H512,
 };
-use hyperlane_sealevel::SealevelCompositeIsm;
+use hyperlane_sealevel::{SealevelCctpStager, SealevelCompositeIsm};
 
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
 use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
@@ -102,6 +102,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         &self,
         address: H256,
     ) -> eyre::Result<Arc<SealevelCompositeIsm>>;
+    async fn build_sealevel_cctp_stager(&self, address: H256) -> eyre::Result<SealevelCctpStager>;
     async fn build_checkpoint_syncer(
         &self,
         message: &HyperlaneMessage,
@@ -188,9 +189,15 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self,
         message_id: H256,
     ) -> eyre::Result<Option<H512>> {
-        Ok(self
+        let tx_hash = self
             .db
-            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?)
+            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?;
+        info!(
+            ?message_id,
+            found = tx_hash.is_some(),
+            "[cctp] Looked up origin dispatch tx hash by message id"
+        );
+        Ok(tx_hash)
     }
 
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
@@ -231,6 +238,12 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .build_sealevel_composite_ism(address, &self.metrics)
             .await
             .map(Arc::new)
+    }
+
+    async fn build_sealevel_cctp_stager(&self, address: H256) -> eyre::Result<SealevelCctpStager> {
+        self.destination_chain_setup
+            .build_sealevel_cctp_stager(address, &self.metrics)
+            .await
     }
 
     async fn build_checkpoint_syncer(

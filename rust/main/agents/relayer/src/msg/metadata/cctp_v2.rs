@@ -6,7 +6,7 @@ use derive_new::new;
 use eyre::Result;
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     h512_to_bytes, utils::bytes_to_hex, HyperlaneDomainType, HyperlaneMessage, Metadata, H256,
@@ -39,13 +39,17 @@ fn circle_domain_for_chain(chain_name: &str) -> Option<u32> {
 /// Builds metadata for the Sealevel `hyperlane-sealevel-token-cctp` ISM
 /// (`ModuleType::CctpV2`) — fetches the CCTP v2 message + Circle attestation
 /// for the message's origin dispatch transaction from Circle's Iris API,
-/// and Borsh-encodes them into the `CctpV2Metadata { message, attestation }`
-/// shape the ISM's `Verify()` expects.
+/// then stages them directly into a Solana PDA via `SealevelCctpStager`
+/// rather than returning them as this ISM's `Metadata` — that payload plus
+/// the raw Hyperlane message plus the ~23 Circle CPI accounts `Verify()`
+/// needs would together exceed Solana's transaction size limit. The
+/// `Metadata` returned here is always empty; `Verify()` reads the staged
+/// PDA instead (keyed by the Hyperlane message id).
 ///
 /// Unlike EVM's `TokenBridgeCctpV2` (which reports `ModuleType::CcipRead`
 /// and is resolved via an on-chain revert/URL/HTTP-fetch cycle), this ISM's
 /// `Verify()` takes the metadata directly — there's no on-chain trigger on
-/// Solana, so the relayer must know to fetch it itself.
+/// Solana, so the relayer must know to fetch (and now, stage) it itself.
 #[derive(Debug, Clone, new, Deref)]
 pub struct CctpV2MetadataBuilder {
     base: MessageMetadataBuilder,
@@ -61,12 +65,6 @@ struct CircleV2Message {
     message: Option<String>,
     attestation: Option<String>,
     status: String,
-}
-
-#[derive(borsh::BorshSerialize)]
-struct CctpV2Metadata {
-    message: Vec<u8>,
-    attestation: Vec<u8>,
 }
 
 /// Process-wide client so requests to Circle's Iris API reuse pooled
@@ -104,26 +102,54 @@ impl MetadataBuilder for CctpV2MetadataBuilder {
     #[instrument(err, skip(self, message, _params))]
     async fn build(
         &self,
-        _ism_address: H256,
+        ism_address: H256,
         message: &HyperlaneMessage,
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         let origin = self.base.base_builder().origin_domain();
+        info!(
+            message_id = ?message.id(),
+            ism_address = ?ism_address,
+            origin = origin.name(),
+            destination = self.base.base_builder().destination_domain().name(),
+            "[cctp] Building CCTP v2 metadata"
+        );
         let circle_domain = circle_domain_for_chain(origin.name()).ok_or_else(|| {
             MetadataBuildError::FailedToBuild(format!(
                 "No known Circle CCTP v2 domain for origin chain {}",
                 origin.name()
             ))
         })?;
+        info!(
+            message_id = ?message.id(),
+            origin = origin.name(),
+            circle_domain,
+            "[cctp] Resolved Circle CCTP v2 domain for origin chain"
+        );
 
         let tx_hash = self
             .base
             .base_builder()
             .retrieve_origin_tx_hash_by_message_id(message.id())
             .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-            .ok_or(MetadataBuildError::CouldNotFetch)?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        let tx_hash = match tx_hash {
+            Some(tx_hash) => tx_hash,
+            None => {
+                info!(
+                    message_id = ?message.id(),
+                    "[cctp] No origin dispatch tx hash found in DB yet for CCTP v2 message; \
+                     will retry once indexed"
+                );
+                return Err(MetadataBuildError::CouldNotFetch);
+            }
+        };
         let tx_hash_hex = bytes_to_hex(&h512_to_bytes(&tx_hash));
+        info!(
+            message_id = ?message.id(),
+            tx_hash = %tx_hash_hex,
+            "[cctp] Retrieved origin dispatch tx hash for CCTP v2 message"
+        );
 
         let base_url = if matches!(
             origin.domain_type(),
@@ -134,6 +160,11 @@ impl MetadataBuilder for CctpV2MetadataBuilder {
             MAINNET_IRIS_BASE_URL
         };
         let url = format!("{base_url}/v2/messages/{circle_domain}?transactionHash={tx_hash_hex}");
+        info!(
+            message_id = ?message.id(),
+            url = %url,
+            "[cctp] Querying Circle Iris API for CCTP v2 attestation"
+        );
 
         let client = cctp_v2_http_client().map_err(|err| *err)?;
 
@@ -142,10 +173,17 @@ impl MetadataBuilder for CctpV2MetadataBuilder {
                 MetadataBuildError::FailedToBuild(format!("CCTP v2 Iris request failed: {err}"))
             })?;
 
-            if !response.status().is_success() {
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                info!(
+                    message_id = ?message.id(),
+                    %status,
+                    body = %body,
+                    "[cctp] CCTP v2 Iris request returned a non-success status"
+                );
                 return Err(MetadataBuildError::FailedToBuild(format!(
-                    "CCTP v2 Iris request returned status {}",
-                    response.status()
+                    "CCTP v2 Iris request returned status {status}"
                 )));
             }
 
@@ -160,39 +198,74 @@ impl MetadataBuilder for CctpV2MetadataBuilder {
             // failing hard, since this is routinely transient right after
             // the burn (indexing lag), not a permanent condition.
             let Some(entry) = parsed.messages.first() else {
-                warn!(attempt, "CCTP v2 message not yet indexed by Iris, retrying");
+                warn!(
+                    message_id = ?message.id(),
+                    attempt,
+                    "[cctp] CCTP v2 message not yet indexed by Iris, retrying"
+                );
                 tokio::time::sleep(PENDING_RETRY_INTERVAL).await;
                 continue;
             };
 
             if entry.status != "complete" {
                 warn!(
+                    message_id = ?message.id(),
                     attempt,
                     status = %entry.status,
-                    "CCTP v2 attestation not yet complete, retrying"
+                    "[cctp] CCTP v2 attestation not yet complete, retrying"
                 );
                 tokio::time::sleep(PENDING_RETRY_INTERVAL).await;
                 continue;
             }
 
-            let message_hex = entry
-                .message
-                .as_deref()
-                .ok_or(MetadataBuildError::CouldNotFetch)?;
-            let attestation_hex = entry
-                .attestation
-                .as_deref()
-                .ok_or(MetadataBuildError::CouldNotFetch)?;
+            let message_hex = entry.message.as_deref().ok_or_else(|| {
+                info!(
+                    message_id = ?message.id(),
+                    "[cctp] CCTP v2 Iris entry reported status=complete but is missing the `message` field"
+                );
+                MetadataBuildError::CouldNotFetch
+            })?;
+            let attestation_hex = entry.attestation.as_deref().ok_or_else(|| {
+                info!(
+                    message_id = ?message.id(),
+                    "[cctp] CCTP v2 Iris entry reported status=complete but is missing the `attestation` field"
+                );
+                MetadataBuildError::CouldNotFetch
+            })?;
 
-            let encoded = borsh::to_vec(&CctpV2Metadata {
-                message: hex_decode(message_hex).map_err(|err| *err)?,
-                attestation: hex_decode(attestation_hex).map_err(|err| *err)?,
-            })
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+            let cctp_message = hex_decode(message_hex).map_err(|err| *err)?;
+            let attestation = hex_decode(attestation_hex).map_err(|err| *err)?;
 
-            return Ok(Metadata::new(encoded));
+            // Stage {cctp_message, attestation} into a PDA now, rather than
+            // returning them as this ISM's metadata — the combination of
+            // that payload, the raw Hyperlane message, and the ~23 Circle
+            // CPI accounts `Verify()` needs together exceed Solana's
+            // transaction size limit. `Verify()` reads the staged PDA
+            // instead; `metadata` is unused for this ISM (see
+            // `hyperlane-sealevel-token-cctp::ism` module docs).
+            let stager = self
+                .base
+                .base_builder()
+                .build_sealevel_cctp_stager(ism_address)
+                .await
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+            stager
+                .stage_verify_metadata(message.id(), cctp_message, attestation)
+                .await
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+            info!(
+                message_id = ?message.id(),
+                "[cctp] Successfully staged CCTP v2 metadata from Circle attestation"
+            );
+            return Ok(Metadata::new(Vec::new()));
         }
 
+        info!(
+            message_id = ?message.id(),
+            attempts = MAX_PENDING_RETRIES,
+            "[cctp] Exhausted retries waiting for CCTP v2 attestation to complete"
+        );
         Err(MetadataBuildError::CouldNotFetch)
     }
 }

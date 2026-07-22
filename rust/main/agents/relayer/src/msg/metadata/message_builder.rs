@@ -9,7 +9,7 @@ use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Metadata, Modul
 use tracing::instrument;
 use {
     hyperlane_base::cache::{FunctionCallCache, NoParams},
-    tracing::warn,
+    tracing::{info, warn},
 };
 
 use crate::msg::{
@@ -203,7 +203,14 @@ pub async fn build_message_metadata(
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder.clone())),
-        ModuleType::CctpV2 => Box::new(CctpV2MetadataBuilder::new(message_builder)),
+        ModuleType::CctpV2 => {
+            info!(
+                message_id = ?message.id(),
+                ism_address = ?ism_address,
+                "[cctp] Dispatching to CCTP v2 metadata builder"
+            );
+            Box::new(CctpV2MetadataBuilder::new(message_builder))
+        }
         ModuleType::Composite => {
             let composite_ism = message_builder
                 .base_builder()

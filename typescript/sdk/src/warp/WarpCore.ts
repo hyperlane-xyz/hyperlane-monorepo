@@ -13,7 +13,8 @@ import {
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { Keypair } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { Keypair, PublicKey } from '@solana/web3.js';
 
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
@@ -701,11 +702,45 @@ export class WarpCore {
       );
     }
 
+    // Circle's CCTP v2 Solana program requires the CCTP message's
+    // mint_recipient to literally be the destination SPL token account
+    // (not a wallet, unlike every other Hyperlane destination) — see
+    // hyperlane-sealevel-token-cctp's ism.rs module docs. Resolve the
+    // caller-supplied wallet to its ATA here so `recipient` keeps meaning
+    // "wallet" everywhere else in the SDK/CLI; this is the only place that
+    // needs to know about the Solana-specific exception.
+    //
+    // `destinationToken` is only populated by callers that pass
+    // `--destination-token` or use cross-collateral routes — a plain
+    // `warp send` never sets it, so self-resolve from the origin token's
+    // own connections rather than depending on the caller to supply it.
+    let effectiveRecipient = recipient;
+    if (token.tokenType === TokenType.collateralCctp) {
+      const destinationConnection = token
+        .getConnections()
+        .find((c) => c.token.chainName === destinationName);
+      const resolvedDestinationToken =
+        destinationToken ??
+        this.findToken(
+          destinationName,
+          destinationConnection?.token.addressOrDenom,
+        );
+      if (
+        resolvedDestinationToken?.protocol === ProtocolType.Sealevel &&
+        resolvedDestinationToken.collateralAddressOrDenom
+      ) {
+        effectiveRecipient = getAssociatedTokenAddressSync(
+          new PublicKey(resolvedDestinationToken.collateralAddressOrDenom),
+          new PublicKey(recipient),
+        ).toBase58();
+      }
+    }
+
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
       fromAccountOwner: sender,
-      recipient,
+      recipient: effectiveRecipient,
       interchainGas,
       customHook: token.igpTokenAddressOrDenom,
       attestation,

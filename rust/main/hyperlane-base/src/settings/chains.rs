@@ -1262,6 +1262,39 @@ impl ChainConf {
         }
     }
 
+    /// Creates a [`h_sealevel::SealevelCctpStager`] for the CCTP token
+    /// program at `address` — used by the relayer's CCTP v2 metadata builder
+    /// to stage `{message, attestation}` ahead of `Process`, since embedding
+    /// them inline would exceed Solana's transaction size limit.
+    ///
+    /// Only valid for Sealevel chains; returns an error for all others.
+    pub async fn build_sealevel_cctp_stager(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<h_sealevel::SealevelCctpStager> {
+        let ctx = "Building Sealevel CCTP stager";
+        let locator = self.locator(address);
+
+        match &self.connection {
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+                Ok(h_sealevel::SealevelCctpStager::new(
+                    provider,
+                    tx_submitter,
+                    conf.priority_fee_oracle.create_oracle(),
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ))
+            }
+            _ => eyre::bail!("SealevelCctpStager is only supported on Sealevel chains"),
+        }
+    }
+
     /// Try to convert the chain setting into a RoutingIsm Ism contract
     pub async fn build_routing_ism(
         &self,
