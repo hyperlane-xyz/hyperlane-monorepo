@@ -30,6 +30,17 @@ pub trait NonceDb: Send + Sync {
         nonce: &U256,
     ) -> DbResult<()>;
 
+    /// Delete the persisted finalized nonce for the given signer.
+    ///
+    /// Used after a chain reset to clear stale state so subsequent reads
+    /// of `retrieve_finalized_nonce_by_signer_address` return `None`,
+    /// matching the on-chain reality of "no transactions finalized yet."
+    /// Idempotent — returns `Ok(())` whether or not the key was present.
+    async fn delete_finalized_nonce_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<()>;
+
     async fn retrieve_upper_nonce_by_signer_address(
         &self,
         signer_address: &Address,
@@ -89,6 +100,16 @@ impl NonceDb for HyperlaneRocksDB {
             FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
             nonce,
+        )
+    }
+
+    async fn delete_finalized_nonce_by_signer_address(
+        &self,
+        signer_address: &Address,
+    ) -> DbResult<()> {
+        self.delete_value_by_key(
+            FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            &SignerAddress(*signer_address),
         )
     }
 

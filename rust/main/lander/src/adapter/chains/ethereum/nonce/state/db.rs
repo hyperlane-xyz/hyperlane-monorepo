@@ -74,6 +74,14 @@ impl NonceManagerState {
         Ok(finalized_nonce)
     }
 
+    pub(super) async fn clear_finalized_nonce(&self) -> NonceResult<()> {
+        self.nonce_db
+            .delete_finalized_nonce_by_signer_address(&self.address)
+            .await?;
+
+        Ok(())
+    }
+
     pub(super) async fn set_upper_nonce(&self, nonce: &U256) -> NonceResult<()> {
         self.nonce_db
             .store_upper_nonce_by_signer_address(&self.address, nonce)
@@ -117,6 +125,10 @@ impl NonceManagerState {
 
     pub(crate) async fn get_finalized_nonce_test(&self) -> NonceResult<Option<U256>> {
         self.get_finalized_nonce().await
+    }
+
+    pub(crate) async fn clear_finalized_nonce_test(&self) -> NonceResult<()> {
+        self.clear_finalized_nonce().await
     }
 
     pub(crate) async fn set_upper_nonce_test(&self, nonce: &U256) -> NonceResult<()> {
