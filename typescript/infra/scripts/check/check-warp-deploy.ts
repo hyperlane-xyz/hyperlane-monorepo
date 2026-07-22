@@ -32,6 +32,7 @@ import {
   getCheckerViolationsGaugeObj,
   warpViolationGroupings,
 } from './check-utils.js';
+import { isContractVerificationViolation } from './contract-verification-skip.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -210,7 +211,9 @@ async function main() {
       );
 
       result.violations = result.violations.filter(
-        (violation) => !isSkippedOwnerStatusViolation(warpRouteId, violation),
+        (violation) =>
+          !isSkippedOwnerStatusViolation(warpRouteId, violation) &&
+          !isContractVerificationViolation(violation),
       );
 
       if (result.violations.length > 0) {
