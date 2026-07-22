@@ -82,14 +82,10 @@ pnpm --silent -C typescript/cli hyperlane ica deploy \
 
 ### 3b. Safe (EVM) — on-chain code + interface check
 
-For chains where the owner is a Gnosis Safe directly (not via ICA):
+For chains where the owner is a Gnosis Safe directly (not via ICA), run the Safe probe (`VERSION()`) from `/classify-onchain-owner`:
 
-```bash
-cast call <safe-address> "VERSION()(string)" --rpc-url <chain-rpc-url>
-```
-
-- A valid Gnosis Safe returns a version string (e.g. `"1.3.0"`). If the call succeeds and returns a version, the Safe is valid.
-- If the call reverts or returns empty, the address either has no code (an EOA — see 3d) or is some other contract. **Stop and surface to the user.**
+- A version string (e.g. `"1.3.0"`) → the Safe is valid.
+- Reverts or returns empty → the address either has no code (an EOA — see 3d) or is some other contract. **Stop and surface to the user.**
 
 Get the RPC URL from the local registry: `cat $REGISTRY_PATH/chains/<chain>/metadata.yaml | grep -A2 rpcUrls`.
 
@@ -102,10 +98,7 @@ For chains where the owner is a Squads multisig:
 
 ### 3d. Reject if EOA (including EIP-7702 delegations), with ticket-labeled non-prod exceptions
 
-If a chain's owner is an EVM address, run `cast code <address> --rpc-url <rpc>` (or the per-protocol equivalent — SVM `getAccountInfo`, Tron `wallet_getAccount`, etc.) and check whether the result indicates an EOA. Two EVM EOA shapes to catch:
-
-1. **Plain EOA** — `cast code` returns `0x` (no code). Classic externally-owned account.
-2. **EIP-7702-delegated EOA** — `cast code` returns `0xef0100<20-byte-delegate-address>` (46 chars total, starts with `0xef0100`). Post-EIP-7702 EOAs that have delegated to a smart account contract still have a private key behind them and remain EOAs for ownership purposes. Detect by checking that the code matches the regex `^0xef0100[0-9a-fA-F]{40}$`.
+Run the code probe from `/classify-onchain-owner` on the owner address (or the per-protocol equivalent — SVM `getAccountInfo`, Tron `wallet_getAccount`). Both the **plain EOA** (`0x`) and the **EIP-7702-delegated EOA** (`0xef0100…`) outcomes count as an EOA for this check — a delegated EOA still has a private key behind it and can drain the account.
 
 **Ticket-label check (do this FIRST).** Fetch the ticket title + description (already loaded from the Linear MCP earlier in the skill). Classify the deploy mode by scanning for a non-prod label:
 

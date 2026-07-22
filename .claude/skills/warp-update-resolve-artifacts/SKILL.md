@@ -141,22 +141,11 @@ You MAY add a free-form governance label (e.g. `details: "matched awSafes[arbitr
 
 ### 4a. Is the owner an EOA?
 
-```bash
-cast code <owner-address> --rpc-url <chain-rpc>
-```
-
-- `0x` → **plain EOA**. EOAs are red flags as long-term production owners — surface as `❌ EOA` and **stop the skill** with a clear error. Do not persist the artifact context with an EOA owner; the route is in a corrupt state that needs human investigation first.
-- `0xef0100<20-byte-delegate>` (46 chars, EIP-7702) → **EIP-7702-delegated EOA**. Same outcome — surface and stop.
-- Anything else → contract, proceed to 4b.
+Run the EVM code probe from `/classify-onchain-owner` against the owner. If it classifies as a **plain EOA** or an **EIP-7702-delegated EOA**: EOAs are red flags as long-term production owners — surface as `❌ EOA` and **stop the skill** with a clear error. Do not persist the artifact context with an EOA owner; the route is in a corrupt state that needs human investigation first. Any other bytecode → contract; proceed to 4b.
 
 ### 4b. Auto-detect: Gnosis Safe
 
-```bash
-cast call <owner-address> "VERSION()(string)" --rpc-url <chain-rpc>
-```
-
-- Returns a version string (e.g. `"1.3.0"`) → classify as `type: Safe`, record the version. Done.
-- Reverts or returns empty → not a Safe; proceed to 4c.
+Run the Safe probe (`VERSION()`) from `/classify-onchain-owner` against the owner. A version string (e.g. `"1.3.0"`) → classify as `type: Safe`, record the version; done. Reverts or returns empty → not a Safe; proceed to 4c.
 
 ### 4c. Auto-detect: Hyperlane ICA (only if ethereum is in the route)
 
@@ -181,17 +170,7 @@ Recording `controllingOwner: <address>` is not enough. Downstream `/warp-update`
 
 First, check the governance maps again (from 4.0) against the controller address on its origin chain — most controllers in Hyperlane-owned routes are Safes that already live in `safe/<type>.ts`. A direct match yields `controllerType: Safe` + `controllerGovernanceType: <type>` without any on-chain probe.
 
-If no governance map matches, recursively apply the heuristics from 4a and 4b against the `controllingOwner` on its origin chain:
-
-```bash
-# Is the controllingOwner a contract on origin?
-cast code <controllingOwner> --rpc-url <origin-rpc>
-
-# If yes, is it a Gnosis Safe?
-cast call <controllingOwner> "VERSION()(string)" --rpc-url <origin-rpc>
-```
-
-Auto-detectable outcomes:
+If no governance map matches, apply the code + Safe probes from `/classify-onchain-owner` against the `controllingOwner` on its origin chain. Auto-detectable outcomes:
 
 - `cast code` returned bytecode AND `VERSION()` returned a Gnosis Safe version string → `controllerType: Safe`. This is the most common case for production warp routes (AW Safe / Foundation Safe / customer Safes control most ICAs).
 - `cast code` returned `0x` → `controllerType: EOA`. Common for test routes, contributor EOAs, or one-off setups.
