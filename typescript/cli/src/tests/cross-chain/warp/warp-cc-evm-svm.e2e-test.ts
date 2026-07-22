@@ -27,7 +27,12 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  addressToBytes32,
+  assert,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -505,6 +510,95 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     // enrollment ran successfully while the deployer still owned the warp.
     expect(Object.keys(svmConfig.remoteRouters ?? {}).length).to.be.greaterThan(
       0,
+    );
+  });
+
+  it('should deploy an EVM+SVM warp whose EVM owner is not the deployer and still enroll cross-chain routers', async function () {
+    // A non-deployer owner for the EVM side. The deploy runs with the deployer
+    // key and cross-chain router enrollment happens after the per-protocol
+    // deploy (in enrollCrossChainRouters), so the EVM router must stay
+    // deployer-owned through enrollment and only be handed to this owner during
+    // it. If the deployer transferred ownership up front it could no longer
+    // sign the enrollment and the deploy would fail with
+    // `Ownable: caller is not the owner`.
+    const evmOwner = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Ethereum];
+    // Keep the SVM side deployer-owned so this test isolates the EVM
+    // owner-not-deployer path.
+    const svmOwner = svmSigner.getSignerAddress();
+    const DECIMALS = 9;
+    const SYMBOL = 'EDOWN';
+
+    const evmToken = await deployToken(
+      EVM_KEY,
+      EVM_CHAIN,
+      DECIMALS,
+      SYMBOL,
+      'EVM Non-deployer Owner Token',
+      REGISTRY_PATH,
+    );
+
+    const warpId = createWarpRouteConfigId(SYMBOL, `${EVM_CHAIN}-${SVM_CHAIN}`);
+    const warpDeployConfig: WarpRouteDeployConfig = {
+      [EVM_CHAIN]: {
+        type: TokenType.collateral,
+        token: evmToken.address,
+        mailbox: evmCoreAddresses.mailbox,
+        owner: evmOwner,
+      },
+      [SVM_CHAIN]: {
+        type: TokenType.synthetic,
+        mailbox: svmCoreAddresses.mailbox,
+        owner: svmOwner,
+        name: 'EVM Non-deployer Owner Token',
+        symbol: SYMBOL,
+        decimals: DECIMALS,
+        metadataUri: 'https://test.example.com/edown-metadata.json',
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+    // Deploy must succeed: enrollment is authorized by the deployer key because
+    // ownership is handed to evmOwner only during enrollment, not at deploy.
+    await warpCommands.deployRaw({
+      warpRouteId: warpId,
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      skipConfirmationPrompts: true,
+      extraArgs: [
+        `--key.${ProtocolType.Ethereum}`,
+        EVM_KEY,
+        `--key.${ProtocolType.Sealevel}`,
+        SVM_KEY,
+      ],
+    });
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [EVM_CHAIN, SVM_CHAIN]);
+    const coreConfig = readYamlOrJson<WarpCoreConfig>(warpCorePath);
+    const svmRouterAddress = coreConfig.tokens.find(
+      (t) => t.chainName === SVM_CHAIN,
+    )?.addressOrDenom;
+    assert(
+      svmRouterAddress,
+      'SVM router address not found in warp core config',
+    );
+
+    const deployedConfig = await warpCommands.readConfig(
+      EVM_CHAIN,
+      warpCorePath,
+    );
+    const evmConfig = deployedConfig[EVM_CHAIN];
+
+    // Ownership was handed to the configured (non-deployer) owner during
+    // enrollment — the on-chain state confirms the deferred transfer worked end
+    // to end.
+    assert(evmConfig.owner, 'EVM warp owner should be set');
+    expect(eqAddress(evmConfig.owner, evmOwner)).to.equal(true);
+
+    // The SVM router was enrolled on the EVM warp while the deployer still
+    // owned it. EVM readers key remoteRouters by domain ID.
+    const svmDomainId =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.domainId;
+    expect(evmConfig.remoteRouters?.[svmDomainId]?.address).to.eql(
+      addressToBytes32(svmRouterAddress, ProtocolType.Sealevel),
     );
   });
 });
