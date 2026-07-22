@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and edit the values before running Terraform.
+
+aws_region        = "us-east-1"
+validator_name    = "your-validator-name"
+origin_chain_name = "ethereum"
+
+# Set to true during first-time setup to create supporting infrastructure
+# without starting the validator ECS task. Set back to false after funding
+# the validator signer.
+validator_task_disabled = false
