@@ -585,6 +585,17 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
 - RPC errors → check the chain's RPC URL in the registry
 - Key not set → confirm the env variable is exported in the shell
 
+### 8c: Multi-RPC failure modes (and the mandatory cleanup gate)
+
+Two deploy failures come from read-after-write lag across a chain's load-balanced private RPCs, NOT from a real problem — recognize them so you don't chase a phantom or re-fund unnecessarily:
+
+- **Stale-gas OOG on the proxy `initialize`.** A fresh impl deploys, then `initialize` is gas-estimated against an RPC replica that hasn't indexed the new contract yet → it returns an EOA-sized (~25k) estimate and the tx runs out of gas. Signature: OOG on `initialize` right after a successful impl deploy, on opstack / multi-RPC chains (base, optimism). Fix: pin the affected chain to a single RPC in the local registry metadata for the duration of the deploy.
+- **Confirmation-timeout on a tx that actually landed.** `Timeout (Xms) waiting for N block confirmations for tx 0x…` where the tx already succeeded on-chain (check the receipt: `status: 1`). Root cause: the CLI's confirmation budget is `confirmations × estimateBlockTime × 2`, as low as ~6s on chains whose registry `estimateBlockTime` is 3s (bsc, tron). Fix: raise `estimateBlockTime` in the local registry metadata for those chains (e.g. eth 13→45, bsc/tron 3→30). This survives the GCP RPC-override merge, unlike re-pinning RPCs — do NOT re-pin RPCs for this one.
+
+**Cleanup gate (mandatory).** Any single-RPC pin or `estimateBlockTime` bump above is a LOCAL registry edit. After a green deploy, **restore the original values and confirm `git -C $HYPERLANE_REGISTRY diff` is clean** before moving on — a left-behind override silently drifts the local registry from canonical for every later run.
+
+**Orphaned contracts on a failed deploy.** The `<chains>-config.yaml` is written only on FULL success, so a mid-deploy failure leaves the already-deployed contracts orphaned on chain (and the deployer nonce advanced). A clean re-run picks fresh addresses — do NOT try to salvage partial addresses; fix the cause, re-run, and note the burnt gas.
+
 ---
 
 ## Step 9: Warp Send Test
@@ -626,7 +637,9 @@ To avoid this, use `--amount 9000` on the return leg (synthetic → collateral/n
 
 If the fee bps is known upfront, calculate the safe return amount as: `floor(forward_amount / (1 + fee_bps / 10000))`. With no fee, use the same amount in both directions.
 
-**For native collateral chains**: the IGP payment for each outbound send also costs native gas. Ensure the deployer has enough native token before running all sends — the preflight check only covers deploy gas, not IGP gas per send. If "Insufficient for interchain gas" appears, top up and retry.
+**Send-test gas is separate from deploy gas — preflight it.** Every outbound send costs dispatch + IGP gas on the ORIGIN chain, which `/warp-deploy-fund-deployer` does NOT size (it budgets deploy gas only). Before running the sends, verify each send-origin chain has enough native for dispatch + IGP — a leg funded only to its deploy floor (e.g. a synthetic-origin chain) can be gas-starved for its return send. Top up any short origin first. If "Insufficient for interchain gas" still appears, top up and retry; on native/collateral origins re-check the balance after each send, since IGP payments accumulate.
+
+**OQLF fee legs need a fee-quoting server.** If the route has an `OffchainQuotedLinearFee` leg, the fee (withdrawal) direction cannot be exercised unless `FEE_QUOTING_URL` (+ `FEE_QUOTING_API_KEY`) is set in the environment. When it isn't, pick a send-test direction that avoids the OQLF path (e.g. a deposit / collateral→synthetic leg) and explicitly flag the fee direction as an **untested follow-up** — do NOT report the send test as full coverage.
 
 ### Two-chain routes
 
