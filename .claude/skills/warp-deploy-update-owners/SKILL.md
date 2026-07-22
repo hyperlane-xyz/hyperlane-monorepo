@@ -180,7 +180,7 @@ If the user confirms, run it. Show the full output on completion.
 
 ### 10e: Verify the Route with Comprehensive `warp check`
 
-After warp apply completes, run the canonical CLI verifier against the deployed route. This is the **gate** before downstream steps (monitor deploy, registry PR) — if `warp check` reports violations, the route isn't actually in the target state and the rest of the flow shouldn't proceed.
+After warp apply completes, verify per the `/warp-verify-onchain-config` contract. This is **Mode A** — the deployer signed the transfer, so it's already on-chain — so run the canonical CLI verifier live against the deployed route. This is the **gate** before downstream steps (monitor deploy, registry PR): if `warp check` reports violations, the route isn't actually in the target state and the rest of the flow shouldn't proceed.
 
 ```bash
 

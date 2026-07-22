@@ -711,7 +711,7 @@ Stop the HTTP registry per `/stop-http-registry` (TaskStop by the recorded shell
 
 ## Next Steps
 
-Once Step 9 is complete, run `/warp-deploy-update-owners` to transfer ownership, add the CoinGecko ID, and open the registry PR.
+Once Step 9 is complete, run `/warp-deploy-update-owners` to transfer ownership, add the CoinGecko ID, and open the registry PR. The post-change on-chain config verification for this deploy runs there — the comprehensive `warp check` gate in Step 10e, which is the `/warp-verify-onchain-config` contract's **Mode A** (everything in the deploy chain is deployer-signed, so the check is live). This skill's send test is a functional smoke test, not the config-vs-target validation.
 
 ---
 

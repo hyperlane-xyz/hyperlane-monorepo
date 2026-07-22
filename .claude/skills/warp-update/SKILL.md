@@ -338,7 +338,10 @@ Expected results:
 
 ## Step 8: Fork-Simulate-Verify Gate (mandatory)
 
-This is a HARD gate before any propose call lands on chain. The flow: fork every chain in the route via `hyperlane warp fork`, replay the warp apply receipts under impersonated owners, self-relay any cross-chain ICA messages, and run `hyperlane warp check` on the fork to confirm the on-chain state matches the target deploy.yaml.
+This is a HARD gate before any propose call lands on chain, and it implements the `/warp-verify-onchain-config` contract for this update. Split by how each batch executes:
+
+- **Deployer-executed batches** (`jsonRpc` — a new ISM/hook/fee contract/router the deployer signed directly in Step 6) are already on-chain: live-check them now per the contract's **Mode A** (`hyperlane warp check` against the registry with the target config).
+- **Multisig / file batches** are pending, so validate them **Mode B** on a fork: `hyperlane warp fork` every chain, replay the warp apply receipts under impersonated owners (including the multisig), self-relay any cross-chain ICA messages, and run `hyperlane warp check` on the fork against the target deploy.yaml. The real-chain confirmation for these is the registry PR CI in Step 11 (greens after the signers execute).
 
 Invoke:
 

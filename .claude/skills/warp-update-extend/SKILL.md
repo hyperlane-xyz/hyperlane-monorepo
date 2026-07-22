@@ -387,11 +387,16 @@ If either expectation is violated — `transferOwnership` to the deployer addres
 
 ### 9d: Stop the HTTP Registry
 
-```bash
-# Kill background task noted in 9a
-```
+Stop the background task noted in 9a per `/stop-http-registry`. Always stop it, even on failure.
 
-Always stop it even on failure.
+### 9e: Fork-Simulate-Verify Before Shipping (mandatory)
+
+The customer tx files are **pending multisig execution** (the customer signs later), so validate them up front per the `/warp-verify-onchain-config` contract's **Mode B** before handing them off. Invoke `/warp-route-check` with the warp route ID + the receipts directory: it forks each chain, impersonates the customer's Safe / ICA owners, replays the batch calldata from those addresses, self-relays ICA messages, and runs `hyperlane warp check` on the fork against the target deploy.yaml.
+
+- **PASS** → proceed to Step 10 and ship the files.
+- **FAIL** → do NOT ship: the batch would leave the route misconfigured once signed. Surface the violations, fix the deploy.yaml / strategy, and re-run Step 9.
+
+(The real-chain confirmation happens after the customer executes — via the registry PR CI in Step 11.)
 
 ---
 
