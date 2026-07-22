@@ -946,6 +946,7 @@ export {
   NativeTokenConfig,
   OftTokenConfig,
   OftTokenConfigSchema,
+  OwnerStatus,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,

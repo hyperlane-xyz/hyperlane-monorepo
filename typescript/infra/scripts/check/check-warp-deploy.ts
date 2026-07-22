@@ -6,6 +6,7 @@ import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   type ChainName,
+  InterchainAccount,
   MultiProvider,
   type WarpCoreConfig,
   type WarpRouteCheckResult,
@@ -34,6 +35,7 @@ import {
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
+import { isClearedIcaOwnerStatusViolation } from './resolve-ica-owner-status.js';
 
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
@@ -190,6 +192,14 @@ async function main() {
     Array.from(warpConfigChains),
   );
 
+  // Used to resolve Inactive ownerStatus false positives where a nonce-less /
+  // lazily-deployed leaf owner (Tron, AltVM) is a governance ICA of an
+  // Ethereum Safe. Scoped to chains the checker's multiProvider covers.
+  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+    await registry.getAddresses(),
+    multiProvider,
+  );
+
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
@@ -210,8 +220,18 @@ async function main() {
         `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
       );
 
+      const clearedIcaOwnerStatus = await Promise.all(
+        result.violations.map((violation) =>
+          isClearedIcaOwnerStatusViolation(
+            warpDeployConfig,
+            interchainAccountApp,
+            violation,
+          ),
+        ),
+      );
       result.violations = result.violations.filter(
-        (violation) =>
+        (violation, i) =>
+          !clearedIcaOwnerStatus[i] &&
           !isSkippedOwnerStatusViolation(warpRouteId, violation) &&
           !isContractVerificationViolation(violation),
       );
