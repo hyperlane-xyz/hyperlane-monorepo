@@ -32,6 +32,7 @@ import {
   getCheckerViolationsGaugeObj,
   warpViolationGroupings,
 } from './check-utils.js';
+import { isContractVerificationViolation } from './contract-verification-skip.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -87,17 +88,6 @@ const DEFAULT_PER_ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
 const perRouteTimeoutMs = Number(
   process.env.WARP_CHECK_PER_ROUTE_TIMEOUT_MS ?? DEFAULT_PER_ROUTE_TIMEOUT_MS,
 );
-
-// Contract verification is validated against block explorers, which are
-// unreliable across the chains this cron covers: Blockscout-family explorers
-// return HTML at the Etherscan-style endpoint the reader uses, some chains
-// reject the shared API key, and others rate-limit. The reader surfaces these
-// as `actual: error` (not a genuine `unverified`), so they persist as
-// false-positive violations that never clear. Drop them in the cron — contract
-// verification is validated at deploy time instead.
-function isContractVerificationViolation(violation: { name: string }): boolean {
-  return violation.name.toLowerCase().includes('contractverificationstatus');
-}
 
 async function withTimeout<T>(
   promise: Promise<T>,
