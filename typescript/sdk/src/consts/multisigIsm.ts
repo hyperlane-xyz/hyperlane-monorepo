@@ -774,17 +774,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ink: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0xb533b8b104522958b984fb258e0684dec0f1a6a5',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0xd207a6dfd887d91648b672727ff1aef6223cb15a',
-        alias: 'Imperator',
-      },
-
       {
         address: '0xa40203b5301659f1e201848d92f5e81f64f206f5',
         alias: 'Enigma',
