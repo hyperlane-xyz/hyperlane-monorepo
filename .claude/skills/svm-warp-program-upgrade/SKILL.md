@@ -62,13 +62,7 @@ Confirm:
 
 ### Step 2 — Start the HTTP registry
 
-The upgrade needs private RPC overrides for the Sealevel chain.
-
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run in background; wait for `Listening on http://localhost:<port>`; note port + task ID. (`/start-http-registry` skill.)
+The upgrade needs private RPC overrides for the Sealevel chain. Start it per `/start-http-registry` **with `--writeMode`** (the upgrade persists on-chain). Note the port + task ID.
 
 ### Step 3 — Dry-run / preview
 
@@ -77,7 +71,7 @@ Preview the apply so the user sees exactly which programs will be extended + upg
 ```bash
 cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.sealevel $<SEALEVEL_KEY_VAR> \
+  --key.sealevel "$SEALEVEL_KEY_VAR" \
   -w <WARP_ROUTE_ID> \
   --dry-run
 ```
@@ -91,7 +85,7 @@ Re-run without `--dry-run`. If the upgrade authority differs from the submitter 
 ```bash
 cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.sealevel $<SEALEVEL_KEY_VAR> \
+  --key.sealevel "$SEALEVEL_KEY_VAR" \
   [--strategy ~/.hyperlane/strategies/<owner>-strategy.yaml]  # if authority != submitter
   --receipts-dir /tmp/<route>-svm-upgrade-txs \
   -w <WARP_ROUTE_ID> \
@@ -115,7 +109,7 @@ A program upgrade can change the account set for transfers. After any successful
 
 ### Step 7 — Stop the HTTP registry
 
-Kill the background task from Step 2, even on failure.
+Stop it per `/stop-http-registry`, even on failure.
 
 ## Caveats
 
