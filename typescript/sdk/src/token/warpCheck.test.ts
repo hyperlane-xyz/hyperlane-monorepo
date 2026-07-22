@@ -11,6 +11,7 @@ import {
   test2,
   test3,
   testSealevelChain,
+  testStarknetChain,
 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -27,6 +28,8 @@ import {
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
+  normalizeAltVmDestinationGas,
+  normalizeAltVmExpectedTokenType,
 } from './warpCheck.js';
 
 const MAILBOX = '0x000000000000000000000000000000000000b001';
@@ -261,6 +264,36 @@ describe('derivedWarpConfigToCheckConfig', () => {
     expect(result.contractVersion).to.equal('1.2.3');
   });
 
+  it('keeps token for collateral types (a real configured value)', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      buildDerivedCollateralConfig({ token: TOKEN_A }),
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.have.property('token');
+  });
+
+  it('drops token for synthetic types, whose mint is a deterministic deployment artifact', () => {
+    const result = derivedWarpConfigToCheckConfig(
+      {
+        decimals: 6,
+        destinationGas: {},
+        hook: MAILBOX,
+        interchainSecurityModule: MAILBOX,
+        mailbox: MAILBOX,
+        name: 'TOKEN',
+        owner: OWNER,
+        remoteRouters: {},
+        symbol: 'TOKEN',
+        token: TOKEN_A,
+        type: TokenType.synthetic,
+      },
+      ProtocolType.Sealevel,
+    );
+
+    expect(result).to.not.have.property('token');
+  });
+
   it('normalizes crossCollateralRouters to lowercased, sorted, chain-keyed lists', () => {
     const result = derivedWarpConfigToCheckConfig(
       {
@@ -408,6 +441,46 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
     expect(result.hook).to.equal(undefined);
     expect(result.interchainSecurityModule).to.equal(undefined);
   });
+
+  it('drops token for synthetic types so it mirrors the reader-side exclusion', () => {
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        token: TOKEN_A,
+        type: TokenType.synthetic,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result).to.not.have.property('token');
+  });
+});
+
+describe('normalizeAltVmExpectedTokenType', () => {
+  it("maps the paradex-only 'collateralDex' annotation to collateral", () => {
+    // collateralDex is a registry-only annotation with no SDK TokenType; the leg
+    // is a standard collateral router on-chain, so the checker must treat the two
+    // as equivalent instead of false-flagging a `type` ConfigMismatch.
+    expect(normalizeAltVmExpectedTokenType('collateralDex')).to.equal(
+      TokenType.collateral,
+    );
+  });
+
+  it('leaves known token types unchanged', () => {
+    expect(normalizeAltVmExpectedTokenType(TokenType.collateral)).to.equal(
+      TokenType.collateral,
+    );
+    expect(normalizeAltVmExpectedTokenType(TokenType.synthetic)).to.equal(
+      TokenType.synthetic,
+    );
+    expect(normalizeAltVmExpectedTokenType(TokenType.native)).to.equal(
+      TokenType.native,
+    );
+  });
 });
 
 describe('buildAltVmWarpRouteDiff', () => {
@@ -517,6 +590,126 @@ describe('buildAltVmWarpRouteDiff', () => {
     );
 
     expect(diff).to.not.deep.equal({});
+  });
+
+  it('flags a zero-vs-nonzero destinationGas drift on an IGP-capable altVM origin (not scoped as no-IGP)', () => {
+    // Sealevel consumes destination_gas, so an on-chain 0 against a non-zero
+    // expected is a real regression that must NOT be suppressed.
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '0' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '0', expected: '64000' },
+      },
+    });
+  });
+
+  it('does not flag a zero on-chain destinationGas on a no-IGP origin', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '0' },
+        },
+      },
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      new Set([testStarknetChain.name]),
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a non-zero destinationGas mismatch even on a no-IGP origin', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+      {
+        [testStarknetChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      new Set([testStarknetChain.name]),
+    );
+
+    expect(diff[testStarknetChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '5000000', expected: '64000' },
+      },
+    });
+  });
+
+  it('does not flag a matching non-zero destinationGas', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+});
+
+describe('normalizeAltVmDestinationGas', () => {
+  it('drops destinations whose on-chain gas is 0 from both sides', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '0' },
+      { starknet: '64000' },
+    );
+
+    expect(actual).to.deep.equal({});
+    expect(expected).to.deep.equal({});
+  });
+
+  it('retains destinations with a non-zero on-chain gas', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '5000000' },
+      { starknet: '64000' },
+    );
+
+    expect(actual).to.deep.equal({ starknet: '5000000' });
+    expect(expected).to.deep.equal({ starknet: '64000' });
+  });
+
+  it('normalizes a mix of zero and non-zero on-chain gas independently', () => {
+    const { actual, expected } = normalizeAltVmDestinationGas(
+      { starknet: '0', arbitrum: '5000000' },
+      { starknet: '64000', arbitrum: '5000000' },
+    );
+
+    expect(actual).to.deep.equal({ arbitrum: '5000000' });
+    expect(expected).to.deep.equal({ arbitrum: '5000000' });
   });
 });
 

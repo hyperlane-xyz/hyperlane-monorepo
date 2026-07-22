@@ -68,6 +68,16 @@ export function isMovableCollateralTokenType(type: TokenType): boolean {
   return !!isMovableCollateralTokenTypeMap[type];
 }
 
+const syntheticTokenTypes = new Set<TokenType>([
+  TokenType.synthetic,
+  TokenType.syntheticRebase,
+  TokenType.syntheticUri,
+]);
+
+export function isSyntheticTokenType(type: TokenType): boolean {
+  return syntheticTokenTypes.has(type);
+}
+
 export const MAX_GAS_OVERHEAD = 68_000;
 
 export const gasOverhead = (tokenType: TokenType): number => {
