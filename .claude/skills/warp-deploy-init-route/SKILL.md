@@ -7,6 +7,16 @@ description: First step of deploying a new warp route (steps 1–9). Reads a Lin
 
 You are generating the initial `deploy.yaml` for a new Hyperlane warp route deployment.
 
+## Step 0: Confirm the working environment
+
+Before anything else, surface the checkout you're operating in so a stale-branch or wrong-directory run is visible up front:
+
+```bash
+git rev-parse --show-toplevel && git rev-parse --abbrev-ref HEAD
+```
+
+Skills load from whatever branch is checked out — running an older branch's copy silently follows outdated instructions. Confirm with the operator that this is the intended monorepo + branch before proceeding. (This is a visibility check; a hard "you must be on branch X" validation belongs at the harness level, since the skill can't know the intended branch on its own.)
+
 ## PREREQUISITE (per-chain gate): confirmed sufficient deployer funds
 
 Before running `warp deploy`, EVERY chain in the route must be in one of two states:

@@ -7,6 +7,8 @@ description: The alphabetical-sort invariants the hyperlane-registry CI / CodeRa
 
 The `hyperlane-registry` CI (and CodeRabbit) reject a PR whose warp route YAML isn't alphabetically sorted on two levels. Every skill that writes or edits a `deploy.yaml` or `config.yaml` must satisfy both invariants before showing the file for review or committing, so this is the single source of the rule and the canonical key orders.
 
+This ordering is a **lint / CI requirement, not a schema-semantic one** — YAML mappings parse identically regardless of key order, so a mis-ordered entry never breaks a deploy or changes behavior (e.g. `type` after `tokenFee` is valid); it only fails the PR check. Sort for the lint, not for correctness.
+
 ## The two invariants
 
 1. **Top-level chain entries must be in alphabetical order by chain name.** E.g. an arbitrum + base + ethereum route has `arbitrum:` before `base:` before `ethereum:`. When inserting a new chain or restructuring a file, re-sort the top level by chain name — insert at the alphabetical position, never at the top or bottom.

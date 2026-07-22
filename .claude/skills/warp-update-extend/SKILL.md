@@ -452,10 +452,12 @@ If it wasn't updated (e.g., due to registry write failures), manually add the ne
 
 ### 11b: Commit and Open PR
 
+First write the changeset per `/add-registry-changeset` — bump `minor` (a new chain is added to the published route), summary in past tense (e.g. "extended `<WARP_ROUTE_ID>` to `<new-chain>`"). A registry PR without a changeset is blocked by the merge bot. Then commit the config + changeset together (scope `git add` to these paths only — never `git add .` in the registry checkout):
+
 ```bash
 cd $REGISTRY_PATH
 git checkout -b feat/extend-<TOKEN>-<new-chain>
-git add deployments/warp_routes/<TOKEN>/
+git add deployments/warp_routes/<TOKEN>/ .changeset/<changeset-file>
 git commit -m "feat: extend <WARP_ROUTE_ID> to <new-chain>"
 git push -u origin HEAD
 
