@@ -1034,6 +1034,67 @@ importers:
         specifier: 'catalog:'
         version: 6.0.2
 
+  typescript/fast-validator:
+    dependencies:
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+      ethers:
+        specifier: 'catalog:'
+        version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      express:
+        specifier: ^5.1.0
+        version: 5.1.0
+      pino:
+        specifier: 'catalog:'
+        version: 8.21.0
+      yaml:
+        specifier: 'catalog:'
+        version: 2.4.5
+      yargs:
+        specifier: 'catalog:'
+        version: 17.7.2
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
+      '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.5
+      '@types/mocha':
+        specifier: 'catalog:'
+        version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
+      '@types/yargs':
+        specifier: 'catalog:'
+        version: 17.0.35
+      chai:
+        specifier: 'catalog:'
+        version: 4.5.0
+      mocha:
+        specifier: 'catalog:'
+        version: 11.7.5
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.42.0
+      pino-pretty:
+        specifier: 'catalog:'
+        version: 13.1.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.1
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+
   typescript/fee-quoting:
     dependencies:
       '@google-cloud/pino-logging-gcp-config':
@@ -14895,10 +14956,6 @@ packages:
     resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
     engines: {node: '>=0.6'}
 
-  qs@6.14.0:
-    resolution: {integrity: sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==}
-    engines: {node: '>=0.6'}
-
   qs@6.15.0:
     resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
     engines: {node: '>=0.6'}
@@ -26146,7 +26203,7 @@ snapshots:
       '@storybook/client-logger': 7.6.20
       '@storybook/core-events': 7.6.20
       '@storybook/global': 5.0.0
-      qs: 6.14.0
+      qs: 6.15.0
       telejson: 7.2.0
       tiny-invariant: 1.3.3
 
@@ -26417,7 +26474,7 @@ snapshots:
       dequal: 2.0.3
       lodash: 4.17.21
       memoizerific: 1.11.3
-      qs: 6.14.0
+      qs: 6.15.0
       synchronous-promise: 2.0.17
       ts-dedent: 2.2.0
       util-deprecate: 1.0.2
@@ -26484,7 +26541,7 @@ snapshots:
     dependencies:
       '@storybook/client-logger': 7.6.20
       memoizerific: 1.11.3
-      qs: 6.14.0
+      qs: 6.15.0
 
   '@storybook/telemetry@7.6.20':
     dependencies:
@@ -29023,7 +29080,7 @@ snapshots:
       http-errors: 2.0.0
       iconv-lite: 0.6.3
       on-finished: 2.4.1
-      qs: 6.14.0
+      qs: 6.15.0
       raw-body: 3.0.1
       type-is: 2.0.1
     transitivePeerDependencies:
@@ -30749,7 +30806,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.7
-      qs: 6.14.0
+      qs: 6.15.0
       range-parser: 1.2.1
       router: 2.2.0
       send: 1.2.0
@@ -31009,7 +31066,7 @@ snapshots:
       '@paralleldrive/cuid2': 2.3.1
       dezalgo: 1.0.4
       once: 1.4.0
-      qs: 6.14.0
+      qs: 6.15.0
 
   formidable@3.5.4:
     dependencies:
@@ -34231,10 +34288,6 @@ snapshots:
     dependencies:
       side-channel: 1.1.0
 
-  qs@6.14.0:
-    dependencies:
-      side-channel: 1.1.0
-
   qs@6.15.0:
     dependencies:
       side-channel: 1.1.0
@@ -35777,7 +35830,7 @@ snapshots:
       formidable: 2.1.5
       methods: 1.1.2
       mime: 2.6.0
-      qs: 6.14.0
+      qs: 6.15.0
       semver: 7.7.3
     transitivePeerDependencies:
       - supports-color
@@ -36068,7 +36121,7 @@ snapshots:
       http-basic: 8.1.3
       http-response-object: 3.0.2
       promise: 8.3.0
-      qs: 6.14.0
+      qs: 6.15.0
 
   thenify-all@1.6.0:
     dependencies:
@@ -36493,7 +36546,7 @@ snapshots:
   url@0.11.4:
     dependencies:
       punycode: 1.4.1
-      qs: 6.14.0
+      qs: 6.15.0
 
   usb@1.9.2:
     dependencies:
