@@ -353,7 +353,7 @@ The propose skill posts all batches to Safe Transaction Service (EVM) and Squads
 
 ## Step 10: Stop the HTTP Registry
 
-Use `TaskStop` with the background task ID from Step 6a. If that doesn't clean up the underlying process on minimal-tool sandboxes (no `ps`/`lsof`/`pkill`/`fuser`), use the `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route`. Always stop the registry — even on failure paths — so no background process is left running.
+Stop the registry per `/stop-http-registry` (using the background task ID from Step 6a). Always stop it — even on failure paths — so no background process is left running.
 
 ---
 

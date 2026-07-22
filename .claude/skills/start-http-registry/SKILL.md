@@ -19,6 +19,8 @@ Start the http-registry server in the background.
    cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry
    ```
 
+   **`--writeMode` (optional):** append `--writeMode` when the calling skill will write artifacts back through the server — `warp deploy`, `warp apply`, and `warp alt create` persist the resulting config/addresses via the write routes. Omit it for read-only flows (`warp read`, `warp check`). Serving private/pinned RPCs (the reason to use the HTTP registry at all) is independent of `--writeMode`; the flag only enables the write routes.
+
    **Why `CI=false`**: the infra HTTP registry wraps `getRegistryForEnvironment` (`typescript/infra/config/registry.ts:192`), which merges filesystem chain metadata with per-chain RPC overrides. The override source is CI-gated: `CI !== 'true'` → **GCP Secret Manager** (private / keyed URLs like Alchemy, Dwellir, Ankr, TronGrid); `CI === 'true'` → `MAINNET3_<CHAIN>_RPC_URLS` env vars (the GitHub-Actions injection path). On Haggis workers and any environment where those env vars aren't set, `CI=true` silently falls back to the public on-disk registry URLs — which are rate-limited (e.g. Tron's public trongrid.io = 3 rps unauthenticated → 429 during broadcasts). Prefix inline so the setting is scoped to this single invocation; do NOT `export CI=false` globally — other flows in the same session may legitimately need `CI=true`.
 
 3. Wait for the log line `Server running` in the background task's output before any downstream consumer hits the server. This is the canonical readiness signal.

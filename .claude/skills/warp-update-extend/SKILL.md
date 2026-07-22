@@ -323,11 +323,7 @@ Read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-
 
 ### 9a: Start the HTTP Registry
 
-```bash
-cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for `Listening on http://localhost:<port>`. Note the port and task ID.
+Start it per `/start-http-registry` **with `--writeMode`**. Note the port and the background task ID — needed to stop it after this step.
 
 ### 9b: Build and Show the Command
 

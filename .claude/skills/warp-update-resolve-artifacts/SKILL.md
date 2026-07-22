@@ -22,7 +22,7 @@ If either is missing, ask the user.
 
 ## Step 1: Start the HTTP Registry
 
-Invoke `/start-http-registry` (no extra flags — this skill is read-only and doesn't need `--writeMode`). The HTTP registry serves the central chain-metadata config so `warp read` hits private/pinned RPCs instead of rate-limited public ones. The `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route` applies here too if `TaskStop` doesn't clean up the process at the end of this skill.
+Invoke `/start-http-registry` (no extra flags — this skill is read-only and doesn't need `--writeMode`). The HTTP registry serves the central chain-metadata config so `warp read` hits private/pinned RPCs instead of rate-limited public ones. Stop it at the end of the skill per `/stop-http-registry`.
 
 ---
 
@@ -364,7 +364,7 @@ The `groupedByOwner` block is the most useful downstream shape — it's what pro
 
 ## Step 8: Stop the HTTP Registry
 
-Stop the background task started in Step 1 via `TaskStop` + the `/proc` cmdline-scan fallback (per `/warp-deploy-init-route`).
+Stop the background task started in Step 1 per `/stop-http-registry`.
 
 ---
 

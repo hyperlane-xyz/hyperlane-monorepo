@@ -123,13 +123,7 @@ Write the updated deploy.yaml back to the registry path. Show the user the diff 
 
 ### 10d: Build and Run Warp Apply
 
-First, start the HTTP registry in the background to use private RPC URLs:
-
-```bash
-cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for the log line `Server running` and note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
+First, start the HTTP registry per `/start-http-registry` **with `--writeMode`** (warp apply persists newly-deployed contract addresses back through the server). Note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
 
 Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`):
 
@@ -221,9 +215,7 @@ Show the user the full `warp check` output. If there are violations:
 
 ### 10f: Stop the HTTP Registry
 
-After `warp check` completes (or on any failure after Step 10d), stop the HTTP registry using `TaskStop` with the task ID noted in Step 10d. Always stop it — even on failure — so no background process is left running.
-
-For minimal-tool sandboxes (no `ps`/`lsof`/`pkill`/`fuser`), use the `/proc` cmdline-scan fallback documented in `/warp-deploy-init-route` (search "TaskStop" in that skill). Always run the fallback after `TaskStop` — idempotent if the process is already gone.
+After `warp check` completes (or on any failure after Step 10d), stop the HTTP registry per `/stop-http-registry` (using the task ID noted in Step 10d). Always stop it — even on failure.
 
 ---
 

@@ -554,11 +554,7 @@ Show the user the exact command with the resolved secret/env-var NAMES substitut
 
 The HTTP registry MUST be running before the deploy command. Starting it later or skipping it means the deploy falls back to public-RPC gas estimates and is exposed to OOG / nonce errors on chains with flaky public free-tier RPCs (notably base, optimism, drpc-routed chains).
 
-```bash
-cd <MONOREPO_ROOT> && CI=false pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for the log line `Server running` (the actual line emitted by `typescript/http-registry-server/HttpServer.ts`; it includes the port in JSON metadata). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
+Start it per `/start-http-registry` **with `--writeMode`** (the deploy persists the route config back through the server). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
 
 ### 8b: Run the Deploy Command
 
@@ -686,29 +682,7 @@ If either send fails or times out, show the error and still report the message I
 
 ### After all sends complete (or on any failure)
 
-Stop the HTTP registry:
-
-```bash
-# Kill the background process started in Step 8 using its shell/task ID
-```
-
-Use `TaskStop` or `KillShell` with the ID noted when starting the registry. Always stop it — even if sends failed — so no background process is left running.
-
-If `TaskStop` doesn't clean up the underlying process (some sandboxes leave the registry running) and `ps`/`lsof`/`pkill`/`fuser` aren't available either, fall back to a `/proc` cmdline scan:
-
-```bash
-# Find PIDs matching the registry process — exclude the scanning shell itself
-SELF_PID=$$
-for pid in $(ls /proc | grep -E '^[0-9]+$'); do
-  [ "$pid" = "$SELF_PID" ] && continue
-  if grep -aql 'http-registry-server\|start:http-registry' /proc/$pid/cmdline 2>/dev/null; then
-    echo "killing http-registry pid=$pid"
-    kill "$pid" 2>/dev/null || true
-  fi
-done
-```
-
-This is the durable fallback for minimal-tool sandboxes. Always run after `TaskStop` regardless — idempotent if the process is already gone.
+Stop the HTTP registry per `/stop-http-registry` (TaskStop by the recorded shell/task ID, with the `/proc` cmdline-scan fallback for minimal-tool sandboxes). Always stop it — even if sends failed.
 
 ---
 
