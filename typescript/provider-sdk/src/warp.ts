@@ -954,9 +954,13 @@ export function composeWarpDeployGas(
 
 /**
  * Converts a gas-unit amount into the chain's native denom by multiplying by a
- * (possibly fractional) gas price, flooring the result. The gas price `amount`
- * is a decimal string (e.g. "0.025"); the multiplication is done with integer
- * math to avoid floating-point precision loss on large gas-unit values.
+ * (possibly fractional) gas price, rounding the result UP. The gas price
+ * `amount` is a decimal string (e.g. "0.025"); the multiplication is done with
+ * integer math to avoid floating-point precision loss on large gas-unit values.
+ *
+ * Rounds up because CosmJS rounds broadcast fees up: a floored minimum could
+ * undershoot the fee actually charged and leave a preflight balance check too
+ * low.
  */
 export function nativeAmountFromGasUnits(
   gasUnits: bigint,
@@ -966,7 +970,7 @@ export function nativeAmountFromGasUnits(
   const scale = BigInt(fraction.length);
   const scaledPrice = BigInt(`${whole}${fraction}` || '0');
   const denominator = 10n ** scale;
-  return (gasUnits * scaledPrice) / denominator;
+  return (gasUnits * scaledPrice + denominator - 1n) / denominator;
 }
 
 export interface CCGasConfigDiff {

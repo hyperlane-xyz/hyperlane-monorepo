@@ -289,22 +289,22 @@ const nativeAmountCases: NativeAmountCase[] = [
     expected: 5_000n,
   },
   {
-    name: 'fractional gas price floors the product',
+    name: 'evenly divisible fractional gas price has no remainder to round',
     gasUnits: 1_000n,
     amount: '0.025',
     expected: 25n,
   },
   {
-    name: 'flooring drops the remainder',
+    name: 'non-divisible product rounds up',
     gasUnits: 3n,
     amount: '0.4',
-    expected: 1n,
+    expected: 2n,
   },
   {
-    name: 'trailing-zero fraction is handled',
+    name: 'tiny non-zero product rounds up to 1',
     gasUnits: 1_000_000n,
     amount: '0.0000000001',
-    expected: 0n,
+    expected: 1n,
   },
   {
     name: 'zero gas price yields zero',
