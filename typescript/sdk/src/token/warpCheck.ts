@@ -380,7 +380,14 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // positives from unresolved metadata on the expected side. Cosmos SDK's
   // decimals=0 placeholder is excluded on the actual side (see
   // derivedWarpConfigToCheckConfig), so it's excluded here too for symmetry.
-  if (protocol !== ProtocolType.CosmosNative && !isNullish(config.decimals)) {
+  // AltVM native tokens (e.g. Aleo AleoHypNative) never carry decimals on the
+  // actual side -- DerivedNativeWarpConfig has no decimals field -- so their
+  // core-config decimals is excluded here to keep both sides symmetric.
+  if (
+    protocol !== ProtocolType.CosmosNative &&
+    normalizeAltVmExpectedTokenType(config.type) !== TokenType.native &&
+    !isNullish(config.decimals)
+  ) {
     result.decimals = config.decimals;
   }
 
