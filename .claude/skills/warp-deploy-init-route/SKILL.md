@@ -29,6 +29,7 @@ Every milestone in this skill must append an entry to a durable, per-ticket run 
 - **Locate the document by exact title match.** Linear documents are not natively attachable to an issue in a way most list APIs filter on, so the title string IS the identity contract — treat it as canonical and do not fuzzy-match (two tickets must never collide).
 - **If no document with that title exists, create one** with the exact title above.
 - **Append entries as read-modify-write:** fetch the current body, append the new entry, save the concatenated body under the same document. See the single-writer note below — concurrent appends will silently drop entries.
+- **Surface the document URL as proof (hard gate).** As soon as the document is created (or located on a resumed run), report its URL and exact title back to the operator through whatever channel this agent communicates on, and repeat the URL at skill exit. Claiming "run log updated" without ever surfacing a URL does NOT satisfy this requirement — an unshared log is unverifiable and counts as no log. Do not report this skill as complete until the document exists, carries the milestone entries listed below, and its URL has been surfaced.
 
 **Single-writer discipline.** Because the append is read-modify-write, two writers appending concurrently silently drop the earlier writer's entry (last-write-wins). Only one process may append to a given run log at any moment: if a subagent needs to record something, either it returns the entry to the parent to append serially, or the parent completes its append before spawning the subagent. Do NOT fan out logging to parallel workers against the same document.
 
@@ -109,21 +110,24 @@ Show the user the ticket title and description before proceeding.
 
 ## Step 2: Extract Warp Route Details
 
-Parse the ticket description to extract the following. Ask the user to clarify anything that is ambiguous or missing:
+Parse the ticket description to extract the following. **Read every value from the ticket itself — do not infer it by copying a similar-looking existing route's deploy.yaml.** Existing production deploy.yamls are a reference for structural _format_ only. The warp route ID, fee type, per-chain owners, and (for offchain-quoted fees) quote signers are ticket-specific and are the fields most often drafted wrong from a prior route — copy each verbatim from the ticket. Ask the user to clarify anything that is ambiguous or missing:
 
-| Field                            | Description                                                                                                                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Token name**                   | Full name (e.g. `RISE`)                                                                                                                                                                       |
-| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                                                                                                                          |
-| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure                                                                                                 |
-| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes                                                                                                             |
-| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC                                                                                                         |
-| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                                                                                                                          |
-| **Warp fee**                     | Fee in basis points (bps) + direction (`deposits` / `withdrawals`) from the ticket's `Warp Fee` checkboxes                                                                                    |
-| **Fee owner**                    | Address that receives fees — defaults to "Standard AW controlled ICA" per the ticket                                                                                                          |
-| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                                                                                                                         |
-| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                                           |
-| **Daily Rate Limit**             | Optional amount (e.g. `200,000,000`) — present in the structured `Daily Rate Limit` row on newer tickets. If present, the route adds a rate-limited hook on the synthetic chain (see Step 4). |
+| Field                            | Description                                                                                                                                                                                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Token name**                   | Full name (e.g. `RISE`)                                                                                                                                                                                                                                            |
+| **Token symbol**                 | Symbol (e.g. `RISE`)                                                                                                                                                                                                                                               |
+| **Warp route ID**                | The route's registry ID exactly as the ticket gives it (e.g. `WBTC/staging`). If the ticket states one, use it verbatim — do NOT synthesize a `<TOKEN>/<chains>` name. Only derive `<TOKEN>/<chains-alphabetical>` (Step 7a) when the ticket gives no explicit ID. |
+| **Decimals**                     | Token decimals (e.g. `18`) — use the reference table below for USDC; query on-chain if unsure                                                                                                                                                                      |
+| **Collateral chain(s)**          | Chain(s) where the real token lives — may be multiple for multi-collateral routes                                                                                                                                                                                  |
+| **Collateral token address(es)** | ERC-20 contract address per collateral chain — use the reference table below for USDC                                                                                                                                                                              |
+| **Synthetic chains**             | Chains that get a synthetic (bridged) representation                                                                                                                                                                                                               |
+| **Warp fee**                     | Fee in basis points (bps) + direction (`deposits` / `withdrawals`) from the ticket's `Warp Fee` checkboxes                                                                                                                                                         |
+| **Fee type**                     | The fee contract type the ticket specifies (`LinearFee`, `OffchainQuotedLinearFee`, …). Take it from the ticket — never default to whatever type a similar route happened to use. `OffchainQuotedLinearFee` additionally requires `quoteSigners` (below).          |
+| **Fee owner**                    | Address that receives fees — defaults to "Standard AW controlled ICA" per the ticket                                                                                                                                                                               |
+| **Quote signers**                | `OffchainQuotedLinearFee` only: the EVM (hex) addresses authorized to sign off-chain quotes, from the ticket. Required whenever the fee type is offchain-quoted; omitting them ships a fee contract nobody can quote against.                                      |
+| **Type overrides**               | Any chain that should be `native` instead of `collateral`/`synthetic`                                                                                                                                                                                              |
+| **Yield route type**             | If the ticket mentions yield/ERC4626/vault, determine the yield subtype (see below)                                                                                                                                                                                |
+| **Daily Rate Limit**             | Optional amount (e.g. `200,000,000`) — present in the structured `Daily Rate Limit` row on newer tickets. If present, the route adds a rate-limited hook on the synthetic chain (see Step 4).                                                                      |
 
 **Yield routes**: if the ticket mentions "yield", "ERC4626", "vault", "rebasing", "Aave", or the token is a known yield-bearing token (sUSDS, sDAI, etc.), it is a yield route. There are two subtypes:
 
@@ -497,13 +501,17 @@ solanamainnet:
 The deploy.yaml goes in the local registry at:
 
 ```
-$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-deploy.yaml
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<route-suffix>-deploy.yaml
 ```
+
+**`<route-suffix>` precedence:**
+
+1. **If the ticket gave an explicit warp route ID** (Step 2, e.g. `WBTC/staging`), use its suffix verbatim → `deployments/warp_routes/WBTC/staging-deploy.yaml`. The route ID and the filename suffix are the same string, so an explicit ticket ID drives both — do NOT overwrite it with a chain list.
+2. **Otherwise**, derive `<chains-alphabetical>` — **every chain in the route**, lowercase, joined with `-` in alphabetical order.
 
 Where:
 
 - `<TOKEN>` is the token symbol (uppercase)
-- `<chains-alphabetical>` is **every chain in the route**, lowercase, joined with `-` in alphabetical order.
 
 Examples (matching current registry convention):
 
@@ -551,7 +559,7 @@ Examples:
 - `deployments/warp_routes/ETH/arbitrum-base-deploy.yaml` → warp route ID `ETH/arbitrum-base`
 - `deployments/warp_routes/USDC/eclipsemainnet-ethereum-solanamainnet-deploy.yaml` → `USDC/eclipsemainnet-ethereum-solanamainnet`
 
-The route ID matches the filename suffix (without `-deploy.yaml`). It includes every chain in the route, lowercase, joined by `-` in alphabetical order — the same convention Step 5 uses for the filename.
+The route ID always matches the filename suffix (without `-deploy.yaml`), so it follows the same Step 5 precedence: if the ticket gave an explicit route ID (e.g. `WBTC/staging`) the suffix is that ID; otherwise it is every chain in the route, lowercase, joined by `-` in alphabetical order. Never re-derive a chain-list ID over an explicit one the ticket provided.
 
 ### 7b: Identify Required Protocols
 
@@ -645,6 +653,15 @@ Run the send test **now, while the deployer still owns the contracts** — befor
 
 Use the same key from the key-context artifact (loaded in Step 7c).
 
+### Verify enrollment from each chain's own perspective
+
+A `warp send` only exercises the **origin** chain's outbound enrollment: a successful `A → B` proves A's router has B enrolled — it says nothing about B's router. A chain that its peers enrolled _inbound_ but whose _own_ enrollment tx failed will still accept `* → X` sends yet revert on every `X → *` send — a silently one-way-dead leg.
+
+1. **Originate at least one send from every chain in the route** — not just the native/collateral ↔ synthetic pair. Every chain must appear at least once as `--origin`; a chain never used as an origin has its outbound enrollment unverified. This matters most on routes with several collateral chains, where a non-native collateral leg is easy to skip.
+2. **When checking enrollment directly instead of by sending, read that chain's OWN router state** (`remoteRouters` via `hyperlane warp read`, or the router's `domains()` on chain) — never infer chain X's enrollment from a peer router that lists X. Reading a peer proves the peer's enrollment, not X's.
+
+The comprehensive `hyperlane warp check` in `/warp-deploy-update-owners` (Step 10e) does this correctly — it reads each chain's own on-chain state against the expected config — so treat it, not an ad-hoc peer read, as the authoritative enrollment check.
+
 ### HTTP-registry cache lag — wait before first send
 
 The HTTP registry caches route configs in memory. Right after `warp deploy` writes the new `<chains-alphabetical>-config.yaml`, the running HTTP registry server may not have refreshed its cache yet — the first `warp send` will 404 with `route not found`. Wait ~5 seconds before the first send, and if the first send still 404's, verify the route is visible via `curl http://localhost:<port>/deployments/warp_routes/<TOKEN>/<chains-alphabetical>-config.yaml`, sleep another 5s, and retry.
@@ -694,7 +711,7 @@ pnpm --silent -C typescript/cli hyperlane warp send \
 
 ### Multi-chain routes (1 native/collateral + multiple synthetics)
 
-Do NOT use `--round-trip`. Test each native ↔ synthetic pair sequentially:
+Do NOT use `--round-trip`. Test each native ↔ synthetic pair sequentially. **If the route has more than one collateral chain**, this native↔synthetic loop is not enough — additionally originate a send from each extra collateral chain (per the direction principle above), or those collateral legs' outbound enrollment goes unverified:
 
 ```bash
 
