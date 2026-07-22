@@ -9,6 +9,7 @@ import {
   TronJsonRpcProvider,
 } from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
+import { assertTronReceiptSuccess } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 /** Union of possible TronWeb transaction types */
@@ -214,11 +215,19 @@ export class TronTransactionBuilder extends TronWeb {
       value: BigNumber.from(evmTx.value ?? 0),
       chainId: evmTx.chainId!,
       tronTransaction: tronTx,
-      wait: (confirmations?: number) =>
-        this.provider!.waitForTransaction(
-          txHash ? ensure0x(txHash) : originalTxHash,
+      wait: async (confirmations?: number) => {
+        const hash = txHash ? ensure0x(txHash) : originalTxHash;
+        const receipt = await this.provider.waitForTransaction(
+          hash,
           confirmations,
-        ),
+        );
+        // Stock ethers waitForTransaction resolves the receipt without the
+        // status-0 revert throw it only injects for EVM. Fetch Tron's
+        // execution info and fail loudly on a reverted/failed transaction.
+        const info = await this.trx.getTransactionInfo(strip0x(hash));
+        assertTronReceiptSuccess(info, this, strip0x(hash));
+        return receipt;
+      },
     };
   }
 
