@@ -1,5 +1,6 @@
 ---
 '@hyperlane-xyz/provider-sdk': major
+'@hyperlane-xyz/sdk': major
 '@hyperlane-xyz/sealevel-sdk': major
 '@hyperlane-xyz/tron-sdk': major
 '@hyperlane-xyz/cosmos-sdk': major
@@ -9,4 +10,8 @@
 '@hyperlane-xyz/cli': minor
 ---
 
-A new `ProtocolProvider.getMinGasForWarpDeploy(warpConfig)` method was added and implemented in every AltVM SDK. Unlike the flat `getMinGas().WARP_DEPLOY_GAS` constant — which sizes only the base router deploy — the new method composes the base cost with additive deltas for detected features (cross-collateral extras, fee program deploy, custom ISM / hook / IGP deploy) driven by the `WarpConfig` shape. Sealevel now carries observed deltas from live cross-collateral + fee-program deploys (~2.6 SOL base + ~1.1 SOL crossCollateral + ~2.5 SOL fee program). The CLI's warp-deploy preflight balance check was wired to consult the composable value per AltVM chain, so feature-heavy deploys are no longer silently under-funded.
+- `getMinGasForWarpDeploy` now lives on `IProvider` (per-chain) instead of the stateless `ProtocolProvider`. It is `async` and returns a FINAL native-denom amount rather than a mix of gas units and native amounts. It composes the base router deploy cost with additive deltas for detected features (cross-collateral extras, fee program deploy, custom ISM / hook / IGP deploy) driven by the warp config shape, and for gas-metered protocols multiplies gas units by the chain gas price.
+- `ChainMetadataForAltVM` gained an optional `gasPrice` field.
+- `ProviderBuilderFn` now takes a full `ChainMetadata` instead of `(rpcUrls, network)`.
+- The AltVM `IProvider.connect` and `ISigner.connectWithSigner` static factories now take `ChainMetadataForAltVM` as their first argument, replacing the previous `(rpcUrls, chainId, extraParams)` shape and the metadata-through-`extraParams` indirection.
+- The CLI warp-deploy preflight now sizes AltVM native-balance requirements from the composed per-chain deploy cost, so feature-heavy deploys are no longer silently under-funded, and chains without a gas price are no longer skipped for the warp-deploy path.
