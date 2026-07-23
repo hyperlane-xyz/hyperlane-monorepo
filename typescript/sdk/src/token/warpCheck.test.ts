@@ -458,6 +458,43 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
 
     expect(result).to.not.have.property('token');
   });
+
+  it('drops decimals for AltVM native tokens, whose reader side never carries decimals', () => {
+    // DerivedNativeWarpConfig has no decimals field, so the actual side omits it
+    // for AltVM native tokens (e.g. Aleo AleoHypNative). The expected side must
+    // omit it too even when the core config specifies decimals, otherwise it
+    // emits a permanent false-positive `decimals` ConfigMismatch.
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        type: TokenType.native,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result).to.not.have.property('decimals');
+  });
+
+  it('retains decimals for AltVM collateral tokens, which do carry on-chain decimals', () => {
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        token: TOKEN_A,
+        type: TokenType.collateral,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result.decimals).to.equal(6);
+  });
 });
 
 describe('normalizeAltVmExpectedTokenType', () => {
