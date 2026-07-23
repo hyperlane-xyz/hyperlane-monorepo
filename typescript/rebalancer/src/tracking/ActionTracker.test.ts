@@ -44,10 +44,12 @@ describe('ActionTracker', () => {
     // Create stub for ExplorerClient methods with default return values
     const explorerGetInflightUserTransfers = Sinon.stub().resolves([]);
     const explorerGetInflightRebalanceActions = Sinon.stub().resolves([]);
+    const explorerGetMessagesByOriginTransactions = Sinon.stub().resolves([]);
 
     explorerClient = {
       getInflightUserTransfers: explorerGetInflightUserTransfers,
       getInflightRebalanceActions: explorerGetInflightRebalanceActions,
+      getMessagesByOriginTransactions: explorerGetMessagesByOriginTransactions,
     } as any;
 
     // Create stub for adapter (used by MultiProtocolCore)
@@ -83,8 +85,8 @@ describe('ActionTracker', () => {
       transferStore,
       rebalanceIntentStore,
       rebalanceActionStore,
-      explorerClient as any,
-      core as any,
+      explorerClient,
+      core,
       config,
       testLogger,
     );
@@ -1384,6 +1386,122 @@ describe('ActionTracker', () => {
       await expect(
         tracker.completeRebalanceAction('non-existent'),
       ).to.be.rejectedWith('RebalanceAction non-existent not found');
+    });
+  });
+
+  describe('message ID reconciliation', () => {
+    const messageBody =
+      '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064';
+    const txHash = `0x${'aa'.repeat(32)}`;
+    const messageId = `0x${'11'.repeat(32)}`;
+
+    function explorerMessage(
+      overrides: Partial<ExplorerMessage> = {},
+    ): ExplorerMessage {
+      return {
+        msg_id: messageId,
+        origin_domain_id: 1,
+        destination_domain_id: 2,
+        sender: '0xbridge1',
+        recipient: '0xbridge2',
+        origin_tx_hash: txHash.toUpperCase().replace('0X', '0x'),
+        origin_tx_sender: '0xinventory',
+        origin_tx_recipient: '0xrouter1',
+        is_delivered: true,
+        message_body: messageBody,
+        send_occurred_at: null,
+        ...overrides,
+      };
+    }
+
+    async function seedDeposit(
+      overrides: Partial<RebalanceAction> = {},
+    ): Promise<void> {
+      await rebalanceIntentStore.save({
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save({
+        id: 'action-1',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        ...overrides,
+      });
+    }
+
+    it('recovers and completes a delivered deposit in one sync', async () => {
+      await seedDeposit();
+      explorerClient.getMessagesByOriginTransactions.resolves([
+        explorerMessage(),
+      ]);
+      mailboxStub.isDelivered.resolves(true);
+
+      await tracker.syncRebalanceActions();
+
+      expect(
+        explorerClient.getMessagesByOriginTransactions.calledOnceWithMatch({
+          transactions: [{ originDomain: 1, txHash }],
+        }),
+      ).to.be.true;
+      const action = await rebalanceActionStore.get('action-1');
+      expect(action?.messageId).to.equal(messageId);
+      expect(action?.status).to.equal('complete');
+      expect(await rebalanceActionStore.getAll()).to.have.lengthOf(1);
+      expect(await rebalanceIntentStore.getAll()).to.have.lengthOf(1);
+    });
+
+    it('normalizes base58 and hex transaction hashes', async () => {
+      const base58TxHash = '11111111111111111111111111111111';
+      await seedDeposit({ txHash: base58TxHash });
+      explorerClient.getMessagesByOriginTransactions.resolves([
+        explorerMessage({ origin_tx_hash: `0x${'00'.repeat(32)}` }),
+      ]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.syncRebalanceActions();
+
+      expect((await rebalanceActionStore.get('action-1'))?.messageId).to.equal(
+        messageId,
+      );
+    });
+
+    it('does not guess when one transaction has multiple messages', async () => {
+      await seedDeposit();
+      explorerClient.getMessagesByOriginTransactions.resolves([
+        explorerMessage(),
+        explorerMessage({ msg_id: `0x${'22'.repeat(32)}` }),
+      ]);
+
+      await tracker.syncRebalanceActions();
+
+      expect((await rebalanceActionStore.get('action-1'))?.messageId).to.be
+        .undefined;
+      expect(mailboxStub.isDelivered.called).to.be.false;
+    });
+
+    it('deduplicates inflight discovery by origin transaction', async () => {
+      await seedDeposit();
+      explorerClient.getInflightRebalanceActions.resolves([explorerMessage()]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.syncRebalanceActions();
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions).to.have.lengthOf(1);
+      expect(actions[0].messageId).to.equal(messageId);
+      expect(await rebalanceIntentStore.getAll()).to.have.lengthOf(1);
     });
   });
 
