@@ -64,6 +64,14 @@ contract DomainRoutingIsm is
         IInterchainSecurityModule[] calldata __modules
     ) public initializer {
         __Ownable_init();
+        _initialize(_owner, _domains, __modules);
+    }
+
+    function _initialize(
+        address _owner,
+        uint32[] memory _domains,
+        IInterchainSecurityModule[] memory __modules
+    ) internal {
         require(_domains.length == __modules.length, "length mismatch");
         uint256 _length = _domains.length;
         for (uint256 i = 0; i < _length; ++i) {

@@ -4,6 +4,8 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
+import {DirectDomainRoutingIsm} from "../../contracts/isms/routing/DirectDomainRoutingIsm.sol";
+import {DirectDefaultFallbackRoutingIsm} from "../../contracts/isms/routing/DirectDefaultFallbackRoutingIsm.sol";
 import {DefaultFallbackRoutingIsm} from "../../contracts/isms/routing/DefaultFallbackRoutingIsm.sol";
 import {DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
@@ -137,6 +139,25 @@ contract DomainRoutingIsmTest is Test {
         }
     }
 
+    function testDirectDeploymentInitializesAtomically(uint32 domain) public {
+        uint32[] memory _domains = new uint32[](1);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](1);
+        _domains[0] = domain;
+        _isms[0] = deployTestIsm(bytes32(0));
+
+        DirectDomainRoutingIsm directIsm = new DirectDomainRoutingIsm(
+            address(this),
+            _domains,
+            _isms
+        );
+
+        assertEq(directIsm.owner(), address(this));
+        assertEq(address(directIsm.module(domain)), address(_isms[0]));
+        vm.expectRevert("Initializable: contract is already initialized");
+        directIsm.initialize(address(this));
+    }
+
     function testSetNonOwner(
         uint32 domain,
         IInterchainSecurityModule _ism
@@ -177,10 +198,11 @@ contract DomainRoutingIsmTest is Test {
 
 contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     TestIsm defaultIsm;
+    TestMailbox mailbox;
 
     function setUp() public override {
         defaultIsm = deployTestIsm(bytes32(0));
-        TestMailbox mailbox = new TestMailbox(1000);
+        mailbox = new TestMailbox(1000);
         TestPostDispatchHook hook = new TestPostDispatchHook();
         mailbox.initialize(
             address(this),
@@ -196,6 +218,29 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     function testConstructorReverts() public {
         vm.expectRevert("MailboxClient: invalid mailbox");
         new DefaultFallbackRoutingIsm(address(0));
+    }
+
+    function testDirectDeploymentInitializesAtomically(
+        uint32 domain,
+        bytes32 seed
+    ) public {
+        uint32[] memory domains = new uint32[](1);
+        domains[0] = domain;
+        IInterchainSecurityModule[]
+            memory modules = new IInterchainSecurityModule[](1);
+        modules[0] = deployTestIsm(seed);
+
+        DirectDefaultFallbackRoutingIsm directIsm = new DirectDefaultFallbackRoutingIsm(
+                address(mailbox),
+                address(this),
+                domains,
+                modules
+            );
+
+        assertEq(directIsm.owner(), address(this));
+        assertEq(address(directIsm.module(domain)), address(modules[0]));
+        vm.expectRevert("Initializable: contract is already initialized");
+        directIsm.initialize(address(this));
     }
 
     function testRemoveIsms(uint32 domain, uint8 count) public override {

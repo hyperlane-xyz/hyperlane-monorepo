@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IncrementalDomainRoutingIsm} from "../../contracts/isms/routing/IncrementalDomainRoutingIsm.sol";
+import {DirectIncrementalDomainRoutingIsm} from "../../contracts/isms/routing/DirectIncrementalDomainRoutingIsm.sol";
 import {IncrementalDomainRoutingIsmFactory} from "../../contracts/isms/routing/IncrementalDomainRoutingIsmFactory.sol";
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DomainRoutingIsmTest} from "./DomainRoutingIsm.t.sol";
@@ -140,6 +141,19 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         // Should revert when deploying with duplicate domains
         vm.expectRevert();
         factory.deploy(address(this), _domains, _isms);
+    }
+
+    function testDirectDeploymentRejectsDuplicateDomains() public {
+        uint32[] memory _domains = new uint32[](2);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](2);
+        _domains[0] = 1;
+        _domains[1] = 1;
+        _isms[0] = deployTestIsm(bytes32(0));
+        _isms[1] = deployTestIsm(bytes32(uint256(1)));
+
+        vm.expectRevert();
+        new DirectIncrementalDomainRoutingIsm(address(this), _domains, _isms);
     }
 
     function testFactoryImplementation() public {
