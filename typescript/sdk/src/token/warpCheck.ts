@@ -37,7 +37,6 @@ import {
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
-import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
@@ -60,6 +59,7 @@ import {
 import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   TokenMetadata,
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
@@ -642,18 +642,76 @@ export function altVmScaleMismatch(
   };
 }
 
+// An owner the caller vetted and decided to accept in an Inactive on-chain
+// state. `chain`/`owner` identify the exact ownerStatus entry to accept; a
+// chain may appear more than once with different owners.
+export interface AcceptedInactiveOwner {
+  chain: ChainName;
+  owner: Address;
+}
+
+// Re-accepts caller-vetted Inactive owners by overriding the expected
+// ownerStatus back to Inactive, but ONLY where the owner is Inactive on-chain.
+// Mutates `expandedWarpDeployConfig` in place. Exported for unit testing.
+export function applyAcceptedInactiveOwnerStatus({
+  expandedWarpDeployConfig,
+  onChainWarpConfig,
+  acceptedInactiveOwners,
+}: {
+  expandedWarpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: Record<
+    string,
+    { ownerStatus?: Record<string, OwnerStatus> }
+  >;
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
+}): void {
+  if (!acceptedInactiveOwners?.length) {
+    return;
+  }
+
+  // Group accepted owners per chain into lowercased sets for case-insensitive
+  // address matching.
+  const acceptedByChain = new Map<ChainName, Set<string>>();
+  for (const { chain, owner } of acceptedInactiveOwners) {
+    const owners = acceptedByChain.get(chain) ?? new Set<string>();
+    owners.add(owner.toLowerCase());
+    acceptedByChain.set(chain, owners);
+  }
+
+  for (const [chain, acceptedOwners] of acceptedByChain) {
+    const observedOwnerStatus = onChainWarpConfig[chain]?.ownerStatus;
+    const expectedOwnerStatus = expandedWarpDeployConfig[chain]?.ownerStatus;
+    if (!observedOwnerStatus || !expectedOwnerStatus) {
+      continue;
+    }
+
+    for (const [owner, status] of Object.entries(observedOwnerStatus)) {
+      if (
+        status === OwnerStatus.Inactive &&
+        acceptedOwners.has(owner.toLowerCase())
+      ) {
+        expectedOwnerStatus[owner] = OwnerStatus.Inactive;
+      }
+    }
+  }
+}
+
 export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
   warpDeployConfig,
-  interchainAccount,
+  acceptedInactiveOwners,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  // Optional ICA app used to resolve Inactive ownerStatus false positives for
-  // nonce-less governance ICA owners (Tron/AltVM). Omitted -> no resolution.
-  interchainAccount?: InterchainAccount;
+  // Owners the caller has decided to accept in an Inactive on-chain state
+  // (e.g. a nonce-less governance ICA on Tron/AltVM that a multisig controls).
+  // The caller owns the decision — including deriving and verifying the ICA and
+  // its origin Safe threshold. Here we only pass Inactive through as the
+  // expected control when the observed status is Inactive AND the exact
+  // {chain, owner} pair is present. A chain may list multiple accepted owners.
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
 }): Promise<WarpRouteCheckResult> {
   const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
     (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
@@ -762,8 +820,18 @@ export async function checkWarpRouteDeployConfig({
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale: false,
-    interchainAccount,
   });
+
+  // expandWarpDeployConfig deterministically maps every Inactive owner to an
+  // expected Active (a violation). Re-accept the specific owners the caller
+  // vetted, but only where the owner is actually Inactive on-chain, so a
+  // stale/incorrect accept entry can never mask a real status change.
+  applyAcceptedInactiveOwnerStatus({
+    expandedWarpDeployConfig,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    acceptedInactiveOwners,
+  });
+
   const normalizedWarpDeployConfig = normalizeWarpDeployConfigForCheck({
     multiProvider,
     warpDeployConfig: expandedWarpDeployConfig,

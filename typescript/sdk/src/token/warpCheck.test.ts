@@ -17,12 +17,14 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
-import type {
-  DerivedWarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+import {
+  type DerivedWarpRouteDeployConfig,
+  OwnerStatus,
+  type WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 import {
   altVmScaleMismatch,
+  applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
   buildWarpRouteDiff,
   derivedWarpConfigToCheckConfig,
@@ -799,5 +801,137 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff[CHAIN]).to.have.nested.property('hook.actual');
+  });
+});
+
+describe('applyAcceptedInactiveOwnerStatus', () => {
+  const CHAIN = 'tron';
+  const OWNER_A = '0xAAAAaaAAAAaAaaAAAaAAAAaaaAAAaaAAAAaAaAaA';
+  const OWNER_B = '0xBbBBBbbBBBbBBBBbbBbBbbBbbbBBbbBBbBBBbBBB';
+
+  // The expander maps every observed ownerStatus to an expected Active, so the
+  // expected side starts fully Active; accepting re-sets specific entries back
+  // to Inactive.
+  function expandedConfig(
+    ownerStatus: Record<string, OwnerStatus>,
+  ): WarpRouteDeployConfigMailboxRequired {
+    return {
+      [CHAIN]: {
+        mailbox: MAILBOX,
+        owner: OWNER_A,
+        token: TOKEN_A,
+        type: TokenType.collateral,
+        ownerStatus,
+      },
+    };
+  }
+
+  it('accepts multiple Inactive owners on the same chain', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: {
+          ownerStatus: {
+            [OWNER_A]: OwnerStatus.Inactive,
+            [OWNER_B]: OwnerStatus.Inactive,
+          },
+        },
+      },
+      acceptedInactiveOwners: [
+        { chain: CHAIN, owner: OWNER_A },
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus).to.deep.equal({
+      [OWNER_A]: OwnerStatus.Inactive,
+      [OWNER_B]: OwnerStatus.Inactive,
+    });
+  });
+
+  it('does not accept an owner declared on a different chain or with a different address', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [
+        // Wrong chain.
+        { chain: 'ethereum', owner: OWNER_A },
+        // Wrong address on the right chain.
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
+  });
+
+  it('does not override non-Inactive observed statuses even when accepted', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.GnosisSafe,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: {
+          ownerStatus: {
+            [OWNER_A]: OwnerStatus.Active,
+            [OWNER_B]: OwnerStatus.GnosisSafe,
+          },
+        },
+      },
+      acceptedInactiveOwners: [
+        { chain: CHAIN, owner: OWNER_A },
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus).to.deep.equal({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.GnosisSafe,
+    });
+  });
+
+  it('matches owner addresses case-insensitively', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [{ chain: CHAIN, owner: OWNER_A.toLowerCase() }],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(
+      OwnerStatus.Inactive,
+    );
+  });
+
+  it('is a no-op when no accepted owners are provided', () => {
+    const expanded = expandedConfig({ [OWNER_A]: OwnerStatus.Active });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
   });
 });

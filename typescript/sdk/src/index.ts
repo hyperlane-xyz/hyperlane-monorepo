@@ -849,9 +849,11 @@ export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   WARP_ROUTE_CHECK_SCALE_TYPE,
   WARP_ROUTE_CHECK_TYPE,
+  applyAcceptedInactiveOwnerStatus,
   checkWarpRouteDeployConfig,
 } from './token/warpCheck.js';
 export type {
+  AcceptedInactiveOwner,
   WarpRouteCheckResult,
   WarpRouteCheckViolation,
 } from './token/warpCheck.js';
