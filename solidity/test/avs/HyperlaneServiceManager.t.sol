@@ -88,6 +88,25 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _hsm.updateAVSMetadataURI("hyperlaneAVS");
     }
 
+    function test_stakeRegistryOwnerInitializedBeforeConfiguration() public {
+        ECDSAStakeRegistry registry = new ECDSAStakeRegistry(delegationManager);
+        registry.initializeOwner(address(this));
+
+        Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
+        quorum.strategies[0] = StrategyParams({
+            strategy: IStrategy(address(0x1234)),
+            multiplier: 10000
+        });
+
+        vm.prank(address(0xBEEF));
+        vm.expectRevert("Ownable: caller is not the owner");
+        registry.configure(address(_hsm), 6667, quorum);
+
+        registry.configure(address(_hsm), 6667, quorum);
+        vm.expectRevert(ECDSAStakeRegistry.ServiceManagerAlreadySet.selector);
+        registry.configure(address(_hsm), 6667, quorum);
+    }
+
     function test_registerOperator() public {
         // act
         ISignatureUtils.SignatureWithSaltAndExpiry
