@@ -76,7 +76,10 @@ The rebalancer container
     value: json
   - name: LOG_LEVEL
     value: info
-  {{- if .Values.warpRouteId }}
+  {{- if .Values.hyperlane.rebalancerConfigFiles }}
+  - name: WARP_ROUTE_IDS
+    value: {{ join "," .Values.hyperlane.warpRouteIds | quote }}
+  {{- else if .Values.warpRouteId }}
   - name: WARP_ROUTE_ID
     value: {{ .Values.warpRouteId | quote }}
   {{- end }}
@@ -96,8 +99,13 @@ The rebalancer container
   {{- end }}
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
+  {{- if .Values.hyperlane.rebalancerConfigFiles }}
+  - name: REBALANCER_CONFIG_FILES
+    value: "{{ range $index, $config := .Values.hyperlane.rebalancerConfigFiles }}{{ if $index }},{{ end }}/config/{{ $config.name }}{{ end }}"
+  {{- else }}
   - name: REBALANCER_CONFIG_FILE
     value: "/config/rebalancer-config.yaml"
+  {{- end }}
   - name: CHECK_FREQUENCY
     value: "60000"
   - name: WITH_METRICS

@@ -8,7 +8,6 @@ import {
   getSealevelAtaPayerBalance,
   getTokenBridgedBalance,
   getXERC20Info,
-  startMetricsServer,
 } from '@hyperlane-xyz/metrics';
 import {
   Token,
@@ -26,7 +25,7 @@ import { type StrategyRoute } from '../interfaces/IStrategy.js';
 
 import { type PriceGetter } from './PriceGetter.js';
 import {
-  metricsRegister,
+  ensureMetricsServerStarted,
   rebalancerActionsCreatedTotal,
   rebalancerExecutionAmount,
   rebalancerExecutionTotal,
@@ -50,7 +49,7 @@ export class Metrics implements IMetrics {
     logger: Logger,
   ) {
     this.logger = logger.child({ class: Metrics.name });
-    startMetricsServer(metricsRegister);
+    ensureMetricsServerStarted();
 
     // Wrap PriceGetter to match TokenPriceGetter interface
     this.priceGetter = {

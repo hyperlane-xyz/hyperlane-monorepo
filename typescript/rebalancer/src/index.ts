@@ -13,9 +13,16 @@ export type {
   RebalancerServiceConfig,
   ManualRebalanceRequest,
 } from './core/RebalancerService.js';
+export { RebalancerFleet } from './core/RebalancerFleet.js';
+export type {
+  FleetMember,
+  RebalancerFleetOptions,
+} from './core/RebalancerFleet.js';
 
 // Core rebalancing logic
 export { Rebalancer } from './core/Rebalancer.js';
+export { LocalInventoryView } from './core/InventoryView.js';
+export type { IInventoryView } from './core/InventoryView.js';
 
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
@@ -52,6 +59,7 @@ export { StrategyFactory } from './strategy/StrategyFactory.js';
 
 // Monitor
 export { Monitor } from './monitor/Monitor.js';
+export { InventoryBalanceFetcher } from './monitor/InventoryBalanceFetcher.js';
 
 // Metrics
 export { Metrics } from './metrics/Metrics.js';
@@ -105,6 +113,8 @@ export type {
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';
 export { ExplorerClient } from './utils/ExplorerClient.js';
+export { Mutex } from './utils/mutex.js';
+export type { IMutex } from './utils/mutex.js';
 
 // Tracking
 export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
