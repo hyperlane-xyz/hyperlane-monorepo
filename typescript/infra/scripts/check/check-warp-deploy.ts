@@ -193,10 +193,18 @@ async function main() {
 
   // Passed into the SDK check to resolve Inactive ownerStatus false positives
   // where a nonce-less / lazily-deployed leaf owner (Tron, AltVM) is a
-  // governance ICA of an Ethereum Safe. Scoped to chains the checker's
-  // multiProvider covers.
-  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+  // governance ICA of an Ethereum Safe. registry.getAddresses() spans every
+  // registry chain, but multiProvider only covers warpConfigChains;
+  // fromAddressesMap calls multiProvider.getProtocol() for every entry and
+  // throws on any chain the provider doesn't know, so filter to the scoped
+  // chains first.
+  const scopedAddresses = objFilter(
     await registry.getAddresses(),
+    (chain, _addrs): _addrs is Record<string, string> =>
+      multiProvider.hasChain(chain),
+  );
+  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+    scopedAddresses,
     multiProvider,
   );
 

@@ -197,7 +197,7 @@ export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
 // threshold > 1. A 1-of-1 origin Safe (or a non-Safe origin owner) still fires.
 const ICA_ORIGIN_CHAIN = 'ethereum';
 
-async function isGovernanceIcaOwner(params: {
+export async function isGovernanceIcaOwner(params: {
   interchainAccount: InterchainAccount;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   chain: ChainName;
