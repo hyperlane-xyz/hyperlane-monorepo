@@ -11,17 +11,14 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title DefaultFallbackIsm
+ * @title DefaultIsm
  * @notice Ownerless routing ISM that always defers to the mailbox's default ISM.
  */
-contract DefaultFallbackIsm is AbstractRoutingIsm, PackageVersioned {
+contract DefaultIsm is AbstractRoutingIsm, PackageVersioned {
     IMailbox public immutable mailbox;
 
     constructor(address _mailbox) {
-        require(
-            Address.isContract(_mailbox),
-            "DefaultFallbackIsm: invalid mailbox"
-        );
+        require(Address.isContract(_mailbox), "DefaultIsm: invalid mailbox");
         mailbox = IMailbox(_mailbox);
     }
 
