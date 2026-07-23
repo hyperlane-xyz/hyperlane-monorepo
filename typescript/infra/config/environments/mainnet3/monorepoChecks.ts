@@ -1,11 +1,13 @@
-import { CheckWarpDeployConfig } from '../../../../src/config/funding.js';
-import { DockerImageRepos, mainnetDockerTags } from '../../../docker.js';
-import { environment } from '../chains.js';
+import { MonorepoChecksConfig } from '../../../src/config/funding.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
-export const checkWarpDeployConfig: CheckWarpDeployConfig = {
+import { environment } from './chains.js';
+
+export const monorepoChecksConfig: MonorepoChecksConfig = {
+  checks: ['warp', 'fastpath'],
   docker: {
     repo: DockerImageRepos.MONOREPO,
-    tag: mainnetDockerTags.checkWarpDeploy,
+    tag: mainnetDockerTags.monorepoChecks,
   },
   namespace: environment,
   cronSchedule: '0 15 * * *', // set to 3pm utc every day

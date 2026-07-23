@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
+import { pathToFileURL } from 'url';
 import { stringify as yamlStringify } from 'yaml';
 
 import { submitMetrics } from '@hyperlane-xyz/metrics';
@@ -25,6 +26,7 @@ import {
   warpConfigGetterMap,
 } from '../../config/warp.js';
 import { type EnvironmentConfig } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -89,6 +91,24 @@ const perRouteTimeoutMs = Number(
   process.env.WARP_CHECK_PER_ROUTE_TIMEOUT_MS ?? DEFAULT_PER_ROUTE_TIMEOUT_MS,
 );
 
+export interface WarpDeployChecksOptions {
+  chains?: string[];
+  environment: DeployEnvironment;
+  pushMetrics?: boolean;
+}
+
+export interface WarpDeployRouteCheckResult {
+  result: WarpRouteCheckResult;
+  warpRouteId: string;
+}
+
+export interface WarpDeployChecksResult {
+  checkedWarpRouteIds: string[];
+  failedWarpRouteChecks: string[];
+  routeResults: WarpDeployRouteCheckResult[];
+  violationsCount: number;
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -112,7 +132,37 @@ async function main() {
   const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
+  const result = await runWarpDeployChecks({
+    chains,
+    environment,
+    pushMetrics,
+  });
+
+  if (result.failedWarpRouteChecks.length > 0) {
+    process.exit(1);
+  }
+
+  process.exit(0);
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+export async function runWarpDeployChecks({
+  chains,
+  environment,
+  pushMetrics = false,
+}: WarpDeployChecksOptions): Promise<WarpDeployChecksResult> {
   const failedWarpRoutesChecks: string[] = [];
+  const routeResults: WarpDeployRouteCheckResult[] = [];
+  let violationsCount = 0;
 
   const registries = [DEFAULT_REGISTRY_URI];
   const registry = getRegistry({
@@ -217,6 +267,7 @@ async function main() {
       );
 
       if (result.violations.length > 0) {
+        violationsCount += result.violations.length;
         logWarpRouteCheckResult(result);
         if (pushMetrics) {
           await pushWarpViolationsMetrics(result, warpRouteId, environment);
@@ -224,6 +275,7 @@ async function main() {
       } else {
         console.info(chalk.green(`warp checker found no violations`));
       }
+      routeResults.push({ result, warpRouteId });
     } catch (e) {
       console.error(
         chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
@@ -238,18 +290,15 @@ async function main() {
         `Failed to check warp routes: ${failedWarpRoutesChecks.join(', ')}`,
       ),
     );
-    process.exit(1);
   }
 
-  process.exit(0);
+  return {
+    checkedWarpRouteIds: warpIdsToCheck,
+    failedWarpRouteChecks: failedWarpRoutesChecks,
+    routeResults,
+    violationsCount,
+  };
 }
-
-main()
-  .then()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
 
 async function runWarpRouteCheckFromRegistry({
   multiProvider,

@@ -15,9 +15,9 @@ import { getCore } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { getIgp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
+import { monorepoChecksConfig } from './monorepoChecks.js';
 import { chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -58,5 +58,5 @@ export const environment: EnvironmentConfig = {
   owners: chainOwners,
   infra: infrastructure,
   keyFunderConfig,
-  checkWarpDeployConfig,
+  monorepoChecksConfig,
 };

@@ -5,6 +5,9 @@ hyperlane:
   runEnv: mainnet3
   chains: []
   registryCommit: '' # Registry commit to use
+  checks:
+    - warp
+    - fastpath
 cronjob:
   schedule: '0 15 * * *'
   successfulJobsHistoryLimit: 3

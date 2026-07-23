@@ -342,14 +342,25 @@ export function getCheckerViolationsGaugeObj(metricsRegister: Registry) {
 // the composite as base64url and expose it as a single `alert_key` label. A NUL
 // separator is used so values containing spaces (e.g. some violation types)
 // cannot collide across different composites.
+export function checkerViolationAlertKey(parts: string[]): string {
+  return Buffer.from(parts.join('\u0000'), 'utf8').toString('base64url');
+}
+
+export function checkerViolationGroupings(
+  parts: string[],
+): Record<string, string> {
+  return {
+    alert_key: checkerViolationAlertKey(parts),
+  };
+}
+
 export function warpViolationAlertKey(
   warpRouteId: string,
   chain: string,
   contractName: string,
   type: string,
 ): string {
-  const composite = [warpRouteId, chain, contractName, type].join('\u0000');
-  return Buffer.from(composite, 'utf8').toString('base64url');
+  return checkerViolationAlertKey([warpRouteId, chain, contractName, type]);
 }
 
 export function warpViolationGroupings(
@@ -358,7 +369,5 @@ export function warpViolationGroupings(
   contractName: string,
   type: string,
 ): Record<string, string> {
-  return {
-    alert_key: warpViolationAlertKey(warpRouteId, chain, contractName, type),
-  };
+  return checkerViolationGroupings([warpRouteId, chain, contractName, type]);
 }
