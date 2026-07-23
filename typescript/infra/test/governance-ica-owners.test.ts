@@ -32,11 +32,14 @@ describe('verifyGovernanceIcaOwner', () => {
     return { getAccount } as unknown as InterchainAccount;
   }
 
-  // Minimal MultiProvider double: its provider is passed straight into the
-  // stubbed ISafe__factory.connect, so its value is irrelevant here.
-  function buildMultiProvider(): MultiProvider {
+  // Minimal MultiProvider double whose getProvider can be stubbed so a test can
+  // assert which chain's provider is fetched (it's passed into
+  // ISafe__factory.connect).
+  function buildMultiProvider(
+    getProvider: (chain: string) => unknown = () => ({}),
+  ): MultiProvider {
     // CAST: test double exercising only getProvider.
-    return { getProvider: () => ({}) } as unknown as MultiProvider;
+    return { getProvider } as unknown as MultiProvider;
   }
 
   function stubSafeThreshold(threshold: number) {
@@ -62,6 +65,9 @@ describe('verifyGovernanceIcaOwner', () => {
   it('accepts a matching ICA whose non-ethereum origin owner is a Safe with threshold > 1', async () => {
     const connectStub = stubSafeThreshold(3);
     const getAccountStub = sinon.stub().resolves(DECLARED_ICA);
+    // Sentinel provider so we can assert it flows origin -> getProvider -> connect.
+    const originProvider = { sentinel: 'arbitrum-provider' };
+    const getProviderStub = sinon.stub().returns(originProvider);
     // Origin is arbitrum, NOT ethereum — proves the origin comes from the
     // declaration and is never assumed to be ethereum.
     const accountConfig: AccountConfig = {
@@ -72,7 +78,7 @@ describe('verifyGovernanceIcaOwner', () => {
     const result = await verifyGovernanceIcaOwner({
       declaration: declaration(accountConfig),
       interchainAccount: buildIca(getAccountStub),
-      multiProvider: buildMultiProvider(),
+      multiProvider: buildMultiProvider(getProviderStub),
     });
 
     expect(result).to.deep.equal({ chain: DESTINATION, owner: DECLARED_ICA });
@@ -80,8 +86,12 @@ describe('verifyGovernanceIcaOwner', () => {
     expect(getAccountStub.calledOnceWith(DESTINATION, accountConfig)).to.equal(
       true,
     );
-    // Safe threshold was read against the declared origin owner.
-    expect(connectStub.calledOnceWith(ORIGIN_OWNER)).to.equal(true);
+    // The Safe RPC used the declared origin's provider: a reintroduced Ethereum
+    // hardcode (getProvider('ethereum')) would fail these assertions.
+    expect(getProviderStub.calledOnceWithExactly('arbitrum')).to.equal(true);
+    expect(connectStub.calledOnce).to.equal(true);
+    expect(connectStub.firstCall.args[0]).to.equal(ORIGIN_OWNER);
+    expect(connectStub.firstCall.args[1]).to.equal(originProvider);
   });
 
   it('fails closed for a matching ICA whose origin owner is a 1-of-1 Safe', async () => {
@@ -197,5 +207,41 @@ describe('resolveAcceptedInactiveOwners', () => {
     });
 
     expect(result).to.deep.equal([]);
+  });
+
+  it('skips resolution entirely when the declaration destination is outside the scoped chains', async () => {
+    const getAccountStub = sinon.stub().resolves(DECLARED_ICA);
+    const connectStub = sinon.stub(ISafe__factory, 'connect');
+
+    const result = await resolveAcceptedInactiveOwners({
+      warpRouteId: 'USDT/eclipsemainnet',
+      interchainAccount: buildIca(getAccountStub),
+      multiProvider: buildMultiProvider(),
+      // A --chains ethereum check of a route whose only declaration targets tron:
+      // the excluded leaf must never trigger derivation or the Safe RPC.
+      destinations: ['ethereum'],
+    });
+
+    expect(result).to.deep.equal([]);
+    expect(getAccountStub.notCalled).to.equal(true);
+    expect(connectStub.notCalled).to.equal(true);
+  });
+
+  it('resolves the declaration when its destination is within the scoped chains', async () => {
+    sinon.stub(ISafe__factory, 'connect').returns(
+      // CAST: only getThreshold() is read from the connected Safe.
+      {
+        getThreshold: async () => BigNumber.from(3),
+      } as ReturnType<typeof ISafe__factory.connect>,
+    );
+
+    const result = await resolveAcceptedInactiveOwners({
+      warpRouteId: 'USDT/eclipsemainnet',
+      interchainAccount: buildIca(async () => DECLARED_ICA),
+      multiProvider: buildMultiProvider(),
+      destinations: ['ethereum', 'tron'],
+    });
+
+    expect(result).to.deep.equal([{ chain: 'tron', owner: DECLARED_ICA }]);
   });
 });

@@ -126,17 +126,27 @@ export async function verifyGovernanceIcaOwner({
 // governance ICA declarations. Fail-closed: any uncertainty drops the owner
 // from the result so the ownerStatus violation still fires. A missing
 // declaration simply yields no accepted owners.
+//
+// When `destinations` is provided (e.g. a --chains-filtered check), only
+// declarations whose destination is in that set are resolved, so an excluded
+// leaf chain's ICA derivation and Safe RPC are never attempted.
 export async function resolveAcceptedInactiveOwners({
   warpRouteId,
   interchainAccount,
   multiProvider,
+  destinations,
 }: {
   warpRouteId: string;
   interchainAccount: InterchainAccount;
   multiProvider: MultiProvider;
+  destinations?: readonly ChainName[];
 }): Promise<AcceptedInactiveOwner[]> {
+  const allowedDestinations = destinations && new Set(destinations);
   const declarations = GOVERNANCE_ICA_OWNERS.filter(
-    (declaration) => declaration.warpRouteId === warpRouteId,
+    (declaration) =>
+      declaration.warpRouteId === warpRouteId &&
+      (!allowedDestinations ||
+        allowedDestinations.has(declaration.destination)),
   );
 
   const verdicts = await Promise.all(

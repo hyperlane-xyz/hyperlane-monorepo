@@ -308,11 +308,14 @@ async function runWarpRouteCheckFromRegistry({
   // state. The declaration is the source of intent; derivation/Safe checks are
   // fail-closed (see governance-ica-owners.ts). Without an ICA app we can't
   // derive, so nothing is accepted and the ownerStatus check runs unchanged.
+  // Scope resolution to the (possibly --chains-filtered) destinations so an
+  // excluded leaf chain's ICA derivation + Safe RPC are never attempted.
   const acceptedInactiveOwners = interchainAccount
     ? await resolveAcceptedInactiveOwners({
         warpRouteId,
         interchainAccount,
         multiProvider,
+        destinations: Object.keys(filteredConfigs.warpDeployConfig),
       })
     : undefined;
 
