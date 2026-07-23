@@ -34,6 +34,7 @@ interface BaseDockerTags extends AgentDockerTags {
 
 interface MainnetDockerTags extends BaseDockerTags {
   checkWarpDeploy: string;
+  validatorMonitor: string;
   warpMonitor: string;
   rebalancer: string;
   feeQuoting: string;
@@ -50,6 +51,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   scraper: 'e22be4b-20260715-194756',
   // monorepo services
   checkWarpDeploy: 'main',
+  validatorMonitor: 'main',
   // standalone services
   keyFunder: '5dc6aa4-20260714-184449',
   warpMonitor: '744b3bb-20260521-215958',
