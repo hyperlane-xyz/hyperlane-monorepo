@@ -541,18 +541,13 @@ export class EvmCoreModule extends HyperlaneModule<
     } = params;
     const chainName = multiProvider.getChainName(chain);
 
-    const domain = multiProvider.getDomainId(chainName);
-    const signerAddress = await multiProvider.getSignerAddress(chainName);
-    // ProxyAdmin rejects the Mailbox ISM/hook calls, making it a fail-closed
-    // placeholder while the owner deploys the real modules.
-    const mailbox = await deployer.deployProxiedContract(
-      chainName,
-      'mailbox',
-      'mailbox',
-      proxyAdmin,
-      [domain],
-      [signerAddress, proxyAdmin, proxyAdmin, proxyAdmin],
-    );
+    const {
+      mailbox,
+      mailboxOwner,
+      signerAddress,
+      signerIsOwner,
+      configuredMailboxOwner,
+    } = await deployer.deployMailboxProxy(chainName, config, proxyAdmin);
 
     // @todo refactor when 1) IsmModule is ready
     const deployedDefaultIsm = await deployer.deployIsm(
@@ -582,12 +577,6 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     const overrides = multiProvider.getTransactionOverrides(chainName);
-    const mailboxOwner = await mailbox.owner();
-    const signerIsOwner = eqAddress(mailboxOwner, signerAddress);
-    assert(
-      signerIsOwner || eqAddress(mailboxOwner, config.owner),
-      `Mailbox at ${mailbox.address} on ${chainName} has unexpected owner ${mailboxOwner}`,
-    );
     const configure = async (
       current: string,
       target: string,
@@ -613,10 +602,10 @@ export class EvmCoreModule extends HyperlaneModule<
       deployedRequiredHook.address,
       () => mailbox.setRequiredHook(deployedRequiredHook.address, overrides),
     );
-    if (signerIsOwner && !eqAddress(signerAddress, config.owner)) {
+    if (signerIsOwner && !eqAddress(signerAddress, configuredMailboxOwner)) {
       await multiProvider.handleTx(
         chainName,
-        mailbox.transferOwnership(config.owner, overrides),
+        mailbox.transferOwnership(configuredMailboxOwner, overrides),
       );
     }
     return mailbox;

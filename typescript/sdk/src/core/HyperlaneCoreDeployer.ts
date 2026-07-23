@@ -26,7 +26,7 @@ import {
   PERMIT2_ADDRESS,
   coreFactories,
 } from './contracts.js';
-import { CoreConfig } from './types.js';
+import { CoreConfig, getConfiguredMailboxOwner } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
@@ -69,11 +69,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super.cacheAddressesMap(addressesMap);
   }
 
-  async deployMailbox(
+  async deployMailboxProxy(
     chain: ChainName,
     config: CoreConfig,
     proxyAdmin: Address,
-  ): Promise<Mailbox> {
+  ) {
     const domain = this.multiProvider.getDomainId(chain);
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
     // ProxyAdmin is already deployed and rejects the Mailbox ISM/hook calls,
@@ -87,11 +87,31 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [signerAddress, proxyAdmin, proxyAdmin, proxyAdmin],
     );
     const mailboxOwner = await mailbox.owner();
-    const expectedMailboxOwner = config.ownerOverrides?.mailbox ?? config.owner;
+    const expectedMailboxOwner = getConfiguredMailboxOwner(config);
     assert(
       eqAddress(mailboxOwner, signerAddress) ||
         eqAddress(mailboxOwner, expectedMailboxOwner),
       `Mailbox at ${mailbox.address} on ${chain} has unexpected owner ${mailboxOwner}`,
+    );
+
+    return {
+      mailbox,
+      mailboxOwner,
+      signerAddress,
+      signerIsOwner: eqAddress(mailboxOwner, signerAddress),
+      configuredMailboxOwner: expectedMailboxOwner,
+    };
+  }
+
+  async deployMailbox(
+    chain: ChainName,
+    config: CoreConfig,
+    proxyAdmin: Address,
+  ): Promise<Mailbox> {
+    const { mailbox } = await this.deployMailboxProxy(
+      chain,
+      config,
+      proxyAdmin,
     );
 
     let defaultIsm = await mailbox.defaultIsm();

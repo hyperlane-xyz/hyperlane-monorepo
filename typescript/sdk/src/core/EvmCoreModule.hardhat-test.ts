@@ -15,6 +15,7 @@ import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -22,6 +23,7 @@ import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
+import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { PERMIT2_ADDRESS } from './contracts.js';
 import { CoreConfig, CoreConfigHookFieldKey } from './types.js';
 
@@ -144,6 +146,40 @@ describe('EvmCoreModule', async () => {
 
     it('should set mailbox owner to config owner', async () => {
       expect(await mailboxContract.owner()).to.equal(config.owner);
+    });
+
+    it('should recover a mailbox owned by its configured owner override', async () => {
+      const [, topLevelOwner, mailboxOwner] = await hre.ethers.getSigners();
+      const ownerOverrideConfig: CoreConfig = {
+        ...config,
+        owner: topLevelOwner.address,
+        defaultIsm: await mailboxContract.defaultIsm(),
+        defaultHook: await mailboxContract.defaultHook(),
+        requiredHook: await mailboxContract.requiredHook(),
+        ownerOverrides: {
+          ...config.ownerOverrides,
+          mailbox: mailboxOwner.address,
+        },
+      };
+      const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+        { [CHAIN]: evmCoreModule.serialize() },
+        multiProvider,
+      );
+      const deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+      const proxyAdmin = await deployer.deployContract(CHAIN, 'proxyAdmin', []);
+      const params = {
+        config: ownerOverrideConfig,
+        proxyAdmin: proxyAdmin.address,
+        coreDeployer: deployer,
+        multiProvider,
+        chain: CHAIN,
+      };
+
+      const initial = await EvmCoreModule.deployMailbox(params);
+      const recovered = await EvmCoreModule.deployMailbox(params);
+
+      expect(recovered.address).to.equal(initial.address);
+      expect(await recovered.owner()).to.equal(mailboxOwner.address);
     });
 
     it('should deploy mailbox default Ism', async () => {

@@ -57,7 +57,7 @@ contract ECDSAStakeRegistry is
     /// @notice Atomically establishes proxy ownership before AVS dependencies are deployed.
     function initializeOwner(address _owner) external initializer {
         __Ownable_init();
-        transferOwnership(_owner);
+        _transferOwnership(_owner);
     }
 
     /// @notice Configures the service manager and initial quorum after ownership is established.
