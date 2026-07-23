@@ -1,4 +1,8 @@
 // import { expect } from 'chai';
+import {
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish, constants, providers } from 'ethers';
@@ -217,6 +221,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async updateSplit(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
+    sealevelCctpMints: Record<number, string> = {},
   ): Promise<WarpUpdateResult> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
@@ -307,6 +312,11 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
+      ...(await this.createCctpMintRecipientOverrideUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        sealevelCctpMints,
+      )),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
       // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
@@ -337,10 +347,12 @@ export class EvmWarpModule extends HyperlaneModule<
   async update(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
+    sealevelCctpMints?: Record<number, string>,
   ): Promise<AnnotatedEV5Transaction[]> {
     const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
       expectedConfig,
       tokenReaderParams,
+      sealevelCctpMints,
     );
     // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
     // execute before the router owner changes.
@@ -2201,6 +2213,113 @@ export class EvmWarpModule extends HyperlaneModule<
         data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
           'setCctpAuthorityOverride',
           [Number(domain), authority],
+        ),
+      });
+    }
+
+    return txs;
+  }
+
+  /**
+   * Auto-derives and sets the CCTP mint-recipient override for enrolled
+   * Sealevel remote routers: the `ata_payer` PDA's own ATA for that route's
+   * USDC mint — a program-controlled vault (see
+   * `hyperlane-sealevel-token-cctp`'s `ism.rs` module docs for why
+   * `mint_recipient` can never be the real recipient's own ATA on Solana —
+   * Circle's own receive-side check requires it to already exist, which a
+   * wallet-tied ATA can't guarantee, but a program-controlled vault can by
+   * creating itself idempotently on demand). Only emits a tx when unset,
+   * since the value is set-once on-chain.
+   *
+   * `sealevelCctpMints` maps each Sealevel Hyperlane domain to that chain's
+   * own USDC mint address — unlike the authority override above, this can't
+   * be derived from `expectedConfig` alone (that's this EVM chain's own
+   * config slice; the mint is a property of the *remote* Sealevel chain's
+   * own config), so the caller (warp deploy/apply) passes it in from the
+   * full multi-chain deploy config. Domains missing an entry are skipped.
+   *
+   * The SPL token program is assumed to be the classic Token program, not
+   * Token-2022 — true of every real Circle-issued USDC mint on Solana, so
+   * not worth a live RPC read of the mint account's owner just to confirm.
+   */
+  async createCctpMintRecipientOverrideUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+    sealevelCctpMints: Record<number, string>,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (!isCctpTokenConfig(expectedConfig) || !expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    const expectedRemoteRouters = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteRouters,
+    );
+
+    const sealevelRemoteRouters = Object.entries(expectedRemoteRouters).filter(
+      ([domain]) =>
+        this.multiProvider.getProtocol(Number(domain)) ===
+        ProtocolType.Sealevel,
+    );
+
+    if (sealevelRemoteRouters.length === 0) {
+      return [];
+    }
+
+    const contract = TokenBridgeCctpV2__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    const txs: AnnotatedEV5Transaction[] = [];
+    for (const [domain, { address }] of sealevelRemoteRouters) {
+      // Same set-once reasoning as `createCctpAuthorityOverrideUpdateTxs` —
+      // a revert here just means the getter doesn't exist yet on a
+      // pre-upgrade implementation, safe to treat as unset.
+      let currentOverride = ZERO_ADDRESS_HEX_32;
+      try {
+        currentOverride = await contract.cctpMintRecipientOverrides(
+          Number(domain),
+        );
+      } catch (error) {
+        this.logger.debug(
+          `cctpMintRecipientOverrides call failed on ${this.args.chain}, ` +
+            `assuming pre-upgrade implementation and treating domain ${domain} as unset`,
+          { error },
+        );
+      }
+      if (currentOverride !== ZERO_ADDRESS_HEX_32) {
+        continue;
+      }
+
+      const mint = sealevelCctpMints[Number(domain)];
+      if (!mint) {
+        this.logger.debug(
+          `No Solana USDC mint provided for Sealevel domain ${domain} — skipping cctpMintRecipientOverrides on ${this.args.chain}`,
+        );
+        continue;
+      }
+
+      const programPubKey = new PublicKey(Buffer.from(strip0x(address), 'hex'));
+      const ataPayerPda = BaseSealevelAdapter.derivePda(
+        ['hyperlane_token_cctp', '-', 'ata_payer'],
+        programPubKey,
+      );
+      const vaultAta = getAssociatedTokenAddressSync(
+        new PublicKey(mint),
+        ataPayerPda,
+        true, // allowOwnerOffCurve — ataPayerPda is a PDA, never a real keypair
+        TOKEN_PROGRAM_ID,
+      );
+      const mintRecipient = `0x${vaultAta.toBuffer().toString('hex')}`;
+
+      txs.push({
+        chainId: this.chainId,
+        annotation: `Setting CCTP mint-recipient override ${mintRecipient} (Sealevel ata_payer vault ATA) for Hyperlane domain ${domain} on ${this.args.chain}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setCctpMintRecipientOverride',
+          [Number(domain), mintRecipient],
         ),
       });
     }

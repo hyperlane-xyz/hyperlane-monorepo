@@ -69,6 +69,8 @@ abstract contract TokenBridgeCctpBase is
     error InvalidPostDispatchSender();
     error CctpAuthorityOverrideAlreadySet();
     error InvalidCctpAuthorityOverride();
+    error CctpMintRecipientOverrideAlreadySet();
+    error InvalidCctpMintRecipientOverride();
 
     uint256 private constant _SCALE = 1;
 
@@ -100,6 +102,18 @@ abstract contract TokenBridgeCctpBase is
     /// Set-once and permanent per domain.
     mapping(uint32 hyperlaneDomain => bytes32) public cctpAuthorityOverrides;
 
+    /// @notice Per-domain override of the CCTP `mintRecipient` used for
+    /// outbound burns (see `transferRemote`). Needed for destinations like
+    /// Sealevel where a wallet cannot receive an SPL mint directly — the
+    /// override points to a program-controlled vault instead of the real
+    /// recipient, and that program forwards funds on to the real recipient
+    /// after minting (see `hyperlane-sealevel-token-cctp`'s `ism.rs` module
+    /// docs). Falls back to the transfer's own `_recipient` when unset,
+    /// which is correct for EVM-like destinations where recipient and
+    /// mintRecipient are the same address. Set-once and permanent per domain.
+    mapping(uint32 hyperlaneDomain => bytes32)
+        public cctpMintRecipientOverrides;
+
     /**
      * @notice Emitted when a CCTP authority override is set for a domain.
      * @param hyperlaneDomain The Hyperlane domain.
@@ -108,6 +122,17 @@ abstract contract TokenBridgeCctpBase is
     event CctpAuthorityOverrideSet(
         uint32 indexed hyperlaneDomain,
         bytes32 authority
+    );
+
+    /**
+     * @notice Emitted when a CCTP mint-recipient override is set for a domain.
+     * @param hyperlaneDomain The Hyperlane domain.
+     * @param mintRecipient The address now used as Circle's `mintRecipient`
+     * for outbound burns to that domain, instead of the transfer's own recipient.
+     */
+    event CctpMintRecipientOverrideSet(
+        uint32 indexed hyperlaneDomain,
+        bytes32 mintRecipient
     );
 
     /**
@@ -184,9 +209,15 @@ abstract contract TokenBridgeCctpBase is
             : ism;
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint256 burnAmount = _amount + externalFee;
+        bytes32 mintRecipientOverride = cctpMintRecipientOverrides[
+            _destination
+        ];
+        bytes32 circleMintRecipient = mintRecipientOverride != bytes32(0)
+            ? mintRecipientOverride
+            : _recipient;
         _bridgeViaCircle(
             circleDomain,
-            _recipient,
+            circleMintRecipient,
             burnAmount,
             externalFee,
             destinationCaller
@@ -258,6 +289,26 @@ abstract contract TokenBridgeCctpBase is
             revert CctpAuthorityOverrideAlreadySet();
         cctpAuthorityOverrides[_hyperlaneDomain] = _authority;
         emit CctpAuthorityOverrideSet(_hyperlaneDomain, _authority);
+    }
+
+    /**
+     * @notice Sets the CCTP mint-recipient override for a domain (see
+     * `cctpMintRecipientOverrides` doc comment). Settable only once per
+     * domain — permanent, same rationale as `setCctpAuthorityOverride`.
+     * @param _hyperlaneDomain The Hyperlane domain.
+     * @param _mintRecipient The address to use as Circle's `mintRecipient`
+     * for outbound burns to this domain.
+     */
+    function setCctpMintRecipientOverride(
+        uint32 _hyperlaneDomain,
+        bytes32 _mintRecipient
+    ) external onlyOwner {
+        if (_mintRecipient == bytes32(0))
+            revert InvalidCctpMintRecipientOverride();
+        if (cctpMintRecipientOverrides[_hyperlaneDomain] != bytes32(0))
+            revert CctpMintRecipientOverrideAlreadySet();
+        cctpMintRecipientOverrides[_hyperlaneDomain] = _mintRecipient;
+        emit CctpMintRecipientOverrideSet(_hyperlaneDomain, _mintRecipient);
     }
 
     function hyperlaneDomainToCircleDomain(

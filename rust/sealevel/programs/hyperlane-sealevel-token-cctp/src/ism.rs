@@ -16,8 +16,8 @@
 //! `remote_token_messenger` registry (see `circle.rs` module docs). What
 //! this ISM *does* need to check, that Circle's programs know nothing
 //! about, is that the accompanying Hyperlane `TokenMessage` actually
-//! describes the same transfer as the CCTP `BurnMessage` (amount, recipient)
-//! — mirroring EVM's `_validateTokenMessage`.
+//! describes the same transfer as the CCTP `BurnMessage` (amount) —
+//! mirroring EVM's `_validateTokenMessage`.
 //!
 //! `Verify()`'s two CPI-signer roles (Circle's own `payer`/`caller` params
 //! for `receive_message`) are **not** externally-supplied signer accounts —
@@ -28,6 +28,8 @@
 //! So both roles are filled by this program's own `ata_payer` PDA, signed
 //! for internally via `invoke_signed`.
 //!
+//! ## `mint_recipient` is a program-owned vault, not the end recipient
+//!
 //! `BurnMessage.mint_recipient` is the destination **token account**
 //! address directly, not a wallet — this is Circle's own real Solana CCTP
 //! v2 behavior (`handle_receive_finalized_message.rs`'s
@@ -36,9 +38,28 @@
 //! convention. On EVM a CCTP recipient IS a wallet because ERC20 balances
 //! live at the wallet's own address; Solana SPL balances live in separate
 //! token accounts, so `mint_recipient` means something different per chain.
-//! The destination token account must already exist — same as any plain
-//! SPL transfer — which is the sender's responsibility (see the EVM-side
-//! adapter, which resolves a wallet to its ATA before dispatch).
+//!
+//! Circle's check permanently fixes `mint_recipient` at burn time on the
+//! origin chain and never creates the account it names. If `mint_recipient`
+//! were the real recipient's own ATA, a transfer to a wallet that has never
+//! held this mint before would fail outright, since nothing would exist to
+//! create that ATA on the recipient's behalf. To avoid depending on the
+//! recipient's ATA already existing, `mint_recipient` is instead always set
+//! (on the EVM side, via `TokenBridgeCctpBase.cctpMintRecipientOverrides`)
+//! to this program's own `ata_payer` PDA's ATA — a program-controlled vault
+//! this instruction idempotently creates itself, every time, before
+//! Circle's CPI runs, so it always exists regardless of prior activity.
+//! After Circle mints into the vault, this instruction forwards the funds
+//! on to the real recipient's ATA in the same atomic transaction — creating
+//! *that* ATA idempotently too, which is what actually closes the "never
+//! held this mint before" gap. If either idempotent-create or the forward
+//! transfer fails, the whole transaction reverts; there's no window where
+//! funds are left stuck in the vault.
+//!
+//! The real recipient's wallet address travels unmodified through the
+//! Hyperlane `TokenMessage.recipient()` field (untouched by the EVM-side
+//! override, which only redirects Circle's `mintRecipient` argument) —
+//! that's how this instruction knows who to forward to.
 
 use account_utils::AccountInfoExt;
 use borsh::BorshDeserialize;
@@ -58,7 +79,11 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
-use spl_associated_token_account::get_associated_token_address_with_program_id;
+use spl_associated_token_account::{
+    get_associated_token_address_with_program_id,
+    instruction::create_associated_token_account_idempotent,
+};
+use spl_token_2022::instruction::transfer_checked;
 
 use crate::{
     accounts::derive_stage_metadata_pda,
@@ -201,51 +226,64 @@ fn ism_type() -> ProgramResult {
 ///     PDA (checked against `mint_info`, below).
 /// 2.  `[writable]` This program's `ata_payer` PDA (derived, checked) —
 ///     internally signs (via `invoke_signed`) both of Circle's
-///     `payer`/`caller` roles for `receive_message`.
-/// 3.  `[writable]` The recipient's token account — `BurnMessage.mint_recipient`
-///     directly (checked), not derived. See module docs: on Solana,
-///     `mint_recipient` already *is* the destination token account address,
-///     which must already exist (Circle's own program never creates it).
-/// 4.  `[writable]` The USDC mint (checked against our own config, account 1).
-/// 5.  `[executable]` The SPL token program (token or token-2022).
-/// 6.  `[executable]` The system program.
-/// 7.  `[writable]` Circle's `message_transmitter` config PDA (derived, checked).
-/// 8.  `[writable]` Circle's `used_nonce` PDA (derived from the parsed CCTP
+///     `payer`/`caller` roles for `receive_message`, both idempotent ATA
+///     creations below, and the forwarding transfer.
+/// 3.  `[writable]` This program's vault token account — `ata_payer`'s own
+///     ATA for the USDC mint (derived, checked). `BurnMessage.mint_recipient`
+///     directly (checked) — see module docs on why `mint_recipient` is
+///     always this vault, never the end recipient's own ATA. Idempotently
+///     created by this instruction if it doesn't already exist.
+/// 4.  `[]` The real recipient's wallet — `TokenMessage.recipient()`
+///     directly (checked); not itself read, only supplied as the owner
+///     input needed to derive/create account 5.
+/// 5.  `[writable]` The real recipient's token account — the ATA of
+///     account 4 for the USDC mint (derived, checked). Idempotently created
+///     by this instruction if it doesn't already exist — this is what lets
+///     a transfer succeed even when the recipient has never held this mint
+///     before. Funds are forwarded here from the vault (account 3) after
+///     Circle's CPI mints into it.
+/// 6.  `[writable]` The USDC mint (checked against our own config, account 1).
+/// 7.  `[executable]` The SPL token program (token or token-2022).
+/// 8.  `[executable]` The SPL associated-token-account program (needed for
+///     the two idempotent ATA creations above).
+/// 9.  `[executable]` The system program.
+/// 10. `[writable]` Circle's `message_transmitter` config PDA (derived, checked).
+/// 11. `[writable]` Circle's `used_nonce` PDA (derived from the parsed CCTP
 ///     message's nonce, checked).
-/// 9.  `[]` Circle's `authority_pda` (derived, checked — `MessageTransmitterV2`'s
+/// 12. `[]` Circle's `authority_pda` (derived, checked — `MessageTransmitterV2`'s
 ///     own signer for its internal CPI into `TokenMessengerMinterV2`, never
 ///     signed by us).
-/// 10. `[]` Circle's `token_messenger` singleton config (derived, checked).
-/// 11. `[]` Circle's `remote_token_messenger` PDA for the burn's source
+/// 13. `[]` Circle's `token_messenger` singleton config (derived, checked).
+/// 14. `[]` Circle's `remote_token_messenger` PDA for the burn's source
 ///     domain (derived, checked).
-/// 12. `[]` Circle's `token_minter` singleton config (derived, checked).
-/// 13. `[writable]` Circle's `local_token` PDA for the USDC mint (derived,
+/// 15. `[]` Circle's `token_minter` singleton config (derived, checked).
+/// 16. `[writable]` Circle's `local_token` PDA for the USDC mint (derived,
 ///     checked).
-/// 14. `[writable]` Circle's `token_pair` PDA for `(source_domain,
+/// 17. `[writable]` Circle's `token_pair` PDA for `(source_domain,
 ///     burn_token)` (derived, checked).
-/// 15. `[writable]` Circle's fee-recipient token account — the ATA of
+/// 18. `[writable]` Circle's fee-recipient token account — the ATA of
 ///     `token_messenger`'s mutable `fee_recipient` field (read from account
-///     10's data, then derived as a standard ATA; checked). Unlike the
-///     end-recipient (account 3), this one really is a wallet-derived ATA —
+///     13's data, then derived as a standard ATA; checked). Unlike the
+///     vault (account 3), this one really is a wallet-derived ATA —
 ///     `fee_recipient` is Circle's own admin-set wallet, a separate case
-///     from the end-recipient's token account.
-/// 16. `[writable]` Circle's `custody_token_account` PDA for the USDC mint
+///     from the vault/end-recipient accounts.
+/// 19. `[writable]` Circle's `custody_token_account` PDA for the USDC mint
 ///     (derived, checked).
-/// 17. `[]` Circle's event-CPI `event_authority` PDA (derived, checked) —
+/// 20. `[]` Circle's event-CPI `event_authority` PDA (derived, checked) —
 ///     `TokenMessengerMinterV2`'s own, for its `handle_receive_finalized_message`
 ///     `#[event_cpi]`.
-/// 18. `[executable]` `TokenMessengerMinterV2`'s own program account
+/// 21. `[executable]` `TokenMessengerMinterV2`'s own program account
 ///     (checked against the constant program ID — used both as the
 ///     `receive_message` `receiver` and as the event-CPI `program` account;
 ///     one `AccountInfo` covers both `AccountMeta` occurrences).
-/// 19. `[executable]` `MessageTransmitterV2`'s own program account (derived,
+/// 22. `[executable]` `MessageTransmitterV2`'s own program account (derived,
 ///     checked) — required for `invoke_signed` to locate/call it as the
 ///     `receive_message` CPI target.
-/// 20. `[]` `MessageTransmitterV2`'s own event-CPI `event_authority` PDA
+/// 23. `[]` `MessageTransmitterV2`'s own event-CPI `event_authority` PDA
 ///     (derived, checked) — its `receive_message` instruction is itself
 ///     `#[event_cpi]`-annotated for its own `emit_cpi!(MessageReceived)`,
-///     distinct from account 17 above (different program, different PDA).
-/// 21. `[writable]` The staged `{message, attestation}` PDA (derived from
+///     distinct from account 20 above (different program, different PDA).
+/// 24. `[writable]` The staged `{message, attestation}` PDA (derived from
 ///     the Hyperlane message id, checked) — written ahead of time by
 ///     `StageVerifyMetadata`; read here instead of accepting the payload
 ///     inline, and closed (rent refunded to account 2) once consumed. See
@@ -261,9 +299,12 @@ fn verify(
     let _vam_pda_info = next_account_info(accounts_iter)?;
     let token_config_info = next_account_info(accounts_iter)?;
     let ata_payer_info = next_account_info(accounts_iter)?;
+    let vault_token_account_info = next_account_info(accounts_iter)?;
+    let recipient_wallet_info = next_account_info(accounts_iter)?;
     let recipient_token_account_info = next_account_info(accounts_iter)?;
     let mint_info = next_account_info(accounts_iter)?;
     let token_program_info = next_account_info(accounts_iter)?;
+    let associated_token_program_info = next_account_info(accounts_iter)?;
     let system_program_info = next_account_info(accounts_iter)?;
     let message_transmitter_info = next_account_info(accounts_iter)?;
     let used_nonce_info = next_account_info(accounts_iter)?;
@@ -305,19 +346,18 @@ fn verify(
     // Cross-validate against the accompanying Hyperlane TokenMessage — this
     // is NOT something Circle's programs check; it's what ties the two
     // independently-dispatched artifacts (CCTP burn + Hyperlane message) to
-    // the same real transfer. Mirrors EVM's `_validateTokenMessage`.
+    // the same real transfer. Mirrors EVM's `_validateTokenMessage`, minus
+    // the recipient == mint_recipient comparison it does — that's no longer
+    // true by design here (see module docs) — replaced below by checking
+    // the real recipient against the *forwarding* destination (account 5)
+    // instead of the CPI target (account 3).
     let token_message = TokenMessage::read_from(&mut &message.body[..])
         .map_err(|_| ProgramError::InvalidArgument)?;
     if token_message.amount() != burn_message.amount.into() {
         return Err(ProgramError::InvalidInstructionData);
     }
-    let expected_recipient = Pubkey::new_from_array(token_message.recipient().into());
-    if expected_recipient != burn_message.mint_recipient {
-        return Err(ProgramError::InvalidInstructionData);
-    }
-    // `mint_recipient` IS the destination token account address on Solana —
-    // see module docs. Not derived; checked directly.
-    if *recipient_token_account_info.key != burn_message.mint_recipient {
+    let expected_recipient_wallet = Pubkey::new_from_array(token_message.recipient().into());
+    if *recipient_wallet_info.key != expected_recipient_wallet {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -395,6 +435,33 @@ fn verify(
         return Err(ProgramError::InvalidArgument);
     }
 
+    if *associated_token_program_info.key != spl_associated_token_account::id() {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let expected_vault_token_account = get_associated_token_address_with_program_id(
+        &ata_payer_key,
+        mint_info.key,
+        token_program_info.key,
+    );
+    if *vault_token_account_info.key != expected_vault_token_account {
+        return Err(ProgramError::InvalidArgument);
+    }
+    // `mint_recipient` must be our own vault, never the end recipient's own
+    // ATA — see module docs on why.
+    if burn_message.mint_recipient != expected_vault_token_account {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let expected_recipient_token_account = get_associated_token_address_with_program_id(
+        &expected_recipient_wallet,
+        mint_info.key,
+        token_program_info.key,
+    );
+    if *recipient_token_account_info.key != expected_recipient_token_account {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     let expected_fee_recipient_token_account = {
         let fee_recipient =
             circle::parse_token_messenger_fee_recipient(&token_messenger_info.data.borrow())?;
@@ -408,6 +475,30 @@ fn verify(
         return Err(ProgramError::InvalidArgument);
     }
 
+    // Ensure the vault exists before Circle's CPI needs it — unlike a
+    // wallet-tied ATA, this account is entirely under our own control, so
+    // it's always safe to idempotently create it right here rather than
+    // depending on some prior transaction (e.g. an outbound
+    // transfer_remote_with_memo call) having already done so.
+    invoke_signed(
+        &create_associated_token_account_idempotent(
+            ata_payer_info.key,
+            ata_payer_info.key,
+            mint_info.key,
+            token_program_info.key,
+        ),
+        &[
+            ata_payer_info.clone(),
+            vault_token_account_info.clone(),
+            ata_payer_info.clone(),
+            mint_info.clone(),
+            system_program_info.clone(),
+            token_program_info.clone(),
+        ],
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
+    account_utils::verify_rent_exempt(ata_payer_info, &Rent::get()?)?;
+
     let remaining_accounts = handle_receive_message_remaining_accounts(
         *token_messenger_info.key,
         header.source_domain,
@@ -415,7 +506,7 @@ fn verify(
         *token_minter_info.key,
         *mint_info.key,
         *fee_recipient_token_account_info.key,
-        *recipient_token_account_info.key,
+        *vault_token_account_info.key,
         *token_program_info.key,
     );
 
@@ -448,7 +539,7 @@ fn verify(
         local_token_info.clone(),
         token_pair_info.clone(),
         fee_recipient_token_account_info.clone(),
-        recipient_token_account_info.clone(),
+        vault_token_account_info.clone(),
         custody_token_account_info.clone(),
         token_program_info.clone(),
         event_authority_info.clone(),
@@ -460,6 +551,60 @@ fn verify(
     invoke_signed(
         &ixn,
         &cpi_accounts,
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
+
+    // Forward the minted USDC from the vault to the real recipient,
+    // creating their ATA on demand if this is the first time they've held
+    // this mint — the reason the vault hop exists at all (see module docs:
+    // `mint_recipient` itself can never be auto-created by Circle's own
+    // program, but this instruction fully controls the vault, so it can
+    // always ensure it exists, then move funds on from there).
+    invoke_signed(
+        &create_associated_token_account_idempotent(
+            ata_payer_info.key,
+            recipient_wallet_info.key,
+            mint_info.key,
+            token_program_info.key,
+        ),
+        &[
+            ata_payer_info.clone(),
+            recipient_token_account_info.clone(),
+            recipient_wallet_info.clone(),
+            mint_info.clone(),
+            system_program_info.clone(),
+            token_program_info.clone(),
+        ],
+        &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
+    account_utils::verify_rent_exempt(ata_payer_info, &Rent::get()?)?;
+
+    // Circle only mints `amount - fee_executed` into `mint_recipient` (our
+    // vault) — `fee_executed` goes to `fee_recipient_token_account`
+    // separately, inside the CPI above. Forwarding the gross `amount`
+    // instead of this net amount overdraws the vault and fails with
+    // `TokenError::InsufficientFunds`.
+    let net_amount = burn_message
+        .amount
+        .checked_sub(burn_message.fee_executed)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    invoke_signed(
+        &transfer_checked(
+            token_program_info.key,
+            vault_token_account_info.key,
+            mint_info.key,
+            recipient_token_account_info.key,
+            ata_payer_info.key,
+            &[],
+            net_amount,
+            token_config.decimals,
+        )?,
+        &[
+            vault_token_account_info.clone(),
+            mint_info.clone(),
+            recipient_token_account_info.clone(),
+            ata_payer_info.clone(),
+        ],
         &[hyperlane_token_cctp_ata_payer_pda_seeds!(ata_payer_bump)],
     )?;
 
@@ -479,12 +624,12 @@ fn verify(
 /// Resolved over the fixpoint loop `get_ism_verify_account_metas` runs
 /// (`hyperlane-sealevel/src/provider.rs`): round 1 supplies only the generic
 /// VAM PDA (account 0), our token config PDA (account 1), and the staging
-/// PDA (account 21, derived purely from the Hyperlane message id — no
+/// PDA (account 24, derived purely from the Hyperlane message id — no
 /// on-chain data needed for that). Once fed back, our persistent token
 /// config and the staging PDA's own content (Circle's message/attestation,
 /// written by `StageVerifyMetadata` ahead of this call) become readable,
 /// unblocking everything derived from them; a round later, Circle's
-/// `token_messenger` singleton (account 10, needed to read its mutable
+/// `token_messenger` singleton (account 13, needed to read its mutable
 /// `fee_recipient` field) does too. Converges in a small, fixed number of
 /// rounds — see module docs. `metadata` is unused (see module docs on why).
 fn verify_account_metas(
@@ -493,9 +638,12 @@ fn verify_account_metas(
     _metadata: &[u8],
     message: &[u8],
 ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
-    let message_id = HyperlaneMessage::read_from(&mut &message[..])
-        .map_err(|_| ProgramError::InvalidArgument)?
-        .id();
+    let hyperlane_message = HyperlaneMessage::read_from(&mut &message[..])
+        .map_err(|_| ProgramError::InvalidArgument)?;
+    let message_id = hyperlane_message.id();
+    let token_message = TokenMessage::read_from(&mut &hyperlane_message.body[..])
+        .map_err(|_| ProgramError::InvalidArgument)?;
+    let recipient_wallet = Pubkey::new_from_array(token_message.recipient().into());
 
     let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
     let (token_config_pda, _) = Pubkey::find_program_address(
@@ -548,24 +696,28 @@ fn verify_account_metas(
     let (event_authority_key, _) =
         circle::derive_event_authority_pda(&circle::token_messenger_minter::ID);
 
-    // `mint_recipient` IS the destination token account address on Solana —
-    // not a wallet to derive an ATA from. See module docs.
-    let recipient_token_account = burn_message.mint_recipient;
+    let vault_token_account =
+        get_associated_token_address_with_program_id(&ata_payer_key, &mint, &spl_token_program);
+    let recipient_token_account =
+        get_associated_token_address_with_program_id(&recipient_wallet, &mint, &spl_token_program);
 
-    // Positions 0-14 exactly, matching `verify()`'s parse order. Everything
-    // from `fee_recipient_token_account` (15) onward is appended below, in
+    // Positions 0-17 exactly, matching `verify()`'s parse order. Everything
+    // from `fee_recipient_token_account` (18) onward is appended below, in
     // order — NOT included here — since `fee_recipient_token_account`'s
     // value depends on `token_messenger`'s live data (fetched in a later
-    // round), and it must land at position 15, not after the accounts that
+    // round), and it must land at position 18, not after the accounts that
     // don't depend on it (custody/event_authority/program accounts at
-    // 16-20, which final `verify()` expects strictly after it).
+    // 19-23, which final `verify()` expects strictly after it).
     let mut result: Vec<SerializableAccountMeta> = vec![
         AccountMeta::new_readonly(vam_pda, false).into(),
         AccountMeta::new_readonly(token_config_pda, false).into(),
         AccountMeta::new(ata_payer_key, false).into(),
+        AccountMeta::new(vault_token_account, false).into(),
+        AccountMeta::new_readonly(recipient_wallet, false).into(),
         AccountMeta::new(recipient_token_account, false).into(),
         AccountMeta::new(mint, false).into(),
         AccountMeta::new_readonly(spl_token_program, false).into(),
+        AccountMeta::new_readonly(spl_associated_token_account::id(), false).into(),
         AccountMeta::new_readonly(solana_system_interface::program::ID, false).into(),
         AccountMeta::new(message_transmitter_key, false).into(),
         AccountMeta::new(used_nonce_key, false).into(),
@@ -589,7 +741,7 @@ fn verify_account_metas(
         // of this function fails, falling back to `base` and oscillating
         // between the two forever instead of converging. Its position here
         // doesn't matter (only the final, fully-resolved response's
-        // position 21 does) — this response is discarded once resolved.
+        // position 24 does) — this response is discarded once resolved.
         _ => {
             result.push(AccountMeta::new(stage_pda, false).into());
             return Ok(result);
@@ -597,13 +749,13 @@ fn verify_account_metas(
     };
     let (message_transmitter_event_authority_key, _) =
         circle::derive_event_authority_pda(&circle::message_transmitter::ID);
-    result.push(AccountMeta::new(fee_recipient_token_account, false).into()); // 15
-    result.push(AccountMeta::new(custody_key, false).into()); // 16
-    result.push(AccountMeta::new_readonly(event_authority_key, false).into()); // 17
-    result.push(AccountMeta::new_readonly(circle::token_messenger_minter::ID, false).into()); // 18
-    result.push(AccountMeta::new_readonly(circle::message_transmitter::ID, false).into()); // 19
-    result.push(AccountMeta::new_readonly(message_transmitter_event_authority_key, false).into()); // 20
-    result.push(AccountMeta::new(stage_pda, false).into()); // 21
+    result.push(AccountMeta::new(fee_recipient_token_account, false).into()); // 18
+    result.push(AccountMeta::new(custody_key, false).into()); // 19
+    result.push(AccountMeta::new_readonly(event_authority_key, false).into()); // 20
+    result.push(AccountMeta::new_readonly(circle::token_messenger_minter::ID, false).into()); // 21
+    result.push(AccountMeta::new_readonly(circle::message_transmitter::ID, false).into()); // 22
+    result.push(AccountMeta::new_readonly(message_transmitter_event_authority_key, false).into()); // 23
+    result.push(AccountMeta::new(stage_pda, false).into()); // 24
 
     Ok(result)
 }

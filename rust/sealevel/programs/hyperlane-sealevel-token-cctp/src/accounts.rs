@@ -85,9 +85,13 @@ pub fn derive_stage_metadata_pda(program_id: &Pubkey, message_id: &[u8; 32]) -> 
 }
 
 /// Plugin data for the Hyperlane token program's generic `HyperlaneToken<T>`
-/// wrapper. Deliberately minimal: no escrow/pooled balance (unlike
-/// `CollateralPlugin`) — CCTP burns/mints native USDC directly via Circle's
-/// real programs, so there's nothing for this program to custody.
+/// wrapper. Deliberately minimal — no escrow/pooled balance is stored here
+/// (unlike `CollateralPlugin`); CCTP burns/mints native USDC directly via
+/// Circle's real programs. `ism.rs`'s `Verify()` does briefly custody funds
+/// in a vault (the `ata_payer` PDA's own ATA) between Circle's mint and the
+/// same-transaction forward to the real recipient, but that's ephemeral —
+/// created and emptied atomically per message — so it needs no persistent
+/// state of its own here.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct CctpPlugin {
     /// The SPL token program for the USDC mint (token or token-2022).

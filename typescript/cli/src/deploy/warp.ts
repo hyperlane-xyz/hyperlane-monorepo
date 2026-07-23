@@ -54,6 +54,7 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
+  isCctpTokenConfig,
   isCrossCollateralTokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
@@ -781,6 +782,26 @@ async function updateExistingWarpRoute(
     deployedRoutersAddresses,
   });
 
+  // For EVM CCTP chains routing to Sealevel: the Sealevel side's own USDC
+  // mint address, keyed by Hyperlane domain — needed to auto-derive that
+  // domain's `cctpMintRecipientOverrides` vault ATA (see
+  // `EvmWarpModule.createCctpMintRecipientOverrideUpdateTxs`). Not
+  // derivable from any single chain's own config slice, so computed once
+  // here from the full multi-chain map and passed down to every EVM chain.
+  const sealevelCctpMints: Record<number, string> = {};
+  for (const [otherChain, otherConfig] of Object.entries(
+    expandedWarpDeployConfig,
+  )) {
+    if (
+      multiProvider.getProtocol(otherChain) === ProtocolType.Sealevel &&
+      isCctpTokenConfig(otherConfig) &&
+      otherConfig.token
+    ) {
+      sealevelCctpMints[multiProvider.getDomainId(otherChain)] =
+        otherConfig.token;
+    }
+  }
+
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
@@ -816,7 +837,11 @@ async function updateExistingWarpRoute(
               contractVerifier,
             );
             const { txs, feeTxs, ownershipTxs } =
-              await evmERC20WarpModule.updateSplit(configWithMailbox);
+              await evmERC20WarpModule.updateSplit(
+                configWithMailbox,
+                undefined,
+                sealevelCctpMints,
+              );
             updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;

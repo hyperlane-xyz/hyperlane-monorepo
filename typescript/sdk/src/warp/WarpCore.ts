@@ -13,8 +13,7 @@ import {
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { Keypair, PublicKey } from '@solana/web3.js';
+import { Keypair } from '@solana/web3.js';
 
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
@@ -703,44 +702,19 @@ export class WarpCore {
     }
 
     // Circle's CCTP v2 Solana program requires the CCTP message's
-    // mint_recipient to literally be the destination SPL token account
-    // (not a wallet, unlike every other Hyperlane destination) — see
-    // hyperlane-sealevel-token-cctp's ism.rs module docs. Resolve the
-    // caller-supplied wallet to its ATA here so `recipient` keeps meaning
-    // "wallet" everywhere else in the SDK/CLI; this is the only place that
-    // needs to know about the Solana-specific exception.
-    //
-    // `destinationToken` is only populated by callers that pass
-    // `--destination-token` or use cross-collateral routes — a plain
-    // `warp send` never sets it, so self-resolve from the origin token's
-    // own connections rather than depending on the caller to supply it.
-    let effectiveRecipient = recipient;
-    if (token.tokenType === TokenType.collateralCctp) {
-      const destinationConnection = token
-        .getConnections()
-        .find((c) => c.token.chainName === destinationName);
-      const resolvedDestinationToken =
-        destinationToken ??
-        this.findToken(
-          destinationName,
-          destinationConnection?.token.addressOrDenom,
-        );
-      if (
-        resolvedDestinationToken?.protocol === ProtocolType.Sealevel &&
-        resolvedDestinationToken.collateralAddressOrDenom
-      ) {
-        effectiveRecipient = getAssociatedTokenAddressSync(
-          new PublicKey(resolvedDestinationToken.collateralAddressOrDenom),
-          new PublicKey(recipient),
-        ).toBase58();
-      }
-    }
-
+    // mint_recipient to literally be an existing SPL token account (not a
+    // wallet), which it can never be for a fresh recipient. Rather than
+    // resolving the wallet to its ATA here, `mint_recipient` is redirected
+    // on the EVM side (`TokenBridgeCctpBase.cctpMintRecipientOverrides`) to
+    // a program-controlled vault, and `hyperlane-sealevel-token-cctp`'s
+    // `ism.rs` forwards the funds on to the real recipient's ATA itself,
+    // creating it on demand — see that program's module docs. So `recipient`
+    // here stays the plain wallet address, same as every other destination.
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
       fromAccountOwner: sender,
-      recipient: effectiveRecipient,
+      recipient,
       interchainGas,
       customHook: token.igpTokenAddressOrDenom,
       attestation,
