@@ -34,6 +34,7 @@ import {
   warpViolationGroupings,
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
+import { resolveAcceptedInactiveOwners } from './governance-ica-owners.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -303,11 +304,26 @@ async function runWarpRouteCheckFromRegistry({
     warpDeployConfig: loadedConfigs.warpDeployConfig,
   });
 
+  // Derive + verify the governance ICA owners this route accepts in an Inactive
+  // state. The declaration is the source of intent; derivation/Safe checks are
+  // fail-closed (see governance-ica-owners.ts). Without an ICA app we can't
+  // derive, so nothing is accepted and the ownerStatus check runs unchanged.
+  // Scope resolution to the (possibly --chains-filtered) destinations so an
+  // excluded leaf chain's ICA derivation + Safe RPC are never attempted.
+  const acceptedInactiveOwners = interchainAccount
+    ? await resolveAcceptedInactiveOwners({
+        warpRouteId,
+        interchainAccount,
+        multiProvider,
+        destinations: Object.keys(filteredConfigs.warpDeployConfig),
+      })
+    : undefined;
+
   return checkWarpRouteDeployConfig({
     multiProvider,
     warpCoreConfig: filteredConfigs.warpCoreConfig,
     warpDeployConfig: filteredConfigs.warpDeployConfig,
-    interchainAccount,
+    acceptedInactiveOwners,
   });
 }
 

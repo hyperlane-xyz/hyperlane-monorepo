@@ -1,7 +1,6 @@
 import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ISafe__factory } from '@hyperlane-xyz/core';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
@@ -9,7 +8,6 @@ import {
   addressToBytes32,
   assert,
   deepCopy,
-  eqAddress,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
@@ -30,14 +28,13 @@ import {
 } from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   DestinationGas,
   RemoteRouters,
   resolveRouterMapConfig,
 } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap } from '../types.js';
 import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
@@ -182,75 +179,6 @@ export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
   );
 }
 
-// The ownerStatus check is not just an owner-match check: it exists to catch
-// single-point-of-failure (1-of-1) ownership. On nonce-less / lazily-deployed
-// chains (Tron and other AltVM) a governance ICA owner has no contract code and
-// no nonce, so it derives as Inactive. Forcing expected=Active for it would be
-// an unresolvable false positive even though the owner is a perfectly good
-// multisig-controlled ICA.
-//
-// Rather than allowlisting each such owner (which silences the anti-1-of-1
-// signal), we resolve it: assume Ethereum is the ICA origin, take the route's
-// Ethereum-leg owner as the single candidate origin owner, derive the leaf ICA
-// from it, and treat the Inactive status as acceptable only if that derivation
-// matches the on-chain leaf owner AND the origin owner is a Safe with
-// threshold > 1. A 1-of-1 origin Safe (or a non-Safe origin owner) still fires.
-const ICA_ORIGIN_CHAIN = 'ethereum';
-
-export async function isGovernanceIcaOwner(params: {
-  interchainAccount: InterchainAccount;
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  chain: ChainName;
-  owner: Address;
-}): Promise<boolean> {
-  const { interchainAccount, warpDeployConfig, chain, owner } = params;
-
-  // The heuristic resolves leaf-chain ICAs against the Ethereum origin; the
-  // origin chain itself is not a leaf and is checked normally.
-  if (chain === ICA_ORIGIN_CHAIN) {
-    return false;
-  }
-
-  // Assume Ethereum as the ICA origin and take the Ethereum-leg owner as the
-  // single candidate origin owner. Routes without an Ethereum leg can't use
-  // this heuristic.
-  const originOwner = warpDeployConfig[ICA_ORIGIN_CHAIN]?.owner;
-  if (!originOwner) {
-    return false;
-  }
-
-  const multiProvider = interchainAccount.multiProvider;
-
-  // Derive the leaf-chain ICA from the origin owner. If it matches the leaf's
-  // on-chain owner, that owner is the governance ICA of the origin owner.
-  let derivedIca: Address;
-  try {
-    derivedIca = await interchainAccount.getAccount(chain, {
-      origin: ICA_ORIGIN_CHAIN,
-      owner: originOwner,
-    });
-  } catch {
-    return false;
-  }
-
-  if (!eqAddress(derivedIca, owner)) {
-    return false;
-  }
-
-  // Anti-1-of-1: only clear if the origin owner is a Safe with threshold > 1.
-  // A non-Safe origin owner (getThreshold reverts) or a 1-of-1 Safe still fires.
-  try {
-    const safe = ISafe__factory.connect(
-      originOwner,
-      multiProvider.getProvider(ICA_ORIGIN_CHAIN),
-    );
-    const threshold = await safe.getThreshold();
-    return threshold.gt(1);
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Expands a Warp deploy config with additional data
  *
@@ -266,7 +194,6 @@ export async function expandWarpDeployConfig(params: {
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
   validateScale?: boolean;
-  interchainAccount?: InterchainAccount;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
@@ -274,7 +201,6 @@ export async function expandWarpDeployConfig(params: {
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale = true,
-    interchainAccount,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
@@ -417,40 +343,24 @@ export async function expandWarpDeployConfig(params: {
 
       if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
         // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
-        // For other cases, we expect 'active'
-        chainConfig.ownerStatus = await promiseObjAll(
-          objMap(
-            expandedOnChainWarpConfig[chain].ownerStatus ?? {},
-            async (ownerAddress, status) => {
-              switch (status) {
-                // Skipped for local e2e testing
-                case OwnerStatus.Skipped:
-                case OwnerStatus.Active:
-                case OwnerStatus.GnosisSafe:
-                  return status; // Pass through the status so diffs will be shown
-                case OwnerStatus.Error:
-                  return OwnerStatus.Active;
-                case OwnerStatus.Inactive:
-                  // A nonce-less governance ICA (Tron/AltVM) derives as Inactive
-                  // but is a legitimate multisig-controlled owner. Treat its
-                  // Inactive status as the acceptable control (expected==actual,
-                  // no violation) rather than forcing Active. Genuine inactive
-                  // EOAs, 1-of-1 origin Safes, and non-ICA owners still fire.
-                  if (
-                    interchainAccount &&
-                    (await isGovernanceIcaOwner({
-                      interchainAccount,
-                      warpDeployConfig,
-                      chain,
-                      owner: ownerAddress,
-                    }))
-                  ) {
-                    return OwnerStatus.Inactive;
-                  }
-                  return OwnerStatus.Active;
-              }
-            },
-          ),
+        // For other cases, we expect 'active'. Accepting an Inactive owner (e.g.
+        // a nonce-less governance ICA on Tron/AltVM) is a governance decision
+        // handled by the caller via `acceptedInactiveOwners` in
+        // `checkWarpRouteDeployConfig`, not here.
+        chainConfig.ownerStatus = objMap(
+          expandedOnChainWarpConfig[chain].ownerStatus ?? {},
+          (_ownerAddress, status) => {
+            switch (status) {
+              // Skipped for local e2e testing
+              case OwnerStatus.Skipped:
+              case OwnerStatus.Active:
+              case OwnerStatus.GnosisSafe:
+                return status; // Pass through the status so diffs will be shown
+              case OwnerStatus.Error:
+              case OwnerStatus.Inactive:
+                return OwnerStatus.Active;
+            }
+          },
         );
       }
 
