@@ -117,6 +117,15 @@ where
     /// Transfers tokens into the program, optionally collecting a fee.
     /// When `fee` is `Some((fee_amount, beneficiary))`, transfers the fee
     /// from the sender to the beneficiary account.
+    ///
+    /// `destination_domain`/`recipient` are the transfer's Hyperlane
+    /// destination — most plugins (native, collateral, synthetic) don't need
+    /// them, since their outbound step only custodies value locally and the
+    /// generic dispatch machinery handles the message itself. A plugin whose
+    /// custody step *is* the cross-chain leg (e.g. CCTP's burn, which embeds
+    /// the Circle destination domain and mint recipient at burn time) reads
+    /// them; others just ignore the parameters.
+    #[allow(clippy::too_many_arguments)]
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -124,6 +133,8 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee: Option<(u64, &'a AccountInfo<'b>)>,
+        destination_domain: u32,
+        recipient: H256,
     ) -> Result<(), ProgramError>;
 
     /// Derives the fee beneficiary account pubkey for this plugin type.
@@ -654,6 +665,8 @@ where
             accounts_iter,
             amount_or_id,
             fee,
+            destination_domain,
+            recipient,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -885,6 +898,7 @@ where
     /// Converts amount from local to remote decimals and calls plugin
     /// `transfer_in` with an optional fee. Returns `remote_amount` for
     /// the caller to build `TokenMessage`.
+    #[allow(clippy::too_many_arguments)]
     pub fn convert_and_transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<T>,
@@ -892,6 +906,8 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount_or_id: U256,
         fee: Option<(u64, &'a AccountInfo<'b>)>,
+        destination_domain: u32,
+        recipient: H256,
     ) -> Result<U256, ProgramError> {
         // The amount denominated in the local decimals.
         let local_amount: u64 = amount_or_id
@@ -908,6 +924,8 @@ where
             accounts_iter,
             local_amount,
             fee,
+            destination_domain,
+            recipient,
         )?;
 
         Ok(remote_amount)

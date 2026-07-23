@@ -651,6 +651,8 @@ fn transfer_remote_to_local(
         accounts_iter,
         xfer.amount_or_id,
         fee,
+        xfer.destination_domain,
+        xfer.recipient,
     )?;
 
     // Build HandleLocal instruction data

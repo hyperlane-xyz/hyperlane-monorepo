@@ -4,6 +4,7 @@
 
 use account_utils::{create_pda_account, verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::H256;
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, processor::HyperlaneSealevelTokenPlugin,
 };
@@ -125,6 +126,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee: Option<(u64, &'a AccountInfo<'b>)>,
+        _destination_domain: u32,
+        _recipient: H256,
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
