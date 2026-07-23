@@ -19,7 +19,6 @@ import {
   Token,
   TokenType,
   WarpCore,
-  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -60,6 +59,8 @@ type PendingDestinationAggregate = {
   count: number;
   oldestPendingSeconds: number;
 };
+
+type WarpDeployConfig = Awaited<ReturnType<IRegistry['getWarpDeployConfig']>>;
 
 export class WarpMonitor {
   private readonly config: WarpMonitorConfig;
@@ -158,7 +159,7 @@ export class WarpMonitor {
   private async pollAndUpdateWarpRouteMetrics(
     checkFrequency: number,
     warpCore: WarpCore,
-    warpDeployConfig: WarpRouteDeployConfig | null,
+    warpDeployConfig: WarpDeployConfig,
     chainMetadata: ChainMap<ChainMetadata>,
     warpRouteId: string,
     coingeckoApiKey: string | undefined,
@@ -388,7 +389,7 @@ export class WarpMonitor {
   // Updates the metrics for a single token in a warp route.
   private async updateTokenMetrics(
     warpCore: WarpCore,
-    warpDeployConfig: WarpRouteDeployConfig | null,
+    warpDeployConfig: WarpDeployConfig,
     token: Token,
     tokenPriceGetter: TokenPriceGetter,
     warpRouteId: string,
@@ -577,12 +578,10 @@ export class WarpMonitor {
         continue;
       }
       const metadata = chainMetadata[token.chainName];
-      if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
-
       const domainId = metadata.domainId;
-      const routerAddress = ethersUtils
-        .getAddress(token.addressOrDenom)
-        .toLowerCase();
+      const routerAddress = this.normalizeRouterIdentifier(
+        token.addressOrDenom,
+      );
       const key = `${domainId}:${routerAddress}`;
       if (nodeByKey.has(key)) continue;
 
@@ -591,9 +590,9 @@ export class WarpMonitor {
         chainName: token.chainName,
         domainId,
         routerAddress,
-        tokenAddress: (
-          token.collateralAddressOrDenom ?? token.addressOrDenom
-        ).toLowerCase(),
+        tokenAddress: this.normalizeRouterIdentifier(
+          token.collateralAddressOrDenom ?? token.addressOrDenom,
+        ),
         tokenName: token.name,
         tokenSymbol: token.symbol,
         tokenDecimals: token.decimals,
@@ -606,7 +605,15 @@ export class WarpMonitor {
   }
 
   private buildNodeId(token: Token): string {
-    return `${token.symbol}|${token.chainName}|${token.addressOrDenom.toLowerCase()}`;
+    return `${token.symbol}|${token.chainName}|${this.normalizeRouterIdentifier(token.addressOrDenom)}`;
+  }
+
+  private normalizeRouterIdentifier(addressOrDenom: string): string {
+    if (ethersUtils.isAddress(addressOrDenom)) {
+      return ethersUtils.getAddress(addressOrDenom).toLowerCase();
+    }
+
+    return addressOrDenom;
   }
 
   private formatTokenAmount(token: Token, amount: bigint): number {

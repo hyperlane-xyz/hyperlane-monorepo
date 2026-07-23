@@ -182,4 +182,84 @@ describe('Explorer Pending Transfers', () => {
     expect(thrown).to.not.equal(undefined);
     expect(thrown!.message).to.contain('GraphQL errors');
   });
+
+  it('counts sealevel-origin pending transfers without querying non-evm routers as recipients', async () => {
+    const router = '0x00000000000000000000000000000000000000aa';
+    const nodes: RouterNodeMetadata[] = [
+      {
+        nodeId: 'USDC|base|0xrouter',
+        chainName: 'base' as any,
+        domainId: 8453,
+        routerAddress: router,
+        tokenAddress: '0x00000000000000000000000000000000000000bb',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        tokenScale: 1_000_000_000_000,
+        token: {} as any,
+      },
+      {
+        nodeId:
+          'USDC|solanamainnet|So11111111111111111111111111111111111111112',
+        chainName: 'solanamainnet' as any,
+        domainId: 1399811149,
+        routerAddress: 'So11111111111111111111111111111111111111112',
+        tokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        tokenScale: 1_000_000_000_000,
+        token: {} as any,
+      },
+    ];
+
+    const amountCanonical18 = 2000000000000000000n;
+    const amountHex = amountCanonical18.toString(16).padStart(64, '0');
+    const recipientBytes32 =
+      '0000000000000000000000004444444444444444444444444444444444444444';
+    const messageBody = `0x${recipientBytes32}${amountHex}`;
+    const fetchStub = sinon.stub(globalThis, 'fetch' as any).resolves({
+      ok: true,
+      json: async () => ({
+        data: {
+          message_view: [
+            {
+              msg_id:
+                '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+              origin_domain_id: 1399811149,
+              destination_domain_id: 8453,
+              sender:
+                '\\xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+              recipient:
+                '\\x00000000000000000000000000000000000000000000000000000000000000aa',
+              message_body: messageBody,
+              send_occurred_at: null,
+            },
+          ],
+        },
+      }),
+    } as any);
+
+    const client = new ExplorerPendingTransfersClient(
+      'https://explorer.example/v1/graphql',
+      nodes,
+      rootLogger,
+    );
+
+    const transfers = await client.getPendingDestinationTransfers();
+
+    expect(transfers).to.have.length(1);
+    expect(transfers[0].originDomainId).to.equal(1399811149);
+    expect(transfers[0].destinationNodeId).to.equal('USDC|base|0xrouter');
+    expect(transfers[0].amountBaseUnits).to.equal(2000000n);
+
+    const [, requestInit] = fetchStub.firstCall.args;
+    const body = JSON.parse(requestInit.body);
+    expect(body.query).to.not.contain('sender: { _in: $senders }');
+    expect(body.variables).to.not.have.property('senders');
+    expect(body.variables.originDomains).to.deep.equal([8453, 1399811149]);
+    expect(body.variables.recipients).to.deep.equal([
+      '\\x00000000000000000000000000000000000000aa',
+    ]);
+  });
 });
