@@ -56,7 +56,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     seismictestnet: true,
@@ -82,7 +82,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     seismictestnet: true,
@@ -108,7 +108,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     // disabled temporarily until timestamps change from ms to secs (soon)
