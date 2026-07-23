@@ -1,5 +1,8 @@
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { BigNumber, constants } from 'ethers';
+import sinon from 'sinon';
+
+import { ISafe__factory } from '@hyperlane-xyz/core';
 
 import {
   DEFAULT_ROUTER_KEY,
@@ -10,6 +13,7 @@ import {
 } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
+import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { test1, test2 } from '../consts/testChains.js';
 import type { WarpCoreConfig } from '../warp/types.js';
@@ -18,6 +22,7 @@ import { TokenType } from './config.js';
 import {
   filterWarpCoreConfigMapByChains,
   getChainsFromWarpCoreConfig,
+  isGovernanceIcaOwner,
   normalizeWarpDeployConfigForCheck,
   resolveTokenFeeAddress,
   transformConfigToCheck,
@@ -854,6 +859,158 @@ describe('configUtils', () => {
     it('should return all routes for empty chains array', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, []);
       expect(Object.keys(result)).to.have.lengthOf(3);
+    });
+  });
+
+  describe('isGovernanceIcaOwner', () => {
+    const LEAF_CHAIN = 'tron';
+    const ORIGIN_OWNER = '0x1111111111111111111111111111111111111111';
+    // The on-chain leaf owner that a correct ICA derivation reproduces.
+    const LEAF_OWNER = '0x2222222222222222222222222222222222222222';
+    const MAILBOX = '0x000000000000000000000000000000000000b001';
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    // Minimal InterchainAccount double: the resolver only touches getAccount and
+    // multiProvider.getProvider (whose return is passed straight into the stubbed
+    // ISafe__factory.connect, so its value is irrelevant here).
+    function buildIca(
+      getAccount: (
+        chain: string,
+        config: { origin: string; owner: string },
+      ) => Promise<string>,
+    ): InterchainAccount {
+      // CAST: test double exercising only the two members the resolver reads.
+      return {
+        multiProvider: { getProvider: () => ({}) },
+        getAccount,
+      } as unknown as InterchainAccount;
+    }
+
+    function stubSafeThreshold(threshold: number) {
+      return sinon.stub(ISafe__factory, 'connect').returns(
+        // CAST: only getThreshold() is read from the connected Safe.
+        {
+          getThreshold: async () => BigNumber.from(threshold),
+        } as ReturnType<typeof ISafe__factory.connect>,
+      );
+    }
+
+    function warpDeployConfig(
+      withEthereumOwner: boolean,
+    ): WarpRouteDeployConfigMailboxRequired {
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [LEAF_CHAIN]: {
+          mailbox: MAILBOX,
+          owner: LEAF_OWNER,
+          type: TokenType.collateral,
+          token: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        },
+      };
+      if (withEthereumOwner) {
+        config['ethereum'] = {
+          mailbox: MAILBOX,
+          owner: ORIGIN_OWNER,
+          type: TokenType.collateral,
+          token: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        };
+      }
+      return config;
+    }
+
+    it('returns false for the origin chain itself (it is not a leaf ICA)', async () => {
+      const connectStub = stubSafeThreshold(3);
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => LEAF_OWNER),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: 'ethereum',
+        owner: ORIGIN_OWNER,
+      });
+
+      expect(result).to.equal(false);
+      expect(connectStub.notCalled).to.equal(true);
+    });
+
+    it('returns false when the route has no Ethereum-leg owner to derive from', async () => {
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => LEAF_OWNER),
+        warpDeployConfig: warpDeployConfig(false),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(false);
+    });
+
+    it('returns false when ICA derivation throws', async () => {
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => {
+          throw new Error('derivation failed');
+        }),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(false);
+    });
+
+    it('returns false when the derived ICA does not match the on-chain owner', async () => {
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(
+          async () => '0x3333333333333333333333333333333333333333',
+        ),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(false);
+    });
+
+    it('returns false for a matching ICA whose origin owner is a 1-of-1 Safe (preserves anti-1-of-1 signal)', async () => {
+      stubSafeThreshold(1);
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => LEAF_OWNER),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(false);
+    });
+
+    it('returns false for a matching ICA whose origin owner is not a Safe (getThreshold reverts)', async () => {
+      sinon.stub(ISafe__factory, 'connect').returns(
+        // CAST: simulate a non-Safe owner where getThreshold reverts.
+        {
+          getThreshold: async (): Promise<BigNumber> => {
+            throw new Error('not a safe');
+          },
+        } as ReturnType<typeof ISafe__factory.connect>,
+      );
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => LEAF_OWNER),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(false);
+    });
+
+    it('returns true for a matching ICA whose origin owner is a Safe with threshold > 1', async () => {
+      stubSafeThreshold(3);
+      const result = await isGovernanceIcaOwner({
+        interchainAccount: buildIca(async () => LEAF_OWNER),
+        warpDeployConfig: warpDeployConfig(true),
+        chain: LEAF_CHAIN,
+        owner: LEAF_OWNER,
+      });
+
+      expect(result).to.equal(true);
     });
   });
 });

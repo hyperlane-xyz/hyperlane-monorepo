@@ -37,6 +37,7 @@ import {
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
+import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
@@ -645,10 +646,14 @@ export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
   warpDeployConfig,
+  interchainAccount,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  // Optional ICA app used to resolve Inactive ownerStatus false positives for
+  // nonce-less governance ICA owners (Tron/AltVM). Omitted -> no resolution.
+  interchainAccount?: InterchainAccount;
 }): Promise<WarpRouteCheckResult> {
   const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
     (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
@@ -757,6 +762,7 @@ export async function checkWarpRouteDeployConfig({
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
     validateScale: false,
+    interchainAccount,
   });
   const normalizedWarpDeployConfig = normalizeWarpDeployConfigForCheck({
     multiProvider,
