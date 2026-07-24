@@ -45,7 +45,7 @@ describe('SVM ExtendProgram (feature-gate inactive) E2E', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, signer.getSignerAddress(), 100_000_000_000n);

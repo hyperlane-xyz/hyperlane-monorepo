@@ -17,12 +17,14 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
-import type {
-  DerivedWarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+import {
+  type DerivedWarpRouteDeployConfig,
+  OwnerStatus,
+  type WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 import {
   altVmScaleMismatch,
+  applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
   buildWarpRouteDiff,
   derivedWarpConfigToCheckConfig,
@@ -458,6 +460,43 @@ describe('expandedDeployConfigToAltVmCheckConfig', () => {
 
     expect(result).to.not.have.property('token');
   });
+
+  it('drops decimals for AltVM native tokens, whose reader side never carries decimals', () => {
+    // DerivedNativeWarpConfig has no decimals field, so the actual side omits it
+    // for AltVM native tokens (e.g. Aleo AleoHypNative). The expected side must
+    // omit it too even when the core config specifies decimals, otherwise it
+    // emits a permanent false-positive `decimals` ConfigMismatch.
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        type: TokenType.native,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result).to.not.have.property('decimals');
+  });
+
+  it('retains decimals for AltVM collateral tokens, which do carry on-chain decimals', () => {
+    const result = expandedDeployConfigToAltVmCheckConfig(
+      testSealevelChain.name,
+      {
+        decimals: 6,
+        destinationGas: {},
+        mailbox: MAILBOX,
+        owner: OWNER,
+        token: TOKEN_A,
+        type: TokenType.collateral,
+      },
+      buildMultiProvider(),
+    );
+
+    expect(result.decimals).to.equal(6);
+  });
 });
 
 describe('normalizeAltVmExpectedTokenType', () => {
@@ -566,6 +605,51 @@ describe('buildAltVmWarpRouteDiff', () => {
 
     expect(diff[testSealevelChain.name]).to.deep.include({
       contractVersion: { actual: '1.0.0', expected: '2.0.0' },
+    });
+  });
+
+  it('does not flag a decimals drift when the deploy config omits decimals (altVM native)', () => {
+    // expandedDeployConfigToAltVmCheckConfig omits decimals for altVM native
+    // tokens, but the Sealevel reader resolves a concrete value (SOL = 9).
+    // Comparing 9 against an omitted expected would report a false-positive
+    // decimals mismatch on every Sealevel native leg.
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          type: TokenType.native,
+          decimals: 9,
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          type: TokenType.native,
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a decimals mismatch when the deploy config opts in', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          decimals: 9,
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          decimals: 6,
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      decimals: { actual: 9, expected: 6 },
     });
   });
 
@@ -762,5 +846,137 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff[CHAIN]).to.have.nested.property('hook.actual');
+  });
+});
+
+describe('applyAcceptedInactiveOwnerStatus', () => {
+  const CHAIN = 'tron';
+  const OWNER_A = '0xAAAAaaAAAAaAaaAAAaAAAAaaaAAAaaAAAAaAaAaA';
+  const OWNER_B = '0xBbBBBbbBBBbBBBBbbBbBbbBbbbBBbbBBbBBBbBBB';
+
+  // The expander maps every observed ownerStatus to an expected Active, so the
+  // expected side starts fully Active; accepting re-sets specific entries back
+  // to Inactive.
+  function expandedConfig(
+    ownerStatus: Record<string, OwnerStatus>,
+  ): WarpRouteDeployConfigMailboxRequired {
+    return {
+      [CHAIN]: {
+        mailbox: MAILBOX,
+        owner: OWNER_A,
+        token: TOKEN_A,
+        type: TokenType.collateral,
+        ownerStatus,
+      },
+    };
+  }
+
+  it('accepts multiple Inactive owners on the same chain', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: {
+          ownerStatus: {
+            [OWNER_A]: OwnerStatus.Inactive,
+            [OWNER_B]: OwnerStatus.Inactive,
+          },
+        },
+      },
+      acceptedInactiveOwners: [
+        { chain: CHAIN, owner: OWNER_A },
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus).to.deep.equal({
+      [OWNER_A]: OwnerStatus.Inactive,
+      [OWNER_B]: OwnerStatus.Inactive,
+    });
+  });
+
+  it('does not accept an owner declared on a different chain or with a different address', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [
+        // Wrong chain.
+        { chain: 'ethereum', owner: OWNER_A },
+        // Wrong address on the right chain.
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
+  });
+
+  it('does not override non-Inactive observed statuses even when accepted', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.GnosisSafe,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: {
+          ownerStatus: {
+            [OWNER_A]: OwnerStatus.Active,
+            [OWNER_B]: OwnerStatus.GnosisSafe,
+          },
+        },
+      },
+      acceptedInactiveOwners: [
+        { chain: CHAIN, owner: OWNER_A },
+        { chain: CHAIN, owner: OWNER_B },
+      ],
+    });
+
+    expect(expanded[CHAIN].ownerStatus).to.deep.equal({
+      [OWNER_A]: OwnerStatus.Active,
+      [OWNER_B]: OwnerStatus.GnosisSafe,
+    });
+  });
+
+  it('matches owner addresses case-insensitively', () => {
+    const expanded = expandedConfig({
+      [OWNER_A]: OwnerStatus.Active,
+    });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [{ chain: CHAIN, owner: OWNER_A.toLowerCase() }],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(
+      OwnerStatus.Inactive,
+    );
+  });
+
+  it('is a no-op when no accepted owners are provided', () => {
+    const expanded = expandedConfig({ [OWNER_A]: OwnerStatus.Active });
+
+    applyAcceptedInactiveOwnerStatus({
+      expandedWarpDeployConfig: expanded,
+      onChainWarpConfig: {
+        [CHAIN]: { ownerStatus: { [OWNER_A]: OwnerStatus.Inactive } },
+      },
+      acceptedInactiveOwners: [],
+    });
+
+    expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
   });
 });

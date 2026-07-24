@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: validator-monitor
+spec:
+  schedule: "{{ .Values.cronjob.schedule }}"
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: validator-monitor
+            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+            imagePullPolicy: Always
+            # Use `args` instead of `command` to preserve the Docker ENTRYPOINT.
+            # The entrypoint script (docker-entrypoint.sh) handles REGISTRY_COMMIT checkout.
+            # Using `command` would bypass the entrypoint and break registry version pinning.
+            args:
+            - pnpm
+            - exec
+            - tsx
+            - ./typescript/infra/scripts/validators/monitor-checkpoints.ts
+            - -e
+            - {{ .Values.hyperlane.runEnv }}
+            - --pushMetrics
+            env:
+            - name: PROMETHEUS_PUSH_GATEWAY
+              value: {{ .Values.infra.prometheusPushGateway }}
+            {{- if .Values.hyperlane.registryCommit }}
+            - name: REGISTRY_COMMIT
+              value: {{ .Values.hyperlane.registryCommit }}
+            {{- end }}
+            envFrom:
+            - secretRef:
+                name: validator-monitor-env-var-secret

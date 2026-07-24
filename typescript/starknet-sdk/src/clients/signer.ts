@@ -47,22 +47,18 @@ export class StarknetSigner
   }
 
   static async connectWithSigner(
-    rpcUrls: string[],
+    metadata: ChainMetadataForAltVM,
     privateKey: string,
     extraParams?: {
-      metadata?: ChainMetadataForAltVM;
       accountAddress?: string;
     },
   ): Promise<StarknetSigner> {
-    assert(extraParams?.metadata, 'metadata missing for Starknet signer');
-    const metadata = extraParams.metadata;
-    const accountAddress = extraParams.accountAddress;
+    const accountAddress = extraParams?.accountAddress;
     assert(accountAddress, 'accountAddress missing for Starknet signer');
     assert(privateKey, 'private key missing for Starknet signer');
 
-    const provider = StarknetProvider.connect(rpcUrls, metadata.chainId, {
-      metadata,
-    });
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
+    const provider = StarknetProvider.connect(metadata);
 
     return new StarknetSigner(
       provider.getRawProvider(),

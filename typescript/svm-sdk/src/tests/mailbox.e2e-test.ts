@@ -65,7 +65,7 @@ describe('SVM Mailbox E2E Tests', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 50_000_000_000n);
@@ -191,7 +191,7 @@ describe('SVM Mailbox E2E Tests', function () {
 
     it('should transfer ownership and allow new owner to update', async () => {
       const newOwnerSigner = await SvmSigner.connectWithSigner(
-        [TEST_SVM_CHAIN_METADATA.rpcUrl],
+        TEST_SVM_CHAIN_METADATA,
         TEST_PRIVATE_KEY_2,
       );
       await airdropSol(
@@ -240,7 +240,7 @@ describe('SVM Mailbox E2E Tests', function () {
     it('should renounce ownership via update', async () => {
       // Use a throwaway owner since renouncing is irreversible.
       const throwawayOwner = await SvmSigner.connectWithSigner(
-        [TEST_SVM_CHAIN_METADATA.rpcUrl],
+        TEST_SVM_CHAIN_METADATA,
         TEST_PRIVATE_KEY_3,
       );
       await airdropSol(

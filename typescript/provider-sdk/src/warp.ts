@@ -889,6 +889,90 @@ export function computeCrossCollateralRouterUpdates(
   return { toEnroll, toUnenroll };
 }
 
+// Warp Deploy Gas Composition
+
+/**
+ * Per-protocol breakdown of the additive deltas that
+ * {@link composeWarpDeployGas} sums into a total warp-deploy cost. Every
+ * field is in the protocol-defined unit: gas units for gas-metered protocols
+ * (Cosmos), native denom for rent/fee-metered protocols (lamports on Sealevel,
+ * sun on Tron, etc.).
+ */
+export interface WarpDeployGasBreakdown {
+  /** Base router deploy cost. */
+  base: bigint;
+  /** Extra cost when the warp type is `crossCollateral`. */
+  crossCollateralExtra: bigint;
+  /** Cost of deploying a fresh fee program. */
+  feeProgram: bigint;
+  /** Cost of deploying a fresh custom ISM. */
+  customIsm: bigint;
+  /** Cost of deploying a fresh custom hook / IGP. */
+  customHook: bigint;
+}
+
+/**
+ * Composes the per-chain warp-deploy cost from a per-protocol breakdown of
+ * constants and the shape of the {@link WarpArtifactConfig}.
+ *
+ * Uses {@link isArtifactNew} to detect fresh deploys: an ism/hook/fee whose
+ * `artifactState` is DEPLOYED or UNDERIVED contributes nothing (the contract
+ * already exists on-chain and no deploy cost is incurred); a NEW artifact
+ * contributes its protocol-specific delta.
+ *
+ * Return value uses the protocol-defined unit: gas units for gas-metered
+ * protocols (Cosmos), native denom for rent/fee-metered protocols (lamports
+ * on Sealevel, sun on Tron, etc.).
+ */
+export function composeWarpDeployGas(
+  warpConfig: WarpArtifactConfig,
+  breakdown: WarpDeployGasBreakdown,
+): bigint {
+  let total = breakdown.base;
+
+  if (warpConfig.type === TokenType.crossCollateral) {
+    total += breakdown.crossCollateralExtra;
+  }
+
+  if (warpConfig.fee !== undefined && isArtifactNew(warpConfig.fee)) {
+    total += breakdown.feeProgram;
+  }
+
+  if (
+    warpConfig.interchainSecurityModule !== undefined &&
+    isArtifactNew(warpConfig.interchainSecurityModule)
+  ) {
+    total += breakdown.customIsm;
+  }
+
+  if (warpConfig.hook !== undefined && isArtifactNew(warpConfig.hook)) {
+    total += breakdown.customHook;
+  }
+
+  return total;
+}
+
+/**
+ * Converts a gas-unit amount into the chain's native denom by multiplying by a
+ * (possibly fractional) gas price, rounding the result UP. The gas price
+ * `amount` is a decimal string (e.g. "0.025"); the multiplication is done with
+ * integer math to avoid floating-point precision loss on large gas-unit values.
+ *
+ * Rounds up because CosmJS rounds broadcast fees up: a floored minimum could
+ * undershoot the fee actually charged and leave a preflight balance check too
+ * low.
+ */
+export function nativeAmountFromGasUnits(
+  gasUnits: bigint,
+  gasPrice: { amount: string },
+): bigint {
+  const [whole, fraction = ''] = gasPrice.amount.split('.');
+  const scale = BigInt(fraction.length);
+  const scaledPrice = BigInt(`${whole}${fraction}` || '0');
+  const denominator = 10n ** scale;
+  return (gasUnits * scaledPrice + denominator - 1n) / denominator;
+}
+
 export interface CCGasConfigDiff {
   toEnroll: Array<{ domain: number; gas: string }>;
   toUnenroll: number[];

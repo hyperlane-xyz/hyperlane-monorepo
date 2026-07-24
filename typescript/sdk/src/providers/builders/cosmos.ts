@@ -4,7 +4,7 @@ import { StargateClient } from '@cosmjs/stargate';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk/runtime';
 import { assert } from '@hyperlane-xyz/utils';
 
-import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
+import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import type {
   CosmJsNativeProvider,
   CosmJsProvider,
@@ -15,8 +15,9 @@ import { ProviderType } from '../ProviderType.js';
 import type { ProviderBuilderFn } from './types.js';
 
 export const defaultCosmJsProviderBuilder: ProviderBuilderFn<CosmJsProvider> = (
-  rpcUrls: RpcUrl[],
+  metadata: ChainMetadata,
 ) => {
+  const { rpcUrls } = metadata;
   assert(rpcUrls.length > 0, 'No RPC URLs provided');
   return {
     type: ProviderType.CosmJs,
@@ -26,7 +27,8 @@ export const defaultCosmJsProviderBuilder: ProviderBuilderFn<CosmJsProvider> = (
 
 export const defaultCosmJsWasmProviderBuilder: ProviderBuilderFn<
   CosmJsWasmProvider
-> = (rpcUrls: RpcUrl[]) => {
+> = (metadata: ChainMetadata) => {
+  const { rpcUrls } = metadata;
   assert(rpcUrls.length > 0, 'No RPC URLs provided');
   return {
     type: ProviderType.CosmJsWasm,
@@ -36,13 +38,11 @@ export const defaultCosmJsWasmProviderBuilder: ProviderBuilderFn<
 
 export const defaultCosmJsNativeProviderBuilder: ProviderBuilderFn<
   CosmJsNativeProvider
-> = (rpcUrls: RpcUrl[], network: number | string) => {
+> = (metadata: ChainMetadata) => {
+  const { rpcUrls } = metadata;
   assert(rpcUrls.length > 0, 'No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: CosmosNativeProvider.connect(
-      rpcUrls.map((rpc) => rpc.http),
-      network,
-    ),
+    provider: CosmosNativeProvider.connect(metadata),
   };
 };
