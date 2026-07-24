@@ -543,6 +543,12 @@ export function buildAltVmWarpRouteDiff(
     // EVM path (buildWarpRouteDiff) and only compare when both sides opt in.
     // contractVersion is excluded the same way (mirrors buildWarpRouteDiff): it's
     // rarely set explicitly, so only compare when the deploy config opts in.
+    // decimals is excluded the same way: the expected side omits it for altVM
+    // native tokens (expandedDeployConfigToAltVmCheckConfig), but the derived
+    // side resolves a concrete value for some protocols (e.g. Sealevel native =
+    // 9) and omits it for others (e.g. Aleo native). Only compare when the
+    // deploy config opts in, otherwise every Sealevel native leg reports a
+    // false-positive decimals mismatch.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
     const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
@@ -561,6 +567,7 @@ export function buildAltVmWarpRouteDiff(
       contractVersion: isNullish(expected.contractVersion)
         ? undefined
         : actual.contractVersion,
+      decimals: isNullish(expected.decimals) ? undefined : actual.decimals,
       scale: undefined,
       destinationGas: normalizedActualGas,
     };

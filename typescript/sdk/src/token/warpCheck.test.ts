@@ -608,6 +608,51 @@ describe('buildAltVmWarpRouteDiff', () => {
     });
   });
 
+  it('does not flag a decimals drift when the deploy config omits decimals (altVM native)', () => {
+    // expandedDeployConfigToAltVmCheckConfig omits decimals for altVM native
+    // tokens, but the Sealevel reader resolves a concrete value (SOL = 9).
+    // Comparing 9 against an omitted expected would report a false-positive
+    // decimals mismatch on every Sealevel native leg.
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          type: TokenType.native,
+          decimals: 9,
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          type: TokenType.native,
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags a decimals mismatch when the deploy config opts in', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          decimals: 9,
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          decimals: 6,
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      decimals: { actual: 9, expected: 6 },
+    });
+  });
+
   it('flags a crossCollateralRouters enrollment drift', () => {
     const diff = buildAltVmWarpRouteDiff(
       {
