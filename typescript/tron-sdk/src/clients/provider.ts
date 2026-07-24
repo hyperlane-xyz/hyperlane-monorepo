@@ -1,6 +1,11 @@
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, ensure0x, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import ERC20Abi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' with { type: 'json' };
@@ -15,22 +20,42 @@ import {
 } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
+// Warp-deploy cost breakdown for Tron. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (sun).
+//
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// feature-heavy warp deploys on Tron yet, so all extras currently contribute
+// nothing.
+const WARP_DEPLOY_BASE_SUN = BigInt(1e9); // base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_SUN = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_SUN = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_SUN = 0n; // + custom hook / IGP (config.hook object)
+
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
+  protected readonly chainMetadata: ChainMetadataForAltVM;
 
   protected readonly tronweb: TronWeb;
 
-  static async connect(rpcUrls: string[]): Promise<TronProvider> {
+  static async connect(metadata: ChainMetadataForAltVM): Promise<TronProvider> {
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
-    return new TronProvider(rpcUrls, strip0x(privateKey));
+    return new TronProvider(rpcUrls, metadata, strip0x(privateKey));
   }
 
-  constructor(rpcUrls: string[], privateKey?: string) {
+  constructor(
+    rpcUrls: string[],
+    chainMetadata: ChainMetadataForAltVM,
+    privateKey?: string,
+  ) {
     this.rpcUrls = rpcUrls;
+    this.chainMetadata = chainMetadata;
 
     if (!privateKey) {
       privateKey = new TronWeb({
@@ -41,6 +66,18 @@ export class TronProvider implements AltVM.IProvider {
     this.tronweb = new TronWeb({
       fullHost: this.rpcUrls[0],
       privateKey: strip0x(privateKey),
+    });
+  }
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_SUN,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_SUN,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_SUN,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_SUN,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_SUN,
     });
   }
 

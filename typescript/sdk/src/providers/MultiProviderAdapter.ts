@@ -50,9 +50,9 @@ export function wrapMultiProviderProviders<MetaExt = {}>(
 function wrapMultiProviderBuilder(
   providerBuilder: MultiProvider['providerBuilder'],
 ): ProviderBuilderFn<TypedProvider> {
-  return (urls, chainId) => ({
+  return (metadata) => ({
     type: ProviderType.EthersV5,
-    provider: providerBuilder(urls, chainId),
+    provider: providerBuilder(metadata),
   });
 }
 
@@ -60,8 +60,8 @@ function unwrapEthersProviderBuilder(
   providerBuilder?: ProviderBuilderFn<TypedProvider>,
 ): MultiProviderOptions['providerBuilder'] | undefined {
   if (!providerBuilder) return undefined;
-  return (urls, chainId) => {
-    const provider = providerBuilder(urls, chainId);
+  return (metadata) => {
+    const provider = providerBuilder(metadata);
     if (provider.type !== ProviderType.EthersV5) {
       throw new Error(
         `Cannot convert ${provider.type} builder into a MultiProvider EthersV5 builder`,

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
@@ -29,20 +29,9 @@ describe('Radix Mailbox (e2e)', function () {
   const TEST_HOOK_ADDRESS = TEST_RADIX_BURN_ADDRESS;
 
   before(async () => {
-    const rpcUrls =
-      DEPLOYED_TEST_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
-    assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
-
     radixSigner = await RadixSigner.connectWithSigner(
-      rpcUrls,
+      DEPLOYED_TEST_CHAIN_METADATA,
       TEST_RADIX_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
-        },
-      },
     );
 
     const gateway = radixSigner.getGatewayClient();

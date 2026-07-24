@@ -125,19 +125,26 @@ export function useCosmosTransactionFns(
         );
       } else if (tx.type === ProviderType.CosmJsNative) {
         const signer = getOfflineSigner();
+        const chainMetadata = multiProvider.getChainMetadata(chainName);
+        const rpcUrls =
+          chain.apis?.rpc?.map((rpc) => ({ http: rpc.address })) ?? [];
         const client = await CosmosNativeSigner.connectWithSigner(
-          chain.apis?.rpc?.map((rpc) => rpc.address) ?? [],
-          signer,
           {
+            name: chainMetadata.name,
+            protocol: chainMetadata.protocol,
+            domainId: chainMetadata.domainId,
+            chainId: chainMetadata.chainId,
+            bech32Prefix: chainMetadata.bech32Prefix,
+            nativeToken: chainMetadata.nativeToken,
+            rpcUrls,
             // set zero gas price here so it does not error. actual gas price
             // will be injected from the wallet registry like Keplr or Leap
-            metadata: {
-              gasPrice: {
-                amount: '0',
-                denom: 'token',
-              },
+            gasPrice: {
+              amount: '0',
+              denom: 'token',
             },
           },
+          signer,
         );
 
         receipt = await client.sendAndConfirmTransaction(tx.transaction);

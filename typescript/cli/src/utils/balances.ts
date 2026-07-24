@@ -4,7 +4,7 @@ import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
   type AltVM,
-  type GasAction,
+  GasAction,
   ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -12,6 +12,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { type WarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type ChainMap,
   type ChainName,
@@ -29,6 +30,13 @@ export async function nativeBalancesAreSufficient(
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
+  // When `minGas === GasAction.WARP_DEPLOY_GAS` and a per-chain
+  // WarpArtifactConfig is available, the AltVM branch consults
+  // `getMinGasForWarpDeploy(warpConfig)` instead of the flat
+  // `getMinGas().WARP_DEPLOY_GAS` — the flat value only sizes the base router
+  // case and under-funds feature-heavy deploys (cross-collateral, fee program,
+  // custom ISM/hook).
+  warpConfigByChain?: ChainMap<WarpArtifactConfig>,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
@@ -76,16 +84,32 @@ export async function nativeBalancesAreSufficient(
           `nativeToken denom is not defined on chain ${chain}`,
         );
 
-        if (!gasPrice) {
-          return;
+        if (minGas === GasAction.WARP_DEPLOY_GAS) {
+          const warpConfig = warpConfigByChain?.[chain];
+          assert(
+            warpConfig,
+            `warpConfig required for warp-deploy preflight on ${chain}`,
+          );
+          // The signer returns a final native-denom amount composed from the
+          // warp config (base router + feature deltas), so no gas-price
+          // multiplication is applied here.
+          const requiredNativeDenom =
+            await signer.getMinGasForWarpDeploy(warpConfig);
+          requiredMinBalanceNativeDenom = BigNumber.from(
+            requiredNativeDenom.toString(),
+          );
+        } else {
+          // The legacy gas-units path needs a gas price to size the balance;
+          // skip only THIS chain when it lacks one (e.g. Sealevel).
+          if (!gasPrice) continue;
+          const requiredGasUnits =
+            getProtocolProvider(protocol).getMinGas()[minGas];
+          requiredMinBalanceNativeDenom = BigNumber.from(
+            new BN(gasPrice.amount)
+              .times(requiredGasUnits.toString())
+              .toFixed(0),
+          );
         }
-
-        const ALT_VM_GAS = getProtocolProvider(protocol).getMinGas();
-        requiredMinBalanceNativeDenom = BigNumber.from(
-          new BN(gasPrice.amount)
-            .times(ALT_VM_GAS[minGas].toString())
-            .toFixed(0),
-        );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,
           nativeToken.decimals,

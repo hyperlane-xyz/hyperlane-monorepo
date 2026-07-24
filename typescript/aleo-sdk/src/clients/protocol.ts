@@ -42,25 +42,23 @@ import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
 
+// Base router deploy cost in native denom (microcredits), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// AleoProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_MICROCREDITS = 0n;
+
 export class AleoProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return AleoProvider.connect(rpcUrls, chainMetadata.chainId);
+    return AleoProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return AleoSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return AleoSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -204,7 +202,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_MICROCREDITS,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,

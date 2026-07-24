@@ -21,30 +21,27 @@ import {
   type IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { assert } from '@hyperlane-xyz/utils';
 
 import { TronProvider } from './provider.js';
 import { TronSigner } from './signer.js';
 
+// Base router deploy cost in native denom (sun), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// TronProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_SUN = BigInt(1e9);
+
 export class TronProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return TronProvider.connect(rpcUrls);
+    return TronProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return TronSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return TronSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -102,7 +99,7 @@ export class TronProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e9),
-      WARP_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_SUN,
       ISM_DEPLOY_GAS: BigInt(1e9),
       HOOK_DEPLOY_GAS: BigInt(1e9),
       TEST_SEND_GAS: BigInt(1e9),
