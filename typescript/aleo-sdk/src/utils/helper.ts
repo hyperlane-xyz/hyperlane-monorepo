@@ -9,8 +9,9 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram, programRegistry } from '../artifacts.js';
 import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { ALEO_NULL_ADDRESS } from '../constants.js';
+import { ALEO_PROGRAMS, type AleoProgram } from '../programs.js';
 
 import { AleoNetworkId, AleoTokenType } from './types.js';
 
@@ -31,9 +32,7 @@ export const RETRY_DELAY_MS = 100;
 export const SUFFIX_LENGTH_LONG = 6;
 export const SUFFIX_LENGTH_SHORT = 3;
 
-export const ALEO_NULL_ADDRESS =
-  'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
-export const ALEO_NATIVE_DENOM = 'credits';
+export { ALEO_NATIVE_DENOM, ALEO_NULL_ADDRESS } from '../constants.js';
 
 export function formatAddress(address: string): string {
   return isZeroishAddress(address) ? '' : address;
@@ -97,7 +96,7 @@ export function getProgramSuffix(address: string): string {
     suffix = suffix.replaceAll(prefix, '');
   }
 
-  for (const key of Object.keys(programRegistry)) {
+  for (const key of ALEO_PROGRAMS) {
     suffix = suffix.replaceAll(key, '');
   }
 

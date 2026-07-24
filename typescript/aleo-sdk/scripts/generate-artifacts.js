@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const outputFile = path.join(__dirname, '../src/artifacts.ts');
+const programsOutputFile = path.join(__dirname, '../src/programs.ts');
 
 const VERSION = 'v1.0.0';
 
@@ -56,7 +57,7 @@ const main = async () => {
     }
   }
 
-  let output = '';
+  let output = `import type { AleoProgram } from './programs.js';\n\nexport type { AleoProgram } from './programs.js';\n\n`;
 
   for (const file of files) {
     output +=
@@ -67,15 +68,16 @@ const main = async () => {
       '`;\n';
   }
 
-  output += `\nexport type AleoProgram =`;
+  let programsOutput = `export const ALEO_PROGRAMS = [`;
 
   for (const file of files) {
-    output += `\n  | '${file.filename}'`;
+    programsOutput += `\n  '${file.filename}',`;
   }
 
-  output += `;`;
+  programsOutput += `\n] as const;`;
+  programsOutput += `\n\nexport type AleoProgram = (typeof ALEO_PROGRAMS)[number];\n`;
 
-  output += `\n\nexport const programRegistry: Record<AleoProgram, string> = {`;
+  output += `\nexport const programRegistry: Record<AleoProgram, string> = {`;
 
   for (const file of files) {
     output += `\n  ${file.filename},`;
@@ -84,7 +86,8 @@ const main = async () => {
   output += `\n};\n`;
 
   fs.writeFileSync(outputFile, output, 'utf8');
-  console.log('artifacts.ts generated successfully!');
+  fs.writeFileSync(programsOutputFile, programsOutput, 'utf8');
+  console.log('artifacts.ts and programs.ts generated successfully!');
 };
 
 main();
