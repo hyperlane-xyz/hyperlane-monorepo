@@ -22,6 +22,8 @@ import {TestRemoteChallenger} from "../../contracts/test/TestRemoteChallenger.so
 import {EigenlayerBase} from "./EigenlayerBase.sol";
 
 contract HyperlaneServiceManagerTest is EigenlayerBase {
+    event ServiceManagerSet(address indexed serviceManager);
+
     TestHyperlaneServiceManager internal _hsm;
     ECDSAStakeRegistry internal _ecdsaStakeRegistry;
     TestPaymentCoordinator internal _paymentCoordinator;
@@ -91,6 +93,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
     function test_stakeRegistryOwnerInitializedBeforeConfiguration() public {
         ECDSAStakeRegistry registry = new ECDSAStakeRegistry(delegationManager);
         registry.initializeOwner(address(this));
+        assertEq(registry.owner(), address(this));
 
         Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
         quorum.strategies[0] = StrategyParams({
@@ -102,9 +105,30 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         vm.expectRevert("Ownable: caller is not the owner");
         registry.configure(address(_hsm), 6667, quorum);
 
+        vm.expectEmit(true, true, true, true, address(registry));
+        emit ServiceManagerSet(address(_hsm));
         registry.configure(address(_hsm), 6667, quorum);
         vm.expectRevert(ECDSAStakeRegistry.ServiceManagerAlreadySet.selector);
         registry.configure(address(_hsm), 6667, quorum);
+    }
+
+    function test_stakeRegistryRejectsInvalidOwner() public {
+        ECDSAStakeRegistry registry = new ECDSAStakeRegistry(delegationManager);
+
+        vm.expectRevert(ECDSAStakeRegistry.InvalidOwner.selector);
+        registry.initializeOwner(address(0));
+    }
+
+    function test_stakeRegistryRejectsInvalidServiceManager() public {
+        ECDSAStakeRegistry registry = new ECDSAStakeRegistry(delegationManager);
+        registry.initializeOwner(address(this));
+        Quorum memory quorum = Quorum({strategies: new StrategyParams[](0)});
+
+        vm.expectRevert(ECDSAStakeRegistry.InvalidServiceManager.selector);
+        registry.configure(address(0), 6667, quorum);
+
+        vm.expectRevert(ECDSAStakeRegistry.InvalidServiceManager.selector);
+        registry.configure(invalidServiceManager, 6667, quorum);
     }
 
     function test_registerOperator() public {

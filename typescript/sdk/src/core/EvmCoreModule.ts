@@ -12,6 +12,7 @@ import {
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import type { ContractTransaction } from 'ethers';
 
 import {
   attachContractsMap,
@@ -580,7 +581,7 @@ export class EvmCoreModule extends HyperlaneModule<
     const configure = async (
       current: string,
       target: string,
-      set: () => ReturnType<typeof mailbox.setDefaultIsm>,
+      set: () => Promise<ContractTransaction>,
     ) => {
       if (eqAddress(current, target)) return;
       assert(

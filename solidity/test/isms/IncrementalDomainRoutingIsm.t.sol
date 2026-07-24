@@ -156,6 +156,27 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         new DirectIncrementalDomainRoutingIsm(address(this), _domains, _isms);
     }
 
+    function testDirectIncrementalDeploymentInitializesAtomically(
+        uint32 domain
+    ) public {
+        uint32[] memory _domains = new uint32[](1);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](1);
+        _domains[0] = domain;
+        _isms[0] = deployTestIsm(bytes32(0));
+
+        DirectIncrementalDomainRoutingIsm directIsm = new DirectIncrementalDomainRoutingIsm(
+                address(this),
+                _domains,
+                _isms
+            );
+
+        assertEq(directIsm.owner(), address(this));
+        assertEq(address(directIsm.module(domain)), address(_isms[0]));
+        vm.expectRevert("Initializable: contract is already initialized");
+        directIsm.initialize(address(this), _domains, _isms);
+    }
+
     function testFactoryImplementation() public {
         IncrementalDomainRoutingIsmFactory factory = new IncrementalDomainRoutingIsmFactory();
         address impl = factory.implementation();

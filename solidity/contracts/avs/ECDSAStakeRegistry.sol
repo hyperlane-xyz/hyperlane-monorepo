@@ -26,6 +26,7 @@ contract ECDSAStakeRegistry is
     ECDSAStakeRegistryStorage,
     PackageVersioned
 {
+    error InvalidOwner();
     error InvalidServiceManager();
     error ServiceManagerAlreadySet();
 
@@ -56,6 +57,7 @@ contract ECDSAStakeRegistry is
 
     /// @notice Atomically establishes proxy ownership before AVS dependencies are deployed.
     function initializeOwner(address _owner) external initializer {
+        if (_owner == address(0)) revert InvalidOwner();
         __Ownable_init();
         _transferOwnership(_owner);
     }
@@ -306,7 +308,10 @@ contract ECDSAStakeRegistry is
         uint256 _thresholdWeight,
         Quorum memory _quorum
     ) internal {
-        if (_serviceManagerAddr == address(0)) revert InvalidServiceManager();
+        if (
+            _serviceManagerAddr == address(0) ||
+            _serviceManagerAddr.code.length == 0
+        ) revert InvalidServiceManager();
         if (_serviceManager != address(0)) revert ServiceManagerAlreadySet();
         _serviceManager = _serviceManagerAddr;
         _updateStakeThreshold(_thresholdWeight);

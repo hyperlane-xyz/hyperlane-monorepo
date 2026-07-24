@@ -198,7 +198,7 @@ contract DomainRoutingIsmTest is Test {
 
 contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     TestIsm defaultIsm;
-    TestMailbox mailbox;
+    TestMailbox internal mailbox;
 
     function setUp() public override {
         defaultIsm = deployTestIsm(bytes32(0));
