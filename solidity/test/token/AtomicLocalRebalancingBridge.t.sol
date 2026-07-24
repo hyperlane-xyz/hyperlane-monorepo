@@ -1033,6 +1033,22 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         _localRebalance(100e6, calls);
     }
 
+    function test_rebalance_revertsOnDelegatecall() public {
+        // A delegatecall runs in the bridge's storage context and could re-arm
+        // the transient callback slot to pull the source router again
+        // (HL-2026Q3-003); safeMulticall rejects it before it executes.
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.build(
+            address(swapTarget),
+            CallLib.DELEGATECALL_SENTINEL,
+            abi.encodeCall(TestSwapTarget.swapExactInput, (100e6))
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(CallLib.DelegatecallNotAllowed.selector);
+        _localRebalance(100e6, calls);
+    }
+
     function test_transferRemote_allowsCallsToTopUpSourceCollateral() public {
         swapTarget.setOutputAmount(100e6);
         inputToken.mintTo(rebalancer, 1e6);

@@ -112,6 +112,10 @@ contract AtomicLocalRebalancingBridge is
     /// @param data ABI-encoded `CallLib.Call[]` run after escrow (token approvals
     /// and DEX swaps). Calls must leave enough output token on this wrapper to pay
     /// the destination router.
+    /// @dev The calls run with this wrapper's authority: an allowed rebalancer can
+    /// grant a standing token allowance (e.g. `approve`) over any balance this
+    /// wrapper holds, so `recoverToken` does not protect the wrapper's holdings
+    /// from an allowed rebalancer.
     function rebalance(
         uint32 domain,
         uint256 amount,
@@ -150,8 +154,12 @@ contract AtomicLocalRebalancingBridge is
         );
 
         // Escrow the source collateral, then run the rebalancer's calls.
+        // `safeMulticall` rejects delegatecalls: the calls run with this
+        // wrapper's authority, so a delegatecall could re-arm the callback slot
+        // to over-pull the source router or otherwise write this contract's
+        // storage.
         _pullSourceRouterCollateral(source, amount);
-        CallLib.multicall(abi.decode(data, (CallLib.Call[])));
+        CallLib.safeMulticall(abi.decode(data, (CallLib.Call[])));
 
         _validatePostCallBalances(
             sourceToken,
