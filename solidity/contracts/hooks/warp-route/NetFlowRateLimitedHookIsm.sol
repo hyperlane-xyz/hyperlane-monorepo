@@ -28,15 +28,17 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
  * @dev Use only for routes where `token()`'s balance at the router is the live
  * TVL AND the message<->local conversion is `TokenRouter`'s fixed `scale`
  * (what `_toLocalAmount` reproduces to meter the message amount in local
- * units): HypERC20, HypERC20Collateral, HypNative. Do NOT use for:
- *   - HypXERC20 / HypXERC20Lockbox / HypFiatToken / HypERC4626Collateral —
- *     `token()`'s `balanceOf(router) == 0` (they mint/burn an external token or
- *     hold vault shares), so capacity collapses to zero and the route bricks.
- *   - HypERC4626 (synthetic, rebasing) — `token() == router` gives a *nonzero*
- *     capacity (so the zero-capacity check above does NOT catch it), but it
- *     scales by exchange rate rather than the fixed `scale` fraction, so
- *     `_toLocalAmount` meters the wrong units (message shares vs
- *     asset-denominated TVL).
+ * units): HypERC20, HypERC20Collateral, HypNative. The collateral/native pair
+ * (HypERC20Collateral/HypNative) must be an `LpCollateralRouter` — `TvlRateLimited`
+ * nets its `totalAssets()` out of the capacity base. Do NOT use for:
+ *   - HypXERC20 / HypXERC20Lockbox / HypFiatToken / HypERC4626Collateral — not
+ *     `LpCollateralRouter`s (they mint/burn an external token or hold vault
+ *     shares, with `balanceOf(router) == 0`), so `localCollateral` reverts on
+ *     the `totalAssets()` read.
+ *   - HypERC4626 (synthetic, rebasing) — `token() == router` uses the
+ *     `totalSupply()` branch (no `totalAssets()` read), but it scales by
+ *     exchange rate rather than the fixed `scale` fraction, so `_toLocalAmount`
+ *     meters the wrong units (message shares vs asset-denominated TVL).
  *
  * @dev This contract authenticates flow only, NOT message authenticity
  * (`moduleType()` is NULL). Deployers MUST compose it under an authenticating

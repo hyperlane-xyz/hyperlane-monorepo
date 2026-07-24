@@ -101,6 +101,39 @@ contract RateLimited is OwnableUpgradeable {
     /// initialization (see `_RateLimited_isInitialized`).
     function _RateLimited_initialize() internal virtual {}
 
+    /// @dev Adjust the replenished level before it is clamped to capacity.
+    /// Base returns it unchanged; delay-mode subclasses subtract outstanding
+    /// debt so an underwater bucket reports zero headroom.
+    function _RateLimited_adjustLevel(
+        uint256 _replenishedLevel
+    ) internal view virtual returns (uint256) {
+        return _replenishedLevel;
+    }
+
+    /// @dev Heal tracked debt by the refill accrued since the last touch.
+    /// No-op for base limiters, which carry no debt.
+    function _RateLimited_settleDebt(uint256 /*_refill*/) internal virtual {}
+
+    /// @dev Record over-limit consumption and return the resulting refill-time
+    /// deficit. Base carries no debt, so the deficit reflects only this overage.
+    function _RateLimited_recordDeficit(
+        uint256 _overage,
+        uint256 _cap
+    ) internal virtual returns (uint256) {
+        return
+            _cap == 0
+                ? type(uint256).max
+                : Math.mulDiv(_overage, DURATION, _cap);
+    }
+
+    /// @dev Apply a credit against tracked debt first, returning the remainder
+    /// to add as headroom. Base has no debt, so the full amount is headroom.
+    function _RateLimited_applyCredit(
+        uint256 _amount
+    ) internal virtual returns (uint256) {
+        return _amount;
+    }
+
     /**
      * Calculates the adjusted fill level based on time
      */
@@ -111,16 +144,13 @@ contract RateLimited is OwnableUpgradeable {
         // Uninitialized buckets report full at the current capacity.
         if (!_RateLimited_isInitialized()) return _capacity;
 
-        if (block.timestamp > lastUpdated + DURATION) {
-            // If last update is in the previous window, return the max capacity
-            return _capacity;
-        } else {
-            // If within the window, refill the capacity
-            uint256 replenishedLevel = filledLevel + calculateRefilledAmount();
-
-            // Only return _capacity, in the case where newCurrentCapacity overflows
-            return replenishedLevel > _capacity ? _capacity : replenishedLevel;
-        }
+        // Refill linearly toward capacity; an elapsed window (refill >=
+        // capacity) saturates the clamp, so no separate stale-window branch is
+        // needed. `_RateLimited_adjustLevel` nets out debt for delay-mode.
+        uint256 replenishedLevel = _RateLimited_adjustLevel(
+            filledLevel + calculateRefilledAmount()
+        );
+        return replenishedLevel > _capacity ? _capacity : replenishedLevel;
     }
 
     /**
@@ -168,7 +198,12 @@ contract RateLimited is OwnableUpgradeable {
     function _credit(uint256 _amount) internal returns (uint256 newLevel) {
         uint256 cap = maxCapacity();
         if (cap == 0) return 0;
-        uint256 credited = calculateCurrentLevel() + _amount;
+        // Read the debt-adjusted level before settling, then heal debt with the
+        // elapsed refill; `_RateLimited_applyCredit` nets the credit against any
+        // remaining debt so only the surplus becomes headroom.
+        uint256 level = calculateCurrentLevel();
+        _RateLimited_settleDebt(calculateRefilledAmount());
+        uint256 credited = level + _RateLimited_applyCredit(_amount);
         newLevel = credited > cap ? cap : credited;
         filledLevel = newLevel;
         lastUpdated = block.timestamp;
@@ -183,14 +218,16 @@ contract RateLimited is OwnableUpgradeable {
      */
     function _consume(uint256 _amount) internal returns (uint256 deficitSecs) {
         uint256 cap = maxCapacity();
+        // Read the debt-adjusted level before settling, then heal debt with the
+        // elapsed refill. Order matters: reading after settling would count the
+        // refill twice.
         uint256 level = calculateCurrentLevel();
+        _RateLimited_settleDebt(calculateRefilledAmount());
         if (_amount <= level) {
             filledLevel = level - _amount;
         } else {
             filledLevel = 0;
-            deficitSecs = cap == 0
-                ? type(uint256).max
-                : Math.mulDiv(_amount - level, DURATION, cap);
+            deficitSecs = _RateLimited_recordDeficit(_amount - level, cap);
         }
         lastUpdated = block.timestamp;
         _RateLimited_initialize();

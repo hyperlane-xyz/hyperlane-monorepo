@@ -8,6 +8,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title Handles deposits and withdrawals of native token collateral.
@@ -76,5 +77,30 @@ library ERC721Collateral {
         uint256 _tokenId
     ) internal {
         token.safeTransferFrom(address(this), _recipient, _tokenId);
+    }
+}
+
+/**
+ * @title Reads the effective (non-reclaimable) collateral held by an ERC4626 LP
+ * vault (e.g. an `LpCollateralRouter`).
+ */
+library LpCollateral {
+    /**
+     * @notice The vault's collateral balance excluding the pool reclaimable by
+     * LP share holders: `balance - totalAssets()`, clamped at 0.
+     * @dev The raw balance is the vault's holding of its `asset()`, or its
+     * native balance when `asset() == address(0)` (HypNative). `totalAssets()`
+     * is the LP-redeemable pool, so netting it out leaves only genuinely locked
+     * collateral and irreversible transfers.
+     */
+    function effectiveCollateralBalance(
+        IERC4626 vault
+    ) internal view returns (uint256) {
+        address asset = vault.asset();
+        uint256 balance = asset == address(0)
+            ? address(vault).balance
+            : IERC20(asset).balanceOf(address(vault));
+        uint256 reclaimable = vault.totalAssets();
+        return balance > reclaimable ? balance - reclaimable : 0;
     }
 }
