@@ -959,6 +959,17 @@ export async function enrollCrossChainRouters(
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: resolvedConfigMap[currentChain].owner,
+            // Deploy set the ProxyAdmin owner to the intermediate deployer owner
+            // so post-deploy enrollment could be self-signed. actualConfig reads
+            // that live (deployer) owner, so carry the configured owner through
+            // here — otherwise the deferred update sees no change and the
+            // deployer keeps upgrade authority over the proxy.
+            proxyAdmin: actualConfig.proxyAdmin && {
+              address: actualConfig.proxyAdmin.address,
+              owner:
+                resolvedConfigMap[currentChain].proxyAdmin?.owner ??
+                resolvedConfigMap[currentChain].owner,
+            },
             remoteRouters,
             destinationGas,
             // For cross-protocol routes (EVM+SVM/Cosmos), the EVM deployer

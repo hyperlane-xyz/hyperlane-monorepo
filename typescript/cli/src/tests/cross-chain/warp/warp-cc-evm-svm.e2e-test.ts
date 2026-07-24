@@ -593,6 +593,14 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     assert(evmConfig.owner, 'EVM warp owner should be set');
     expect(eqAddress(evmConfig.owner, evmOwner)).to.equal(true);
 
+    // The ProxyAdmin (upgrade authority) must also move to the configured owner
+    // during the deferred enrollment, not stay with the deployer.
+    assert(
+      evmConfig.proxyAdmin?.owner,
+      'EVM warp proxyAdmin owner should be set',
+    );
+    expect(eqAddress(evmConfig.proxyAdmin.owner, evmOwner)).to.equal(true);
+
     // The SVM router was enrolled on the EVM warp while the deployer still
     // owned it. EVM readers key remoteRouters by domain ID.
     const svmDomainId =
