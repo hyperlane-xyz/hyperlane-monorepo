@@ -1,5 +1,46 @@
 # @hyperlane-xyz/sdk
 
+## 39.0.0
+
+### Major Changes
+
+- 4ef1fde: - `getMinGasForWarpDeploy` now lives on `IProvider` (per-chain) instead of the stateless `ProtocolProvider`. It is `async` and returns a FINAL native-denom amount rather than a mix of gas units and native amounts. It composes the base router deploy cost with additive deltas for detected features (cross-collateral extras, fee program deploy, custom ISM / hook / IGP deploy) driven by the warp config shape, and for gas-metered protocols multiplies gas units by the chain gas price.
+  - `ChainMetadataForAltVM` gained an optional `gasPrice` field.
+  - `ProviderBuilderFn` now takes a full `ChainMetadata` instead of `(rpcUrls, network)`.
+  - The AltVM `IProvider.connect` and `ISigner.connectWithSigner` static factories now take `ChainMetadataForAltVM` as their first argument, replacing the previous `(rpcUrls, chainId, extraParams)` shape and the metadata-through-`extraParams` indirection.
+  - The CLI warp-deploy preflight now sizes AltVM native-balance requirements from the composed per-chain deploy cost, so feature-heavy deploys are no longer silently under-funded, and chains without a gas price are no longer skipped for the warp-deploy path.
+  - The AltVM warp-deploy base gas costs were calibrated from measured deploys (Sealevel from mainnet; Starknet, Aleo, and Radix from devnet base-router floors with safety margin), replacing the previous catastrophically-low placeholder constants that let preflight pass under-funded accounts.
+  - The Starknet test fixture native token was corrected from ETH to STRK to match the production registry and the token the devnet actually charges fees in.
+
+### Patch Changes
+
+- 43eb24a: Removed the long-inactive Polkachu validator from the forma default multisig ISM config. Polkachu's forma validator has not signed a checkpoint since Feb 2026 (~5 months) as the chain winds down; this drops it from the source-of-truth validator set. The threshold is left unchanged pending a separate on-chain ISM update.
+- 406b5c7: Legacy IGP upgrades were fixed to recognize missing `PACKAGE_VERSION` selectors after aggregate providers wrap empty responses.
+- 11e215e: The warp-route `ownerStatus` check no longer baked governance-ICA knowledge into the SDK. `expandWarpDeployConfig` became deterministic (an Inactive owner is normalized to Active), and `checkWarpRouteDeployConfig` gained an optional `acceptedInactiveOwners` list of `{ chain, owner }` verdicts. An observed Inactive owner was treated as acceptable only when the exact `{ chain, owner }` pair was present in that list, letting the caller (infra) own the governance decision of deriving and verifying the ICA while the SDK stayed governance-agnostic.
+- bf7c658: `HyperlaneIsmFactory` now asserts the expected owner when a routing ISM deploy finds its target contract already initialized, instead of silently treating any existing initialization as success. This surfaces contention on a routing ISM's one-time `initialize()` call as a loud failure rather than a silent no-op.
+- 4bebbbf: Removed the acquired Imperator validator from the ink default multisig ISM config, where it has been frozen (checkpoint stuck at index 129000), and lowered the ink threshold from 4 to 3 to preserve the minimum majority (`floor(n/2) + 1`). Imperator remains in the other default ISMs pending a planned batch rotation.
+- 2d398b9: The warp check no longer emits a spurious `decimals` ConfigMismatch for AltVM native tokens (e.g. Aleo `AleoHypNative`). The derived actual side has no decimals field for native tokens (`DerivedNativeWarpConfig` omits it), while the deploy-config-derived expected side carries decimals from the warp core config, so the field is now excluded from the diff on the expected side for AltVM native token types to keep both sides symmetric.
+- 15b249c: The altVM warp check no longer reports a false-positive `decimals` ConfigMismatch on native legs whose on-chain reader resolves a concrete decimals value (e.g. Sealevel/Solana native = 9). The expected side omits decimals for altVM native tokens, so `buildAltVmWarpRouteDiff` now skips the decimals comparison whenever the deploy config omits it, mirroring the existing ISM/hook/contractVersion handling.
+- 6967bef: Updated the AltVM warp route check to treat a per-destination gas that reads back as 0 from the on-chain `destination_gas` entrypoint as equivalent to an omitted value in the deploy config, but ONLY for no-IGP origins (Starknet/paradex). Those synthetic routers were deployed without per-domain gas so they read 0 on-chain, while the expected side derives a non-zero EVM `gasOverhead` default for every remote, producing perpetual false-positive `destinationGas` violations in `check-warp-deploy` on chains that have no IGP to consume the value. IGP-capable altVM protocols (Sealevel, CosmosNative, ...) still diff destinationGas normally, so a zero-vs-nonzero drift there is preserved. A genuinely configured (non-zero) on-chain destinationGas always surfaces as a violation.
+- 213f626: Updated the altVM warp route check to treat the paradex-only `collateralDex` registry annotation as equivalent to `collateral`. `collateralDex` has no matching SDK `TokenType`, and on-chain the leg is a standard collateral router, so the deriver reported `collateral` and the generic altVM diff produced a perpetual false-positive `type` ConfigMismatch in `check-warp-deploy` for the ETH/paradex and DIME/paradex routes.
+- 3811ba9: The warp check no longer emits a spurious `token` ConfigMismatch for synthetic tokens. The SVM/cosmos synthetic reader populates `token` with the on-chain mint/denom (a deterministic deployment artifact derived from the router), while the deploy-config-derived expected side has no counterpart, so the field is now excluded from the diff on both sides for synthetic token types.
+- 6c2ca1d: Updated the EVM warp route check to treat an unset (zero-address) on-chain post-dispatch hook as equivalent to an omitted hook in the deploy config. Previously, `expandVirtualWarpDeployConfig` resolved an unset on-chain hook to the zero address while the expected config left it undefined, producing a perpetual false-positive `hook` violation in `check-warp-deploy`. A genuinely configured (non-zero) on-chain hook still surfaces as a violation.
+- 1a31d04: Fixed a bug where deploying a warp route whose EVM owner differed from the deployer failed during cross-chain router enrollment with `Ownable: caller is not the owner`. The EVM token deployer transferred router ownership to the configured owner at the end of its per-protocol phase, before the global cross-chain enrollment (submitted by the deployer key) ran. `executeWarpDeploy` now deploys EVM routers under the deployer as an intermediate owner — mirroring the AltVM branch — so enrollment runs while the deployer still owns the router, and `enrollCrossChainRouters` hands ownership to the configured owner afterward. The deferred update also carries the configured ProxyAdmin owner through, so upgrade authority is transferred to the configured owner instead of being left with the deployer.
+- 9997aee: The warp route `ownerStatus` virtual check no longer recurses into the implementation contract's owner. Under the transparent-proxy pattern the implementation is inert (upgrade authority lives in the ProxyAdmin, not the implementation) and its owner is never a configured value, so a stale deployer EOA there produced false-positive owner-inactive drift. The check still recurses into the ProxyAdmin owner, which holds upgrade authority and is a managed owner.
+- Updated dependencies [4ef1fde]
+- Updated dependencies [6f61265]
+- Updated dependencies [6793396]
+- Updated dependencies [1a31d04]
+  - @hyperlane-xyz/provider-sdk@8.0.0
+  - @hyperlane-xyz/tron-sdk@24.0.0
+  - @hyperlane-xyz/cosmos-sdk@39.0.0
+  - @hyperlane-xyz/aleo-sdk@39.0.0
+  - @hyperlane-xyz/radix-sdk@39.0.0
+  - @hyperlane-xyz/deploy-sdk@8.0.0
+  - @hyperlane-xyz/starknet-core@39.0.0
+  - @hyperlane-xyz/utils@39.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 38.0.0
 
 ### Major Changes

@@ -1,5 +1,30 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 8.0.0
+
+### Patch Changes
+
+- 6793396: Fixed SVM warp-route program upgrades failing transaction simulation on clusters where the `enable_extend_program_checked` feature gate is inactive (e.g. Solana mainnet-beta). `prepareProgramUpgrade` queried the feature gate and emitted the legacy `ExtendProgram` (variant 6) instruction when the checked variant was unavailable, and clamped the program-data extend up to the loader's 10240-byte minimum instead of requesting the exact deficit (which the loader rejects). Added a generic `isFeatureActive` gate checker and a `program-extend-upgrade` e2e that exercised the unchecked extend path end-to-end against a feature-deactivated validator.
+
+  Fixed the extend and upgrade racing the same slot when a `warp apply` both bumped `contractVersion` and set a fee: the loader rejects an Upgrade in the slot its program-data was extended ("Program was deployed in this block already"), and a program is not invocable in the slot it is upgraded. A generic `waitForSlotAdvance` hint was added to `SvmTransaction` and honored in `SvmSigner.send` — it polls until the cluster slot advances past the confirmed transaction's slot before reporting the send done, so the next transaction executes in a strictly later slot. `prepareProgramUpgrade` set the hint on the extend and upgrade transactions, guaranteeing extend → upgrade → config each land in separate slots. The signer stayed protocol-generic (no upgrade-specific logic) and the transactions remained emitted for export/multisig flows.
+
+  `SvmSigner.signAndSend` surfaced the on-chain program logs from a failed preflight simulation (logged at `error` before rethrowing) so a failed apply shows why the transaction reverted (e.g. insufficient lamports, custom program errors) instead of a bare "Transaction simulation failed". `AltVMJsonRpcSubmitter` logged each transaction's annotation at `info` while submitting, matching the EVM `MultiProvider.sendTransaction` output.
+
+  `prepareProgramUpgrade` clamped the program-data extend down to the remaining account headroom when growing to the loader's 10240-byte minimum would exceed Solana's 10 MiB account-data limit — the loader permits a sub-minimum extend that consumes exactly the remaining space — and failed fast with a clear message only when the new binary cannot fit the account at all, instead of letting an over-cap request produce an opaque on-chain loader error. `transactionToPrintableJson` carried the `waitForSlotAdvance` sequencing hint into its exported JSON, so file/Squads flows — where an external executor signs and submits the extend, upgrade, and config transactions — retained the directive to wait for the cluster slot to advance past each hinted transaction's confirmation slot before submitting the next one.
+
+- Updated dependencies [4ef1fde]
+- Updated dependencies [6f61265]
+- Updated dependencies [6793396]
+- Updated dependencies [1a31d04]
+  - @hyperlane-xyz/provider-sdk@8.0.0
+  - @hyperlane-xyz/sealevel-sdk@39.0.0
+  - @hyperlane-xyz/tron-sdk@24.0.0
+  - @hyperlane-xyz/cosmos-sdk@39.0.0
+  - @hyperlane-xyz/aleo-sdk@39.0.0
+  - @hyperlane-xyz/radix-sdk@39.0.0
+  - @hyperlane-xyz/starknet-sdk@29.0.0
+  - @hyperlane-xyz/utils@39.0.0
+
 ## 7.2.0
 
 ### Patch Changes
