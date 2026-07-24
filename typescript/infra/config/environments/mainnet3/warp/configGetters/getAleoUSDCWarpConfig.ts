@@ -14,7 +14,7 @@ import { WarpRouteIds } from '../warpIds.js';
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const owners = {
-  aleo: 'aleo1hs5dstedw5u4nps77h54rnqcplagdst0tvcs2rhvuf8geuxzzvrs383dgs',
+  aleo: 'aleo1mx0tldt5qsqymn5a3whnmf9rx2whp837jjn0tvqgxqf86zg6dvyqnc8spm',
   arbitrum: '0x63C65aFC66C7247a3d43197744Da7F5838ACbf77',
   avalanche: '0x117f4a84f98b3C8BEF00a2371672031694C1Fa0A',
   base: '0xc88297c52BED07aecAec13BD3bB21647C319a73d',

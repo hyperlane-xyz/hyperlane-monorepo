@@ -60,14 +60,14 @@ export const messageTransmitterV2Addresses = {
 export const FAST_TRANSFER_FEE_BPS: Partial<
   Record<keyof typeof tokenMessengerV2Addresses, number>
 > = {
-  arbitrum: 1.3,
+  arbitrum: 1.4,
   base: 1.3,
   ethereum: 1,
   ink: 2,
-  linea: 11,
+  linea: 13,
   optimism: 1.3,
   plume: 2,
-  unichain: 1.5,
+  unichain: 2,
   worldchain: 1.3,
 };
 
