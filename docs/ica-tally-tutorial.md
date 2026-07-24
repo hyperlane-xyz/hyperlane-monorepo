@@ -96,7 +96,7 @@ async function getDaoIcaAddress() {
     owner: daoOwnerAddress,
   });
 
-  console.log(\DAO ICA on Optimism: \\);
+  console.log('DAO ICA on Optimism:', icaAddress);
   return icaAddress;
 }
 ```
@@ -131,8 +131,8 @@ async function fundIca(icaAddress: string, amountEth: string) {
   });
 
   await tx.wait();
-  console.log(\Sent \ ETH to ICA: \\);
-  console.log(\Tx hash: \\);
+  console.log('Sent', amountEth, 'ETH to ICA:', icaAddress);
+  console.log('Tx hash:', tx.hash);
 }
 
 // Send 0.1 ETH to the DAO's ICA
@@ -155,7 +155,7 @@ async function fundIcaWithToken(
 
   const tx = await token.transfer(icaAddress, ethers.parseUnits(amount, 6));
   await tx.wait();
-  console.log(\Sent \ USDC to ICA via tx: \\);
+  console.log('Sent', amount, 'USDC to ICA via tx:', tx.hash);
 }
 ```
 
@@ -344,12 +344,12 @@ async function main() {
     owner: DAO_GOVERNOR,
   });
   console.log(\\\n=== Step 1: ICA Address ===\);
-  console.log(\ICA on \: \\);
+  console.log('ICA on', DESTINATION_CHAIN + ':', icaAddress);
 
   // ===== Step 2: Send funds to ICA =====
   console.log(\\\n=== Step 2: Fund the ICA ===\);
-  console.log(\Send ETH to: \\);
-  console.log(\Chain: \\);
+  console.log('Send ETH to:', icaAddress);
+  console.log('Chain:', DESTINATION_CHAIN);
 
   // ===== Step 3: Generate proposal calldata =====
   console.log(\\\n=== Step 3: Proposal Calldata ===\);
@@ -370,9 +370,9 @@ async function main() {
   });
 
   console.log(\Target (ICA Router on \):\, proposalTx.to);
-  console.log(\Calldata:\, proposalTx.data);
-  console.log(\Required ETH (IGP fee):\, ethers.formatEther(proposalTx.value || 0));
-  console.log(\\\nCreate proposal on Tally with this calldata.\);
+  console.log("Calldata:", proposalTx.data);
+  console.log("Required ETH (IGP fee):", ethers.formatEther(proposalTx.value || 0));
+  console.log("\nCreate proposal on Tally with this calldata.");
 }
 
 main().catch(console.error);
