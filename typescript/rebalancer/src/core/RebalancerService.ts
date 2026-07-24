@@ -10,6 +10,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
+  type ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -49,6 +50,9 @@ export interface RebalancerServiceConfig {
 
   /** CoinGecko API key for token price fetching (required for metrics) */
   coingeckoApiKey?: string;
+
+  /** API keys for configured external bridge providers */
+  externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>;
 
   /** Logger instance */
   logger: Logger;
@@ -156,6 +160,7 @@ export class RebalancerService {
       this.registry,
       this.logger,
       this.inventorySignerKeysByProtocol,
+      this.config.externalBridgeApiKeys,
     );
 
     // Create metrics if enabled

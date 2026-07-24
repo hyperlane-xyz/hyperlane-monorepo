@@ -12,6 +12,7 @@ hyperlane:
   # Used for fetching private RPC secrets
   chains: []
   inventorySignerProtocols: []
+  externalBridgeProviders: []
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

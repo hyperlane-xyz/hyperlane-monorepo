@@ -788,7 +788,7 @@ describe('per-chain bridge configuration', () => {
     });
   });
 
-  it('should require externalBridges.lifi when executionType is inventory', () => {
+  it('should not require lifi when inventory config omits externalBridge', () => {
     const data = {
       warpRouteId: 'test-route',
       strategy: [
@@ -809,9 +809,19 @@ describe('per-chain bridge configuration', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
+    let validationError: Error | undefined;
+    try {
+      RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+    } catch (error) {
+      if (error instanceof Error) {
+        validationError = error;
+      }
+    }
+
+    expect(validationError?.message).to.match(
+      /ethereum.*inventory execution.*externalBridge/i,
     );
+    expect(validationError?.message).to.not.match(/externalBridges\.lifi/i);
   });
 
   it('should require externalBridges.lifi when externalBridge is lifi', () => {
@@ -838,6 +848,99 @@ describe('per-chain bridge configuration', () => {
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
       /externalBridges\.lifi.*required|lifi.*not configured/i,
+    );
+  });
+
+  it('should accept swapsxyz inventory config without lifi', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.SwapsXyz,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        swapsxyz: {
+          apiUrl: 'https://api.swaps.xyz',
+          defaultSlippage: 0.005,
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.externalBridges?.swapsxyz).to.deep.equal({
+      apiUrl: 'https://api.swaps.xyz',
+      defaultSlippage: 0.005,
+    });
+    expect(config.externalBridges?.lifi).to.be.undefined;
+  });
+
+  it('should require externalBridges.swapsxyz when referenced', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.SwapsXyz,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /swapsxyz.*not configured|externalBridges\.swapsxyz.*required/i,
+    );
+  });
+
+  it('should reject swapsxyz defaultSlippage above the fractional guard', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.SwapsXyz,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        swapsxyz: { defaultSlippage: 50 },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /less than or equal to 0\.1/i,
     );
   });
 

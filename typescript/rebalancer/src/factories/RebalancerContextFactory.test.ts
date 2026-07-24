@@ -134,6 +134,7 @@ async function createFactory(
     createMockRegistry(),
     testLogger,
     undefined,
+    undefined,
     warpCoreConfig,
   );
 }
@@ -403,6 +404,8 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
+      // Stubbed test method; accessing Sinon controls does not invoke it unbound.
+      // oxlint-disable-next-line typescript-eslint/unbound-method
       const getChainMetadataStub = factory.getWarpCore().multiProvider
         .getChainMetadata as Sinon.SinonStub;
       getChainMetadataStub.callsFake((chainName: string) => ({
@@ -455,6 +458,8 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
+      // Stubbed test method; accessing Sinon controls does not invoke it unbound.
+      // oxlint-disable-next-line typescript-eslint/unbound-method
       const getChainMetadataStub = factory.getWarpCore().multiProvider
         .getChainMetadata as Sinon.SinonStub;
       getChainMetadataStub.callsFake(() => ({
@@ -534,6 +539,8 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
+      // Stubbed test method; accessing Sinon controls does not invoke it unbound.
+      // oxlint-disable-next-line typescript-eslint/unbound-method
       const getChainMetadataStub = factory.getWarpCore().multiProvider
         .getChainMetadata as Sinon.SinonStub;
       getChainMetadataStub.callsFake((chainName: string) => ({
@@ -619,6 +626,8 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
+      // Stubbed test method; accessing Sinon controls does not invoke it unbound.
+      // oxlint-disable-next-line typescript-eslint/unbound-method
       const getChainMetadataStub = factory.getWarpCore().multiProvider
         .getChainMetadata as Sinon.SinonStub;
       getChainMetadataStub.callsFake((chainName: string) => ({

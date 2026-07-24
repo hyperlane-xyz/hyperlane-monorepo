@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { SwapsXyzBridge } from '../bridges/SwapsXyzBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -72,6 +73,10 @@ import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils
 const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
+function throwUnknownBridgeType(_bridgeType: never): never {
+  throw new Error('Unknown bridge type');
+}
+
 export class RebalancerContextFactory {
   /**
    * @param config - The rebalancer config
@@ -93,6 +98,9 @@ export class RebalancerContextFactory {
     private readonly inventorySignerKeysByProtocol?: Partial<
       Record<ProtocolType, string>
     >,
+    private readonly externalBridgeApiKeys?: Partial<
+      Record<ExternalBridgeType, string>
+    >,
   ) {}
 
   /**
@@ -109,6 +117,7 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
+    externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
@@ -179,6 +188,7 @@ export class RebalancerContextFactory {
       registry,
       logger,
       inventorySignerKeysByProtocol,
+      externalBridgeApiKeys,
     );
   }
 
@@ -647,11 +657,31 @@ export class RebalancerContextFactory {
           }
           break;
         }
-        default: {
-          // Exhaustive check - TypeScript will error if new enum value added
-          const _exhaustive: never = bridgeType;
-          throw new Error(`Unknown bridge type: ${_exhaustive}`);
+        case ExternalBridgeType.SwapsXyz: {
+          const swapsxyzConfig = externalBridges?.swapsxyz;
+          if (swapsxyzConfig) {
+            const apiKey =
+              this.externalBridgeApiKeys?.[ExternalBridgeType.SwapsXyz];
+            if (!apiKey) {
+              throw new Error(
+                'externalBridges.swapsxyz is configured but SWAPSXYZ_API_KEY is not set',
+              );
+            }
+            registry[ExternalBridgeType.SwapsXyz] = new SwapsXyzBridge(
+              {
+                apiKey,
+                apiUrl: swapsxyzConfig.apiUrl,
+                defaultSlippage: swapsxyzConfig.defaultSlippage,
+                chainMetadata: this.multiProvider.metadata,
+              },
+              this.logger,
+            );
+          }
+          break;
         }
+        default:
+          // Exhaustive check - TypeScript will error if new enum value added
+          throwUnknownBridgeType(bridgeType);
       }
     }
 
