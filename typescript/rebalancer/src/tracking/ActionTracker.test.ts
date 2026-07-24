@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_INTENT_TTL_MS,
@@ -83,8 +84,8 @@ describe('ActionTracker', () => {
       transferStore,
       rebalanceIntentStore,
       rebalanceActionStore,
-      explorerClient as any,
-      core as any,
+      explorerClient,
+      core,
       config,
       testLogger,
     );
@@ -1463,6 +1464,37 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('rebalance action queries', () => {
+    it('should keep the first action for duplicate message id lookups', async () => {
+      const firstAction: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const secondAction: RebalanceAction = {
+        ...firstAction,
+        id: 'action-2',
+        intentId: 'intent-2',
+      };
+
+      await rebalanceActionStore.save(firstAction);
+      await rebalanceActionStore.save(secondAction);
+
+      const actionsByMessageId = await tracker.getActionsByMessageIds([
+        '0xmsg1',
+      ]);
+
+      expect(actionsByMessageId.get('0xmsg1')).to.deep.equal(firstAction);
+    });
+  });
+
   describe('delivery check synchronization', () => {
     it('should check delivery status in syncTransfers using adapter', async () => {
       await transferStore.save({
@@ -1575,6 +1607,86 @@ describe('ActionTracker', () => {
       await tracker.syncTransfers();
 
       expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+    });
+
+    it('should preserve delivery pairing and cache block tags per destination', async () => {
+      const transfers: Transfer[] = [
+        {
+          id: '0xmsg1',
+          status: 'in_progress',
+          messageId: '0xmsg1',
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        {
+          id: '0xmsg2',
+          status: 'in_progress',
+          messageId: '0xmsg2',
+          origin: 1,
+          destination: 2,
+          amount: 200n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        {
+          id: '0xmsg3',
+          status: 'in_progress',
+          messageId: '0xmsg3',
+          origin: 1,
+          destination: 3,
+          amount: 300n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ];
+
+      for (const transfer of transfers) {
+        await transferStore.save(transfer);
+      }
+
+      explorerClient.getInflightUserTransfers.resolves([]);
+      core.multiProvider.getChainMetadata = Sinon.stub().callsFake(
+        (chain: string) => ({
+          name: chain,
+          protocol: ProtocolType.Ethereum,
+          blocks: { reorgPeriod: 10 },
+        }),
+      );
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+        getBlockNumber: Sinon.stub().resolves(1000),
+      });
+      mailboxStub.isDelivered.callsFake((messageId: string) =>
+        Promise.resolve(messageId !== '0xmsg2'),
+      );
+
+      await tracker.syncTransfers();
+
+      expect(mailboxStub.isDelivered.callCount).to.equal(3);
+      expect(
+        mailboxStub.isDelivered
+          .getCalls()
+          .map((call: Sinon.SinonSpyCall) => call.args),
+      ).to.deep.equal([
+        ['0xmsg1', 990],
+        ['0xmsg2', 990],
+        ['0xmsg3', 990],
+      ]);
+      expect(core.multiProvider.getEthersV5Provider.callCount).to.equal(2);
+
+      expect((await transferStore.get('0xmsg1'))?.status).to.equal('complete');
+      expect((await transferStore.get('0xmsg2'))?.status).to.equal(
+        'in_progress',
+      );
+      expect((await transferStore.get('0xmsg3'))?.status).to.equal('complete');
     });
 
     it('should pass blockTag when checking delivery in syncTransfers', async () => {
