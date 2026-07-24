@@ -199,24 +199,28 @@ pub fn reveal<'info>(
 // ---------------------------------------------------------------------------
 //
 // Accounts:
-//   [0] pending_swap PDA   writable (closed; rent → accounts[6])
+//   [0] pending_swap PDA   writable (closed; rent → accounts[7])
 //   [1] caller             writable signer (anyone — triggers the close)
-//   [2] pda_ata            writable (tokens → recipient_ata, rent → accounts[6])
+//   [2] pda_ata            writable (tokens → recipient_ata, rent → accounts[7])
 //   [3] recipient_ata      writable (receives tokens; owner verified == swap.recipient)
 //   [4] token_program      readonly (SPL Token or Token-2022)
 //   [5] mint               readonly (required for transfer_checked; supports Token-2022 extensions)
-//   [6] recipient          writable (must match swap.recipient; receives all rent)
+//   [6] recipient          writable (must match swap.recipient; receives swapped-back tokens)
+//   [7] fee_payer_pda      writable (receives all rent lamports from PDA + ATA close —
+//       mirrors reveal()'s success-path refund, so the pool that funded this PDA's
+//       creation in handle_commit is replenished on the failure path too)
 //
 // Authorization:
 //   - Anyone (signer) may call, but only after 1 minute from commit_time.
 //   - recipient_ata owner and accounts[6] are both verified against swap.recipient.
+//   - accounts[7] must be the program's fee_payer_pda (verified against FEE_PAYER_SEED).
 
 fn close_pending_swap<'info>(
     program_id: &Pubkey,
     accounts: &'info [AccountInfo<'info>],
     ix: ClosePendingSwapIxn,
 ) -> ProgramResult {
-    if accounts.len() < 7 {
+    if accounts.len() < 8 {
         return Err(RouterError::InsufficientAccounts.into());
     }
     let swap_info = &accounts[0];
@@ -226,9 +230,16 @@ fn close_pending_swap<'info>(
     let token_program = &accounts[4];
     let mint = &accounts[5];
     let recipient = &accounts[6];
+    let fee_payer_pda = &accounts[7];
 
     if !caller.is_signer {
         return Err(RouterError::InvalidRecipient.into());
+    }
+
+    // Verify fee_payer_pda
+    let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], program_id);
+    if *fee_payer_pda.key != fee_payer_key {
+        return Err(RouterError::InvalidInputs.into());
     }
 
     // Verify PDA
@@ -256,7 +267,7 @@ fn close_pending_swap<'info>(
         PendingSwap::from_bytes(&data)?
     };
 
-    // Verify accounts[6] matches swap.recipient (rent destination).
+    // Verify accounts[6] matches swap.recipient (destination for any swapped-back tokens).
     if *recipient.key != swap.recipient {
         return Err(RouterError::InvalidRecipient.into());
     }
@@ -321,11 +332,11 @@ fn close_pending_swap<'info>(
         }
     }
 
-    // Close the pda_ata — sends its rent lamports to recipient
+    // Close the pda_ata — sends its rent lamports to fee_payer_pda
     let close_ata_ix = spl_token::instruction::close_account(
         token_program.key,
         pda_ata.key,
-        recipient.key,
+        fee_payer_pda.key,
         swap_info.key,
         &[],
     )?;
@@ -333,17 +344,17 @@ fn close_pending_swap<'info>(
         &close_ata_ix,
         &[
             pda_ata.clone(),
-            recipient.clone(),
+            fee_payer_pda.clone(),
             swap_info.clone(),
             token_program.clone(),
         ],
         &[signer_seeds],
     )?;
 
-    // Close the pending_swap PDA — transfer lamports to recipient, zero data
+    // Close the pending_swap PDA — transfer lamports to fee_payer_pda, zero data
     let swap_lamports = swap_info.lamports();
     **swap_info.try_borrow_mut_lamports()? = 0;
-    **recipient.try_borrow_mut_lamports()? += swap_lamports;
+    **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
     swap_info.try_borrow_mut_data()?.fill(0);
 
     Ok(())
@@ -422,6 +433,7 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d0 = vec![0u8; PendingSwap::LEN];
         let mut d1 = vec![];
         let mut d2 = vec![];
@@ -429,6 +441,10 @@ mod tests {
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
+        // fee_payer_pda's value doesn't matter here — the is_signer check rejects
+        // the request before it's ever read.
+        let fee_payer_key = Pubkey::new_unique();
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -445,6 +461,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -494,6 +511,8 @@ mod tests {
             &prog,
         );
 
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
+
         let mut l0 = 0u64;
         let mut l1 = 0u64;
         let mut l2 = 0u64;
@@ -501,6 +520,7 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         // Simulates the BUGGY state: PDA data was zeroed even on swap failure
         let mut d0 = vec![]; // empty data — PDA was erroneously closed
         let mut d1 = vec![];
@@ -509,6 +529,7 @@ mod tests {
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -518,6 +539,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -571,6 +593,7 @@ mod tests {
             commit_time: 0,
         };
         let swap_data = swap.to_bytes().unwrap();
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
 
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
@@ -579,6 +602,7 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d0 = swap_data; // non-empty — swap failed but PDA was left open (CRITICAL-1 fix)
         let mut d1 = vec![];
         let mut d2 = vec![];
@@ -587,6 +611,7 @@ mod tests {
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
@@ -596,6 +621,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let ix = ClosePendingSwapIxn {
@@ -633,8 +659,8 @@ mod tests {
     }
 
     #[test]
-    fn test_close_pending_swap_five_accounts_returns_insufficient() {
-        // 6 accounts < 7 required (added recipient at [6]) → InsufficientAccounts
+    fn test_close_pending_swap_seven_accounts_returns_insufficient() {
+        // 7 accounts < 8 required (added fee_payer_pda at [7]) → InsufficientAccounts
         let prog = Pubkey::new_unique();
         let k = Pubkey::new_unique();
         let owner = Pubkey::new_unique();
@@ -644,12 +670,14 @@ mod tests {
         let mut l3 = 0u64;
         let mut l4 = 0u64;
         let mut l5 = 0u64;
+        let mut l6 = 0u64;
         let mut d0 = vec![];
         let mut d1 = vec![];
         let mut d2 = vec![];
         let mut d3 = vec![];
         let mut d4 = vec![];
         let mut d5 = vec![];
+        let mut d6 = vec![];
         let accounts = vec![
             make_account(&k, false, false, &mut l0, &mut d0, &owner),
             make_account(&k, false, false, &mut l1, &mut d1, &owner),
@@ -657,6 +685,7 @@ mod tests {
             make_account(&k, false, false, &mut l3, &mut d3, &owner),
             make_account(&k, false, false, &mut l4, &mut d4, &owner),
             make_account(&k, false, false, &mut l5, &mut d5, &owner),
+            make_account(&k, false, false, &mut l6, &mut d6, &owner),
         ];
         let result = close_pending_swap(
             &prog,
@@ -808,6 +837,7 @@ mod tests {
             &recipient_key,
             0, // commit_time=0, now=0 → 0 < 60 → not expired
         );
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 0u64;
@@ -815,12 +845,14 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d1 = vec![];
         let mut d2 = vec![];
         let mut d3 = make_spl_token_account_data(&recipient_key, 0);
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
@@ -830,6 +862,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let result = close_pending_swap(
@@ -876,6 +909,7 @@ mod tests {
             &recipient_key,
             -61, // expired: now(0) >= -1
         );
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 0u64;
@@ -883,6 +917,7 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d1 = vec![];
         let mut d2 = vec![];
         // recipient_ata owned by wrong_owner — not the expected recipient
@@ -890,6 +925,7 @@ mod tests {
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
@@ -899,6 +935,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let result = close_pending_swap(
@@ -941,6 +978,7 @@ mod tests {
             &recipient_key,
             -61, // expired
         );
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 0u64;
@@ -948,6 +986,7 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d1 = vec![];
         let mut d2 = vec![];
         // recipient_ata correctly owned by recipient_key
@@ -955,6 +994,7 @@ mod tests {
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
@@ -964,6 +1004,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let result = close_pending_swap(
@@ -1011,6 +1052,7 @@ mod tests {
             &recipient_key,
             0, // fresh commit — not yet expired
         );
+        let (fee_payer_key, _) = Pubkey::find_program_address(&[FEE_PAYER_SEED], &prog);
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 0u64;
@@ -1018,12 +1060,14 @@ mod tests {
         let mut l4 = 0u64;
         let mut l5 = 0u64;
         let mut l6 = 0u64;
+        let mut l7 = 0u64;
         let mut d1 = vec![];
         let mut d2 = vec![];
         let mut d3 = make_spl_token_account_data(&recipient_key, 0); // correct ata owner
         let mut d4 = vec![];
         let mut d5 = make_spl_mint_data(6);
         let mut d6 = vec![];
+        let mut d7 = vec![];
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d_swap, &prog),
@@ -1033,6 +1077,7 @@ mod tests {
             make_account(&token_prog_key, false, false, &mut l4, &mut d4, &owner),
             make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
             make_account(&recipient_key, false, true, &mut l6, &mut d6, &owner),
+            make_account(&fee_payer_key, false, true, &mut l7, &mut d7, &owner),
         ];
 
         let result = close_pending_swap(
