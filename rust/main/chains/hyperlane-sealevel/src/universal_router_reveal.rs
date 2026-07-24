@@ -5,6 +5,16 @@
 //! (`commitment(32)|userSalt(32)|recipient(32)`) and `ur_reveal` is configured, a
 //! `RouterInstruction::Reveal` (variant 2) is submitted in a spawned tokio task.
 //!
+//! `reveal()` has no fallback on-chain: a failed swap CPI aborts the whole
+//! instruction (Solana CPI failures can't be caught and continued past), so
+//! `submit_reveal` simulates the Reveal transaction first. If simulation
+//! predicts failure, it submits `RouterInstruction::ClosePendingSwap` (variant
+//! 3) instead of a doomed Reveal — safe either way (Solana tx atomicity means
+//! a failed attempt never partially executes), though ClosePendingSwap only
+//! actually succeeds once the program's 1-minute post-commit expiry has
+//! passed; an earlier attempt just fails harmlessly with `SwapNotExpired` and
+//! the outer retry loop tries again later.
+//!
 //! Instruction data layout:
 //!   [0]       u8        variant = 2
 //!   [1..5]    u32 LE    origin domain
@@ -16,7 +26,7 @@
 
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use eyre::{bail, eyre, Result};
 use hyperlane_core::HyperlaneMessage;
@@ -40,6 +50,12 @@ use crate::{
 };
 
 const REVEAL_COMPUTE_UNITS: u32 = 600_000;
+// ClosePendingSwap does far less work than Reveal (a token transfer + two account
+// closes, no CPI into Raydium), so it needs a much smaller compute budget.
+const CLOSE_PENDING_SWAP_COMPUTE_UNITS: u32 = 200_000;
+// Must match hyperlane-sealevel-universal-router's close_pending_swap gate:
+// `now < swap.commit_time + 60`.
+const CLOSE_PENDING_SWAP_EXPIRY_SECS: i64 = 60;
 const CCS_MAX_RETRIES: u32 = 10;
 const CCS_RETRY_DELAY_SECS: u64 = 5;
 // Outer send attempts (each gets a fresh blockhash): 3 × ~60s = ~3 min total.
@@ -196,6 +212,60 @@ fn make_ata_ix(
             AccountMeta::new_readonly(*token_program, false),
         ],
         data: vec![1u8],
+    }
+}
+
+/// Accounts (from `build_instruction`'s reveal account list) needed to build a
+/// ClosePendingSwap instruction if a Reveal simulation predicts failure.
+struct CloseAccounts {
+    pda_input_ata: Pubkey,
+    input_mint: Pubkey,
+    input_token_prog: Pubkey,
+}
+
+/// Builds `RouterInstruction::ClosePendingSwap` (variant 3). Accounts:
+///   [0] pending_swap PDA   writable
+///   [1] caller             writable signer (anyone — this relayer's fee payer)
+///   [2] pda_ata            writable
+///   [3] recipient_ata      writable (must be owned by `recipient`; caller must
+///       pre-create it — see the idempotent ATA-create instruction alongside this)
+///   [4] token_program      readonly
+///   [5] mint               readonly
+///   [6] recipient          writable
+#[allow(clippy::too_many_arguments)]
+fn make_close_pending_swap_ix(
+    program_id: Pubkey,
+    origin: u32,
+    sender: [u8; 32],
+    user_salt: [u8; 32],
+    commitment: [u8; 32],
+    pending_swap_pda: Pubkey,
+    caller: Pubkey,
+    pda_ata: Pubkey,
+    recipient_ata: Pubkey,
+    token_program: Pubkey,
+    mint: Pubkey,
+    recipient: Pubkey,
+) -> Instruction {
+    let mut data = Vec::with_capacity(1 + 4 + 32 + 32 + 32);
+    data.push(3u8); // RouterInstruction::ClosePendingSwap variant
+    data.extend_from_slice(&origin.to_le_bytes());
+    data.extend_from_slice(&sender);
+    data.extend_from_slice(&user_salt);
+    data.extend_from_slice(&commitment);
+
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(pending_swap_pda, false),
+            AccountMeta::new(caller, true),
+            AccountMeta::new(pda_ata, false),
+            AccountMeta::new(recipient_ata, false),
+            AccountMeta::new_readonly(token_program, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(recipient, false),
+        ],
+        data,
     }
 }
 
@@ -396,21 +466,21 @@ pub fn maybe_spawn_reveal(
 
             if let Some(ccs) = ccs_opt {
                 if let Some(accounts) = ccs.reveal_accounts.as_deref() {
-                    // Require at least accounts[0..=15] so we can derive the ATA locally.
-                    if accounts.len() > 15 {
+                    // Require at least accounts[0..=14] so we can derive the ATA locally.
+                    if accounts.len() > 14 {
                         // Derive the input ATA from first-principles (same logic as
                         // build_instruction) rather than trusting accounts[1] from CCS, which
-                        // could be stale. accounts[12] = inputTokenProgram, accounts[15] =
+                        // could be stale. accounts[11] = inputTokenProgram, accounts[14] =
                         // inputMint; pending_swap_pda is the ATA owner.
-                        let maybe_ata_pubkey = Pubkey::from_str(&accounts[12].pubkey)
+                        let maybe_ata_pubkey = Pubkey::from_str(&accounts[11].pubkey)
                             .ok()
-                            .zip(Pubkey::from_str(&accounts[15].pubkey).ok())
+                            .zip(Pubkey::from_str(&accounts[14].pubkey).ok())
                             .map(|(token_prog, input_mint)| {
                                 derive_ata(&pending_swap_pda, &input_mint, &token_prog)
                             });
                         match maybe_ata_pubkey {
                             None => {
-                                warn!("Could not parse accounts[12] or accounts[15] pubkey from CCS; retrying in 5s");
+                                warn!("Could not parse accounts[11] or accounts[14] pubkey from CCS; retrying in 5s");
                             }
                             Some(ata_pubkey) => {
                                 // Check the ATA balance.
@@ -441,7 +511,7 @@ pub fn maybe_spawn_reveal(
                             }
                         }
                     } else {
-                        warn!("CCS revealAccounts has <16 entries; retrying in 5s");
+                        warn!("CCS revealAccounts has <15 entries; retrying in 5s");
                     }
                 } else {
                     warn!("CCS response missing revealAccounts; retrying in 5s");
@@ -465,12 +535,16 @@ pub fn maybe_spawn_reveal(
                 }
                 Err(e) => {
                     let msg = e.to_string();
-                    if msg.contains("Reveal tx failed on-chain") {
-                        // On-chain rejection — two possible causes:
-                        // 1. PDA is gone: another relayer already revealed → we're done.
-                        // 2. PDA still exists: our params were rejected (stale pool state,
-                        //    wrong vaults, etc.) → retry; build_instruction fetches fresh
+                    if msg.contains("tx failed on-chain") {
+                        // On-chain rejection (Reveal or ClosePendingSwap) — possible causes:
+                        // 1. PDA is gone: another relayer already revealed or closed it → done.
+                        // 2. PDA still exists, error is SwapNotExpired (Custom(15)): submit_reveal
+                        //    tried ClosePendingSwap before the program's 1-minute expiry — routine,
+                        //    not a real failure; keep retrying (Reveal may succeed by then too).
+                        // 3. PDA still exists, some other error: params were rejected (stale pool
+                        //    state, wrong vaults, etc.) → retry; build_instruction fetches fresh
                         //    pool state on each call so the next attempt should self-correct.
+                        let is_swap_not_expired = msg.contains("Custom(15)");
                         match rpc_client
                             .get_account_option_with_commitment(
                                 pending_swap_pda,
@@ -479,8 +553,11 @@ pub fn maybe_spawn_reveal(
                             .await
                         {
                             Ok(None) => {
-                                info!(%pending_swap_pda, "pending_swap PDA is gone — reveal completed by another relayer; stopping");
+                                info!(%pending_swap_pda, "pending_swap PDA is gone — reveal or close completed by another relayer; stopping");
                                 break;
+                            }
+                            Ok(Some(_)) if is_swap_not_expired => {
+                                debug!(retry_in_secs = delay_secs, "ClosePendingSwap not past its 1-minute expiry yet; will retry");
                             }
                             Ok(Some(_)) => {
                                 warn!(retry_in_secs = delay_secs, error = ?e, "On-chain rejection but PDA still exists; retrying with fresh pool state");
@@ -489,6 +566,10 @@ pub fn maybe_spawn_reveal(
                                 debug!(error = ?check_err, "Could not check PDA existence after on-chain error; will retry");
                             }
                         }
+                    } else if msg.contains("ClosePendingSwap not available yet") {
+                        // Proactively detected before submitting anything (see submit_reveal) —
+                        // routine, not a failure; no PDA re-check needed since we just read it.
+                        debug!(retry_in_secs = delay_secs, "{msg}");
                     } else {
                         warn!(retry_in_secs = delay_secs, error = ?e, "Transient failure; will retry");
                     }
@@ -516,12 +597,149 @@ struct RevealContext<'a> {
 
 async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
     let ccs = fetch_from_ccs(&ctx.http_client, ctx.ccs_url, &ctx.commitment).await?;
-    let built = build_instruction(ctx, &ccs).await?;
+    let (built, close_accounts) = build_instruction(ctx, &ccs).await?;
 
-    // Build a probe tx from the real instructions so the oracle can price based
-    // on the actual hot accounts (pool, vaults, tick arrays) rather than a global estimate.
-    let probe = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
+    // Simulate before submitting. A failed swap CPI aborts the whole Reveal
+    // instruction on-chain (Solana CPI failures can't be caught and continued
+    // past — see hyperlane-sealevel-universal-router's processor.rs), so a
+    // doomed Reveal just burns a transaction for nothing. If simulation
+    // predicts failure, go straight to ClosePendingSwap instead — safe either
+    // way, since Solana transactions are atomic (a failed attempt never
+    // partially executes) and ClosePendingSwap only opens up once the
+    // program's 1-minute expiry has passed, so an early attempt here simply
+    // fails harmlessly with SwapNotExpired and the outer retry loop tries
+    // again later.
+    let sim_tx = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
         &built,
+        Some(&ctx.fee_payer.pubkey()),
+    )));
+    match ctx.rpc_client.simulate_sealevel_tx(&sim_tx).await {
+        Ok(result) if result.err.is_some() => {
+            warn!(
+                error = ?result.err,
+                logs = ?result.logs,
+                "Reveal simulation predicts failure; attempting ClosePendingSwap instead of submitting a doomed Reveal"
+            );
+
+            let pending_swap_pda = derive_pending_swap_pda(
+                &ctx.program_id,
+                ctx.origin,
+                &ctx.sender,
+                &ctx.user_salt,
+                &ctx.commitment,
+            );
+
+            // Check the PDA still exists before doing anything else — unconditionally,
+            // before even checking whether we have enough info to build a close
+            // instruction. A failed simulation doesn't mean the swap is actually
+            // stuck: another relayer may have already submitted a successful Reveal
+            // (which closes this same PDA) in the time since we fetched CCS, or
+            // already closed it via its own ClosePendingSwap. Either way there's
+            // nothing left for us to do.
+            let pending_swap_account = ctx
+                .rpc_client
+                .get_account_option_with_commitment(pending_swap_pda, CommitmentConfig::confirmed())
+                .await
+                .map_err(|e| eyre!("fetch pending_swap account: {e}"))?;
+            let Some(pending_swap_account) = pending_swap_account else {
+                info!(%pending_swap_pda, "pending_swap PDA is gone — reveal succeeded or was closed elsewhere; stopping");
+                return Ok(());
+            };
+
+            // Proactively check the on-chain expiry before spending a transaction:
+            // ClosePendingSwap only succeeds once `now >= commit_time + 60` (see
+            // hyperlane-sealevel-universal-router's close_pending_swap). Read
+            // commit_time from the PDA itself rather than tracking it locally —
+            // this task can sit anywhere from seconds to ~30 minutes in the
+            // token-arrival wait (see Phase 2 above) before its first reveal
+            // attempt, so there's no reliable local clock to derive it from.
+            let commit_time = parse_pending_swap_commit_time(&pending_swap_account.data)?;
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let expires_at = commit_time.saturating_add(CLOSE_PENDING_SWAP_EXPIRY_SECS);
+            if now < expires_at {
+                let remaining = expires_at.saturating_sub(now);
+                bail!(
+                    "ClosePendingSwap not available yet — {remaining}s remaining until the \
+                     1-minute expiry; will retry"
+                );
+            }
+
+            let Some(accts) = close_accounts else {
+                bail!(
+                    "Reveal simulation failed and swap account info is unavailable to build \
+                     ClosePendingSwap (CCS returned too few accounts); will retry"
+                );
+            };
+
+            let recipient_pubkey = Pubkey::new_from_array(ctx.recipient);
+            let fee_payer_pubkey = ctx.fee_payer.pubkey();
+            let recipient_ata = derive_ata(
+                &recipient_pubkey,
+                &accts.input_mint,
+                &accts.input_token_prog,
+            );
+
+            // Idempotent create: the recipient's input-token ATA may not exist yet.
+            let ata_ix = make_ata_ix(
+                &fee_payer_pubkey,
+                &recipient_ata,
+                &recipient_pubkey,
+                &accts.input_mint,
+                &accts.input_token_prog,
+            );
+            let close_ix = make_close_pending_swap_ix(
+                ctx.program_id,
+                ctx.origin,
+                ctx.sender,
+                ctx.user_salt,
+                ctx.commitment,
+                pending_swap_pda,
+                fee_payer_pubkey,
+                accts.pda_input_ata,
+                recipient_ata,
+                accts.input_token_prog,
+                accts.input_mint,
+                recipient_pubkey,
+            );
+
+            return send_and_confirm(
+                ctx,
+                &[ata_ix, close_ix],
+                CLOSE_PENDING_SWAP_COMPUTE_UNITS,
+                "ClosePendingSwap",
+            )
+            .await;
+        }
+        Ok(_) => {
+            // Simulation predicts success — proceed with the real Reveal below.
+        }
+        Err(e) => {
+            // Inconclusive (RPC error running the simulation itself) — fail open
+            // and attempt the real Reveal rather than blocking progress on a
+            // flaky simulate call.
+            debug!(error = ?e, "Could not simulate Reveal; attempting it directly");
+        }
+    }
+
+    send_and_confirm(ctx, &built, REVEAL_COMPUTE_UNITS, "Reveal").await
+}
+
+/// Signs, sends, and confirms a transaction built from `instructions`, retrying
+/// with a fresh blockhash if it isn't confirmed within the current one's
+/// validity window. Shared by both the Reveal and ClosePendingSwap paths.
+async fn send_and_confirm(
+    ctx: &RevealContext<'_>,
+    instructions: &[Instruction],
+    compute_units: u32,
+    label: &str,
+) -> Result<()> {
+    // Build a probe tx from the real instructions so the oracle can price based
+    // on the actual hot accounts rather than a global estimate.
+    let probe = SealevelTxType::Legacy(Transaction::new_unsigned(Message::new(
+        instructions,
         Some(&ctx.fee_payer.pubkey()),
     )));
     let priority_fee = ctx
@@ -542,13 +760,13 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
             .await
             .map_err(|e| eyre!("get_latest_blockhash: {e}"))?;
 
-        let mut instructions = vec![
-            ComputeBudgetInstruction::set_compute_unit_limit(REVEAL_COMPUTE_UNITS),
+        let mut full_instructions = vec![
+            ComputeBudgetInstruction::set_compute_unit_limit(compute_units),
             ComputeBudgetInstruction::set_compute_unit_price(priority_fee),
         ];
-        instructions.extend(built.iter().cloned());
+        full_instructions.extend_from_slice(instructions);
 
-        let message = Message::new(&instructions, Some(&ctx.fee_payer.pubkey()));
+        let message = Message::new(&full_instructions, Some(&ctx.fee_payer.pubkey()));
         let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
 
         // skip_preflight=true to avoid BlockhashNotFound race on multi-RPC setups.
@@ -558,7 +776,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
             .await
             .map_err(|e| eyre!("send_transaction (attempt {send_attempt}): {e}"))?;
 
-        info!(%signature, send_attempt, "Tx sent");
+        info!(%signature, send_attempt, label, "Tx sent");
 
         let mut confirmed = false;
         for poll in 1..=CONFIRM_POLLS_PER_BLOCKHASH {
@@ -575,10 +793,10 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
                 Ok(response) => match response.value.into_iter().next().flatten() {
                     None => {}
                     Some(TransactionStatus { err: Some(e), .. }) => {
-                        bail!("Reveal tx failed on-chain: {e:?}");
+                        bail!("{label} tx failed on-chain: {e:?}");
                     }
                     Some(status) if status.satisfies_commitment(CommitmentConfig::confirmed()) => {
-                        info!(%signature, "Tx confirmed");
+                        info!(%signature, label, "Tx confirmed");
                         confirmed = true;
                         break;
                     }
@@ -595,11 +813,11 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         }
 
         if send_attempt < SEND_RETRY_MAX {
-            warn!(%signature, send_attempt, "Tx not confirmed within blockhash window; retrying with fresh blockhash");
+            warn!(%signature, send_attempt, label, "Tx not confirmed within blockhash window; retrying with fresh blockhash");
         }
     }
     bail!(
-        "Reveal tx not confirmed after {} send attempts",
+        "{label} tx not confirmed after {} send attempts",
         SEND_RETRY_MAX
     )
 }
@@ -664,12 +882,36 @@ fn derive_pending_swap_pda(
     .0
 }
 
-/// Returns [ata_create_0, ata_create_1, reveal_ix] — the two idempotent ATA creates must
-/// precede the reveal instruction so the CLMM output account and recipient ATA exist.
+// PendingSwap layout (Borsh, no discriminator prefix — see
+// hyperlane-sealevel-universal-router's types.rs):
+//   recipient: Pubkey (32) | origin_domain: u32 (4) | bump: u8 (1) | commit_time: i64 (8)
+const PENDING_SWAP_COMMIT_TIME_OFFSET: usize = 32 + 4 + 1;
+
+fn parse_pending_swap_commit_time(data: &[u8]) -> Result<i64> {
+    let end = PENDING_SWAP_COMMIT_TIME_OFFSET + 8;
+    if data.len() < end {
+        bail!(
+            "pending_swap account data too short: {} bytes (need {end})",
+            data.len()
+        );
+    }
+    let bytes: [u8; 8] = data[PENDING_SWAP_COMMIT_TIME_OFFSET..end]
+        .try_into()
+        .expect("slice is exactly 8 bytes");
+    Ok(i64::from_le_bytes(bytes))
+}
+
+/// Returns ([ata_create_0, ata_create_1, reveal_ix] (plus an optional trailing
+/// CloseAccount instruction when the output is native SOL), close_accounts) —
+/// the two idempotent ATA creates must precede the reveal instruction so the
+/// CLMM output account and recipient ATA exist. `close_accounts` carries the
+/// pda_ata/input_mint/input_token_prog needed to build a ClosePendingSwap
+/// instruction later if a Reveal simulation predicts failure — `None` only
+/// when CCS returned too few accounts to determine them at all.
 async fn build_instruction(
     ctx: &RevealContext<'_>,
     ccs: &CcsGetResponse,
-) -> Result<Vec<Instruction>> {
+) -> Result<(Vec<Instruction>, Option<CloseAccounts>)> {
     let program_id = ctx.program_id;
     let origin = ctx.origin;
     let sender = ctx.sender;
@@ -754,12 +996,12 @@ async fn build_instruction(
         })
         .collect::<Result<_>>()?;
 
-    // Fetch live CLMM pool state and override accounts[5] (ammConfig),
-    // accounts[11] (observationState), and accounts[17..=19] (tick arrays).
+    // Fetch live CLMM pool state and override accounts[4] (ammConfig),
+    // accounts[10] (observationState), and accounts[16..=18] (tick arrays).
     // The engine may store stale values (e.g. observationState falls back to poolId
     // when hop.observationState is undefined at quote time → ConstraintAddress error).
-    if accounts.len() > 24 {
-        let pool_pubkey = accounts[6].pubkey;
+    if accounts.len() > 23 {
+        let pool_pubkey = accounts[5].pubkey;
         match fetch_clmm_pool_state(pool_pubkey, rpc_client).await {
             Ok(pool_state) => {
                 debug!(
@@ -786,23 +1028,23 @@ async fn build_instruction(
 
                 override_acct(
                     &mut accounts,
-                    5,
+                    4,
                     pool_state.amm_config,
-                    "account[5] (ammConfig)",
+                    "account[4] (ammConfig)",
                 );
 
-                // Determine swap direction from the input_mint (account[15]) vs pool mint0.
+                // Determine swap direction from the input_mint (account[14]) vs pool mint0.
                 // zero_for_one = inputMint == mint0 → inputVault=vault0, outputVault=vault1
-                // If accounts[15] matches neither pool mint, CCS is corrupt — bail rather than
+                // If accounts[14] matches neither pool mint, CCS is corrupt — bail rather than
                 // silently using the wrong vaults and ATAs.
-                let input_mint = accounts[15].pubkey;
+                let input_mint = accounts[14].pubkey;
                 let zero_for_one = if input_mint == pool_state.mint0 {
                     true
                 } else if input_mint == pool_state.mint1 {
                     false
                 } else {
                     bail!(
-                        "accounts[15] (inputMint {}) matches neither pool mint0 ({}) nor mint1 ({}) — CCS route data is corrupt",
+                        "accounts[14] (inputMint {}) matches neither pool mint0 ({}) nor mint1 ({}) — CCS route data is corrupt",
                         input_mint, pool_state.mint0, pool_state.mint1
                     );
                 };
@@ -813,21 +1055,21 @@ async fn build_instruction(
                 };
                 override_acct(
                     &mut accounts,
-                    9,
+                    8,
                     live_input_vault,
-                    "account[9] (inputVault)",
+                    "account[8] (inputVault)",
+                );
+                override_acct(
+                    &mut accounts,
+                    9,
+                    live_output_vault,
+                    "account[9] (outputVault)",
                 );
                 override_acct(
                     &mut accounts,
                     10,
-                    live_output_vault,
-                    "account[10] (outputVault)",
-                );
-                override_acct(
-                    &mut accounts,
-                    11,
                     pool_state.observation_state,
-                    "account[11] (observationState)",
+                    "account[10] (observationState)",
                 );
 
                 let ticks_in_array = 60i32.saturating_mul(pool_state.tick_spacing as i32);
@@ -844,9 +1086,9 @@ async fn build_instruction(
                 let live_ta1 = compute_tick_array_address(&pool_pubkey, ta1_start);
                 let live_ta2 = compute_tick_array_address(&pool_pubkey, ta2_start);
                 debug!(ta0 = %live_ta0, ta1 = %live_ta1, ta2 = %live_ta2, "Recomputed tick arrays from live pool state");
-                accounts[17].pubkey = live_ta0;
-                accounts[18].pubkey = live_ta1;
-                accounts[19].pubkey = live_ta2;
+                accounts[16].pubkey = live_ta0;
+                accounts[17].pubkey = live_ta1;
+                accounts[18].pubkey = live_ta2;
 
                 // Override mints from pool state so they're guaranteed correct.
                 let live_input_mint = if zero_for_one {
@@ -861,22 +1103,22 @@ async fn build_instruction(
                 };
                 override_acct(
                     &mut accounts,
-                    15,
+                    14,
                     live_input_mint,
-                    "account[15] (inputMint)",
+                    "account[14] (inputMint)",
                 );
                 override_acct(
                     &mut accounts,
-                    16,
+                    15,
                     live_output_mint,
-                    "account[16] (outputMint)",
+                    "account[15] (outputMint)",
                 );
-                accounts[23].pubkey = live_output_mint;
+                accounts[22].pubkey = live_output_mint;
 
                 // Derive ATA accounts from locally-known authoritative values so stale CCS
                 // entries can't cause address constraint failures.
-                let input_token_prog = accounts[12].pubkey;
-                let output_token_prog = accounts[24].pubkey;
+                let input_token_prog = accounts[11].pubkey;
+                let output_token_prog = accounts[23].pubkey;
 
                 let live_pda_input_ata =
                     derive_ata(&expected_pending_swap, &live_input_mint, &input_token_prog);
@@ -888,10 +1130,6 @@ async fn build_instruction(
                 let recipient_pubkey = Pubkey::new_from_array(recipient);
                 let live_recipient_output_ata =
                     derive_ata(&recipient_pubkey, &live_output_mint, &output_token_prog);
-                // Recipient's input-token ATA: used by the reveal fallback path when the
-                // destination swap fails — tokens are transferred here instead of swapped.
-                let live_recipient_input_ata =
-                    derive_ata(&recipient_pubkey, &live_input_mint, &input_token_prog);
 
                 override_acct(
                     &mut accounts,
@@ -899,18 +1137,18 @@ async fn build_instruction(
                     live_pda_input_ata,
                     "account[1] (pda_input_ata)",
                 );
-                accounts[7].pubkey = live_pda_input_ata;
+                accounts[6].pubkey = live_pda_input_ata;
                 override_acct(
                     &mut accounts,
-                    8,
+                    7,
                     live_pda_output_ata,
-                    "account[8] (pda_output_ata)",
+                    "account[7] (pda_output_ata)",
                 );
-                accounts[21].pubkey = live_pda_output_ata;
+                accounts[20].pubkey = live_pda_output_ata;
                 let fee_payer_pubkey = ctx.fee_payer.pubkey();
                 let output_is_native_sol = live_output_mint == WSOL_MINT;
 
-                // For native SOL output: account[22] must be the fee_payer's wSOL ATA
+                // For native SOL output: account[21] must be the fee_payer's wSOL ATA
                 // (not the recipient's). The UR SWEEP moves PDA wSOL → fee_payer wSOL ATA,
                 // then a CloseAccount ix below unwraps it → native SOL to recipient.
                 let (ata_second, maybe_close_ix) = if output_is_native_sol {
@@ -918,9 +1156,9 @@ async fn build_instruction(
                         derive_ata(&fee_payer_pubkey, &WSOL_MINT, &SPL_TOKEN_PROGRAM);
                     override_acct(
                         &mut accounts,
-                        22,
+                        21,
                         fee_payer_wsol_ata,
-                        "account[22] (fee_payer_wsol_ata for SOL output)",
+                        "account[21] (fee_payer_wsol_ata for SOL output)",
                     );
                     // The ATA is closed atomically in the same tx (step 3 below), so it is
                     // always empty or non-existent at the start of each reveal — no pre-existing
@@ -942,9 +1180,9 @@ async fn build_instruction(
                 } else {
                     override_acct(
                         &mut accounts,
-                        22,
+                        21,
                         live_recipient_output_ata,
-                        "account[22] (recipient_output_ata)",
+                        "account[21] (recipient_output_ata)",
                     );
                     let ata_ix = make_ata_ix(
                         &fee_payer_pubkey,
@@ -963,41 +1201,27 @@ async fn build_instruction(
                     &live_output_mint,
                     &output_token_prog,
                 );
-                // Pre-create the recipient's input-token ATA so the fallback transfer
-                // (swap failure → tokens sent directly to recipient) succeeds on-chain.
-                let ata_recipient_input = make_ata_ix(
-                    &fee_payer_pubkey,
-                    &live_recipient_input_ata,
-                    &recipient_pubkey,
-                    &live_input_mint,
-                    &input_token_prog,
-                );
 
-                // Replace CCS[3] (old system_program fixed account) with 4 new fixed accounts.
-                // Old reveal layout: [0] pending_swap, [1] pda_ata, [2] fee_payer, [3] system_program, [4..] swap accounts
-                // New reveal layout: [0] pending_swap, [1] pda_ata, [2] fee_payer,
-                //   [3] recipient_ata, [4] token_program, [5] mint, [6] system_program,
-                //   [7..] swap command accounts (CCS[4..], same as old [4..]).
-                accounts.splice(
-                    3..4,
-                    [
-                        AccountMeta::new(live_recipient_input_ata, false),
-                        AccountMeta::new_readonly(input_token_prog, false),
-                        AccountMeta::new_readonly(live_input_mint, false),
-                        AccountMeta::new_readonly(solana_system_interface::program::id(), false),
-                    ],
-                );
-
+                // No more account splice: reveal() has no fallback path anymore (see
+                // hyperlane-sealevel-universal-router's processor.rs), so it never needed
+                // the old [3] recipient_ata/[4] token_program/[5] mint/[6] system_program
+                // insertion — the CCS account list (now 24 accounts, CLMM block starting
+                // at [3]) is used as-is.
                 let reveal_ix = Instruction {
                     program_id,
                     accounts,
                     data,
                 };
-                let mut ixs = vec![ata_pda_output, ata_second, ata_recipient_input, reveal_ix];
+                let mut ixs = vec![ata_pda_output, ata_second, reveal_ix];
                 if let Some(close_ix) = maybe_close_ix {
                     ixs.push(close_ix);
                 }
-                return Ok(ixs);
+                let close_accounts = Some(CloseAccounts {
+                    pda_input_ata: live_pda_input_ata,
+                    input_mint: live_input_mint,
+                    input_token_prog,
+                });
+                return Ok((ixs, close_accounts));
             }
             Err(e) => {
                 // Bail so the outer retry loop re-fetches pool state on the next attempt.
@@ -1010,15 +1234,31 @@ async fn build_instruction(
     } else {
         warn!(
             account_count = accounts.len(),
-            "Expected 25 accounts for CLMM reveal — skipping live pool state override"
+            "Expected 24 accounts for CLMM reveal — skipping live pool state override"
         );
     }
 
-    Ok(vec![Instruction {
-        program_id,
-        accounts,
-        data,
-    }])
+    // Degraded path (CCS returned too few accounts for live overrides): still
+    // report close_accounts from the raw CCS data when there's enough of it,
+    // so a Reveal simulation failure can still fall back to ClosePendingSwap.
+    let close_accounts = if accounts.len() > 14 {
+        Some(CloseAccounts {
+            pda_input_ata: accounts[1].pubkey,
+            input_mint: accounts[14].pubkey,
+            input_token_prog: accounts[11].pubkey,
+        })
+    } else {
+        None
+    };
+
+    Ok((
+        vec![Instruction {
+            program_id,
+            accounts,
+            data,
+        }],
+        close_accounts,
+    ))
 }
 
 fn hex_decode_bytes(hex_str: &str) -> Result<Vec<u8>> {
