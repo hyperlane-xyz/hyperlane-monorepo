@@ -16,21 +16,28 @@ const ERROR_STRING_REVERT_DATA =
   strip0x(ethers.utils.defaultAbiCoder.encode(['string'], ['boom']));
 
 function makeReceipt(fields: {
-  result: string;
+  result?: string;
+  topLevelResult?: 'SUCCESS' | 'PENDING' | 'FAILED';
   resMessage?: string;
   contractResult?: string[];
 }): TronReceiptResult {
   return {
-    receipt: {
-      energy_usage: 0,
-      energy_fee: 0,
-      origin_energy_usage: 0,
-      energy_usage_total: 0,
-      net_usage: 0,
-      net_fee: 0,
-      result: fields.result,
-      energy_penalty_total: 0,
-    },
+    // Non-contract transfers surface no execution receipt, so omit it when the
+    // nested contractResult value is not provided.
+    receipt:
+      fields.result === undefined
+        ? undefined
+        : {
+            energy_usage: 0,
+            energy_fee: 0,
+            origin_energy_usage: 0,
+            energy_usage_total: 0,
+            net_usage: 0,
+            net_fee: 0,
+            result: fields.result,
+            energy_penalty_total: 0,
+          },
+    result: fields.topLevelResult,
     resMessage: fields.resMessage ?? '',
     contractResult: fields.contractResult ?? [],
   };
@@ -52,9 +59,9 @@ const cases: Case[] = [
     expectedError: /Tron Transaction Failed: out of energy \(txid: abc123\)/,
   },
   {
-    name: 'throws on FAILED with a decoded contractResult reason',
+    name: 'throws on OUT_OF_ENERGY with a decoded contractResult reason',
     receipt: makeReceipt({
-      result: 'FAILED',
+      result: 'OUT_OF_ENERGY',
       contractResult: [ERROR_STRING_REVERT_DATA],
     }),
     expectedError: /Tron Transaction Failed: boom \(txid: abc123\)/,
@@ -65,12 +72,21 @@ const cases: Case[] = [
     expectedError: /Tron Transaction Failed: Unknown Error \(txid: abc123\)/,
   },
   {
+    name: 'throws on top-level FAILED even when the nested result is SUCCESS',
+    receipt: makeReceipt({ result: 'SUCCESS', topLevelResult: 'FAILED' }),
+    expectedError: /Tron Transaction Failed: Unknown Error \(txid: abc123\)/,
+  },
+  {
     name: 'does not throw on SUCCESS',
     receipt: makeReceipt({ result: 'SUCCESS' }),
   },
   {
+    name: 'does not throw on a plain transfer with no nested result',
+    receipt: makeReceipt({}),
+  },
+  {
     name: 'does not throw while pending',
-    receipt: makeReceipt({ result: 'PENDING' }),
+    receipt: makeReceipt({ topLevelResult: 'PENDING' }),
   },
 ];
 

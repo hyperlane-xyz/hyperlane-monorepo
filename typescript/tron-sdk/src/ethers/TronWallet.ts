@@ -222,10 +222,22 @@ export class TronTransactionBuilder extends TronWeb {
           confirmations,
         );
         // Stock ethers waitForTransaction resolves the receipt without the
-        // status-0 revert throw it only injects for EVM. Fetch Tron's
-        // execution info and fail loudly on a reverted/failed transaction.
-        const info = await this.trx.getTransactionInfo(strip0x(hash));
-        assertTronReceiptSuccess(info, this, strip0x(hash));
+        // status-0 revert throw it only injects for EVM. getTransactionInfo
+        // queries the solidity node, which lags mining and returns {} until the
+        // block solidifies, so use the full-node unconfirmed info that is
+        // available immediately. If it is not yet populated, fall back to the
+        // JSON-RPC receipt status so a reverted tx still fails loudly.
+        const info = await this.trx.getUnconfirmedTransactionInfo(
+          strip0x(hash),
+        );
+        if (info?.id) {
+          assertTronReceiptSuccess(info, this, strip0x(hash));
+        } else {
+          assert(
+            receipt.status !== 0,
+            `Tron Transaction Failed: reverted (txid: ${strip0x(hash)})`,
+          );
+        }
         return receipt;
       },
     };

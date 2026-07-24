@@ -1,6 +1,6 @@
 import { TronWeb } from 'tronweb';
 
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
 import { IABI, TronReceipt } from './types.js';
 import { BigNumber, providers, utils } from 'ethers';
@@ -24,11 +24,17 @@ export function decodeRevertReason(hex: string): string {
   }
 }
 
-/** Subset of a Tron transaction-info receipt needed to detect execution failure. */
+/**
+ * Subset of a Tron transaction-info receipt needed to detect execution failure.
+ *
+ * `receipt` is optional because non-contract transfers surface no execution
+ * receipt, and the top-level `result` is what flags those as failures.
+ */
 export type TronReceiptResult = Pick<
   TronReceipt,
-  'receipt' | 'resMessage' | 'contractResult'
->;
+  'resMessage' | 'contractResult' | 'result'
+> &
+  Partial<Pick<TronReceipt, 'receipt'>>;
 
 /**
  * Throws when a mined Tron transaction reverted or failed on-chain.
@@ -43,8 +49,13 @@ export function assertTronReceiptSuccess(
   tronweb: TronWeb,
   txid: string,
 ): void {
-  const result = info.receipt?.result;
-  if (result !== 'REVERT' && result !== 'FAILED') {
+  const nested = info.receipt?.result;
+  const topLevelFailed = info.result === 'FAILED';
+  // Nested receipt.result is Tron's contractResult enum (SUCCESS/REVERT/
+  // OUT_OF_ENERGY/OUT_OF_TIME/...). Any value other than SUCCESS is a mined
+  // failure. It is absent for non-contract transfers, which are not failures.
+  const nestedFailed = !isNullish(nested) && nested !== 'SUCCESS';
+  if (!topLevelFailed && !nestedFailed) {
     return;
   }
 
