@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IncrementalDomainRoutingIsm} from "../../contracts/isms/routing/IncrementalDomainRoutingIsm.sol";
+import {AtomicInitIncrementalDomainRoutingIsm} from "../../contracts/isms/routing/AtomicInitIncrementalDomainRoutingIsm.sol";
 import {IncrementalDomainRoutingIsmFactory} from "../../contracts/isms/routing/IncrementalDomainRoutingIsmFactory.sol";
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DomainRoutingIsmTest} from "./DomainRoutingIsm.t.sol";
@@ -140,6 +141,44 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         // Should revert when deploying with duplicate domains
         vm.expectRevert();
         factory.deploy(address(this), _domains, _isms);
+    }
+
+    function testAtomicInitDeploymentRejectsDuplicateDomains() public {
+        uint32[] memory _domains = new uint32[](2);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](2);
+        _domains[0] = 1;
+        _domains[1] = 1;
+        _isms[0] = deployTestIsm(bytes32(0));
+        _isms[1] = deployTestIsm(bytes32(uint256(1)));
+
+        vm.expectRevert();
+        new AtomicInitIncrementalDomainRoutingIsm(
+            address(this),
+            _domains,
+            _isms
+        );
+    }
+
+    function testAtomicInitIncrementalDeploymentInitializesAtomically(
+        uint32 domain
+    ) public {
+        uint32[] memory _domains = new uint32[](1);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](1);
+        _domains[0] = domain;
+        _isms[0] = deployTestIsm(bytes32(0));
+
+        AtomicInitIncrementalDomainRoutingIsm atomicInitIsm = new AtomicInitIncrementalDomainRoutingIsm(
+                address(this),
+                _domains,
+                _isms
+            );
+
+        assertEq(atomicInitIsm.owner(), address(this));
+        assertEq(address(atomicInitIsm.module(domain)), address(_isms[0]));
+        vm.expectRevert("Initializable: contract is already initialized");
+        atomicInitIsm.initialize(address(this), _domains, _isms);
     }
 
     function testFactoryImplementation() public {

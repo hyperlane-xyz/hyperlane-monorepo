@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import {Mailbox} from "../contracts/Mailbox.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/upgrade/Versioned.sol";
 import "../contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -9,6 +10,9 @@ import "../contracts/test/TestPostDispatchHook.sol";
 import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
+import "../contracts/upgrade/ProxyAdmin.sol";
+
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -17,6 +21,59 @@ contract Empty {}
 
 contract EmptyFallback {
     fallback() external {}
+}
+
+contract MailboxPlaceholderTest is Test {
+    using TypeCasts for address;
+
+    uint32 localDomain = 1;
+    uint32 remoteDomain = 2;
+    TestMailbox mailbox;
+    TestRecipient recipient;
+
+    function setUp() public {
+        ProxyAdmin placeholder = new ProxyAdmin();
+        TestMailbox implementation = new TestMailbox(localDomain);
+        mailbox = TestMailbox(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(implementation),
+                    address(placeholder),
+                    abi.encodeCall(
+                        Mailbox.initialize,
+                        (
+                            address(this),
+                            address(placeholder),
+                            address(placeholder),
+                            address(placeholder)
+                        )
+                    )
+                )
+            )
+        );
+        recipient = new TestRecipient();
+    }
+
+    function test_dispatchRevertsWhilePlaceholderInstalled() public {
+        vm.expectRevert();
+        mailbox.dispatch(
+            remoteDomain,
+            address(recipient).addressToBytes32(),
+            bytes("")
+        );
+    }
+
+    function test_processRevertsWhilePlaceholderInstalled() public {
+        bytes memory message = mailbox.buildInboundMessage(
+            remoteDomain,
+            address(recipient).addressToBytes32(),
+            address(this).addressToBytes32(),
+            bytes("")
+        );
+
+        vm.expectRevert();
+        mailbox.process("", message);
+    }
 }
 
 contract MailboxTest is Test, Versioned {

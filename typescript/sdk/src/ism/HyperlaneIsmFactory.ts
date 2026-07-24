@@ -7,7 +7,9 @@ import {
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
-  DefaultFallbackRoutingIsm__factory,
+  AtomicInitDefaultFallbackRoutingIsm__factory,
+  AtomicInitDomainRoutingIsm__factory,
+  AtomicInitIncrementalDomainRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
   IAggregationIsm,
@@ -637,19 +639,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
-          new DefaultFallbackRoutingIsm__factory(),
-          [mailbox],
-          await getZKSyncArtifactByContractName(config.type),
-        );
-        // TODO: Should verify contract here
-        logger.debug('Initialising fallback routing ISM ...');
-        receipt = await this.multiProvider.handleTx(
-          destination,
-          routingIsm['initialize(address,uint32[],address[])'](
-            config.owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
+          new AtomicInitDefaultFallbackRoutingIsm__factory(),
+          [mailbox, config.owner, safeConfigDomains, submoduleAddresses],
+          await getZKSyncArtifactByContractName(
+            'AtomicInitDefaultFallbackRoutingIsm',
           ),
         );
       } else {
@@ -665,21 +658,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
+          const contractName =
+            config.type === IsmType.INCREMENTAL_ROUTING
+              ? 'AtomicInitIncrementalDomainRoutingIsm'
+              : 'AtomicInitDomainRoutingIsm';
           const factory =
             config.type === IsmType.INCREMENTAL_ROUTING
-              ? new IncrementalDomainRoutingIsm__factory()
-              : new DomainRoutingIsm__factory();
-          const routingIsm = await this.deployer?.deployContractFromFactory(
+              ? new AtomicInitIncrementalDomainRoutingIsm__factory()
+              : new AtomicInitDomainRoutingIsm__factory();
+          const routingIsm = await this.deployer.deployContractFromFactory(
             destination,
             factory,
-            config.type,
-            [],
-          );
-          await routingIsm['initialize(address,uint32[],address[])'](
-            owner,
-            safeConfigDomains,
-            submoduleAddresses,
-            overrides,
+            contractName,
+            [owner, safeConfigDomains, submoduleAddresses],
           );
           return routingIsm;
         }
