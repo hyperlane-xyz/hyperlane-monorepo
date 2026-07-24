@@ -788,7 +788,7 @@ describe('per-chain bridge configuration', () => {
     });
   });
 
-  it('should require externalBridges.lifi when executionType is inventory', () => {
+  it('should accept katana inventory config without lifi bridge config', () => {
     const data = {
       warpRouteId: 'test-route',
       strategy: [
@@ -798,6 +798,7 @@ describe('per-chain bridge configuration', () => {
             ethereum: {
               weighted: { weight: 100, tolerance: 5 },
               executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.Katana,
             },
           },
         },
@@ -805,13 +806,18 @@ describe('per-chain bridge configuration', () => {
       inventorySigners: {
         ethereum: '0x1234567890123456789012345678901234567890',
       },
+      externalBridges: {
+        katana: {
+          defaultSlippage: 0.01,
+        },
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
-
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
-    );
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+    expect(config.externalBridges?.katana).to.deep.equal({
+      defaultSlippage: 0.01,
+    });
   });
 
   it('should require externalBridges.lifi when externalBridge is lifi', () => {
