@@ -88,7 +88,7 @@ impl SovereignClient {
             .join("/rollup/schema")
             .map_err(|e| custom_err!("Failed to construct url: {e}"))?;
         let response: SchemaResponse = http_get(&client, get_schema).await?;
-        let mut schema = response.schema;
+        let schema = response.schema;
         schema
             .chain_hash()
             .map_err(|e| custom_err!("Failed to pre-compute rollups chain hash: {e}"))?;
