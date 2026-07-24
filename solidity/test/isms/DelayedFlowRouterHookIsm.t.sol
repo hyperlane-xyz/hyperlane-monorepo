@@ -353,21 +353,21 @@ contract DelayedFlowRouterHookIsmTest is Test {
 
         uint256 cap = scaledDelay.maxCapacity();
 
-        // Over-drain (>capacity) so `_consume` clamps the level to zero
-        // regardless of scale rounding.
+        // Drain within capacity (no over-limit → no debt to absorb the later
+        // credit) so the credit's local delta is observable regardless of
+        // scale rounding.
         vm.prank(address(destinationMailbox));
         scaledDelay.handle(
             ORIGIN_DOMAIN,
             address(originDelay).addressToBytes32(),
             abi.encode(
                 keccak256("drain"),
-                (cap * 2 * scaleNumerator) / scaleDenominator
+                (cap * scaleNumerator) / scaleDenominator
             )
         );
-        assertEq(scaledDelay.calculateCurrentLevel(), 0);
+        uint256 levelAfterDrain = scaledDelay.calculateCurrentLevel();
 
-        // Credit a local amount within capacity (no clamp) so the delta is
-        // exact.
+        // Credit within the drained headroom (no clamp) so the delta is exact.
         creditMessage = bound(
             creditMessage,
             0,
@@ -397,7 +397,7 @@ contract DelayedFlowRouterHookIsmTest is Test {
         }
 
         assertEq(
-            scaledDelay.calculateCurrentLevel(),
+            scaledDelay.calculateCurrentLevel() - levelAfterDrain,
             (creditMessage * scaleDenominator) / scaleNumerator
         );
     }
@@ -408,14 +408,81 @@ contract DelayedFlowRouterHookIsmTest is Test {
         uint256 cap = destinationDelay.maxCapacity();
         uint256 amount = cap / 4;
 
-        // Drain bucket first.
-        _simulateWithdrawal(keccak256("drain"), cap + 1);
+        // Drain the bucket exactly to empty (no overage, so no debt to offset
+        // the credit).
+        _simulateWithdrawal(keccak256("drain"), cap);
         assertEq(destinationDelay.filledLevel(), 0);
 
         // Local deposit on collateral chain credits destinationDelay's
         // bucket via its postDispatch.
         _deposit(amount);
         assertEq(destinationDelay.filledLevel(), amount);
+    }
+
+    // ============ Debt accumulation ============
+
+    function test_splitMessages_stackDelays() public {
+        uint256 cap = destinationDelay.maxCapacity();
+        uint256 t = block.timestamp;
+
+        // Drain to empty, then split a `cap`-sized over-limit transfer into 4.
+        _simulateWithdrawal(keccak256("drain"), cap);
+        _simulateWithdrawal(keccak256("s1"), cap / 4);
+        _simulateWithdrawal(keccak256("s2"), cap / 4);
+        _simulateWithdrawal(keccak256("s3"), cap / 4);
+        _simulateWithdrawal(keccak256("s4"), cap / 4);
+
+        // Debt stacks instead of each piece resetting to DURATION/4: the first
+        // clears after a quarter window, the last only after the full window.
+        assertEq(
+            destinationDelay.readyAt(keccak256("s1")) - t,
+            REFILL_WINDOW / 4
+        );
+        assertEq(destinationDelay.readyAt(keccak256("s4")) - t, REFILL_WINDOW);
+    }
+
+    function test_dustMessages_accumulateAsDebt() public {
+        uint256 cap = destinationDelay.maxCapacity();
+        uint256 t = block.timestamp;
+        // dust < cap / DURATION, so a lone message floors to zero delay
+        uint256 dust = 1 ether;
+
+        _simulateWithdrawal(keccak256("drain"), cap);
+
+        _simulateWithdrawal(keccak256("d1"), dust);
+        assertEq(destinationDelay.readyAt(keccak256("d1")), t); // instant alone
+
+        _simulateWithdrawal(keccak256("d2"), dust);
+        // retained debt from d1 pushes the cumulative deficit above zero
+        assertGt(destinationDelay.readyAt(keccak256("d2")), t);
+    }
+
+    function test_debtHealsWithRefill() public {
+        uint256 cap = destinationDelay.maxCapacity();
+
+        _simulateWithdrawal(keccak256("drain"), cap);
+        _simulateWithdrawal(keccak256("over"), cap / 2); // debt = cap/2
+        assertEq(destinationDelay.calculateCurrentLevel(), 0);
+
+        vm.warp(block.timestamp + REFILL_WINDOW);
+
+        // a full window of refill heals the cap/2 debt, leaving cap/2 headroom
+        assertEq(destinationDelay.calculateCurrentLevel(), cap / 2);
+    }
+
+    function test_partialCredit_paysDebtBeforeHeadroom() public {
+        uint256 cap = destinationDelay.maxCapacity();
+
+        _simulateWithdrawal(keccak256("drain"), cap);
+        _simulateWithdrawal(keccak256("over"), cap / 2); // debt = cap/2
+
+        // a credit below the debt only reduces it — no headroom yet
+        _deposit(cap / 4);
+        assertEq(destinationDelay.calculateCurrentLevel(), 0);
+
+        // a credit that clears the remaining debt surfaces the surplus
+        _deposit(cap / 2);
+        assertEq(destinationDelay.calculateCurrentLevel(), cap / 4);
     }
 
     // ============ Replay prevention ============
@@ -640,9 +707,8 @@ contract DelayedFlowRouterHookIsmTest is Test {
     function test_rebalancing_restoresInstantUX() public {
         uint256 cap = destinationDelay.maxCapacity();
 
-        // 1. User A drains the bucket + enough overage to produce a
-        //    measurable delay (small overages floor to 0 via integer
-        //    division on the rate).
+        // 1. User A drains the bucket + cap/2 overage, which is retained as
+        //    debt and produces a measurable delay.
         bytes32 idA = keccak256("user-A");
         _simulateWithdrawal(idA, cap + cap / 2);
         assertEq(destinationDelay.filledLevel(), 0);
@@ -652,8 +718,9 @@ contract DelayedFlowRouterHookIsmTest is Test {
             "A should be delayed"
         );
 
-        // 2. Rebalancer deposits `cap` (collateral → synthetic dispatch).
-        _deposit(cap);
+        // 2. Rebalancer must deposit the full outflow (cap + cap/2): the credit
+        //    first pays off the cap/2 debt, then refills the bucket to cap.
+        _deposit(cap + cap / 2);
         assertEq(
             destinationDelay.filledLevel(),
             cap,
