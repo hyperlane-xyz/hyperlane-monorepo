@@ -218,9 +218,58 @@ fn make_ata_ix(
 /// Accounts (from `build_instruction`'s reveal account list) needed to build a
 /// ClosePendingSwap instruction if a Reveal simulation predicts failure.
 struct CloseAccounts {
-    pda_input_ata: Pubkey,
     input_mint: Pubkey,
     input_token_prog: Pubkey,
+}
+
+/// Builds the atomic recovery sequence for a stale pending swap.
+///
+/// The pending-swap-owned input ATA may not exist when the inbound transfer
+/// never arrived. Creating it idempotently is required because the current
+/// on-chain ClosePendingSwap ABI always closes account[2]. The caller funds a
+/// newly-created ATA; ClosePendingSwap returns its rent to the router's
+/// fee-payer PDA.
+#[allow(clippy::too_many_arguments)]
+fn make_close_pending_swap_ixs(
+    program_id: Pubkey,
+    origin: u32,
+    sender: [u8; 32],
+    user_salt: [u8; 32],
+    commitment: [u8; 32],
+    pending_swap_pda: Pubkey,
+    caller: Pubkey,
+    token_program: Pubkey,
+    mint: Pubkey,
+    recipient: Pubkey,
+) -> Vec<Instruction> {
+    let pda_input_ata = derive_ata(&pending_swap_pda, &mint, &token_program);
+    let recipient_ata = derive_ata(&recipient, &mint, &token_program);
+
+    vec![
+        make_ata_ix(
+            &caller,
+            &pda_input_ata,
+            &pending_swap_pda,
+            &mint,
+            &token_program,
+        ),
+        make_ata_ix(&caller, &recipient_ata, &recipient, &mint, &token_program),
+        make_close_pending_swap_ix(
+            program_id,
+            origin,
+            sender,
+            user_salt,
+            commitment,
+            pending_swap_pda,
+            caller,
+            pda_input_ata,
+            recipient_ata,
+            token_program,
+            mint,
+            recipient,
+            derive_fee_payer_pda(&program_id),
+        ),
+    ]
 }
 
 /// Builds `RouterInstruction::ClosePendingSwap` (variant 3). Accounts:
@@ -437,8 +486,8 @@ pub fn maybe_spawn_reveal(
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
 
-        // Phase 2: fetch CCS to learn the pda_input_ata address (accounts[1]) and
-        // poll for a non-zero token balance.  We must not build the full reveal tx
+        // Phase 2: fetch CCS to learn the input token program and mint, derive the
+        // pda_input_ata locally, and poll for a non-zero token balance. We must not build the full reveal tx
         // (pool state RPC, tick arrays, etc.) until the warp tokens have landed.
         // Bail after 30 min (360 × 5s) to surface stuck swaps — the warp transfer
         // should arrive in seconds; anything longer indicates a failed inbound leg.
@@ -460,7 +509,7 @@ pub fn maybe_spawn_reveal(
                 Ok(Some(_)) => {}
             }
 
-            // Fetch CCS to discover the pda_input_ata address.
+            // Fetch CCS to discover the input token program and mint.
             let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment).await {
                 Ok(c) => Some(c),
                 Err(e) => {
@@ -669,8 +718,6 @@ pub async fn try_recover_duplicate_commit(
             reveal_accounts.len()
         );
     }
-    let pda_input_ata = Pubkey::from_str(&reveal_accounts[1].pubkey)
-        .map_err(|e| eyre!("bad accounts[1] (pda_input_ata) from CCS: {e}"))?;
     let input_token_prog = Pubkey::from_str(&reveal_accounts[11].pubkey)
         .map_err(|e| eyre!("bad accounts[11] (inputTokenProgram) from CCS: {e}"))?;
     let input_mint = Pubkey::from_str(&reveal_accounts[14].pubkey)
@@ -678,15 +725,7 @@ pub async fn try_recover_duplicate_commit(
 
     let recipient_pubkey = Pubkey::new_from_array(recipient);
     let fee_payer_pubkey = fee_payer.pubkey();
-    let recipient_ata = derive_ata(&recipient_pubkey, &input_mint, &input_token_prog);
-    let ata_ix = make_ata_ix(
-        &fee_payer_pubkey,
-        &recipient_ata,
-        &recipient_pubkey,
-        &input_mint,
-        &input_token_prog,
-    );
-    let close_ix = make_close_pending_swap_ix(
+    let close_ixs = make_close_pending_swap_ixs(
         program_id,
         origin,
         sender,
@@ -694,12 +733,9 @@ pub async fn try_recover_duplicate_commit(
         commitment,
         pending_swap_pda,
         fee_payer_pubkey,
-        pda_input_ata,
-        recipient_ata,
         input_token_prog,
         input_mint,
         recipient_pubkey,
-        derive_fee_payer_pda(&program_id),
     );
 
     let ctx = RevealContext {
@@ -717,7 +753,7 @@ pub async fn try_recover_duplicate_commit(
     };
     send_and_confirm(
         &ctx,
-        &[ata_ix, close_ix],
+        &close_ixs,
         CLOSE_PENDING_SWAP_COMPUTE_UNITS,
         "ClosePendingSwap (duplicate-commit recovery)",
     )
@@ -821,21 +857,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
 
             let recipient_pubkey = Pubkey::new_from_array(ctx.recipient);
             let fee_payer_pubkey = ctx.fee_payer.pubkey();
-            let recipient_ata = derive_ata(
-                &recipient_pubkey,
-                &accts.input_mint,
-                &accts.input_token_prog,
-            );
-
-            // Idempotent create: the recipient's input-token ATA may not exist yet.
-            let ata_ix = make_ata_ix(
-                &fee_payer_pubkey,
-                &recipient_ata,
-                &recipient_pubkey,
-                &accts.input_mint,
-                &accts.input_token_prog,
-            );
-            let close_ix = make_close_pending_swap_ix(
+            let close_ixs = make_close_pending_swap_ixs(
                 ctx.program_id,
                 ctx.origin,
                 ctx.sender,
@@ -843,17 +865,14 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
                 ctx.commitment,
                 pending_swap_pda,
                 fee_payer_pubkey,
-                accts.pda_input_ata,
-                recipient_ata,
                 accts.input_token_prog,
                 accts.input_mint,
                 recipient_pubkey,
-                derive_fee_payer_pda(&ctx.program_id),
             );
 
             return send_and_confirm(
                 ctx,
-                &[ata_ix, close_ix],
+                &close_ixs,
                 CLOSE_PENDING_SWAP_COMPUTE_UNITS,
                 "ClosePendingSwap",
             )
@@ -1051,7 +1070,7 @@ fn parse_pending_swap_commit_time(data: &[u8]) -> Result<i64> {
 /// CloseAccount instruction when the output is native SOL), close_accounts) —
 /// the two idempotent ATA creates must precede the reveal instruction so the
 /// CLMM output account and recipient ATA exist. `close_accounts` carries the
-/// pda_ata/input_mint/input_token_prog needed to build a ClosePendingSwap
+/// input_mint/input_token_prog needed to build a ClosePendingSwap
 /// instruction later if a Reveal simulation predicts failure — `None` only
 /// when CCS returned too few accounts to determine them at all.
 async fn build_instruction(
@@ -1363,7 +1382,6 @@ async fn build_instruction(
                     ixs.push(close_ix);
                 }
                 let close_accounts = Some(CloseAccounts {
-                    pda_input_ata: live_pda_input_ata,
                     input_mint: live_input_mint,
                     input_token_prog,
                 });
@@ -1389,7 +1407,6 @@ async fn build_instruction(
     // so a Reveal simulation failure can still fall back to ClosePendingSwap.
     let close_accounts = if accounts.len() > 14 {
         Some(CloseAccounts {
-            pda_input_ata: accounts[1].pubkey,
             input_mint: accounts[14].pubkey,
             input_token_prog: accounts[11].pubkey,
         })
@@ -1416,4 +1433,90 @@ fn hex_decode_fixed32(hex_str: &str) -> Result<[u8; 32]> {
     hex_decode_bytes(hex_str)?
         .try_into()
         .map_err(|_| eyre!("expected 32 bytes from '{hex_str}'"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_pending_swap_creates_missing_pda_input_ata_before_close() {
+        let program_id = Pubkey::new_unique();
+        let pending_swap_pda = Pubkey::new_unique();
+        let caller = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let recipient = Pubkey::new_unique();
+        let origin = 12_345;
+        let sender = [1u8; 32];
+        let user_salt = [2u8; 32];
+        let commitment = [3u8; 32];
+
+        let token_2022_program = Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+            .expect("valid Token-2022 program ID");
+
+        // The ATA helper supports both token programs by forwarding the
+        // supplied program into its derivation and instruction accounts.
+        for token_program in [SPL_TOKEN_PROGRAM, token_2022_program] {
+            let instructions = make_close_pending_swap_ixs(
+                program_id,
+                origin,
+                sender,
+                user_salt,
+                commitment,
+                pending_swap_pda,
+                caller,
+                token_program,
+                mint,
+                recipient,
+            );
+
+            assert_eq!(instructions.len(), 3);
+            let expected_pda_ata = derive_ata(&pending_swap_pda, &mint, &token_program);
+            let expected_recipient_ata = derive_ata(&recipient, &mint, &token_program);
+
+            let create_pda_ata = &instructions[0];
+            assert_eq!(create_pda_ata.program_id, ATA_PROGRAM);
+            assert_eq!(create_pda_ata.data, vec![1u8]);
+            assert_eq!(create_pda_ata.accounts[0], AccountMeta::new(caller, true));
+            assert_eq!(
+                create_pda_ata.accounts[1],
+                AccountMeta::new(expected_pda_ata, false)
+            );
+            assert_eq!(
+                create_pda_ata.accounts[2],
+                AccountMeta::new_readonly(pending_swap_pda, false)
+            );
+            assert_eq!(
+                create_pda_ata.accounts[5],
+                AccountMeta::new_readonly(token_program, false)
+            );
+
+            let create_recipient_ata = &instructions[1];
+            assert_eq!(
+                create_recipient_ata.accounts[1],
+                AccountMeta::new(expected_recipient_ata, false)
+            );
+            assert_eq!(
+                create_recipient_ata.accounts[2],
+                AccountMeta::new_readonly(recipient, false)
+            );
+
+            let close = &instructions[2];
+            assert_eq!(close.program_id, program_id);
+            assert_eq!(close.accounts.len(), 8);
+            assert_eq!(close.accounts[2], AccountMeta::new(expected_pda_ata, false));
+            assert_eq!(
+                close.accounts[3],
+                AccountMeta::new(expected_recipient_ata, false)
+            );
+            assert_eq!(
+                close.accounts[4],
+                AccountMeta::new_readonly(token_program, false)
+            );
+            assert_eq!(
+                close.accounts[7],
+                AccountMeta::new(derive_fee_payer_pda(&program_id), false)
+            );
+        }
+    }
 }

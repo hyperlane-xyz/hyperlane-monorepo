@@ -21,6 +21,7 @@
  *   pnpm tsx scripts/validators/monitor-checkpoints.ts -e mainnet3 --set renzo
  */
 import chalk from 'chalk';
+import { pathToFileURL } from 'node:url';
 import { Gauge, Registry } from 'prom-client';
 
 import {
@@ -33,11 +34,16 @@ import {
   getValidatorFromStorageLocation,
 } from '@hyperlane-xyz/sdk';
 import {
+  BaseValidator,
   LogFormat,
   LogLevel,
+  assert,
+  bytes32ToAddress,
   configureRootLogger,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import type { Checkpoint } from '@hyperlane-xyz/utils';
 
 import { getChainAddresses } from '../../config/registry.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
@@ -59,38 +65,73 @@ function getArgs() {
     .choices('set', Object.values(ValidatorSetName)).argv;
 }
 
+export function assertFullSnapshotPush(
+  pushMetrics: boolean,
+  setFilter?: string,
+  chainFilter?: readonly string[],
+): void {
+  assert(
+    !pushMetrics || (!setFilter && !chainFilter?.length),
+    '--pushMetrics cannot be combined with --set or --chains because a filtered PUT would overwrite the full production snapshot',
+  );
+}
+
+// Outcome of resolving + reading + verifying a validator's latest checkpoint.
+// Only 'ok' readings are considered reachable or contribute to peer lag.
+export type CheckpointStatus = 'ok' | 'none' | 'unreachable' | 'unverified';
+
+type CheckpointRead = { status: CheckpointStatus; index: number };
+
 type ValidatorReading = {
   set: ValidatorSetName;
   chain: string;
   address: string;
   alias: string;
-  // Whether the announced syncer could be resolved and read.
-  reachable: boolean;
-  // Latest checkpoint index read from the syncer, or -1 if unreachable or the
-  // validator has not signed any checkpoint yet.
+  status: CheckpointStatus;
+  // Latest verified checkpoint index (-1 unless status is 'ok').
   index: number;
 };
 
-type ValidatorRow = ValidatorReading & {
+export type ValidatorRow = ValidatorReading & {
   onchainCount: number | undefined;
   lagOnchain: number | undefined;
   lagPeer: number | undefined;
 };
 
-// Resolve a validator's announced storage location and read the latest
-// checkpoint index it advertises. This is intentionally the raw latest read: no
-// signature/domain/hook verification and no rejection of indices ahead of our
-// on-chain snapshot. A stalled validator simply stops advancing this index, so
-// its lag grows monotonically and the alert catches it.
-async function readLatestCheckpointIndex(
+export function checkpointMatchesExpected(
+  checkpoint: Checkpoint,
+  recoveredAddress: string,
+  expectedAddress: string,
+  expectedDomain: number,
+  expectedMerkleTreeHook: string,
+  expectedIndex: number,
+): boolean {
+  return (
+    eqAddress(recoveredAddress, expectedAddress) &&
+    checkpoint.index === expectedIndex &&
+    checkpoint.mailbox_domain === expectedDomain &&
+    eqAddress(
+      bytes32ToAddress(checkpoint.merkle_tree_hook_address),
+      expectedMerkleTreeHook,
+    )
+  );
+}
+
+// Resolve a validator's announced storage location, read its unsigned latest
+// pointer, then fetch and verify the signed checkpoint it references. The
+// signed signer/domain/hook/index checks prevent a validator from appearing
+// current by announcing another validator's bucket or forging a latest pointer.
+// A valid checkpoint may be ahead of the once-per-run on-chain snapshot; lag is
+// clamped to zero later instead of rejecting that normal race.
+async function readAndVerifyCheckpoint(
   chain: string,
   address: string,
   multiProvider: MultiProvider,
-  validatorAnnounceAddress: string,
-): Promise<{ reachable: boolean; index: number }> {
+  addresses: Record<string, string>,
+): Promise<CheckpointRead> {
   try {
     const validatorAnnounce = ValidatorAnnounce__factory.connect(
-      validatorAnnounceAddress,
+      addresses.validatorAnnounce,
       multiProvider.getProvider(chain),
     );
     const [locations] = await validatorAnnounce.getAnnouncedStorageLocations([
@@ -98,15 +139,48 @@ async function readLatestCheckpointIndex(
     ]);
     const location = locations?.[locations.length - 1];
     if (!location) {
-      return { reachable: false, index: -1 };
+      return { status: 'unreachable', index: -1 };
     }
 
     const validator = await getValidatorFromStorageLocation(location);
-    const index = await validator.getLatestCheckpointIndex();
-    return { reachable: true, index };
+    const latestIndex = await validator.getLatestCheckpointIndex();
+    if (latestIndex < 0) {
+      return { status: 'none', index: -1 };
+    }
+
+    const signed = await validator.getCheckpoint(latestIndex);
+    if (!signed) {
+      rootLogger.warn(
+        `[${chain}] ${address} advertised index ${latestIndex} but no signed checkpoint is present`,
+      );
+      return { status: 'unverified', index: -1 };
+    }
+
+    const recovered = BaseValidator.recoverAddress(signed);
+    const { checkpoint } = signed.value;
+    const domainId = multiProvider.getDomainId(chain);
+    if (
+      !checkpointMatchesExpected(
+        checkpoint,
+        recovered,
+        address,
+        domainId,
+        addresses.merkleTreeHook,
+        latestIndex,
+      )
+    ) {
+      rootLogger.warn(
+        `[${chain}] ${address} checkpoint failed verification ` +
+          `(signer ${recovered}, domain ${checkpoint.mailbox_domain} vs ${domainId}, ` +
+          `hook ${checkpoint.merkle_tree_hook_address}, index ${checkpoint.index} vs ${latestIndex})`,
+      );
+      return { status: 'unverified', index: -1 };
+    }
+
+    return { status: 'ok', index: latestIndex };
   } catch (error) {
     rootLogger.debug(`[${chain}] ${address} unreachable: ${error}`);
-    return { reachable: false, index: -1 };
+    return { status: 'unreachable', index: -1 };
   }
 }
 
@@ -118,6 +192,8 @@ async function main() {
     chains: chainFilter,
     set: setFilter,
   } = await getArgs();
+
+  assertFullSnapshotPush(pushMetrics, setFilter, chainFilter);
 
   const sets = getMonitoredValidatorSets(environment).filter(
     (s) => !setFilter || s.name === setFilter,
@@ -171,21 +247,18 @@ async function main() {
     }),
   );
 
-  // Resolve and read each validator's latest checkpoint index once per
+  // Resolve, read, and verify each validator's latest checkpoint once per
   // (chain, address); a validator may appear in more than one set.
-  const readingCache = new Map<
-    string,
-    Promise<{ reachable: boolean; index: number }>
-  >();
-  const readIndex = (chain: string, address: string) => {
+  const readingCache = new Map<string, Promise<CheckpointRead>>();
+  const readCheckpoint = (chain: string, address: string) => {
     const key = `${chain}:${address.toLowerCase()}`;
     let cached = readingCache.get(key);
     if (!cached) {
-      cached = readLatestCheckpointIndex(
+      cached = readAndVerifyCheckpoint(
         chain,
         address,
         multiProvider,
-        chainAddresses[chain].validatorAnnounce,
+        chainAddresses[chain],
       );
       readingCache.set(key, cached);
     }
@@ -199,7 +272,7 @@ async function main() {
         .filter((chain) => s.validators[chain]?.length)
         .flatMap((chain) =>
           s.validators[chain].map(async (validator: MonitoredValidator) => {
-            const { reachable, index } = await readIndex(
+            const { status, index } = await readCheckpoint(
               chain,
               validator.address,
             );
@@ -208,7 +281,7 @@ async function main() {
               chain,
               address: validator.address,
               alias: validator.alias,
-              reachable,
+              status,
               index,
             });
           }),
@@ -216,17 +289,17 @@ async function main() {
     ),
   );
 
-  // Furthest-ahead reachable peer per (set, chain) for the relative diff.
+  // Furthest-ahead verified peer per (set, chain) for the relative diff.
   const peerMax = new Map<string, number>();
   for (const r of readings) {
-    if (!r.reachable || r.index < 0) continue;
+    if (r.status !== 'ok') continue;
     const key = `${r.set}:${r.chain}`;
     peerMax.set(key, Math.max(peerMax.get(key) ?? -1, r.index));
   }
 
   const rows: ValidatorRow[] = readings.map((r) => {
     const onchainCount = onchainCounts[r.chain];
-    const hasIndex = r.reachable && r.index >= 0;
+    const hasIndex = r.status === 'ok';
     // On-chain latest leaf index is count - 1. Clamp at 0 so a validator briefly
     // ahead of our once-per-run snapshot reports 0 lag rather than a negative.
     const lagOnchain =
@@ -272,20 +345,24 @@ function printReport(rows: ValidatorRow[]) {
         onchain: r.onchainCount ?? '?',
         lag_onchain: r.lagOnchain ?? '?',
         lag_peer: r.lagPeer ?? '?',
-        reachable: r.reachable ? '✅' : '❌',
+        checkpoint: r.status === 'ok' ? '✅' : `❌ ${r.status}`,
       }));
     // eslint-disable-next-line no-console
     console.table(table);
   }
 
-  const unreachable = rows.filter((r) => !r.reachable);
-  if (unreachable.length > 0) {
+  const unavailable = rows.filter((r) => r.status !== 'ok');
+  if (unavailable.length > 0) {
     rootLogger.warn(
-      chalk.yellow(`\n${unreachable.length} validator(s) unreachable:`),
+      chalk.yellow(
+        `\n${unavailable.length} validator(s) without a verified checkpoint:`,
+      ),
     );
-    for (const r of unreachable) {
+    for (const r of unavailable) {
       rootLogger.warn(
-        chalk.yellow(`  - [${r.chain}] ${r.set}/${r.alias} ${r.address}`),
+        chalk.yellow(
+          `  - [${r.chain}] ${r.set}/${r.alias} ${r.address}: ${r.status}`,
+        ),
       );
     }
   }
@@ -296,17 +373,16 @@ function printReport(rows: ValidatorRow[]) {
 // monitored, disappears cleanly instead of lingering as a ghost series. Every
 // monitored validator is always represented (reachable 0/1), so a validator we
 // failed to read shows as unreachable rather than vanishing.
-async function pushValidatorMetrics(
+export function buildValidatorMetricsRegistry(
   rows: ValidatorRow[],
   onchainCounts: Record<string, number | undefined>,
-  environment: string,
-) {
+): Registry {
   const register = new Registry();
   const labelNames = ['chain', 'validator', 'alias', 'validator_set'];
 
   const reachableGauge = new Gauge({
     name: 'hyperlane_validator_reachable',
-    help: 'Whether the validator syncer could be resolved and read (1) or not (0)',
+    help: 'Whether a verified checkpoint could be read from the validator (1) or not (0)',
     registers: [register],
     labelNames,
   });
@@ -360,8 +436,9 @@ async function pushValidatorMetrics(
       alias: row.alias,
       validator_set: row.set,
     };
-    reachableGauge.labels(labels).set(row.reachable ? 1 : 0);
-    if (row.reachable && row.index >= 0) {
+    const reachable = row.status === 'ok';
+    reachableGauge.labels(labels).set(reachable ? 1 : 0);
+    if (reachable) {
       indexGauge.labels(labels).set(row.index);
     }
     if (row.lagOnchain !== undefined) {
@@ -372,6 +449,16 @@ async function pushValidatorMetrics(
     }
   }
 
+  return register;
+}
+
+async function pushValidatorMetrics(
+  rows: ValidatorRow[],
+  onchainCounts: Record<string, number | undefined>,
+  environment: string,
+) {
+  const register = buildValidatorMetricsRegistry(rows, onchainCounts);
+
   // Propagate push failure: if the PushGateway is unreachable, the CronJob must
   // fail so Kubernetes does not record a successful run while the previous
   // snapshot silently goes stale. Alert on snapshot freshness as a backstop.
@@ -381,7 +468,12 @@ async function pushValidatorMetrics(
   });
 }
 
-main().catch((err) => {
-  rootLogger.error(err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((err) => {
+    rootLogger.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}
