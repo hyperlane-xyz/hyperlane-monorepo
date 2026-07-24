@@ -624,6 +624,13 @@ impl HyperlaneDomain {
         )
     }
 
+    pub const fn is_seismic_stack(&self) -> bool {
+        matches!(
+            self.domain_technical_stack(),
+            HyperlaneDomainTechnicalStack::Seismic
+        )
+    }
+
     pub const fn is_aleo_protocol(&self) -> bool {
         matches!(self.domain_protocol(), HyperlaneDomainProtocol::Aleo)
     }
