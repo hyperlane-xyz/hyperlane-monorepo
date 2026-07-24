@@ -7,9 +7,9 @@ import {
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
-  DirectDefaultFallbackRoutingIsm__factory,
-  DirectDomainRoutingIsm__factory,
-  DirectIncrementalDomainRoutingIsm__factory,
+  AtomicInitDefaultFallbackRoutingIsm__factory,
+  AtomicInitDomainRoutingIsm__factory,
+  AtomicInitIncrementalDomainRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
   IAggregationIsm,
@@ -639,10 +639,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
-          new DirectDefaultFallbackRoutingIsm__factory(),
+          new AtomicInitDefaultFallbackRoutingIsm__factory(),
           [mailbox, config.owner, safeConfigDomains, submoduleAddresses],
           await getZKSyncArtifactByContractName(
-            'DirectDefaultFallbackRoutingIsm',
+            'AtomicInitDefaultFallbackRoutingIsm',
           ),
         );
       } else {
@@ -660,12 +660,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           );
           const contractName =
             config.type === IsmType.INCREMENTAL_ROUTING
-              ? 'DirectIncrementalDomainRoutingIsm'
-              : 'DirectDomainRoutingIsm';
+              ? 'AtomicInitIncrementalDomainRoutingIsm'
+              : 'AtomicInitDomainRoutingIsm';
           const factory =
             config.type === IsmType.INCREMENTAL_ROUTING
-              ? new DirectIncrementalDomainRoutingIsm__factory()
-              : new DirectDomainRoutingIsm__factory();
+              ? new AtomicInitIncrementalDomainRoutingIsm__factory()
+              : new AtomicInitDomainRoutingIsm__factory();
           const routingIsm = await this.deployer.deployContractFromFactory(
             destination,
             factory,

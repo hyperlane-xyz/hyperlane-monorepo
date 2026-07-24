@@ -5,10 +5,10 @@ import {DefaultFallbackRoutingIsm} from "./DefaultFallbackRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 /**
- * @title DirectDefaultFallbackRoutingIsm
+ * @title AtomicInitDefaultFallbackRoutingIsm
  * @notice A DefaultFallbackRoutingIsm configured atomically during direct deployment.
  */
-contract DirectDefaultFallbackRoutingIsm is DefaultFallbackRoutingIsm {
+contract AtomicInitDefaultFallbackRoutingIsm is DefaultFallbackRoutingIsm {
     constructor(
         address _mailbox,
         address _owner,

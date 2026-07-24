@@ -5,11 +5,11 @@ import {DomainRoutingIsm} from "./DomainRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 /**
- * @title DirectDomainRoutingIsm
+ * @title AtomicInitDomainRoutingIsm
  * @notice A DomainRoutingIsm configured atomically during direct deployment.
  * @dev Minimal proxy deployments should continue using DomainRoutingIsmFactory.
  */
-contract DirectDomainRoutingIsm is DomainRoutingIsm {
+contract AtomicInitDomainRoutingIsm is DomainRoutingIsm {
     constructor(
         address _owner,
         uint32[] memory _domains,

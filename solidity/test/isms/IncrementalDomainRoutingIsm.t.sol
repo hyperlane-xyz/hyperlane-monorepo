@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IncrementalDomainRoutingIsm} from "../../contracts/isms/routing/IncrementalDomainRoutingIsm.sol";
-import {DirectIncrementalDomainRoutingIsm} from "../../contracts/isms/routing/DirectIncrementalDomainRoutingIsm.sol";
+import {AtomicInitIncrementalDomainRoutingIsm} from "../../contracts/isms/routing/AtomicInitIncrementalDomainRoutingIsm.sol";
 import {IncrementalDomainRoutingIsmFactory} from "../../contracts/isms/routing/IncrementalDomainRoutingIsmFactory.sol";
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DomainRoutingIsmTest} from "./DomainRoutingIsm.t.sol";
@@ -143,7 +143,7 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         factory.deploy(address(this), _domains, _isms);
     }
 
-    function testDirectDeploymentRejectsDuplicateDomains() public {
+    function testAtomicInitDeploymentRejectsDuplicateDomains() public {
         uint32[] memory _domains = new uint32[](2);
         IInterchainSecurityModule[]
             memory _isms = new IInterchainSecurityModule[](2);
@@ -153,10 +153,14 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         _isms[1] = deployTestIsm(bytes32(uint256(1)));
 
         vm.expectRevert();
-        new DirectIncrementalDomainRoutingIsm(address(this), _domains, _isms);
+        new AtomicInitIncrementalDomainRoutingIsm(
+            address(this),
+            _domains,
+            _isms
+        );
     }
 
-    function testDirectIncrementalDeploymentInitializesAtomically(
+    function testAtomicInitIncrementalDeploymentInitializesAtomically(
         uint32 domain
     ) public {
         uint32[] memory _domains = new uint32[](1);
@@ -165,16 +169,16 @@ contract IncrementalDomainRoutingIsmTest is DomainRoutingIsmTest {
         _domains[0] = domain;
         _isms[0] = deployTestIsm(bytes32(0));
 
-        DirectIncrementalDomainRoutingIsm directIsm = new DirectIncrementalDomainRoutingIsm(
+        AtomicInitIncrementalDomainRoutingIsm atomicInitIsm = new AtomicInitIncrementalDomainRoutingIsm(
                 address(this),
                 _domains,
                 _isms
             );
 
-        assertEq(directIsm.owner(), address(this));
-        assertEq(address(directIsm.module(domain)), address(_isms[0]));
+        assertEq(atomicInitIsm.owner(), address(this));
+        assertEq(address(atomicInitIsm.module(domain)), address(_isms[0]));
         vm.expectRevert("Initializable: contract is already initialized");
-        directIsm.initialize(address(this), _domains, _isms);
+        atomicInitIsm.initialize(address(this), _domains, _isms);
     }
 
     function testFactoryImplementation() public {

@@ -5,11 +5,11 @@ import {IncrementalDomainRoutingIsm} from "./IncrementalDomainRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 /**
- * @title DirectIncrementalDomainRoutingIsm
+ * @title AtomicInitIncrementalDomainRoutingIsm
  * @notice An IncrementalDomainRoutingIsm configured atomically during direct deployment.
  * @dev Minimal proxy deployments should continue using IncrementalDomainRoutingIsmFactory.
  */
-contract DirectIncrementalDomainRoutingIsm is IncrementalDomainRoutingIsm {
+contract AtomicInitIncrementalDomainRoutingIsm is IncrementalDomainRoutingIsm {
     constructor(
         address _owner,
         uint32[] memory _domains,
