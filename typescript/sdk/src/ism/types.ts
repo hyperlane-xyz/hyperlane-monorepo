@@ -57,7 +57,6 @@ export const IsmType = {
   ROUTING: 'domainRoutingIsm',
   INCREMENTAL_ROUTING: 'incrementalDomainRoutingIsm',
   FALLBACK_ROUTING: 'defaultFallbackRoutingIsm',
-  DEFAULT: 'defaultIsm',
   AMOUNT_ROUTING: 'amountRoutingIsm',
   INTERCHAIN_ACCOUNT_ROUTING: 'interchainAccountRouting',
   AGGREGATION: 'staticAggregationIsm',
@@ -110,7 +109,6 @@ export const STATIC_ISM_TYPES: IsmType[] = [
 export const DYNAMICALLY_ROUTED_ISM_TYPES = [
   IsmType.AMOUNT_ROUTING,
   IsmType.INTERCHAIN_ACCOUNT_ROUTING,
-  IsmType.DEFAULT,
 ] as const;
 
 /** Type guard for dynamically routed ISM types */
@@ -125,7 +123,6 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
-    case IsmType.DEFAULT:
     case IsmType.AMOUNT_ROUTING:
     case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
     case IsmType.INCREMENTAL_ROUTING:
@@ -230,21 +227,10 @@ export type AmountRoutingIsmConfig = BaseRoutingIsmConfig<
   threshold: number;
 };
 
-// Ownerless routing ISM that always defers to the mailbox's default ISM;
-// has no domains or owner to configure.
-export type DefaultIsmConfig = {
-  type: typeof IsmType.DEFAULT;
-};
-
-export const DefaultIsmConfigSchema = z.object({
-  type: z.literal(IsmType.DEFAULT),
-});
-
 export type RoutingIsmConfig =
   | DomainRoutingIsmConfig
   | AmountRoutingIsmConfig
-  | InterchainAccountRouterIsm
-  | DefaultIsmConfig;
+  | InterchainAccountRouterIsm;
 
 export type AggregationIsmConfig = {
   type: typeof IsmType.AGGREGATION | typeof IsmType.STORAGE_AGGREGATION;
