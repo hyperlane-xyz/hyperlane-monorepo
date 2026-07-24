@@ -16,7 +16,7 @@ import ProxyAdminAbi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/
 import {
   EIP1967_ADMIN_SLOT,
   TRON_EMPTY_ADDRESS,
-  decodeRevertReason,
+  assertTronReceiptSuccess,
 } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
@@ -91,27 +91,10 @@ export class TronProvider implements AltVM.IProvider {
       const info = await this.tronweb.trx.getTransactionInfo(txid);
 
       if (info && info.id) {
-        const result = info.receipt?.result;
+        assertTronReceiptSuccess(info, this.tronweb, txid);
 
-        if (result === 'SUCCESS') {
+        if (info.receipt?.result === 'SUCCESS') {
           return info;
-        }
-
-        if (result === 'REVERT' || result === 'FAILED') {
-          let revertReason = 'Unknown Error';
-
-          if (info.resMessage) {
-            revertReason = this.tronweb.toUtf8(info.resMessage);
-          } else if (info.contractResult && info.contractResult[0]) {
-            revertReason = decodeRevertReason(
-              info.contractResult[0],
-              this.tronweb,
-            );
-          }
-
-          throw new Error(
-            `Tron Transaction Failed: ${revertReason} (txid: ${txid})`,
-          );
         }
       }
 
