@@ -14,6 +14,7 @@ import {
   ChainMap,
   ChainName,
   ChainNameOrId,
+  ContractVerificationInput,
   EV5GnosisSafeTxBuilder,
   EvmHookModule,
   HookType,
@@ -39,6 +40,7 @@ import {
   isEVMLike,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 import { BigNumber, ethers } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';
@@ -47,7 +49,10 @@ import {
   getGovernanceSafes,
   getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
+import {
+  DEPLOYER,
+  upgradeTimelocks,
+} from '../../config/environments/mainnet3/owners.js';
 import { getEnvAddresses } from '../../config/registry.js';
 import { chainsToSkip, legacyIgpChains } from '../../src/config/chain.js';
 import { determineGovernanceType, Owner } from '../../src/governance.js';
@@ -60,6 +65,8 @@ import { getTimelockLogBlockRange } from '../../src/utils/timelock.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
+  getModuleDirectory,
+  Modules,
   withChains,
   withContext,
   withOutputFile,
@@ -70,6 +77,10 @@ import { getEnvironmentConfig } from '../core-utils.js';
 const ETHEREUM_CHAIN: ChainName = 'ethereum';
 const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
+const localSafeUpgradeTimelockGovernance: ChainMap<GovernanceType | undefined> =
+  {
+    arbitrum: GovernanceType.AbacusWorks,
+  };
 // Timelock upgrade idempotency needs log scanning because CREATE deployments
 // change the implementation address in the scheduled calldata across reruns.
 // The per-query block range comes from the same conservative timelock helper
@@ -131,6 +142,18 @@ type SimulatedDeployment = {
   address: Address;
   nonce: number;
 };
+
+type UpgradeGovernanceRoute = {
+  ownerType: Owner | null;
+  governanceType: GovernanceType;
+  timelockProposer?: 'ica' | 'safe';
+};
+
+class VerificationAwareEvmHookModule extends EvmHookModule {
+  get verificationInputs(): ChainMap<ContractVerificationInput[]> {
+    return this.deployer.verificationInputs;
+  }
+}
 
 class DryRunDeployMultiProvider extends MultiProvider {
   readonly simulatedDeployments: SimulatedDeployment[] = [];
@@ -203,6 +226,74 @@ class DryRunDeployMultiProvider extends MultiProvider {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export async function determineUpgradeGovernanceRoute(
+  chain: ChainName,
+  ownerAddress: Address,
+): Promise<UpgradeGovernanceRoute> {
+  const upgradeTimelock = upgradeTimelocks[chain];
+  const localSafeGovernanceType = localSafeUpgradeTimelockGovernance[chain];
+  if (
+    upgradeTimelock &&
+    localSafeGovernanceType &&
+    eqAddress(upgradeTimelock, ownerAddress)
+  ) {
+    return {
+      ownerType: Owner.TIMELOCK,
+      governanceType: localSafeGovernanceType,
+      timelockProposer: 'safe',
+    };
+  }
+
+  return determineGovernanceType(chain, ownerAddress);
+}
+
+export function mergeVerificationInputs(
+  existingInputs: ChainMap<ContractVerificationInput[]>,
+  newInputs: ChainMap<ContractVerificationInput[]>,
+): ChainMap<ContractVerificationInput[]> {
+  const mergedInputs: ChainMap<ContractVerificationInput[]> =
+    deepCopy(existingInputs);
+  for (const [chain, inputs] of Object.entries(newInputs)) {
+    const chainInputs = (mergedInputs[chain] ??= []);
+    for (const input of inputs) {
+      if (
+        chainInputs.some(
+          (existing) =>
+            existing.name === input.name &&
+            eqAddress(existing.address, input.address) &&
+            existing.constructorArguments === input.constructorArguments &&
+            existing.isProxy === input.isProxy,
+        )
+      ) {
+        continue;
+      }
+      chainInputs.push(input);
+    }
+  }
+  return mergedInputs;
+}
+
+async function writeVerificationInputs(
+  environment: 'mainnet3',
+  newInputs: ChainMap<ContractVerificationInput[]>,
+) {
+  if (Object.keys(newInputs).length === 0) return;
+
+  const verificationPath = join(
+    getModuleDirectory(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
+    'verification.json',
+  );
+  const existingInputs =
+    readJson<ChainMap<ContractVerificationInput[]>>(verificationPath);
+  await writeAndFormatJsonAtPath(
+    verificationPath,
+    mergeVerificationInputs(existingInputs, newInputs),
+  );
+  rootLogger.info(
+    `Wrote deployment verification inputs to ${verificationPath}`,
+  );
 }
 
 export function isMissingPackageVersionError(error: unknown): boolean {
@@ -569,11 +660,13 @@ async function buildHookUpdateTransactions({
   config,
   addresses,
   multiProvider,
+  onVerificationInputs,
 }: {
   chain: ChainName;
   config: IgpConfig;
   addresses: ChainMap<Address>;
   multiProvider: MultiProvider;
+  onVerificationInputs?: (inputs: ContractVerificationInput[]) => void;
 }): Promise<AnnotatedEV5Transaction[]> {
   assert(addresses.mailbox, `[${chain}] missing mailbox address`);
   assert(addresses.proxyAdmin, `[${chain}] missing proxyAdmin address`);
@@ -583,7 +676,7 @@ async function buildHookUpdateTransactions({
   );
 
   const targetConfig = getTargetIgpConfig(chain, config);
-  const module = new EvmHookModule(multiProvider, {
+  const module = new VerificationAwareEvmHookModule(multiProvider, {
     chain,
     config: targetConfig,
     addresses: {
@@ -594,7 +687,11 @@ async function buildHookUpdateTransactions({
     },
   });
 
-  return module.update(deepCopy(targetConfig));
+  try {
+    return await module.update(deepCopy(targetConfig));
+  } finally {
+    onVerificationInputs?.(module.verificationInputs[chain] ?? []);
+  }
 }
 
 export function getUpgradeTargetImplementation({
@@ -631,6 +728,39 @@ export function getUpgradeTargetImplementation({
   return undefined;
 }
 
+export async function executeDeployerOwnedCall({
+  chain,
+  call,
+  multiProvider,
+}: {
+  chain: ChainName;
+  call: UpgradeCall;
+  multiProvider: MultiProvider;
+}): Promise<{
+  status: 'error' | 'executed';
+  detail: string;
+}> {
+  try {
+    rootLogger.info(
+      `[${chain}] executing deployer-key upgrade: ${call.description}`,
+    );
+    await multiProvider.sendTransaction(chain, {
+      to: call.to,
+      data: call.data,
+      value: call.value,
+    });
+    return {
+      status: 'executed',
+      detail: `executed deployer-key upgrade: ${call.description}`,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      detail: `deployer-key upgrade failed: ${formatError(error)}`,
+    };
+  }
+}
+
 async function routeGovernedCall({
   groups,
   icaGroups,
@@ -657,16 +787,15 @@ async function routeGovernedCall({
     | 'timelock queued'
     | 'scheduled'
     | 'done'
+    | 'error'
     | 'manual'
     | 'executed';
   detail: string;
   ownerType: Owner | null;
   governanceType: GovernanceType;
 }> {
-  const { ownerType, governanceType } = await determineGovernanceType(
-    chain,
-    ownerAddress,
-  );
+  const { ownerType, governanceType, timelockProposer } =
+    await determineUpgradeGovernanceRoute(chain, ownerAddress);
 
   switch (ownerType) {
     case Owner.SAFE:
@@ -710,6 +839,7 @@ async function routeGovernedCall({
           timelockAddress: ownerAddress,
           innerCall: call,
           idempotency: timelockIdempotency,
+          proposerType: timelockProposer,
         })),
         ownerType,
         governanceType,
@@ -724,29 +854,11 @@ async function routeGovernedCall({
           governanceType,
         };
       }
-      try {
-        rootLogger.info(
-          `[${chain}] executing deployer-key upgrade: ${call.description}`,
-        );
-        await multiProvider.sendTransaction(chain, {
-          to: call.to,
-          data: call.data,
-          value: call.value,
-        });
-        return {
-          status: 'executed',
-          detail: `executed deployer-key upgrade: ${call.description}`,
-          ownerType,
-          governanceType,
-        };
-      } catch (error) {
-        return {
-          status: 'manual',
-          detail: `deployer-key upgrade failed: ${error instanceof Error ? error.message : String(error)}`,
-          ownerType,
-          governanceType,
-        };
-      }
+      return {
+        ...(await executeDeployerOwnedCall({ chain, call, multiProvider })),
+        ownerType,
+        governanceType,
+      };
     default:
       return {
         status: 'manual',
@@ -901,6 +1013,7 @@ async function routeTimelockCall({
   timelockAddress,
   innerCall,
   idempotency,
+  proposerType,
 }: {
   groups: Map<string, SafeCallGroup>;
   ica: InterchainAccount;
@@ -909,6 +1022,7 @@ async function routeTimelockCall({
   timelockAddress: Address;
   innerCall: UpgradeCall;
   idempotency?: TimelockIdempotency;
+  proposerType?: 'ica' | 'safe';
 }): Promise<{
   status: 'timelock queued' | 'scheduled' | 'done';
   detail: string;
@@ -967,10 +1081,10 @@ async function routeTimelockCall({
     description: `Schedule timelock operation ${operationId}: ${innerCall.description}`,
   };
 
-  const proposer =
-    chain === ETHEREUM_CHAIN
-      ? getGovernanceSafes(governanceType)[ETHEREUM_CHAIN]
-      : getGovernanceIcaAddress(chain, governanceType);
+  const proposeViaSafe = chain === ETHEREUM_CHAIN || proposerType === 'safe';
+  const proposer = proposeViaSafe
+    ? getGovernanceSafes(governanceType)[chain]
+    : getGovernanceIcaAddress(chain, governanceType);
   assert(
     proposer,
     `[${chain}] no ${governanceType} proposer address available for timelock ${timelockAddress}`,
@@ -980,8 +1094,8 @@ async function routeTimelockCall({
     `[${chain}] ${proposer} does not have PROPOSER_ROLE on timelock ${timelockAddress}`,
   );
 
-  if (chain === ETHEREUM_CHAIN) {
-    addSafeCall(groups, ETHEREUM_CHAIN, governanceType, scheduleCall);
+  if (proposeViaSafe) {
+    addSafeCall(groups, chain, governanceType, scheduleCall);
   } else {
     await addIcaSafeCall({
       groups,
@@ -1272,6 +1386,7 @@ async function main() {
   const safeGroups = new Map<string, SafeCallGroup>();
   const icaGroups = new Map<string, IcaCallGroup>();
   const plans: ChainPlan[] = [];
+  const verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   const targetChainIndexes = new Map(
     targetChains.map((chain, index) => [chain, index]),
   );
@@ -1335,10 +1450,8 @@ async function main() {
           currentVersion,
         });
       if (implementationUpgradeRequired) {
-        const { ownerType, governanceType } = await determineGovernanceType(
-          chain,
-          proxyAdminOwner,
-        );
+        const { ownerType, governanceType } =
+          await determineUpgradeGovernanceRoute(chain, proxyAdminOwner);
         const legacyIcaOwner = getLegacyGovernanceIcas(governanceType)[chain];
         const isUnroutable =
           ownerType === Owner.UNKNOWN ||
@@ -1380,6 +1493,11 @@ async function main() {
         config,
         addresses,
         multiProvider,
+        onVerificationInputs: propose
+          ? (inputs) => {
+              if (inputs.length > 0) verificationInputs[chain] = inputs;
+            }
+          : undefined,
       });
       const simulatedDeployments =
         multiProvider instanceof DryRunDeployMultiProvider
@@ -1508,6 +1626,10 @@ async function main() {
       (targetChainIndexes.get(a.chain) ?? Number.MAX_SAFE_INTEGER) -
       (targetChainIndexes.get(b.chain) ?? Number.MAX_SAFE_INTEGER),
   );
+
+  if (propose) {
+    await writeVerificationInputs(environment, verificationInputs);
+  }
 
   await flushIcaCallGroups({
     safeGroups,
