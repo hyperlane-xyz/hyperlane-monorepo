@@ -550,11 +550,9 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         // returns false and no non-EVM indexer overrides it. Extending the relay API
         // to non-EVM chains requires a chain-specific is_cctp_v2 implementation.
         if !extracted.is_cctp_v2 {
-            warn!(message_id = ?extracted.message_id, "Rejecting non-CCTP V2 message");
+            warn!(message_id = ?extracted.message_id, "Skipping non-CCTP V2 message");
             state.record_failure("not_cctp_v2");
-            return Err(ServerError::InvalidRequest(
-                "Only EVM CCTP V2 messages are supported via the relay API".to_string(),
-            ));
+            continue;
         }
 
         // Get message context for (origin, destination)

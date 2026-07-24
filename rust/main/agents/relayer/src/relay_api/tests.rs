@@ -407,7 +407,7 @@ async fn test_extraction_timeout() {
 }
 
 #[tokio::test]
-async fn test_non_cctp_message_rejected() {
+async fn test_non_cctp_message_skipped() {
     let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
     let TestHarness {
         state,
@@ -417,7 +417,7 @@ async fn test_non_cctp_message_rejected() {
 
     let status = send_relay(state.router(), TX_HASH).await;
 
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(status, StatusCode::OK);
     assert!(
         rx.is_closed() || rx.len() == 0,
         "nothing should be enqueued"
