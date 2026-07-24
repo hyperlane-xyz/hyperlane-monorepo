@@ -1,3 +1,8 @@
+## [2.4.0] - 2026-07-24
+
+* feat(sealevel): recover stale pending_swap PDAs blocking universal-router reveals (#9113)
+* fix(sealevel): refund pending_swap close rent to fee_payer_pda on universal-router recovery (#9114)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(sealevel): sealevel igp and warp route offchain quoting + new isms (#8695)
