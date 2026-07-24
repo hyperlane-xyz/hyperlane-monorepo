@@ -16,20 +16,20 @@ This tutorial walks through using Hyperlane's **Interchain Accounts (ICAs)** to 
 
 ### Setup
 
-\\\ash
+```bash
 git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
 cd hyperlane-monorepo
 pnpm install
 cd typescript/cli
-\\\
+```
 
 Create a \.env\ file with your RPC URLs and private key:
 
-\\\env
+```env
 HYP_KEY=<your-private-key>
 HYP_RPC_URL_ETHEREUM=https://eth.llamarpc.com
 HYP_RPC_URL_OPTIMISM=https://optimism.llamarpc.com
-\\\
+```
 
 ---
 
@@ -42,7 +42,7 @@ Key contracts:
 - **ICA Proxy** — the actual account contract on the remote chain; executes calls forwarded through Hyperlane
 
 The workflow is:
-1. The owner calls \callRemote()\ on the origin chain's router
+1. The owner calls `callRemote()` on the origin chain's router
 2. Hyperlane relays the message to the destination chain
 3. The destination router delivers the calls to the ICA proxy
 4. The ICA proxy executes the calls as if the owner made them directly
@@ -55,14 +55,14 @@ The ICA address is deterministic based on the **owner address**, **origin domain
 
 ### Using the Hyperlane CLI
 
-\\\ash
+```bash
 # First, check if the ICA is already deployed
 cd typescript/cli
 pnpm hyperlane ica deploy \\
   --origin ethereum \\
   --chains optimism \\
   --owner <YOUR_DAO_GOVERNOR_ADDRESS>
-\\\
+```
 
 The CLI will output:
 - Whether an ICA already exists (showing the address)
@@ -70,7 +70,7 @@ The CLI will output:
 
 ### Using the SDK Programmatically
 
-\\\	ypescript
+```typescript
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -99,9 +99,9 @@ async function getDaoIcaAddress() {
   console.log(\DAO ICA on Optimism: \\);
   return icaAddress;
 }
-\\\
+```
 
-The \getAccount()\ method returns the deterministic address **without** deploying the account. Use \deployAccount()\ to actually deploy it if needed.
+The `getAccount()` method returns the deterministic address **without** deploying the account. Use `deployAccount()` to actually deploy it if needed.
 
 ---
 
@@ -118,7 +118,7 @@ Once you have the ICA address, sending funds is a standard EVM transfer. You can
 
 ### Via Script (using ethers.js)
 
-\\\	ypescript
+```typescript
 import { ethers } from 'ethers';
 
 async function fundIca(icaAddress: string, amountEth: string) {
@@ -137,11 +137,11 @@ async function fundIca(icaAddress: string, amountEth: string) {
 
 // Send 0.1 ETH to the DAO's ICA
 await fundIca('0x_ICA_ADDRESS_FROM_STEP_1', '0.1');
-\\\
+```
 
 ### For ERC-20 Tokens
 
-\\\	ypescript
+```typescript
 const erc20Abi = ['function transfer(address to, uint256 amount) returns (bool)'];
 
 async function fundIcaWithToken(
@@ -157,17 +157,17 @@ async function fundIcaWithToken(
   await tx.wait();
   console.log(\Sent \ USDC to ICA via tx: \\);
 }
-\\\
+```
 
 ---
 
 ## Step 3: Create a Tally Proposal to Use ICA Funds
 
-Now that the ICA holds funds on the remote chain, the DAO needs to pass a governance proposal to move them. This is done by creating a proposal that calls \callRemote()\ on the origin chain's **InterchainAccountRouter**.
+Now that the ICA holds funds on the remote chain, the DAO needs to pass a governance proposal to move them. This is done by creating a proposal that calls `callRemote()` on the origin chain's **InterchainAccountRouter**.
 
 ### Understanding \callRemote\
 
-The \callRemote()\ function on \InterchainAccountRouter\ takes:
+The `callRemote()` function on \InterchainAccountRouter\ takes:
 - \_destinationDomain\ — the domain ID of the remote chain
 - \_router\ — the remote chain's ICA router address (bytes32)
 - \_ism\ — the Interchain Security Module to use
@@ -180,7 +180,7 @@ Each call in \_calls\ has:
 
 ### Option A: Using the Hyperlane SDK
 
-\\\	ypescript
+```typescript
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 import { ethers } from 'ethers';
@@ -226,7 +226,7 @@ async function createIcaCallsForProposal() {
 
   return tx;
 }
-\\\
+```
 
 ### Option B: Direct Contract Interaction
 
@@ -268,7 +268,7 @@ With the calldata from above, create a proposal on [Tally](https://www.tally.xyz
 7. Write a clear title and description
 8. Submit for voting
 
-\\\solidity
+```solidity
 // The proposal's on-chain action is equivalent to:
 // InterchainAccountRouter.callRemote(
 //   destinationDomain,
@@ -277,7 +277,7 @@ With the calldata from above, create a proposal on [Tally](https://www.tally.xyz
 //   calls,
 //   hookMetadata
 // )
-\\\
+```
 
 Once the proposal passes and is executed:
 1. The ICA router on Ethereum dispatches a message via Hyperlane
@@ -291,7 +291,7 @@ Once the proposal passes and is executed:
 
 Here's a complete script that ties everything together:
 
-\\\	ypescript
+```typescript
 // scripts/ica-tally-demo.ts
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
@@ -376,14 +376,14 @@ async function main() {
 }
 
 main().catch(console.error);
-\\\
+```
 
 Run it:
 
-\\\ash
+```bash
 cd typescript/cli
 npx ts-node ../scripts/ica-tally-demo.ts
-\\\
+```
 
 ---
 
@@ -401,7 +401,7 @@ npx ts-node ../scripts/ica-tally-demo.ts
 
 ### Deterministic Addresses
 - The ICA address is the same regardless of whether the account has been deployed
-- You can safely send funds to an undeployed ICA address — deploy it later with \deployAccount()\
+- You can safely send funds to an undeployed ICA address — deploy it later with `deployAccount()`
 
 ### Multiple Destination Chains
 - Deploy ICAs on multiple chains to create a cross-chain DAO treasury
