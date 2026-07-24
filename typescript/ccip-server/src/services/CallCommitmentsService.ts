@@ -1,4 +1,5 @@
 import type { Log } from '@ethersproject/providers';
+import { utils } from 'ethers';
 import { Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Logger } from 'pino';
@@ -439,6 +440,204 @@ export class CallCommitmentsService extends BaseService {
     }
   }
 
+  // ── /calldata endpoints ─────────────────────────────────────────────────────
+
+  private static readonly RevealAccountSchema = z.object({
+    pubkey: z
+      .string()
+      .regex(
+        /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+        'pubkey must be a base58 Solana address',
+      ),
+    isWritable: z.boolean(),
+    isSigner: z.boolean(),
+  });
+
+  private static readonly CalldataPostSchema = z.object({
+    commitment: z
+      .string()
+      .regex(
+        /^0x[0-9a-fA-F]{64}$/,
+        'commitment must be a 32-byte 0x hex string',
+      ),
+    originDomain: z.number().int().positive(),
+    data: z
+      .string()
+      .regex(
+        /^0x(?:[0-9a-fA-F]{2})+$/,
+        'data must be a non-empty byte-aligned 0x hex string',
+      ),
+    salt: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
+    relayers: z
+      .array(
+        z
+          .string()
+          .regex(
+            /^0x[0-9a-fA-F]{40}$/,
+            'relayer must be a 20-byte EVM address',
+          ),
+      )
+      .default([]),
+    destinationAccount: z
+      .string()
+      .regex(
+        /^0x[0-9a-fA-F]{64}$/,
+        'destinationAccount must be a 32-byte 0x hex string',
+      ),
+    revealAccounts: z
+      .array(CallCommitmentsService.RevealAccountSchema)
+      .optional(),
+  });
+
+  public async handleCalldataPost(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
+    const result = CallCommitmentsService.CalldataPostSchema.safeParse(
+      req.body,
+    );
+    if (!result.success) {
+      return res.status(400).json({ errors: result.error.format() });
+    }
+    const {
+      commitment,
+      originDomain,
+      data,
+      salt,
+      relayers,
+      destinationAccount,
+      revealAccounts,
+    } = result.data;
+    // Verify commitment = keccak256(salt || data) before persisting.
+    // This prevents a client from poisoning a commitment slot with arbitrary data.
+    const expectedCommitment = utils.keccak256(
+      utils.concat([utils.arrayify(salt), utils.arrayify(data)]),
+    );
+    if (expectedCommitment.toLowerCase() !== commitment.toLowerCase()) {
+      return res
+        .status(400)
+        .json({ error: 'commitment does not match keccak256(salt || data)' });
+    }
+
+    logger.info({ originDomain, commitment }, 'Storing calldata');
+    try {
+      await prisma.calldata.upsert({
+        where: { commitment },
+        update: {},
+        create: {
+          commitment,
+          originDomain,
+          data,
+          salt,
+          relayers,
+          destinationAccount,
+          ...(revealAccounts != null && { revealAccounts }),
+        },
+      });
+
+      // Dual-write to Commitment table so the existing getCallsFromRevealMessage
+      // CCIP-Read endpoint keeps working. Only EVM-destination routes carry
+      // ABI-encoded ICA calls — borsh (Solana) data will fail to decode and
+      // skip the dual-write automatically.
+      let decodedCalls: Array<{
+        to: string;
+        value: string;
+        data: string;
+      }> | null = null;
+      try {
+        const [raw] = utils.defaultAbiCoder.decode(
+          ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+          data,
+        ) as [
+          Array<{ to: string; value: { toString(): string }; data: string }>,
+        ];
+        decodedCalls = raw.map((c) => ({
+          to: c.to,
+          value: c.value.toString(),
+          data: c.data,
+        }));
+      } catch {
+        // Solana-destination routes carry borsh data that fails ABI decode — not an error.
+        logger.debug(
+          { commitment },
+          'Skipping Commitment dual-write (data is not ABI-encoded ICA calls)',
+        );
+      }
+      if (decodedCalls != null) {
+        const icaAddress = bytes32ToAddress(destinationAccount);
+        await prisma.commitment.upsert({
+          where: { commitment },
+          update: {},
+          create: {
+            commitment,
+            calls: decodedCalls,
+            relayers,
+            salt,
+            ica: icaAddress,
+            originDomain,
+          },
+        });
+        logger.info(
+          { commitment, icaAddress, originDomain },
+          'Dual-wrote to Commitment table',
+        );
+      }
+    } catch (error: unknown) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+        },
+        'Database error storing calldata',
+      );
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+    return res.status(200).json({ commitment });
+  }
+
+  public async handleCalldataGet(req: Request, res: Response) {
+    const logger = this.addLoggerServiceContext(req.log);
+    const { commitment } = req.params;
+
+    let record: {
+      originDomain: number;
+      data: string;
+      salt: string;
+      relayers: unknown;
+      destinationAccount: string | null;
+      revealAccounts: unknown;
+    } | null;
+    try {
+      record = await prisma.calldata.findUnique({ where: { commitment } });
+    } catch (error: unknown) {
+      logger.error(
+        {
+          commitment,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Database error fetching calldata',
+      );
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+    if (!record) return res.status(404).json({ error: 'Not found' });
+
+    return res.status(200).json({
+      originDomain: record.originDomain,
+      data: record.data,
+      salt: record.salt,
+      ...(record.destinationAccount != null && {
+        destinationAccount: record.destinationAccount,
+      }),
+      ...(record.revealAccounts != null && {
+        revealAccounts: record.revealAccounts,
+      }),
+    });
+  }
+
   /**
    * Register routes onto an Express Router or app.
    */
@@ -463,6 +662,16 @@ export class CallCommitmentsService extends BaseService {
       '/calls/:commitment',
       commitmentRateLimit,
       this.handleCheckCommitment.bind(this),
+    );
+    router.post(
+      '/calldata',
+      commitmentRateLimit,
+      this.handleCalldataPost.bind(this),
+    );
+    router.get(
+      '/calldata/:commitment',
+      commitmentRateLimit,
+      this.handleCalldataGet.bind(this),
     );
     router.post(
       '/getCallsFromRevealMessage',

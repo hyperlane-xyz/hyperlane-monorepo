@@ -1,3 +1,7 @@
+## [2.3.0] - 2026-07-20
+
+* feat: aleo ARC-20 v2 tokens + mainnet USDC/USDT/ETH/WBTC/SOL rollout (#8969)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)

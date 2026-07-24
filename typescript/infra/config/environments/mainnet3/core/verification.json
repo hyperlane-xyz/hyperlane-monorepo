@@ -1,96 +1,4 @@
 {
-  "ancient8": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000034fb5e38",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x8f4BeB6552b76aA38Cd9994701c0Da7bC829648B",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000811808dd29ba8b0fc6c0ec0b5537035e59745162",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0x66DC49405Ae2956f7E87FEAa9fE8f506C8987462",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0x59Bf7c7b458375b1A7c453aE70EaCb376E65CDAF",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0x79b3D752cc9494eCB93800712471a7a62954C8AE",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x8F1E22d309baa69D398a03cc88E9b46037e988AA",
-      "constructorArguments": "00000000000000000000000079b3d752cc9494ecb93800712471a7a62954c8ae0000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xE0C452DDA7506f0F4dE5C8C1d383F7aD866eA4F0",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "address": "0xcf678903c003651DB0bb933820259A16ea9d95e4",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0xF8DbA46fF9D8ef650052c89CA2Df793FaBc375F9",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xab852e67bf03E74C89aF67C4BA97dd1088D3dA19",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
   "arbitrum": [
     {
       "address": "0x4826ce713944D8B3Eb98c73050bfc01e8fB6655A",
@@ -174,6 +82,76 @@
       "name": "QuotedCalls",
       "address": "0xBfdB4056C49680dd54eedEf22C7F48308140a2a2",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
+    }
+  ],
+  "arcadia": [
+    {
+      "name": "ProxyAdmin",
+      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "Mailbox",
+      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000414950",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true,
+      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+    },
+    {
+      "name": "MerkleTreeHook",
+      "address": "0x6e1B9f776bd415d7cC3C7458A5f0d801016918f8",
+      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x7927B6fE8FA061c32CE3771d11076E6161DE5f52",
+      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000006e1b9f776bd415d7cc3c7458a5f0d801016918f8",
+      "isProxy": false
+    },
+    {
+      "name": "PausableHook",
+      "address": "0x63012EE26bda8E5D1b96218778Eaf2492E553469",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StorageGasOracle",
+      "address": "0x3862A9B1aCd89245a59002C2a08658EC1d5690E3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x8da1aE5A1fA3883c1c12b46270989EAC0EE7BA78",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0x30a539E2E2d09FB4e68661B1EDD70D266211602a",
+      "constructorArguments": "0000000000000000000000008da1ae5a1fa3883c1c12b46270989eac0ee7ba780000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true,
+      "expectedimplementation": "0x8da1aE5A1fA3883c1c12b46270989EAC0EE7BA78"
+    },
+    {
+      "name": "ProtocolFee",
+      "address": "0x51545389E04c2Ac07d98A40b85d29B480a2AF6ce",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false
+    },
+    {
+      "name": "ValidatorAnnounce",
+      "address": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
+      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
       "isProxy": false
     }
   ],
@@ -525,125 +503,6 @@
       "isProxy": false
     }
   ],
-  "cyber": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000001d88",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x089DdA086dCbfA0C2cCa69B45F2eB6DE7Fd71F38",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x29D438579f1cFB6f9a5161d828c89Ccd82dd8cB5",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "endurance": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000288",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xC831271c1fB212012811a91Dd43e5926C1020563",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0x473884010F0C1742DA8Ad01E7E295624B931076b",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000c831271c1fb212012811a91dd43e5926c1020563",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0xaE7BCf37D4541d3CFc46c1459829c1246E11aE08",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0xe243Fb51d91c5DE62afAbE44F7Ed2D4DC51668C6",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0x5366362c41e34869BDa231061603E4356D66079D",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0xB30EAB08aa87138D57168D0e236850A530f49921",
-      "constructorArguments": "0000000000000000000000005366362c41e34869bda231061603e4356d66079d0000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xcf678903c003651DB0bb933820259A16ea9d95e4",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x3c7653dD0Ec21A833f99293CDC17495CE249532c",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xE15216b866349d789b17c85A4edC81AadfC410CE",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
   "ethereum": [
     {
       "address": "0x7b4D881c122a5e61adCFfb56A2e3CE9927D53455",
@@ -800,98 +659,6 @@
     {
       "name": "QuotedCalls",
       "address": "0x742d94092f5F81D6bA6bF51115bA6b9bb08CBCE1",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "fusemainnet": [
-    {
-      "address": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x95878Fd41bC26f7045C0b98e381c22f010745A75",
-      "constructorArguments": "000000000000000000000000a0c9ba80fa88d48e484692475719a813f0037f30",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0x086eF95a2F74582Ee30E7D698518a872fb18301f",
-      "constructorArguments": "000000000000000000000000a0c9ba80fa88d48e484692475719a813f0037f30000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000095878fd41bc26f7045c0b98e381c22f010745a75",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0xC077A0Cc408173349b1c9870C667B40FE3C01dd7",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0x5060eCD5dFAD300A90592C04e504600A7cdcF70b",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0xF5165f115ba4E1Adc09f0EB392232D65F219806a",
-      "constructorArguments": "0000000000000000000000005060ecd5dfad300a90592c04e504600a7cdcf70b0000000000000000000000002d21f1f9b523176c500f082c123afb0f5d2494fa00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x6A55822cf11f9fcBc4c75BC2638AfE8Eb942cAdd",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x6A7398A6a0fB842725afa0A5F1641FC6C9FF89cf",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x9844aFFaBE17c37F791ff99ABa58B0FbB75e22AF",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000007a",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x3071D4DA6020C956Fe15Bfd0a9Ca8D4574f16696",
-      "constructorArguments": "0000000000000000000000009844affabe17c37f791ff99aba58b0fbb75e22af0000000000000000000000006a7398a6a0fb842725afa0a5f1641fc6c9ff89cf00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x9eb56085DdbDA60aDf7d2B533AFeD90e38fC9666",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x60bB6D060393D3C206719A7bD61844cC82891cfB",
-      "constructorArguments": "0000000000000000000000003071d4da6020c956fe15bfd0a9ca8d4574f16696",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xDad43A991F525939b70Ca7392ff3f2e23A4E2f5c",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -1198,98 +965,6 @@
     {
       "name": "QuotedCalls",
       "address": "0x15192f22EF723818d1c441534a0DbF5940b2ad5b",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "mantapacific": [
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000a9",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0x19dc38aeae620380430C200a6E990D5Af5480117",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0xBF12ef4B9f307463D3FB59c3604F294dDCe287E2",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
-      "constructorArguments": "000000000000000000000000bf12ef4b9f307463d3fb59c3604f294ddce287e20000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "address": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000149db7afd694722747035d5aec7007ccb6f8f112",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0x7556a0E61d577D921Cba8Fca0d7D6299d36E607E",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0x2d5918c3602F17937Ff982F7Bb7110774D3A24AD",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x6Fb36672365C7c797028C400A61c58c0ECc53cD2",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x6119B76720CcfeB3D256EC1b91218EEfFD6756E1",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x8Ce35cB1F90ac45Bb5C1cde2502F0605Ad2FcE21",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -1868,45 +1543,6 @@
       "isProxy": false
     }
   ],
-  "xai": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000a1337",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0xe8d5590F2e969F9d21f0132f2b596273f8a03Ef2",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x31839566B757E99b50A9d78e1D6a59F7f21b7907",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
   "xlayer": [
     {
       "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
@@ -1986,250 +1622,6 @@
       "name": "QuotedCalls",
       "address": "0x3127e69517ec2268DD5745c97194D387a4Fc0C45",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "zetachain": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000001b58",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x61DDB465eEA5bc3708Cf8B53156aC91a77A2f029",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0xE2ee936bEa8e42671c400aC96dE198E06F2bA2A6",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0x8F1E22d309baa69D398a03cc88E9b46037e988AA",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000e2ee936bea8e42671c400ac96de198e06f2ba2a6",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0xA1ac41d8A663fd317cc3BD94C7de92dC4BA4a882",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0xC9B8ea6230d6687a4b13fD3C0b8f0Ec607B26465",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0xE0C452DDA7506f0F4dE5C8C1d383F7aD866eA4F0",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d",
-      "constructorArguments": "000000000000000000000000e0c452dda7506f0f4de5c8c1d383f7ad866ea4f00000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xea820f9BCFD5E16a0dd42071EB61A29874Ad81A4",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2",
-      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "address": "0x7b75b29caD47e10146e29BBf7BD9025e021a7023",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xD3770962B7A62ac62E7241b26c92a133D69d7b84",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "zircuit": [
-    {
-      "address": "0xA5580D7Af50F3FD869EbEA51e352e2656F8DD5C2",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000bf04",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0xc2FbB9411186AB3b1a6AFCCA702D1a80B48b197c",
-      "constructorArguments": "00000000000000000000000001ae937a7b05d187bbcbe80f44f41879d3d335a4000000000000000000000000a5580d7af50f3fd869ebea51e352e2656f8dd5c200000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "expectedimplementation": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x4848d54987ffc732aD313827cdC25DF2eedD79d8",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28",
-      "constructorArguments": "000000000000000000000000c2fbb9411186ab3b1a6afcca702d1a80b48b197c",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
-      "constructorArguments": "000000000000000000000000c2fbb9411186ab3b1a6afcca702d1a80b48b197c000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000004c97d35c668ee5194a13c8de8afc18cce40c9f28",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0x4Eb82Ee35b0a1c1d776E3a3B547f9A9bA6FCC9f2",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "PausableHook"
-    },
-    {
-      "address": "0x46fa3A5780e5B90Eaf34BDED554d5353B5ABE9E7",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0xEF9A332Ec1fD233Bf9344A58be56ff9E104B4f60",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x03cF708E42C89623bd83B281A56935cB562b9258",
-      "constructorArguments": "000000000000000000000000ef9a332ec1fd233bf9344a58be56ff9e104b4f60000000000000000000000000a5580d7af50f3fd869ebea51e352e2656f8dd5c200000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "expectedimplementation": "0xEF9A332Ec1fD233Bf9344A58be56ff9E104B4f60",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xe243Fb51d91c5DE62afAbE44F7Ed2D4DC51668C6",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x5366362c41e34869BDa231061603E4356D66079D",
-      "constructorArguments": "000000000000000000000000c2fbb9411186ab3b1a6afcca702d1a80b48b197c",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xFEfd8562D3B69f458Fc60CE0dAB9F724f4055E81",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "molten": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
-      "constructorArguments": "000000000000000000000000cc3d1659d50461d27a2f025ddb2c9b06b584b7e10000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1"
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x61594D2cA900C44ab51d07776465397FefC643C6",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA38D1D7F217A52A27b0e6BF50E0a9ddAD05798C0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000441a01fca2ed731c0fc4633998332f9fedb17575",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000168",
       "isProxy": false
     }
   ],
@@ -2351,328 +1743,6 @@
       "name": "Mailbox",
       "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000ec0",
-      "isProxy": false
-    }
-  ],
-  "coredao": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
-      "constructorArguments": "000000000000000000000000cc3d1659d50461d27a2f025ddb2c9b06b584b7e10000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1"
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x61594D2cA900C44ab51d07776465397FefC643C6",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA38D1D7F217A52A27b0e6BF50E0a9ddAD05798C0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000441a01fca2ed731c0fc4633998332f9fedb17575",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000045c",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xEe78716A3042f05E3E74566a00C544fC59D40467",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "flare": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
-      "constructorArguments": "000000000000000000000000cc3d1659d50461d27a2f025ddb2c9b06b584b7e10000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1"
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x61594D2cA900C44ab51d07776465397FefC643C6",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA38D1D7F217A52A27b0e6BF50E0a9ddAD05798C0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000441a01fca2ed731c0fc4633998332f9fedb17575",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000000e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xe41a3270875f28A03312877cD95A01e9a53664b1",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "astar": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
-      "constructorArguments": "000000000000000000000000cc3d1659d50461d27a2f025ddb2c9b06b584b7e10000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1"
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x61594D2cA900C44ab51d07776465397FefC643C6",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA38D1D7F217A52A27b0e6BF50E0a9ddAD05798C0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000441a01fca2ed731c0fc4633998332f9fedb17575",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000250",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xCC35dFE954ac13aBD4c50e1327EdB1B492Fcf11A",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "shibarium": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
-      "constructorArguments": "000000000000000000000000cc3d1659d50461d27a2f025ddb2c9b06b584b7e10000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1"
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x61594D2cA900C44ab51d07776465397FefC643C6",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA38D1D7F217A52A27b0e6BF50E0a9ddAD05798C0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xCC3D1659D50461d27a2F025dDb2c9B06B584B7e1",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000441a01fca2ed731c0fc4633998332f9fedb17575",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000006d",
       "isProxy": false
     }
   ],
@@ -2858,146 +1928,6 @@
       "isProxy": false
     }
   ],
-  "zeronetwork": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x72e2A678442Edc65f14476A0E4c94312C0469f4A",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x3a4c1e089dCaba813c10b641d8296a972ffAd939",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000849ea",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xd7b351D2dE3495eA259DD10ab4b9300A378Afbf3",
-      "constructorArguments": "0000000000000000000000003a4c1e089dcaba813c10b641d8296a972ffad93900000000000000000000000072e2a678442edc65f14476a0e4c94312c0469f4a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x3a4c1e089dCaba813c10b641d8296a972ffAd939"
-    },
-    {
-      "name": "DomainRoutingIsm",
-      "address": "0x307A9dBD1df2329c3c597aF6853de60660baFFb5",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x55379421409961Ef129738c24261379ef8A547Df",
-      "constructorArguments": "000000000000000000000000d7b351d2de3495ea259dd10ab4b9300a378afbf3",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackDomainRoutingHook",
-      "address": "0x671836d35BB15E21ECc92c4936F0e3131efe12B4",
-      "constructorArguments": "000000000000000000000000d7b351d2de3495ea259dd10ab4b9300a378afbf3000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000055379421409961ef129738c24261379ef8a547df",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xe85d65f04D1562f8571d57326d6798e4584aa254",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xDA6193892B324fdEc49209E7cB37E5eE84Cb2459",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x318FbdB17d4e743aBF3183658a4730777101B75C",
-      "constructorArguments": "000000000000000000000000da6193892b324fdec49209e7cb37e5ee84cb245900000000000000000000000072e2a678442edc65f14476a0e4c94312c0469f4a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xDA6193892B324fdEc49209E7cB37E5eE84Cb2459"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xB2F0e411B46AbE3248dAFB5e89aDB5b8404F45DF",
-      "constructorArguments": "000000000000000000000000d7b351d2de3495ea259dd10ab4b9300a378afbf3",
-      "isProxy": false
-    }
-  ],
-  "gravity": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000659",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x7621e04860F0bDe63311db9D5D8b589AD3458A1f",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x5090dF2FBDa7127c7aDa41f60B79F5c55D380Dd8",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x6963480b05EB58f4d624B014ab92e9aD4d21df6D",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000005090df2fbda7127c7ada41f60b79f5c55d380dd8",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x886BB0f329781b98f98FDeb1ce7a8957F2d43B9F",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xD0dca420feFda68537695A8D887080eeF4030AF7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xF1854214392864c628A16930E73B699f7a51b3EE",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xf3dFf6747E7FC74B431C943961054B7BF6309d8a",
-      "constructorArguments": "000000000000000000000000f1854214392864c628a16930e73b699f7a51b3ee0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xF1854214392864c628A16930E73B699f7a51b3EE"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8C3e1794018a589c9E9226b8543105fCb6cC88C4",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x61374178e45F65fF9D6252d017Cd580FC60B7654",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    }
-  ],
   "apechain": [
     {
       "name": "ProxyAdmin",
@@ -3076,170 +2006,6 @@
     {
       "name": "QuotedCalls",
       "address": "0x27A43305C387b464F47D7feC179DF028fF6c1188",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "kaia": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000002019",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x696df5e79C4f1bd5F8D587Ba8946361d9B029d4B",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x6963480b05EB58f4d624B014ab92e9aD4d21df6D",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x886BB0f329781b98f98FDeb1ce7a8957F2d43B9F",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000006963480b05eb58f4d624b014ab92e9ad4d21df6d",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xD0dca420feFda68537695A8D887080eeF4030AF7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x2F619Ac5122689180AeBB930ADccdae215d538a9",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xEe08043cf22c80b27BF24d19999231dF4a3fC256",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
-      "constructorArguments": "000000000000000000000000ee08043cf22c80b27bf24d19999231df4a3fc256000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xEe08043cf22c80b27BF24d19999231dF4a3fC256"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x23C6D8145DDb71a24965AAAdf4CA4B095b4eC85F",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "orderly": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000123",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-    },
-    {
-      "name": "PausableIsm",
-      "address": "0x696df5e79C4f1bd5F8D587Ba8946361d9B029d4B",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x6963480b05EB58f4d624B014ab92e9aD4d21df6D",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x886BB0f329781b98f98FDeb1ce7a8957F2d43B9F",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000006963480b05eb58f4d624b014ab92e9ad4d21df6d",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xD0dca420feFda68537695A8D887080eeF4030AF7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x2F619Ac5122689180AeBB930ADccdae215d538a9",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xEe08043cf22c80b27BF24d19999231dF4a3fC256",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
-      "constructorArguments": "000000000000000000000000ee08043cf22c80b27bf24d19999231df4a3fc256000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xEe08043cf22c80b27BF24d19999231dF4a3fC256"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
-      "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x21581dE0CB0Ce91E87b9d5124543C75Fa01ED9CC",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -3326,82 +2092,6 @@
       "isProxy": false
     }
   ],
-  "rarichain": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x4Ee9dEBB3046139661b51E17bdfD54Fd63211de7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x426a3CE72C1586b1867F9339550371E86DB3e396",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9afb49",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x65dCf8F6b3f6a0ECEdf3d0bdCB036AEa47A1d615",
-      "constructorArguments": "000000000000000000000000426a3ce72c1586b1867f9339550371e86db3e3960000000000000000000000004ee9debb3046139661b51e17bdfd54fd63211de700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x426a3CE72C1586b1867F9339550371E86DB3e396"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x8c794a781327b819416E7b67908f1D22397f1E67",
-      "constructorArguments": "00000000000000000000000065dcf8f6b3f6a0ecedf3d0bdcb036aea47a1d615",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x01EBa6D613DC09Cb899aF1e8E8a747416d7250ad",
-      "constructorArguments": "00000000000000000000000065dcf8f6b3f6a0ecedf3d0bdcb036aea47a1d615000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000008c794a781327b819416e7b67908f1d22397f1e67",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x4d264424905535E97396Db83bd553D0d73A4EF9d",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x16625230dD6cFe1B2bec3eCaEc7d43bA3A902CD6",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x26A29486480BD74f9B830a9B8dB33cb43C40f496",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xDDE46032Baf4da13fDD79BF9dfbaA2749615C409",
-      "constructorArguments": "00000000000000000000000026a29486480bd74f9b830a9b8db33cb43c40f4960000000000000000000000004ee9debb3046139661b51e17bdfd54fd63211de700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x26A29486480BD74f9B830a9B8dB33cb43C40f496"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x8a733038eF4BbC314eE0F7595257D8d3799B6aA9",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x38D361861d321B8B05de200c61B8F18740Daf4D8",
-      "constructorArguments": "00000000000000000000000065dcf8f6b3f6a0ecedf3d0bdcb036aea47a1d615",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x9799951a0282839E9d8D0B6385F7C14BB4556682",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
   "metal": [
     {
       "name": "ProxyAdmin",
@@ -3475,76 +2165,6 @@
       "name": "QuotedCalls",
       "address": "0x83D0777BD987fD199BCa82Ce804F626e35BE97b0",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "chilizmainnet": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x48C427782Bc1e9ecE406b3e277481b28ABcBdf03",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x9e8b689e83d929cb8c2d9166E55319a4e6aA83B7",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9c2538",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x248aDe14C0489E20C9a7Fea5F86DBfC3702208eF",
-      "constructorArguments": "0000000000000000000000009e8b689e83d929cb8c2d9166e55319a4e6aa83b700000000000000000000000048c427782bc1e9ece406b3e277481b28abcbdf0300000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x9e8b689e83d929cb8c2d9166E55319a4e6aA83B7"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x9c2214467Daf9e2e1F45b36d08ce0b9C65BFeA88",
-      "constructorArguments": "000000000000000000000000248ade14c0489e20c9a7fea5f86dbfc3702208ef",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
-      "constructorArguments": "000000000000000000000000248ade14c0489e20c9a7fea5f86dbfc3702208ef000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000009c2214467daf9e2e1f45b36d08ce0b9c65bfea88",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x2f536FB7a37bd817Af644072a904Ddc02Dae429f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xc4D0b4ef01eD7091792fe3D4c039457719e2DC68",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x561BcA8D862536CD9C88f332C1A1Da0fC8F96e40",
-      "constructorArguments": "000000000000000000000000c4d0b4ef01ed7091792fe3d4c039457719e2dc6800000000000000000000000048c427782bc1e9ece406b3e277481b28abcbdf0300000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xc4D0b4ef01eD7091792fe3D4c039457719e2DC68"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x01EBa6D613DC09Cb899aF1e8E8a747416d7250ad",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x16625230dD6cFe1B2bec3eCaEc7d43bA3A902CD6",
-      "constructorArguments": "000000000000000000000000248ade14c0489e20c9a7fea5f86dbfc3702208ef",
       "isProxy": false
     }
   ],
@@ -3978,6 +2598,12 @@
       "address": "0xD743801ABB6c7664B623D8534C0f5AF8cD2F1C5e",
       "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
       "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0x1E217DdF98085fb539F29bdD5646012598B2a068",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
     }
   ],
   "vana": [
@@ -4056,76 +2682,6 @@
       "isProxy": false
     }
   ],
-  "bsquared": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000df",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0xbb0AE51BCa526cF313b6a95BfaB020794af6C394",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x60bB6D060393D3C206719A7bD61844cC82891cfB",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000bb0ae51bca526cf313b6a95bfab020794af6c394",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x83475ca5bEB2Eaa59A2FF48a0544ebaa4a32c2de",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x451dF8AB0936D85526D816f0b4dCaDD934A034A4",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x81EbEdfc1220BE33C3B9c5E09c1FCab849a392A6",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
-      "constructorArguments": "00000000000000000000000081ebedfc1220be33c3b9c5e09c1fcab849a392a60000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x81EbEdfc1220BE33C3B9c5E09c1FCab849a392A6"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0xbB88a31E4b709b645c06825c0E0b5CAC906d97DE",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x25EAC2007b0D40E3f0AF112FD346412321038719",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    }
-  ],
   "lumiaprism": [
     {
       "name": "ProxyAdmin",
@@ -4198,82 +2754,6 @@
     {
       "name": "QuotedCalls",
       "address": "0xB57d536F0a934705912a3Aa6A214961CA9aF208B",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "swell": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000783",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x5C02157068a52cEcfc98EDb6115DE6134EcB4764",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000005c02157068a52cecfc98edb6115de6134ecb4764",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x99fEFc1119E86Ee0153eb887cF8E8ab2d92A16e8",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xCDeb368Db32ecCefaf7018e152DA9120565cb572",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xbB88a31E4b709b645c06825c0E0b5CAC906d97DE",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x25EAC2007b0D40E3f0AF112FD346412321038719",
-      "constructorArguments": "000000000000000000000000bb88a31e4b709b645c06825c0e0b5cac906d97de0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xbB88a31E4b709b645c06825c0E0b5CAC906d97DE"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x7CE76f5f0C469bBB4cd7Ea6EbabB54437A093127",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x4D50044335dc1d4D26c343AdeDf6E47808475Deb",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xB510239Fd68e48d80744fb36Da04425AFd236584",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -4582,76 +3062,6 @@
       "isProxy": false
     }
   ],
-  "artela": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000002e2c",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x7B032cBB00AD7438E802A66D8b64761A06E5df22",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x11b76D93a9D39Eb51F54eBf5566308640cDe882b",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000007b032cbb00ad7438e802a66d8b64761a06e5df22",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x3881c3e945CBB89ae67c43E82f570baDF1c6EA94",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x60515f328B2c55Df63f456D9D839a0082892dEf8",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x028B04386031b9648A8D78d06c58F6E763Be5cD0",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xc2466492C451E1AE49d8C874bB9f89293Aaad59b",
-      "constructorArguments": "000000000000000000000000028b04386031b9648a8d78d06c58f6e763be5cd00000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x028B04386031b9648A8D78d06c58F6E763Be5cD0"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x46008F5971eFb16e6c354Ef993EA021B489bc055",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    }
-  ],
   "hemi": [
     {
       "name": "ProxyAdmin",
@@ -4938,64 +3348,6 @@
       "isProxy": false
     }
   ],
-  "sophon": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x038F9F4e93e88Af2C688da265222FdE80e455aA4",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xA3949b37109d64b10De93252EeFebBB2E6B8944F",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000c3b8",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x9BbDf86b272d224323136E15594fdCe487F40ce7",
-      "constructorArguments": "000000000000000000000000a3949b37109d64b10de93252eefebbb2e6b8944f000000000000000000000000038f9f4e93e88af2c688da265222fde80e455aa400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xA3949b37109d64b10De93252EeFebBB2E6B8944F"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x697a90753B7dCf6512189c239E612fC12baaE500",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackDomainRoutingHook",
-      "address": "0xc364cfedefE854c1275B0f4088EaFA9695e1FC56",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000697a90753b7dcf6512189c239e612fc12baae500",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xA1ADFCa9666Bcd68b7b5C8b55e3ecC465DcDfE65",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x388289cd5862e17AAfD6ffF7F46A9Ec48a969bCd",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x73a82061Cd258d02BEa145fe183120456e718c2A",
-      "constructorArguments": "000000000000000000000000388289cd5862e17aafd6fff7f46a9ec48a969bcd000000000000000000000000038f9f4e93e88af2c688da265222fde80e455aa400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x388289cd5862e17AAfD6ffF7F46A9Ec48a969bCd"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x54E88f2ab58E0Ab4B7Ce081FB20D85b16af041d2",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7",
-      "isProxy": false
-    }
-  ],
   "ronin": [
     {
       "name": "ProxyAdmin",
@@ -5069,76 +3421,6 @@
       "name": "QuotedCalls",
       "address": "0x0b2d429acccAA411b867d57703F88Ed208eC35E4",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "arcadia": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000414950",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x6e1B9f776bd415d7cC3C7458A5f0d801016918f8",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x7927B6fE8FA061c32CE3771d11076E6161DE5f52",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000006e1b9f776bd415d7cc3c7458a5f0d801016918f8",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x63012EE26bda8E5D1b96218778Eaf2492E553469",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x3862A9B1aCd89245a59002C2a08658EC1d5690E3",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x8da1aE5A1fA3883c1c12b46270989EAC0EE7BA78",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x30a539E2E2d09FB4e68661B1EDD70D266211602a",
-      "constructorArguments": "0000000000000000000000008da1ae5a1fa3883c1c12b46270989eac0ee7ba780000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x8da1aE5A1fA3883c1c12b46270989EAC0EE7BA78"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x51545389E04c2Ac07d98A40b85d29B480a2AF6ce",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
       "isProxy": false
     }
   ],
@@ -5266,82 +3548,6 @@
     {
       "name": "QuotedCalls",
       "address": "0x6FD7cFe005093Ba658c1f294C20B229CEb5d4d97",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "opbnb": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000cc",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0xcDD89f19b2d00DCB9510BB3fBd5eCeCa761fe5Ab",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xdf4aA3905e0391C7763e33CB6A08fFa97221D49B",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000cdd89f19b2d00dcb9510bb3fbd5ececa761fe5ab",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x72246331d057741008751AB3976a8297Ce7267Bc",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x7947b7Fe737B4bd1D3387153f32148974066E591",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xf303B04d9ad21dAe2658Cf302478A424e0B45368",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xE911e75CECe0eF01df3ceD96BCd362941AE474D4",
-      "constructorArguments": "000000000000000000000000f303b04d9ad21dae2658cf302478a424e0b453680000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xf303B04d9ad21dAe2658Cf302478A424e0B45368"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x6D48135b7584E8Bf828B6e23110Bc0Da4252704f",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x9fE454AA2B01fc7A2a777AE561bc58Ce560CD5a9",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x036a5E4722DB8a61CC2731d9a6d7B32fb18eB239",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -5683,152 +3889,6 @@
       "isProxy": false
     }
   ],
-  "miraclechain": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000016876",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x64F077915B41479901a23Aa798B30701589C5063",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x0dc95Af5156fb0cC34a8c9BD646B748B9989A956",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000064f077915b41479901a23aa798b30701589c5063",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x794Fe7970EE45945b0ad2667f99A5bBc9ddfB5d7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xF9aE87E9ACE51aa16AED25Ca38F17D258aECb73f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
-      "constructorArguments": "000000000000000000000000f9ae87e9ace51aa16aed25ca38f17d258aecb73f0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xF9aE87E9ACE51aa16AED25Ca38F17D258aECb73f"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x946E9f4540E032a9fAc038AE58187eFcad9DE952",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0xeB647CF5C95A477DaB4E053986a36657C88bfC10",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "ontology": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000003a",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0xb5668713E9BA8bC96f97D691663E70b54CE90b0A",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x3E12271EbD523d0886D0D51A4FF8D8e046CF2E1D",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000b5668713e9ba8bc96f97d691663e70b54ce90b0a",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xC34aD1fB13a9eE1A0C0AB75aD9B9ceeA0690Cc74",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xc5068BB6803ADbe5600DE5189fe27A4dAcE31170",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x8E273260EAd8B72A085B19346A676d355740e875",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x11EF91d17c5ad3330DbCa709a8841743d3Af6819",
-      "constructorArguments": "0000000000000000000000008e273260ead8b72a085b19346a676d355740e8750000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x8E273260EAd8B72A085B19346A676d355740e875"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0xaD09d78f4c6b9dA2Ae82b1D34107802d380Bb74f",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x4e128A1b613A9C9Ecf650FeE461c353612559fcf",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    }
-  ],
   "katana": [
     {
       "name": "ProxyAdmin",
@@ -6130,76 +4190,6 @@
       "name": "QuotedCalls",
       "address": "0x7028C9A440fC2a3FaFD25d994289622CF7010784",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "xrplevm": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000015f900",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x64F077915B41479901a23Aa798B30701589C5063",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x0dc95Af5156fb0cC34a8c9BD646B748B9989A956",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000064f077915b41479901a23aa798b30701589c5063",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x794Fe7970EE45945b0ad2667f99A5bBc9ddfB5d7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xF9aE87E9ACE51aa16AED25Ca38F17D258aECb73f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
-      "constructorArguments": "000000000000000000000000f9ae87e9ace51aa16aed25ca38f17d258aecb73f0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xF9aE87E9ACE51aa16AED25Ca38F17D258aECb73f"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x946E9f4540E032a9fAc038AE58187eFcad9DE952",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
       "isProxy": false
     }
   ],
@@ -6721,158 +4711,6 @@
     {
       "name": "QuotedCalls",
       "address": "0x3B072e7BE164655b35Fa7E1618832a53D7F56F01",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "incentiv": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000005e25",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0x7947b7Fe737B4bd1D3387153f32148974066E591",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0x1A41a365A693b6A7aED1a46316097d290f569F22",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000007947b7fe737b4bd1d3387153f32148974066e591",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0xf303B04d9ad21dAe2658Cf302478A424e0B45368",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xC4F464C89184c7870858A8B12ca822daB6ed04F3",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x238b3Fc6f3D32102AA655984059A051647DA98e2",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x75719C858e0c73e07128F95B2C466d142490e933",
-      "constructorArguments": "000000000000000000000000238b3fc6f3d32102aa655984059a051647da98e20000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x238b3Fc6f3D32102AA655984059A051647DA98e2"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x76F2cC245882ceFf209A61d75b9F0f1A3b7285fB",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x5B7a808CaA2C3F1378B07cDd46eB8ccA52F67e3B",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x0344e7381eFB17A128F83467A759BD7efd60b25A",
-      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
-      "isProxy": false
-    }
-  ],
-  "litchain": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000002ac60",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "constructorArguments": "000000000000000000000000ea87ae93fa0019a82a727bfd3ebd1cfca8f64f1d0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0xC4F464C89184c7870858A8B12ca822daB6ed04F3",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackRoutingHook",
-      "address": "0xE911e75CECe0eF01df3ceD96BCd362941AE474D4",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000c4f464c89184c7870858a8b12ca822dab6ed04f3",
-      "isProxy": false
-    },
-    {
-      "name": "PausableHook",
-      "address": "0x238b3Fc6f3D32102AA655984059A051647DA98e2",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0x5887BDA66EC9e854b0da6BFFe423511e69d327DC",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x6D48135b7584E8Bf828B6e23110Bc0Da4252704f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x9fE454AA2B01fc7A2a777AE561bc58Ce560CD5a9",
-      "constructorArguments": "0000000000000000000000006d48135b7584e8bf828b6e23110bc0da4252704f0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0x6D48135b7584E8Bf828B6e23110Bc0Da4252704f"
-    },
-    {
-      "name": "ProtocolFee",
-      "address": "0x5244d3359065C883BDfeEEff5329DE38c0Bd227e",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8",
-      "constructorArguments": "0000000000000000000000003a464f746d23ab22155710f44db16dca53e0775e",
-      "isProxy": false
-    },
-    {
-      "name": "QuotedCalls",
-      "address": "0x7759513f71a1EDF48385f7EE5948Bf80786D59a2",
       "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }
@@ -7700,6 +5538,12 @@
       "address": "0x8452363d5c78bf95538614441Dc8B465e03A89ca",
       "constructorArguments": "0000000000000000000000003a867fcffec2b790970eebdc9023e75b0a172aa7",
       "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
     }
   ],
   "tron": [
@@ -7793,6 +5637,12 @@
     {
       "name": "QuotedCalls",
       "address": "0x8F93059D4BE27beCAFAA8ECb716A7A4c078cE999",
+      "constructorArguments": "0x60a060405234801562000010575f80fd5b50d380156200001d575f80fd5b50d280156200002a575f80fd5b5060405162002f5538038062002f558339810160408190526200004d916200005f565b6001600160a01b031660805262000097565b5f6020828403121562000070575f80fd5b81516001600160a81b038116811462000087575f80fd5b6001600160a01b03169392505050565b608051612e97620000be5f395f81816102130152818161071301526107e50152612e975ff3fe6080604052600436106100dc575f3560e01c80638cec8a331161007c578063c412f3cf11610057578063c412f3cf1461032a578063d28620fb14610356578063d59045f514610382578063ed971436146103cd575f80fd5b80638cec8a331461024d57806393c44847146102915780639d57137f146102fe575f80fd5b80632d5b9411116100b75780632d5b9411146101665780634054537e1461019257806361387cb4146101be5780636afdd850146101ea575f80fd5b80630f9b5d58146100e757806324856bc3146101255780632c863d261461013a575f80fd5b366100e357005b5f80fd5b3480156100f2575f80fd5b50d380156100fe575f80fd5b50d2801561010a575f80fd5b506101125f81565b6040519081526020015b60405180910390f35b610138610133366004611e72565b6103f9565b005b348015610145575f80fd5b50d38015610151575f80fd5b50d2801561015d575f80fd5b50610112600381565b348015610171575f80fd5b50d3801561017d575f80fd5b50d28015610189575f80fd5b50610112600181565b34801561019d575f80fd5b50d380156101a9575f80fd5b50d280156101b5575f80fd5b50610112600281565b3480156101c9575f80fd5b50d380156101d5575f80fd5b50d280156101e1575f80fd5b50610112600781565b3480156101f5575f80fd5b50d38015610201575f80fd5b50d2801561020d575f80fd5b506102357f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b03909116815260200161011c565b348015610258575f80fd5b50d38015610264575f80fd5b50d28015610270575f80fd5b5061028461027f366004611e72565b610573565b60405161011c9190611f2c565b34801561029c575f80fd5b50d380156102a8575f80fd5b50d280156102b4575f80fd5b506102f16040518060400160405280600681526020017f31312e332e31000000000000000000000000000000000000000000000000000081525081565b60405161011c9190612031565b348015610309575f80fd5b50d38015610315575f80fd5b50d28015610321575f80fd5b50610112600881565b348015610335575f80fd5b50d38015610341575f80fd5b50d2801561034d575f80fd5b50610112600581565b348015610361575f80fd5b50d3801561036d575f80fd5b50d28015610379575f80fd5b50610112600481565b34801561038d575f80fd5b50d38015610399575f80fd5b50d280156103a5575f80fd5b506101127f800000000000000000000000000000000000000000000000000000000000000081565b3480156103d8575f80fd5b50d380156103e4575f80fd5b50d280156103f0575f80fd5b50610112600681565b7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248325c15610452576040517f3ee5aeb500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b61047b7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248326106ad565b8281146104e9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f6c656e677468206d69736d61746368000000000000000000000000000000000060448201526064015b60405180910390fd5b5f5b838110156105435761053b85858381811061050857610508612043565b919091013560f81c905084848481811061052457610524612043565b90506020028101906105369190612070565b6106b4565b6001016104eb565b5061056d7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248326109c8565b50505050565b60608382146105de576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f6c656e677468206d69736d61746368000000000000000000000000000000000060448201526064016104e0565b8367ffffffffffffffff8111156105f7576105f76120d8565b60405190808252806020026020018201604052801561062a57816020015b60608152602001906001900390816106155790505b5090505f5b848110156106a45761067f86868381811061064c5761064c612043565b919091013560f81c905085858481811061066857610668612043565b905060200281019061067a9190612070565b6109ce565b82828151811061069157610691612043565b602090810291909101015260010161062f565b50949350505050565b6001815d50565b826106c8576106c38282610b1d565b505050565b6001830361077d575f806106de838501856122c8565b6040517f2b67b57000000000000000000000000000000000000000000000000000000000815291935091506001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001690632b67b5709061074c9033908690869060040161239f565b5f604051808303815f87803b158015610763575f80fd5b505af1925050508015610774575060015b505b5050505050565b60028303610845575f806107938385018561241d565b6040517f36c785160000000000000000000000000000000000000000000000000000000081523360048201523060248201526001600160a01b03808316604483015280841660648301529294509092507f0000000000000000000000000000000000000000000000000000000000000000909116906336c78516906084015f604051808303815f87803b158015610828575f80fd5b505af115801561083a573d5f803e3d5ffd5b505050505050505050565b60038303610875575f8061085b83850185612459565b90925090506107766001600160a01b038316333084610c50565b60048303610887576106c38282610d01565b60058303610899576106c38282610e09565b600683036108ab576106c38282610edc565b600783036108bd576106c38282610fec565b60088303610993575f6108d28284018461248c565b90506001600160a01b03811615610982576040517f70a082310000000000000000000000000000000000000000000000000000000081523060048201525f906001600160a01b038316906370a0823190602401602060405180830381865afa158015610940573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061096491906124b7565b90508015610980576109806001600160a01b0383163383611006565b505b4780156107765761077633826111ad565b6040517fd76a1e9e000000000000000000000000000000000000000000000000000000008152600481018490526024016104e0565b5f815d50565b606083610a22576109df8383610b1d565b604080515f8082526020820190925290610a1a565b604080518082019091525f80825260208201528152602001906001900390816109f45790505b509050610b16565b60048403610a3b57610a3483836112f6565b9050610b16565b60058403610a4d57610a3483836113b8565b60068403610a5f57610a348383611483565b60078403610a7157610a3483836114af565b60018414158015610a83575060028414155b8015610a90575060038414155b8015610a9d575060088414155b15610ad7576040517fd76a1e9e000000000000000000000000000000000000000000000000000000008152600481018590526024016104e0565b604080515f8082526020820190925290610b12565b604080518082019091525f8082526020820152815260200190600190039081610aec5790505b5090505b9392505050565b5f808080610b2d858701876124ce565b93509350935093505f610b9433836040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b905080846080015114610bd3576040517f81e69d9b00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6040517f33ef6c650000000000000000000000000000000000000000000000000000000081526001600160a01b038616906333ef6c6590610c1a90879087906004016125dc565b5f604051808303815f87803b158015610c31575f80fd5b505af1158015610c43573d5f803e3d5ffd5b5050505050505050505050565b6040516001600160a01b038085166024830152831660448201526064810182905261056d9085907f23b872dd00000000000000000000000000000000000000000000000000000000906084015b60408051601f198184030181529190526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fffffffff0000000000000000000000000000000000000000000000000000000090931692909217909152611620565b5f610d0e8284018461269a565b9050610d228160a001518260600151611720565b60608201526080810151610d37905f90611720565b608082015260a0810151815160c0830151610d5e929190610d59908390611720565b61172b565b805160808201516020830151604080850151606086015191517f81b4e8b400000000000000000000000000000000000000000000000000000000815263ffffffff9093166004840152602483015260448201526001600160a01b03909216916381b4e8b491906064015b60206040518083038185885af1158015610de4573d5f803e3d5ffd5b50505050506040513d601f19601f8201168201806040525081019061056d91906124b7565b5f610e1682840184612740565b9050610e2a8160c001518260600151611720565b606082015260a0810151610e3f905f90611720565b60a082015260c0810151815160e0830151610e61929190610d59908390611720565b805160a082015160208301516040808501516060860151608087015192517fd9755d0f00000000000000000000000000000000000000000000000000000000815263ffffffff90941660048501526024840191909152604483015260648201526001600160a01b039092169163d9755d0f9190608401610dc8565b610ee88282600a611736565b5f80808080808080610efc898b018b6128c4565b505097509750975097509750975097509750876001600160a01b031663056294d1610f275f84611720565b8989898989610f8a338b6040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b6040518863ffffffff1660e01b8152600401610fab96959493929190612984565b60206040518083038185885af1158015610fc7573d5f803e3d5ffd5b50505050506040513d601f19601f82011682018060405250810190610c4391906124b7565b610ff88282600b611736565b611002828261177b565b5050565b7fffffffffffffffffffffffff59eb07fc490287f6795bd3871363808819212ec46001600160a01b0384160161116457604080516001600160a01b038481166024830152604480830185905283518084039091018152606490920183526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fa9059cbb0000000000000000000000000000000000000000000000000000000017905291515f928616916110bb91612a58565b5f604051808303815f865af19150503d805f81146110f4576040519150601f19603f3d011682016040523d82523d5f602084013e6110f9565b606091505b505090508061056d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f5361666545524332303a204552433230207472616e73666572206661696c656460448201526064016104e0565b6040516001600160a01b0383166024820152604481018290526106c39084907fa9059cbb0000000000000000000000000000000000000000000000000000000090606401610c9d565b80471015611217576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f416464726573733a20696e73756666696369656e742062616c616e636500000060448201526064016104e0565b5f826001600160a01b0316826040515f6040518083038185875af1925050503d805f8114611260576040519150601f19603f3d011682016040523d82523d5f602084013e611265565b606091505b50509050806106c3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603a60248201527f416464726573733a20756e61626c6520746f2073656e642076616c75652c207260448201527f6563697069656e74206d6179206861766520726576657274656400000000000060648201526084016104e0565b60605f80808061130886880188612a73565b50506040517f8bd90b8200000000000000000000000000000000000000000000000000000000815263ffffffff8516600482015260248101849052604481018390529498509296509094509250506001600160a01b03851690638bd90b82906064015f60405180830381865afa158015611384573d5f803e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526113ab9190810190612aee565b9450505050505b92915050565b60605f808080806113cb87890189612ba4565b50506040517f60ed438c00000000000000000000000000000000000000000000000000000000815263ffffffff86166004820152602481018590526044810184905260648101839052959a5093985091965094509250506001600160a01b038616906360ed438c906084015f60405180830381865afa158015611450573d5f803e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526114779190810190612aee565b98975050505050505050565b60605f808080611495868801886128c4565b50985050509650505050935093506113ab84848484611892565b60605f8080806114c186880188612c28565b509950505050509550505093509350600167ffffffffffffffff8111156114ea576114ea6120d8565b60405190808252806020026020018201604052801561152e57816020015b604080518082019091525f80825260208201528152602001906001900390816115085790505b5094506040518060400160405280826001600160a01b03168152602001856001600160a01b031663323ea02c8487611565886119be565b6040517fffffffff0000000000000000000000000000000000000000000000000000000060e086901b1681526001600160a01b03909316600484015263ffffffff9190911660248301526044820152606401602060405180830381865afa1580156115d2573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906115f691906124b7565b815250855f8151811061160b5761160b612043565b60200260200101819052505050505092915050565b5f611674826040518060400160405280602081526020017f5361666545524332303a206c6f772d6c6576656c2063616c6c206661696c6564815250856001600160a01b03166119e79092919063ffffffff16565b905080515f14806116945750808060200190518101906116949190612ce8565b6106c3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602a60248201527f5361666545524332303a204552433230206f7065726174696f6e20646964206e60448201527f6f7420737563636565640000000000000000000000000000000000000000000060648201526084016104e0565b5f610b1683836119fd565b6106c3838383611ac0565b5f61174c8484611747600286612d34565b611ae3565b905061056d8161175d86865f611ae3565b61177684611771898961174760018b612d34565b6119fd565b611ac0565b5f80808080808080806117908a8c018c612c28565b5050985098509850985098509850985098509850886001600160a01b031663a53e92106117bd5f84611720565b8a8a8a8a8a611820338c6040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b8a6040518963ffffffff1660e01b81526004016118439796959493929190612d47565b604080518083038185885af115801561185e573d5f803e3d5ffd5b50505050506040513d601f19601f820116820180604052508101906118839190612d99565b50505050505050505050505050565b604080516001808252818301909252606091816020015b604080518082019091525f80825260208201528152602001906001900390816118a95790505090506040518060400160405280836001600160a01b03168152602001866001600160a01b031663192ae4b68588611905896119be565b6040517fffffffff0000000000000000000000000000000000000000000000000000000060e086901b1681526001600160a01b03909316600484015263ffffffff9190911660248301526044820152606401602060405180830381865afa158015611972573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061199691906124b7565b815250815f815181106119ab576119ab612043565b6020026020010181905250949350505050565b5f6119cb60226020612dbb565b60ff16825110156119df575061c350919050565b506042015190565b60606119f584845f85611b1e565b949350505050565b5f7f80000000000000000000000000000000000000000000000000000000000000008214611a2c5750806113b2565b6001600160a01b038316611a415750476113b2565b6040517f70a082310000000000000000000000000000000000000000000000000000000081523060048201526001600160a01b038416906370a0823190602401602060405180830381865afa158015611a9c573d5f803e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610b1691906124b7565b6001600160a01b038316156106c3576106c36001600160a01b0384168383611c26565b5f8383611af1846020612dd4565b90611afd856001612deb565b611b08906020612dd4565b92611b1593929190612dfe565b6119f591612e25565b606082471015611bb0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f416464726573733a20696e73756666696369656e742062616c616e636520666f60448201527f722063616c6c000000000000000000000000000000000000000000000000000060648201526084016104e0565b5f80866001600160a01b03168587604051611bcb9190612a58565b5f6040518083038185875af1925050503d805f8114611c05576040519150601f19603f3d011682016040523d82523d5f602084013e611c0a565b606091505b5091509150611c1b87838387611cfb565b979650505050505050565b604080516001600160a01b038416602482015260448082018490528251808303909101815260649091019091526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f095ea7b300000000000000000000000000000000000000000000000000000000179052611ca58482611d8d565b61056d576040516001600160a01b03841660248201525f6044820152611cf19085907f095ea7b30000000000000000000000000000000000000000000000000000000090606401610c9d565b61056d8482611620565b60608315611d835782515f03611d7c576001600160a01b0385163b611d7c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e747261637400000060448201526064016104e0565b50816119f5565b6119f58383611e2e565b5f805f846001600160a01b031684604051611da89190612a58565b5f604051808303815f865af19150503d805f8114611de1576040519150601f19603f3d011682016040523d82523d5f602084013e611de6565b606091505b5091509150818015611e10575080511580611e10575080806020019051810190611e109190612ce8565b8015611e2557506001600160a01b0385163b15155b95945050505050565b815115611e3e5781518083602001fd5b806040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016104e09190612031565b5f805f8060408587031215611e85575f80fd5b843567ffffffffffffffff80821115611e9c575f80fd5b818701915087601f830112611eaf575f80fd5b813581811115611ebd575f80fd5b886020828501011115611ece575f80fd5b602092830196509450908601359080821115611ee8575f80fd5b818701915087601f830112611efb575f80fd5b813581811115611f09575f80fd5b8860208260051b8501011115611f1d575f80fd5b95989497505060200194505050565b5f60208083018184528085518083526040925060408601915060408160051b8701018488015f5b83811015611fd6578883037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc00185528151805180855290880190888501905f5b81811015611fc157835180516001600160a01b031684528b01518b840152928a019291890191600101611f93565b50509588019593505090860190600101611f53565b509098975050505050505050565b5f5b83811015611ffe578181015183820152602001611fe6565b50505f910152565b5f815180845261201d816020860160208601611fe4565b601f01601f19169290920160200192915050565b602081525f610b166020830184612006565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b5f8083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe18436030181126120a3575f80fd5b83018035915067ffffffffffffffff8211156120bd575f80fd5b6020019150368190038213156120d1575f80fd5b9250929050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6040516060810167ffffffffffffffff81118282101715612128576121286120d8565b60405290565b6040516080810167ffffffffffffffff81118282101715612128576121286120d8565b60405160c0810167ffffffffffffffff81118282101715612128576121286120d8565b604051610100810167ffffffffffffffff81118282101715612128576121286120d8565b6040805190810167ffffffffffffffff81118282101715612128576121286120d8565b604051601f8201601f1916810167ffffffffffffffff811182821017156121e4576121e46120d8565b604052919050565b74ffffffffffffffffffffffffffffffffffffffffff8116811461220e575f80fd5b50565b5f813561221d816121ec565b6001600160a01b031692915050565b80356001600160a01b0381168114612242575f80fd5b919050565b803565ffffffffffff81168114612242575f80fd5b5f82601f83011261226b575f80fd5b813567ffffffffffffffff811115612285576122856120d8565b6122986020601f19601f840116016121bb565b8181528460208386010111156122ac575f80fd5b816020850160208301375f918101602001919091529392505050565b5f8082840360e08112156122da575f80fd5b60c08112156122e7575f80fd5b6122ef612105565b60808212156122fc575f80fd5b61230461212e565b91508435612311816121ec565b6001600160a01b031682526123286020860161222c565b602083015261233960408601612247565b604083015261234a60608601612247565b606083015281815261235e60808601612211565b602082015260a0850135604082015292505060c083013567ffffffffffffffff811115612389575f80fd5b6123958582860161225c565b9150509250929050565b5f6101006001600160a01b0380871684528551818151166020860152816020820151166040860152604081015165ffffffffffff80821660608801528060608401511660808801525050508060208701511660a085015250604085015160c08401528060e084015261241381840185612006565b9695505050505050565b5f806040838503121561242e575f80fd5b8235612439816121ec565b6001600160a01b031691506124506020840161222c565b90509250929050565b5f806040838503121561246a575f80fd5b8235612475816121ec565b6001600160a01b0316946020939093013593505050565b5f6020828403121561249c575f80fd5b81356124a7816121ec565b6001600160a01b03169392505050565b5f602082840312156124c7575f80fd5b5051919050565b5f805f80608085870312156124e1575f80fd5b84356124ec816121ec565b6001600160a01b03169350602085013567ffffffffffffffff80821115612511575f80fd5b9086019060c08289031215612524575f80fd5b61252c612151565b82358281111561253a575f80fd5b6125468a82860161225c565b82525060208301358281111561255a575f80fd5b6125668a82860161225c565b60208301525061257860408401612247565b604082015261258960608401612247565b6060820152608083013560808201526125a460a08401612211565b60a0820152945060408701359150808211156125be575f80fd5b506125cb8782880161225c565b949793965093946060013593505050565b604081525f835160c060408401526125f8610100840182612006565b905060208501517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc08483030160608501526126338282612006565b915050604085015165ffffffffffff80821660808601528060608801511660a08601525050608085015160c08401526001600160a01b0360a08601511660e08401528281036020840152611e258185612006565b803563ffffffff81168114612242575f80fd5b5f60e082840312156126aa575f80fd5b60405160e0810181811067ffffffffffffffff821117156126cd576126cd6120d8565b60405282356126db816121ec565b6001600160a01b0380821683526126f460208601612687565b602084015260408501356040840152606085013560608401526080850135608084015260a08501359150612727826121ec565b1660a082015260c0928301359281019290925250919050565b5f6101008284031215612751575f80fd5b612759612174565b8235612764816121ec565b6001600160a01b0316815261277b60208401612687565b602082015260408301356040820152606083013560608201526080830135608082015260a083013560a08201526127b460c08401612211565b60c082015260e083013560e08201528091505092915050565b5f67ffffffffffffffff8211156127e6576127e66120d8565b5060051b60200190565b5f82601f8301126127ff575f80fd5b8135602061281461280f836127cd565b6121bb565b82815260059290921b84018101918181019086841115612832575f80fd5b8286015b848110156128b957803567ffffffffffffffff80821115612855575f80fd5b8189019150606080601f19848d0301121561286e575f80fd5b612876612105565b838801358152604080850135828a0152918401359183831115612897575f80fd5b6128a58d8a8588010161225c565b908201528652505050918301918301612836565b509695505050505050565b5f805f805f805f805f806101408b8d0312156128de575f80fd5b6128e78b612211565b99506128f560208c01612687565b985060408b0135975060608b0135965060808b013567ffffffffffffffff8082111561291f575f80fd5b61292b8e838f016127f0565b975060a08d0135915080821115612940575f80fd5b5061294d8d828e0161225c565b95505060c08b0135935060e08b0135925061296b6101008c01612211565b91506101208b013590509295989b9194979a5092959850565b5f60c0820163ffffffff89168352602088818501526040886040860152606060c0606087015283895180865260e08801915060e08160051b8901019550848b015f5b82811015612a2b578988037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff2001845281518051895287810151888a0152860151868901869052612a18868a0182612006565b98505092860192908601906001016129c6565b505050505050508281036080840152612a448186612006565b9150508260a0830152979650505050505050565b5f8251612a69818460208701611fe4565b9190910192915050565b5f805f805f805f60e0888a031215612a89575f80fd5b8735612a94816121ec565b6001600160a01b038082169850612aad60208b01612687565b975060408a0135965060608a0135955060808a0135945060a08a01359150612ad4826121ec565b8082169350505060c0880135905092959891949750929550565b5f6020808385031215612aff575f80fd5b825167ffffffffffffffff811115612b15575f80fd5b8301601f81018513612b25575f80fd5b8051612b3361280f826127cd565b81815260069190911b82018301908381019087831115612b51575f80fd5b928401925b82841015611c1b5760408489031215612b6d575f80fd5b612b75612198565b8451612b80816121ec565b6001600160a01b031681528486015186820152825260409093019290840190612b56565b5f805f805f805f80610100898b031215612bbc575f80fd5b8835612bc7816121ec565b6001600160a01b038082169950612be060208c01612687565b985060408b0135975060608b0135965060808b0135955060a08b0135945060c08b01359150612c0e826121ec565b989b979a5095989497939692959093169360e00135925050565b5f805f805f805f805f805f6101608c8e031215612c43575f80fd5b8b35612c4e816121ec565b6001600160a01b03169a50612c6560208d01612687565b995060408c0135985060608c0135975060808c013567ffffffffffffffff811115612c8e575f80fd5b612c9a8e828f0161225c565b975050612ca960a08d01612211565b955060c08c0135945060e08c013593506101008c01359250612cce6101208d01612211565b91506101408c013590509295989b509295989b9093969950565b5f60208284031215612cf8575f80fd5b81518015158114610b16575f80fd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b818103818111156113b2576113b2612d07565b63ffffffff8816815286602082015285604082015260e060608201525f612d7160e0830187612006565b6001600160a01b039590951660808301525060a081019290925260c090910152949350505050565b5f8060408385031215612daa575f80fd5b505080516020909101519092909150565b60ff81811683821601908111156113b2576113b2612d07565b80820281158282048414176113b2576113b2612d07565b808201808211156113b2576113b2612d07565b5f8085851115612e0c575f80fd5b83861115612e18575f80fd5b5050820193919092039150565b803560208310156113b2577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff602084900360031b1b169291505056fea26474726f6e58221220e84877b58823567878d4db0ca4c715bdb153841766db26aad88076492b0bf4f664736f6c63430008180033000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0xa1bCf66ffaA068Cc6d6afF3De3618274D77660aC",
       "constructorArguments": "0x60a060405234801562000010575f80fd5b50d380156200001d575f80fd5b50d280156200002a575f80fd5b5060405162002f5538038062002f558339810160408190526200004d916200005f565b6001600160a01b031660805262000097565b5f6020828403121562000070575f80fd5b81516001600160a81b038116811462000087575f80fd5b6001600160a01b03169392505050565b608051612e97620000be5f395f81816102130152818161071301526107e50152612e975ff3fe6080604052600436106100dc575f3560e01c80638cec8a331161007c578063c412f3cf11610057578063c412f3cf1461032a578063d28620fb14610356578063d59045f514610382578063ed971436146103cd575f80fd5b80638cec8a331461024d57806393c44847146102915780639d57137f146102fe575f80fd5b80632d5b9411116100b75780632d5b9411146101665780634054537e1461019257806361387cb4146101be5780636afdd850146101ea575f80fd5b80630f9b5d58146100e757806324856bc3146101255780632c863d261461013a575f80fd5b366100e357005b5f80fd5b3480156100f2575f80fd5b50d380156100fe575f80fd5b50d2801561010a575f80fd5b506101125f81565b6040519081526020015b60405180910390f35b610138610133366004611e72565b6103f9565b005b348015610145575f80fd5b50d38015610151575f80fd5b50d2801561015d575f80fd5b50610112600381565b348015610171575f80fd5b50d3801561017d575f80fd5b50d28015610189575f80fd5b50610112600181565b34801561019d575f80fd5b50d380156101a9575f80fd5b50d280156101b5575f80fd5b50610112600281565b3480156101c9575f80fd5b50d380156101d5575f80fd5b50d280156101e1575f80fd5b50610112600781565b3480156101f5575f80fd5b50d38015610201575f80fd5b50d2801561020d575f80fd5b506102357f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b03909116815260200161011c565b348015610258575f80fd5b50d38015610264575f80fd5b50d28015610270575f80fd5b5061028461027f366004611e72565b610573565b60405161011c9190611f2c565b34801561029c575f80fd5b50d380156102a8575f80fd5b50d280156102b4575f80fd5b506102f16040518060400160405280600681526020017f31312e332e31000000000000000000000000000000000000000000000000000081525081565b60405161011c9190612031565b348015610309575f80fd5b50d38015610315575f80fd5b50d28015610321575f80fd5b50610112600881565b348015610335575f80fd5b50d38015610341575f80fd5b50d2801561034d575f80fd5b50610112600581565b348015610361575f80fd5b50d3801561036d575f80fd5b50d28015610379575f80fd5b50610112600481565b34801561038d575f80fd5b50d38015610399575f80fd5b50d280156103a5575f80fd5b506101127f800000000000000000000000000000000000000000000000000000000000000081565b3480156103d8575f80fd5b50d380156103e4575f80fd5b50d280156103f0575f80fd5b50610112600681565b7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248325c15610452576040517f3ee5aeb500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b61047b7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248326106ad565b8281146104e9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f6c656e677468206d69736d61746368000000000000000000000000000000000060448201526064015b60405180910390fd5b5f5b838110156105435761053b85858381811061050857610508612043565b919091013560f81c905084848481811061052457610524612043565b90506020028101906105369190612070565b6106b4565b6001016104eb565b5061056d7f05b27e5f2e02847a703b38e707ccf888d98f453b640e8e04d311184399c248326109c8565b50505050565b60608382146105de576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600f60248201527f6c656e677468206d69736d61746368000000000000000000000000000000000060448201526064016104e0565b8367ffffffffffffffff8111156105f7576105f76120d8565b60405190808252806020026020018201604052801561062a57816020015b60608152602001906001900390816106155790505b5090505f5b848110156106a45761067f86868381811061064c5761064c612043565b919091013560f81c905085858481811061066857610668612043565b905060200281019061067a9190612070565b6109ce565b82828151811061069157610691612043565b602090810291909101015260010161062f565b50949350505050565b6001815d50565b826106c8576106c38282610b1d565b505050565b6001830361077d575f806106de838501856122c8565b6040517f2b67b57000000000000000000000000000000000000000000000000000000000815291935091506001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001690632b67b5709061074c9033908690869060040161239f565b5f604051808303815f87803b158015610763575f80fd5b505af1925050508015610774575060015b505b5050505050565b60028303610845575f806107938385018561241d565b6040517f36c785160000000000000000000000000000000000000000000000000000000081523360048201523060248201526001600160a01b03808316604483015280841660648301529294509092507f0000000000000000000000000000000000000000000000000000000000000000909116906336c78516906084015f604051808303815f87803b158015610828575f80fd5b505af115801561083a573d5f803e3d5ffd5b505050505050505050565b60038303610875575f8061085b83850185612459565b90925090506107766001600160a01b038316333084610c50565b60048303610887576106c38282610d01565b60058303610899576106c38282610e09565b600683036108ab576106c38282610edc565b600783036108bd576106c38282610fec565b60088303610993575f6108d28284018461248c565b90506001600160a01b03811615610982576040517f70a082310000000000000000000000000000000000000000000000000000000081523060048201525f906001600160a01b038316906370a0823190602401602060405180830381865afa158015610940573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061096491906124b7565b90508015610980576109806001600160a01b0383163383611006565b505b4780156107765761077633826111ad565b6040517fd76a1e9e000000000000000000000000000000000000000000000000000000008152600481018490526024016104e0565b5f815d50565b606083610a22576109df8383610b1d565b604080515f8082526020820190925290610a1a565b604080518082019091525f80825260208201528152602001906001900390816109f45790505b509050610b16565b60048403610a3b57610a3483836112f6565b9050610b16565b60058403610a4d57610a3483836113b8565b60068403610a5f57610a348383611483565b60078403610a7157610a3483836114af565b60018414158015610a83575060028414155b8015610a90575060038414155b8015610a9d575060088414155b15610ad7576040517fd76a1e9e000000000000000000000000000000000000000000000000000000008152600481018590526024016104e0565b604080515f8082526020820190925290610b12565b604080518082019091525f8082526020820152815260200190600190039081610aec5790505b5090505b9392505050565b5f808080610b2d858701876124ce565b93509350935093505f610b9433836040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b905080846080015114610bd3576040517f81e69d9b00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6040517f33ef6c650000000000000000000000000000000000000000000000000000000081526001600160a01b038616906333ef6c6590610c1a90879087906004016125dc565b5f604051808303815f87803b158015610c31575f80fd5b505af1158015610c43573d5f803e3d5ffd5b5050505050505050505050565b6040516001600160a01b038085166024830152831660448201526064810182905261056d9085907f23b872dd00000000000000000000000000000000000000000000000000000000906084015b60408051601f198184030181529190526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fffffffff0000000000000000000000000000000000000000000000000000000090931692909217909152611620565b5f610d0e8284018461269a565b9050610d228160a001518260600151611720565b60608201526080810151610d37905f90611720565b608082015260a0810151815160c0830151610d5e929190610d59908390611720565b61172b565b805160808201516020830151604080850151606086015191517f81b4e8b400000000000000000000000000000000000000000000000000000000815263ffffffff9093166004840152602483015260448201526001600160a01b03909216916381b4e8b491906064015b60206040518083038185885af1158015610de4573d5f803e3d5ffd5b50505050506040513d601f19601f8201168201806040525081019061056d91906124b7565b5f610e1682840184612740565b9050610e2a8160c001518260600151611720565b606082015260a0810151610e3f905f90611720565b60a082015260c0810151815160e0830151610e61929190610d59908390611720565b805160a082015160208301516040808501516060860151608087015192517fd9755d0f00000000000000000000000000000000000000000000000000000000815263ffffffff90941660048501526024840191909152604483015260648201526001600160a01b039092169163d9755d0f9190608401610dc8565b610ee88282600a611736565b5f80808080808080610efc898b018b6128c4565b505097509750975097509750975097509750876001600160a01b031663056294d1610f275f84611720565b8989898989610f8a338b6040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b6040518863ffffffff1660e01b8152600401610fab96959493929190612984565b60206040518083038185885af1158015610fc7573d5f803e3d5ffd5b50505050506040513d601f19601f82011682018060405250810190610c4391906124b7565b610ff88282600b611736565b611002828261177b565b5050565b7fffffffffffffffffffffffff59eb07fc490287f6795bd3871363808819212ec46001600160a01b0384160161116457604080516001600160a01b038481166024830152604480830185905283518084039091018152606490920183526020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fa9059cbb0000000000000000000000000000000000000000000000000000000017905291515f928616916110bb91612a58565b5f604051808303815f865af19150503d805f81146110f4576040519150601f19603f3d011682016040523d82523d5f602084013e6110f9565b606091505b505090508061056d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f5361666545524332303a204552433230207472616e73666572206661696c656460448201526064016104e0565b6040516001600160a01b0383166024820152604481018290526106c39084907fa9059cbb0000000000000000000000000000000000000000000000000000000090606401610c9d565b80471015611217576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f416464726573733a20696e73756666696369656e742062616c616e636500000060448201526064016104e0565b5f826001600160a01b0316826040515f6040518083038185875af1925050503d805f8114611260576040519150601f19603f3d011682016040523d82523d5f602084013e611265565b606091505b50509050806106c3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603a60248201527f416464726573733a20756e61626c6520746f2073656e642076616c75652c207260448201527f6563697069656e74206d6179206861766520726576657274656400000000000060648201526084016104e0565b60605f80808061130886880188612a73565b50506040517f8bd90b8200000000000000000000000000000000000000000000000000000000815263ffffffff8516600482015260248101849052604481018390529498509296509094509250506001600160a01b03851690638bd90b82906064015f60405180830381865afa158015611384573d5f803e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526113ab9190810190612aee565b9450505050505b92915050565b60605f808080806113cb87890189612ba4565b50506040517f60ed438c00000000000000000000000000000000000000000000000000000000815263ffffffff86166004820152602481018590526044810184905260648101839052959a5093985091965094509250506001600160a01b038616906360ed438c906084015f60405180830381865afa158015611450573d5f803e3d5ffd5b505050506040513d5f823e601f3d908101601f191682016040526114779190810190612aee565b98975050505050505050565b60605f808080611495868801886128c4565b50985050509650505050935093506113ab84848484611892565b60605f8080806114c186880188612c28565b509950505050509550505093509350600167ffffffffffffffff8111156114ea576114ea6120d8565b60405190808252806020026020018201604052801561152e57816020015b604080518082019091525f80825260208201528152602001906001900390816115085790505b5094506040518060400160405280826001600160a01b03168152602001856001600160a01b031663323ea02c8487611565886119be565b6040517fffffffff0000000000000000000000000000000000000000000000000000000060e086901b1681526001600160a01b03909316600484015263ffffffff9190911660248301526044820152606401602060405180830381865afa1580156115d2573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906115f691906124b7565b815250855f8151811061160b5761160b612043565b60200260200101819052505050505092915050565b5f611674826040518060400160405280602081526020017f5361666545524332303a206c6f772d6c6576656c2063616c6c206661696c6564815250856001600160a01b03166119e79092919063ffffffff16565b905080515f14806116945750808060200190518101906116949190612ce8565b6106c3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602a60248201527f5361666545524332303a204552433230206f7065726174696f6e20646964206e60448201527f6f7420737563636565640000000000000000000000000000000000000000000060648201526084016104e0565b5f610b1683836119fd565b6106c3838383611ac0565b5f61174c8484611747600286612d34565b611ae3565b905061056d8161175d86865f611ae3565b61177684611771898961174760018b612d34565b6119fd565b611ac0565b5f80808080808080806117908a8c018c612c28565b5050985098509850985098509850985098509850886001600160a01b031663a53e92106117bd5f84611720565b8a8a8a8a8a611820338c6040517fffffffffffffffffffffffffffffffffffffffff000000000000000000000000606084901b166020820152603481018290525f9060540160405160208183030381529060405280519060200120905092915050565b8a6040518963ffffffff1660e01b81526004016118439796959493929190612d47565b604080518083038185885af115801561185e573d5f803e3d5ffd5b50505050506040513d601f19601f820116820180604052508101906118839190612d99565b50505050505050505050505050565b604080516001808252818301909252606091816020015b604080518082019091525f80825260208201528152602001906001900390816118a95790505090506040518060400160405280836001600160a01b03168152602001866001600160a01b031663192ae4b68588611905896119be565b6040517fffffffff0000000000000000000000000000000000000000000000000000000060e086901b1681526001600160a01b03909316600484015263ffffffff9190911660248301526044820152606401602060405180830381865afa158015611972573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061199691906124b7565b815250815f815181106119ab576119ab612043565b6020026020010181905250949350505050565b5f6119cb60226020612dbb565b60ff16825110156119df575061c350919050565b506042015190565b60606119f584845f85611b1e565b949350505050565b5f7f80000000000000000000000000000000000000000000000000000000000000008214611a2c5750806113b2565b6001600160a01b038316611a415750476113b2565b6040517f70a082310000000000000000000000000000000000000000000000000000000081523060048201526001600160a01b038416906370a0823190602401602060405180830381865afa158015611a9c573d5f803e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610b1691906124b7565b6001600160a01b038316156106c3576106c36001600160a01b0384168383611c26565b5f8383611af1846020612dd4565b90611afd856001612deb565b611b08906020612dd4565b92611b1593929190612dfe565b6119f591612e25565b606082471015611bb0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f416464726573733a20696e73756666696369656e742062616c616e636520666f60448201527f722063616c6c000000000000000000000000000000000000000000000000000060648201526084016104e0565b5f80866001600160a01b03168587604051611bcb9190612a58565b5f6040518083038185875af1925050503d805f8114611c05576040519150601f19603f3d011682016040523d82523d5f602084013e611c0a565b606091505b5091509150611c1b87838387611cfb565b979650505050505050565b604080516001600160a01b038416602482015260448082018490528251808303909101815260649091019091526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f095ea7b300000000000000000000000000000000000000000000000000000000179052611ca58482611d8d565b61056d576040516001600160a01b03841660248201525f6044820152611cf19085907f095ea7b30000000000000000000000000000000000000000000000000000000090606401610c9d565b61056d8482611620565b60608315611d835782515f03611d7c576001600160a01b0385163b611d7c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e747261637400000060448201526064016104e0565b50816119f5565b6119f58383611e2e565b5f805f846001600160a01b031684604051611da89190612a58565b5f604051808303815f865af19150503d805f8114611de1576040519150601f19603f3d011682016040523d82523d5f602084013e611de6565b606091505b5091509150818015611e10575080511580611e10575080806020019051810190611e109190612ce8565b8015611e2557506001600160a01b0385163b15155b95945050505050565b815115611e3e5781518083602001fd5b806040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016104e09190612031565b5f805f8060408587031215611e85575f80fd5b843567ffffffffffffffff80821115611e9c575f80fd5b818701915087601f830112611eaf575f80fd5b813581811115611ebd575f80fd5b886020828501011115611ece575f80fd5b602092830196509450908601359080821115611ee8575f80fd5b818701915087601f830112611efb575f80fd5b813581811115611f09575f80fd5b8860208260051b8501011115611f1d575f80fd5b95989497505060200194505050565b5f60208083018184528085518083526040925060408601915060408160051b8701018488015f5b83811015611fd6578883037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc00185528151805180855290880190888501905f5b81811015611fc157835180516001600160a01b031684528b01518b840152928a019291890191600101611f93565b50509588019593505090860190600101611f53565b509098975050505050505050565b5f5b83811015611ffe578181015183820152602001611fe6565b50505f910152565b5f815180845261201d816020860160208601611fe4565b601f01601f19169290920160200192915050565b602081525f610b166020830184612006565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b5f8083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe18436030181126120a3575f80fd5b83018035915067ffffffffffffffff8211156120bd575f80fd5b6020019150368190038213156120d1575f80fd5b9250929050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6040516060810167ffffffffffffffff81118282101715612128576121286120d8565b60405290565b6040516080810167ffffffffffffffff81118282101715612128576121286120d8565b60405160c0810167ffffffffffffffff81118282101715612128576121286120d8565b604051610100810167ffffffffffffffff81118282101715612128576121286120d8565b6040805190810167ffffffffffffffff81118282101715612128576121286120d8565b604051601f8201601f1916810167ffffffffffffffff811182821017156121e4576121e46120d8565b604052919050565b74ffffffffffffffffffffffffffffffffffffffffff8116811461220e575f80fd5b50565b5f813561221d816121ec565b6001600160a01b031692915050565b80356001600160a01b0381168114612242575f80fd5b919050565b803565ffffffffffff81168114612242575f80fd5b5f82601f83011261226b575f80fd5b813567ffffffffffffffff811115612285576122856120d8565b6122986020601f19601f840116016121bb565b8181528460208386010111156122ac575f80fd5b816020850160208301375f918101602001919091529392505050565b5f8082840360e08112156122da575f80fd5b60c08112156122e7575f80fd5b6122ef612105565b60808212156122fc575f80fd5b61230461212e565b91508435612311816121ec565b6001600160a01b031682526123286020860161222c565b602083015261233960408601612247565b604083015261234a60608601612247565b606083015281815261235e60808601612211565b602082015260a0850135604082015292505060c083013567ffffffffffffffff811115612389575f80fd5b6123958582860161225c565b9150509250929050565b5f6101006001600160a01b0380871684528551818151166020860152816020820151166040860152604081015165ffffffffffff80821660608801528060608401511660808801525050508060208701511660a085015250604085015160c08401528060e084015261241381840185612006565b9695505050505050565b5f806040838503121561242e575f80fd5b8235612439816121ec565b6001600160a01b031691506124506020840161222c565b90509250929050565b5f806040838503121561246a575f80fd5b8235612475816121ec565b6001600160a01b0316946020939093013593505050565b5f6020828403121561249c575f80fd5b81356124a7816121ec565b6001600160a01b03169392505050565b5f602082840312156124c7575f80fd5b5051919050565b5f805f80608085870312156124e1575f80fd5b84356124ec816121ec565b6001600160a01b03169350602085013567ffffffffffffffff80821115612511575f80fd5b9086019060c08289031215612524575f80fd5b61252c612151565b82358281111561253a575f80fd5b6125468a82860161225c565b82525060208301358281111561255a575f80fd5b6125668a82860161225c565b60208301525061257860408401612247565b604082015261258960608401612247565b6060820152608083013560808201526125a460a08401612211565b60a0820152945060408701359150808211156125be575f80fd5b506125cb8782880161225c565b949793965093946060013593505050565b604081525f835160c060408401526125f8610100840182612006565b905060208501517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc08483030160608501526126338282612006565b915050604085015165ffffffffffff80821660808601528060608801511660a08601525050608085015160c08401526001600160a01b0360a08601511660e08401528281036020840152611e258185612006565b803563ffffffff81168114612242575f80fd5b5f60e082840312156126aa575f80fd5b60405160e0810181811067ffffffffffffffff821117156126cd576126cd6120d8565b60405282356126db816121ec565b6001600160a01b0380821683526126f460208601612687565b602084015260408501356040840152606085013560608401526080850135608084015260a08501359150612727826121ec565b1660a082015260c0928301359281019290925250919050565b5f6101008284031215612751575f80fd5b612759612174565b8235612764816121ec565b6001600160a01b0316815261277b60208401612687565b602082015260408301356040820152606083013560608201526080830135608082015260a083013560a08201526127b460c08401612211565b60c082015260e083013560e08201528091505092915050565b5f67ffffffffffffffff8211156127e6576127e66120d8565b5060051b60200190565b5f82601f8301126127ff575f80fd5b8135602061281461280f836127cd565b6121bb565b82815260059290921b84018101918181019086841115612832575f80fd5b8286015b848110156128b957803567ffffffffffffffff80821115612855575f80fd5b8189019150606080601f19848d0301121561286e575f80fd5b612876612105565b838801358152604080850135828a0152918401359183831115612897575f80fd5b6128a58d8a8588010161225c565b908201528652505050918301918301612836565b509695505050505050565b5f805f805f805f805f806101408b8d0312156128de575f80fd5b6128e78b612211565b99506128f560208c01612687565b985060408b0135975060608b0135965060808b013567ffffffffffffffff8082111561291f575f80fd5b61292b8e838f016127f0565b975060a08d0135915080821115612940575f80fd5b5061294d8d828e0161225c565b95505060c08b0135935060e08b0135925061296b6101008c01612211565b91506101208b013590509295989b9194979a5092959850565b5f60c0820163ffffffff89168352602088818501526040886040860152606060c0606087015283895180865260e08801915060e08160051b8901019550848b015f5b82811015612a2b578988037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff2001845281518051895287810151888a0152860151868901869052612a18868a0182612006565b98505092860192908601906001016129c6565b505050505050508281036080840152612a448186612006565b9150508260a0830152979650505050505050565b5f8251612a69818460208701611fe4565b9190910192915050565b5f805f805f805f60e0888a031215612a89575f80fd5b8735612a94816121ec565b6001600160a01b038082169850612aad60208b01612687565b975060408a0135965060608a0135955060808a0135945060a08a01359150612ad4826121ec565b8082169350505060c0880135905092959891949750929550565b5f6020808385031215612aff575f80fd5b825167ffffffffffffffff811115612b15575f80fd5b8301601f81018513612b25575f80fd5b8051612b3361280f826127cd565b81815260069190911b82018301908381019087831115612b51575f80fd5b928401925b82841015611c1b5760408489031215612b6d575f80fd5b612b75612198565b8451612b80816121ec565b6001600160a01b031681528486015186820152825260409093019290840190612b56565b5f805f805f805f80610100898b031215612bbc575f80fd5b8835612bc7816121ec565b6001600160a01b038082169950612be060208c01612687565b985060408b0135975060608b0135965060808b0135955060a08b0135945060c08b01359150612c0e826121ec565b989b979a5095989497939692959093169360e00135925050565b5f805f805f805f805f805f6101608c8e031215612c43575f80fd5b8b35612c4e816121ec565b6001600160a01b03169a50612c6560208d01612687565b995060408c0135985060608c0135975060808c013567ffffffffffffffff811115612c8e575f80fd5b612c9a8e828f0161225c565b975050612ca960a08d01612211565b955060c08c0135945060e08c013593506101008c01359250612cce6101208d01612211565b91506101408c013590509295989b509295989b9093969950565b5f60208284031215612cf8575f80fd5b81518015158114610b16575f80fd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b818103818111156113b2576113b2612d07565b63ffffffff8816815286602082015285604082015260e060608201525f612d7160e0830187612006565b6001600160a01b039590951660808301525060a081019290925260c090910152949350505050565b5f8060408385031215612daa575f80fd5b505080516020909101519092909150565b60ff81811683821601908111156113b2576113b2612d07565b80820281158282048414176113b2576113b2612d07565b808201808211156113b2576113b2612d07565b5f8085851115612e0c575f80fd5b83861115612e18575f80fd5b5050820193919092039150565b803560208310156113b2577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff602084900360031b1b169291505056fea26474726f6e58221220e84877b58823567878d4db0ca4c715bdb153841766db26aad88076492b0bf4f664736f6c63430008180033000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
       "isProxy": false
     }

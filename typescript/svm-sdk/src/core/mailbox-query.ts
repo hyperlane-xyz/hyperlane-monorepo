@@ -5,6 +5,7 @@ import { decodeAccountData } from '../codecs/account-data.js';
 import { deriveMailboxInboxPda, deriveMailboxOutboxPda } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
+import { queryProgramVersionWithOwnerFallback } from '../version/version-query.js';
 
 const ADDRESS_CODEC = getAddressCodec();
 
@@ -88,4 +89,13 @@ export async function fetchMailboxOutboxAccount(
   const raw = await fetchAccountDataRaw(rpc, outboxPda);
   if (!raw) return null;
   return decodeMailboxOutboxAccount(raw);
+}
+
+/** Queries the on-chain program version for a mailbox program. */
+export async function fetchMailboxProgramVersion(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+): Promise<string | null> {
+  return queryProgramVersionWithOwnerFallback(rpc, programId, owner);
 }

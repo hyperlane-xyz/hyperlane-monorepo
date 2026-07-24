@@ -2,10 +2,11 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
+import { PublicKey } from '@solana/web3.js';
 import { z } from 'zod';
 
 import { ModuleType } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -187,6 +188,25 @@ const AgentSealevelChainMetadataSchema = z.object({
     .describe(
       'Per-message ALT overrides. Array of {matchingList, addressLookupTable} or JSON string.',
     ),
+  urReveal: z
+    .object({
+      ccsUrl: z.string().url().describe('CCS endpoint for calldata lookup'),
+      programId: z
+        .string()
+        .refine((val) => {
+          try {
+            new PublicKey(val);
+            return true;
+          } catch {
+            return false;
+          }
+        }, 'Must be a valid Solana public key (base58)')
+        .describe('Universal Router program ID (base58)'),
+    })
+    .optional()
+    .describe(
+      'When set, the relayer automatically submits RouterInstruction::Reveal after confirming delivery of a UR COMMIT message.',
+    ),
 });
 
 export type AgentSealevelChainMetadata = z.infer<
@@ -198,6 +218,8 @@ export type AgentSealevelPriorityFeeOracle =
 
 export type AgentSealevelTransactionSubmitter =
   AgentSealevelChainMetadata['transactionSubmitter'];
+
+export type AgentSealevelUrReveal = AgentSealevelChainMetadata['urReveal'];
 
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
@@ -230,6 +252,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
+        interval: ZNzUint.optional().describe(
+          'How long to wait between polls when idle/caught up, in seconds. Defaults to 5s.',
+        ),
       })
       .optional(),
   })
@@ -347,6 +372,9 @@ const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
+  feeToken: ZHash.optional().describe(
+    'The origin fee token that must have paid the IGP. The zero address, or unset, represents native tokens.',
+  ),
 });
 const GasPaymentEnforcementSchema = z.union([
   GasPaymentEnforcementBaseSchema.extend({
@@ -365,6 +393,37 @@ const GasPaymentEnforcementSchema = z.union([
   }),
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+
+function feeTokenIsNonZero(feeToken?: string): boolean {
+  return !isEmptyAddress(feeToken);
+}
+
+type GasPaymentEnforcementParseResult =
+  | { policies: GasPaymentEnforcement[] | undefined; parseError: false }
+  | { policies: undefined; parseError: true };
+
+function gasPaymentEnforcementPolicies(
+  gasPaymentEnforcement: unknown,
+): GasPaymentEnforcementParseResult {
+  if (Array.isArray(gasPaymentEnforcement)) {
+    return { policies: gasPaymentEnforcement, parseError: false };
+  }
+
+  if (typeof gasPaymentEnforcement !== 'string') {
+    return { policies: undefined, parseError: false };
+  }
+
+  try {
+    const result = z
+      .array(GasPaymentEnforcementSchema)
+      .safeParse(JSON.parse(gasPaymentEnforcement));
+    return result.success
+      ? { policies: result.data, parseError: false }
+      : { policies: undefined, parseError: true };
+  } catch {
+    return { policies: undefined, parseError: true };
+  }
+}
 
 const MetricAppContextSchema = z.object({
   name: z.string().min(1),
@@ -520,6 +579,34 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
+}).superRefine((config, ctx) => {
+  // Mirror the Rust relayer gate: the current IGP event does not expose the
+  // token address, so exact non-native `feeToken` enforcement is rejected.
+  const { policies, parseError } = gasPaymentEnforcementPolicies(
+    config.gasPaymentEnforcement,
+  );
+  if (parseError) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement'],
+      message: 'Invalid gasPaymentEnforcement JSON payload',
+    });
+    return;
+  }
+  if (!policies) {
+    return;
+  }
+  policies.forEach((policy, policyIndex) => {
+    if (!feeTokenIsNonZero(policy.feeToken)) {
+      return;
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['gasPaymentEnforcement', policyIndex, 'feeToken'],
+      message:
+        '`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; leave it unset and use onChainFeeQuoting for ERC20 IGP gas-amount sufficiency.',
+    });
+  });
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
@@ -593,8 +680,8 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
-  interval: ZUint.optional().describe(
-    'How long to wait between checking for new checkpoints in seconds.',
+  interval: ZNzUint.optional().describe(
+    'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
 });
 

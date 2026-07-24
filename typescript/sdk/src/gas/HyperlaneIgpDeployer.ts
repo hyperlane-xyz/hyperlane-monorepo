@@ -4,9 +4,11 @@ import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import {
   addBufferToGasLimit,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -16,6 +18,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { IgpVersion, OFFCHAIN_QUOTED_IGP_VERSION } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -24,7 +27,11 @@ import {
   oracleConfigToOracleData,
   serializeDifference,
 } from './oracle/types.js';
-import { IgpConfig } from './types.js';
+import {
+  IgpConfig,
+  assertTokenOracleConfigHasNativeRemotes,
+  igpSupportsOffchainFeeQuoting,
+} from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -42,12 +49,46 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     });
   }
 
+  protected assertLegacyIgpConfig(chain: ChainName, config: IgpConfig): void {
+    if (config.igpVersion !== IgpVersion.Legacy) return;
+
+    assert(
+      !config.quoteSigners?.length,
+      `Legacy IGP on ${chain} does not support quoteSigners`,
+    );
+
+    assert(
+      !config.tokenOracleConfig ||
+        Object.keys(config.tokenOracleConfig).length === 0,
+      `Legacy IGP on ${chain} does not support tokenOracleConfig`,
+    );
+
+    const cachedAddresses = this.cachedAddresses[chain] ?? {};
+    const requiredCachedContracts: Array<keyof IgpFactories> = [
+      'interchainGasPaymaster',
+      'proxyAdmin',
+      'storageGasOracle',
+    ];
+    const missing = requiredCachedContracts.filter(
+      (contractName) => !cachedAddresses[contractName],
+    );
+
+    assert(
+      missing.length === 0,
+      `Legacy IGP on ${chain} requires existing cached addresses for ${missing.join(
+        ', ',
+      )}`,
+    );
+  }
+
   async deployInterchainGasPaymaster(
     chain: ChainName,
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
+    this.assertLegacyIgpConfig(chain, config);
+
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
@@ -122,6 +163,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
     }
 
+    await this.configureTokenGasOracles(chain, igp, config);
+
     return igp;
   }
 
@@ -129,6 +172,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: IgpConfig,
   ): Promise<StorageGasOracle> {
+    this.assertLegacyIgpConfig(chain, config);
+
     const gasOracle = await this.deployContract(chain, 'storageGasOracle', []);
 
     if (!config.oracleConfig) {
@@ -136,11 +181,32 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       return gasOracle;
     }
 
+    await this.configureStorageGasOracle(
+      chain,
+      gasOracle,
+      config.oracleConfig,
+      config.overhead,
+    );
+
+    return gasOracle;
+  }
+
+  /**
+   * Reconciles the remote gas data stored on a StorageGasOracle against the
+   * desired config, submitting only the drifted entries. Shared by the native
+   * oracle and per-fee-token oracles.
+   */
+  protected async configureStorageGasOracle(
+    chain: ChainName,
+    gasOracle: StorageGasOracle,
+    oracleConfig: NonNullable<IgpConfig['oracleConfig']>,
+    overhead: IgpConfig['overhead'],
+  ): Promise<void> {
     this.logger.info(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
-    for (const [remote, desired] of Object.entries(config.oracleConfig)) {
+    for (const [remote, desired] of Object.entries(oracleConfig)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
       const remoteDomain = this.multiProvider.tryGetDomainId(remote);
@@ -172,7 +238,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         });
       }
 
-      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
+      const exampleRemoteGas = (overhead[remote] ?? 200_000) + 50_000;
       const exampleRemoteGasCost = desiredData.tokenExchangeRate
         .mul(desiredData.gasPrice)
         .mul(exampleRemoteGas)
@@ -205,14 +271,169 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         );
       });
     }
+  }
 
-    return gasOracle;
+  /**
+   * Wires per-fee-token gas oracles on the IGP for ERC20-denominated gas
+   * payments. Target-driven and idempotent: each fee token's oracle is resolved
+   * from the on-chain tokenGasOracles mapping (no off-chain bookkeeping), or a
+   * dedicated StorageGasOracle is deployed if none is wired yet. Must run while
+   * the deployer still owns the IGP (setTokenGasOracles is onlyOwner) and after
+   * the native gas params, since the IGP requires a destination's native oracle
+   * to exist before a token oracle can be set for it.
+   */
+  protected async configureTokenGasOracles(
+    chain: ChainName,
+    igp: InterchainGasPaymaster,
+    config: IgpConfig,
+  ): Promise<void> {
+    if (
+      !config.tokenOracleConfig ||
+      Object.keys(config.tokenOracleConfig).length === 0
+    ) {
+      return;
+    }
+    this.assertLegacyIgpConfig(chain, config);
+    assertTokenOracleConfigHasNativeRemotes(chain, config);
+
+    let contractVersion: string;
+    try {
+      contractVersion = await igp.PACKAGE_VERSION();
+    } catch (error) {
+      throw new Error(
+        `IGP tokenOracleConfig on ${chain} requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+        { cause: error },
+      );
+    }
+    assert(
+      igpSupportsOffchainFeeQuoting({
+        igpVersion: config.igpVersion,
+        contractVersion,
+      }),
+      `IGP tokenOracleConfig on ${chain} requires contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+    );
+
+    for (const [feeToken, oracleConfig] of Object.entries(
+      config.tokenOracleConfig,
+    )) {
+      const remotes = Object.keys(oracleConfig)
+        .map((remote) => ({
+          remote,
+          remoteDomain: this.multiProvider.tryGetDomainId(remote),
+        }))
+        .filter(
+          (r): r is { remote: string; remoteDomain: number } =>
+            r.remoteDomain !== null,
+        );
+
+      if (remotes.length === 0) {
+        this.logger.warn(
+          `Skipping token gas oracle for ${feeToken} on ${chain}: no configured remotes in MultiProvider`,
+        );
+        continue;
+      }
+
+      // Reuse the oracle already wired for this fee token (across any of its
+      // destinations), otherwise deploy a dedicated one.
+      let gasOracle: StorageGasOracle | undefined;
+      for (const { remoteDomain } of remotes) {
+        const existing = await igp.tokenGasOracles(feeToken, remoteDomain);
+        if (!eqAddress(existing, ethers.constants.AddressZero)) {
+          gasOracle = StorageGasOracle__factory.connect(
+            existing,
+            this.multiProvider.getSigner(chain),
+          );
+          break;
+        }
+      }
+
+      if (!gasOracle) {
+        // shouldRecover=false so we don't read back the native 'storageGasOracle'
+        // cache entry; idempotency comes from the on-chain mapping check above.
+        gasOracle = await this.deployContractFromFactory(
+          chain,
+          new StorageGasOracle__factory(),
+          'storageGasOracle',
+          [],
+          undefined,
+          false,
+        );
+      }
+
+      await this.configureStorageGasOracle(
+        chain,
+        gasOracle,
+        oracleConfig,
+        config.overhead,
+      );
+
+      // Transfer the token oracle to the configured oracle key, matching the
+      // native oracle's ownership.
+      assert(
+        gasOracle,
+        `Expected token gas oracle for ${feeToken} on ${chain}`,
+      );
+      await this.runIfOwner(chain, gasOracle, async () => {
+        if (!eqAddress(await gasOracle.owner(), config.oracleKey)) {
+          await this.multiProvider.handleTx(
+            chain,
+            gasOracle.transferOwnership(
+              config.oracleKey,
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          );
+        }
+      });
+
+      // Point any destinations not yet mapped to this oracle at it.
+      const tokenOracleParams: InterchainGasPaymaster.TokenGasOracleConfigStruct[] =
+        [];
+      for (const { remoteDomain } of remotes) {
+        const current = await igp.tokenGasOracles(feeToken, remoteDomain);
+        if (!eqAddress(current, gasOracle.address)) {
+          tokenOracleParams.push({
+            feeToken,
+            remoteDomain,
+            gasOracle: gasOracle.address,
+          });
+        }
+      }
+
+      if (tokenOracleParams.length > 0) {
+        await this.runIfOwner(chain, igp, async () => {
+          await submitBatched(
+            chain,
+            tokenOracleParams,
+            async (batch) => {
+              this.logger.info(
+                `Setting token gas oracles for ${feeToken} on ${chain} (domains ${batch
+                  .map((p) => p.remoteDomain)
+                  .join(', ')})`,
+              );
+              const estimatedGas =
+                await igp.estimateGas.setTokenGasOracles(batch);
+              await this.multiProvider.handleTx(
+                chain,
+                igp.setTokenGasOracles(batch, {
+                  gasLimit: addBufferToGasLimit(estimatedGas),
+                  ...this.multiProvider.getTransactionOverrides(chain),
+                }),
+              );
+            },
+            this.logger,
+            'token gas oracles',
+          );
+        });
+      }
+    }
   }
 
   async deployContracts(
     chain: ChainName,
     config: IgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
+    this.assertLegacyIgpConfig(chain, config);
+
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);

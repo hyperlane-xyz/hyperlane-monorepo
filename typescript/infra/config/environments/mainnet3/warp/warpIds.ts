@@ -155,6 +155,9 @@ export enum WarpRouteIds {
   USDCCitreaMoonpay = 'USDC/moonpay',
   USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
   USDTCitreaMoonpay = 'USDT/moonpay',
+  USDCCitreaMoonpaySTAGING = 'USDC/moonpay-staging',
+  USDTCitreaMoonpaySTAGING = 'USDT/moonpay-staging',
+  CROSSCitreaMoonpay = 'CROSS/moonpay',
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT

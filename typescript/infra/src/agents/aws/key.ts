@@ -5,6 +5,7 @@ import {
   DeleteAliasCommand,
   DescribeKeyCommand,
   DescribeKeyCommandOutput,
+  GetKeyPolicyCommand,
   GetPublicKeyCommand,
   KMSClient,
   KeySpec,
@@ -29,6 +30,115 @@ import { keyIdentifier } from '../agent.js';
 import { CloudAgentKey } from '../keys.js';
 
 import { getAwsKmsClient } from './client.js';
+
+const AWS_ROOT_PRINCIPAL = 'arn:aws:iam::625457692493:root';
+const DEFAULT_KMS_KEY_POLICY_NAME = 'default';
+const KMS_SIGNER_ACTIONS = ['kms:GetPublicKey', 'kms:Sign', 'kms:DescribeKey'];
+
+export type KeyPolicyPrincipal = {
+  AWS?: string | string[];
+};
+
+export type KeyPolicyStatement = {
+  Sid?: string;
+  Effect: string;
+  Principal?: KeyPolicyPrincipal;
+  Action: string | string[];
+  Resource: string;
+};
+
+export type KeyPolicy = {
+  Version: string;
+  Id: string;
+  Statement: KeyPolicyStatement[];
+};
+
+const asArray = <T>(value: T | T[] | undefined): T[] =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+const copyPolicyStatement = (
+  statement: KeyPolicyStatement,
+): KeyPolicyStatement => ({
+  ...statement,
+  Principal: statement.Principal
+    ? {
+        ...statement.Principal,
+        AWS: Array.isArray(statement.Principal.AWS)
+          ? [...statement.Principal.AWS]
+          : statement.Principal.AWS,
+      }
+    : undefined,
+  Action: Array.isArray(statement.Action)
+    ? [...statement.Action]
+    : statement.Action,
+});
+
+function isRootStatement(statement: KeyPolicyStatement): boolean {
+  return asArray(statement.Principal?.AWS).includes(AWS_ROOT_PRINCIPAL);
+}
+
+function isSignerStatement(statement: KeyPolicyStatement): boolean {
+  return (
+    statement.Effect === 'Allow' &&
+    asArray(statement.Action).includes('kms:Sign') &&
+    !isRootStatement(statement)
+  );
+}
+
+function rootStatement(): KeyPolicyStatement {
+  return {
+    Sid: 'Enable IAM User Permissions',
+    Effect: 'Allow',
+    Principal: {
+      AWS: AWS_ROOT_PRINCIPAL,
+    },
+    Action: 'kms:*',
+    Resource: '*',
+  };
+}
+
+function signerStatement(userArn: string): KeyPolicyStatement {
+  return {
+    Effect: 'Allow',
+    Principal: {
+      AWS: userArn,
+    },
+    Action: KMS_SIGNER_ACTIONS,
+    Resource: '*',
+  };
+}
+
+export function keyPolicyWithSigner(
+  policy: KeyPolicy,
+  userArn: string,
+): KeyPolicy {
+  const mergedPolicy = {
+    ...policy,
+    Statement: policy.Statement.map(copyPolicyStatement),
+  };
+
+  if (!mergedPolicy.Statement.some(isRootStatement)) {
+    mergedPolicy.Statement.unshift(rootStatement());
+  }
+
+  // All signer statements are produced by signerStatement() below, so a policy
+  // contains at most one; finding the first match is therefore sufficient.
+  const existingSignerStatement =
+    mergedPolicy.Statement.find(isSignerStatement);
+  if (existingSignerStatement) {
+    const signerPrincipals = new Set([
+      ...asArray(existingSignerStatement.Principal?.AWS),
+      userArn,
+    ]);
+    existingSignerStatement.Principal = {
+      AWS: Array.from(signerPrincipals).sort(),
+    };
+  } else {
+    mergedPolicy.Statement.push(signerStatement(userArn));
+  }
+
+  return mergedPolicy;
+}
 
 interface UnfetchedKey {
   fetched: false;
@@ -136,37 +246,42 @@ export class AgentAwsKey extends CloudAgentKey {
   async putKeyPolicy(userArn: string) {
     this.logger.debug(`Putting key policy for user ARN: ${userArn}`);
     const client = await this.getClient();
-    const policy = {
-      Version: '2012-10-17',
-      Id: 'key-default-1',
-      Statement: [
-        {
-          Sid: 'Enable IAM User Permissions',
-          Effect: 'Allow',
-          Principal: {
-            AWS: 'arn:aws:iam::625457692493:root',
-          },
-          Action: 'kms:*',
-          Resource: '*',
-        },
-        {
-          Effect: 'Allow',
-          Principal: {
-            AWS: userArn,
-          },
-          Action: ['kms:GetPublicKey', 'kms:Sign', 'kms:DescribeKey'],
-          Resource: '*',
-        },
-      ],
-    };
+    const keyId = await this.getId();
+    if (!keyId) {
+      throw new Error(`No AWS KMS key found for ${this.identifier}`);
+    }
+    const policy = keyPolicyWithSigner(
+      await this.getKeyPolicy(client, keyId),
+      userArn,
+    );
 
     const cmd = new PutKeyPolicyCommand({
-      KeyId: await this.getId(),
+      KeyId: keyId,
       Policy: JSON.stringify(policy),
-      PolicyName: 'default', // This is the only accepted name
+      PolicyName: DEFAULT_KMS_KEY_POLICY_NAME, // This is the only accepted name
     });
     await client.send(cmd);
     this.logger.debug('Key policy put successfully');
+  }
+
+  private async getKeyPolicy(
+    client: KMSClient,
+    keyId: string,
+  ): Promise<KeyPolicy> {
+    const response = await client.send(
+      new GetKeyPolicyCommand({
+        KeyId: keyId,
+        PolicyName: DEFAULT_KMS_KEY_POLICY_NAME,
+      }),
+    );
+    if (!response.Policy) {
+      return {
+        Version: '2012-10-17',
+        Id: 'key-default-1',
+        Statement: [],
+      };
+    }
+    return JSON.parse(response.Policy) as KeyPolicy;
   }
 
   // Gets the Key's ID if it exists, undefined otherwise

@@ -76,6 +76,7 @@ export const getCarrChainCARRWarpConfig = async (
     token: tokens.solanamainnet,
     foreignDeployment: SOLANA_FOREIGN_DEPLOYMENT,
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+    scale: 1000000000000,
   };
 
   return {

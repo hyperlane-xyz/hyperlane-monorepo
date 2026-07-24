@@ -1,13 +1,14 @@
 // Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
 #![allow(clippy::blocks_in_conditions)]
 
-use std::{collections::HashMap, str::FromStr as _, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr as _,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VerifyInstruction,
-};
 use hyperlane_sealevel_mailbox::{
     accounts::{Inbox, InboxAccount},
     instruction::InboxProcess,
@@ -37,6 +38,7 @@ use hyperlane_core::{
 
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
+use crate::universal_router_reveal::{maybe_spawn_reveal, UniversalRouterRevealConfig};
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
     ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
@@ -45,6 +47,10 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
+// Maximum entries in seen_reveal_commitments before evicting the oldest half.
+const SEEN_REVEAL_MAX: usize = 1_000;
+/// Expected byte length of a Universal Router COMMIT message body.
+const COMMIT_BODY_LEN: usize = 96;
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -86,6 +92,17 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
+    /// Optional identity keypair used as the relayer's on-chain identity (e.g. for
+    /// TrustedRelayer ISMs). When set it must differ from `payer`. When absent, no
+    /// separate identity co-signer is added; only the fee-payer signature is present.
+    /// TrustedRelayer ISMs that require a *separate* identity signature will not work
+    /// unless this is set.
+    ///
+    /// IMPORTANT: Do NOT fund this address with SOL, tokens, or any other assets.
+    /// It is an identity-only keypair — its signature proves relayer identity but
+    /// it holds no value. Keeping it empty limits the blast radius if a malicious
+    /// ISM program ever obtains a co-signature from this key.
+    signer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
     /// Optional ALT address for versioned transactions (from config)
@@ -95,6 +112,10 @@ pub struct SealevelMailbox {
 
     system_program: Pubkey,
     spl_noop: Pubkey,
+    ur_reveal: Option<UniversalRouterRevealConfig>,
+    /// Tracks commitments for which a reveal task has already been spawned,
+    /// preventing duplicate tasks across repeated `process_estimate_costs` calls.
+    seen_reveal_commitments: Arc<Mutex<HashSet<[u8; 32]>>>,
 }
 
 impl SealevelMailbox {
@@ -105,6 +126,7 @@ impl SealevelMailbox {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
+        signer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -126,14 +148,16 @@ impl SealevelMailbox {
             inbox,
             outbox,
             payer,
+            signer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
             provider,
-
             system_program,
             spl_noop,
+            ur_reveal: conf.ur_reveal.clone(),
+            seen_reveal_commitments: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -232,25 +256,27 @@ impl SealevelMailbox {
     }
 
     /// Gets the account metas required for the ISM's `Verify` instruction.
+    ///
+    /// Runs a fixpoint `VerifyAccountMetas` loop on `ism` until the account set
+    /// converges, then strips any unexpected signers.
+    ///
+    /// The identity is passed to all ISMs (including recipient-chosen ones). This is
+    /// safe because the identity keypair is an identity-only key with no funds or
+    /// tokens; even if a malicious ISM obtained a co-signature via CPI, there is
+    /// nothing of value to steal.
     pub async fn get_ism_verify_account_metas(
         &self,
         ism: Pubkey,
         metadata: Vec<u8>,
         message: Vec<u8>,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let instruction =
-            InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
-                metadata,
-                message,
-            });
-        self.get_non_signer_account_metas_with_instruction_bytes(
-            ism,
-            &instruction
-                .encode()
-                .map_err(ChainCommunicationError::from_other)?,
-            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-        )
-        .await
+        let payer = self.get_payer()?;
+        let identity = self.get_signer_if_separate().map(|s| s.pubkey());
+        let accounts = self
+            .provider
+            .get_ism_verify_account_metas(&payer.pubkey(), ism, metadata, message)
+            .await?;
+        sanitize_dynamic_accounts(accounts, &payer.pubkey(), identity.as_ref())
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
@@ -304,7 +330,11 @@ impl SealevelMailbox {
         let account_metas = self.get_account_metas(instruction).await?;
 
         // Ensure dynamically provided account metas are safe to prevent theft from the payer.
-        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
+        // Identity is NOT passed here: neither the ISM-getter nor handle paths should trust
+        // an external program to request the relayer's identity as a signer. Only the ISM
+        // verify fixpoint loop (get_ism_verify_account_metas) passes identity, after it has
+        // already converged on a stable account set from a known ISM program.
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey(), None)
     }
 
     async fn get_process_payload(
@@ -419,6 +449,19 @@ impl SealevelMailbox {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
     }
 
+    /// Returns the identity signer only when it is distinct from the payer.
+    /// Used to co-sign transactions for ISMs that require the relayer's identity as a signer
+    /// (e.g. TrustedRelayer) without conflating fee-payer and identity roles.
+    fn get_signer_if_separate(&self) -> Option<&SealevelKeypair> {
+        let signer = self.signer.as_ref()?;
+        let payer = self.payer.as_ref()?;
+        if signer.pubkey() != payer.pubkey() {
+            Some(signer)
+        } else {
+            None
+        }
+    }
+
     fn processed_message_account(&self, message_id: H256) -> Pubkey {
         let (processed_message_account_key, _processed_message_account_bump) =
             Pubkey::find_program_address(
@@ -519,6 +562,17 @@ impl Mailbox for SealevelMailbox {
         let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
+        let additional_signers: Vec<&SealevelKeypair> = self
+            .get_signer_if_separate()
+            .filter(|signer| {
+                payload
+                    .instruction
+                    .accounts
+                    .iter()
+                    .any(|meta| meta.pubkey == signer.pubkey() && meta.is_signer)
+            })
+            .into_iter()
+            .collect();
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
@@ -527,6 +581,7 @@ impl Mailbox for SealevelMailbox {
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
                 payload.alt_address,
+                &additional_signers,
             )
             .await?;
 
@@ -613,6 +668,82 @@ impl Mailbox for SealevelMailbox {
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
+    }
+
+    fn on_submitted_success(&self, message: &HyperlaneMessage) {
+        self.maybe_spawn_reveal_for_message(message);
+    }
+
+    /// Restart-recovery path: fires when the relayer detects a message was already
+    /// delivered on a previous run.  Deduplication via `seen_reveal_commitments`
+    /// prevents double-spawning if `on_submitted_success` already ran this session.
+    fn on_delivered(&self, message: &HyperlaneMessage) {
+        self.maybe_spawn_reveal_for_message(message);
+    }
+}
+
+impl SealevelMailbox {
+    fn maybe_spawn_reveal_for_message(&self, message: &HyperlaneMessage) {
+        if let Some(ref cfg) = self.ur_reveal {
+            if message.body.len() != COMMIT_BODY_LEN {
+                return;
+            }
+            // Gate on recipient == UR program before touching seen_reveal_commitments,
+            // so a non-UR 96-byte message can't poison a slot for a real commitment.
+            let program_id = match Pubkey::from_str(&cfg.program_id) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(error = ?e, "Invalid UR program ID in config; skipping reveal");
+                    return;
+                }
+            };
+            let message_recipient = Pubkey::new_from_array(message.recipient.0);
+            if message_recipient != program_id {
+                return;
+            }
+
+            let commitment: [u8; 32] = message.body[0..32]
+                .try_into()
+                .expect("body is exactly COMMIT_BODY_LEN bytes");
+            match self.seen_reveal_commitments.lock() {
+                Err(e) => {
+                    tracing::warn!(error = ?e, "seen_reveal_commitments mutex poisoned; skipping reveal");
+                }
+                Ok(mut set) => {
+                    if !set.contains(&commitment) {
+                        match self.get_payer() {
+                            Ok(payer) => {
+                                // Evict oldest half when the set grows large to bound memory.
+                                if set.len() >= SEEN_REVEAL_MAX {
+                                    let keep: std::collections::HashSet<_> =
+                                        set.iter().cloned().skip(set.len() / 2).collect();
+                                    *set = keep;
+                                }
+                                // Insert here — after recipient validation — so only genuine UR
+                                // COMMIT messages occupy a slot. If the reveal task times out or
+                                // fails, this commitment stays seen for the process lifetime
+                                // (until the 1000-entry eviction). A relayer restart will re-fire
+                                // it via the is_already_delivered → on_delivered path.
+                                set.insert(commitment);
+                                // Release the lock before spawning so on_delivered callbacks
+                                // can acquire the mutex immediately without blocking on the spawn.
+                                drop(set);
+                                maybe_spawn_reveal(
+                                    message,
+                                    cfg,
+                                    self.provider.rpc_client().clone(),
+                                    self.priority_fee_oracle.clone(),
+                                    payer.clone(),
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = ?e, "get_payer failed; skipping reveal");
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

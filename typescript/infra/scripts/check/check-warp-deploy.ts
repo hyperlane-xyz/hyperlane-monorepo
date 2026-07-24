@@ -6,6 +6,7 @@ import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   type ChainName,
+  InterchainAccount,
   MultiProvider,
   type WarpCoreConfig,
   type WarpRouteCheckResult,
@@ -30,7 +31,11 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import {
   getCheckWarpDeployArgs,
   getCheckerViolationsGaugeObj,
+  warpViolationGroupings,
 } from './check-utils.js';
+import { isContractVerificationViolation } from './contract-verification-skip.js';
+import { resolveAcceptedInactiveOwners } from './governance-ica-owners.js';
+import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
@@ -45,19 +50,69 @@ const ROUTES_TO_SKIP: string[] = [
   'AIXBT/base-form',
   'FORM/ethereum-form',
   'GAME/base-form',
+  // On-chain router set diverges from the registry config (misconfigured
+  // enrollment); excluded from checking until the route is reconciled.
+  'SMOL/arbitrum-abstract-ethereum-solanamainnet-base',
   // Skip until Paradex executes hyperevm upgrade on their side
   WarpRouteIds.ParadexUSDC,
+  // Staging route: not auto-skipped by isStagingOrTestRoute since the STAGE
+  // marker is in the symbol before the first `/`, not a chain segment.
+  WarpRouteIds.EclipseUSDCSTAGE,
 ];
+
+// Name segments that mark a warp route as a non-production (staging/test)
+// deployment. Matched against the `-`/`/`-delimited segments of the route
+// name so `USDC/moonpay-staging` is skipped but names like `attestation` are
+// not. These routes are excluded from check-warp-deploy so they don't produce
+// violations on mainnet.
+const STAGING_ROUTE_MARKERS = ['staging', 'test'];
+
+// Token-symbol suffixes that mark a route as staging, e.g. `USDCSTAGE`,
+// `HYPERSTAGE`, `REZSTAGING`. The staging marker is fused onto the symbol
+// (before the first `/`) rather than living in its own chain segment, so it is
+// not caught by STAGING_ROUTE_MARKERS above.
+const STAGING_SYMBOL_SUFFIXES = ['stage', 'staging'];
+
+function isStagingOrTestRoute(warpRouteId: string): boolean {
+  const [symbol = '', ...rest] = warpRouteId.split('/');
+  const lowerSymbol = symbol.toLowerCase();
+  if (STAGING_SYMBOL_SUFFIXES.some((suffix) => lowerSymbol.endsWith(suffix))) {
+    return true;
+  }
+  const segments = rest.join('/').toLowerCase().split(/[-/]/);
+  return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
+}
+
+// Upper bound on how long a single warp route check may run before it is
+// abandoned. A hung/unresponsive RPC leg on one route would otherwise stall the
+// entire cron run indefinitely, starving every subsequent route of a check.
+const DEFAULT_PER_ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
+const perRouteTimeoutMs = Number(
+  process.env.WARP_CHECK_PER_ROUTE_TIMEOUT_MS ?? DEFAULT_PER_ROUTE_TIMEOUT_MS,
+);
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeoutMessage: string,
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () => reject(new Error(onTimeoutMessage)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
 
 async function main() {
   const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
-
-  const metricsRegister = new Registry();
-  const checkerViolationsGauge = new Gauge(
-    getCheckerViolationsGaugeObj(metricsRegister),
-  );
-  metricsRegister.registerMetric(checkerViolationsGauge);
 
   const failedWarpRoutesChecks: string[] = [];
 
@@ -137,43 +192,57 @@ async function main() {
     Array.from(warpConfigChains),
   );
 
+  // Passed into the SDK check to resolve Inactive ownerStatus false positives
+  // where a nonce-less / lazily-deployed leaf owner (Tron, AltVM) is a
+  // governance ICA of an Ethereum Safe. registry.getAddresses() spans every
+  // registry chain, but multiProvider only covers warpConfigChains;
+  // fromAddressesMap calls multiProvider.getProtocol() for every entry and
+  // throws on any chain the provider doesn't know, so filter to the scoped
+  // chains first.
+  const scopedAddresses = objFilter(
+    await registry.getAddresses(),
+    (chain, _addrs): _addrs is Record<string, string> =>
+      multiProvider.hasChain(chain),
+  );
+  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+    scopedAddresses,
+    multiProvider,
+  );
+
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
 
     try {
       const warpDeployConfig = warpDeployConfigMap[warpRouteId];
-      const result = await runWarpRouteCheckFromRegistry({
-        chains,
-        multiProvider,
-        registry,
-        registryUris: registries,
-        warpRouteId,
-        warpCoreConfig: warpCoreConfigMap[warpRouteId],
-        warpDeployConfig,
-      });
+      const result = await withTimeout(
+        runWarpRouteCheckFromRegistry({
+          chains,
+          multiProvider,
+          registry,
+          registryUris: registries,
+          warpRouteId,
+          warpCoreConfig: warpCoreConfigMap[warpRouteId],
+          warpDeployConfig,
+          interchainAccount: interchainAccountApp,
+        }),
+        perRouteTimeoutMs,
+        `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
+      );
+
+      result.violations = result.violations.filter(
+        (violation) =>
+          !isSkippedOwnerStatusViolation(warpRouteId, violation) &&
+          !isContractVerificationViolation(violation),
+      );
 
       if (result.violations.length > 0) {
         logWarpRouteCheckResult(result);
         if (pushMetrics) {
-          pushWarpViolationsMetrics(
-            checkerViolationsGauge,
-            result,
-            warpRouteId,
-          );
+          await pushWarpViolationsMetrics(result, warpRouteId, environment);
         }
       } else {
         console.info(chalk.green(`warp checker found no violations`));
-      }
-
-      if (pushMetrics) {
-        await submitMetrics(
-          metricsRegister,
-          `check-warp-deploy-${environment}`,
-          {
-            overwriteAllMetrics: true,
-          },
-        );
       }
     } catch (e) {
       console.error(
@@ -210,6 +279,7 @@ async function runWarpRouteCheckFromRegistry({
   chains,
   warpCoreConfig,
   warpDeployConfig,
+  interchainAccount,
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
@@ -218,6 +288,7 @@ async function runWarpRouteCheckFromRegistry({
   warpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpRouteId: string;
+  interchainAccount?: InterchainAccount;
 }): Promise<WarpRouteCheckResult> {
   const loadedConfigs = await loadWarpConfigsFromRegistry({
     registry,
@@ -233,10 +304,26 @@ async function runWarpRouteCheckFromRegistry({
     warpDeployConfig: loadedConfigs.warpDeployConfig,
   });
 
+  // Derive + verify the governance ICA owners this route accepts in an Inactive
+  // state. The declaration is the source of intent; derivation/Safe checks are
+  // fail-closed (see governance-ica-owners.ts). Without an ICA app we can't
+  // derive, so nothing is accepted and the ownerStatus check runs unchanged.
+  // Scope resolution to the (possibly --chains-filtered) destinations so an
+  // excluded leaf chain's ICA derivation + Safe RPC are never attempted.
+  const acceptedInactiveOwners = interchainAccount
+    ? await resolveAcceptedInactiveOwners({
+        warpRouteId,
+        interchainAccount,
+        multiProvider,
+        destinations: Object.keys(filteredConfigs.warpDeployConfig),
+      })
+    : undefined;
+
   return checkWarpRouteDeployConfig({
     multiProvider,
     warpCoreConfig: filteredConfigs.warpCoreConfig,
     warpDeployConfig: filteredConfigs.warpDeployConfig,
+    acceptedInactiveOwners,
   });
 }
 
@@ -371,7 +458,11 @@ async function getWarpIdsToCheck({
         (environment === 'mainnet3' && !isTestnet) ||
         (environment === 'testnet4' && isTestnet);
 
-      if (!shouldCheck || ROUTES_TO_SKIP.includes(warpRouteId)) {
+      if (
+        !shouldCheck ||
+        ROUTES_TO_SKIP.includes(warpRouteId) ||
+        isStagingOrTestRoute(warpRouteId)
+      ) {
         return false;
       }
 
@@ -549,13 +640,23 @@ async function isTestnetRoute(
   return false;
 }
 
-function pushWarpViolationsMetrics(
-  checkerViolationsGauge: Gauge<string>,
+// Each violation is pushed to PushGateway under its own group, keyed by an
+// alert_key grouping label. This makes every violation an independently
+// addressable series that can be cleared on its own (DELETE / push 0) without
+// touching any other violation. We do NOT overwrite the whole job group: a run
+// that does not observe a given violation must leave that series untouched, so
+// stale RPCs or a partial run can never silently auto-clear a real alert.
+// Clearing is exclusively the human-confirmed action (see clear-warp-violation).
+async function pushWarpViolationsMetrics(
   result: WarpRouteCheckResult,
   warpRouteId: string,
+  environment: string,
 ) {
   for (const violation of result.violations) {
-    checkerViolationsGauge
+    const register = new Registry();
+    const gauge = new Gauge(getCheckerViolationsGaugeObj(register));
+    register.registerMetric(gauge);
+    gauge
       .labels({
         actual: violation.actual,
         chain: violation.chain,
@@ -568,6 +669,20 @@ function pushWarpViolationsMetrics(
         warp_route_id: warpRouteId,
       })
       .set(1);
+
+    const groupings = warpViolationGroupings(
+      warpRouteId,
+      violation.chain,
+      violation.name,
+      violation.type,
+    );
+
+    // PUT (overwriteAllMetrics) is safe here because this group holds exactly
+    // one series; it keeps the single-series group clean across refreshes.
+    await submitMetrics(register, `check-warp-deploy-${environment}`, {
+      groupings,
+      overwriteAllMetrics: true,
+    });
     console.log(
       `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
     );

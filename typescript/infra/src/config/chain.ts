@@ -60,20 +60,42 @@ export function getDisabledChains(): ChainName[] {
     .map(([name]) => name);
 }
 
+// Chains that should keep the legacy IGP path. Deploy flows should recover
+// existing IGP deployments and skip latest-only contracts on these chains.
+// Disabled chains are included so operations never try to auto-heal them from
+// legacy recover-only deployments to latest IGP deployments while disabled.
+export const legacyIgpChains: ChainName[] = Array.from(
+  new Set([
+    'arcadia',
+    'coti',
+    'electroneum',
+    'metis',
+    'taiko',
+    'torus',
+
+    // Keep chains with repeatedly unreliable deployment/proposal execution on
+    // legacy IGP for now.
+    'krown',
+    'prom',
+    'pulsechain',
+    'sei',
+    'viction',
+    ...getDisabledChains(),
+  ]),
+);
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues
+// unsupported or have known issues.
 export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
+  'eden',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
   'abstract',
-  'sophon',
-
-  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
 
   ...getDisabledChains(),
 ];
@@ -240,7 +262,13 @@ async function fetchSecretMetadataOverrides(
   // verification checks (e.g. warp check) use authenticated requests.
   // These overrides live only in the PartialRegistry layer and are never
   // persisted back to the on-disk registry.
-  const explorerApiKeys = await fetchExplorerApiKeys();
+  // Only fetch from GCP when running locally (not in k8s), mirroring the Safe
+  // API key handling above: the pod has no GCP identity, and the registry
+  // already provides explorer API keys inline, so the fetch is unnecessary
+  // (and previously fatal) in-cluster.
+  const explorerApiKeys: ChainMap<string> = !inKubernetes()
+    ? await fetchExplorerApiKeys()
+    : {};
   for (const chain of chains) {
     const apiKey = explorerApiKeys[chain];
     if (!apiKey) continue;

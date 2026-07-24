@@ -9,6 +9,7 @@ import sinon from 'sinon';
 
 import { testChainMetadata } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { stubPackageVersion } from '../../test/contractStubs.js';
 import { missingSelectorError, networkError } from '../../test/errors.js';
 import { stubMultiProtocolProvider } from '../../test/multiProviderStubs.js';
 
@@ -67,16 +68,11 @@ describe('EvmHypXERC20LockboxAdapter', () => {
   });
 
   it('falls back to the legacy package version when PACKAGE_VERSION is missing', async () => {
-    const adapter = new EvmHypSyntheticAdapter(
-      chainName,
-      multiProvider,
-      { token: hypTokenAddress },
-      {
-        connect: sandbox.stub().returns({
-          PACKAGE_VERSION: sandbox.stub().rejects(missingSelectorError()),
-        }),
-      },
-    );
+    stubPackageVersion(sandbox, sandbox.stub().rejects(missingSelectorError()));
+
+    const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
+      token: hypTokenAddress,
+    });
 
     const version = await adapter.getContractPackageVersion();
 
@@ -85,16 +81,11 @@ describe('EvmHypXERC20LockboxAdapter', () => {
 
   it('throws transient package version probe failures', async () => {
     const transientError = networkError();
-    const adapter = new EvmHypSyntheticAdapter(
-      chainName,
-      multiProvider,
-      { token: hypTokenAddress },
-      {
-        connect: sandbox.stub().returns({
-          PACKAGE_VERSION: sandbox.stub().rejects(transientError),
-        }),
-      },
-    );
+    stubPackageVersion(sandbox, sandbox.stub().rejects(transientError));
+
+    const adapter = new EvmHypSyntheticAdapter(chainName, multiProvider, {
+      token: hypTokenAddress,
+    });
 
     let thrown: unknown;
     try {

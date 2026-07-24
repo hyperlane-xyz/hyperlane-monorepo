@@ -859,4 +859,49 @@ describe('SvmSigner', () => {
       );
     });
   });
+
+  describe('transactionToPrintableJson — waitForSlotAdvance hint', () => {
+    it('carries the sequencing hint into the exported JSON', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx: SvmTransaction = {
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+        waitForSlotAdvance: true,
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(json.waitForSlotAdvance).to.equal(true);
+    });
+
+    it('leaves the hint unset when the transaction omits it', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx: SvmTransaction = {
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(json.waitForSlotAdvance).to.be.undefined;
+    });
+  });
 });

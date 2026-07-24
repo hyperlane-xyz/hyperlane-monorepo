@@ -9,6 +9,9 @@ import type {
 
 import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
 import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
+import { isNullish } from '@hyperlane-xyz/utils';
+
+import type { IgpFeeConfig } from './codecs/igp.js';
 
 export type SvmInstruction = Instruction;
 
@@ -27,6 +30,22 @@ export interface SvmTransaction {
    *  Some transactions that include account creation might fail the simulation check.
    */
   skipPreflight?: boolean;
+  /**
+   * ALT addresses to compress the compiled v0 message against. The signer
+   * fetches each table's on-chain entries and assembles the
+   * `AddressesByLookupTableAddress` map kit's compiler expects, so callers
+   * only need to track the ALT pubkey — not its contents.
+   */
+  addressLookupTables?: Address[];
+  /**
+   * Block until the cluster slot advances past the slot this transaction
+   * confirmed in before the signer reports it done. Lets a caller guarantee
+   * the next transaction it sends executes in a strictly later slot — e.g. an
+   * Upgrade must not share the slot its program-data was extended in, and a
+   * program is not invocable in the slot it is upgraded. A generic delivery
+   * hint: the signer has no notion of what the transaction does.
+   */
+  waitForSlotAdvance?: boolean;
 }
 
 export interface SvmReceipt {
@@ -64,6 +83,13 @@ export type SvmProgramTarget =
   | { programId: Address }
   | { programBytes: Uint8Array };
 
+/** Type guard: target carries program bytes (deploy/upgrade case). */
+export function hasProgramBytes(
+  target: SvmProgramTarget,
+): target is { programBytes: Uint8Array } {
+  return 'programBytes' in target;
+}
+
 /** ISM deployed data — the address IS the program. */
 export interface SvmDeployedIsm extends DeployedIsmAddress {
   programId: Address;
@@ -78,6 +104,21 @@ export interface SvmDeployedHook extends DeployedHookAddress {
 export interface SvmDeployedIgpHook extends SvmDeployedHook {
   igpPda: Address;
   overheadIgpPda?: Address;
+  /** Full on-chain IgpFeeConfig (signers + domainId + minIssuedAt) when set. */
+  feeConfig?: IgpFeeConfig;
+}
+
+/**
+ * Narrow the abstract `DeployedHookAddress` (returned by
+ * `IRawHookArtifactManager.readHook`) to the Sealevel IGP variant. `igpPda`
+ * is a required field on Sealevel IGP hook artifacts, so its presence as an
+ * own property is the runtime discriminator — non-IGP Sealevel hooks and
+ * non-Sealevel impls fail the check.
+ */
+export function isSvmDeployedIgpHook(
+  deployed: DeployedHookAddress,
+): deployed is SvmDeployedIgpHook {
+  return !isNullish(deployed) && 'igpPda' in deployed;
 }
 
 export interface PdaWithBump {

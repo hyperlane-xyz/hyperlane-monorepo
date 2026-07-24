@@ -3,6 +3,7 @@ import {
   IPostDispatchHook__factory,
   Mailbox,
   QuotedCalls,
+  QuotedCalls__factory,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -32,7 +33,7 @@ import {
   PERMIT2_ADDRESS,
   coreFactories,
 } from './contracts.js';
-import { CoreConfig } from './types.js';
+import { CoreConfig, shouldDeployQuotedCalls } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
@@ -259,9 +260,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     permit2?: Address,
   ): Promise<QuotedCalls> {
-    return this.deployContract(chain, 'quotedCalls', [
-      permit2 ?? PERMIT2_ADDRESS,
-    ]);
+    const quotedCalls = await this.deployContractFromFactory(
+      chain,
+      new QuotedCalls__factory(),
+      'quotedCalls',
+      [permit2 ?? PERMIT2_ADDRESS],
+      undefined,
+      true,
+    );
+    this.writeCache(chain, 'quotedCalls', quotedCalls.address);
+    return quotedCalls;
   }
 
   async deployTestRecipient(
@@ -293,7 +301,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const quotedCalls = await this.deployQuotedCalls(chain, config.permit2);
+    const quotedCalls = shouldDeployQuotedCalls(config)
+      ? await this.deployQuotedCalls(chain, config.permit2)
+      : undefined;
 
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
@@ -306,23 +316,50 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       };
     }
 
-    const testRecipient = await this.deployTestRecipient(
-      chain,
-      this.cachedAddresses[chain].interchainSecurityModule,
-    );
-
-    const ownableContracts = {
+    const coreOwnableContracts = {
       mailbox,
       proxyAdmin,
       validatorAnnounce,
-      testRecipient,
     };
 
-    await this.transferOwnershipOfContracts(chain, config, ownableContracts);
+    await this.transferOwnershipOfContracts(
+      chain,
+      config,
+      coreOwnableContracts,
+    );
 
-    return {
-      ...ownableContracts,
-      quotedCalls,
-    };
+    const ownableContracts = { ...coreOwnableContracts };
+
+    try {
+      // TestRecipient is diagnostic, so its ISM configuration should not block
+      // finalizing ownership for core contracts.
+      const testRecipient = await this.deployTestRecipient(
+        chain,
+        this.cachedAddresses[chain].interchainSecurityModule,
+      );
+
+      await this.transferOwnershipOfContracts(chain, config, {
+        testRecipient,
+      });
+
+      Object.assign(ownableContracts, { testRecipient });
+    } catch (error) {
+      if (this.cachedAddresses[chain]) {
+        delete this.cachedAddresses[chain].testRecipient;
+      }
+      this.logger.warn(
+        { chain, err: error },
+        'Skipping TestRecipient after core deployment finalized',
+      );
+    }
+
+    // Optional contracts must be omitted, not returned as undefined leaves.
+    // Address artifact serialization expects every present value to be a contract.
+    return quotedCalls
+      ? {
+          ...ownableContracts,
+          quotedCalls,
+        }
+      : ownableContracts;
   }
 }

@@ -5,6 +5,14 @@ import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
 
+const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
+
+export const fastPathReorgPeriodOverrides: Record<string, number> = {
+  arbitrumsepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  basesepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+};
+
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
@@ -129,6 +137,18 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'solanatestnet',
+      ),
+    },
+    solanadevnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solanadevnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6424142536c9e40b61076571cba83a255835b799'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanadevnet',
       ),
     },
     sonicsvmtestnet: {

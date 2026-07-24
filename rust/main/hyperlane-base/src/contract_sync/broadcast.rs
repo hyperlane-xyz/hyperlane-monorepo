@@ -26,9 +26,16 @@ impl BroadcastMpscSender<H512> {
     /// Send a message to all the receiving channels.
     // This will block if at least one of the receiving channels is full
     pub async fn send(&self, txid: H512) -> Result<()> {
-        let senders = self.sender.lock().await;
-        for sender in &*senders {
-            sender.send(txid).await?
+        let mut senders = self.sender.lock().await;
+        let mut index = 0;
+        while index < senders.len() {
+            if senders[index].send(txid).await.is_ok() {
+                index = index.saturating_add(1);
+            } else {
+                // A closed receiver must not prevent later subscribers from
+                // receiving this or future messages.
+                senders.remove(index);
+            }
         }
         Ok(())
     }
@@ -48,5 +55,28 @@ impl BroadcastMpscSender<H512> {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn disconnected_subscriber_does_not_block_later_subscribers() {
+        let broadcaster = BroadcastMpscSender::new(1);
+        let disconnected_receiver = broadcaster.get_receiver().await;
+        let mut live_receiver = broadcaster.get_receiver().await;
+        drop(disconnected_receiver);
+
+        let txid = H512::from_low_u64_be(1);
+        broadcaster.send(txid).await.unwrap();
+
+        assert_eq!(live_receiver.recv().await, Some(txid));
+        assert_eq!(broadcaster.sender.lock().await.len(), 1);
+
+        let next_txid = H512::from_low_u64_be(2);
+        broadcaster.send(next_txid).await.unwrap();
+        assert_eq!(live_receiver.recv().await, Some(next_txid));
     }
 }

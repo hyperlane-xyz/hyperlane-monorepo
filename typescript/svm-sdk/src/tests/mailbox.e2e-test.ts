@@ -9,7 +9,9 @@ import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
+import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { FALLBACK_SIMULATION_PAYER } from '../version/version-query.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -29,6 +31,7 @@ describe('SVM Mailbox E2E Tests', function () {
   let signer: SvmSigner;
   let testIsmAddress: Address;
   let mailboxWriter: SvmMailboxWriter;
+  let mailboxAddress: Address;
 
   function makeMailboxConfig(
     overrides: Partial<MailboxOnChain> = {},
@@ -41,11 +44,11 @@ describe('SVM Mailbox E2E Tests', function () {
       },
       defaultHook: {
         artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: TEST_PROGRAM_IDS.mailbox },
+        deployed: { address: mailboxAddress },
       },
       requiredHook: {
         artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: TEST_PROGRAM_IDS.mailbox },
+        deployed: { address: mailboxAddress },
       },
       ...overrides,
     };
@@ -66,6 +69,10 @@ describe('SVM Mailbox E2E Tests', function () {
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 50_000_000_000n);
+    // Fund the simulation fallback payer so `read()` after renounce (owner
+    // becomes null) can still simulate GetProgramVersion via the fallback
+    // path. Mainnet has this address funded; localnet does not.
+    await airdropSol(rpc, FALLBACK_SIMULATION_PAYER, 10_000_000_000n);
 
     // Deploy Test ISM — required as the default ISM for mailbox init.
     testIsmAddress = TEST_PROGRAM_IDS.testIsm;
@@ -79,42 +86,54 @@ describe('SVM Mailbox E2E Tests', function () {
       config: { type: 'testIsm' },
     });
 
+    // Deploy the mailbox fresh from bytes so the test signer becomes the
+    // BPF upgrade authority. Existing tests share this single deployment.
     mailboxWriter = new SvmMailboxWriter(
       {
-        program: { programId: TEST_PROGRAM_IDS.mailbox },
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
         domainId: TEST_SVM_CHAIN_METADATA.domainId,
       },
       rpc,
       signer,
     );
+    const [deployedMailbox, deployReceipts] = await mailboxWriter.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: testIsmAddress },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+        },
+      },
+    });
+    expect(deployReceipts.length).to.be.greaterThan(0);
+    mailboxAddress = address(deployedMailbox.deployed.address);
   });
 
   describe('Mailbox', () => {
-    it('should deploy, initialize, and read mailbox', async () => {
-      const config = makeMailboxConfig();
-      const [deployed, receipts] = await mailboxWriter.create({ config });
-
-      expect(receipts.length).to.be.greaterThan(0);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(TEST_PROGRAM_IDS.mailbox);
-      expect(deployed.deployed.domainId).to.equal(
-        TEST_SVM_CHAIN_METADATA.domainId,
-      );
-
-      // Verify on-chain state via read().
-      const onChain = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+    it('should read the deployed mailbox', async () => {
+      const onChain = await mailboxWriter.read(mailboxAddress);
       expect(onChain.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(onChain.config.owner).to.equal(signer.getSignerAddress());
       expect(onChain.config.defaultIsm.deployed.address).to.equal(
         testIsmAddress,
       );
+      expect(onChain.config.contractVersion).to.equal('1.0.0');
       expect(onChain.deployed.domainId).to.equal(
         TEST_SVM_CHAIN_METADATA.domainId,
       );
     });
 
     it('should return empty transactions when config matches', async () => {
-      const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const current = await mailboxWriter.read(mailboxAddress);
       const updateTxs = await mailboxWriter.update(current);
       expect(updateTxs).to.have.length(0);
     });
@@ -133,7 +152,7 @@ describe('SVM Mailbox E2E Tests', function () {
       const secondIsmAddress = secondIsm.deployed.address;
 
       // Read current state and update default ISM.
-      const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const current = await mailboxWriter.read(mailboxAddress);
       expect(current.config.defaultIsm.deployed.address).to.equal(
         testIsmAddress,
       );
@@ -152,7 +171,7 @@ describe('SVM Mailbox E2E Tests', function () {
       await executeUpdateTxs(updateTxs);
 
       // Verify on-chain.
-      const updated = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const updated = await mailboxWriter.read(mailboxAddress);
       expect(updated.config.defaultIsm.deployed.address).to.equal(
         secondIsmAddress,
       );
@@ -164,7 +183,7 @@ describe('SVM Mailbox E2E Tests', function () {
       });
       await executeUpdateTxs(restoreTxs);
 
-      const restored = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const restored = await mailboxWriter.read(mailboxAddress);
       expect(restored.config.defaultIsm.deployed.address).to.equal(
         testIsmAddress,
       );
@@ -182,7 +201,7 @@ describe('SVM Mailbox E2E Tests', function () {
       );
 
       // Transfer ownership to new keypair.
-      const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const current = await mailboxWriter.read(mailboxAddress);
       const transferTxs = await mailboxWriter.update({
         ...current,
         config: makeMailboxConfig({
@@ -192,8 +211,11 @@ describe('SVM Mailbox E2E Tests', function () {
       expect(transferTxs.length).to.be.greaterThan(0);
       await executeUpdateTxs(transferTxs);
 
-      const afterTransfer = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const afterTransfer = await mailboxWriter.read(mailboxAddress);
       expect(afterTransfer.config.owner).to.equal(
+        newOwnerSigner.getSignerAddress(),
+      );
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
         newOwnerSigner.getSignerAddress(),
       );
 
@@ -208,8 +230,11 @@ describe('SVM Mailbox E2E Tests', function () {
         await newOwnerSigner.send({ instructions: tx.instructions });
       }
 
-      const restored = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const restored = await mailboxWriter.read(mailboxAddress);
       expect(restored.config.owner).to.equal(signer.getSignerAddress());
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
+        signer.getSignerAddress(),
+      );
     });
 
     it('should renounce ownership via update', async () => {
@@ -225,7 +250,7 @@ describe('SVM Mailbox E2E Tests', function () {
       );
 
       // Transfer to throwaway first.
-      const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const current = await mailboxWriter.read(mailboxAddress);
       const transferTxs = await mailboxWriter.update({
         ...current,
         config: makeMailboxConfig({
@@ -235,7 +260,10 @@ describe('SVM Mailbox E2E Tests', function () {
       await executeUpdateTxs(transferTxs);
 
       // Renounce from throwaway.
-      const afterTransfer = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const afterTransfer = await mailboxWriter.read(mailboxAddress);
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.equal(
+        throwawayOwner.getSignerAddress(),
+      );
       const renounceTxs = await mailboxWriter.update({
         ...afterTransfer,
         config: makeMailboxConfig({
@@ -247,8 +275,9 @@ describe('SVM Mailbox E2E Tests', function () {
         await throwawayOwner.send({ instructions: tx.instructions });
       }
 
-      const renounced = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      const renounced = await mailboxWriter.read(mailboxAddress);
       expect(renounced.config.owner).to.equal(ZERO_ADDRESS_HEX_32);
+      expect(await getProgramUpgradeAuthority(rpc, mailboxAddress)).to.be.null;
     });
   });
 
@@ -259,9 +288,9 @@ describe('SVM Mailbox E2E Tests', function () {
         TEST_SVM_CHAIN_METADATA.domainId,
       );
 
-      const artifact = await manager.readMailbox(TEST_PROGRAM_IDS.mailbox);
+      const artifact = await manager.readMailbox(mailboxAddress);
       expect(artifact.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(artifact.deployed.address).to.equal(TEST_PROGRAM_IDS.mailbox);
+      expect(artifact.deployed.address).to.equal(mailboxAddress);
     });
 
     it('should create readers and writers', () => {

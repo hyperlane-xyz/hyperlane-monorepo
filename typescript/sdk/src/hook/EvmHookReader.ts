@@ -1,4 +1,5 @@
-import { ethers } from 'ethers';
+import { compareVersions } from 'compare-versions';
+import { constants, ethers } from 'ethers';
 
 import {
   AmountRoutingHook__factory,
@@ -38,6 +39,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
+  fetchPackageVersion,
   isMissingSelectorCallException,
   throwIfNotMissingSelector,
 } from '../utils/contract.js';
@@ -52,9 +54,11 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
@@ -83,7 +87,10 @@ export interface HookReader {
   deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>>;
-  deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>>;
+  deriveIgpConfig(
+    address: Address,
+    feeTokens?: Address[],
+  ): Promise<WithAddress<IgpHookConfig>>;
   deriveProtocolFeeConfig(
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>>;
@@ -135,6 +142,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   async deriveHookConfigFromAddress(
     address: Address,
+    feeTokens?: Address[],
   ): Promise<DerivedHookConfig> {
     this.logger.debug('Deriving HookConfig:', { address });
 
@@ -173,7 +181,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = await this.deriveMerkleTreeConfig(address);
           break;
         case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-          derivedHookConfig = await this.deriveIgpConfig(address);
+          derivedHookConfig = await this.deriveIgpConfig(address, feeTokens);
           break;
         case OnchainHookType.FALLBACK_ROUTING:
           derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
@@ -216,10 +224,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     } catch (e) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
       if (!onchainHookType && isMissingSelectorCallException(e)) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
+        this.logger.info(
+          `Hook at ${address} does not support hookType() — treating as unknown hook:\n\t${e}`,
         );
-        this.logger.info(`${customMessage}:\n\t${e}`);
+        return { type: HookType.UNKNOWN, address };
       } else {
         this.logger.debug(`${customMessage}:\n\t${e}`);
       }
@@ -247,9 +255,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
    */
   public async deriveHookConfig(
     config: HookConfig,
+    feeTokens?: Address[],
   ): Promise<DerivedHookConfig> {
     if (typeof config === 'string')
-      return this.deriveHookConfigFromAddress(config);
+      return this.deriveHookConfigFromAddress(config, feeTokens);
 
     // Extend the inner hooks
     switch (config.type) {
@@ -466,28 +475,31 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           .map((chainName) => this.multiProvider.getDomainId(chainName));
   }
 
-  async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
+  async deriveIgpConfig(
+    address: Address,
+    feeTokens?: Address[],
+  ): Promise<WithAddress<IgpHookConfig>> {
     const hook = InterchainGasPaymaster__factory.connect(
       address,
       this.provider,
     );
 
     // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary, quoteSigners] = await Promise.all([
+    const [hookType, owner, beneficiary, contractVersion] = await Promise.all([
       hook.hookType(),
       hook.owner(),
       hook.beneficiary(),
-      // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch((error) => {
-        throwIfNotMissingSelector(error);
-        this.logger.debug(
-          'quoteSigners() not available on this IGP version, skipping',
-        );
-        return [] as string[];
-      }),
+      fetchPackageVersion(this.provider, address, this.logger),
     ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
+
+    // quoteSigners() only exists on v2+ IGPs. Gate on the on-chain version so a
+    // legacy IGP never reaches the call: probing it and classifying the revert
+    // is unreliable once the SmartProvider wraps the empty response.
+    const isLegacyIgp =
+      compareVersions(contractVersion, OFFCHAIN_QUOTED_IGP_VERSION) < 0;
+    const quoteSigners = isLegacyIgp ? [] : await hook.quoteSigners();
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
@@ -542,6 +554,60 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey = resolvedOracleKeys[0];
     }
 
+    // Read token oracle configs for ERC20 fee tokens
+    let tokenOracleConfig: IgpHookConfig['tokenOracleConfig'];
+    if (feeTokens && feeTokens.length > 0) {
+      tokenOracleConfig = {};
+      for (const feeToken of feeTokens) {
+        const tokenConfig: Record<
+          string,
+          {
+            gasPrice: string;
+            tokenExchangeRate: string;
+            tokenDecimals?: number;
+          }
+        > = {};
+        await concurrentMap(
+          this.concurrency,
+          this.possibleDomainIds(),
+          async (domainId) => {
+            try {
+              const oracleAddress = await hook.tokenGasOracles(
+                feeToken,
+                domainId,
+              );
+              if (eqAddress(oracleAddress, constants.AddressZero)) return;
+
+              const oracle = StorageGasOracle__factory.connect(
+                oracleAddress,
+                this.provider,
+              );
+              const { tokenExchangeRate, gasPrice } =
+                await oracle.remoteGasData(domainId);
+              const { name: chainName, nativeToken } =
+                this.multiProvider.getChainMetadata(domainId);
+              tokenConfig[chainName] = {
+                tokenExchangeRate: tokenExchangeRate.toString(),
+                gasPrice: gasPrice.toString(),
+                ...(nativeToken?.decimals !== undefined
+                  ? { tokenDecimals: nativeToken.decimals }
+                  : {}),
+              };
+            } catch (error) {
+              throwIfNotMissingSelector(error);
+              // Domain not configured for this fee token
+            }
+          },
+        );
+        if (Object.keys(tokenConfig).length > 0) {
+          tokenOracleConfig[feeToken] = tokenConfig;
+        }
+      }
+      if (Object.keys(tokenOracleConfig).length === 0) {
+        tokenOracleConfig = undefined;
+      }
+    }
+
     const config: WithAddress<IgpHookConfig> = {
       owner,
       address,
@@ -550,6 +616,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
+      ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
+      ...(isLegacyIgp ? { igpVersion: IgpVersion.Legacy } : {}),
       ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
     };
 

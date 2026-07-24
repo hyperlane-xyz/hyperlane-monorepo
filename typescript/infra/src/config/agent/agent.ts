@@ -2,8 +2,10 @@ import {
   AgentChainMetadata,
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
+  AgentSealevelUrReveal,
   AgentSignerAwsKey,
   AgentSignerKeyType,
+  ChainMap,
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -39,6 +41,7 @@ export interface HelmRootAgentValues {
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
   tolerations?: KubernetesToleration[];
+  nodeSelector?: Record<string, string>;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -96,6 +99,7 @@ export interface SealevelAgentConfig {
   transactionSubmitterConfigGetter?: (
     chain: ChainName,
   ) => AgentSealevelTransactionSubmitter;
+  urRevealConfigGetter?: (chain: ChainName) => AgentSealevelUrReveal;
 }
 
 // An ugly way to mark a URL as a the secret Helius URL when Helm templating
@@ -107,6 +111,8 @@ interface AgentRoleConfig {
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   resources?: KubernetesResources;
+  // Optional per-chain overrides for resources (currently used for validator tiering).
+  chainResourceOverrides?: ChainMap<KubernetesResources>;
 
   // Agent-specific
   rpcConsensusType: RpcConsensusType;
@@ -227,6 +233,14 @@ export abstract class AgentConfigHelper<
       };
     }
     return this.agentRoleConfig.docker;
+  }
+
+  // If the provided chain has a resource override, return it, otherwise the default.
+  resourcesForChain(chainName: ChainName): KubernetesResources | undefined {
+    return (
+      this.agentRoleConfig.chainResourceOverrides?.[chainName] ??
+      this.agentRoleConfig.resources
+    );
   }
 }
 

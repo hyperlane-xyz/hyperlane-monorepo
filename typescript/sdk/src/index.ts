@@ -1,8 +1,29 @@
 export {
+  DerivedCrossCollateralRoutingFeeConfig,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from './fee/EvmTokenFeeReader.js';
+
+export {
+  type Eip712Signable,
+  type Eip712TypedDataDomain,
+  type Eip712TypedDataField,
+  isEip712Signable,
+  parseEip712Signable,
+} from './quote/Eip712Signable.js';
+export { EvmPrivateKeyQuoteSigner } from './quote/EvmPrivateKeyQuoteSigner.js';
+export { EvmQuoteArtifactManager } from './quote/EvmQuoteArtifactManager.js';
+export { EvmQuoteReader } from './quote/EvmQuoteReader.js';
+export { EvmQuoteWriter } from './quote/EvmQuoteWriter.js';
+export {
+  buildEvmSignedQuoteSignable,
+  buildEvmSignedQuoteTuple,
+  OFFCHAIN_QUOTER_DOMAIN_NAME,
+  OFFCHAIN_QUOTER_DOMAIN_VERSION,
+  SIGNED_QUOTE_TYPES,
+  type EvmSignedQuoteTuple,
+} from './quote/WarpSignedQuoteEip712.js';
 
 export {
   buildExecuteCalldata,
@@ -10,7 +31,25 @@ export {
   type QuotedCallsTransaction,
   type QuotedTransferParams,
 } from './quoted-calls/builder.js';
-export { FeeQuotingClient } from './quoted-calls/client.js';
+export {
+  FeeQuotingClient,
+  FeeQuotingNoQuoteAvailableError,
+  FeeQuotingV2Client,
+} from './quoted-calls/client.js';
+export type {
+  FeeQuotingV2IgpParams,
+  FeeQuotingV2WarpParams,
+} from './quoted-calls/client.js';
+export { EvmQuotedTransferProvider } from './quoted-calls/EvmQuotedTransferProvider.js';
+export type { QuotedTransferProvider } from './quoted-calls/QuotedTransferProvider.js';
+export { SealevelQuotedTransferProvider } from './quoted-calls/SealevelQuotedTransferProvider.js';
+export type { SealevelQuotedTransferProviderOpts } from './quoted-calls/SealevelQuotedTransferProvider.js';
+export { composeSealevelTx } from './quoted-calls/composeSealevelTx.js';
+export { decodeSealevelQuoteEntry } from './quoted-calls/svmDecoder.js';
+export type {
+  DecodedSealevelQuoteEntry,
+  DecodedSvmSignedQuote,
+} from './quoted-calls/svmDecoder.js';
 export type {
   FeeQuotingClientOptions,
   QuoteParams as FeeQuotingQuoteParams,
@@ -34,11 +73,24 @@ export {
   sumQuotesByToken,
 } from './quoted-calls/codec.js';
 export {
+  type AnyQuoteV2Entry,
+  type EthereumQuoteDetails,
+  type EthereumQuoteV2Entry,
   FeeQuotingCommand,
   type FeeQuotingQuoteResponse,
+  NO_QUOTE_AVAILABLE_ERROR,
+  type NoQuoteAvailableError,
+  NoQuoteAvailableReason,
   type Permit2Data,
   type QuotedCallsParams,
   QuotedCallsCommand,
+  QUOTE_V2_BASE_PATH,
+  QuoteV2Endpoint,
+  type QuoteV2Entry,
+  type QuoteV2Response,
+  type SealevelQuoteDetails,
+  type SealevelQuoteV2Entry,
+  type SealevelSignedQuote,
   type SignedQuoteData,
   type SubmitQuoteCommand,
   TokenPullMode,
@@ -147,6 +199,7 @@ export {
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
+  shouldDeployQuotedCalls,
   ValidatorAnnounceViolation,
 } from './core/types.js';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker.js';
@@ -179,6 +232,7 @@ export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export {
+  buildFeeReadContextFromWarpDeployConfig,
   executeWarpDeploy,
   enrollCrossChainRouters,
   validateWarpConfigForAltVM,
@@ -225,6 +279,7 @@ export {
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
+  IgpTokenGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
 } from './gas/types.js';
@@ -250,9 +305,11 @@ export {
   HookType,
   IgpHookConfig,
   IgpSchema,
+  IgpVersion,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
   normalizeUnknownHookTypes,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
@@ -300,6 +357,20 @@ export {
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
   ArbL2ToL1IsmConfigSchema,
+  CompositeAggregationNodeConfig,
+  CompositeAmountRoutingNodeConfig,
+  CompositeFallbackRoutingNodeConfig,
+  CompositeIsmConfig,
+  CompositeIsmConfigSchema,
+  CompositeIsmNodeConfig,
+  CompositeIsmNodeConfigSchema,
+  CompositeIsmNodeType,
+  CompositeMultisigMessageIdNodeConfig,
+  CompositePausableNodeConfig,
+  CompositeRateLimitedNodeConfig,
+  CompositeRoutingNodeConfig,
+  CompositeTestNodeConfig,
+  CompositeTrustedRelayerNodeConfig,
   DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
@@ -353,6 +424,7 @@ export {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  AgentSealevelUrReveal,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,
@@ -543,6 +615,9 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
+  EvmTimelockControllerSubmitterProps,
+  buildEvmIcaTxSubmitterPropsSchema,
+  buildEvmTimelockControllerSubmitterPropsSchema,
   isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
@@ -777,6 +852,7 @@ export {
   checkWarpRouteDeployConfig,
 } from './token/warpCheck.js';
 export type {
+  AcceptedInactiveOwner,
   WarpRouteCheckResult,
   WarpRouteCheckViolation,
 } from './token/warpCheck.js';
@@ -1050,6 +1126,7 @@ export {
   QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
+export { tokenFeeInputToFeeConfig } from './fee/feeConfigMapping.js';
 
 export {
   TurnkeyClientManager,

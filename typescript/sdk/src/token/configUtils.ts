@@ -343,10 +343,13 @@ export async function expandWarpDeployConfig(params: {
 
       if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
         // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
-        // For other cases, we expect 'active'
+        // For other cases, we expect 'active'. Accepting an Inactive owner (e.g.
+        // a nonce-less governance ICA on Tron/AltVM) is a governance decision
+        // handled by the caller via `acceptedInactiveOwners` in
+        // `checkWarpRouteDeployConfig`, not here.
         chainConfig.ownerStatus = objMap(
           expandedOnChainWarpConfig[chain].ownerStatus ?? {},
-          (_, status) => {
+          (_ownerAddress, status) => {
             switch (status) {
               // Skipped for local e2e testing
               case OwnerStatus.Skipped:

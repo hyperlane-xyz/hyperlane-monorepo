@@ -1,12 +1,13 @@
 import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   ProtocolType,
   assert,
   convertDecimals,
   objMap,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
@@ -160,20 +161,17 @@ function getTokenExchangeRate({
   return exchangeRate;
 }
 
-function getProtocolExchangeRate(
+// Scales the (decimal-adjusted) exchange rate by the protocol's fixed-point
+// multiplier. Returns a float that may be < 1 (e.g. for a low-decimal fee token
+// paying for a high-decimal native chain); rounding to an integer and any
+// precision rebalancing against the gas price happen later in
+// adjustForPrecisionLoss.
+function scaleProtocolExchangeRate(
   localProtocolType: ProtocolType,
   exchangeRate: InstanceType<typeof BigNumberJs>,
-): BigNumber {
+): InstanceType<typeof BigNumberJs> {
   const multiplierDecimals = getProtocolExchangeRateDecimals(localProtocolType);
-  const multiplier = new BigNumberJs(10).pow(multiplierDecimals);
-  const integer = exchangeRate
-    .times(multiplier)
-    .integerValue(BigNumberJs.ROUND_FLOOR)
-    .toString(10);
-  const result = BigNumber.from(integer);
-
-  // Ensure exchange rate is at least 1
-  return result.lt(1) ? BigNumber.from(1) : result;
+  return exchangeRate.times(new BigNumberJs(10).pow(multiplierDecimals));
 }
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
@@ -192,6 +190,7 @@ export function getLocalStorageGasOracleConfig({
   exchangeRateMarginPct,
   gasPriceModifier,
   typicalCostGetter,
+  onPrecisionFallback,
 }: {
   local: ChainName;
   localProtocolType: ProtocolType;
@@ -207,6 +206,10 @@ export function getLocalStorageGasOracleConfig({
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ) => IgpCostData;
+  // Invoked (instead of a per-pair warning) whenever a remote's exchange rate
+  // underflows and falls back to the on-chain minimum. Lets callers aggregate
+  // these into a single log line across many pairs.
+  onPrecisionFallback?: (ctx: { local: ChainName; remote: ChainName }) => void;
 }): ChainMap<ProtocolAgnositicGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -236,8 +239,10 @@ export function getLocalStorageGasOracleConfig({
       );
     }
 
-    // Make the exchange rate an integer by scaling it up by the appropriate factor for the protocol.
-    const exchangeRate = getProtocolExchangeRate(
+    // Scale the exchange rate by the protocol's fixed-point factor. Kept as a
+    // float here; adjustForPrecisionLoss does the final integer rounding (and
+    // rebalances against the gas price if it would otherwise underflow).
+    const scaledExchangeRate = scaleProtocolExchangeRate(
       localProtocolType,
       exchangeRateFloat,
     );
@@ -257,15 +262,20 @@ export function getLocalStorageGasOracleConfig({
     // Get a prospective gasOracleConfig, adjusting the gas price and exchange rate
     // as needed to account for precision loss (e.g. if the gas price is super small).
     let gasOracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost =
-      adjustForPrecisionLoss(gasPrice, exchangeRate, remoteDecimals);
+      adjustForPrecisionLoss(gasPrice, scaledExchangeRate, remoteDecimals, {
+        local,
+        remote,
+        onFallback: onPrecisionFallback,
+      });
 
     // Apply the modifier if provided.
     if (gasPriceModifier) {
       // Once again adjust for precision loss after applying the modifier.
       gasOracleConfig = adjustForPrecisionLoss(
         gasPriceModifier(local, remote, gasOracleConfig),
-        BigNumber.from(gasOracleConfig.tokenExchangeRate),
+        new BigNumberJs(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+        { local, remote, onFallback: onPrecisionFallback },
       );
     }
 
@@ -283,31 +293,101 @@ export function getLocalStorageGasOracleConfig({
   }, {} as ChainMap<ProtocolAgnositicGasOracleConfig>);
 }
 
+// Floor for the gas price after rebalancing a sub-unit exchange rate. Because
+// the final gas price is ceiled, keeping the rebalanced value at least 1000
+// bounds the relative quote error from that ceil to < 1 / 1000 = 0.1%.
+const MIN_REBALANCED_GAS_PRICE = 1000;
+
+function decimalMagnitude(value: InstanceType<typeof BigNumberJs>): number {
+  if (value.lt(1)) return 0;
+  return value.integerValue(BigNumberJs.ROUND_FLOOR).toFixed(0).length - 1;
+}
+
 function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
-  exchangeRate: BigNumber,
+  exchangeRate: InstanceType<typeof BigNumberJs>,
   remoteDecimals: number,
+  // Optional chain context. `local`/`remote` name the pair that underflowed so
+  // the warning is actionable. If `onFallback` is supplied, it is invoked
+  // instead of logging per-pair — letting callers aggregate the fallbacks into a
+  // single summary rather than emitting one warning per chain pair.
+  context?: {
+    local: ChainName;
+    remote: ChainName;
+    onFallback?: (ctx: { local: ChainName; remote: ChainName }) => void;
+  },
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
 
+  // When the fee token has fewer decimals than the remote native token (e.g. a
+  // 6-decimal ERC20 fee token paying for an 18-decimal native chain), decimal
+  // conversion can push the scaled exchange rate below 1, where rounding to an
+  // integer would badly misprice (or zero out) the quote. The quote is the
+  // product gasPrice * exchangeRate, so shift magnitude from the gas price into
+  // the exchange rate by a power of ten: the product (and thus the quote) is
+  // preserved while the on-chain exchange rate keeps its precision. No-op for
+  // same-decimal native pairs, where the scaled rate is already >> 1.
+  if (newExchangeRate.lt(1)) {
+    const shiftMagnitude = decimalMagnitude(
+      newGasPrice.div(MIN_REBALANCED_GAS_PRICE),
+    );
+
+    if (shiftMagnitude > 0) {
+      const factor = new BigNumberJs(10).pow(shiftMagnitude);
+      newExchangeRate = newExchangeRate.times(factor);
+      newGasPrice = newGasPrice.div(factor);
+    }
+
+    if (newExchangeRate.lt(1)) {
+      // Known limitation: gas prices below 10 * MIN_REBALANCED_GAS_PRICE do
+      // not have a full decimal digit of headroom to shift while preserving the
+      // final ceil rounding-error bound. In that no-headroom band, keep the
+      // original gas price and fall back to the minimum representable exchange
+      // rate instead of introducing a larger ceil error.
+      // When a caller wants to aggregate these (they can be many for a full
+      // chain matrix), hand off to its callback instead of logging per-pair.
+      if (context?.onFallback) {
+        context.onFallback({ local: context.local, remote: context.remote });
+      } else {
+        rootLogger.warn(
+          `Token exchange rate remains below 1 after precision rebalance${
+            context ? ` for ${context.local} -> ${context.remote}` : ''
+          }; falling back to minimum on-chain exchange rate. Original gas price: ${new BigNumberJs(
+            gasPrice,
+          ).toString()}, original exchange rate: ${exchangeRate.toString()}`,
+        );
+      }
+    }
+  }
+
   // We may have very little precision, and ultimately need an integer value for
   // the gas price that will be set on-chain. If this is the case, we scale up the
   // gas price and scale down the exchange rate by the same factor.
-  if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
-    // Scale up the gas price by 1e4 (arbitrary choice)
-    const gasPriceScalingFactor = 1e4;
+  if (newGasPrice.lt(10) && !newGasPrice.mod(1).isZero()) {
+    // Use the largest decimal scale that preserves the integer exchange rate
+    // that will actually be set on-chain.
+    for (let scalingMagnitude = 4; scalingMagnitude > 0; scalingMagnitude--) {
+      const gasPriceScalingFactor = new BigNumberJs(10).pow(scalingMagnitude);
+      const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
+      const adjustedExchangeRateInteger = adjustedExchangeRate.integerValue(
+        BigNumberJs.ROUND_FLOOR,
+      );
+      const recoveredExchangeRate = adjustedExchangeRateInteger.times(
+        gasPriceScalingFactor,
+      );
 
-    // Check that there's no significant underflow when applying
-    // this to the exchange rate:
-    const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
-    const recoveredExchangeRate = adjustedExchangeRate.mul(
-      gasPriceScalingFactor,
-    );
-    // Ensure we recover at least 99% of the original exchange rate
-    if (recoveredExchangeRate.mul(100).div(newExchangeRate).gte(99)) {
-      newGasPrice = newGasPrice.times(gasPriceScalingFactor);
-      newExchangeRate = adjustedExchangeRate;
+      // Ensure the integer value recovers at least 99% of the original
+      // exchange rate. If it floors to zero, the final floor-to-one clamp would
+      // overquote, so try a smaller scale.
+      if (
+        adjustedExchangeRateInteger.gt(0) &&
+        recoveredExchangeRate.times(100).div(newExchangeRate).gte(99)
+      ) {
+        newGasPrice = newGasPrice.times(gasPriceScalingFactor);
+        newExchangeRate = adjustedExchangeRate;
+        break;
+      }
     }
   }
 
@@ -317,14 +397,22 @@ function adjustForPrecisionLoss(
     'Gas price must be greater than 0, possible loss of precision',
   );
 
+  // Round the (possibly rebalanced) exchange rate to an integer, keeping a
+  // floor of 1 so a tiny-but-nonzero rate never collapses to 0.
+  let newExchangeRateInteger = newExchangeRate.integerValue(
+    BigNumberJs.ROUND_FLOOR,
+  );
+  if (newExchangeRateInteger.lt(1)) {
+    newExchangeRateInteger = new BigNumberJs(1);
+  }
   assert(
-    newExchangeRate.gt(0),
+    newExchangeRateInteger.gt(0),
     `Token exchange rate must be greater than 0, possible loss of precision. Original exchange rate: ${exchangeRate.toString()}`,
   );
 
   return {
-    tokenExchangeRate: newExchangeRate.toString(),
-    gasPrice: newGasPriceInteger.toString(),
+    tokenExchangeRate: newExchangeRateInteger.toFixed(0),
+    gasPrice: newGasPriceInteger.toFixed(0),
     tokenDecimals: remoteDecimals,
   };
 }

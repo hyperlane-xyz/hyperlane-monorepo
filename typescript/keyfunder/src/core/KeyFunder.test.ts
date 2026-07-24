@@ -1,16 +1,68 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type { KeyFunderConfig } from '../config/types.js';
+import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 
 import { KeyFunder } from './KeyFunder.js';
 
 describe('KeyFunder', () => {
   afterEach(() => {
     sinon.restore();
+  });
+
+  it('scales the funder balance metric by the chain native token decimals', async () => {
+    const logger = {
+      child: () => logger,
+      debug: () => undefined,
+      error: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+    } as unknown as Logger;
+
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    // 1152 TRX at 6 decimals = 1_152_000_000 sun.
+    multiProvider.getSigner.returns({
+      getAddress: async () => '0x2222222222222222222222222222222222222222',
+      getBalance: async () => BigNumber.from('1152000000'),
+    } as never);
+    multiProvider.getChainMetadata.returns({
+      nativeToken: { name: 'TRON', symbol: 'TRX', decimals: 6 },
+    } as never);
+
+    const recordUnifiedWalletBalance = sinon.spy();
+    const metrics = {
+      recordUnifiedWalletBalance,
+    } as unknown as KeyFunderMetrics;
+
+    const config: KeyFunderConfig = {
+      version: '1',
+      roles: {},
+      chains: { tron: {} },
+    };
+
+    const keyFunder = new KeyFunder(multiProvider, config, {
+      logger,
+      metrics,
+    });
+
+    await (
+      keyFunder as unknown as {
+        recordFunderBalance: (chain: string) => Promise<void>;
+      }
+    ).recordFunderBalance('tron');
+
+    sinon.assert.calledOnceWithExactly(
+      recordUnifiedWalletBalance,
+      'tron',
+      '0x2222222222222222222222222222222222222222',
+      'key-funder',
+      1152,
+    );
   });
 
   it('should continue funding when recordFunderBalance fails', async () => {

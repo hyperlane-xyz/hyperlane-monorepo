@@ -72,6 +72,7 @@ export interface BaseWarpConfig {
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
   scale?: number;
+  contractVersion?: string;
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -85,6 +86,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  token?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -108,10 +110,11 @@ export interface BaseDerivedWarpConfig {
   mailbox: string;
   interchainSecurityModule: DerivedIsmConfig | string;
   hook: DerivedHookConfig | string;
-  fee?: DerivedFeeConfig | string;
+  tokenFee?: DerivedFeeConfig;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
   scale?: number;
+  contractVersion?: string;
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
@@ -128,6 +131,8 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   symbol?: string;
   decimals?: number;
   metadataUri?: string;
+  /** Address of the token the adapter deployed (populated post-deploy). */
+  token?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -176,6 +181,7 @@ interface BaseWarpArtifactConfig {
   symbol?: string;
   decimals?: number;
   scale?: number;
+  contractVersion?: string;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -189,6 +195,12 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   symbol: string;
   decimals: number;
   metadataUri?: string;
+  /**
+   * Address of the token the hyp adapter deployed alongside the synthetic
+   * warp. Populated by the protocol-specific reader/writer after deploy.
+   * Undefined before the warp is deployed.
+   */
+  token?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -388,6 +400,7 @@ export function warpConfigToArtifact(
     remoteRouters,
     destinationGas,
     scale: config.scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
@@ -422,6 +435,7 @@ export function warpConfigToArtifact(
           symbol: config.symbol,
           decimals: config.decimals,
           metadataUri: config.metadataUri,
+          token: config.token,
         },
       };
 
@@ -534,13 +548,19 @@ export function warpArtifactToDerivedConfig(
     isNullish(config.fee) || !isArtifactNew(config.fee),
     'Expected fee to be a deployed or underived artifact',
   );
-  let feeConfig: DerivedWarpConfig['fee'];
+  let feeConfig: DerivedWarpConfig['tokenFee'];
   if (isNullish(config.fee)) {
     feeConfig = undefined;
-  } else if (isArtifactDeployed(config.fee)) {
-    feeConfig = feeArtifactToDerivedConfig(config.fee, chainLookup);
   } else {
-    feeConfig = config.fee.deployed.address;
+    assert(
+      isArtifactDeployed(config.fee),
+      'Expected fee to be a deployed artifact for derived config',
+    );
+    feeConfig = feeArtifactToDerivedConfig(
+      config.fee,
+      chainLookup,
+      resolveFeeTokenFromWarpArtifactConfig(config) ?? ZERO_ADDRESS,
+    );
   }
 
   const baseDerivedConfig = {
@@ -548,13 +568,14 @@ export function warpArtifactToDerivedConfig(
     mailbox: config.mailbox,
     interchainSecurityModule: ismConfig,
     hook: hookConfig,
-    fee: feeConfig,
+    tokenFee: feeConfig,
     remoteRouters,
     destinationGas,
     name: config.name,
     symbol: config.symbol,
     decimals: config.decimals,
     scale: config.scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
@@ -570,6 +591,7 @@ export function warpArtifactToDerivedConfig(
         ...baseDerivedConfig,
         type: TokenType.synthetic,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
 
     case 'native':
@@ -596,6 +618,10 @@ export function warpArtifactToDerivedConfig(
     }
   }
 }
+
+// Warp Config Utilities
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 // Cross-Collateral Router Utilities
 
@@ -640,10 +666,23 @@ function convertCrossCollateralRoutersToDerived(
 // Fee Read Context Utilities
 
 /**
+ * `keccak256("RoutingFee.DEFAULT_ROUTER")` — wildcard target-router slot that
+ * cross-collateral routing fee programs may register under on every
+ * destination domain.
+ */
+export const DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY =
+  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
+
+/**
  * Builds a FeeReadContext by unioning domains/routers from the provided
  * WarpArtifactConfigs. Pass both expected and current configs so the fee
  * reader can discover routes from current state (for cleanup) and expected
  * state (for setup).
+ *
+ * `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` is automatically added to every discovered domain so
+ * CC routing fees configured under the wildcard slot are visible to the fee
+ * reader (those slots are never enumerated by `remoteRouters` /
+ * `crossCollateralRouters`).
  */
 export function buildFeeReadContextFromWarpArtifactConfig(
   ...configs: WarpArtifactConfig[]
@@ -654,7 +693,11 @@ export function buildFeeReadContextFromWarpArtifactConfig(
     for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
       const domain = Number(domainStr);
       const existing = knownRoutersPerDomain[domain] ?? new Set();
-      knownRoutersPerDomain[domain] = new Set([...existing, router.address]);
+      knownRoutersPerDomain[domain] = new Set([
+        ...existing,
+        router.address,
+        DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+      ]);
     }
 
     if (config.type === TokenType.crossCollateral) {
@@ -663,12 +706,46 @@ export function buildFeeReadContextFromWarpArtifactConfig(
       )) {
         const domain = Number(domainStr);
         const existing = knownRoutersPerDomain[domain] ?? new Set();
-        knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+        knownRoutersPerDomain[domain] = new Set([
+          ...existing,
+          ...routers,
+          DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+        ]);
       }
     }
   }
 
   return { knownRoutersPerDomain };
+}
+
+/**
+ * Returns the settlement asset address the warp route operates against, when
+ * applicable. Used by the warp orchestrator to populate the paired fee
+ * config's `token` field at deploy/update time.
+ *
+ * - `collateral` / `crossCollateral`: the configured collateral token.
+ * - `synthetic`: the token the adapter deployed (populated post-deploy by the
+ *   protocol-specific writer/reader; undefined before deploy).
+ * - `native`: undefined.
+ */
+export function resolveFeeTokenFromWarpArtifactConfig(
+  config: WarpArtifactConfig,
+): string | undefined {
+  switch (config.type) {
+    case TokenType.collateral:
+    case TokenType.crossCollateral:
+      return config.token;
+    case TokenType.synthetic:
+      return config.token;
+    case TokenType.native:
+      return undefined;
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(
+        `Unsupported warp type for resolveFeeTokenFromWarpArtifactConfig: ${JSON.stringify(invalidConfig)}`,
+      );
+    }
+  }
 }
 
 // Warp Router Update Utilities
@@ -725,12 +802,6 @@ export function computeRemoteRoutersUpdates(
     expectedRoutersConfig.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId];
-    assert(
-      !isNullish(expectedDestinationGas),
-      `Missing destination gas for domain ${domainId} in expected router configuration`,
-    );
     const currentRouterAddress = Object.prototype.hasOwnProperty.call(
       currentRoutersConfig.remoteRouters,
       domainId,
@@ -739,6 +810,13 @@ export function computeRemoteRoutersUpdates(
       : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
+    // When the expected config omits gas for an existing router, keep the
+    // current on-chain value instead of zeroing it. For a new router — or a
+    // domain that only has an orphaned gas entry and no enrolled router — fall
+    // back to '0' rather than reusing a stale value, matching EVM behavior.
+    const expectedDestinationGas =
+      expectedRoutersConfig.destinationGas[domainId] ??
+      (currentRouterAddress ? currentDestinationGas : '0');
 
     const needsUpdate =
       !currentRouterAddress ||

@@ -19,6 +19,9 @@ import {
   CCIPContractCache,
   type ChainMap,
   type ChainName,
+  type CompositeIsmConfig,
+  type CompositeIsmNodeConfig,
+  CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
   ExplorerLicenseType,
@@ -29,6 +32,7 @@ import {
   type OpStackIsmConfig,
   type PausableIsmConfig,
   type HypTokenRouterConfig,
+  type ProtocolTransaction,
   type RoutingIsmConfig,
   type SubmissionStrategy,
   type TokenMetadataMap,
@@ -57,10 +61,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
+  type Annotated,
   addressToBytes32,
   assert,
   formatError,
   isEVMLike,
+  isNullish,
   mapAllSettled,
   mustGet,
   objFilter,
@@ -821,6 +827,7 @@ async function updateExistingWarpRoute(
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
+              protocolType,
             );
 
             const chainLookup = altVmChainLookup(multiProvider);
@@ -940,12 +947,14 @@ type IsmDisplayConfig =
   | MultisigIsmConfig // type, validators, threshold
   | OpStackIsmConfig // type, origin, nativeBridge
   | PausableIsmConfig // type, owner, paused, ownerOverrides
-  | TrustedRelayerIsmConfig; // type, relayer
+  | TrustedRelayerIsmConfig // type, relayer
+  | CompositeIsmConfig; // type, owner, root (Sealevel-only)
 
-function transformDeployConfigForDisplay(
+export function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
 ) {
-  const transformedIsmConfigs: Record<ChainName, any[]> = {};
+  const transformedIsmConfigs: Record<ChainName, Record<string, unknown>[]> =
+    {};
   const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
     if (config.interchainSecurityModule)
       transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
@@ -969,8 +978,10 @@ function transformDeployConfigForDisplay(
   };
 }
 
-function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
-  const ismConfigs: any[] = [];
+function transformIsmConfigForDisplay(
+  ismConfig: IsmDisplayConfig,
+): Record<string, unknown>[] {
+  const ismConfigs: Record<string, unknown>[] = [];
   switch (ismConfig.type) {
     case IsmType.AGGREGATION:
       ismConfigs.push({
@@ -1042,8 +1053,131 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
           Relayer: ismConfig.relayer,
         },
       ];
+    case IsmType.COMPOSITE:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          Root: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(ismConfig.root),
+      ];
     default:
       return [ismConfig];
+  }
+}
+
+/**
+ * Flattens a routing/fallbackRouting node's domain overrides into display
+ * rows, threading `${parentPath}.domains.${chain}` through the recursion so
+ * multiple domains' rows (e.g. two different multisig configs) aren't
+ * ambiguous once flattened into one table.
+ */
+function transformCompositeIsmDomainsForDisplay(
+  domains: ChainMap<CompositeIsmNodeConfig> | undefined,
+  parentPath: string,
+): Record<string, unknown>[] {
+  if (!domains) return [];
+  return Object.entries(domains).flatMap(([chain, sub]) =>
+    transformCompositeIsmNodeForDisplay(sub, `${parentPath}.domains.${chain}`),
+  );
+}
+
+/**
+ * Recursively flattens a composite ISM's node tree into display rows, one row
+ * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
+ * node configs (subIsms, lower/upper, domains) are never printed as raw
+ * objects; each becomes its own row via recursion, tagged with its full
+ * `Path` (e.g. `root.subIsms[1].domains.ethereum`) so rows that would
+ * otherwise collide (two domains, or lower/upper both `test`) stay
+ * distinguishable once flattened into one table.
+ */
+function transformCompositeIsmNodeForDisplay(
+  node: CompositeIsmNodeConfig,
+  path: string = 'root',
+): Record<string, unknown>[] {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          SubIsms: 'See table(s) below.',
+        },
+        ...node.subIsms.flatMap((sub, i) =>
+          transformCompositeIsmNodeForDisplay(sub, `${path}.subIsms[${i}]`),
+        ),
+      ];
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          Lower: 'See table(s) below.',
+          Upper: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(node.lower, `${path}.lower`),
+        ...transformCompositeIsmNodeForDisplay(node.upper, `${path}.upper`),
+      ];
+    case CompositeIsmNodeType.ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          FallbackIsm: node.fallbackIsm,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      return [{ Path: path, Type: node.type, Relayer: node.relayer }];
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Validators: node.validators,
+          Threshold: node.threshold,
+        },
+      ];
+    case CompositeIsmNodeType.TEST:
+      return [{ Path: path, Type: node.type, Accept: node.accept }];
+    case CompositeIsmNodeType.PAUSABLE:
+      return [{ Path: path, Type: node.type, Paused: node.paused }];
+    case CompositeIsmNodeType.RATE_LIMITED:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          MaxCapacity: node.maxCapacity,
+          Mailbox: node.mailbox,
+          Recipient: node.recipient ?? 'Undefined',
+        },
+      ];
+    default: {
+      // Compile-time exhaustiveness check — but if a new node type is ever
+      // added to CompositeIsmNodeConfig without a case here, this must fail
+      // loudly at runtime too, not silently print the raw unhandled object.
+      const _exhaustive: never = node;
+      throw new Error(
+        `Unhandled composite ISM node type: ${JSON.stringify(_exhaustive)}`,
+      );
+    }
   }
 }
 
@@ -1119,6 +1253,50 @@ function extractSafeAddressFromSubmitter(meta: unknown): string {
 }
 
 /**
+ * True when the submitter materializes its batch into a payload/file artifact
+ * (or wraps one) instead of broadcasting transactions live. For these submitters
+ * re-running submit() just rebuilds the artifact, so merging fee txs into the
+ * main submission is safe and collapses to a single bundle / callRemote. Live
+ * broadcasters (e.g. JSON_RPC, Gnosis Safe propose) are excluded so fee failures
+ * cannot trigger a retried rebroadcast of already-submitted main txs.
+ */
+function submitterProducesPayload(
+  submitter: ExtendedSubmissionStrategy['submitter'] | undefined,
+): boolean {
+  if (!submitter) return false;
+  switch (submitter.type) {
+    case CustomTxSubmitterType.FILE:
+    case TxSubmitterType.GNOSIS_TX_BUILDER:
+      return true;
+    case TxSubmitterType.INTERCHAIN_ACCOUNT:
+      return submitterProducesPayload(submitter.internalSubmitter);
+    case TxSubmitterType.TIMELOCK_CONTROLLER:
+      return submitterProducesPayload(submitter.proposerSubmitter);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Submits a per-chain batch through the chain's submitter.
+ *
+ * A submitter is typed for a single protocol, so its submit() expects
+ * Annotated<ProtocolTransaction<ProtocolType>>[]. Warp apply collects a
+ * heterogeneous TypedAnnotatedTransaction[] that is homogeneous per chain at
+ * runtime, but TS can't prove the union-of-annotated vs annotated-of-union
+ * equivalence. The element-type assertion below narrows that single boundary
+ * (still type-checked against the submit signature — not `any`).
+ */
+function submitChainBatch(
+  submitter: TxSubmitterBuilder<ProtocolType>,
+  txs: TypedAnnotatedTransaction[],
+): ReturnType<TxSubmitterBuilder<ProtocolType>['submit']> {
+  return submitter.submit(
+    ...(txs as Annotated<ProtocolTransaction<ProtocolType>>[]),
+  );
+}
+
+/**
  * Submits transactions for a single chain and handles receipts/self-relay.
  * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
  * so callers can merge payloads across chains into combined files per chain ID.
@@ -1147,6 +1325,23 @@ async function submitChainTransactions(
     chainStrategyEntry?.feeSubmitter ?? chainStrategyEntry?.submitter,
   );
 
+  // Fee-contract-owner txs are merged into the main submission only when there is
+  // no dedicated feeSubmitter AND the main submitter materializes a payload/file
+  // artifact (e.g. Safe TX Builder, or an ICA wrapping one). For those, merging
+  // collapses everything into a single bundle / callRemote and re-running submit()
+  // just rebuilds the artifact. When the main submitter broadcasts live (e.g.
+  // JSON_RPC), merging would fold fee txs into the retried main submit() so a fee
+  // failure could rebroadcast already-mined router txs — instead those fee txs are
+  // submitted separately through the isolated try/catch below.
+  const hasDedicatedFeeSubmitter = !isNullish(chainStrategyEntry?.feeSubmitter);
+  const mergeFeeIntoMain =
+    !hasDedicatedFeeSubmitter &&
+    feeTxs.length > 0 &&
+    submitterProducesPayload(chainStrategyEntry?.submitter);
+  const mainTransactions = mergeFeeIntoMain
+    ? [...transactions, ...feeTxs]
+    : transactions;
+
   await retryAsync(
     async () => {
       const { submitter, config } = await getSubmitterByStrategy({
@@ -1156,8 +1351,8 @@ async function submitChainTransactions(
         isExtendedChain,
       });
       const transactionReceipts =
-        transactions.length > 0
-          ? await submitter.submit(...(transactions as any[]))
+        mainTransactions.length > 0
+          ? await submitChainBatch(submitter, mainTransactions)
           : undefined;
 
       if (isSafeTxBuilderPayload(transactionReceipts)) {
@@ -1204,38 +1399,35 @@ async function submitChainTransactions(
         }
       }
 
-      // Fee submission is intentionally wrapped in try/catch so a failure does NOT
-      // bubble up to retryAsync and re-run the main submit block (which would
-      // rebroadcast already-submitted main txs).
-      if (feeTxs.length > 0) {
+      // Runs whenever fee txs were NOT merged into the main submission: either a
+      // dedicated feeSubmitter is configured, or the main submitter broadcasts
+      // live (so fee txs are kept out of the retried main submit() and isolated
+      // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
+      // up to retryAsync and re-run the main submit block (which would rebroadcast
+      // already-submitted main txs); the failure is surfaced as a soft warning via
+      // returnedFeeError instead.
+      if (!mergeFeeIntoMain && feeTxs.length > 0) {
         try {
-          const feeSubmitter = await getFeeSubmitterByStrategy({
+          const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
             chain,
             context: params.context,
             strategyUrl: params.strategyUrl,
           });
-          let feeReceipts:
-            | Awaited<ReturnType<typeof submitter.submit>>
-            | undefined;
-          if (!feeSubmitter) {
-            warnYellow(
-              `Chain ${chain} has ${feeTxs.length} fee transaction(s) but no feeSubmitter configured in strategy. Bundling with main submitter.`,
-            );
-            feeReceipts = await submitter.submit(...(feeTxs as any[]));
-            if (isSafeTxBuilderPayload(feeReceipts)) {
-              safePayloads.push({
-                ...feeReceipts,
-                meta: { ...feeReceipts.meta, _safeAddress: mainSafeAddress },
-              });
-            }
-          } else {
-            feeReceipts = await feeSubmitter.submit(...(feeTxs as any[]));
-            if (isSafeTxBuilderPayload(feeReceipts)) {
-              safePayloads.push({
-                ...feeReceipts,
-                meta: { ...feeReceipts.meta, _safeAddress: feeSafeAddress },
-              });
-            }
+          // Fall back to the main submitter when no dedicated feeSubmitter is
+          // configured (live-broadcast strategies that opted out of merging).
+          const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
+          const feeSafeAddressForBundle = dedicatedFeeSubmitter
+            ? feeSafeAddress
+            : mainSafeAddress;
+          const feeReceipts = await submitChainBatch(feeSubmitter, feeTxs);
+          if (isSafeTxBuilderPayload(feeReceipts)) {
+            safePayloads.push({
+              ...feeReceipts,
+              meta: {
+                ...feeReceipts.meta,
+                _safeAddress: feeSafeAddressForBundle,
+              },
+            });
           }
           if (
             feeReceipts &&
@@ -1261,8 +1453,9 @@ async function submitChainTransactions(
       // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
       // setFeeRecipient) execute before ownership is transferred to a new address.
       if (ownershipTxs.length > 0) {
-        const ownershipReceipts = await submitter.submit(
-          ...(ownershipTxs as any[]),
+        const ownershipReceipts = await submitChainBatch(
+          submitter,
+          ownershipTxs,
         );
         if (isSafeTxBuilderPayload(ownershipReceipts)) {
           safePayloads.push({

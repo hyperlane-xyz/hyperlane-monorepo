@@ -499,42 +499,51 @@ export async function createMockSafeApi(
   );
   const port = new URL(serviceUrl).port;
 
+  // Send a JSON body with an explicit Content-Length. The Safe SDK's HTTP
+  // client (node-fetch via @safe-global/api-kit) rejects responses without
+  // proper framing as "Premature close", which would make getSafeInfo retry
+  // until the test times out.
+  const sendJson = (
+    res: http.ServerResponse,
+    status: number,
+    body: unknown,
+  ) => {
+    const payload = JSON.stringify(body);
+    res.writeHead(status, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    });
+    res.end(payload);
+  };
+
   const server = http.createServer((req, res) => {
     const url = req.url || '';
     console.info('Mock safe API received request', req.method, url);
 
-    if (url.includes('/safes/') && url.includes('multisig-transactions')) {
+    if (req.method === 'POST' && url.includes('/multisig-transactions')) {
+      // Mock POST /api/v2/safes/{address}/multisig-transactions/
+      sendJson(res, 201, { success: true });
+    } else if (
+      req.method === 'GET' &&
+      url.includes('/safes/') &&
+      url.includes('multisig-transactions')
+    ) {
       // Mock GET /v2/safes/${address}/multisig-transactions/`
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-
-      res.end(JSON.stringify({ count: 0, results: [] }));
+      sendJson(res, 200, { count: 0, results: [] });
     } else if (url.includes('/safes/')) {
       // Mock GET /api/v1/safes/{address}/
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          address: safeAddress,
-          nonce,
-          threshold: 1,
-          owners: [safeOwner],
-          masterCopy: safeAddress,
-          modules: [],
-          version: '1.3.0',
-        }),
-      );
+      sendJson(res, 200, {
+        address: safeAddress,
+        nonce,
+        threshold: 1,
+        owners: [safeOwner],
+        masterCopy: safeAddress,
+        modules: [],
+        version: '1.3.0',
+      });
     } else if (url.includes('/delegates')) {
       // Mock GET /api/v2/delegates?safe={address}
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-
-      res.end(JSON.stringify({ count: 1, results: [{ delegate: safeOwner }] }));
-    } else if (
-      req.method === 'POST' &&
-      url.includes('/multisig-transactions')
-    ) {
-      // Mock POST /api/v2/safes/{address}/multisig-transactions/
-      res.writeHead(201, { 'Content-Type': 'application/json' });
-
-      res.end(JSON.stringify({ success: true }));
+      sendJson(res, 200, { count: 1, results: [{ delegate: safeOwner }] });
     } else {
       res.statusCode = 404;
       res.end();

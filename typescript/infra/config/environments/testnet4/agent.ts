@@ -29,7 +29,10 @@ import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
-import { validatorChainConfig } from './validators.js';
+import {
+  fastPathReorgPeriodOverrides,
+  validatorChainConfig,
+} from './validators.js';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -44,7 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -53,11 +56,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
@@ -69,7 +73,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -78,11 +82,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     seismictestnet: true,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
@@ -94,7 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumsepolia: true,
     basesepolia: true,
     bsctestnet: true,
-    celestiatestnet: true,
+    celestiatestnet: false,
     celosepolia: true,
     cotitestnet: true,
     eclipsetestnet: false,
@@ -103,12 +108,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyvetestnet: false,
     modetestnet: true,
     optimismsepolia: true,
-    paradexsepolia: true,
+    paradexsepolia: false, // disabled — Paradex Sepolia testnet reset; sole RPC 503, block sync frozen at 921055 (~27d)
     polygonamoy: true,
     radixtestnet: false,
     // disabled temporarily until timestamps change from ms to secs (soon)
     seismictestnet: false,
     sepolia: true,
+    solanadevnet: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
@@ -463,12 +469,13 @@ const fastPath: RootAgentConfig = {
       tag: testnetDockerTags.relayerFastPath,
     },
     gasPaymentEnforcement,
-    reorgPeriodOverrides: { sepolia: 1 },
+    reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     blacklist: relayBlacklist,
     ismCacheConfigs,
     cache: {
       enabled: true,
     },
+    interval: 1,
     resources: relayerResources,
   },
 };

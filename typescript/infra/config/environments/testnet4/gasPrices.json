@@ -64,12 +64,16 @@
     "decimals": 6
   },
   "seismictestnet": {
-    "amount": "46.566129041",
+    "amount": "1.2",
     "decimals": 9
   },
   "sepolia": {
     "amount": "0.05",
     "decimals": 9
+  },
+  "solanadevnet": {
+    "amount": "0.01",
+    "decimals": 1
   },
   "solanatestnet": {
     "amount": "0.01",

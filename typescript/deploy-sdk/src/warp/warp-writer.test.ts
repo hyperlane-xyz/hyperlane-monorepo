@@ -7,7 +7,10 @@ import type {
   ArtifactNew,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactState,
+  isArtifactDeployed,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import type {
   DeployedHookArtifact,
@@ -21,10 +24,13 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import type {
-  DeployedFeeArtifact,
-  FeeArtifactConfig,
-  IRawFeeArtifactManager,
+import {
+  type DeployedFeeArtifact,
+  type FeeArtifactConfig,
+  FeeParamsType,
+  FeeStrategyType,
+  FeeType,
+  type IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   ProtocolType,
@@ -40,6 +46,7 @@ import {
   type WarpArtifactConfig,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { WarpTokenWriter } from './warp-writer.js';
 
@@ -1182,13 +1189,14 @@ describe('WarpTokenWriter', () => {
 
     let feeCreateWriter: WarpTokenWriter;
     let mockFeeCreateStub: Sinon.SinonStub;
+    let mockFeeUpdateStubForCreate: Sinon.SinonStub;
+    let currentFeeCreateManager: IRawFeeArtifactManager;
 
     const linearFeeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1199,35 +1207,37 @@ describe('WarpTokenWriter', () => {
 
     before(() => {
       if (!hasProtocol(FEE_CREATE_PROTOCOL)) {
-        let currentFeeManager: IRawFeeArtifactManager;
-        registerProtocol(FEE_CREATE_PROTOCOL, () => {
-          mockFeeCreateStub = Sinon.stub().resolves([deployedFee, []]);
-          currentFeeManager = {
-            readFee: Sinon.stub().resolves(deployedFee),
-            createReader: Sinon.stub(),
-            createWriter: Sinon.stub().returns({
-              read: Sinon.stub(),
-              create: mockFeeCreateStub,
-              update: Sinon.stub().resolves([]),
-            }),
-          };
-          return {
-            createProvider: Sinon.stub(),
-            createSigner: Sinon.stub(),
-            createSubmitter: Sinon.stub(),
-            createIsmArtifactManager: Sinon.stub(),
-            createHookArtifactManager: Sinon.stub(),
-            createMailboxArtifactManager: Sinon.stub(),
-            createValidatorAnnounceArtifactManager: Sinon.stub(),
-            createFeeArtifactManager: () => currentFeeManager,
-            getMinGas: Sinon.stub(),
-            createWarpArtifactManager: Sinon.stub(),
-          };
-        });
+        registerProtocol(FEE_CREATE_PROTOCOL, () => ({
+          createProvider: Sinon.stub(),
+          createSigner: Sinon.stub(),
+          createSubmitter: Sinon.stub(),
+          createIsmArtifactManager: Sinon.stub(),
+          createHookArtifactManager: Sinon.stub(),
+          createMailboxArtifactManager: Sinon.stub(),
+          createValidatorAnnounceArtifactManager: Sinon.stub(),
+          createFeeArtifactManager: () => currentFeeCreateManager,
+          getMinGas: Sinon.stub(),
+          createWarpArtifactManager: Sinon.stub(),
+        }));
       }
     });
 
     beforeEach(() => {
+      // Singleton stubs so both createFeeWriter calls in create() — the
+      // explicit fee deploy and the one inside this.update() that attaches
+      // the fee to the warp — reference the same mocks.
+      mockFeeCreateStub = Sinon.stub().resolves([deployedFee, []]);
+      mockFeeUpdateStubForCreate = Sinon.stub().resolves([]);
+      currentFeeCreateManager = {
+        readFee: Sinon.stub().resolves(deployedFee),
+        createReader: Sinon.stub(),
+        createWriter: Sinon.stub().returns({
+          read: Sinon.stub(),
+          create: mockFeeCreateStub,
+          update: mockFeeUpdateStubForCreate,
+        }),
+      };
+
       feeCreateWriter = Object.create(WarpTokenWriter.prototype);
       Object.assign(feeCreateWriter, {
         artifactManager: mockArtifactManager,
@@ -1237,9 +1247,13 @@ describe('WarpTokenWriter', () => {
         ismWriter: mockIsmWriter,
         hookWriterFactory: () => mockHookWriter,
       });
+
+      // this.update() inside create() reads current warp state; return a
+      // warp with no fee so the diff emits exactly the SetFee attach.
+      Sinon.stub(feeCreateWriter, 'read').resolves(baseDeployedArtifact);
     });
 
-    it('should deploy fee before warp token when fee is NEW', async () => {
+    it('should deploy warp without fee, then deploy fee and attach via update', async () => {
       const configWithFee: WarpArtifactConfig = {
         ...actualConfig,
         fee: {
@@ -1251,7 +1265,7 @@ describe('WarpTokenWriter', () => {
       const createStub = Sinon.stub().resolves([
         {
           artifactState: ArtifactState.DEPLOYED,
-          config: configWithFee,
+          config: actualConfig,
           deployed: { address: TOKEN_ADDRESS },
         },
         [],
@@ -1260,7 +1274,7 @@ describe('WarpTokenWriter', () => {
       mockArtifactManager.createWriter.returns({
         read: Sinon.stub(),
         create: createStub,
-        update: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
       });
 
       const artifact: ArtifactNew<WarpArtifactConfig> = {
@@ -1270,15 +1284,29 @@ describe('WarpTokenWriter', () => {
 
       const [deployed] = await feeCreateWriter.create(artifact);
 
-      // Fee should be deployed and passed to raw artifact
+      // Warp should be deployed with fee=undefined; fee is attached after.
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee).to.not.be.undefined;
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
-      // Returned artifact should include deployed fee
+      expect(rawArtifactArg.config.fee).to.be.undefined;
+
+      // Fee writer's create should run post-warp with the warp's settlement
+      // asset resolved from deployed.config.
+      expect(mockFeeCreateStub.calledOnce).to.be.true;
+      const feeArtifactArg = mockFeeCreateStub.firstCall.args[0];
+      expect(feeArtifactArg.config.token).to.equal('uhyp');
+
+      // Attach goes through this.update(), which sees current.fee=undefined
+      // and expected.fee=DEPLOYED → emits the SetFee tx via the warp diff
+      // path and runs feeWriter.update for the fee-program diff (no-op
+      // here since the fee was just deployed).
+      expect(mockFeeUpdateStubForCreate.calledOnce).to.be.true;
+      const updateArtifactArg = mockFeeUpdateStubForCreate.firstCall.args[0];
+      expect(updateArtifactArg.deployed.address).to.equal(FEE_ADDRESS);
+
+      // Returned artifact should include the deployed fee.
       expect(deployed.config.fee).to.not.be.undefined;
     });
 
-    it('should pass through existing fee address on create', async () => {
+    it('should attach existing deployed fee via update without re-creating', async () => {
       const configWithDeployedFee: WarpArtifactConfig = {
         ...actualConfig,
         fee: {
@@ -1291,7 +1319,7 @@ describe('WarpTokenWriter', () => {
       const createStub = Sinon.stub().resolves([
         {
           artifactState: ArtifactState.DEPLOYED,
-          config: configWithDeployedFee,
+          config: actualConfig,
           deployed: { address: TOKEN_ADDRESS },
         },
         [],
@@ -1300,7 +1328,7 @@ describe('WarpTokenWriter', () => {
       mockArtifactManager.createWriter.returns({
         read: Sinon.stub(),
         create: createStub,
-        update: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
       });
 
       const artifact: ArtifactNew<WarpArtifactConfig> = {
@@ -1308,10 +1336,22 @@ describe('WarpTokenWriter', () => {
         config: configWithDeployedFee,
       };
 
-      await feeCreateWriter.create(artifact);
+      const [deployed] = await feeCreateWriter.create(artifact);
 
+      // Warp deployed without fee
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      expect(rawArtifactArg.config.fee).to.be.undefined;
+
+      // No fresh fee deploy — user supplied a DEPLOYED artifact
+      expect(mockFeeCreateStub.called).to.be.false;
+
+      // Returned artifact passes the user-supplied DEPLOYED fee through
+      const returnedFee = deployed.config.fee;
+      assert(
+        returnedFee && isArtifactDeployed(returnedFee),
+        'Expected DEPLOYED fee artifact in returned config',
+      );
+      expect(returnedFee.deployed.address).to.equal(FEE_ADDRESS);
     });
   });
 
@@ -1334,11 +1374,10 @@ describe('WarpTokenWriter', () => {
     let currentMockFeeArtifactManager: IRawFeeArtifactManager;
 
     const linearFeeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1436,7 +1475,7 @@ describe('WarpTokenWriter', () => {
       const currentRoutingFee: DeployedFeeArtifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'routing',
+          type: FeeType.routing,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
           routes: {},
@@ -1458,14 +1497,17 @@ describe('WarpTokenWriter', () => {
         fee: {
           artifactState: ArtifactState.DEPLOYED,
           config: {
-            type: 'routing',
+            type: FeeType.routing,
             owner: '0xnewowner',
             beneficiary: '0xbeneficiary',
             routes: {
               [REMOTE_DOMAIN_ID_1]: {
-                type: 'linear',
-                maxFee: '1000',
-                halfAmount: '500',
+                type: FeeStrategyType.linear,
+                params: {
+                  type: FeeParamsType.raw,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
               },
             },
           },
@@ -1489,6 +1531,10 @@ describe('WarpTokenWriter', () => {
 
       // Fee update tx should be included
       expect(updateTxs).to.include(feeTx);
+
+      // Fee writer should receive the warp's settlement asset on its config
+      const feeArtifactArg = mockFeeUpdateStub.firstCall.args[0];
+      expect(feeArtifactArg.config.token).to.equal('uhyp');
     });
 
     it('should pass through UNDERIVED fee without creating fee writer', async () => {
@@ -1565,11 +1611,10 @@ describe('WarpTokenWriter', () => {
     });
 
     const feeConfig: FeeArtifactConfig = {
-      type: 'linear',
+      type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { type: FeeParamsType.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const configWithFee: WarpArtifactConfig = {

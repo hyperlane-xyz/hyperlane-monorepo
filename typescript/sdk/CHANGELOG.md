@@ -1,5 +1,206 @@
 # @hyperlane-xyz/sdk
 
+## 38.0.0
+
+### Major Changes
+
+- 2208b91: - `QuotedTransferProvider` gained a `getQuotedTransferFee` method so display and submit call sites use the same protocol-agnostic entry point for offchain-quoted transfers.
+  - `SealevelQuotedTransferProvider.getQuotedTransferFee` decodes the warp signed-quote `data` as a Borsh `FeeDataStrategy` (17 bytes, Linear-only) and applies the on-chain Linear formula at the transfer amount; the IGP signed-quote `data` decodes as a 33-byte `IgpQuoteData` (`token_exchange_rate ‖ gas_price ‖ token_decimals`) and the result is computed via `compute_gas_fee` against `tokenData.destination_gas` plus the per-destination `OverheadIgp.gas_overhead` (matching the on-chain `OverheadIgp::quote_gas_payment`).
+  - `SealevelHypTokenAdapter.innerIgpFeeState` now exposes the resolved `gasOverheads` map alongside the inner-IGP account.
+  - `WarpCore.getQuotedTransferFee` now takes `quotedTransfer: QuotedTransferProvider` — callers construct the provider themselves, mirroring `getTransferRemoteTxs({ quotedTransfer })`.
+  - The EVM provider is refactored around a shared private `runQuoteExecute` helper and the dead `QuotedCallsParams.feeQuotes` reuse field is removed; both display and submit now invoke the `quoteExecute` eth_call independently (deterministic for a given `(quotes, clientSalt, block)`, so display ↔ submit results match within a block).
+  - The `hyperlane warp send` CLI now unifies the preflight estimate behind `WarpCore.getQuotedTransferFee` for both EVM and Sealevel origins, logging the quoted IGP + token fee before submit.
+  - The SVM fee-quoting service's CC quote-walker docstring is corrected to reflect that the on-chain CC submit handler enforces route scope via `CcQuoteFeeValidation::{Specific, Default}`; the `DEFAULT_ROUTER` transient-fallback behavior it describes already ships on `main`, and this change adds test coverage for it.
+  - The Sealevel IGP fee computation normalizes the Borsh-decoded `destination_gas` and `gasOverheads` values (bn.js `BN` at runtime despite their `bigint` types) before arithmetic, so a `warp send` preflight on a fee-enabled SVM origin no longer crashes on the `BN`-vs-`bigint` type mismatch.
+  - Legacy (non-upgraded) SVM IGP routes with no offchain `fee_config` now display the on-chain `quoteGasPayment` fee via the shared `SealevelHypTokenAdapter.quoteLegacyIgpGasPayment` helper instead of reporting IGP = 0, matching what the submit path pays.
+  - `SealevelQuotedTransferProvider.getQuotedTransferFee` now skips IGP for same-domain (local) transfers — mirroring the submit path's local gate — so a local cross-collateral transfer no longer asserts on an unset `destination_gas`.
+  - The SVM IGP fee computation now rejects a quote whose priced fee exceeds `u64`, mirroring the on-chain `as_u64()` narrowing, so preflight fails fast instead of displaying a fee the transfer could never pay.
+  - Tests added for warp Linear strategy decode + IGP gas-fee math (12 new cases) and a CC DEFAULT_ROUTER cascade case in the SVM transfer-remote E2E.
+
+### Minor Changes
+
+- 961a89d: Two new CLI commands for managing offchain-signed warp fee quotes were added: `hyperlane warp quote create` submits a standing signed quote (`--ttl` in seconds, must be > 0) against a deployed `OffchainQuotedLinearFee` leaf on EVM or SVM, and `hyperlane warp quote read` enumerates the standing quotes stored on every supported chain in a warp route (or a single `--chain`), with an optional `--recipients` array to additionally probe non-router recipient addresses on protocols with non-enumerable storage (EVM). Output renders bytes32 sentinels (`TARGET_ROUTER_NONE`, `DEFAULT_CROSS_COLLATERAL_ROUTER`, `WILDCARD_RECIPIENT`) as labels with ISO timestamps and an `expired` flag. The CLI bridges EVM and AltVM via a single `factories.ts` switch (EVM doesn't implement `ProtocolProvider`), shared by both commands. Underneath, `@hyperlane-xyz/sdk` adds `EvmQuoteArtifactManager` / `EvmQuoteWriter` / `EvmQuoteReader` / `EvmPrivateKeyQuoteSigner` against the EIP-712 typed-data layout plus a `buildFeeReadContextFromWarpDeployConfig` helper that bypasses AltVM token-type validation; `@hyperlane-xyz/sealevel-sdk` adds the equivalent `SvmQuote*` surface against the SVM fee-program's `SubmitQuote` instruction and exports `resolveFeeSalt`; `@hyperlane-xyz/provider-sdk` defines the cross-VM interfaces (`IRawWarpQuoteArtifactManager`, `RawQuoteSigner`, `enumerateWarpQuoteCandidates`, `ReadStandingQuotesOpts`). For cross-collateral routes, `warp quote create` resolves the target router leaf from the destination's `remoteRouters` then `crossCollateralRouters` then the DEFAULT fallback, and accepts a `--target-router` override (destination-native address) to target a specific router-keyed leaf. `--quote-signer-key` also reads from the `HYP_QUOTE_SIGNER_KEY` env var, and a standing-quote submission that is an on-chain no-op (an equal-or-newer quote already exists) now warns instead of reporting success.
+
+### Patch Changes
+
+- 2208b91: EvmHookReader now determines whether an IGP is legacy from its on-chain `PACKAGE_VERSION` (via the shared `fetchPackageVersion` helper) instead of probing `quoteSigners()` and classifying the revert. A legacy IGP whose empty-data revert is wrapped by the `HyperlaneSmartProvider` ("All providers failed" / "Invalid response from provider", never a `CALL_EXCEPTION`) is now correctly classified as legacy rather than causing a fatal hook-derivation error. `quoteSigners()` is only called once the version gate confirms a v2+ IGP.
+- 2208b91: The base Sealevel token adapter now skips the interchain gas (IGP) quote for same-domain (local) transfers, mirroring the cross-collateral adapter. Previously `quoteTransferGas` computed a non-zero IGP fee from `destination_gas` for a local destination, which surfaced as a spurious interchain gas fee in fee estimates (e.g. solana↔solana transfers) even though a local transfer sends no interchain message.
+- 197b1e0: The default multisig ISM config for `solanadevnet` was added to `defaultMultisigConfigs`, matching the single-validator (threshold 1) convention used by `solanatestnet` and other low-priority testnets, so that any core deployment or ISM update connecting to solanadevnet as an origin picks up the correct validator set.
+- 293abdc: The EVM warp route check now derives cross-collateral-routing (CCR) fee entries for every enrolled router key, not just the multi-collateral-enrolled subset. Previously `EvmWarpRouteReader` only seeded fee-mapping keys from on-chain `crossCollateralRouters` plus the default router key, so any `feeContracts` entry keyed under a normal `remoteRouters` address — including the local domain's own router for same-chain swaps — was never read, producing perpetual false-positive `tokenFee` violations in `check-warp-deploy`. The reader now unions `crossCollateralRouters`, `remoteRouters`, and the local router's own address when probing fee contracts.
+- Updated dependencies [961a89d]
+  - @hyperlane-xyz/provider-sdk@7.2.0
+  - @hyperlane-xyz/deploy-sdk@7.2.0
+  - @hyperlane-xyz/aleo-sdk@38.0.0
+  - @hyperlane-xyz/cosmos-sdk@38.0.0
+  - @hyperlane-xyz/radix-sdk@38.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.4
+  - @hyperlane-xyz/starknet-core@38.0.0
+  - @hyperlane-xyz/utils@38.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 37.0.0
+
+### Major Changes
+
+- 262073e: The EVM-specific offchain-quoting logic in `WarpCore` was extracted behind a protocol-agnostic `QuotedTransferProvider` interface. `EvmQuotedTransferProvider` took over what was previously inlined in `WarpCore.getQuotedCallsTransferTxs` + `resolveQuotedCallsParams` + `getQuotedTransferFee`, and `WarpCore.getTransferRemoteTxs` gained an optional `quotedTransfer?: QuotedTransferProvider` that supersedes the legacy `quotedCalls?: QuotedCallsParams` field (kept as backwards-compatible sugar that wraps into an `EvmQuotedTransferProvider`). Existing callers passing `quotedCalls` keep producing byte-identical txs, and the public `getQuotedTransferFee` still returns the same shape. The new interface is the dispatch hook that future protocol implementations (Sealevel offchain quoting) plug into.
+
+  **Breaking:** the `protected` methods `WarpCore.resolveQuotedCallsParams` and `WarpCore.getQuotedCallsTransferTxs` were removed — their logic now lives on `EvmQuotedTransferProvider`. There are no in-repo callers, but downstream `WarpCore` subclasses that referenced either method should instead pass a `quotedTransfer`/`quotedCalls` argument to `getTransferRemoteTxs` (or call the public `getQuotedTransferFee`), which route through the provider.
+
+- 955281d: SVM token adapters were updated to support the on-chain fee flow: `quoteTransferRemoteGas` returns both warp-fee and IGP quotes when the route opts in, `populateTransferRemote(To)Tx` splices the fee + new-flow IGP sections into the account list, and transactions are compiled as `VersionedTransaction` with the registered Address Lookup Tables when `WarpCoreConfig.options.sealevel.altAddresses` is set. The exported `SolanaWeb3Transaction.transaction` field and the `SvmTransactionSigner.signTransaction` signature were widened from `Transaction` to `Transaction | VersionedTransaction`, a breaking change for consumers that call legacy-`Transaction`-only members without first narrowing the union.
+
+### Minor Changes
+
+- 262073e: `hyperlane warp send`'s offchain-quoting block was reworked to dispatch by origin protocol through the `QuotedTransferProvider` interface — EVM origins produced the legacy v1 `EvmQuotedTransferProvider` (wrapper-contract path), Sealevel origins produced a `SealevelQuotedTransferProvider` against the v2 fee-quoting API. The CLI internally reads the SVM warp route's `fee_config` to discover the fee program / fee-account PDA and wires up a `Connection` from `multiProtocolProvider.getSolanaWeb3Provider`. The `--fee-quoting-url` / `--fee-quoting-api-key` flags were extended to cover both protocols; no new SVM-prefixed flags. Mode (standing vs transient) is server-controlled — the SDK provider always sends a random client salt and infers mode from the response's `expiry === issuedAt` discriminator (the standalone `SealevelQuoteMode` export was removed since callers no longer pick the mode). Existing `quotedCalls` callers stay working via WarpCore's backcompat shim; new code should pass `quotedTransfer` directly. Validated end-to-end: 8 EVM warp-send e2e tests pass, the cross-chain SVM→EVM warp-send e2e passes against a live Solana validator, and the cross-chain CC EVM+SVM deploy/enroll suite passes.
+- df34a68: TS SDK and CLI support was added for the Sealevel-only Composite ISM program (`hyperlane-sealevel-composite-ism`), a single program that stores an entire ISM tree — `TrustedRelayer`, `MultisigMessageId`, `Aggregation`, `Test`, `Pausable`, `AmountRouting`, `RateLimited`, `Routing`, and `FallbackRouting` nodes — in one PDA, in place of the many separately-deployed ISM contracts EVM uses. `hyperlane core`/`hyperlane warp` `deploy`/`apply`/`read`/`check` now work with a `compositeIsm` config the same as any other ISM type, config-file (YAML/JSON) input only.
+
+  `@hyperlane-xyz/sdk` gained `IsmType.COMPOSITE` and a recursive `CompositeIsmNodeConfigSchema`/`CompositeIsmConfigSchema` mirroring the Rust CLI's config-file representation one-to-one; sub-nodes are inline Borsh data, not separate deployments, so only `routing`/`fallbackRouting.domains` (chain-name keyed, config-file-only) get diffed into per-domain instructions. The `ModuleType` enum was also fixed to use explicit values and gained `OP_L2_TO_L1`, `POLYMER`, and `COMPOSITE` members — it was previously auto-numbered and had silently drifted out of sync with `IInterchainSecurityModule.sol`'s enum, a pre-existing bug found while adding `COMPOSITE`.
+
+  `@hyperlane-xyz/provider-sdk` gained the Artifact-API mirror of the composite ISM tree (domain-ID keyed), a `mergeIsmArtifacts` branch that treats `compositeIsm` as self-diffing (skips the generic Artifact recursion since sub-nodes aren't independently addressed), and recursive chain-name/domain-ID conversion in `ismConfigToArtifact`/`ismArtifactToDerivedConfig`.
+
+  `@hyperlane-xyz/sealevel-sdk` gained the bulk of the new code: a hand-rolled Borsh codec for `IsmNode`/`CompositeIsmStorage`/`DomainIsmStorage` verified byte-for-byte against the Rust program's own serialization, PDA derivation for the shared VAM storage seed and per-domain seed, instruction builders for all seven mutating instructions, `SvmCompositeIsmReader`/`Writer`, a `detectIsmType()` probe, and the compiled program bytes embedded via the existing `program:build`/`program:generate` pipeline. `SvmCompositeIsmWriter.create()`'s `Initialize` call now passes `skipPreflight: true`, matching `SvmTestIsmWriter`'s existing workaround for a solana-test-validator race where preflight simulation can reject a just-deployed program with "Unsupported program id". A new `composite-ism.e2e-test.ts` exercises create/read, root updates, pause/unpause, ownership transfer, and routing-domain diffing end-to-end against a real local validator.
+
+  `@hyperlane-xyz/deploy-sdk` registered `compositeIsm` as a supported, mutable ISM type and wired its writer's `update()` into the generic `IsmWriter`.
+
+- 262073e: A `FeeQuotingV2Client` was added alongside the existing `FeeQuotingClient`, targeting the v2 fee-quoting API's `GET /v2/quote/warp` and `GET /v2/quote/igp` endpoints. Successful responses were decoded into an `AnyQuoteV2Entry`; 404 responses carrying the `no_quote_available` body were surfaced as a typed `FeeQuotingNoQuoteAvailableError` (with `reason` + `detail` fields) so consumers can branch on the cause without re-parsing the response. The SDK also gained `decodeSealevelQuoteEntry`, which converts the hex byte fields on a `SealevelQuoteV2Entry` into a `DecodedSealevelQuoteEntry` whose `signedQuote.*` fields are `Uint8Array` — structurally identical to what svm-sdk's submit-quote helpers consume, so the boundary can be duck-typed without the main SDK depending on `@hyperlane-xyz/sealevel-sdk`. Two new shared constants (`QUOTE_V2_BASE_PATH`, `QuoteV2Endpoint`) document the v2 URL contract. Successful responses were validated at the fetch boundary: the client now rejects a 2xx body whose per-protocol `details` payload fails hex-encoding or byte-length checks (EVM signed-quote fields and SVM `SvmSignedQuote` wire widths), so a shaped-but-garbage response fails loudly instead of surfacing later during transaction construction.
+- cc4bdb6: `hyperlane core apply` was extended to upgrade the Sealevel mailbox program. A new optional `contractVersion` field was added to `MailboxArtifactConfig` (cross-VM) and `CoreConfigSchema` and threaded through the writer stack: `SvmMailboxReader.read` populated it from the on-chain `GetProgramVersion` instruction, `SvmMailboxWriter.update` ran `prepareProgramUpgrade` as the first step when an upgrade was needed, and the deploy-sdk `CoreWriter` / `CoreArtifactReader` forwarded the field through the `update` path. The `create` path deliberately did not forward it, so a fresh deploy installed whatever binary the SDK bundled rather than triggering a program upgrade mid-deploy. `EvmCoreReader.deriveCoreConfig` populated `contractVersion` from `Mailbox.PACKAGE_VERSION()` so the field round-tripped through `core read` for EVM as well as Sealevel. The EVM sentinel-version logic that was duplicated across `EvmCoreReader`, `EvmWarpRouteReader`, and `EvmTokenAdapter` was extracted into a shared `fetchPackageVersion` helper and `LEGACY_PACKAGE_VERSION` constant in the sdk's `utils/contract`. The svm-sdk's three per-program version fetchers (warp / IGP / mailbox) were unified behind a single shared internal `queryProgramVersionWithOwnerFallback` helper; the helper adopted warp's throw-on-fallback-failure semantic so real RPC errors were no longer masked as pre-versioned programs. Localnet test suites airdropped the (still-exported) `FALLBACK_SIMULATION_PAYER` in their `before()` to keep production-style reads (owners with no SOL) working in tests.
+- 262073e: Added v2 fee-quoting API types alongside the legacy v1 (`/quote/*`) types. The v2 shape split a request into quoter-specific endpoints (`/v2/quote/warp` and `/v2/quote/igp`), returned at most one quote per response, and is protocol-agnostic via a generic envelope:
+  - `QuoteV2Response` — `{ quote: AnyQuoteV2Entry }`
+  - `QuoteV2Entry<P extends ProtocolType, D>` — protocol-discriminated envelope generic over `(protocol, details)` so new VMs are added by introducing a `*QuoteV2Entry` alias.
+  - `EthereumQuoteV2Entry` — wraps `EthereumQuoteDetails` (existing EIP-712 `SignedQuoteData` + signature).
+  - `SealevelQuoteV2Entry` — wraps `SealevelQuoteDetails` (`domainId` + hex-encoded `SvmSignedQuote` fields).
+  - `AnyQuoteV2Entry` — discriminated union of the protocol variants.
+  - `NoQuoteAvailableReason` const + type — `not_authorized | not_upgraded | not_configured`, the 404 reasons the v2 endpoints return when a quoter can't be resolved.
+  - `NO_QUOTE_AVAILABLE_ERROR` constant for matching the 404 error code.
+
+  v1 types (`SubmitQuoteCommand`, `FeeQuotingQuoteResponse`, `SignedQuoteData`) are unchanged — v2 is purely additive.
+
+- 5122e71: `WarpCoreConfigSchema.options.sealevel.altAddresses` was added: an optional `Record<ChainName, { core: string; warpSpecific: string[] }>` map for tracking the Sealevel Address Lookup Tables associated with a warp route. `core` is the chain-shared ALT; `warpSpecific` lists the warp-route-specific ALTs. The field is scoped under `options.sealevel` to leave room for future Sealevel-only options without polluting the protocol-agnostic top level.
+- 262073e: `SealevelQuotedTransferProvider` was added as the Sealevel implementation of `QuotedTransferProvider`. It composed a single atomic tx that prepended `SubmitFeeQuote` (and, for remote destinations whose origin token has IGP configured, `SubmitIgpQuote`) instructions onto the Sealevel adapter's `transfer_remote` / `transfer_remote_to` ix bundle — `[...computeBudgetIxs, submitFeeQuote, submitIgpQuote?, transferRemote]`. Atomicity is required for transient mode (one-shot PDA) and uniform for standing mode. Its constructor took only the v2 fee-quoting client, an SVM `Connection`, and an optional salt source (overridable for deterministic tests). The provider did not request a mode from the server: it always sent a fresh random client salt and inferred the server-selected mode from the response — transient quotes derived `scopedSalt = keccak256(payer || echoedClientSalt)` for both the on-chain PDA cascade and the IGP transient-quote PDA, while standing quotes used no scoped salt. A companion `composeSealevelTx` helper took a flat ix list + ALTs + fee payer and emitted either a legacy `Transaction` or a v0 `VersionedTransaction`, depending on whether ALTs were configured.
+- 262073e: Web3.js-based instruction builders for the on-chain `SubmitQuote` (warp fee program) and `SubmitIgpQuote` (IGP program) handlers were added to `sealevelFee.ts`, mirroring `@hyperlane-xyz/sealevel-sdk`'s `@solana/kit` versions. `buildSubmitFeeQuoteIx` simulates `GetSubmitQuoteAccountMetas` to discover the variable cascade-PDA account list and substitutes the placeholder at slot 1 with the real payer; `buildSubmitIgpQuoteIx` composed the IGP's fixed 4-account layout (`[system, payer, igp, quotePda]`) and accepted a caller-derived quote PDA. The supporting Borsh schemas (`SealevelSvmSignedQuote`, `SealevelSubmitQuoteSchema`, `SealevelGetSubmitQuoteAccountMetasSchema`), an extended `simulateSubmitFeeQuoteAccountMetas` helper, and the `deriveIgpTransientQuotePda` PDA deriver shipped alongside. The IGP path is live: the on-chain SVM IGP handler accepts `SubmitIgpQuote`, and `SealevelQuotedTransferProvider` prepends it for remote transfers whose origin token has IGP configured.
+- 262073e: The Sealevel warp adapters gained a Sealevel-only `getTransferRemoteIxBundle({ ..., scopedSalt? })` (and `getTransferRemoteToIxBundle` on the cross-collateral adapter) returning the building blocks of a `transfer_remote` tx — compute-budget ixs separated from the warp ixs, ALTs, fee payer, and signers — without compiling them into a `Transaction` / `VersionedTransaction`. Composing callers (e.g. the upcoming offchain-quoted-transfer provider) can prepend `SubmitFeeQuote` / `SubmitIgpQuote` ixs between the compute-budget head and the transfer ix to produce a single atomic tx. `scopedSalt` (optional, Sealevel-only) is the pre-scoped 32-byte salt — `keccak256(payer || clientSalt)`, not the raw client salt — for a same-tx offchain transient quote, threaded through to the fee + IGP cascade simulations so their PDA enumeration includes the transient quote PDA. `populateTransferRemoteTx` / `populateTransferRemoteToTx` were updated to wrap the bundle helper with a blockhash fetch + tx compilation — same external behavior, all 590 unit tests pass unchanged. The cross-VM `ITokenAdapter` interface is unchanged.
+- 9c8b435: Added altvm support in warp check
+
+### Patch Changes
+
+- 92909f8: The warp route contract verification check now skips chains that have no Etherscan-API-compatible block explorer configured. Previously these chains (e.g. tronscan, zksync, keyless etherscan) produced an `Error` verification status that surfaced as a false-positive `ContractVerificationStatus` violation in `check-warp-deploy`; they are now reported as `Skipped`.
+- af8e1f6: `EvmTokenAdapter.isApproveRequired`/`isRevokeApprovalRequired` were hardened to normalize the `allowance()` result through `BigNumber.from()` before comparing it, avoiding a `TypeError` when a substituted provider returned a non-`BigNumber` value. `WarpCore.getLocalTransferFee` was updated to return a conservative hard-coded gas estimate for Seismic-technicalStack origin chains instead of throwing, since unsigned `eth_call`/`eth_estimateGas` zeroes `msg.sender` on Seismic and breaks any handler logic keyed on it (e.g. `HypERC20`'s burn-on-transfer).
+- c7895b6: The agent config schema gained an optional `index.interval` (seconds), letting the idle indexing poll interval (default 5s) and the validator checkpoint poll interval (default 2s) be statically overridden.
+- 6e803be: Removed Cosmostation validators from the default multisig ISM configs for celestia, eden, forma, mantapacific, neutron, and stride, and set each chain's threshold to the minimum majority value (`floor(n/2) + 1`) enforced by `multisigIsm.test.ts`.
+- cb0c7c9: Removed the stalled Luganodes validator from the default multisig ISM configs for unichain and fraxtal, lowering each chain's threshold from 4 to 3 to preserve the minimum majority (`floor(n/2) + 1`) over the remaining 5 validators.
+- a82c918: Rotated the DSRV validator back into the solanamainnet default multisig ISM in place of the Zee Prime validator, which is shutting down. The threshold remains 3 of 5.
+- 351cf01: Added narrow SDK subpath exports for quoted calls and the Predicate API client.
+- 31f8b51: Added cross-VM plumbing for the warp orchestrator to thread a warp route's settlement asset into its paired fee config at deploy and update time:
+  - `BaseFeeConfig` and `SyntheticWarpArtifactConfig` gained an optional `token` field, populated by the SVM synthetic warp reader/writer with the adapter-deployed mint PDA.
+  - The deploy-sdk warp orchestrator deployed the warp first and then the fee with the resolved settlement asset, attaching it via the existing update path so per-asset setup (notably SVM beneficiary ATA creation via the new `buildBeneficiaryAtaIx`) ran against the now-known mint.
+  - SVM leaf-fee readers returned params in bps shape with raw values carried alongside, and `shouldDeployNewFee` was rewritten around a semantic params comparison so apply/enroll round-trips no longer spuriously redeployed the fee.
+  - The SVM fee writers only emitted a standalone beneficiary-ATA-create transaction when the ATA did not already exist on-chain (via the new `beneficiaryAtaExists` helper), so a no-op update converged to zero transactions and a fee-bearing deploy no longer force-sent an owner-signed ATA transaction through the deployer signer.
+  - `computeRemoteRoutersUpdates` kept the current on-chain destination gas for an existing router when the expected config omitted it (and defaulted to `'0'` for new routers), instead of zeroing it.
+  - The altVM branch of `executeWarpDeploy` deployed each warp as the deployer signer (intermediate owner), mirroring the EVM deployer, so post-deploy cross-chain router enrollment stayed authorized by the deployer key and ownership was handed to the configured owner during enrollment.
+
+- Updated dependencies [df34a68]
+- Updated dependencies [cc4bdb6]
+- Updated dependencies [3771b2b]
+- Updated dependencies [31f8b51]
+- Updated dependencies [97e8ca1]
+- Updated dependencies [9c8b435]
+  - @hyperlane-xyz/provider-sdk@7.1.0
+  - @hyperlane-xyz/deploy-sdk@7.1.0
+  - @hyperlane-xyz/aleo-sdk@37.0.0
+  - @hyperlane-xyz/cosmos-sdk@37.0.0
+  - @hyperlane-xyz/radix-sdk@37.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.3
+  - @hyperlane-xyz/starknet-core@37.0.0
+  - @hyperlane-xyz/utils@37.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 36.0.0
+
+### Major Changes
+
+- d288e7b: Refactor testIgpConfig function for clarity and maintainability
+- d288e7b: fix(sdk): refactor `addVerificationArtifacts` for enhanced Artifact Deduplication in HyperlaneDeployer
+
+### Minor Changes
+
+- 2821252: Added SDK support for IGP fee token oracle configuration and warp route feeHook. The IGP schema now accepts `tokenOracleConfig` for per-ERC20 gas oracle configs, and warp route configs accept `feeHook` for setting the IGP address as a fee hook on TokenRouter. Full pipeline support across deploy, read, update, and check flows.
+- aa41ce4: SVM fee program management was added to the SVM SDK with full create, read, and update support for all 6 fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting). The provider-sdk fee types were refactored with a FeeParams discriminated union (bps vs raw), PascalCase FeeType/FeeStrategyType values, expanded DerivedFeeConfig with resolved bigint fields, and a required FeeReadContext parameter on createFeeArtifactManager. Shared BPS fee utilities (computeBps, bpsToRawFeeParams, constants) were consolidated into provider-sdk as the single source of truth — sdk and svm-sdk now import from provider-sdk. The EVM SDK TokenFeeType was converted from enum to const object for structural compatibility. Legacy pre-fee program bytes were preserved for upgrade testing. The repeated account-decoding boilerplate in the fee and token decoders was consolidated into a shared decodeDiscriminatedAccount helper.
+- 2f9d783: CLI warp deploy and warp apply commands were wired to drive SVM fee program lifecycles. A new tokenFeeInputToFeeConfig mapping was added to bridge EVM SDK fee config inputs to provider-sdk fee types, and tokenFee was plumbed through validateWarpConfigForAltVM so YAML configs flow into the multi-VM deploy/update path. The fee config input schema gained an optional beneficiary field so operators can set a beneficiary distinct from the owner; tokenFeeInputToFeeConfig now respects it (defaulting to owner when omitted) instead of forcing beneficiary = owner. tokenFeeInputToFeeConfig also now prefers raw maxFee/halfAmount over the schema's derived bps when both are present, so YAML configs authored as raw round-trip without silent bps conversion. The four SVM fee writers were switched to deploy programs with exact-byte-length data accounts (matching the warp token writer convention), halving the rent paid for each fee program. SvmWarpArtifactManager is now publicly exported from sealevel-sdk. provider-sdk now exports `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` from `@hyperlane-xyz/provider-sdk/warp` for downstream CLI/test code that needs to reference the wildcard cross-collateral target-router slot without depending on the main SDK.
+- 32b87ad: The XERC20 module was extended to read and reconcile ownership in addition to limits. `EvmXERC20Reader` gained `readOwner` and `readProxyAdmin`, `EvmXERC20Module.read()` was updated to surface the token owner and ProxyAdmin owner, and `update()` was changed to append ownership-transfer transactions (for the token's `Ownable` owner and its ProxyAdmin owner) after limit/bridge changes. Expected owners for both the token and its ProxyAdmin were derived from the warp deploy config's top-level `owner`. The `hyperlane xerc20 apply` command was updated to transfer ownership through the same submitter strategy, so XERC20 ownership handoffs no longer require an infra script, and `hyperlane xerc20 read` now reports current owners.
+
+### Patch Changes
+
+- d288e7b: SmartProvider error handling was hardened for malformed provider errors, and MegaETH routing ISM enrollments were given a larger gas buffer.
+- d288e7b: ICA fallback gas estimation was updated to use the derived interchain account as the sender, preventing owner-gated fallback estimates from inflating Tron gas quotes.
+- d288e7b: Core deployments finalized core ownership before deploying TestRecipient, retried post-transaction ISM and hook reads to tolerate RPC read-after-write lag, and preserved nested RPC error messages when CALL_EXCEPTION wraps provider failures.
+- 019201a: Fixed ISM initialization guard on retry, added in-place ISM sub-module updates for AGGREGATION and AMOUNT_ROUTING containers (with side-effect-free preflight, duplicate-key checks, CCIP cache propagation, and nested RATE_LIMITED support), and made Safe nonce fetching queue-aware with a manual override escape hatch.
+- cc722b8: Composite submitters can now resolve a nested submitter whose type is only registered via a custom factory (such as the CLI's `file` submitter), and ICA file output is self-describing:
+  - Threaded custom submitter factories through nested submitter resolution. Previously `getSubmitter` passed the bare `getSubmitter` as the recursive `getSubmitterFn`, defaulting `additionalSubmitterFactories` to an empty map, so a wrapping submitter (`interchainAccount` or `timelockController`) could not resolve a nested submitter registered only via a custom factory. The recursive getter now merges the parent's `additionalSubmitterFactories` into any factories a nested caller passes, so custom factories survive recursion at depth >= 2.
+  - Refactored the SDK's ICA and timelock submitter schemas into the `buildEvmIcaTxSubmitterPropsSchema` and `buildEvmTimelockControllerSubmitterPropsSchema` builders (parameterized by the nested submitter schema) and exported them alongside the `EvmTimelockControllerSubmitterProps` type, so the CLI derives its extended strategy schemas from them instead of re-declaring the wrapper fields.
+  - Widened the CLI's `ExtendedChainSubmissionStrategySchema` to accept any extended submitter (including `file`) as both the ICA `internalSubmitter` and the timelock `proposerSubmitter`. Previously the `file` submitter was permitted only at the top level and as an ICA `internalSubmitter`, rejecting it as a timelock `proposerSubmitter`. This also widens the optional `feeSubmitter` to the same recursive shape.
+  - Set the `from` field of the ICA `callRemote` transaction to the configured ICA `owner` rather than the signer that populated it, so file-submitter output is self-describing for downstream broadcasters. `callRemote` derives the interchain account from `msg.sender`, so broadcasting from the deployer key would have silently routed the dispatch to the wrong account. Live submitters are unaffected because `MultiProvider.prepareTx` resets `from` to the actual signer.
+
+- 9cd7606: `normalizeAddressEvm` now lowercases its input before checksumming, canonicalizing a bad-EIP-55-casing EVM address instead of returning it unchanged. `EvmIcaTxSubmitter.fromConfig` normalizes its origin-side EVM addresses (`owner`, origin `interchainAccountRouter`) up front, so bad casing no longer throws deep inside ethers mid-submission after irreversible deploys have run. Destination router and ISM (remote chain, not assumed EVM) are untouched.
+- a6a3a33: Fixed EvmHypSyntheticAdapter.quoteTransferRemoteGas miscounting the bridged amount as a native fee for native warp routes (token() == address(0)), which inflated the IGP quote and caused downstream consumers (e.g. the rebalancer) to over-reserve costs. The transfer amount is now subtracted from the internal-fee quote before quotes are classified as native or ERC20.
+- 2821252: The compare-versions dependency was moved to the workspace catalog.
+- d288e7b: Optional core deployer contracts were omitted from returned contract maps when disabled instead of being returned as undefined values.
+- 9bdab1d: SVM warp route fee integration was added. Warp token writers wired SetFeeConfig into the create and update flows with fee PDA validation, and readers were updated to surface the on-chain fee config. The token account decoder was extended to read the trailing Option<FeeConfig> field. Program version detection was added via GetProgramVersion simulation, gating explicit program upgrades that emit ExtendProgramChecked and Upgrade against the deployed BPF Loader v3 program. A contractVersion field was added to the provider-sdk warp config types, and compare-versions was promoted to the workspace catalog.
+- cf6857e: `tryGetEvmExplorerMetadata` now restricts explorer-API usage to Etherscan-compatible families (Etherscan/Blockscout/Routescan/ZkSync) instead of only excluding `Other`, so non-Etherscan explorers such as TronScan are skipped cleanly instead of returning HTML that breaks JSON parsing during xERC20 bridge derivation (warp read / enrollment on Tron).
+- cf6857e: Fixed XERC20 type detection (deriveXERC20TokenType) for xERC20 tokens deployed behind a proxy: it now resolves the implementation address and inspects its bytecode for the Velodrome/Standard selectors, instead of only checking the (delegatecall-stub) proxy bytecode. This fixes "Unable to detect XERC20 type … does not implement Standard or Velodrome XERC20 interface" for proxied xERC20 warp routes.
+- Updated dependencies [9cd7606]
+- Updated dependencies [aa41ce4]
+- Updated dependencies [2f9d783]
+- Updated dependencies [9bdab1d]
+- Updated dependencies [823eca3]
+- Updated dependencies [70586aa]
+  - @hyperlane-xyz/utils@36.0.0
+  - @hyperlane-xyz/provider-sdk@7.0.0
+  - @hyperlane-xyz/deploy-sdk@7.0.0
+  - @hyperlane-xyz/aleo-sdk@36.0.0
+  - @hyperlane-xyz/cosmos-sdk@36.0.0
+  - @hyperlane-xyz/radix-sdk@36.0.0
+  - @hyperlane-xyz/tron-sdk@23.1.2
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/starknet-core@36.0.0
+
+## 35.2.0
+
+### Minor Changes
+
+- 88e51ed: Removed the deprecated chains (milkyway, fluence, everclear, polynomialfi, story, merlin, degenchain, dogechain, tangle, b3, harmony, superpositionmainnet, arbitrumnova, fantom, moonbeam, aurora, polygonzkevm, zoramainnet, scroll, torus, redstone) from the default multisig ISM validator configs, the CCIP ISM chain consts, and the ISM gas-override destination list.
+- f0b325a: Upgraded Safe SDK packages (api-kit 4.2.0, protocol-kit 7.2.0, safe-deployments 1.37.56), replaced the deprecated safe-core-sdk-types with types-kit, and added an explicit `getSafe` option for offline/read-only Safe construction when a chain's Safe transaction service is unavailable.
+- 6db4aee: Added Seismic signed-read support for gas estimation. A new `ChainTechnicalStack.Seismic` value and a `SeismicSigner` were introduced so that, on Seismic chains, gas estimation for owner-gated functions is performed via a signed `eth_estimateGas` (a signed raw transaction from which the node recovers `msg.sender`) rather than an unsigned request where the `from` field is zeroed. Signers for chains with the Seismic technical stack are automatically wrapped by the MultiProvider.
+- 867ce3c: A fee submitter strategy was added to `warp apply` allowing a separate Safe or signer to submit fee-contract transactions. Same-chain Safe TX Builder payloads are now bundled into a single combined file per (chainId, safeAddress) pair. Transaction ordering was fixed so fee-recipient updates execute before ownership transfers. Router-owner `setFeeRecipient` calls were moved into the main submitter batch so a dedicated feeSubmitter only ever sees fee-contract-owner transactions. Safe TX Builder bundles from successful chains are now written before surfacing any partial-failure errors.
+
+### Patch Changes
+
+- fb63f5f: The relayer agent config schema was updated to recognize `feeToken` gas payment enforcement config and reject non-native exact-token enforcement until token-aware IGP indexing is available. ERC20 IGP payments can still satisfy token-agnostic `onChainFeeQuoting` checks through the indexed destination gas amount.
+- 889c68a: The precision-rebalance warning in `getLocalStorageGasOracleConfig` now names the local -> remote chain pair it applies to, so it is possible to tell which gas oracle config underflowed without correlating raw gas price / exchange rate values. An optional `onPrecisionFallback` callback was also added: when supplied it is invoked instead of logging per pair, letting callers aggregate the fallbacks into a single summary line across many chain pairs.
+- fb63f5f: The SDK core and IGP deployers were updated to support recover-only legacy IGP configurations and opt out of QuotedCalls deployments. An `igpVersion` switch (`legacy`/`latest`) was added to the IGP hook config and a `deployQuotedCalls` switch to the core config; legacy IGP deploy paths are kept recover-only by requiring cached `proxyAdmin`, `storageGasOracle`, and `interchainGasPaymaster` addresses. `CoreConfigSchema` now rejects configs that pair a legacy IGP (`igpVersion: legacy`) with `deployQuotedCalls` left enabled, since QuotedCalls and the offchain-quoting IGP both require EIP-1153 transient storage and must ship together on the same chains.
+
+  Legacy IGP configs that include `quoteSigners` now fail fast instead of silently skipping signer updates, because legacy IGP contracts do not expose the offchain-quoting signer interface.
+
+- 92ef474: EvmTokenFeeDeployer caching is disabled so each sub-fee contract (e.g. every OffchainQuotedLinearFee inside a RoutingFee) receives its own deployment instead of sharing an address.
+
+  HyperlaneJsonRpcProvider normalizes an empty-string `to` field to null on GetTransaction/GetTransactionReceipt responses, fixing an "invalid address" error thrown by ethers.js for contract-creation transactions on RPCs that return `""` instead of `null`.
+
+  deriveTokenMetadata now propagates the `scale` field from the warp route config.
+
+  sortArraysInConfig is fixed to handle non-object array elements (e.g. plain strings) without throwing when accessing `.type`.
+
+- babb3d0: Fixed rate limit return values to not include recipient anymore
+- b77faf4: The default Starknet provider builder now reads at the `latest` block instead of starknet.js's `pending` default, so balance and view calls no longer fail on RPC providers that reject `block_id: "pending"`.
+- fb63f5f: The gas oracle exchange-rate computation in `getLocalStorageGasOracleConfig` was generalized to handle low-decimal fee tokens. When the fee token has fewer decimals than the remote native token (e.g. a 6-decimal ERC20 fee token paying for an 18-decimal native chain), the scaled exchange rate could fall below 1 and floor to a coarse integer, badly mispricing the quote. The existing precision-loss adjustment now also rebalances in this direction, shifting magnitude from the gas price into the exchange rate (their product, and thus the quote, is preserved) so the on-chain exchange rate keeps its precision. Same-decimal native pairs are unaffected.
+- fb63f5f: The IGP hook config gained an optional `tokenOracleConfig` (keyed by fee token then remote chain) that wires per-fee-token gas oracles via `setTokenGasOracles` for ERC20-denominated interchain gas payments. Each fee token is backed by its own `StorageGasOracle`, oracle addresses are resolved from the on-chain `tokenGasOracles` mapping (no off-chain bookkeeping), and the path is gated behind non-legacy IGPs at contract version >= 11.3.0. The wiring was added to both the module path (`EvmHookModule`) and the deployer path (`HyperlaneIgpDeployer`, also used by `HyperlaneHookDeployer`) so infra deployments pick it up.
+  - @hyperlane-xyz/aleo-sdk@35.2.0
+  - @hyperlane-xyz/starknet-core@35.2.0
+  - @hyperlane-xyz/cosmos-sdk@35.2.0
+  - @hyperlane-xyz/radix-sdk@35.2.0
+  - @hyperlane-xyz/utils@35.2.0
+  - @hyperlane-xyz/deploy-sdk@6.1.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.1.1
+  - @hyperlane-xyz/tron-sdk@23.1.1
+
 ## 35.1.0
 
 ### Minor Changes

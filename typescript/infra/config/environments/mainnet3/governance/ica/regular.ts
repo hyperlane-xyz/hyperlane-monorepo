@@ -18,12 +18,9 @@ export const regularIcas: ChainMap<Address> = {
 
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
-  ancient8: '0x72Ba22a1a8B8c2b7B1795a35a1E05c058217E9a7',
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
-  artela: '0xb53734Ed3832d764462E62316c35B81cCC92197a',
-  astar: '0x794D8EA7C8f7f19a1D8F5dEE1207fcae7f41c16b',
   botanix: '0xe30183bab232021BcA9f56588CE09fF9842AB29D',
   avalanche: '0x66C21CFa8b765318a458435519A31A5cf0F7Ae4b',
   berachain: '0xb6DD23C2Bef77e90DdDBeEdEa29a56880ED750f0',
@@ -31,69 +28,47 @@ export const regularIcas: ChainMap<Address> = {
   blast: '0x59C89E3f2481C8c062E7DeEFFF70B75fbBd0b89a',
   bob: '0x2282ef5C6654DF3796ccc3e6A1AE33c40801E89D',
   boba: '0x247510A4001b78decE23B2d773aa8C2c9f6939C3',
-  bsquared: '0xEF600dD98EA1c7681cA75Bd109e4B0c5AA5a58F5',
   celo: '0x39feCE4cA4b41bd2dfA886A6cB08353A42DbB6E3',
-  chilizmainnet: '0xf5A0F82fF0F93699b4C32e49fac35Db2932aEc6f',
-  coredao: '0xa2f6D0570F16061c5abE785067dd9502561ec30b',
   coti: '0x41A362f117D4EbE2680F6d4E37ddC5454dc5f07a',
-  cyber: '0xb765a7d803b2bB92EE228B6D46Af744CB5BDDD79',
-  endurance: '0x1DF9D80551381E29EC0Dad4F2Bfb79694076B47b',
-  flare: '0x691a19F5eCEb2357606910d596EA5bD17e01Fed1',
   flowmainnet: '0xf2A87fd04C42D51D53c2A35E957981bA59b46F9e',
   fraxtal: '0xc96634cdc475FfC7702f123EFD77cB43c861956b',
-  fusemainnet: '0x66148C55906967F4F55dCD6E45e74b43b8624444',
   galactica: '0x6C8210C82B17bE639CeDB3349A5aeDFF1471f72A',
   gnosis: '0xf38bb17117000b560ecdeaA5b736f3aFCc39C3b5',
-  gravity: '0x9603D1409150F1895349E71c4267CeE4B59635fF',
   hashkey: '0xDfC5cAEC02737d0FD2868cCa379D866DF96ACe27',
   hemi: '0xAf6dC78dCA99812D3bB729e3C17C527F74CD261F',
   hyperevm: '0xD50d4E42F41392d5c7E9526423D3dc38a8d1f875',
   immutablezkevmmainnet: '0x71c47adC3270EA319705626b8769E0ee54D1EA41',
   ink: '0x20b3D70fA3d7B69Aba42b0bA9D8F25Ee0C656e78',
-  kaia: '0x47bd809B484DB532F9E2Cf540cCE24af79341deA',
   katana: '0x53dE35b799fD29B129E683E43ef31cEEB3b88D22',
   linea: '0x999bD2da1f24aece8c558E54350FB06eF8ceFe5C',
   lisk: '0xe1D145f3c539f287789D6f8C6Bc010a1fECdb259',
   lukso: '0x5045dE416efC1738046E26Bf30dfEf9CB60C8de7',
   lumiaprism: '0x5C6Bc53c4e0d7DAAee0bb5F9181f476c77643576',
-  mantapacific: '0xF899c68F4a8C79a2E1aC66Da9976a990F2b78Da1',
   mantle: '0x556C39820DBBB3Cd6f4c164CD91F755f89Ac8c62',
   matchain: '0x9F31268d17Eab404ED2DEdFbb8ba0022E3fF621f',
   metal: '0x1547282562E9b32561C7bdD41cAfB5ce89Ff08dA',
   metis: '0xD998C3Ee6b8EE592C7d0bcf8e5b43F4Dc314C07F',
-  miraclechain: '0x7c06d94A3177c550f17239442Dd1dA9C68c33a85',
   mode: '0x917445680fbd406747abFa78F381efd63F4aF599',
-  molten: '0x07Db6F557F8C758a485cEb188EDb727c34D44FDf',
   morph: '0x1a4f0d915ce6FAe98B6b1c78FcbB8c122f30afCd',
   nibiru: '0xdb10a32F38A8c1B944277fA2Dd6Dfd89aD83480F',
   oortmainnet: '0x7038d9B38D417bB0b9f30158697e333B1dd921E3',
-  // ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',
-  opbnb: '0x121BA5F314168B2E34CC0b1d81784af384B09B04',
-  orderly: '0xFfaf98AC934B84B54171c6f116B1d23cde4e347E',
   peaq: '0xE21447D4f0F993dD8C1C86Cd216E2E68f2a1CdcE',
   plume: '0x2E625B8191C8b1CEceAB6B6d3c833547A337e7F2',
   polygon: '0x20e52e3BeDf7BD305Ca816Dc54a0835D3bDeD820',
   prom: '0x024b2F836A29F80859dE21C0Dc0410b538742560',
-  rarichain: '0x69DAb5389A8CA6f6e1268B701e9ec7E38182F58b',
   reactive: '0xc192035485ac67334A8A2080f7C4930624DAAa9C',
   ronin: '0x8B15B5861d1F391F98e2014aB510aF2320CA6eBD',
   sei: '0x8a3A8A4C9f188bbD45E75271Dc590077fc96EDc7',
-  shibarium: '0xE08183fbd724B43Da0c043Af02cb3D1F1ECA2a98',
   soneium: '0x6af23EB68a6223a4af9F056E10D93ef4d960Da05',
   sonic: '0x39e4A8F7AA0826b1Bf94551A00eB2142AC7D5Bb5',
   subtensor: '0x4C8D6Ae76a04108E20d1Cc114041c632aC040ABC',
   superseed: '0xE9617FA7edD4741997Ee994038D977a377612Ae1',
-  swell: '0x4E8d79E902502e165130eC3f8cfbfafD771DFb4b',
   tac: '0xb801C2712f92E2d29e1120862e0f9C93d80CbBcA',
   taiko: '0x2ca9CC72285EE7D6c7344623F2Bfffcc8894005c',
   unichain: '0xD39c288D2A021207Dfec7780e778D73460f563D7',
   vana: '0x486815B6D0dC66B041965dB1904872167ddcE433',
   worldchain: '0x17f0207b9529cAb39F6e02394157b5a6c7064393',
-  xai: '0xf4afbc0C86D9ee6C52E30947FC3D7E22dCA9BA4A',
   xlayer: '0xAD598d164ecFf737C7556871Bb1D50215c4D9517',
-  xrplevm: '0x772C35b16FC5B9a989915a1753b2A281cC79C44D',
-  zetachain: '0x4ffB88393797A9c42c837A317C1c28dB83313379',
-  zircuit: '0xFC862c01cE846D151a7F45E5d38e778ed330b151',
 
   // Aug 18, 2025 - Mitosis
   // ----------------------------------------------------------
@@ -116,9 +91,7 @@ export const regularIcas: ChainMap<Address> = {
   // Oct 2, 2025
   // ----------------------------------------------------------
   carrchain: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
-  incentiv: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
   monad: '0x9126696d9C3c44dc1273352ce171E359b1802560',
-  litchain: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 
   // Dec 4, 2025
   // ----------------------------------------------------------
@@ -137,10 +110,6 @@ export const regularIcas: ChainMap<Address> = {
   eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
   krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
 
-  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
-  // ----------------------------------------------------------
-  ontology: '0xD6d898B8A75B5D7A3438e2120FD0302B5d3c9081',
-
   // Mar 16, 2026
   // ----------------------------------------------------------
   igra: '0x2EA494A9Df761F8c9D619d7C130203AE31a01bC4',
@@ -155,4 +124,10 @@ export const regularIcas: ChainMap<Address> = {
   // May 25, 2026
   // ----------------------------------------------------------
   nesa: '0x661a4896f7f8B203E23e326500f754b9ED9571Eb',
+
+  // Jun 18, 2026
+  // ----------------------------------------------------------
+  nexus: '0xCc00d7F9aa7124ee0D9Ad366dd8C632266075A53',
+  robinhood: '0x0e7E5D38695d7939303244AD56ace1eeA263DcE8',
+  tea: '0x561B8D19712dB57cd52bbD8dc3F3327Ce0A1aF49',
 } as const;

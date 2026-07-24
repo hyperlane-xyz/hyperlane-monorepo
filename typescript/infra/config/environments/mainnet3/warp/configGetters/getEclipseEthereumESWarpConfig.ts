@@ -22,6 +22,10 @@ export const getEclipseEthereumESWarpConfig = async (
       type: TokenType.synthetic,
       foreignDeployment: '2JvSu7PzquY2b8NDZbnupFZ1jezqMBtNUhi7TuU3GQJD',
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      destinationGas: {
+        '1399811149': '64000', // solanamainnet
+        '1': '68000', // ethereum
+      },
     },
     solanamainnet: {
       foreignDeployment: '9Cu9VqDPPzntFZMar4gCdw6EGL3RbofLEqyh6WKSZKGm',
@@ -29,6 +33,10 @@ export const getEclipseEthereumESWarpConfig = async (
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       owner: eclipseTeamMultiSigs.solanamainnet,
       type: TokenType.synthetic,
+      destinationGas: {
+        '1408864445': '64000', // eclipsemainnet
+        '1': '68000', // ethereum
+      },
     },
     ethereum: {
       mailbox: routerConfig.ethereum.mailbox,

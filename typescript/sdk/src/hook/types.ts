@@ -3,12 +3,17 @@ import { z } from 'zod';
 import {
   Address,
   WithAddress,
+  isAddressEvm,
   isNullish,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import {
+  ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+} from '../gas/oracle/types.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -103,7 +108,13 @@ export type IgpHookConfig = z.infer<typeof IgpSchema>;
 export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
-export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
+export type ArbL2ToL1HookConfig = {
+  type: typeof HookType.ARB_L2_TO_L1;
+  arbSys: string;
+  bridge?: string;
+  destinationChain: string;
+  childHook: HookConfig;
+};
 export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 export type RateLimitedHookConfig = z.infer<typeof RateLimitedHookSchema>;
 
@@ -133,6 +144,22 @@ export type AmountRoutingHookConfig = {
 export type HookConfig = z.infer<typeof HookConfigSchema>;
 
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
+
+export enum IgpVersion {
+  Legacy = 'legacy',
+  Latest = 'latest',
+}
+
+export const OFFCHAIN_QUOTED_IGP_VERSION = '11.3.0';
+
+const FeeTokenAddressSchema = z
+  .string()
+  .refine((feeToken) => isAddressEvm(feeToken), {
+    message: 'fee token must be an EVM address',
+  })
+  .refine((feeToken) => !isZeroishAddress(feeToken), {
+    message: 'fee token must not be the zero address',
+  });
 
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE: HookType[] = [
@@ -175,22 +202,25 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
-export const ArbL2ToL1HookSchema = z.object({
-  type: z.literal(HookType.ARB_L2_TO_L1),
-  arbSys: z
-    .string()
-    .describe(
-      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-    ),
-  bridge: z
-    .string()
-    .optional()
-    .describe(
-      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-    ),
-  destinationChain: z.string(),
-  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
-});
+export const ArbL2ToL1HookSchema: z.ZodSchema<ArbL2ToL1HookConfig> = z.lazy(
+  () =>
+    z.object({
+      type: z.literal(HookType.ARB_L2_TO_L1),
+      arbSys: z
+        .string()
+        .describe(
+          'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+        ),
+      bridge: z
+        .string()
+        .optional()
+        .describe(
+          'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+        ),
+      destinationChain: z.string(),
+      childHook: HookConfigSchema,
+    }),
+);
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
@@ -198,8 +228,21 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  igpVersion: z.nativeEnum(IgpVersion).optional(),
   quoteSigners: z.array(z.string()).optional(),
   contractVersion: z.string().optional(),
+  // Per-fee-token gas oracles for ERC20-denominated interchain gas payments.
+  // Keyed by fee token address -> remote chain -> oracle config. Each fee token
+  // gets its own StorageGasOracle (the IGasOracle interface is keyed only by
+  // destination, so distinct exchange rates require distinct oracle instances).
+  // Optional and off by default; only wired when present and the IGP supports
+  // tokenGasOracles (>= OFFCHAIN_QUOTED_IGP_VERSION, non-legacy).
+  tokenOracleConfig: z
+    .record(
+      FeeTokenAddressSchema,
+      z.record(ZChainName, ProtocolAgnositicGasOracleConfigSchema),
+    )
+    .optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =

@@ -225,6 +225,18 @@ where
                 let store = store.lock().await;
                 Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
             };
+            let logs = match logs {
+                Ok(logs) => logs,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        ?tx_id,
+                        "Error storing logs in db; tx-id task will rely on cursor retry"
+                    );
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
+            };
             let num_logs = logs.len() as u64;
             info!(
                 num_logs,
@@ -288,6 +300,18 @@ where
                 let store = store.lock().await;
                 Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
             };
+            let logs = match logs {
+                Ok(logs) => logs,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        ?range,
+                        "Skipping cursor update because logs failed to store"
+                    );
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
+            };
             let logs_found = logs.len() as u64;
             info!(
                 ?range,
@@ -323,18 +347,12 @@ where
         store: &S,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Vec<(Indexed<T>, LogMeta)> {
+    ) -> Result<Vec<(Indexed<T>, LogMeta)>> {
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
         // Store deliveries
-        let stored = match store.store_logs(&logs).await {
-            Ok(stored) => stored,
-            Err(err) => {
-                warn!(?err, "Error storing logs in db");
-                Default::default()
-            }
-        };
+        let stored = store.store_logs(&logs).await?;
         if stored > 0 {
             debug!(
                 domain = domain.name(),
@@ -345,7 +363,201 @@ where
         }
         // Report amount of deliveries stored into db
         stored_logs_metric.inc_by(stored as u64);
-        logs
+        Ok(logs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        ops::RangeInclusive,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc as StdArc,
+        },
+    };
+
+    use async_trait::async_trait;
+    use prometheus::{IntCounter, IntGauge};
+
+    use hyperlane_core::{
+        ChainCommunicationError, ChainResult, HyperlaneMessage, Indexer, KnownHyperlaneDomain,
+    };
+
+    use super::*;
+
+    #[derive(Clone, Debug, Default)]
+    struct MockIndexer {
+        logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for MockIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            Ok(self.logs.clone())
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Err(ChainCommunicationError::from_other_str(
+                "mock indexer does not fetch finalized blocks",
+            ))
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct StoreResult {
+        stored: u32,
+        error: Option<&'static str>,
+        calls: Option<StdArc<AtomicUsize>>,
+    }
+
+    #[async_trait]
+    impl HyperlaneLogStore<HyperlaneMessage> for StoreResult {
+        async fn store_logs(&self, _logs: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
+            if let Some(calls) = &self.calls {
+                calls.fetch_add(1, Ordering::SeqCst);
+            }
+            match self.error {
+                Some(err) => Err(eyre::eyre!(err)),
+                None => Ok(self.stored),
+            }
+        }
+    }
+
+    fn test_domain() -> HyperlaneDomain {
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)
+    }
+
+    fn stored_logs_metric() -> IntCounter {
+        IntCounter::new("test_stored_events", "test stored events")
+            .expect("test counter should be valid")
+    }
+
+    fn indexed_height_metric() -> IntGauge {
+        IntGauge::new("test_indexed_height", "test indexed height")
+            .expect("test gauge should be valid")
+    }
+
+    fn liveness_metric() -> IntGauge {
+        IntGauge::new("test_liveness", "test liveness").expect("test gauge should be valid")
+    }
+
+    fn test_logs() -> Vec<(Indexed<HyperlaneMessage>, LogMeta)> {
+        vec![(
+            Indexed::new(HyperlaneMessage::default()).with_sequence(0),
+            LogMeta::default(),
+        )]
+    }
+
+    #[tokio::test]
+    async fn dedupe_and_store_logs_returns_logs_and_updates_metric_on_success() {
+        let metric = stored_logs_metric();
+
+        let logs =
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::dedupe_and_store_logs(
+                &test_domain(),
+                &StoreResult {
+                    stored: 1,
+                    error: None,
+                    calls: None,
+                },
+                test_logs(),
+                &metric,
+            )
+            .await
+            .expect("store logs should succeed");
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(metric.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn dedupe_and_store_logs_returns_error_without_updating_metric() {
+        let metric = stored_logs_metric();
+
+        let result =
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::dedupe_and_store_logs(
+                &test_domain(),
+                &StoreResult {
+                    stored: 0,
+                    error: Some("db unavailable"),
+                    calls: None,
+                },
+                test_logs(),
+                &metric,
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert_eq!(metric.get(), 0);
+    }
+
+    #[derive(Debug)]
+    struct MockCursor {
+        updates: StdArc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl ContractSyncCursor<HyperlaneMessage> for MockCursor {
+        async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+            Ok((CursorAction::Query(0..=0), Duration::default()))
+        }
+
+        fn latest_queried_block(&self) -> u32 {
+            0
+        }
+
+        async fn update(
+            &mut self,
+            _logs: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+            _range: RangeInclusive<u32>,
+        ) -> Result<()> {
+            self.updates.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn cursor_indexer_task_skips_cursor_update_when_store_errors() {
+        let store_calls = StdArc::new(AtomicUsize::new(0));
+        let cursor_updates = StdArc::new(AtomicUsize::new(0));
+        let store = StoreResult {
+            stored: 0,
+            error: Some("db unavailable"),
+            calls: Some(store_calls.clone()),
+        };
+        let cursor = MockCursor {
+            updates: cursor_updates.clone(),
+        };
+
+        let task = tokio::spawn(
+            ContractSync::<HyperlaneMessage, StoreResult, MockIndexer>::cursor_indexer_task(
+                test_domain(),
+                MockIndexer { logs: test_logs() },
+                Arc::new(Mutex::new(store)),
+                Box::new(cursor),
+                None,
+                stored_logs_metric(),
+                indexed_height_metric(),
+                liveness_metric(),
+            ),
+        );
+
+        for _ in 0..50 {
+            if store_calls.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        assert_eq!(store_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(cursor_updates.load(Ordering::SeqCst), 0);
+
+        task.abort();
+        let _ = task.await;
     }
 }
 
@@ -420,6 +632,8 @@ where
                 index_settings.chunk_size,
                 index_settings.from,
                 watermark,
+                index_settings.idle_sleep_duration,
+                index_settings.configured_interval,
             )
             .await?,
         ))
@@ -464,6 +678,7 @@ where
                 index_settings.chunk_size,
                 index_settings.from,
                 index_settings.mode,
+                index_settings.idle_sleep_duration,
             )
             .await?,
         ))

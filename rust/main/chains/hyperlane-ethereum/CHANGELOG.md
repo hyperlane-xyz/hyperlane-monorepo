@@ -1,3 +1,18 @@
+## [2.3.0] - 2026-07-20
+
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* feat: index same chain ccr swaps (#8796)
+* feat: moonpay extension (#8859)
+* feat: relayer api (#8364)
+* fix: aggregation ism run verify (#8417)
+* fix: nested trusted relayer ism (#8721)
+* fix: process gas estimation for trusted relayer isms (#8457)
+* fix: rate limit ism inside aggregation ism (#8709)
+* fix: support cctp general message passing (#8705)
+* perf(ethereum): avoid chain ID fetch for ISM reads (#9031)
+* refactor(evm): remove evm tron techstack (#8408)
+* revert: aggregation ISM verify change (#8417) (#8451)
+
 ## [2.1.0] - 2026-03-04
 
 * feat(tron): add ethereum compatibility & tron aws signer (#8222)

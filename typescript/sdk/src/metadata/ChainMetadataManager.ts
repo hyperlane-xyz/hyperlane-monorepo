@@ -10,7 +10,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { isEvmBlockExplorerAndNotEtherscan } from '../block-explorer/utils.js';
+import {
+  isEtherscanApiCompatibleFamily,
+  isEvmBlockExplorerAndNotEtherscan,
+} from '../block-explorer/utils.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -438,7 +441,7 @@ export class ChainMetadataManager<MetaExt = {}> {
         ? !!defaultExplorer.apiKey
         : true;
     const canUseExplorerApi =
-      defaultExplorer.family !== ExplorerFamily.Other &&
+      isEtherscanApiCompatibleFamily(defaultExplorer.family) &&
       isExplorerConfiguredCorrectly;
 
     const explorer = canUseExplorerApi ? defaultExplorer : fallBackExplorer;

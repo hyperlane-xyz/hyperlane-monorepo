@@ -33,6 +33,13 @@ export const getEclipseEthereumWBTCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.ethereum.WBTC,
     interchainSecurityModule: ethers.constants.AddressZero,
+    // The ProxyAdmin is owned by the legacy Safe, not the standard AW owner.
+    // Set ownerOverrides.proxyAdmin (not just proxyAdmin.owner) since config
+    // expansion gives ownerOverrides.proxyAdmin precedence.
+    ownerOverrides: {
+      ...abacusWorksEnvOwnerConfig.ethereum.ownerOverrides,
+      proxyAdmin: regularSafes.ethereum,
+    },
     proxyAdmin: {
       owner: regularSafes.ethereum,
     },

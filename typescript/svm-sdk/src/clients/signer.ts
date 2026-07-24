@@ -1,5 +1,6 @@
 import {
   type Address,
+  type AddressesByLookupTableAddress,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
   type ReadonlyUint8Array,
@@ -23,13 +24,22 @@ import {
 } from '@solana/errors';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  concurrentMap,
+  isNullish,
+  pollAsync,
+  rootLogger,
+  sleep,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import {
   convertLegacySolanaTransaction,
   isLegacySolanaTransaction,
 } from '../legacy-compat.js';
+import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
@@ -56,6 +66,15 @@ export interface PrintableSvmTransaction {
   computeUnits?: number;
   transaction_base58: string;
   message_base58: string;
+  /**
+   * Carried over from `SvmTransaction.waitForSlotAdvance`. A live signer
+   * enforces this itself, but exported (file/Squads) transactions are signed
+   * and submitted by an external executor: when true, that executor MUST wait
+   * for the cluster slot to advance past this transaction's confirmation slot
+   * before submitting the next transaction, otherwise the loader rejects an
+   * extend→upgrade→config sequence sharing a slot.
+   */
+  waitForSlotAdvance?: boolean;
 }
 
 export interface PrintableSvmInstruction {
@@ -110,6 +129,9 @@ function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
 }
 
 const RPC_COMMITMENT_LEVEL: Commitment = 'confirmed';
+
+/** Cap on parallel RPC fetches when resolving ALT addresses → on-chain state. */
+const RESOLVE_ALT_CONCURRENCY = 4;
 
 /**
  * Detects blockhash-not-found errors from sendTransaction.
@@ -193,9 +215,13 @@ export class SvmSigner
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
   ): Promise<PrintableSvmTransaction> {
+    const resolvedAlts = await this.resolveAddressLookupTables(
+      transaction.addressLookupTables,
+    );
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
       transaction.instructions,
       transaction.feePayer ?? this.signer.address,
+      resolvedAlts,
     );
 
     return {
@@ -208,6 +234,7 @@ export class SvmSigner
       computeUnits: transaction.computeUnits,
       transaction_base58: transactionBase58,
       message_base58: messageBase58,
+      waitForSlotAdvance: transaction.waitForSlotAdvance,
     };
   }
 
@@ -216,6 +243,28 @@ export class SvmSigner
    * Retries on blockhash-not-found errors with backoff to handle
    * load-balanced RPC node desync.
    */
+  /**
+   * Fetches each ALT's on-chain entries and assembles the
+   * `AddressesByLookupTableAddress` map kit's compiler expects. Callers
+   * only need to know the ALT pubkeys; the contents are pulled from
+   * on-chain state so the local SDK can't drift from what the v0
+   * compiler / on-chain runtime would resolve.
+   */
+  private async resolveAddressLookupTables(
+    altAddresses: Address[] | undefined,
+  ): Promise<AddressesByLookupTableAddress | undefined> {
+    if (!altAddresses?.length) return undefined;
+    const entries = await concurrentMap(
+      RESOLVE_ALT_CONCURRENCY,
+      altAddresses,
+      async (address) => {
+        const state = await fetchAddressLookupTableState(this.rpc, address);
+        return [address, state.addresses] as const;
+      },
+    );
+    return Object.fromEntries(entries);
+  }
+
   private async signAndSend(
     tx: SendableSvmTransaction,
     maxAttempts = 5,
@@ -224,6 +273,10 @@ export class SvmSigner
     rawTx: Base64EncodedWireTransaction;
     lastValidBlockHeight: bigint;
   }> {
+    const resolvedAlts = await this.resolveAddressLookupTables(
+      tx.addressLookupTables,
+    );
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const { value: latestBlockhash } = await this.rpc
         .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
@@ -235,6 +288,7 @@ export class SvmSigner
         recentBlockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+        addressLookupTables: resolvedAlts,
       });
 
       if (tx.additionalSigners?.length) {
@@ -275,6 +329,24 @@ export class SvmSigner
           await sleep(delay);
           continue;
         }
+
+        // Surface the on-chain program logs from a failed preflight so the
+        // caller sees why the transaction reverted, not just "simulation
+        // failed" (e.g. insufficient lamports, custom program errors).
+        if (
+          isSolanaError(
+            error,
+            SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+          )
+        ) {
+          const { logs } = error.context;
+          if (logs?.length) {
+            this.logger.error(
+              `Transaction ${signature} simulation failed:\n${logs.join('\n')}`,
+            );
+          }
+        }
+
         throw error;
       }
     }
@@ -333,6 +405,7 @@ export class SvmSigner
         pollIntervalMs,
       );
       if (result) {
+        await this.awaitSlotAdvance(tx, result);
         return result;
       }
 
@@ -359,7 +432,9 @@ export class SvmSigner
       }
 
       if (historyCheck?.confirmed) {
-        return { signature, slot: historyCheck.slot };
+        const receipt = { signature, slot: historyCheck.slot };
+        await this.awaitSlotAdvance(tx, receipt);
+        return receipt;
       }
 
       if (historyCheck) {
@@ -376,7 +451,10 @@ export class SvmSigner
           pollIntervalMs,
         );
 
-        if (retry) return retry;
+        if (retry) {
+          await this.awaitSlotAdvance(tx, retry);
+          return retry;
+        }
 
         throw new Error(
           `Transaction ${signature} was observed at 'processed' but never confirmed`,
@@ -392,6 +470,35 @@ export class SvmSigner
 
     throw new Error(
       `Transaction not confirmed after ${maxBlockhashAttempts} blockhash attempts (last signature: ${lastSignature})`,
+    );
+  }
+
+  /**
+   * Honors the `waitForSlotAdvance` delivery hint: blocks until the cluster
+   * slot advances past the slot the transaction confirmed in, so the caller's
+   * next transaction executes in a strictly later slot.
+   */
+  private async awaitSlotAdvance(
+    tx: SendableSvmTransaction,
+    receipt: SvmReceipt,
+  ): Promise<void> {
+    if (!tx.waitForSlotAdvance || isNullish(receipt.slot)) {
+      return;
+    }
+
+    const confirmedSlot = receipt.slot;
+    await pollAsync(
+      async () => {
+        const slot = await this.rpc
+          .getSlot({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+        assert(
+          slot > confirmedSlot,
+          `slot ${slot} has not advanced past ${confirmedSlot}`,
+        );
+      },
+      500,
+      60,
     );
   }
 

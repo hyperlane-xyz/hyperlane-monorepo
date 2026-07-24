@@ -40,6 +40,7 @@ import {
   SafeMultiSend,
   SignerMultiSend,
 } from './multisend.js';
+import { GOVERNOR_MAX_BATCH_SIZE } from './constants.js';
 import type { AnnotatedCallData, InferredCall } from './types.js';
 import { SubmissionType } from './types.js';
 
@@ -178,13 +179,15 @@ export abstract class HyperlaneAppGovernor<
           );
           try {
             // Process calls in batches up to max size of 120
-            const maxBatchSize = 120;
             for (
               let i = 0;
               i < callsForSubmissionType.length;
-              i += maxBatchSize
+              i += GOVERNOR_MAX_BATCH_SIZE
             ) {
-              const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
+              const batch = callsForSubmissionType.slice(
+                i,
+                i + GOVERNOR_MAX_BATCH_SIZE,
+              );
               const sendBatch = () =>
                 multiSend.sendTransactions(
                   batch.map((call) => ({

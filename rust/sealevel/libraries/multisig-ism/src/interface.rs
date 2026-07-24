@@ -1,5 +1,15 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::H160;
 use solana_program::program_error::ProgramError;
+use solana_program::pubkey::Pubkey;
 use spl_discriminator::ArrayDiscriminator as Discriminator;
+
+/// Validators and threshold configuration returned by `ValidatorsAndThreshold`.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, Clone)]
+pub struct ValidatorsAndThreshold {
+    pub validators: Vec<H160>,
+    pub threshold: u8,
+}
 
 /// Instructions that a Hyperlane Multisig ISM is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
@@ -26,6 +36,21 @@ const VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::
     [113, 7, 132, 85, 239, 247, 157, 204];
 const VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] =
     &VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR;
+
+/// Derives the domain data PDA for a multisig ISM message-id program.
+pub fn domain_data_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
+    let domain_bytes = domain.to_le_bytes();
+    Pubkey::find_program_address(
+        &[
+            b"multisig_ism_message_id",
+            b"-",
+            &domain_bytes,
+            b"-",
+            b"domain_data",
+        ],
+        program_id,
+    )
+}
 
 /// Seeds for the PDA that's expected to be passed into the `ValidatorsAndThresholdAccountMetas`
 /// instruction.

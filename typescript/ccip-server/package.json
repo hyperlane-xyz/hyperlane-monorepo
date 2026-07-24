@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "35.1.0",
+  "version": "38.0.0",
   "private": true,
   "description": "CCIP server",
   "license": "Apache-2.0",
@@ -12,8 +12,9 @@
   "type": "module",
   "typings": "dist/index.d.ts",
   "scripts": {
-    "postinstall": "prisma generate",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "prisma:generate": "rm -rf ./src/generated/prisma && prisma generate",
+    "postinstall": "pnpm prisma:generate",
+    "build": "pnpm prisma:generate && tsc -p tsconfig.json",
     "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
