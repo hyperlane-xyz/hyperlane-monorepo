@@ -76,8 +76,9 @@ export function assertFullSnapshotPush(
   );
 }
 
-// Outcome of resolving + reading + verifying a validator's latest checkpoint.
+// Outcome of resolving, reading, and validating a validator's latest checkpoint.
 // Only 'ok' readings are considered reachable or contribute to peer lag.
+// This is liveness-input validation, not proof that the signed root is canonical.
 export type CheckpointStatus = 'ok' | 'none' | 'unreachable' | 'unverified';
 
 type CheckpointRead = { status: CheckpointStatus; index: number };
@@ -88,7 +89,7 @@ type ValidatorReading = {
   address: string;
   alias: string;
   status: CheckpointStatus;
-  // Latest verified checkpoint index (-1 unless status is 'ok').
+  // Latest metadata-validated checkpoint index (-1 unless status is 'ok').
   index: number;
 };
 
@@ -118,11 +119,12 @@ export function checkpointMatchesExpected(
 }
 
 // Resolve a validator's announced storage location, read its unsigned latest
-// pointer, then fetch and verify the signed checkpoint it references. The
-// signed signer/domain/hook/index checks prevent a validator from appearing
-// current by announcing another validator's bucket or forging a latest pointer.
-// A valid checkpoint may be ahead of the once-per-run on-chain snapshot; lag is
-// clamped to zero later instead of rejecting that normal race.
+// pointer, then fetch the signed checkpoint it references. Signer/domain/hook/
+// index checks are cheap defense-in-depth against malformed liveness inputs.
+// They do not validate the signed root against the canonical Merkle tree or
+// detect reorgs; doing that would require root consensus or tree reconstruction.
+// A valid checkpoint may be ahead of the once-per-run on-chain snapshot, so lag
+// is clamped to zero later instead of rejecting that normal race.
 async function readAndVerifyCheckpoint(
   chain: string,
   address: string,
@@ -247,7 +249,7 @@ async function main() {
     }),
   );
 
-  // Resolve, read, and verify each validator's latest checkpoint once per
+  // Resolve, read, and validate each validator's latest checkpoint once per
   // (chain, address); a validator may appear in more than one set.
   const readingCache = new Map<string, Promise<CheckpointRead>>();
   const readCheckpoint = (chain: string, address: string) => {
@@ -289,7 +291,7 @@ async function main() {
     ),
   );
 
-  // Furthest-ahead verified peer per (set, chain) for the relative diff.
+  // Furthest-ahead metadata-validated peer per (set, chain) for relative lag.
   const peerMax = new Map<string, number>();
   for (const r of readings) {
     if (r.status !== 'ok') continue;
@@ -355,7 +357,7 @@ function printReport(rows: ValidatorRow[]) {
   if (unavailable.length > 0) {
     rootLogger.warn(
       chalk.yellow(
-        `\n${unavailable.length} validator(s) without a verified checkpoint:`,
+        `\n${unavailable.length} validator(s) without an accepted checkpoint:`,
       ),
     );
     for (const r of unavailable) {
@@ -382,7 +384,7 @@ export function buildValidatorMetricsRegistry(
 
   const reachableGauge = new Gauge({
     name: 'hyperlane_validator_reachable',
-    help: 'Whether a verified checkpoint could be read from the validator (1) or not (0)',
+    help: 'Whether a checkpoint with expected signed metadata could be read from the validator (1) or not (0)',
     registers: [register],
     labelNames,
   });
