@@ -11,3 +11,5 @@
   post-burn supply), while delay-mode `DelayedFlowRouterHookIsm` permits up to 100%
   since over-limit messages are delayed rather than reverted.
 - Added a `MailboxClient._isProcessing` helper that binds a check to the message being delivered in the current transaction; the net-flow ISM uses it as its inbound flow guard.
+- `TvlRateLimited` now sizes the collateral/native capacity on non-reclaimable collateral — the router's balance minus its LP-reclaimable pool (`totalAssets()`) — via a reusable `LpCollateral.effectiveCollateralBalance` library, so reversible ERC4626 `deposit`/`redeem`/`donate` on the `LpCollateralRouter`-based routers are capacity-neutral and can no longer inflate the limit; only genuinely locked collateral and irreversible transfers size it. Collateral routers that are not `LpCollateralRouter` vaults are unsupported and revert on the read.
+- Documented that the synthetic (`totalSupply`) capacity basis shifts with the mint/burn being metered: inbound mints raise the capacity and refill rate, and burn-first outbound metering caps the largest single outbound at `S·thresholdBps / (BPS + thresholdBps)`.
