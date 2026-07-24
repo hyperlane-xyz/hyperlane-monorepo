@@ -1,0 +1,13 @@
+image:
+  repository: ghcr.io/hyperlane-xyz/hyperlane-monorepo
+  tag:
+hyperlane:
+  runEnv: mainnet3
+  chains: []
+  registryCommit: '' # Registry commit to use
+cronjob:
+  schedule: '*/30 * * * *'
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+externalSecrets:
+  clusterSecretStore:

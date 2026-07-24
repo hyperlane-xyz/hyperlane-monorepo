@@ -39,6 +39,10 @@ export function getPushGateway(
  * @param options.groupings - Extra grouping labels appended to the PushGateway
  *   group key. When each series is pushed under its own grouping, it can be
  *   cleared independently via deleteMetrics without touching other series.
+ * @param options.throwOnError - If true, a failed push (network error or a
+ *   non-2xx response) is rethrown instead of swallowed, so a caller running as
+ *   a batch/CronJob can fail loudly rather than record a false success while the
+ *   previous snapshot goes stale. Defaults to false for backwards compatibility.
  * @param logger - Optional logger instance
  */
 export async function submitMetrics(
@@ -47,6 +51,7 @@ export async function submitMetrics(
   options?: {
     overwriteAllMetrics?: boolean;
     groupings?: Record<string, string>;
+    throwOnError?: boolean;
   },
   logger?: Logger,
 ): Promise<void> {
@@ -65,6 +70,7 @@ export async function submitMetrics(
     }
   } catch (e) {
     log.error('Error when pushing metrics', { error: format(e) });
+    if (options?.throwOnError) throw e;
     return;
   }
 
@@ -72,6 +78,15 @@ export async function submitMetrics(
     typeof resp == 'object' && resp != null && 'statusCode' in resp
       ? (resp as any).statusCode
       : 'unknown';
+  if (
+    options?.throwOnError &&
+    typeof statusCode === 'number' &&
+    statusCode >= 400
+  ) {
+    throw new Error(
+      `PushGateway returned status ${statusCode} for job ${jobName}`,
+    );
+  }
   log.info('Prometheus metrics pushed to PushGateway', { statusCode });
 }
 
