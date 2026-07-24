@@ -59,6 +59,7 @@ import {
 import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   TokenMetadata,
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
@@ -380,7 +381,14 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // positives from unresolved metadata on the expected side. Cosmos SDK's
   // decimals=0 placeholder is excluded on the actual side (see
   // derivedWarpConfigToCheckConfig), so it's excluded here too for symmetry.
-  if (protocol !== ProtocolType.CosmosNative && !isNullish(config.decimals)) {
+  // AltVM native tokens (e.g. Aleo AleoHypNative) never carry decimals on the
+  // actual side -- DerivedNativeWarpConfig has no decimals field -- so their
+  // core-config decimals is excluded here to keep both sides symmetric.
+  if (
+    protocol !== ProtocolType.CosmosNative &&
+    normalizeAltVmExpectedTokenType(config.type) !== TokenType.native &&
+    !isNullish(config.decimals)
+  ) {
     result.decimals = config.decimals;
   }
 
@@ -535,6 +543,12 @@ export function buildAltVmWarpRouteDiff(
     // EVM path (buildWarpRouteDiff) and only compare when both sides opt in.
     // contractVersion is excluded the same way (mirrors buildWarpRouteDiff): it's
     // rarely set explicitly, so only compare when the deploy config opts in.
+    // decimals is excluded the same way: the expected side omits it for altVM
+    // native tokens (expandedDeployConfigToAltVmCheckConfig), but the derived
+    // side resolves a concrete value for some protocols (e.g. Sealevel native =
+    // 9) and omits it for others (e.g. Aleo native). Only compare when the
+    // deploy config opts in, otherwise every Sealevel native leg reports a
+    // false-positive decimals mismatch.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
     const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
@@ -553,6 +567,7 @@ export function buildAltVmWarpRouteDiff(
       contractVersion: isNullish(expected.contractVersion)
         ? undefined
         : actual.contractVersion,
+      decimals: isNullish(expected.decimals) ? undefined : actual.decimals,
       scale: undefined,
       destinationGas: normalizedActualGas,
     };
@@ -634,14 +649,76 @@ export function altVmScaleMismatch(
   };
 }
 
+// An owner the caller vetted and decided to accept in an Inactive on-chain
+// state. `chain`/`owner` identify the exact ownerStatus entry to accept; a
+// chain may appear more than once with different owners.
+export interface AcceptedInactiveOwner {
+  chain: ChainName;
+  owner: Address;
+}
+
+// Re-accepts caller-vetted Inactive owners by overriding the expected
+// ownerStatus back to Inactive, but ONLY where the owner is Inactive on-chain.
+// Mutates `expandedWarpDeployConfig` in place. Exported for unit testing.
+export function applyAcceptedInactiveOwnerStatus({
+  expandedWarpDeployConfig,
+  onChainWarpConfig,
+  acceptedInactiveOwners,
+}: {
+  expandedWarpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: Record<
+    string,
+    { ownerStatus?: Record<string, OwnerStatus> }
+  >;
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
+}): void {
+  if (!acceptedInactiveOwners?.length) {
+    return;
+  }
+
+  // Group accepted owners per chain into lowercased sets for case-insensitive
+  // address matching.
+  const acceptedByChain = new Map<ChainName, Set<string>>();
+  for (const { chain, owner } of acceptedInactiveOwners) {
+    const owners = acceptedByChain.get(chain) ?? new Set<string>();
+    owners.add(owner.toLowerCase());
+    acceptedByChain.set(chain, owners);
+  }
+
+  for (const [chain, acceptedOwners] of acceptedByChain) {
+    const observedOwnerStatus = onChainWarpConfig[chain]?.ownerStatus;
+    const expectedOwnerStatus = expandedWarpDeployConfig[chain]?.ownerStatus;
+    if (!observedOwnerStatus || !expectedOwnerStatus) {
+      continue;
+    }
+
+    for (const [owner, status] of Object.entries(observedOwnerStatus)) {
+      if (
+        status === OwnerStatus.Inactive &&
+        acceptedOwners.has(owner.toLowerCase())
+      ) {
+        expectedOwnerStatus[owner] = OwnerStatus.Inactive;
+      }
+    }
+  }
+}
+
 export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
   warpDeployConfig,
+  acceptedInactiveOwners,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  // Owners the caller has decided to accept in an Inactive on-chain state
+  // (e.g. a nonce-less governance ICA on Tron/AltVM that a multisig controls).
+  // The caller owns the decision — including deriving and verifying the ICA and
+  // its origin Safe threshold. Here we only pass Inactive through as the
+  // expected control when the observed status is Inactive AND the exact
+  // {chain, owner} pair is present. A chain may list multiple accepted owners.
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
 }): Promise<WarpRouteCheckResult> {
   const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
     (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
@@ -751,6 +828,17 @@ export async function checkWarpRouteDeployConfig({
     expandedOnChainWarpConfig,
     validateScale: false,
   });
+
+  // expandWarpDeployConfig deterministically maps every Inactive owner to an
+  // expected Active (a violation). Re-accept the specific owners the caller
+  // vetted, but only where the owner is actually Inactive on-chain, so a
+  // stale/incorrect accept entry can never mask a real status change.
+  applyAcceptedInactiveOwnerStatus({
+    expandedWarpDeployConfig,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    acceptedInactiveOwners,
+  });
+
   const normalizedWarpDeployConfig = normalizeWarpDeployConfigForCheck({
     multiProvider,
     warpDeployConfig: expandedWarpDeployConfig,

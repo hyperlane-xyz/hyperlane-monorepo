@@ -114,7 +114,10 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     // Fund SVM deployer
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
     svmRpc = createRpc(rpcUrl);
-    svmSigner = await SealevelSigner.connectWithSigner([rpcUrl], SVM_KEY);
+    svmSigner = await SealevelSigner.connectWithSigner(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      SVM_KEY,
+    );
     await airdropSol(svmRpc, svmSigner.getSignerAddress(), 50_000_000_000n);
 
     // Deploy core on both chains

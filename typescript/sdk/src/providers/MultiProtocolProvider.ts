@@ -45,9 +45,9 @@ export class MultiProtocolProvider<
     type: ProviderType,
   ): ProviderBuilderFn<TypedProvider> | undefined {
     if (protocol === ProtocolType.Tron && type === ProviderType.EthersV5) {
-      return (urls, network) => ({
+      return (metadata) => ({
         type: ProviderType.EthersV5,
-        provider: defaultTronEthersProviderBuilder(urls, network),
+        provider: defaultTronEthersProviderBuilder(metadata),
       });
     }
     return this.providerBuilders[type];

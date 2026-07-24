@@ -1,13 +1,19 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { ContractVerificationInput, MultiProvider } from '@hyperlane-xyz/sdk';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import sinon from 'sinon';
 
+import { Owner } from '../src/governance.js';
 import { GovernanceType } from '../src/governanceTypes.js';
 import { getTimelockLogBlockRange } from '../src/utils/timelock.js';
 import {
   callMatchesTimelockIdempotency,
+  determineUpgradeGovernanceRoute,
+  executeDeployerOwnedCall,
   getUpgradeTargetImplementation,
   isMissingPackageVersionError,
+  mergeVerificationInputs,
   splitProposableGroups,
 } from '../scripts/igp/upgrade-compatible-igps.js';
 
@@ -52,6 +58,63 @@ describe('upgrade-compatible-igps', () => {
         }),
       ).to.equal(false);
     });
+  });
+
+  it('routes the Arbitrum upgrade timelock through the local AW Safe', async () => {
+    expect(
+      await determineUpgradeGovernanceRoute(
+        'arbitrum',
+        '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+      ),
+    ).to.deep.equal({
+      ownerType: Owner.TIMELOCK,
+      governanceType: GovernanceType.AbacusWorks,
+      timelockProposer: 'safe',
+    });
+  });
+
+  it('merges real deployment verification inputs without duplicates', () => {
+    const existingInput: ContractVerificationInput = {
+      name: 'InterchainGasPaymaster',
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      constructorArguments: '',
+      isProxy: false,
+    };
+    const newInput: ContractVerificationInput = {
+      ...existingInput,
+      address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+    const duplicateInput = {
+      ...existingInput,
+      address: existingInput.address.toUpperCase().replace('0X', '0x'),
+    };
+
+    expect(
+      mergeVerificationInputs(
+        { arbitrum: [existingInput] },
+        { arbitrum: [duplicateInput, newInput] },
+      ),
+    ).to.deep.equal({ arbitrum: [existingInput, newInput] });
+  });
+
+  it('reports failed deployer-owned execution as an error', async () => {
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    sinon
+      .stub(multiProvider, 'sendTransaction')
+      .rejects(new Error('submission failed'));
+    const result = await executeDeployerOwnedCall({
+      chain: 'test1',
+      call: {
+        to: '0x1111111111111111111111111111111111111111',
+        data: '0x1234',
+        value: BigNumber.from(0),
+        description: 'upgrade',
+      },
+      multiProvider,
+    });
+
+    expect(result.status).to.equal('error');
+    expect(result.detail).to.include('submission failed');
   });
 
   it('uses conservative timelock log block ranges', () => {

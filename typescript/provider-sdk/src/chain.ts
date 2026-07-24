@@ -31,6 +31,10 @@ export interface ChainMetadataForAltVM {
   gatewayUrls?: {
     http: string;
   }[];
+  gasPrice?: {
+    amount: string;
+    denom: string;
+  };
   // Used in radix tests after deploying
   // the package address to the local chain
   packageAddress?: string;
@@ -44,10 +48,6 @@ export interface TestChainMetadata extends ChainMetadataForAltVM {
   rpcUrl: string;
   restPort: number;
   gnosisSafeTransactionServiceUrl?: string;
-  gasPrice?: {
-    amount: string;
-    denom: string;
-  };
 }
 
 /**

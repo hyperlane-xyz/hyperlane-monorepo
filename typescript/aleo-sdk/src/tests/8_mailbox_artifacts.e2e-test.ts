@@ -49,14 +49,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
 
   before(async () => {
     aleoSigner = await AleoSigner.connectWithSigner(
-      [TEST_ALEO_CHAIN_METADATA.rpcUrl],
+      { ...TEST_ALEO_CHAIN_METADATA, domainId },
       TEST_ALEO_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: 1,
-          domainId,
-        },
-      },
     );
     signer = aleoSigner;
 

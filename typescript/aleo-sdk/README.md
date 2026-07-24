@@ -17,16 +17,17 @@ pnpm add @hyperlane-xyz/aleo-sdk
 
 ```ts
 import { AleoProvider, AleoSigner } from "@hyperlane-xyz/aleo-sdk";
+import { ChainMetadataForAltVM, ProtocolType } from "@hyperlane-xyz/provider-sdk";
 
-const signer = await AleoSigner.connectWithSigner(
-  ['http://localhost:3030'],
-  PRIV_KEY,
-  {
-    metadata: {
-      chainId: 1
-    }
-  }
-);
+const metadata: ChainMetadataForAltVM = {
+  name: 'aleo',
+  protocol: ProtocolType.Aleo,
+  chainId: 1,
+  domainId: 75898670,
+  rpcUrls: [{ http: 'http://localhost:3030' }],
+};
+
+const signer = await AleoSigner.connectWithSigner(metadata, PRIV_KEY);
 
 const mailboxAddress = await signer.createMailbox({ domainId: 75898670 });
 
@@ -34,10 +35,7 @@ const mailbox = await signer.getMailbox({ mailboxAddress });
 ...
 
 // performing queries without signer
-const provider = await AleoProvider.connect(
-  ['http://localhost:3030'],
-  1
-);
+const provider = await AleoProvider.connect(metadata);
 
 const mailbox = await provider.getMailbox({ mailboxAddress });
 ```

@@ -78,10 +78,8 @@ describe('MultiProtocolProvider', () => {
     });
 
     it('returns a gnosis-typed builder entry', () => {
-      const provider = defaultProviderBuilderMap[ProviderType.GnosisTxBuilder](
-        [{ http: 'https://ethereum.example.com' }],
-        1,
-      );
+      const provider =
+        defaultProviderBuilderMap[ProviderType.GnosisTxBuilder](test1);
       expect(provider.type).to.equal(ProviderType.GnosisTxBuilder);
     });
   });

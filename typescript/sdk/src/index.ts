@@ -852,6 +852,7 @@ export {
   checkWarpRouteDeployConfig,
 } from './token/warpCheck.js';
 export type {
+  AcceptedInactiveOwner,
   WarpRouteCheckResult,
   WarpRouteCheckViolation,
 } from './token/warpCheck.js';

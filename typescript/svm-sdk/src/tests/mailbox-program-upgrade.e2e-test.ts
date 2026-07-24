@@ -59,7 +59,7 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
@@ -218,7 +218,7 @@ describe('SVM Mailbox Program Upgrade E2E Tests', function () {
 
     // Upgrade + change default ISM + transfer ownership in a single update.
     const newOwner = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       '0x0000000000000000000000000000000000000000000000000000000000000004',
     );
     await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);

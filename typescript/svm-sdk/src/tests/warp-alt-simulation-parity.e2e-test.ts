@@ -171,7 +171,7 @@ describe('SVM warp ALT simulation parity — cross-collateral', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     const senderWallet = address(signer.getSignerAddress());

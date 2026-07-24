@@ -21,12 +21,19 @@ export interface TronTestChainMetadata {
 const TRE_CONTAINER_PORT = 9090;
 
 /**
+ * Immutable multi-platform digest for tronbox/tre 2.0.0.
+ */
+const TRE_IMAGE =
+  'tronbox/tre@sha256:f4332e11df12a9f360639a4546fd046593909630fda48af00b30410c144342f0';
+
+/**
  * Fixed mnemonic passed to tronbox/tre so accounts are deterministic.
  * The derived account 0 private key must match TEST_TRON_PRIVATE_KEY
  * in constants.ts.
  */
 const TRE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+const TRE_HD_PATH = "m/44'/195'/0'/0/";
 
 /**
  * Result of starting a Tron node, including the container and funded keys.
@@ -53,10 +60,11 @@ export async function runTronNode(
 
   const container = await retryAsync(
     () => {
-      return new GenericContainer('tronbox/tre:dev')
+      return new GenericContainer(TRE_IMAGE)
         .withEnvironment({
           preapprove: 'allowTvmCompatibleEvm:1',
           mnemonic: TRE_MNEMONIC,
+          hdPath: TRE_HD_PATH,
           defaultBalance: '1000000',
         })
         .withExposedPorts({
@@ -65,9 +73,11 @@ export async function runTronNode(
         })
         .withStartupTimeout(120_000)
         .withWaitStrategy(
-          Wait.forLogMessage(/TRE now listening on/).withStartupTimeout(
-            120_000,
-          ),
+          Wait.forHttp('/healthcheck', TRE_CONTAINER_PORT, {
+            abortOnContainerExit: true,
+          })
+            .forStatusCode(200)
+            .withStartupTimeout(120_000),
         )
         .start();
     },

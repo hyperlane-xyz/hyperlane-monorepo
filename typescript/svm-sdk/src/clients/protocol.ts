@@ -14,7 +14,7 @@ import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
@@ -32,21 +32,19 @@ import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
-import { SvmProvider } from './provider.js';
+import { SvmProvider, WARP_DEPLOY_BASE_LAMPORTS } from './provider.js';
 import { SvmSigner } from './signer.js';
 
 export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SvmProvider.connect(rpcUrls, chainMetadata.chainId);
+    return SvmProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SvmSigner.connectWithSigner(rpcUrls, config.privateKey);
+    return SvmSigner.connectWithSigner(chainMetadata, config.privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -114,8 +112,11 @@ export class SvmProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 10_000_000_000n,
-      // ~2.6 SOL covers program account rent + token PDA rent + ATA payer funding
-      WARP_DEPLOY_GAS: 2_600_000_000n,
+      // Base-router case: ~2.6 SOL covers program account rent + token PDA
+      // rent + ATA payer funding. Feature-heavy deploys (cross-collateral,
+      // fee program, custom ISM/hook) need more — use getMinGasForWarpDeploy
+      // for the composable equivalent.
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_LAMPORTS,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,

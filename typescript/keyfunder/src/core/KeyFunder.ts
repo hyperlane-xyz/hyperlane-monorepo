@@ -118,16 +118,24 @@ export class KeyFunder {
     logger.info({ durationSeconds }, 'Chain funding completed');
   }
 
+  private getNativeDecimals(chain: string): number {
+    return (
+      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ?? 18
+    );
+  }
+
   private async recordFunderBalance(chain: string): Promise<void> {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
     const funderBalance = await signer.getBalance();
-    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+    const balance = parseFloat(
+      ethers.utils.formatUnits(funderBalance, this.getNativeDecimals(chain)),
+    );
     this.options.metrics?.recordUnifiedWalletBalance(
       chain,
       funderAddress,
       'key-funder',
-      balanceInEther,
+      balance,
     );
   }
 
@@ -180,7 +188,9 @@ export class KeyFunder {
 
     this.options.metrics?.recordIgpBalance(
       chain,
-      parseFloat(ethers.utils.formatEther(igpBalance)),
+      parseFloat(
+        ethers.utils.formatUnits(igpBalance, this.getNativeDecimals(chain)),
+      ),
     );
 
     logger.info(
@@ -232,7 +242,9 @@ export class KeyFunder {
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(currentBalance)),
+      parseFloat(
+        ethers.utils.formatUnits(currentBalance, this.getNativeDecimals(chain)),
+      ),
     );
 
     if (fundingAmount.eq(0)) {

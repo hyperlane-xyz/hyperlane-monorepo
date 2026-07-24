@@ -1,4 +1,5 @@
 import * as AltVM from '../altvm.js';
+import type { WarpArtifactConfig } from '../warp.js';
 
 type MockTransaction = any;
 
@@ -63,5 +64,11 @@ export class MockProvider implements AltVM.IProvider {
     _req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
     throw new Error(`not implemented`);
+  }
+
+  async getMinGasForWarpDeploy(
+    _warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return 0n;
   }
 }

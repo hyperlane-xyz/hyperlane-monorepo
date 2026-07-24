@@ -56,9 +56,8 @@ describe('7b. Aleo Warp Collateral Token Artifact API (e2e)', function () {
 
     const domainId = 1234;
     aleoSigner = await AleoSigner.connectWithSigner(
-      [TEST_ALEO_CHAIN_METADATA.rpcUrl],
+      TEST_ALEO_CHAIN_METADATA,
       TEST_ALEO_PRIVATE_KEY,
-      { metadata: { chainId: 1 } },
     );
 
     const aleoClient = aleoSigner.getAleoClient();

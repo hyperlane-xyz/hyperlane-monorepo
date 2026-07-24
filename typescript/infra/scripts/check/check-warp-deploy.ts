@@ -6,6 +6,7 @@ import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   type ChainName,
+  InterchainAccount,
   MultiProvider,
   type WarpCoreConfig,
   type WarpRouteCheckResult,
@@ -33,6 +34,7 @@ import {
   warpViolationGroupings,
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
+import { resolveAcceptedInactiveOwners } from './governance-ica-owners.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -190,6 +192,23 @@ async function main() {
     Array.from(warpConfigChains),
   );
 
+  // Passed into the SDK check to resolve Inactive ownerStatus false positives
+  // where a nonce-less / lazily-deployed leaf owner (Tron, AltVM) is a
+  // governance ICA of an Ethereum Safe. registry.getAddresses() spans every
+  // registry chain, but multiProvider only covers warpConfigChains;
+  // fromAddressesMap calls multiProvider.getProtocol() for every entry and
+  // throws on any chain the provider doesn't know, so filter to the scoped
+  // chains first.
+  const scopedAddresses = objFilter(
+    await registry.getAddresses(),
+    (chain, _addrs): _addrs is Record<string, string> =>
+      multiProvider.hasChain(chain),
+  );
+  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+    scopedAddresses,
+    multiProvider,
+  );
+
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
@@ -205,6 +224,7 @@ async function main() {
           warpRouteId,
           warpCoreConfig: warpCoreConfigMap[warpRouteId],
           warpDeployConfig,
+          interchainAccount: interchainAccountApp,
         }),
         perRouteTimeoutMs,
         `Timed out checking warp route ${warpRouteId} after ${perRouteTimeoutMs}ms`,
@@ -259,6 +279,7 @@ async function runWarpRouteCheckFromRegistry({
   chains,
   warpCoreConfig,
   warpDeployConfig,
+  interchainAccount,
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
@@ -267,6 +288,7 @@ async function runWarpRouteCheckFromRegistry({
   warpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpRouteId: string;
+  interchainAccount?: InterchainAccount;
 }): Promise<WarpRouteCheckResult> {
   const loadedConfigs = await loadWarpConfigsFromRegistry({
     registry,
@@ -282,10 +304,26 @@ async function runWarpRouteCheckFromRegistry({
     warpDeployConfig: loadedConfigs.warpDeployConfig,
   });
 
+  // Derive + verify the governance ICA owners this route accepts in an Inactive
+  // state. The declaration is the source of intent; derivation/Safe checks are
+  // fail-closed (see governance-ica-owners.ts). Without an ICA app we can't
+  // derive, so nothing is accepted and the ownerStatus check runs unchanged.
+  // Scope resolution to the (possibly --chains-filtered) destinations so an
+  // excluded leaf chain's ICA derivation + Safe RPC are never attempted.
+  const acceptedInactiveOwners = interchainAccount
+    ? await resolveAcceptedInactiveOwners({
+        warpRouteId,
+        interchainAccount,
+        multiProvider,
+        destinations: Object.keys(filteredConfigs.warpDeployConfig),
+      })
+    : undefined;
+
   return checkWarpRouteDeployConfig({
     multiProvider,
     warpCoreConfig: filteredConfigs.warpCoreConfig,
     warpDeployConfig: filteredConfigs.warpDeployConfig,
+    acceptedInactiveOwners,
   });
 }
 

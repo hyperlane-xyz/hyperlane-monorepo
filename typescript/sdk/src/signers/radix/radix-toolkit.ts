@@ -27,9 +27,7 @@ export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<Pro
   ): Promise<RadixMultiProtocolSignerAdapter> {
     const metadata = multiProtocolProvider.getChainMetadata(chainName);
 
-    const signer = await RadixSigner.connectWithSigner([], privateKey, {
-      metadata,
-    });
+    const signer = await RadixSigner.connectWithSigner(metadata, privateKey);
 
     return new RadixMultiProtocolSignerAdapter(chainName, signer);
   }
