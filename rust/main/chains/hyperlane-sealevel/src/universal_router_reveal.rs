@@ -581,6 +581,145 @@ pub fn maybe_spawn_reveal(
     }.instrument(tracing::info_span!("reveal", commitment = %commitment_hex)));
 }
 
+/// Called from `SealevelMailbox::process_estimate_costs` when simulating a COMMIT
+/// message's delivery fails with `RouterError::CommitmentAlreadySet` (program error
+/// code 10) — meaning a stale, unresolved `pending_swap` PDA from an earlier delivery
+/// attempt with the same origin/sender/salt/commitment is blocking this one (the
+/// program's `handle_commit` refuses to overwrite a non-empty PDA — see
+/// hyperlane-sealevel-universal-router's `hyperlane.rs`).
+///
+/// If that stale PDA still exists and has passed its 1-minute expiry, submits
+/// `ClosePendingSwap` to free it up. Returns `Ok(true)` if a close was submitted and
+/// confirmed (the caller should retry delivery immediately — the PDA is now free),
+/// `Ok(false)` if there's nothing to do (PDA already gone, or not expired yet — the
+/// caller should fall back to its normal retry/backoff).
+pub async fn try_recover_duplicate_commit(
+    message: &HyperlaneMessage,
+    config: &UniversalRouterRevealConfig,
+    rpc_client: &SealevelFallbackRpcClient,
+    priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+    fee_payer: &SealevelKeypair,
+) -> Result<bool> {
+    if message.body.len() != 96 {
+        return Ok(false);
+    }
+    let program_id = Pubkey::from_str(&config.program_id)
+        .map_err(|e| eyre!("invalid UR program ID in config: {e}"))?;
+    if Pubkey::new_from_array(message.recipient.0) != program_id {
+        return Ok(false);
+    }
+
+    let commitment: [u8; 32] = message.body[0..32]
+        .try_into()
+        .expect("body is exactly 96 bytes");
+    let user_salt: [u8; 32] = message.body[32..64]
+        .try_into()
+        .expect("body is exactly 96 bytes");
+    let recipient: [u8; 32] = message.body[64..96]
+        .try_into()
+        .expect("body is exactly 96 bytes");
+    let origin = message.origin;
+    let sender = message.sender.0;
+
+    let pending_swap_pda =
+        derive_pending_swap_pda(&program_id, origin, &sender, &user_salt, &commitment);
+
+    let Some(pending_swap_account) = rpc_client
+        .get_account_option_with_commitment(pending_swap_pda, CommitmentConfig::confirmed())
+        .await
+        .map_err(|e| eyre!("fetch pending_swap account: {e}"))?
+    else {
+        debug!(%pending_swap_pda, "CommitmentAlreadySet but PDA is already gone; nothing to recover");
+        return Ok(false);
+    };
+
+    let commit_time = parse_pending_swap_commit_time(&pending_swap_account.data)?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let expires_at = commit_time.saturating_add(CLOSE_PENDING_SWAP_EXPIRY_SECS);
+    if now < expires_at {
+        debug!(
+            %pending_swap_pda,
+            remaining_secs = expires_at.saturating_sub(now),
+            "Stale pending_swap blocking a duplicate commit, but not past its 1-minute expiry yet"
+        );
+        return Ok(false);
+    }
+
+    let ccs_url = config.ccs_url.trim_end_matches('/').to_owned();
+    let http_client = Client::builder()
+        .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| eyre!("HTTP client build failed: {e}"))?;
+    let ccs = fetch_from_ccs(&http_client, &ccs_url, &commitment).await?;
+    let reveal_accounts = ccs
+        .reveal_accounts
+        .as_deref()
+        .ok_or_else(|| eyre!("CCS response missing revealAccounts"))?;
+    if reveal_accounts.len() <= 14 {
+        bail!(
+            "CCS returned too few accounts ({}) to build ClosePendingSwap for the stale PDA",
+            reveal_accounts.len()
+        );
+    }
+    let pda_input_ata = Pubkey::from_str(&reveal_accounts[1].pubkey)
+        .map_err(|e| eyre!("bad accounts[1] (pda_input_ata) from CCS: {e}"))?;
+    let input_token_prog = Pubkey::from_str(&reveal_accounts[11].pubkey)
+        .map_err(|e| eyre!("bad accounts[11] (inputTokenProgram) from CCS: {e}"))?;
+    let input_mint = Pubkey::from_str(&reveal_accounts[14].pubkey)
+        .map_err(|e| eyre!("bad accounts[14] (inputMint) from CCS: {e}"))?;
+
+    let recipient_pubkey = Pubkey::new_from_array(recipient);
+    let fee_payer_pubkey = fee_payer.pubkey();
+    let recipient_ata = derive_ata(&recipient_pubkey, &input_mint, &input_token_prog);
+    let ata_ix = make_ata_ix(
+        &fee_payer_pubkey,
+        &recipient_ata,
+        &recipient_pubkey,
+        &input_mint,
+        &input_token_prog,
+    );
+    let close_ix = make_close_pending_swap_ix(
+        program_id,
+        origin,
+        sender,
+        user_salt,
+        commitment,
+        pending_swap_pda,
+        fee_payer_pubkey,
+        pda_input_ata,
+        recipient_ata,
+        input_token_prog,
+        input_mint,
+        recipient_pubkey,
+    );
+
+    let ctx = RevealContext {
+        ccs_url: &ccs_url,
+        program_id,
+        commitment,
+        origin,
+        sender,
+        user_salt,
+        recipient,
+        rpc_client,
+        priority_fee_oracle,
+        fee_payer,
+        http_client,
+    };
+    send_and_confirm(
+        &ctx,
+        &[ata_ix, close_ix],
+        CLOSE_PENDING_SWAP_COMPUTE_UNITS,
+        "ClosePendingSwap (duplicate-commit recovery)",
+    )
+    .await?;
+    info!(%pending_swap_pda, "Closed stale pending_swap blocking a duplicate COMMIT; safe to retry delivery");
+    Ok(true)
+}
+
 struct RevealContext<'a> {
     ccs_url: &'a str,
     program_id: Pubkey,

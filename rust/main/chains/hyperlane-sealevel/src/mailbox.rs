@@ -38,7 +38,9 @@ use hyperlane_core::{
 
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
-use crate::universal_router_reveal::{maybe_spawn_reveal, UniversalRouterRevealConfig};
+use crate::universal_router_reveal::{
+    maybe_spawn_reveal, try_recover_duplicate_commit, UniversalRouterRevealConfig,
+};
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
     ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
@@ -634,7 +636,7 @@ impl Mailbox for SealevelMailbox {
         let payer = self.get_payer()?;
         // The returned costs are unused at the moment - we simply want to perform a simulation to
         // determine if the message will revert or not.
-        let _ = self
+        let estimate_result = self
             .provider
             .get_estimated_costs_for_instruction(
                 payload.instruction,
@@ -643,7 +645,31 @@ impl Mailbox for SealevelMailbox {
                 self.priority_fee_oracle.clone(),
                 payload.alt_address,
             )
-            .await?;
+            .await;
+
+        if let Err(ref err) = estimate_result {
+            if self.try_recover_from_duplicate_commit(message, err).await {
+                // The stale pending_swap PDA blocking this commit has just been closed —
+                // rebuild the payload (the blocking account no longer exists on-chain,
+                // so a fresh simulation should now succeed) and try once more.
+                let payload = self.get_process_payload(message, metadata).await?;
+                self.provider
+                    .get_estimated_costs_for_instruction(
+                        payload.instruction,
+                        payer,
+                        self.tx_submitter.clone(),
+                        self.priority_fee_oracle.clone(),
+                        payload.alt_address,
+                    )
+                    .await?;
+                return Ok(TxCostEstimate {
+                    gas_limit: U256::zero(),
+                    gas_price: FixedPointNumber::zero(),
+                    l2_gas_limit: None,
+                });
+            }
+        }
+        estimate_result?;
 
         // TODO use correct data upon integrating IGP support.
         // NOTE: providing a real gas limit here will result in accurately enforcing
@@ -683,6 +709,46 @@ impl Mailbox for SealevelMailbox {
 }
 
 impl SealevelMailbox {
+    /// If `err` indicates the on-chain simulation rejected this COMMIT with
+    /// `CommitmentAlreadySet` (RouterError code 10 — see
+    /// hyperlane-sealevel-universal-router's `error.rs`), attempts to close the stale
+    /// `pending_swap` PDA blocking it so the caller can retry delivery. Returns `true`
+    /// only if a close was actually submitted and confirmed on-chain.
+    async fn try_recover_from_duplicate_commit(
+        &self,
+        message: &HyperlaneMessage,
+        err: &ChainCommunicationError,
+    ) -> bool {
+        let Some(ref cfg) = self.ur_reveal else {
+            return false;
+        };
+        if !err.to_string().contains("Custom(10)") {
+            return false;
+        }
+        let payer = match self.get_payer() {
+            Ok(p) => p,
+            Err(e) => {
+                warn!(error = ?e, "get_payer failed while attempting duplicate-commit recovery");
+                return false;
+            }
+        };
+        match try_recover_duplicate_commit(
+            message,
+            cfg,
+            self.provider.rpc_client(),
+            self.priority_fee_oracle.clone(),
+            payer,
+        )
+        .await
+        {
+            Ok(closed) => closed,
+            Err(e) => {
+                warn!(error = ?e, "Failed to recover from duplicate commit (stale pending_swap)");
+                false
+            }
+        }
+    }
+
     fn maybe_spawn_reveal_for_message(&self, message: &HyperlaneMessage) {
         if let Some(ref cfg) = self.ur_reveal {
             if message.body.len() != COMMIT_BODY_LEN {
