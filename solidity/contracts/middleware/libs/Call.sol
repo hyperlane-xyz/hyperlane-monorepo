@@ -9,6 +9,8 @@ library CallLib {
     uint256 internal constant NATIVE_BALANCE_SENTINEL = type(uint256).max;
     uint256 internal constant DELEGATECALL_SENTINEL = type(uint256).max - 1;
 
+    error DelegatecallNotAllowed();
+
     struct StaticCall {
         // supporting non EVM targets
         bytes32 to;
@@ -70,6 +72,22 @@ library CallLib {
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
+            call(calls[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Like `multicall`, but rejects delegatecalls. For callers that run
+    /// untrusted calls with their own authority.
+    function safeMulticall(Call[] memory calls) internal {
+        uint256 i = 0;
+        uint256 len = calls.length;
+        while (i < len) {
+            if (calls[i].value == DELEGATECALL_SENTINEL) {
+                revert DelegatecallNotAllowed();
+            }
             call(calls[i]);
             unchecked {
                 ++i;
