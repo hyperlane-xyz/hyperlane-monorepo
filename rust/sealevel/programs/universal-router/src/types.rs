@@ -134,7 +134,7 @@ pub struct PendingSwap {
     /// PDA bump used for signing CPIs on behalf of the PDA
     pub bump: u8,
     /// Unix timestamp (i64) when the commit message was processed on-chain.
-    /// Used to gate permissionless ClosePendingSwap: anyone may close after 1 hour.
+    /// Used to gate permissionless ClosePendingSwap: anyone may close after 1 minute.
     pub commit_time: i64,
 }
 

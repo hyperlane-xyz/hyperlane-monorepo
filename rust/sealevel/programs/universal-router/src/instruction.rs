@@ -12,11 +12,14 @@
 //!   [2..] remaining_accounts for commands (consumed by dispatcher)
 //!
 //! Reveal (direct — not via Hyperlane mailbox):
+//!   No fallback on failure — a failed swap reverts the whole instruction,
+//!   leaving the PDA untouched. Recovery is ClosePendingSwap's job: the
+//!   relayer simulates Reveal first and calls ClosePendingSwap directly if
+//!   simulation fails, instead of submitting Reveal at all.
 //!   [0] pending_swap PDA   writable (closed on success, rent → fee_payer_pda)
 //!   [1] pda_token_ata      writable (input tokens owned by pending_swap PDA)
 //!   [2] fee_payer_pda      writable (receives pending_swap rent on close)
-//!   [3] system_program
-//!   [4..] swap command accounts
+//!   [3..] swap command accounts
 //!
 //! ClosePendingSwap:
 //!   [0] pending_swap PDA   writable (closed; rent → recipient)

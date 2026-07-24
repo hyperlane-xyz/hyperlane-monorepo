@@ -45,7 +45,7 @@ pub enum RouterError {
     #[error("Caller is not the authorised Hyperlane mailbox process authority")]
     UnauthorizedMailbox = 14,
 
-    #[error("Swap has not expired yet — ClosePendingSwap requires 1 hour after commit")]
+    #[error("Swap has not expired yet — ClosePendingSwap requires 1 minute after commit")]
     SwapNotExpired = 15,
 }
 

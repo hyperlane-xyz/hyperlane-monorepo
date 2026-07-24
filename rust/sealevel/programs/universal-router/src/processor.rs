@@ -2,8 +2,8 @@
 
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use solana_program::{
-    account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, keccak, msg,
-    pubkey::Pubkey, sysvar::Sysvar,
+    account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, keccak, pubkey::Pubkey,
+    sysvar::Sysvar,
 };
 
 use crate::{
@@ -85,31 +85,32 @@ fn execute_with_deadline<'info>(
 // Reveal (direct — not via Hyperlane mailbox)
 // ---------------------------------------------------------------------------
 //
+// No fallback here: if the committed swap fails, this instruction (and thus
+// the whole transaction) simply reverts — the pending_swap PDA is left
+// untouched, funds stay safe. Recovery happens out-of-band via
+// ClosePendingSwap: the relayer simulates Reveal first and, if simulation
+// fails, calls ClosePendingSwap directly instead of submitting Reveal at all;
+// ClosePendingSwap is also permissionlessly callable by anyone after a short
+// (1 minute) expiry regardless.
+//
 // Accounts:
 //   [0] pending_swap PDA   writable
 //   [1] pda_token_ata      writable
 //   [2] fee_payer_pda      writable (receives rent from PDA + ATA on close)
-//   [3] recipient_ata      writable (receives tokens on swap failure fallback)
-//   [4] token_program      readonly
-//   [5] mint               readonly
-//   [6] system_program     readonly
-//   [7..] swap command accounts
+//   [3..] swap command accounts
 
 pub fn reveal<'info>(
     program_id: &Pubkey,
     accounts: &'info [AccountInfo<'info>],
     ix: RevealIxn,
 ) -> ProgramResult {
-    if accounts.len() < 7 {
+    if accounts.len() < 3 {
         return Err(RouterError::InsufficientAccounts.into());
     }
     let swap_info = &accounts[0];
     let pda_ata_info = &accounts[1];
     let fee_payer_pda = &accounts[2];
-    let recipient_ata = &accounts[3];
-    let token_program = &accounts[4];
-    let mint = &accounts[5];
-    let swap_accounts = &accounts[7..];
+    let swap_accounts = &accounts[3..];
 
     // Compute commitment and verify pending_swap PDA address
     let origin_bytes = ix.origin.to_le_bytes();
@@ -171,76 +172,24 @@ pub fn reveal<'info>(
         &commitment,
         &bump_bytes,
     ];
-    let result = dispatcher::execute_commands(
+    // No try/catch: if the swap fails (including a CPI failure, which aborts
+    // the whole instruction and never returns control here), this whole
+    // instruction reverts — the PDA and its tokens are untouched. Recovery is
+    // ClosePendingSwap's job, not this instruction's.
+    dispatcher::execute_commands(
         &swap_commands,
         &swap_inputs,
         swap_accounts,
         swap_info,
         0,
         &[signer_seeds],
-    );
+    )?;
 
-    if result.is_ok() {
-        // Swap succeeded — close the pending_swap account, rent to fee_payer_pda
-        let swap_lamports = swap_info.lamports();
-        **swap_info.try_borrow_mut_lamports()? = 0;
-        **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
-        swap_info.try_borrow_mut_data()?.fill(0);
-    } else {
-        // Swap failed — transfer remaining tokens directly to recipient_ata,
-        // then close pda_ata and swap PDA (rent → fee_payer_pda).
-        msg!("Swap failed; falling back to direct token delivery to recipient_ata");
-
-        let balance = read_token_amount(&pda_ata_info.data.borrow()).unwrap_or(0);
-        if balance > 0 {
-            let decimals = read_mint_decimals(&mint.data.borrow())?;
-            let transfer_ix = build_token_transfer_checked_ix(
-                token_program.key,
-                pda_ata_info.key,
-                mint.key,
-                recipient_ata.key,
-                swap_info.key,
-                balance,
-                decimals,
-            )?;
-            solana_program::program::invoke_signed(
-                &transfer_ix,
-                &[
-                    pda_ata_info.clone(),
-                    mint.clone(),
-                    recipient_ata.clone(),
-                    swap_info.clone(),
-                    token_program.clone(),
-                ],
-                &[signer_seeds],
-            )?;
-        }
-
-        // Close pda_ata — rent to fee_payer_pda
-        let close_ata_ix = spl_token::instruction::close_account(
-            token_program.key,
-            pda_ata_info.key,
-            fee_payer_pda.key,
-            swap_info.key,
-            &[],
-        )?;
-        solana_program::program::invoke_signed(
-            &close_ata_ix,
-            &[
-                pda_ata_info.clone(),
-                fee_payer_pda.clone(),
-                swap_info.clone(),
-                token_program.clone(),
-            ],
-            &[signer_seeds],
-        )?;
-
-        // Close swap PDA — rent to fee_payer_pda
-        let swap_lamports = swap_info.lamports();
-        **swap_info.try_borrow_mut_lamports()? = 0;
-        **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
-        swap_info.try_borrow_mut_data()?.fill(0);
-    }
+    // Swap succeeded — close the pending_swap account, rent to fee_payer_pda
+    let swap_lamports = swap_info.lamports();
+    **swap_info.try_borrow_mut_lamports()? = 0;
+    **fee_payer_pda.try_borrow_mut_lamports()? += swap_lamports;
+    swap_info.try_borrow_mut_data()?.fill(0);
 
     Ok(())
 }
@@ -259,7 +208,7 @@ pub fn reveal<'info>(
 //   [6] recipient          writable (must match swap.recipient; receives all rent)
 //
 // Authorization:
-//   - Anyone (signer) may call, but only after 1 hour from commit_time.
+//   - Anyone (signer) may call, but only after 1 minute from commit_time.
 //   - recipient_ata owner and accounts[6] are both verified against swap.recipient.
 
 fn close_pending_swap<'info>(
@@ -325,9 +274,9 @@ fn close_pending_swap<'info>(
         }
     }
 
-    // Only permitted after 1 hour from commit time — enforced for everyone.
+    // Only permitted after 1 minute from commit time — enforced for everyone.
     let now = Clock::get()?.unix_timestamp;
-    if now < swap.commit_time + 3600 {
+    if now < swap.commit_time + 60 {
         return Err(RouterError::SwapNotExpired.into());
     }
 
@@ -723,19 +672,15 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // reveal: fallback on swap failure delivers tokens to recipient_ata
+    // reveal: no fallback — swap failure propagates and reverts the instruction
     // -----------------------------------------------------------------------
 
-    /// When the destination swap fails, reveal() must NOT propagate the swap
-    /// error. Instead it enters the fallback path: transfer tokens to
-    /// recipient_ata and close both the ATA and the pending_swap PDA.
-    ///
-    /// In unit tests invoke_signed is unavailable (no BPF runtime), so the
-    /// fallback fails at the first CPI call. The critical assertion is that
-    /// the returned error is NOT UnknownCommand — proving we consumed the
-    /// swap failure and entered the fallback rather than propagating the error.
+    /// reveal() no longer catches a failed swap — it propagates the error
+    /// directly (which reverts the whole instruction/transaction, leaving the
+    /// pending_swap PDA and its tokens untouched). Recovery is ClosePendingSwap's
+    /// job now, not reveal()'s.
     #[test]
-    fn test_reveal_swap_failure_falls_back_to_direct_delivery() {
+    fn test_reveal_swap_failure_propagates_error_no_fallback() {
         let prog = Pubkey::new_unique();
         let owner = Pubkey::new_unique();
         let recipient_key = Pubkey::new_unique();
@@ -773,36 +718,19 @@ mod tests {
         };
 
         let pda_ata_key = Pubkey::new_unique();
-        let recipient_ata_key = Pubkey::new_unique();
-        let token_program_key = spl_token::ID;
-        let mint_key = Pubkey::new_unique();
-        let system_program_key = Pubkey::default();
 
         let ata_data = make_spl_token_account_data(&swap_key, 1_000);
-        let mint_data = make_spl_mint_data(6);
         let mut d0 = pending_swap.to_bytes().unwrap();
         let mut d1 = ata_data;
         let mut d2 = vec![];
-        let mut d3 = vec![];
-        let mut d4 = vec![];
-        let mut d5 = mint_data;
-        let mut d6 = vec![];
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
         let mut l2 = 100_000u64;
-        let mut l3 = 0u64;
-        let mut l4 = 0u64;
-        let mut l5 = 0u64;
-        let mut l6 = 0u64;
 
         let accounts = vec![
             make_account(&swap_key, false, true, &mut l0, &mut d0, &prog),
             make_account(&pda_ata_key, false, true, &mut l1, &mut d1, &owner),
             make_account(&fee_payer_key, false, true, &mut l2, &mut d2, &owner),
-            make_account(&recipient_ata_key, false, true, &mut l3, &mut d3, &owner),
-            make_account(&token_program_key, false, false, &mut l4, &mut d4, &owner),
-            make_account(&mint_key, false, false, &mut l5, &mut d5, &owner),
-            make_account(&system_program_key, false, false, &mut l6, &mut d6, &owner),
         ];
 
         let ix = RevealIxn {
@@ -814,24 +742,12 @@ mod tests {
         };
         let result = reveal(&prog, &accounts, ix);
 
-        // Must NOT propagate UnknownCommand — that proves we entered the fallback.
-        // The fallback itself fails at invoke_signed (no BPF runtime in unit tests),
-        // but the important invariant is that the swap error was consumed.
-        assert_ne!(
-            result,
-            Err(RouterError::UnknownCommand.into()),
-            "swap error must not propagate — fallback path must be entered"
-        );
-        // Must not be any early validation failure either
-        assert_ne!(result, Err(RouterError::InsufficientAccounts.into()));
-        assert_ne!(result, Err(RouterError::InvalidInputs.into()));
-        assert_ne!(result, Err(RouterError::InvalidRecipient.into()));
-        assert_ne!(result, Err(RouterError::CommitmentMissing.into()));
-        assert_ne!(result, Err(RouterError::InsufficientTokenBalance.into()));
+        // The swap's own error propagates directly — no fallback consumes it.
+        assert_eq!(result, Err(RouterError::UnknownCommand.into()));
     }
 
     // -----------------------------------------------------------------------
-    // close_pending_swap: permissionless expiry (1 hour after commit)
+    // close_pending_swap: permissionless expiry (1 minute after commit)
     // -----------------------------------------------------------------------
 
     // Build PendingSwap data at the correct PDA for close tests.
@@ -865,9 +781,9 @@ mod tests {
         (swap_key, swap_bump, swap.to_bytes().unwrap())
     }
 
-    /// Any caller before 1hr → blocked (SwapNotExpired in BPF; UnsupportedSysvar in unit tests).
+    /// Any caller before 1min → blocked (SwapNotExpired in BPF; UnsupportedSysvar in unit tests).
     /// Clock::get() returns unix_timestamp=0 in unit-test context (no BPF runtime).
-    /// commit_time=0 means 0 < 0+3600, so the swap has not expired.
+    /// commit_time=0 means 0 < 0+60, so the swap has not expired.
     #[test]
     fn test_close_pending_swap_any_caller_before_expiry_is_blocked() {
         let prog = Pubkey::new_unique();
@@ -890,7 +806,7 @@ mod tests {
             &user_salt,
             &commitment,
             &recipient_key,
-            0, // commit_time=0, now=0 → 0 < 3600 → not expired
+            0, // commit_time=0, now=0 → 0 < 60 → not expired
         );
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
@@ -928,13 +844,13 @@ mod tests {
         );
         // In BPF: SwapNotExpired. In unit tests Clock::get() returns UnsupportedSysvar
         // (no sysvar cache available), so the error surfaces before the expiry check.
-        // Either way the caller is correctly rejected before 1 hour.
+        // Either way the caller is correctly rejected before 1 minute.
         assert!(result.is_err());
         assert_ne!(result, Ok(()));
     }
 
-    /// Third-party caller after 1hr but recipient_ata owned by wrong key → InvalidRecipient.
-    /// commit_time=-3601: now(0) >= -3601+3600=-1 → expired.
+    /// Third-party caller after 1min but recipient_ata owned by wrong key → InvalidRecipient.
+    /// commit_time=-61: now(0) >= -61+60=-1 → expired.
     #[test]
     fn test_close_pending_swap_third_party_expired_wrong_ata_owner_returns_invalid_recipient() {
         let prog = Pubkey::new_unique();
@@ -958,7 +874,7 @@ mod tests {
             &user_salt,
             &commitment,
             &recipient_key,
-            -3601, // expired: now(0) >= -1
+            -61, // expired: now(0) >= -1
         );
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
@@ -999,7 +915,7 @@ mod tests {
         assert_eq!(result, Err(RouterError::InvalidRecipient.into()));
     }
 
-    /// Third-party caller after 1hr with correct recipient_ata owner → passes
+    /// Third-party caller after 1min with correct recipient_ata owner → passes
     /// all validation and reaches the token CPI (which fails without BPF runtime).
     #[test]
     fn test_close_pending_swap_third_party_expired_valid_ata_proceeds_past_expiry_check() {
@@ -1023,7 +939,7 @@ mod tests {
             &user_salt,
             &commitment,
             &recipient_key,
-            -3601, // expired
+            -61, // expired
         );
         let mut l0 = 100_000u64;
         let mut l1 = 0u64;
@@ -1071,7 +987,7 @@ mod tests {
         assert_ne!(result, Err(RouterError::InsufficientAccounts.into()));
     }
 
-    /// The recipient is also blocked before 1 hour — the expiry applies to everyone.
+    /// The recipient is also blocked before 1 minute — the expiry applies to everyone.
     #[test]
     fn test_close_pending_swap_recipient_blocked_before_expiry() {
         let prog = Pubkey::new_unique();
@@ -1129,11 +1045,11 @@ mod tests {
                 commitment,
             },
         );
-        // ata owner check passes; clock check blocks everyone before 1hr.
+        // ata owner check passes; clock check blocks everyone before 1min.
         // In BPF: SwapNotExpired. In unit tests: UnsupportedSysvar (no sysvar cache).
         assert!(
             result.is_err(),
-            "recipient must be blocked before 1-hour expiry"
+            "recipient must be blocked before 1-minute expiry"
         );
         assert_ne!(result, Err(RouterError::InvalidRecipient.into()));
         assert_ne!(result, Err(RouterError::InvalidInputs.into()));
