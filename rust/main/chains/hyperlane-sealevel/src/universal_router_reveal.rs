@@ -231,7 +231,10 @@ struct CloseAccounts {
 ///       pre-create it — see the idempotent ATA-create instruction alongside this)
 ///   [4] token_program      readonly
 ///   [5] mint               readonly
-///   [6] recipient          writable
+///   [6] recipient          writable (receives any swapped-back tokens)
+///   [7] fee_payer_pda      writable (receives all rent lamports from the PDA + ATA
+///       close — mirrors reveal()'s success-path refund, so the pool that funded
+///       this PDA's creation in handle_commit is replenished on the failure path too)
 #[allow(clippy::too_many_arguments)]
 fn make_close_pending_swap_ix(
     program_id: Pubkey,
@@ -246,6 +249,7 @@ fn make_close_pending_swap_ix(
     token_program: Pubkey,
     mint: Pubkey,
     recipient: Pubkey,
+    fee_payer_pda: Pubkey,
 ) -> Instruction {
     let mut data = Vec::with_capacity(1 + 4 + 32 + 32 + 32);
     data.push(3u8); // RouterInstruction::ClosePendingSwap variant
@@ -264,6 +268,7 @@ fn make_close_pending_swap_ix(
             AccountMeta::new_readonly(token_program, false),
             AccountMeta::new_readonly(mint, false),
             AccountMeta::new(recipient, false),
+            AccountMeta::new(fee_payer_pda, false),
         ],
         data,
     }
@@ -694,6 +699,7 @@ pub async fn try_recover_duplicate_commit(
         input_token_prog,
         input_mint,
         recipient_pubkey,
+        derive_fee_payer_pda(&program_id),
     );
 
     let ctx = RevealContext {
@@ -842,6 +848,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
                 accts.input_token_prog,
                 accts.input_mint,
                 recipient_pubkey,
+                derive_fee_payer_pda(&ctx.program_id),
             );
 
             return send_and_confirm(
