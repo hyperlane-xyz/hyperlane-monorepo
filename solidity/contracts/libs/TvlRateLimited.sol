@@ -15,12 +15,14 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============ Internal Imports ============
 import {RateLimited} from "./RateLimited.sol";
 import {TokenRouter} from "../token/libs/TokenRouter.sol";
+import {LpCollateral} from "../token/libs/TokenCollateral.sol";
 
 /**
  * @title TvlRateLimited
@@ -28,25 +30,35 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
  * warp router's TVL, instead of a static owner-set refill rate.
  *
  * @dev The capacity base is derived from `warpRouter.token()`:
- *   - `token() == address(0)`  → native balance (HypNative)
+ *   - `token() == address(0)`  → native balance minus LP assets (HypNative)
  *   - `token() == warpRouter`  → synthetic `totalSupply()` (HypERC20)
- *   - otherwise                → underlying `balanceOf(warpRouter)` (HypERC20Collateral)
+ *   - otherwise                → `balanceOf(warpRouter)` minus LP assets (HypERC20Collateral)
  *
- * The base is read live at call time, so direct transfers to `warpRouter`
- * (or `selfdestruct` for HypNative) inflate it. This is by design — growing
- * the balance to raise the cap also funds the pool the cap is gating, so an
- * attacker pays for any drain-headroom they unlock.
+ * `HypERC20Collateral`/`HypNative` are `LpCollateralRouter` ERC4626 vaults;
+ * `localCollateral` nets out `totalAssets()` (the LP-reclaimable pool) so
+ * reversible `deposit`/`redeem` are cap-neutral. Only genuinely locked bridging
+ * collateral — and irreversible direct transfers / `selfdestruct` — size the
+ * cap. Irreversible inflation is by design: raising the balance to lift the cap
+ * also funds the pool the cap gates, so the actor pays for the headroom.
  *
- * @dev TVL is assumed to change only via Hyperlane operations (inbound process
- * / outbound dispatch), each of which touches the bucket. Under this assumption
- * `maxCapacity()` is constant between touches, so `calculateCurrentLevel`'s
- * time-based replenishment never mixes two capacity epochs. Donations only grow
- * TVL, never shrink it, so the level clamp is defensive — it only fires under
- * externally-driven shrinks, which are out of scope for warp routes.
+ * @dev With deposits netted out, TVL is assumed to change only via Hyperlane
+ * operations (inbound process / outbound dispatch), each of which touches the
+ * bucket. Under this assumption `maxCapacity()` is constant between touches, so
+ * `calculateCurrentLevel`'s time-based replenishment never mixes two capacity
+ * epochs. Irreversible inflows only grow TVL, never shrink it, so the level
+ * clamp is defensive — it only fires under externally-driven shrinks, which are
+ * out of scope for warp routes.
+ *
+ * @dev For the synthetic base (`token() == warpRouter`), mint/burn are the
+ * metered operations and move `totalSupply` themselves: processed inbound mints
+ * raise capacity/refill, and burn-first outbound metering caps the largest
+ * single outbound at `S·thresholdBps / (BPS + thresholdBps)`. Both err toward
+ * restriction and stay within the configured fraction of TVL.
  */
 abstract contract TvlRateLimited is RateLimited {
     using StorageSlot for bytes32;
     using Math for uint256;
+    using LpCollateral for IERC4626;
 
     // ============ Errors ============
     error InvalidRouter();
@@ -112,13 +124,13 @@ abstract contract TvlRateLimited is RateLimited {
 
     /// @notice TVL base used to size capacity, before applying `thresholdBps`.
     function localCollateral() public view returns (uint256) {
-        if (capacityToken == address(0)) {
-            return warpRouter.balance;
-        }
         if (capacityToken == warpRouter) {
             return IERC20(capacityToken).totalSupply();
         }
-        return IERC20(capacityToken).balanceOf(warpRouter);
+        // Collateral/native routers are `LpCollateralRouter`s: net the
+        // LP-reclaimable pool out of the raw balance (reverts for any other
+        // router, which is intended — those are unsupported).
+        return IERC4626(warpRouter).effectiveCollateralBalance();
     }
 
     /// @inheritdoc RateLimited

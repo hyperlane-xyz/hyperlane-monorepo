@@ -106,6 +106,49 @@ contract NetFlowRateLimitedHookIsmTest is Test {
         assertEq(netFlow.calculateCurrentLevel(), 10 ether);
     }
 
+    function test_lpDepositsAreCapacityNeutral() external {
+        uint256 capBefore = netFlow.maxCapacity();
+
+        token.approve(address(localRouter), 50 ether);
+        uint256 shares = localRouter.deposit(50 ether, address(this));
+
+        // deposit raised balanceOf and totalAssets together → cap unchanged
+        assertEq(localRouter.totalAssets(), 50 ether);
+        assertEq(netFlow.localCollateral(), INITIAL_COLLATERAL);
+        assertEq(netFlow.maxCapacity(), capBefore);
+
+        localRouter.redeem(shares, address(this), address(this));
+
+        // redeem reverses both → still neutral
+        assertEq(localRouter.totalAssets(), 0);
+        assertEq(netFlow.localCollateral(), INITIAL_COLLATERAL);
+        assertEq(netFlow.maxCapacity(), capBefore);
+    }
+
+    function test_donationIsCapacityNeutral() external {
+        uint256 capBefore = netFlow.maxCapacity();
+
+        token.approve(address(localRouter), 25 ether);
+        localRouter.donate(25 ether);
+
+        // donate also bumps balanceOf and totalAssets together
+        assertEq(localRouter.totalAssets(), 25 ether);
+        assertEq(netFlow.localCollateral(), INITIAL_COLLATERAL);
+        assertEq(netFlow.maxCapacity(), capBefore);
+    }
+
+    function test_irreversibleTransferRaisesCapacity() external {
+        uint256 capBefore = netFlow.maxCapacity();
+
+        // a raw transfer mints no shares (irreversible) → it funds the pool and
+        // legitimately raises the cap, unlike a reclaimable deposit
+        token.transfer(address(localRouter), 50 ether);
+
+        assertEq(localRouter.totalAssets(), 0);
+        assertEq(netFlow.localCollateral(), INITIAL_COLLATERAL + 50 ether);
+        assertGt(netFlow.maxCapacity(), capBefore);
+    }
+
     function test_reportsTypesAndZeroQuote() external view {
         assertEq(
             netFlow.hookType(),
@@ -416,7 +459,7 @@ contract NetFlowRateLimitedHookIsmTest is Test {
     /// HypERC4626Collateral exclusion: assets are deposited into the vault, so
     /// the router holds shares while `token().balanceOf(router)` stays 0 —
     /// capacity (and thus the limiter) collapses to zero despite real TVL.
-    function test_hypERC4626Collateral_capacityCollapses() external {
+    function test_hypERC4626Collateral_revertsNotLpRouter() external {
         ERC4626Test vault = new ERC4626Test(address(token), "Vault", "V");
         HypERC4626Collateral vaultRouter = new HypERC4626Collateral(
             ERC4626(address(vault)),
@@ -437,12 +480,15 @@ contract NetFlowRateLimitedHookIsmTest is Test {
             DURATION
         );
 
-        // token() is the vault asset, held at 0 by the router (it's in the
-        // vault as shares), so capacity collapses to zero.
+        // HypERC4626Collateral is not an LpCollateralRouter, so netting its
+        // reclaimable assets out of the capacity base reverts on the missing
+        // totalAssets() — the ISM is unsupported for this router type.
         assertEq(vaultRouter.token(), address(token));
         assertEq(token.balanceOf(address(vaultRouter)), 0);
-        assertEq(vaultNetFlow.localCollateral(), 0);
-        assertEq(vaultNetFlow.maxCapacity(), 0);
+        vm.expectRevert();
+        vaultNetFlow.localCollateral();
+        vm.expectRevert();
+        vaultNetFlow.maxCapacity();
     }
 
     /// @dev The bucket meters in the token's local units, but a message amount
