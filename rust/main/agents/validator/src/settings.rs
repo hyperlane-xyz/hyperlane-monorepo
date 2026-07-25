@@ -55,6 +55,10 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
+    /// A dedicated list of RPCs used only for quorum-verifying the merkle
+    /// tree hook's safety-critical state reads (tree, latest checkpoint).
+    /// Falls back to `rpcs` when empty, so existing configs are unaffected.
+    pub quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
     /// Max sign concurrency
@@ -217,6 +221,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             &mut err,
         ));
 
+        let quorum_rpcs = get_rpc_urls(&chain, "quorumRpcUrls", "customQuorumRpcUrls", &mut err);
+
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
@@ -240,6 +246,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             rpcs,
+            quorum_rpcs,
             allow_public_rpcs,
             max_sign_concurrency,
         })

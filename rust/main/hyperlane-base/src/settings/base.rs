@@ -149,6 +149,15 @@ macro_rules! build_chain_conf_fns {
 /// Arc SequenceAwareIndexer
 pub type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
 
+#[derive(Clone, Copy)]
+/// Shared flags for contract sync construction.
+pub struct ContractSyncBuildOptions {
+    /// Whether to enable advanced log metadata while building the indexer.
+    pub advanced_log_meta: bool,
+    /// Whether to enable broadcast sender support on the sync task.
+    pub broadcast_sender_enabled: bool,
+}
+
 impl Settings {
     build_chain_conf_fns!(build_interchain_gas_paymaster, build_interchain_gas_paymasters -> dyn InterchainGasPaymaster);
     build_chain_conf_fns!(build_merkle_tree_hook, build_merkle_tree_hooks -> dyn MerkleTreeHook);
@@ -171,15 +180,45 @@ impl Settings {
         S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
     {
         let setup = self.chain_setup(domain)?;
+        self.sequenced_contract_sync_with_chain_conf(
+            domain,
+            metrics,
+            sync_metrics,
+            store,
+            ContractSyncBuildOptions {
+                advanced_log_meta,
+                broadcast_sender_enabled,
+            },
+            setup,
+        )
+        .await
+    }
+
+    /// Build a contract sync for type `T` using log store `S` and an explicit chain config.
+    pub async fn sequenced_contract_sync_with_chain_conf<T, S>(
+        &self,
+        domain: &HyperlaneDomain,
+        metrics: &CoreMetrics,
+        sync_metrics: &ContractSyncMetrics,
+        store: Arc<S>,
+        options: ContractSyncBuildOptions,
+        setup: &ChainConf,
+    ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
+    where
+        T: Indexable + Debug,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+    {
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer =
-            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advanced_log_meta).await?;
+            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, options.advanced_log_meta)
+                .await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
-            broadcast_sender_enabled,
+            options.broadcast_sender_enabled,
         )))
     }
 
