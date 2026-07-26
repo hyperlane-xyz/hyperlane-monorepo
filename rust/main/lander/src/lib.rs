@@ -2,6 +2,7 @@
 #![deny(clippy::arithmetic_side_effects)]
 
 pub use adapter::AdaptsChainAction;
+pub use adapter::ReorgedTransactionsInspection;
 pub use dispatcher::command_entrypoint::CommandEntrypoint;
 pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};
@@ -10,7 +11,9 @@ pub use payload::{
     DropReason as PayloadDropReason, FullPayload, PayloadStatus, PayloadUuid,
     RetryReason as PayloadRetryReason,
 };
-pub use transaction::{DropReason as TransactionDropReason, TransactionStatus, TransactionUuid};
+pub use transaction::{
+    DropReason as TransactionDropReason, Transaction, TransactionStatus, TransactionUuid,
+};
 
 mod adapter;
 mod dispatcher;

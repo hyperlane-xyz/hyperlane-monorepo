@@ -9,7 +9,7 @@ use hyperlane_core::identifiers::UniqueIdentifier;
 use hyperlane_core::KnownHyperlaneDomain;
 
 use crate::adapter::chains::ethereum::NonceDb;
-use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
+use crate::adapter::{AdaptsChain, GasLimit, ReorgedTransactionsInspection, TxBuildingResult};
 use crate::dispatcher::{DispatcherMetrics, PayloadDb, TransactionDb};
 use crate::error::LanderError;
 use crate::payload::{FullPayload, PayloadDetails, PayloadStatus};
@@ -37,6 +37,8 @@ mockall::mock! {
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
         fn reprocess_txs_poll_rate(&self) -> Option<std::time::Duration>;
         async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError>;
+        async fn inspect_reorged_transactions(&self) -> Result<ReorgedTransactionsInspection, LanderError>;
+        async fn trigger_reprocess_reorged_transactions(&self) -> Result<usize, LanderError>;
         async fn post_finalized(&self) -> Result<(), LanderError>;
     }
 }
