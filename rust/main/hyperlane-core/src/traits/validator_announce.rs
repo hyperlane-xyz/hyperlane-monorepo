@@ -26,4 +26,11 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
         announcement: SignedType<Announcement>,
         chain_signer: H256,
     ) -> Option<U256>;
+
+    /// Returns the serialized calldata for the announce transaction.
+    /// Used by Lander for transaction submission.
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>>;
 }

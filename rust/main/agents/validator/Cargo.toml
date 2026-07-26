@@ -37,6 +37,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+lander = { path = "../../lander" }
 
 # Dependency version is determined by ethers
 rusoto_core = '*'
