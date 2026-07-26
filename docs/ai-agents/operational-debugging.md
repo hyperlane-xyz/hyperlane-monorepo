@@ -159,8 +159,8 @@ hyperlane_lander_inclusion_stage_pool_length{
 # Monitor gas price escalation
 hyperlane_lander_gas_price{destination="linea"} / 1000000000
 
-# Check transaction finalization rate
-rate(hyperlane_lander_finalized_transactions[5m])
+# Check finalized transaction progress (gauge-backed)
+clamp_min(delta(hyperlane_lander_finalized_transactions{app_context="hyperlane"}[5m]), 0)
 ```
 
 ### Debugging Workflow with Grafana + GCP
