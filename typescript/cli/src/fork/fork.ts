@@ -63,18 +63,23 @@ export async function runForkCommand({
     rpcUrls: ChainMetadata['rpcUrls'];
   }> = {};
   for (const chainName of filteredChainsToFork) {
-    const endpoint = await forkChain(
-      context.multiProvider,
-      chainName,
-      port,
-      kill,
-      parsedForkConfig[chainName],
-    );
-    chainMetadataOverrides[chainName] = {
-      blocks: { confirmations: 1 },
-      rpcUrls: [{ http: endpoint }],
-    };
-
+    try {
+      const endpoint = await forkChain(
+        context.multiProvider,
+        chainName,
+        port,
+        kill,
+        parsedForkConfig[chainName],
+      );
+      chainMetadataOverrides[chainName] = {
+        blocks: { confirmations: 1 },
+        rpcUrls: [{ http: endpoint }],
+      };
+    } catch (e: any) {
+      logRed(
+        `Failed to fork chain ${chainName}, skipping: ${e.shortMessage ?? e.message}`,
+      );
+    }
     port++;
   }
 
@@ -116,8 +121,11 @@ async function forkChain(
     const endpoint = `${LOCAL_HOST}:${forkPort}`;
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
     const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
+    anvilProcess.catch(() => {
+      /* handled by retryAsync below */
+    });
 
-    const provider = new JsonRpcProvider(endpoint);
+    const provider = new JsonRpcProvider({ url: endpoint, timeout: 3000 });
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
