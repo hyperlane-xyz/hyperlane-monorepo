@@ -87,6 +87,5 @@ export const HIGH_URGENCY_RELAYER_FOOTER = `    # Special contexts already have 
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"soon"}[1d]) - 0.005 or
     
     # Sonic SVM
-    last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"sonicsvm"}[1d]) - 0.075 or
-
+    last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"sonicsvm"}[1d]) - 0.075
 `;
