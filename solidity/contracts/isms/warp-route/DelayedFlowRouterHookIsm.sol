@@ -14,7 +14,6 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ External Imports ============
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============ Internal Imports ============
@@ -47,7 +46,6 @@ import {TokenRouter} from "../../token/libs/TokenRouter.sol";
 contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     using Message for bytes;
     using TokenMessage for bytes;
-    using StorageSlot for bytes32;
 
     // ============ Errors ============
     error WrongSender(address sender);
@@ -77,20 +75,10 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     /// single slot prevents same-message replay of the bucket credit.
     uint32 public lastCreditedNonce;
 
-    /// @dev Outstanding over-limit consumption (in local token units) not yet
-    /// healed by refill or offset by a credit. Kept in a hashed slot so this
-    /// mix-in adds no contiguous state to the layout (mirrors
-    /// `TvlRateLimited.IS_INITIALIZED_SLOT`).
-    bytes32 private constant DEBT_SLOT =
-        keccak256("hyperlane.storage.DelayedFlowRouterHookIsm.debt");
-
-    function _debt() private view returns (uint256) {
-        return DEBT_SLOT.getUint256Slot().value;
-    }
-
-    function _setDebt(uint256 _value) private {
-        DEBT_SLOT.getUint256Slot().value = _value;
-    }
+    /// @notice Outstanding over-limit consumption (in local token units) not
+    /// yet healed by refill or offset by a credit. Netted out of the bucket
+    /// level so an underwater bucket reports zero headroom.
+    uint256 public debt;
 
     // ============ Constructor ============
 
@@ -199,16 +187,14 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     function _RateLimited_adjustLevel(
         uint256 _replenishedLevel
     ) internal view override returns (uint256) {
-        uint256 debt = _debt();
         return _replenishedLevel > debt ? _replenishedLevel - debt : 0;
     }
 
     /// @dev Heal debt by the refill accrued this touch, at the shared refill
     /// rate (`cap / DURATION`).
     function _RateLimited_settleDebt(uint256 _refill) internal override {
-        uint256 debt = _debt();
         if (debt != 0) {
-            _setDebt(_refill >= debt ? 0 : debt - _refill);
+            debt = _refill >= debt ? 0 : debt - _refill;
         }
     }
 
@@ -218,8 +204,7 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
         uint256 _overage,
         uint256 _cap
     ) internal override returns (uint256) {
-        uint256 debt = _debt() + _overage;
-        _setDebt(debt);
+        debt += _overage;
         return
             _cap == 0 ? type(uint256).max : Math.mulDiv(debt, DURATION, _cap);
     }
@@ -229,15 +214,15 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     function _RateLimited_applyCredit(
         uint256 _amount
     ) internal override returns (uint256) {
-        uint256 debt = _debt();
         if (debt == 0) {
             return _amount;
         }
         if (_amount >= debt) {
-            _setDebt(0);
-            return _amount - debt;
+            uint256 remainder = _amount - debt;
+            debt = 0;
+            return remainder;
         }
-        _setDebt(debt - _amount);
+        debt -= _amount;
         return 0;
     }
 }
