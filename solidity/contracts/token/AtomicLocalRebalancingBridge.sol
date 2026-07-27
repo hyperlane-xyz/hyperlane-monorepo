@@ -195,7 +195,7 @@ contract AtomicLocalRebalancingBridge is
         (
             sourceBefore.tracksTotalAssets,
             sourceBefore.totalAssetsBefore
-        ) = _tryTotalAssets(allowedSourceRouter);
+        ) = _tryGetRouterTotalAssets(allowedSourceRouter);
 
         CallLib.safeMulticall(abi.decode(data, (CallLib.Call[])));
 
@@ -406,7 +406,7 @@ contract AtomicLocalRebalancingBridge is
             (
                 bool stillTracksTotalAssets,
                 uint256 totalAssetsAfter
-            ) = _tryTotalAssets(allowedSourceRouter);
+            ) = _tryGetRouterTotalAssets(allowedSourceRouter);
             if (
                 !stillTracksTotalAssets ||
                 totalAssetsAfter != sourceBefore.totalAssetsBefore
@@ -495,18 +495,19 @@ contract AtomicLocalRebalancingBridge is
     }
 
     /// @dev Duck-typed, non-reverting read of an ERC4626-style `totalAssets()`
-    /// from `vault`, which may not implement it. Mirrors the `SafeERC20` pattern
-    /// of wrapping an external call, but reports capability instead of reverting so
-    /// the caller can treat a non-vault target as unsupported. Presence of the
-    /// selector is duck typing, not proof of ERC4626 semantics.
+    /// from the source `router`, which need not expose it. Mirrors the `SafeERC20`
+    /// pattern of wrapping an external call, but reports capability instead of
+    /// reverting so the caller can treat a router without the selector as
+    /// unsupported. Presence of the selector is duck typing, not proof of ERC4626
+    /// semantics.
     /// @return supported True only if the call succeeded and returned exactly 32
     /// bytes. A revert or a malformed return yields false; a failed call is never
     /// reported as a numeric zero.
     /// @return assets The decoded value when `supported` is true, otherwise 0.
-    function _tryTotalAssets(
-        address vault
+    function _tryGetRouterTotalAssets(
+        address router
     ) internal view returns (bool supported, uint256 assets) {
-        (bool ok, bytes memory returnData) = vault.staticcall(
+        (bool ok, bytes memory returnData) = router.staticcall(
             abi.encodeCall(IERC4626.totalAssets, ())
         );
         if (!ok || returnData.length != 32) {
