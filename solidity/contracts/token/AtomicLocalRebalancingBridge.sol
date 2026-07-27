@@ -31,12 +31,11 @@ struct SelfBalanceSnapshot {
 }
 
 /// @dev Source router reference values for the post-call invariants.
-/// `routerBalance` is snapshotted before escrow; `tracksTotalAssets`/
-/// `totalAssetsBefore` are captured after the canonical pull, so the equality
-/// check constrains only the untrusted-call window. Used to avoid stack too deep.
+/// `routerBalance` is snapshotted before escrow; `totalAssetsBefore` is captured
+/// after the canonical pull, so the equality check constrains only the
+/// untrusted-call window. Used to avoid stack too deep.
 struct SourceSnapshot {
     uint256 routerBalance;
-    bool tracksTotalAssets;
     uint256 totalAssetsBefore;
 }
 
@@ -61,27 +60,25 @@ struct SourceSnapshot {
 ///   bound a compromised or buggy rebalancer, since the calls run arbitrary code.
 /// - A rebalance moves at most `amount` out of the source router and funds the
 ///   destination only with output the calls produce.
-/// - If the source exposes an ERC4626-style `totalAssets()`, it must be identical
-///   before and after the rebalancer's calls, blocking a source drain masked by
-///   depositing collateral back into the source's LP vault for redeemable shares.
-///   Sources without `totalAssets()` skip this check. See "Source compatibility".
+/// - The source's `LpCollateralRouter.totalAssets()` must be identical before and
+///   after the rebalancer's calls, blocking a source drain masked by depositing
+///   collateral back into the source's LP vault for redeemable shares. See
+///   "Source compatibility".
 /// - The bridge keeps no value of its own: any balance present before a call is
 ///   neither consumed to fund the destination nor refunded to the rebalancer.
 ///   Such stray balances are recoverable only by the owner via
 ///   `recoverToken`/`recoverNativeBalance`.
 ///
 /// @dev Source compatibility for the `totalAssets()` invariant:
-/// - The source need not implement `totalAssets()`; unsupported sources skip it.
-/// - A probe returning exactly 32 bytes is treated as a value that must stay
-///   stable for the whole rebalancer-call window, so intended calls (approvals,
-///   swaps) MUST NOT change the source's reported `totalAssets()`. Deposits,
-///   withdrawals, donations, accounting updates, or dynamic/balance-based
-///   implementations may make a source incompatible.
+/// - The bridge assumes the source is an `LpCollateralRouter` (an ERC4626 vault
+///   exposing `totalAssets()`), which is the case for the collateral routers used
+///   as sources today, and reads `totalAssets()` unconditionally; a source that
+///   does not expose it reverts the rebalance.
+/// - `totalAssets()` must stay stable for the whole rebalancer-call window, so
+///   intended calls (approvals, swaps) MUST NOT change it. Deposits, withdrawals,
+///   or donations into the source's vault during the calls fail the invariant.
 /// - The canonical collateral pull is excluded, since the snapshot is taken after
-///   it; a source whose trusted pull changes its own accounting is still allowed.
-/// - Detection is by selector, not ERC4626 semantics: a source exposing an
-///   unrelated `totalAssets()` is treated as supporting the invariant and must
-///   keep it stable across the calls.
+///   it; the trusted pull changing the source's own accounting is still allowed.
 contract AtomicLocalRebalancingBridge is
     IRebalancingBridge,
     ITokenBridge,
@@ -190,12 +187,10 @@ contract AtomicLocalRebalancingBridge is
         // storage.
         _pullSourceRouterCollateral(source, amount);
 
-        // Snapshot the source's `totalAssets()` (if it exposes one) after the
-        // canonical pull, so only the untrusted-call window is constrained.
-        (
-            sourceBefore.tracksTotalAssets,
-            sourceBefore.totalAssetsBefore
-        ) = _tryGetRouterTotalAssets(allowedSourceRouter);
+        // Snapshot the source's `totalAssets()` after the canonical pull, so only
+        // the untrusted-call window is constrained.
+        sourceBefore.totalAssetsBefore = IERC4626(allowedSourceRouter)
+            .totalAssets();
 
         CallLib.safeMulticall(abi.decode(data, (CallLib.Call[])));
 
@@ -397,22 +392,15 @@ contract AtomicLocalRebalancingBridge is
             revert SourceRouterOverdrawn();
         }
 
-        // If the source exposes `totalAssets()`, it must be identical across the
-        // calls. A canonical pull leaves it unchanged, so any change means the
-        // calls deposited into or withdrew from the source's LP vault — e.g.
-        // masking a source-token drain by minting redeemable shares. Losing the
-        // selector after reporting it before also fails closed.
-        if (sourceBefore.tracksTotalAssets) {
-            (
-                bool stillTracksTotalAssets,
-                uint256 totalAssetsAfter
-            ) = _tryGetRouterTotalAssets(allowedSourceRouter);
-            if (
-                !stillTracksTotalAssets ||
-                totalAssetsAfter != sourceBefore.totalAssetsBefore
-            ) {
-                revert SourceTotalAssetsChanged();
-            }
+        // The source's `totalAssets()` must be identical across the calls. A
+        // canonical pull leaves it unchanged, so any change means the calls
+        // deposited into or withdrew from the source's LP vault — e.g. masking a
+        // source-token drain by minting redeemable shares.
+        if (
+            IERC4626(allowedSourceRouter).totalAssets() !=
+            sourceBefore.totalAssetsBefore
+        ) {
+            revert SourceTotalAssetsChanged();
         }
 
         // Calls may consume at most the escrowed amount, never source collateral
@@ -492,28 +480,6 @@ contract AtomicLocalRebalancingBridge is
     /// @dev Reverts if `token` does not implement `IERC20Metadata.decimals()`.
     function _decimalScale(address token) internal view returns (uint256) {
         return 10 ** uint256(IERC20Metadata(token).decimals());
-    }
-
-    /// @dev Duck-typed, non-reverting read of an ERC4626-style `totalAssets()`
-    /// from the source `router`, which need not expose it. Mirrors the `SafeERC20`
-    /// pattern of wrapping an external call, but reports capability instead of
-    /// reverting so the caller can treat a router without the selector as
-    /// unsupported. Presence of the selector is duck typing, not proof of ERC4626
-    /// semantics.
-    /// @return supported True only if the call succeeded and returned exactly 32
-    /// bytes. A revert or a malformed return yields false; a failed call is never
-    /// reported as a numeric zero.
-    /// @return assets The decoded value when `supported` is true, otherwise 0.
-    function _tryGetRouterTotalAssets(
-        address router
-    ) internal view returns (bool supported, uint256 assets) {
-        (bool ok, bytes memory returnData) = router.staticcall(
-            abi.encodeCall(IERC4626.totalAssets, ())
-        );
-        if (!ok || returnData.length != 32) {
-            return (false, 0);
-        }
-        return (true, abi.decode(returnData, (uint256)));
     }
 
     function _refundTokenBalance(

@@ -37,6 +37,7 @@ contract MockRebalanceRouter {
     bool public reenter;
     bool public doubleCallback;
     uint256 public postCallbackApproval;
+    uint256 internal _totalAssets;
 
     constructor(
         ERC20Test _token,
@@ -107,6 +108,16 @@ contract MockRebalanceRouter {
 
     function setPostCallbackApproval(uint256 _postCallbackApproval) external {
         postCallbackApproval = _postCallbackApproval;
+    }
+
+    /// @notice Mirrors LpCollateralRouter: the collateral routers used as sources
+    /// expose an ERC4626-style `totalAssets()`.
+    function totalAssets() external view returns (uint256) {
+        return _totalAssets;
+    }
+
+    function setTotalAssets(uint256 value) external {
+        _totalAssets = value;
     }
 
     function addRebalancer(address rebalancer) external {
@@ -226,40 +237,6 @@ contract NonReceivingRebalancer {
             destinationRecipient,
             abi.encode(calls)
         );
-    }
-}
-
-/// @dev A source that exposes a settable ERC4626-style `totalAssets()`, and can
-/// be made to revert it mid-call, to exercise the optional accounting invariant.
-contract MockTotalAssetsRouter is MockRebalanceRouter {
-    uint256 internal _totalAssets;
-    bool public revertOnTotalAssets;
-
-    constructor(
-        ERC20Test _token,
-        uint32 _localDomain,
-        uint256 _scaleNumerator,
-        uint256 _scaleDenominator
-    )
-        MockRebalanceRouter(
-            _token,
-            _localDomain,
-            _scaleNumerator,
-            _scaleDenominator
-        )
-    {}
-
-    function totalAssets() external view returns (uint256) {
-        require(!revertOnTotalAssets, "totalAssets unavailable");
-        return _totalAssets;
-    }
-
-    function setTotalAssets(uint256 value) external {
-        _totalAssets = value;
-    }
-
-    function setRevertOnTotalAssets(bool value) external {
-        revertOnTotalAssets = value;
     }
 }
 
@@ -1087,7 +1064,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         public
     {
         (
-            MockTotalAssetsRouter vaultSource,
+            MockRebalanceRouter vaultSource,
             AtomicLocalRebalancingBridge vaultBridge
         ) = _deployVaultSourceBridge();
         vaultSource.setTotalAssets(500_000e6);
@@ -1104,20 +1081,9 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
     }
 
-    function test_rebalance_unsupportedSourceSkipsTotalAssetsCheck() public {
-        // The mock source has no `totalAssets()`; the probe reports unsupported
-        // (missing selector) and the invariant is skipped.
-        swapTarget.setOutputAmount(100e6);
-
-        vm.prank(rebalancer);
-        _localRebalance(100e6, _rebalancerCalls(100e6));
-
-        assertEq(outputToken.balanceOf(address(destinationRouter)), 100e6);
-    }
-
     function test_rebalance_revertsWhenTotalAssetsIncreases() public {
         (
-            MockTotalAssetsRouter vaultSource,
+            MockRebalanceRouter vaultSource,
             AtomicLocalRebalancingBridge vaultBridge
         ) = _deployVaultSourceBridge();
         vaultSource.setTotalAssets(500_000e6);
@@ -1139,7 +1105,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
     function test_rebalance_revertsWhenTotalAssetsDecreases() public {
         (
-            MockTotalAssetsRouter vaultSource,
+            MockRebalanceRouter vaultSource,
             AtomicLocalRebalancingBridge vaultBridge
         ) = _deployVaultSourceBridge();
         vaultSource.setTotalAssets(500_000e6);
@@ -1148,34 +1114,6 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         CallLib.Call[] memory calls = _callsBumpingTotalAssets(
             vaultSource,
             500_000e6 - 1
-        );
-
-        vm.prank(rebalancer);
-        vm.expectRevert(
-            AtomicLocalRebalancingBridge.SourceTotalAssetsChanged.selector
-        );
-        _vaultRebalance(vaultBridge, vaultSource, 100e6, calls);
-    }
-
-    function test_rebalance_revertsWhenTotalAssetsBecomesUnavailable() public {
-        // First probe succeeds and returns zero; a call then makes totalAssets
-        // revert. Losing support after observing it must fail closed, not be
-        // read as a coincidental zero.
-        (
-            MockTotalAssetsRouter vaultSource,
-            AtomicLocalRebalancingBridge vaultBridge
-        ) = _deployVaultSourceBridge();
-        vaultSource.setTotalAssets(0);
-        swapTarget.setOutputAmount(100e6);
-
-        CallLib.Call[] memory calls = new CallLib.Call[](3);
-        CallLib.Call[] memory swapCalls = _rebalancerCalls(100e6);
-        calls[0] = swapCalls[0];
-        calls[1] = swapCalls[1];
-        calls[2] = CallLib.build(
-            address(vaultSource),
-            0,
-            abi.encodeCall(MockTotalAssetsRouter.setRevertOnTotalAssets, (true))
         );
 
         vm.prank(rebalancer);
@@ -1615,11 +1553,11 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     function _deployVaultSourceBridge()
         internal
         returns (
-            MockTotalAssetsRouter vaultSource,
+            MockRebalanceRouter vaultSource,
             AtomicLocalRebalancingBridge vaultBridge
         )
     {
-        vaultSource = new MockTotalAssetsRouter(inputToken, LOCAL_DOMAIN, 1, 1);
+        vaultSource = new MockRebalanceRouter(inputToken, LOCAL_DOMAIN, 1, 1);
         vaultBridge = new AtomicLocalRebalancingBridge(
             LOCAL_DOMAIN,
             address(vaultSource),
@@ -1634,7 +1572,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
 
     function _vaultRebalance(
         AtomicLocalRebalancingBridge vaultBridge,
-        MockTotalAssetsRouter vaultSource,
+        MockRebalanceRouter vaultSource,
         uint256 amountIn,
         CallLib.Call[] memory calls
     ) internal {
@@ -1648,7 +1586,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
     }
 
     function _callsBumpingTotalAssets(
-        MockTotalAssetsRouter vaultSource,
+        MockRebalanceRouter vaultSource,
         uint256 newTotalAssets
     ) internal view returns (CallLib.Call[] memory calls) {
         calls = new CallLib.Call[](3);
@@ -1658,10 +1596,7 @@ contract AtomicLocalRebalancingBridgeTest is Test {
         calls[2] = CallLib.build(
             address(vaultSource),
             0,
-            abi.encodeCall(
-                MockTotalAssetsRouter.setTotalAssets,
-                (newTotalAssets)
-            )
+            abi.encodeCall(MockRebalanceRouter.setTotalAssets, (newTotalAssets))
         );
     }
 
