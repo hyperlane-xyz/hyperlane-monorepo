@@ -448,17 +448,30 @@ async fn fetch_offchain_data(
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 
-    // remove leading 0x which hex_decode doesn't like
-    let hex_data = &json.data[2..];
-
-    let metadata = hex_decode(hex_data).map_err(|err| {
-        let msg = format!(
-            "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
-            err, json.data
-        );
-        MetadataBuildError::FailedToBuild(msg)
-    })?;
+    let metadata = decode_offchain_data(&json.data)?;
     Ok(Metadata::new(metadata))
+}
+
+/// Decode the hex `data` field returned by an offchain lookup server.
+///
+/// Strips an optional leading `0x` in a bounds-safe way rather than slicing
+/// `[2..]`: a malformed or empty `data` field would otherwise panic the
+/// per-domain message processor task, which is not respawned and wedges the
+/// whole destination.
+fn decode_offchain_data(data: &str) -> Result<Vec<u8>, MetadataBuildError> {
+    let hex_data = data.strip_prefix("0x").unwrap_or(data);
+
+    if hex_data.is_empty() {
+        return Err(MetadataBuildError::FailedToBuild(format!(
+            "Offchain lookup server returned empty data field: ({data})"
+        )));
+    }
+
+    hex_decode(hex_data).map_err(|err| {
+        MetadataBuildError::FailedToBuild(format!(
+            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({data})"
+        ))
+    })
 }
 
 fn create_ccip_url_regex() -> RegexSet {
@@ -554,6 +567,40 @@ mod test {
         assert!(!body_signals_pending("not json"));
         // success body -> not pending
         assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
+    }
+
+    #[test]
+    fn test_decode_offchain_data() {
+        // with 0x prefix
+        assert_eq!(
+            decode_offchain_data("0xdeadbeef").unwrap(),
+            vec![0xde, 0xad, 0xbe, 0xef]
+        );
+        // without 0x prefix
+        assert_eq!(
+            decode_offchain_data("deadbeef").unwrap(),
+            vec![0xde, 0xad, 0xbe, 0xef]
+        );
+        // empty string must not panic (previously `&data[2..]` panicked here)
+        assert!(matches!(
+            decode_offchain_data(""),
+            Err(MetadataBuildError::FailedToBuild(_))
+        ));
+        // bare "0x" (empty after strip) must not panic
+        assert!(matches!(
+            decode_offchain_data("0x"),
+            Err(MetadataBuildError::FailedToBuild(_))
+        ));
+        // single char shorter than the stripped prefix must not panic
+        assert!(matches!(
+            decode_offchain_data("0"),
+            Err(MetadataBuildError::FailedToBuild(_))
+        ));
+        // invalid hex -> graceful error, no panic
+        assert!(matches!(
+            decode_offchain_data("0xzz"),
+            Err(MetadataBuildError::FailedToBuild(_))
+        ));
     }
 
     #[test]
