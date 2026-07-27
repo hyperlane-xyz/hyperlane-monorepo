@@ -30,13 +30,17 @@ use crate::{
     SCRAPER_METRICS_PORT,
 };
 
+/// Immutable multi-platform digest for tronbox/tre 2.0.0.
+const TRE_IMAGE: &str =
+    "tronbox/tre@sha256:f4332e11df12a9f360639a4546fd046593909630fda48af00b30410c144342f0";
+
 /// BIP-44 m/44'/195'/0'/0/0 derived from the "abandon" mnemonic.
-/// This is the default funded account in tronbox/tre:dev.
 const TRON_PRIVATE_KEY: &str = "0xb5a4cea271ff424d7c31dc12a3e43e401df7a40d7412a15750f3f0b6b5449a28";
 
 /// Mnemonic passed to TRE to ensure deterministic accounts.
 const TRE_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+const TRE_HD_PATH: &str = "m/44'/195'/0'/0/";
 
 const TRON_RPC_URL: &str = "http://127.0.0.1:9090/jsonrpc";
 const TRON_WALLET_URL: &str = "http://127.0.0.1:9090/wallet";
@@ -266,8 +270,9 @@ fn run_locally() {
         .arg("env", "block=allowTvmCompatibleEvm:1")
         .arg("env", "preapprove=allowTvmCompatibleEvm:1")
         .arg("env", format!("mnemonic={}", TRE_MNEMONIC))
+        .arg("env", format!("hdPath={}", TRE_HD_PATH))
         .arg("env", "defaultBalance=1000000")
-        .cmd("tronbox/tre:dev")
+        .cmd(TRE_IMAGE)
         .filter_logs(|_| false)
         .spawn("TRN", None);
 
