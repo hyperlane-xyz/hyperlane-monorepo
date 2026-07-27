@@ -53,7 +53,9 @@ const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
     base_hook: Arc<dyn MerkleTreeHook>,
-    /// Paired with a redacted host (no path/query, so logging it can't leak API keys).
+    /// Paired with a `quorumRpcUrls[i]` index label (0-based), not the host/URL itself —
+    /// some entries may be private RPCs, so logging which one disagreed must never reveal
+    /// which URL/provider that is.
     quorum_hooks: Vec<(String, Arc<dyn MerkleTreeHook>)>,
 }
 
@@ -89,9 +91,9 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         let mut oks: Vec<(String, T)> = Vec::new();
         let mut first_err = None;
 
-        for (host, result) in results {
+        for (label, result) in results {
             match result {
-                Ok(value) => oks.push((host, value)),
+                Ok(value) => oks.push((label, value)),
                 Err(err) => {
                     if first_err.is_none() {
                         first_err = Some(err);
@@ -102,21 +104,25 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
 
         let threshold = Self::two_thirds_threshold(self.quorum_hooks.len());
         let mut max_agreeing = 0;
+        let mut best_agreeing_rpcs: Vec<&str> = Vec::new();
 
         for (_, candidate) in &oks {
             let agreeing: Vec<&str> = oks
                 .iter()
                 .filter(|(_, other)| matches(candidate, other))
-                .map(|(host, _)| host.as_str())
+                .map(|(label, _)| label.as_str())
                 .collect();
-            max_agreeing = max_agreeing.max(agreeing.len());
+            if agreeing.len() > max_agreeing {
+                max_agreeing = agreeing.len();
+                best_agreeing_rpcs = agreeing.clone();
+            }
 
             if agreeing.len() >= threshold {
                 if agreeing.len() < oks.len() {
                     let disagreeing_rpcs: Vec<&str> = oks
                         .iter()
                         .filter(|(_, other)| !matches(candidate, other))
-                        .map(|(host, _)| host.as_str())
+                        .map(|(label, _)| label.as_str())
                         .collect();
                     // minority outvoted; full values logged separately at debug (can be large)
                     warn!(
@@ -140,11 +146,14 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
             );
         }
 
+        let responding_rpcs: Vec<&str> = oks.iter().map(|(label, _)| label.as_str()).collect();
         warn!(
             context,
             total_successful = oks.len(),
             max_agreeing,
             threshold,
+            responding_rpcs = ?responding_rpcs,
+            best_agreeing_rpcs = ?best_agreeing_rpcs,
             "Failed to reach quorum: no value reached a 2/3 majority"
         );
         debug!(context, all_values = ?oks, "Full quorum candidate values by RPC");
@@ -188,7 +197,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
                 self.quorum_hooks
                     .iter()
                     .cloned()
-                    .map(|(host, hook)| async move { (host, hook.tree_at_block(height).await) }),
+                    .map(|(label, hook)| async move { (label, hook.tree_at_block(height).await) }),
             )
             .await;
             let quorum_result = self.select_quorum_result(
@@ -206,9 +215,9 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             return Ok(quorum_result);
         }
 
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|(host, hook)| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { (host, hook.tree(&reorg_period).await) }
+            async move { (label, hook.tree(&reorg_period).await) }
         }))
         .await;
         let quorum_result = self.select_quorum_result(
@@ -238,9 +247,9 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             return self.latest_checkpoint_at_block(height).await;
         }
 
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|(host, hook)| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { (host, hook.latest_checkpoint(&reorg_period).await) }
+            async move { (label, hook.latest_checkpoint(&reorg_period).await) }
         }))
         .await;
         let quorum_result = self.select_quorum_result(
@@ -263,8 +272,8 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             self.quorum_hooks
                 .iter()
                 .cloned()
-                .map(|(host, hook)| async move {
-                    (host, hook.latest_checkpoint_at_block(height).await)
+                .map(|(label, hook)| async move {
+                    (label, hook.latest_checkpoint_at_block(height).await)
                 }),
         )
         .await;
@@ -713,11 +722,6 @@ impl Validator {
         chain_conf
     }
 
-    /// Host only (no path/query), so logging it can't leak API keys embedded in the URL.
-    fn redact_host(url: &Url) -> String {
-        url.host_str().unwrap_or("unknown").to_string()
-    }
-
     async fn build_validator_ethereum_quorum_hooks(
         origin_chain_conf: &ChainConf,
         quorum_rpc_urls: &[Url],
@@ -729,13 +733,17 @@ impl Validator {
             ));
         }
 
-        let hooks = try_join_all(quorum_rpc_urls.iter().cloned().map(|url| async move {
-            let host = Self::redact_host(&url);
-            Self::ethereum_chain_conf_for_url(origin_chain_conf, url)
-                .build_merkle_tree_hook(metrics)
-                .await
-                .map(|hook| (host, Arc::from(hook)))
-        }))
+        // Label by index into `quorumRpcUrls`, not host/URL: some entries may be private
+        // RPCs, and even a redacted host can identify the provider (e.g. "alchemy.com"),
+        // so disagreement logs must never carry anything derived from the URL itself.
+        let hooks = try_join_all(quorum_rpc_urls.iter().cloned().enumerate().map(
+            |(i, url)| async move {
+                Self::ethereum_chain_conf_for_url(origin_chain_conf, url)
+                    .build_merkle_tree_hook(metrics)
+                    .await
+                    .map(|hook| (format!("quorumRpcUrls[{i}]"), Arc::from(hook)))
+            },
+        ))
         .await?;
 
         Ok(hooks)
@@ -1172,10 +1180,10 @@ mod tests {
                 .unwrap();
 
         assert_eq!(hooks.len(), 3);
-        let hosts: Vec<&str> = hooks.iter().map(|(host, _)| host.as_str()).collect();
+        let labels: Vec<&str> = hooks.iter().map(|(label, _)| label.as_str()).collect();
         assert_eq!(
-            hosts,
-            vec!["quorum-a.example", "quorum-b.example", "quorum-c.example"]
+            labels,
+            vec!["quorumRpcUrls[0]", "quorumRpcUrls[1]", "quorumRpcUrls[2]"]
         );
     }
 
@@ -1224,8 +1232,8 @@ mod tests {
         }
     }
 
-    fn quorum_rpc(host: &str, hook: MockMerkleTreeHook) -> (String, Arc<dyn MerkleTreeHook>) {
-        (host.to_string(), Arc::new(hook) as Arc<dyn MerkleTreeHook>)
+    fn quorum_rpc(label: &str, hook: MockMerkleTreeHook) -> (String, Arc<dyn MerkleTreeHook>) {
+        (label.to_string(), Arc::new(hook) as Arc<dyn MerkleTreeHook>)
     }
 
     #[test]
