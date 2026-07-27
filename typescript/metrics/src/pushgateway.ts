@@ -13,9 +13,17 @@ function getStatusCode(response: unknown): number | 'unknown' {
     return 'unknown';
   }
 
-  return typeof response.statusCode === 'number'
+  return typeof response.statusCode === 'number' &&
+    Number.isInteger(response.statusCode)
     ? response.statusCode
     : 'unknown';
+}
+
+export function isSuccessfulPushGatewayResponse(response: unknown): boolean {
+  const statusCode = getStatusCode(response);
+  return (
+    typeof statusCode === 'number' && statusCode >= 200 && statusCode < 300
+  );
 }
 
 /**
@@ -89,11 +97,7 @@ export async function submitMetrics(
   }
 
   const statusCode = getStatusCode(resp);
-  if (
-    options?.throwOnError &&
-    typeof statusCode === 'number' &&
-    (statusCode < 200 || statusCode >= 300)
-  ) {
+  if (options?.throwOnError && !isSuccessfulPushGatewayResponse(resp)) {
     throw new Error(
       `PushGateway returned status ${statusCode} for job ${jobName}`,
     );

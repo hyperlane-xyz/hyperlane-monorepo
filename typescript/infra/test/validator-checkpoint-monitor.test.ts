@@ -131,8 +131,49 @@ describe('validator checkpoint monitor', () => {
     expect(metrics).to.include(
       `hyperlane_validator_reachable{chain="ethereum",validator="${VALIDATOR}",alias="test-validator",validator_set="renzo"} 0`,
     );
+    expect(metrics).to.include(
+      `hyperlane_validator_syncer_reachable{chain="ethereum",validator="${VALIDATOR}",alias="test-validator",validator_set="renzo"} 1`,
+    );
     expect(metrics).not.to.include(
       'hyperlane_validator_checkpoint_index{chain="ethereum"',
+    );
+  });
+
+  it('distinguishes an unreachable syncer from a rejected checkpoint', async () => {
+    const rows: ValidatorRow[] = [
+      {
+        set: ValidatorSetName.Renzo,
+        chain: 'ethereum',
+        address: VALIDATOR,
+        alias: 'unreachable-validator',
+        status: 'unreachable',
+        index: -1,
+        onchainCount: 100,
+        lagOnchain: undefined,
+        lagPeer: undefined,
+      },
+      {
+        set: ValidatorSetName.Renzo,
+        chain: 'ethereum',
+        address: OTHER_VALIDATOR,
+        alias: 'unverified-validator',
+        status: 'unverified',
+        index: -1,
+        onchainCount: 100,
+        lagOnchain: undefined,
+        lagPeer: undefined,
+      },
+    ];
+
+    const metrics = await buildValidatorMetricsRegistry(rows, {
+      ethereum: 100,
+    }).metrics();
+
+    expect(metrics).to.include(
+      `hyperlane_validator_syncer_reachable{chain="ethereum",validator="${VALIDATOR}",alias="unreachable-validator",validator_set="renzo"} 0`,
+    );
+    expect(metrics).to.include(
+      `hyperlane_validator_syncer_reachable{chain="ethereum",validator="${OTHER_VALIDATOR}",alias="unverified-validator",validator_set="renzo"} 1`,
     );
   });
 });

@@ -158,7 +158,16 @@ async function readAndVerifyCheckpoint(
       return { status: 'unverified', index: -1 };
     }
 
-    const recovered = BaseValidator.recoverAddress(signed);
+    let recovered: string;
+    try {
+      recovered = BaseValidator.recoverAddress(signed);
+    } catch (error) {
+      rootLogger.warn(
+        `[${chain}] ${address} checkpoint signature recovery failed: ${error}`,
+      );
+      return { status: 'unverified', index: -1 };
+    }
+
     const { checkpoint } = signed.value;
     const domainId = multiProvider.getDomainId(chain);
     if (
@@ -388,6 +397,12 @@ export function buildValidatorMetricsRegistry(
     registers: [register],
     labelNames,
   });
+  const syncerReachableGauge = new Gauge({
+    name: 'hyperlane_validator_syncer_reachable',
+    help: 'Whether the validator syncer could be resolved and read (1) or not (0)',
+    registers: [register],
+    labelNames,
+  });
   const indexGauge = new Gauge({
     name: 'hyperlane_validator_checkpoint_index',
     help: 'Latest checkpoint index signed by the validator (from its syncer)',
@@ -440,6 +455,9 @@ export function buildValidatorMetricsRegistry(
     };
     const reachable = row.status === 'ok';
     reachableGauge.labels(labels).set(reachable ? 1 : 0);
+    syncerReachableGauge
+      .labels(labels)
+      .set(row.status === 'unreachable' ? 0 : 1);
     if (reachable) {
       indexGauge.labels(labels).set(row.index);
     }

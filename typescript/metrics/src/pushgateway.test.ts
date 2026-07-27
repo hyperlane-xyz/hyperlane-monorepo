@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { type Server, createServer } from 'http';
 import { Registry } from 'prom-client';
 
-import { submitMetrics } from './pushgateway.js';
+import {
+  isSuccessfulPushGatewayResponse,
+  submitMetrics,
+} from './pushgateway.js';
 
 async function getRejection(promise: Promise<unknown>): Promise<Error> {
   try {
@@ -118,5 +121,19 @@ describe('submitMetrics', () => {
 
     expect(rejection).to.be.instanceOf(Error);
     await submitMetrics(new Registry(), 'test');
+  });
+});
+
+describe('isSuccessfulPushGatewayResponse', () => {
+  it('accepts only integer 2xx status codes', () => {
+    expect(isSuccessfulPushGatewayResponse({ statusCode: 200 })).to.be.true;
+    expect(isSuccessfulPushGatewayResponse({ statusCode: 299 })).to.be.true;
+
+    expect(isSuccessfulPushGatewayResponse({})).to.be.false;
+    expect(isSuccessfulPushGatewayResponse({ statusCode: '204' })).to.be.false;
+    expect(isSuccessfulPushGatewayResponse({ statusCode: 204.5 })).to.be.false;
+    expect(isSuccessfulPushGatewayResponse({ statusCode: Number.NaN })).to.be
+      .false;
+    expect(isSuccessfulPushGatewayResponse({ statusCode: 300 })).to.be.false;
   });
 });
