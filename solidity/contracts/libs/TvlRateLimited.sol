@@ -22,7 +22,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 // ============ Internal Imports ============
 import {RateLimited} from "./RateLimited.sol";
 import {TokenRouter} from "../token/libs/TokenRouter.sol";
-import {LpCollateral} from "../token/libs/TokenCollateral.sol";
 
 /**
  * @title TvlRateLimited
@@ -58,7 +57,6 @@ import {LpCollateral} from "../token/libs/TokenCollateral.sol";
 abstract contract TvlRateLimited is RateLimited {
     using StorageSlot for bytes32;
     using Math for uint256;
-    using LpCollateral for IERC4626;
 
     // ============ Errors ============
     error InvalidRouter();
@@ -127,10 +125,28 @@ abstract contract TvlRateLimited is RateLimited {
         if (capacityToken == warpRouter) {
             return IERC20(capacityToken).totalSupply();
         }
+
         // Collateral/native routers are `LpCollateralRouter`s: net the
         // LP-reclaimable pool out of the raw balance (reverts for any other
         // router, which is intended — those are unsupported).
-        return IERC4626(warpRouter).effectiveCollateralBalance();
+        return _effectiveCollateralBalance(IERC4626(warpRouter));
+    }
+
+    /// @dev The router's collateral balance excluding the pool reclaimable by
+    /// LP share holders: `balance - totalAssets()`, clamped at 0. The raw
+    /// balance is the router's holding of its `asset()`, or its native balance
+    /// when `asset() == address(0)` (HypNative). `totalAssets()` is the
+    /// LP-redeemable pool, so netting it out leaves only genuinely locked
+    /// collateral and irreversible transfers.
+    function _effectiveCollateralBalance(
+        IERC4626 router
+    ) private view returns (uint256) {
+        address asset = router.asset();
+        uint256 balance = asset == address(0)
+            ? address(router).balance
+            : IERC20(asset).balanceOf(address(router));
+        uint256 reclaimable = router.totalAssets();
+        return balance > reclaimable ? balance - reclaimable : 0;
     }
 
     /// @inheritdoc RateLimited
