@@ -74,8 +74,10 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
             }
         }
 
+        let mut max_agreeing = 0;
         for candidate in &oks {
             let agreeing = oks.iter().filter(|other| matches(candidate, other)).count();
+            max_agreeing = max_agreeing.max(agreeing);
             if agreeing >= self.quorum_threshold() {
                 if agreeing < oks.len() {
                     // Majority was reached, but not everyone agreed. Not fatal, but
@@ -95,16 +97,40 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         }
 
         if oks.is_empty() {
-            Err(first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context)))
+            return Err(
+                first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context))
+            );
+        }
+
+        let threshold = self.quorum_threshold();
+        // Distinguish "not enough of the pool responded successfully" (the successful
+        // ones may well agree with each other) from "enough responded, but they
+        // genuinely gave conflicting answers" -- these call for different responses
+        // from an operator, and the old message conflated them (e.g. claiming "1
+        // successful hooks disagreed", which isn't a meaningful disagreement at all).
+        if max_agreeing == oks.len() {
+            warn!(
+                context,
+                total_successful = oks.len(),
+                threshold,
+                all_values = ?oks,
+                "Failed to reach quorum: not enough successful responses"
+            );
+            Err(ChainCommunicationError::from_other_str(&format!(
+                "{context}; only {ok_count} of {threshold} required responses succeeded",
+                ok_count = oks.len()
+            )))
         } else {
             warn!(
                 context,
                 total_successful = oks.len(),
+                max_agreeing,
+                threshold,
                 all_values = ?oks,
                 "Failed to reach quorum: successful responses disagreed"
             );
             Err(ChainCommunicationError::from_other_str(&format!(
-                "{context}; {ok_count} successful hooks disagreed",
+                "{context}; {ok_count} successful responses disagreed (largest agreeing group: {max_agreeing}, needed {threshold})",
                 ok_count = oks.len()
             )))
         }
