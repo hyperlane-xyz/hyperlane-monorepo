@@ -21,10 +21,11 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainCommunicationError, ChainResult,
-    CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion,
-    ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
+    rpc_clients::{call_and_retry_indefinitely, RPC_RETRY_SLEEP_DURATION},
+    Announcement, ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
+    IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 
@@ -39,10 +40,8 @@ use crate::{
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
-/// Wraps a plain (unmodified-config) hook for `count()`/domain/address, and a set of
-/// independently-built, single-provider hooks for the safety-critical reads (`tree()`,
-/// `latest_checkpoint()`, `latest_checkpoint_at_block()`), which are only accepted once
-/// a majority of them agree byte-for-byte.
+/// `count()`/domain/address come from a plain hook; `tree()`/`latest_checkpoint()`/
+/// `latest_checkpoint_at_block()` come from a majority vote across independent hooks.
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
     base_hook: Arc<dyn MerkleTreeHook>,
@@ -80,11 +79,7 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
             max_agreeing = max_agreeing.max(agreeing);
             if agreeing >= self.quorum_threshold() {
                 if agreeing < oks.len() {
-                    // Majority was reached, but not everyone agreed. Not fatal, but
-                    // worth surfacing: this is what a compromised/lagging minority
-                    // provider being outvoted looks like. Full raw values are logged
-                    // separately at debug level to keep this line's volume bounded --
-                    // some result types (e.g. the merkle tree) are large.
+                    // minority outvoted; full values logged separately at debug (can be large)
                     warn!(
                         context,
                         accepted = ?candidate,
@@ -105,11 +100,7 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         }
 
         let threshold = self.quorum_threshold();
-        // Distinguish "not enough of the pool responded successfully" (the successful
-        // ones may well agree with each other) from "enough responded, but they
-        // genuinely gave conflicting answers" -- these call for different responses
-        // from an operator, and the old message conflated them (e.g. claiming "1
-        // successful hooks disagreed", which isn't a meaningful disagreement at all).
+        // not-enough-responses vs. genuine disagreement get distinct messages
         if max_agreeing == oks.len() {
             warn!(
                 context,
@@ -243,12 +234,28 @@ pub struct Validator {
 pub struct ValidatorMetadata {
     git_sha: String,
     rpcs: Vec<ValidatorMetadataRpcEntry>,
+    /// The `quorumRpcUrls` set, reported separately from `rpcs`.
+    quorum_rpcs: Vec<ValidatorMetadataRpcEntry>,
     allows_public_rpcs: bool,
 }
 #[derive(Debug, Serialize)]
 pub struct ValidatorMetadataRpcEntry {
     url_hash: H256,
     host_hash: H256,
+}
+
+impl ValidatorMetadataRpcEntry {
+    fn hash_rpc(rpc: &crate::settings::RpcConfig) -> Self {
+        Self {
+            url_hash: H256::from_slice(&keccak256(&rpc.url)),
+            host_hash: H256::from_slice(&keccak256(
+                Url::parse(&rpc.url)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_string))
+                    .unwrap_or("".to_string()),
+            )),
+        }
+    }
 }
 
 impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
@@ -258,19 +265,17 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
         let rpcs = settings
             .rpcs
             .iter()
-            .map(|rpc| ValidatorMetadataRpcEntry {
-                url_hash: H256::from_slice(&keccak256(&rpc.url)),
-                host_hash: H256::from_slice(&keccak256(
-                    Url::parse(&rpc.url)
-                        .ok()
-                        .and_then(|url| url.host_str().map(str::to_string))
-                        .unwrap_or("".to_string()),
-                )),
-            })
+            .map(ValidatorMetadataRpcEntry::hash_rpc)
+            .collect();
+        let quorum_rpcs = settings
+            .quorum_rpcs
+            .iter()
+            .map(ValidatorMetadataRpcEntry::hash_rpc)
             .collect();
         ValidatorMetadata {
             git_sha: git_sha(),
             rpcs,
+            quorum_rpcs,
             allows_public_rpcs: settings.allow_public_rpcs,
         }
     }
@@ -295,9 +300,7 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        // Check for public rpcs in the config. Only `rpcs` (indexing/fallback)
-        // is gated here — `quorum_rpcs` is designed to use public RPCs safely
-        // via majority agreement, so a public entry there isn't a risk to flag.
+        // only `rpcs` is gated; quorum_rpcs is safe to be public by design
         let public_rpc_urls: Vec<String> = settings
             .rpcs
             .iter()
@@ -363,23 +366,19 @@ impl BaseAgent for Validator {
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        // Note: indexing and `count()` always use the chain's normally-configured
-        // RPC connection (whatever `rpcConsensusType` the operator already chose --
-        // fallback, quorum, or single). Only the safety-critical reads below get a
-        // dedicated, independently-verified quorum path; nothing here overrides how
-        // the chain is otherwise configured.
-        let merkle_tree_hook = if Self::validator_uses_split_quorum_hook(&origin_chain_conf) {
-            Self::build_validator_quorum_merkle_tree_hook(
-                &origin_chain_conf,
-                &quorum_rpc_urls,
-                &metrics,
-            )
-            .await?
-        } else {
-            settings
-                .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+        let merkle_tree_hook =
+            if Self::validator_uses_split_quorum_hook(&origin_chain_conf, &quorum_rpc_urls) {
+                Self::build_validator_quorum_merkle_tree_hook(
+                    &origin_chain_conf,
+                    &quorum_rpc_urls,
+                    &metrics,
+                )
                 .await?
-        };
+            } else {
+                settings
+                    .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+                    .await?
+            };
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -490,8 +489,7 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        // Ensure that the merkle tree hook has at least one message on the safety path
-        // messages or submitting checkpoints.
+        // wait for the first message before submitting checkpoints
         loop {
             match self.merkle_tree_hook.tree(&self.reorg_period).await {
                 Err(err) => {
@@ -533,61 +531,36 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    fn validator_uses_split_quorum_hook(origin_chain_conf: &ChainConf) -> bool {
-        matches!(
-            origin_chain_conf.connection,
-            ChainConnectionConf::Ethereum(_)
-        )
+    /// Opt-in: only true for Ethereum with a non-empty `quorumRpcUrls`.
+    fn validator_uses_split_quorum_hook(
+        origin_chain_conf: &ChainConf,
+        quorum_rpc_urls: &[Url],
+    ) -> bool {
+        !quorum_rpc_urls.is_empty()
+            && matches!(
+                origin_chain_conf.connection,
+                ChainConnectionConf::Ethereum(_)
+            )
     }
 
-    /// Builds the validator's merkle tree hook. `count()`/domain/address are served by a
-    /// plain hook built from the chain's normal, already-configured connection (whatever
-    /// `rpcConsensusType` the operator chose is left untouched). The safety-critical reads
-    /// (`tree()`, `latest_checkpoint()`, `latest_checkpoint_at_block()`) are served by a set
-    /// of independent, single-provider hooks that must reach majority agreement.
     async fn build_validator_quorum_merkle_tree_hook(
         origin_chain_conf: &ChainConf,
         quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
         let base_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
-        let quorum_hooks = match &origin_chain_conf.connection {
-            ChainConnectionConf::Ethereum(_) => {
-                Self::build_validator_ethereum_quorum_hooks(
-                    origin_chain_conf,
-                    quorum_rpc_urls,
-                    metrics,
-                )
-                .await?
-            }
-            _ => unreachable!("validator split quorum hook only supports ethereum"),
-        };
+        let quorum_hooks = Self::build_validator_ethereum_quorum_hooks(
+            origin_chain_conf,
+            quorum_rpc_urls,
+            metrics,
+        )
+        .await?;
         Ok(Box::new(ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: base_hook.into(),
             quorum_hooks,
         }) as Box<dyn MerkleTreeHook>)
     }
 
-    /// Pure (no I/O): which URLs the Ethereum quorum hooks should be built from.
-    /// Split out from `build_validator_ethereum_quorum_hooks` so this decision --
-    /// prefer a dedicated `quorumRpcUrls` pool, else fall back to the chain's
-    /// normal RPCs -- is directly unit-testable without needing real RPC access.
-    fn resolve_ethereum_quorum_urls(
-        origin_chain_conf: &ChainConf,
-        quorum_rpc_urls: &[Url],
-    ) -> Vec<Url> {
-        let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection else {
-            unreachable!("ethereum quorum hooks only supported for ethereum chains");
-        };
-        if quorum_rpc_urls.is_empty() {
-            conn.rpc_urls()
-        } else {
-            quorum_rpc_urls.to_vec()
-        }
-    }
-
-    /// Pure (no I/O): the single-provider `ChainConf` used for one Ethereum quorum
-    /// hook. Split out for the same testability reason as `resolve_ethereum_quorum_urls`.
     fn ethereum_chain_conf_for_url(origin_chain_conf: &ChainConf, url: Url) -> ChainConf {
         let mut chain_conf = origin_chain_conf.clone();
         if let ChainConnectionConf::Ethereum(updated_conn) = &mut chain_conf.connection {
@@ -601,17 +574,13 @@ impl Validator {
         quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
-        let urls = Self::resolve_ethereum_quorum_urls(origin_chain_conf, quorum_rpc_urls);
-
-        if urls.is_empty() {
+        if quorum_rpc_urls.is_empty() {
             return Err(ChainCommunicationError::from_other_str(
-                "Ethereum validator safety hooks require at least one RPC URL",
+                "build_validator_ethereum_quorum_hooks requires a non-empty quorumRpcUrls",
             ));
         }
 
-        // Built concurrently rather than one-at-a-time: startup latency for this
-        // step should be bounded by the slowest single hook, not scale with N.
-        let hooks = try_join_all(urls.into_iter().map(|url| async move {
+        let hooks = try_join_all(quorum_rpc_urls.iter().cloned().map(|url| async move {
             Self::ethereum_chain_conf_for_url(origin_chain_conf, url)
                 .build_merkle_tree_hook(metrics)
                 .await
@@ -690,11 +659,12 @@ impl Validator {
             self.reorg_reporter.clone(),
         );
 
-        let tip_tree = self
-            .merkle_tree_hook
-            .tree(&self.reorg_period)
-            .await
-            .expect("failed to get merkle tree");
+        let tip_tree = call_and_retry_indefinitely(|| {
+            let merkle_tree_hook = self.merkle_tree_hook.clone();
+            let reorg_period = self.reorg_period.clone();
+            Box::pin(async move { merkle_tree_hook.tree(&reorg_period).await })
+        })
+        .await;
 
         // This function is only called after we have already checked that the
         // merkle tree hook has count > 0, but we assert to be extra sure this is
@@ -938,30 +908,20 @@ mod tests {
     }
 
     #[test]
-    fn resolve_ethereum_quorum_urls_falls_back_to_normal_rpcs_when_empty() {
-        let rpc_urls = vec![
-            Url::parse("http://rpc-a.example").unwrap(),
-            Url::parse("http://rpc-b.example").unwrap(),
-        ];
-        let chain_conf = dummy_ethereum_chain_conf(rpc_urls.clone());
-
-        let resolved = Validator::resolve_ethereum_quorum_urls(&chain_conf, &[]);
-
-        assert_eq!(resolved, rpc_urls);
-    }
-
-    #[test]
-    fn resolve_ethereum_quorum_urls_prefers_explicit_quorum_urls_when_set() {
+    fn validator_uses_split_quorum_hook_requires_nonempty_quorum_urls() {
         let chain_conf =
             dummy_ethereum_chain_conf(vec![Url::parse("http://normal.example").unwrap()]);
-        let quorum_urls = vec![
-            Url::parse("http://quorum-a.example").unwrap(),
-            Url::parse("http://quorum-b.example").unwrap(),
-        ];
 
-        let resolved = Validator::resolve_ethereum_quorum_urls(&chain_conf, &quorum_urls);
+        assert!(!Validator::validator_uses_split_quorum_hook(
+            &chain_conf,
+            &[]
+        ));
 
-        assert_eq!(resolved, quorum_urls);
+        let quorum_urls = vec![Url::parse("http://quorum-a.example").unwrap()];
+        assert!(Validator::validator_uses_split_quorum_hook(
+            &chain_conf,
+            &quorum_urls
+        ));
     }
 
     #[test]
@@ -1008,23 +968,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn build_validator_ethereum_quorum_hooks_falls_back_to_normal_rpcs_when_unset() {
+    async fn build_validator_ethereum_quorum_hooks_errors_when_quorum_urls_empty() {
         let chain_conf = dummy_ethereum_chain_conf(vec![
             Url::parse("http://normal-a.example").unwrap(),
             Url::parse("http://normal-b.example").unwrap(),
         ]);
         let metrics = CoreMetrics::new(
-            "validator-test-ethereum-quorum-hooks-fallback",
+            "validator-test-ethereum-quorum-hooks-empty",
             9092,
             Registry::new(),
         )
         .unwrap();
 
-        let hooks = Validator::build_validator_ethereum_quorum_hooks(&chain_conf, &[], &metrics)
-            .await
-            .unwrap();
+        let result =
+            Validator::build_validator_ethereum_quorum_hooks(&chain_conf, &[], &metrics).await;
 
-        assert_eq!(hooks.len(), 2);
+        assert!(result.is_err());
     }
 
     mockall::mock! {

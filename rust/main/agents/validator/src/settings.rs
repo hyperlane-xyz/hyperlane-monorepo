@@ -55,15 +55,12 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
-    /// A dedicated list of RPCs used only for quorum-verifying the merkle
-    /// tree hook's safety-critical state reads (tree, latest checkpoint).
-    /// Falls back to `rpcs` when empty, so existing configs are unaffected.
+    /// RPCs used to quorum-verify the merkle tree hook's safety-critical reads.
+    /// Empty disables quorum verification entirely.
     pub quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
-    /// Test-only escape hatch: skip the on-chain self-announce check/tx
-    /// entirely. Never set this for a production validator — an
-    /// un-announced validator's checkpoints are undiscoverable by relayers.
+    /// Test-only: skips on-chain self-announce. Never use in production.
     pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
