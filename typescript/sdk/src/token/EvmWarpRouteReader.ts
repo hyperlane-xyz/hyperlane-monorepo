@@ -192,6 +192,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
+      [TokenType.crossCollateralSynthetic]:
+        this.deriveCrossCollateralSyntheticTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -817,20 +819,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
             }
 
-            try {
-              const crossCollateralRouter =
-                CrossCollateralRouter__factory.connect(
-                  warpRouteAddress,
-                  this.provider,
-                );
-              await crossCollateralRouter.getCrossCollateralRouters(0);
+            if (
+              await this.isCrossCollateralWarpToken(
+                warpRouteAddress,
+                TokenType.crossCollateral,
+              )
+            ) {
               return TokenType.crossCollateral;
-            } catch (error) {
-              throwIfNotMissingSelector(error);
-              this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
-                error,
-              );
             }
           }
 
@@ -858,6 +853,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         hasTokenFeeInterface,
       );
       if (isSyntheticToken) {
+        if (
+          await this.isCrossCollateralWarpToken(
+            warpRouteAddress,
+            TokenType.crossCollateralSynthetic,
+          )
+        ) {
+          return TokenType.crossCollateralSynthetic;
+        }
         return TokenType.synthetic;
       }
 
@@ -932,6 +935,30 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } catch (error) {
       this.logger.debug(
         `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.synthetic}`,
+        error,
+      );
+
+      return false;
+    }
+  }
+
+  private async isCrossCollateralWarpToken(
+    warpRouteAddress: Address,
+    tokenType:
+      | typeof TokenType.crossCollateral
+      | typeof TokenType.crossCollateralSynthetic,
+  ): Promise<boolean> {
+    try {
+      const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+        warpRouteAddress,
+        this.provider,
+      );
+      await crossCollateralRouter.getCrossCollateralRouters(0);
+      return true;
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${tokenType}`,
         error,
       );
 
@@ -1515,30 +1542,65 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       hypTokenAddress,
       this.provider,
     );
-    const tokenRouter = TokenRouter__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
 
-    const [
-      collateralTokenAddress,
-      remoteDomains,
-      crossCollateralDomains,
-      localDomain,
-      scale,
-    ] = await Promise.all([
-      crossCollateralRouter.wrappedToken(),
-      tokenRouter.domains(),
-      crossCollateralRouter.getCrossCollateralDomains(),
-      crossCollateralRouter.localDomain(),
-      this.fetchScale(hypTokenAddress),
-    ]);
+    const [collateralTokenAddress, scale, crossCollateralRouters] =
+      await Promise.all([
+        crossCollateralRouter.wrappedToken(),
+        this.fetchScale(hypTokenAddress),
+        this.fetchCrossCollateralRouters(hypTokenAddress),
+      ]);
 
     const erc20TokenMetadata = await this.fetchERC20Metadata(
       collateralTokenAddress,
     );
 
-    // Merge Router._routers domains, MC-enrolled domains, and localDomain
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.crossCollateral,
+      token: collateralTokenAddress,
+      scale,
+      crossCollateralRouters,
+    };
+  }
+
+  private async deriveCrossCollateralSyntheticTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const [erc20TokenMetadata, scale, crossCollateralRouters] =
+      await Promise.all([
+        this.fetchERC20Metadata(hypTokenAddress),
+        this.fetchScale(hypTokenAddress),
+        this.fetchCrossCollateralRouters(hypTokenAddress),
+      ]);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.crossCollateralSynthetic,
+      scale,
+      crossCollateralRouters,
+    };
+  }
+
+  private async fetchCrossCollateralRouters(
+    hypTokenAddress: Address,
+  ): Promise<Record<string, string[]> | undefined> {
+    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+    const tokenRouter = TokenRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const [remoteDomains, crossCollateralDomains, localDomain] =
+      await Promise.all([
+        tokenRouter.domains(),
+        crossCollateralRouter.getCrossCollateralDomains(),
+        crossCollateralRouter.localDomain(),
+      ]);
+
+    // Merge Router._routers domains, cross-collateral-enrolled domains, and localDomain
     const allDomains = [
       ...new Set([
         ...remoteDomains.map(Number),
@@ -1558,16 +1620,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }),
     );
 
-    return {
-      ...erc20TokenMetadata,
-      type: TokenType.crossCollateral,
-      token: collateralTokenAddress,
-      scale,
-      crossCollateralRouters:
-        Object.keys(crossCollateralRouters).length > 0
-          ? crossCollateralRouters
-          : undefined,
-    };
+    return Object.keys(crossCollateralRouters).length > 0
+      ? crossCollateralRouters
+      : undefined;
   }
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {

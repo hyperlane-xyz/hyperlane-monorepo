@@ -21,6 +21,7 @@ export const TokenType = {
   nativeScaled: 'nativeScaled',
   // Canonical value for cross-collateral routing tokens
   crossCollateral: 'crossCollateral',
+  crossCollateralSynthetic: 'crossCollateralSynthetic',
   unknown: 'unknown',
 } as const;
 
@@ -51,6 +52,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralDepositAddress]: false,
   [TokenType.collateralOft]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
+  [TokenType.crossCollateralSynthetic]: false, // CrossCollateralSynthetic extends HypERC20
   [TokenType.unknown]: false,
 } as const;
 
@@ -72,6 +74,7 @@ const syntheticTokenTypes = new Set<TokenType>([
   TokenType.synthetic,
   TokenType.syntheticRebase,
   TokenType.syntheticUri,
+  TokenType.crossCollateralSynthetic,
 ]);
 
 export function isSyntheticTokenType(type: TokenType): boolean {

@@ -29,6 +29,7 @@ export enum TokenStandard {
   EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
   EvmHypEverclearEth = 'EvmHypEverclearEth',
   EvmHypCrossCollateralRouter = 'EvmHypCrossCollateralRouter',
+  EvmHypCrossCollateralSynthetic = 'EvmHypCrossCollateralSynthetic',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -120,6 +121,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypCrossCollateralRouter]: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypCrossCollateralSynthetic]: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -238,6 +240,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
 
 export const TOKEN_CROSS_COLLATERAL_STANDARDS: Set<TokenStandard> = new Set([
   TokenStandard.EvmHypCrossCollateralRouter,
+  TokenStandard.EvmHypCrossCollateralSynthetic,
   TokenStandard.SealevelHypCrossCollateral,
   TokenStandard.TronHypCrossCollateralRouter,
 ]);
@@ -295,6 +298,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmM0PortalLite,
   TokenStandard.EvmM0Portal,
   TokenStandard.EvmHypCrossCollateralRouter,
+  TokenStandard.EvmHypCrossCollateralSynthetic,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
@@ -404,6 +408,11 @@ export const tokenTypeToStandard = (
       );
     }
     case ProtocolType.Tron: {
+      if (tokenType === TokenType.crossCollateralSynthetic) {
+        throw new Error(
+          `token type ${tokenType} not available on protocol ${protocolType}`,
+        );
+      }
       return TRON_TOKEN_TYPE_TO_STANDARD[tokenType];
     }
     case ProtocolType.Sealevel: {
@@ -462,6 +471,8 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralDepositAddress]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralOft]: TokenStandard.EvmHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.EvmHypCrossCollateralRouter,
+  [TokenType.crossCollateralSynthetic]:
+    TokenStandard.EvmHypCrossCollateralSynthetic,
 };
 
 // Cosmos Native supported token types
@@ -553,8 +564,13 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
 
-export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
+type TronSupportedTokenType = Exclude<
   DeployableTokenType,
+  typeof TokenType.crossCollateralSynthetic
+>;
+
+export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
+  TronSupportedTokenType,
   TokenStandard
 > = {
   [TokenType.native]: TokenStandard.TronHypNative,
