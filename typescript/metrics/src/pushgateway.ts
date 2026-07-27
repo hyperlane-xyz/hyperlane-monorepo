@@ -4,6 +4,28 @@ import { format } from 'util';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+function getStatusCode(response: unknown): number | 'unknown' {
+  if (
+    typeof response !== 'object' ||
+    response === null ||
+    !('statusCode' in response)
+  ) {
+    return 'unknown';
+  }
+
+  return typeof response.statusCode === 'number' &&
+    Number.isInteger(response.statusCode)
+    ? response.statusCode
+    : 'unknown';
+}
+
+export function isSuccessfulPushGatewayResponse(response: unknown): boolean {
+  const statusCode = getStatusCode(response);
+  return (
+    typeof statusCode === 'number' && statusCode >= 200 && statusCode < 300
+  );
+}
+
 /**
  * Gets the push gateway if PROMETHEUS_PUSH_GATEWAY environment variable is set.
  *
@@ -74,15 +96,8 @@ export async function submitMetrics(
     return;
   }
 
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
-  if (
-    options?.throwOnError &&
-    typeof statusCode === 'number' &&
-    statusCode >= 400
-  ) {
+  const statusCode = getStatusCode(resp);
+  if (options?.throwOnError && !isSuccessfulPushGatewayResponse(resp)) {
     throw new Error(
       `PushGateway returned status ${statusCode} for job ${jobName}`,
     );
@@ -119,10 +134,7 @@ export async function deleteMetrics(
     return;
   }
 
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
+  const statusCode = getStatusCode(resp);
   log.info('Prometheus metrics deleted from PushGateway', {
     jobName,
     groupings,
