@@ -26,6 +26,12 @@ contract ECDSAStakeRegistry is
     ECDSAStakeRegistryStorage,
     PackageVersioned
 {
+    error InvalidOwner();
+    error InvalidServiceManager();
+    error ServiceManagerAlreadySet();
+
+    event ServiceManagerSet(address indexed serviceManager);
+
     using SignatureCheckerUpgradeable for address;
     using CheckpointsUpgradeable for CheckpointsUpgradeable.History;
 
@@ -47,6 +53,22 @@ contract ECDSAStakeRegistry is
         Quorum memory _quorum
     ) external initializer {
         __ECDSAStakeRegistry_init(_serviceManager, _thresholdWeight, _quorum);
+    }
+
+    /// @notice Atomically establishes proxy ownership before AVS dependencies are deployed.
+    function initializeOwner(address _owner) external initializer {
+        if (_owner == address(0)) revert InvalidOwner();
+        __Ownable_init();
+        _transferOwnership(_owner);
+    }
+
+    /// @notice Configures the service manager and initial quorum after ownership is established.
+    function configure(
+        address _serviceManager,
+        uint256 _thresholdWeight,
+        Quorum memory _quorum
+    ) external onlyOwner {
+        _configure(_serviceManager, _thresholdWeight, _quorum);
     }
 
     /// @notice Registers a new operator using a provided signature and signing key
@@ -277,10 +299,24 @@ contract ECDSAStakeRegistry is
         uint256 _thresholdWeight,
         Quorum memory _quorum
     ) internal onlyInitializing {
+        __Ownable_init();
+        _configure(_serviceManagerAddr, _thresholdWeight, _quorum);
+    }
+
+    function _configure(
+        address _serviceManagerAddr,
+        uint256 _thresholdWeight,
+        Quorum memory _quorum
+    ) internal {
+        if (
+            _serviceManagerAddr == address(0) ||
+            _serviceManagerAddr.code.length == 0
+        ) revert InvalidServiceManager();
+        if (_serviceManager != address(0)) revert ServiceManagerAlreadySet();
         _serviceManager = _serviceManagerAddr;
         _updateStakeThreshold(_thresholdWeight);
         _updateQuorumConfig(_quorum);
-        __Ownable_init();
+        emit ServiceManagerSet(_serviceManagerAddr);
     }
 
     /// @notice Updates the set of operators for the first quorum.

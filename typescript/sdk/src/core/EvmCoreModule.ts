@@ -8,9 +8,11 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import type { ContractTransaction } from 'ethers';
 
 import {
   attachContractsMap,
@@ -540,14 +542,13 @@ export class EvmCoreModule extends HyperlaneModule<
     } = params;
     const chainName = multiProvider.getChainName(chain);
 
-    const domain = multiProvider.getDomainId(chainName);
-    const mailbox = await deployer.deployProxiedContract(
-      chainName,
-      'mailbox',
-      'mailbox',
-      proxyAdmin,
-      [domain],
-    );
+    const {
+      mailbox,
+      mailboxOwner,
+      signerAddress,
+      signerIsOwner,
+      configuredMailboxOwner,
+    } = await deployer.deployMailboxProxy(chainName, config, proxyAdmin);
 
     // @todo refactor when 1) IsmModule is ready
     const deployedDefaultIsm = await deployer.deployIsm(
@@ -576,17 +577,38 @@ export class EvmCoreModule extends HyperlaneModule<
       },
     );
 
-    // Initialize Mailbox
-    await multiProvider.handleTx(
-      chain,
-      mailbox.initialize(
-        config.owner,
-        deployedDefaultIsm,
-        deployedDefaultHook.address,
-        deployedRequiredHook.address,
-        multiProvider.getTransactionOverrides(chain),
-      ),
+    const overrides = multiProvider.getTransactionOverrides(chainName);
+    const configure = async (
+      current: string,
+      target: string,
+      set: () => Promise<ContractTransaction>,
+    ) => {
+      if (eqAddress(current, target)) return;
+      assert(
+        signerIsOwner,
+        `Mailbox at ${mailbox.address} on ${chainName} requires configuration but is owned by ${mailboxOwner}`,
+      );
+      await multiProvider.handleTx(chainName, await set());
+    };
+    await configure(await mailbox.defaultIsm(), deployedDefaultIsm, () =>
+      mailbox.setDefaultIsm(deployedDefaultIsm, overrides),
     );
+    await configure(
+      await mailbox.defaultHook(),
+      deployedDefaultHook.address,
+      () => mailbox.setDefaultHook(deployedDefaultHook.address, overrides),
+    );
+    await configure(
+      await mailbox.requiredHook(),
+      deployedRequiredHook.address,
+      () => mailbox.setRequiredHook(deployedRequiredHook.address, overrides),
+    );
+    if (signerIsOwner && !eqAddress(signerAddress, configuredMailboxOwner)) {
+      await multiProvider.handleTx(
+        chainName,
+        mailbox.transferOwnership(configuredMailboxOwner, overrides),
+      );
+    }
     return mailbox;
   }
 
