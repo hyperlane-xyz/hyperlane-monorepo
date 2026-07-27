@@ -8,7 +8,7 @@ use eyre::{eyre, Result};
 use futures_util::future::{join_all, try_join_all};
 use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, warn, Instrument};
 use url::Url;
 
 use hyperlane_base::{
@@ -42,10 +42,10 @@ const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 /// Wraps a plain (unmodified-config) hook for `count()`/domain/address, and a set of
 /// independently-built, single-provider hooks for the safety-critical reads (`tree()`,
 /// `latest_checkpoint()`, `latest_checkpoint_at_block()`), which are only accepted once
-/// a majority of them agree byte-for-byte. Used for both Ethereum and Tron.
+/// a majority of them agree byte-for-byte.
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
-    fallback: Arc<dyn MerkleTreeHook>,
+    base_hook: Arc<dyn MerkleTreeHook>,
     quorum_hooks: Vec<Arc<dyn MerkleTreeHook>>,
 }
 
@@ -82,15 +82,17 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 if agreeing < oks.len() {
                     // Majority was reached, but not everyone agreed. Not fatal, but
                     // worth surfacing: this is what a compromised/lagging minority
-                    // provider being outvoted looks like.
+                    // provider being outvoted looks like. Full raw values are logged
+                    // separately at debug level to keep this line's volume bounded --
+                    // some result types (e.g. the merkle tree) are large.
                     warn!(
                         context,
                         accepted = ?candidate,
                         agreeing_count = agreeing,
                         total_successful = oks.len(),
-                        all_values = ?oks,
                         "Quorum reached despite provider disagreement"
                     );
+                    debug!(context, all_values = ?oks, "Full quorum candidate values");
                 }
                 return Ok(candidate.clone());
             }
@@ -113,9 +115,9 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 context,
                 total_successful = oks.len(),
                 threshold,
-                all_values = ?oks,
                 "Failed to reach quorum: not enough successful responses"
             );
+            debug!(context, all_values = ?oks, "Full quorum candidate values");
             Err(ChainCommunicationError::from_other_str(&format!(
                 "{context}; only {ok_count} of {threshold} required responses succeeded",
                 ok_count = oks.len()
@@ -126,9 +128,9 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 total_successful = oks.len(),
                 max_agreeing,
                 threshold,
-                all_values = ?oks,
                 "Failed to reach quorum: successful responses disagreed"
             );
+            debug!(context, all_values = ?oks, "Full quorum candidate values");
             Err(ChainCommunicationError::from_other_str(&format!(
                 "{context}; {ok_count} successful responses disagreed (largest agreeing group: {max_agreeing}, needed {threshold})",
                 ok_count = oks.len()
@@ -154,7 +156,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
     }
 
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.fallback.count(reorg_period).await
+        self.base_hook.count(reorg_period).await
     }
 
     async fn latest_checkpoint(
@@ -193,17 +195,17 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
 
 impl HyperlaneChain for ValidatorMultiRpcQuorumMerkleTreeHook {
     fn domain(&self) -> &HyperlaneDomain {
-        self.fallback.domain()
+        self.base_hook.domain()
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        self.fallback.provider()
+        self.base_hook.provider()
     }
 }
 
 impl HyperlaneContract for ValidatorMultiRpcQuorumMerkleTreeHook {
     fn address(&self) -> H256 {
-        self.fallback.address()
+        self.base_hook.address()
     }
 }
 
@@ -534,7 +536,7 @@ impl Validator {
     fn validator_uses_split_quorum_hook(origin_chain_conf: &ChainConf) -> bool {
         matches!(
             origin_chain_conf.connection,
-            ChainConnectionConf::Ethereum(_) | ChainConnectionConf::Tron(_)
+            ChainConnectionConf::Ethereum(_)
         )
     }
 
@@ -548,7 +550,7 @@ impl Validator {
         quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
-        let fallback_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
+        let base_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
         let quorum_hooks = match &origin_chain_conf.connection {
             ChainConnectionConf::Ethereum(_) => {
                 Self::build_validator_ethereum_quorum_hooks(
@@ -558,15 +560,40 @@ impl Validator {
                 )
                 .await?
             }
-            ChainConnectionConf::Tron(_) => {
-                Self::build_validator_tron_quorum_hooks(origin_chain_conf, metrics).await?
-            }
-            _ => unreachable!("validator split quorum hook only supports ethereum and tron"),
+            _ => unreachable!("validator split quorum hook only supports ethereum"),
         };
         Ok(Box::new(ValidatorMultiRpcQuorumMerkleTreeHook {
-            fallback: fallback_hook.into(),
+            base_hook: base_hook.into(),
             quorum_hooks,
         }) as Box<dyn MerkleTreeHook>)
+    }
+
+    /// Pure (no I/O): which URLs the Ethereum quorum hooks should be built from.
+    /// Split out from `build_validator_ethereum_quorum_hooks` so this decision --
+    /// prefer a dedicated `quorumRpcUrls` pool, else fall back to the chain's
+    /// normal RPCs -- is directly unit-testable without needing real RPC access.
+    fn resolve_ethereum_quorum_urls(
+        origin_chain_conf: &ChainConf,
+        quorum_rpc_urls: &[Url],
+    ) -> Vec<Url> {
+        let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection else {
+            unreachable!("ethereum quorum hooks only supported for ethereum chains");
+        };
+        if quorum_rpc_urls.is_empty() {
+            conn.rpc_urls()
+        } else {
+            quorum_rpc_urls.to_vec()
+        }
+    }
+
+    /// Pure (no I/O): the single-provider `ChainConf` used for one Ethereum quorum
+    /// hook. Split out for the same testability reason as `resolve_ethereum_quorum_urls`.
+    fn ethereum_chain_conf_for_url(origin_chain_conf: &ChainConf, url: Url) -> ChainConf {
+        let mut chain_conf = origin_chain_conf.clone();
+        if let ChainConnectionConf::Ethereum(updated_conn) = &mut chain_conf.connection {
+            updated_conn.rpc_connection = RpcConnectionConf::Http { url };
+        }
+        chain_conf
     }
 
     async fn build_validator_ethereum_quorum_hooks(
@@ -574,17 +601,7 @@ impl Validator {
         quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
-        let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection else {
-            unreachable!("ethereum quorum hooks only supported for ethereum chains");
-        };
-
-        // Prefer a dedicated quorum RPC set (e.g. a broader public pool) when configured;
-        // otherwise fall back to reusing the chain's normal RPCs.
-        let urls: Vec<Url> = if quorum_rpc_urls.is_empty() {
-            conn.rpc_urls()
-        } else {
-            quorum_rpc_urls.to_vec()
-        };
+        let urls = Self::resolve_ethereum_quorum_urls(origin_chain_conf, quorum_rpc_urls);
 
         if urls.is_empty() {
             return Err(ChainCommunicationError::from_other_str(
@@ -592,44 +609,17 @@ impl Validator {
             ));
         }
 
-        let mut quorum_hooks = Vec::new();
+        // Built concurrently rather than one-at-a-time: startup latency for this
+        // step should be bounded by the slowest single hook, not scale with N.
+        let hooks = try_join_all(urls.into_iter().map(|url| async move {
+            Self::ethereum_chain_conf_for_url(origin_chain_conf, url)
+                .build_merkle_tree_hook(metrics)
+                .await
+                .map(Arc::from)
+        }))
+        .await?;
 
-        for url in urls {
-            let mut chain_conf = origin_chain_conf.clone();
-            if let ChainConnectionConf::Ethereum(updated_conn) = &mut chain_conf.connection {
-                updated_conn.rpc_connection = RpcConnectionConf::Http { url };
-            }
-            quorum_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
-        }
-
-        Ok(quorum_hooks)
-    }
-
-    async fn build_validator_tron_quorum_hooks(
-        origin_chain_conf: &ChainConf,
-        metrics: &CoreMetrics,
-    ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
-        let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection else {
-            unreachable!("tron quorum hooks only supported for tron chains");
-        };
-
-        if conn.wallet_solidity_urls.is_empty() {
-            return Err(ChainCommunicationError::from_other_str(
-                "Tron validator safety hooks require wallet_solidity_urls",
-            ));
-        }
-
-        let mut quorum_hooks = Vec::new();
-
-        for wallet_solidity_url in conn.wallet_solidity_urls.clone() {
-            let mut chain_conf = origin_chain_conf.clone();
-            if let ChainConnectionConf::Tron(updated_conn) = &mut chain_conf.connection {
-                updated_conn.wallet_solidity_urls = vec![wallet_solidity_url];
-            }
-            quorum_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
-        }
-
-        Ok(quorum_hooks)
+        Ok(hooks)
     }
 
     /// Try to create merkle tree hook contract sync attempts times before giving up.
@@ -919,8 +909,123 @@ impl Validator {
 mod tests {
     use async_trait::async_trait;
     use hyperlane_core::{test_utils::dummy_domain, HyperlaneProvider};
+    use prometheus::Registry;
 
     use super::*;
+
+    fn dummy_ethereum_chain_conf(rpc_urls: Vec<Url>) -> ChainConf {
+        ChainConf {
+            domain: dummy_domain(1337, "test-domain"),
+            signer: None,
+            identity: None,
+            submitter: Default::default(),
+            estimated_block_time: Duration::from_secs_f64(1.0),
+            reorg_period: Default::default(),
+            addresses: Default::default(),
+            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
+                rpc_connection: RpcConnectionConf::HttpFallback { urls: rpc_urls },
+                transaction_overrides: Default::default(),
+                op_submission_config: Default::default(),
+                consider_null_transaction_receipt: false,
+            }),
+            metrics_conf: Default::default(),
+            index: Default::default(),
+            confirmations: Default::default(),
+            chain_id: Default::default(),
+            ignore_reorg_reports: false,
+            native_token: Default::default(),
+        }
+    }
+
+    #[test]
+    fn resolve_ethereum_quorum_urls_falls_back_to_normal_rpcs_when_empty() {
+        let rpc_urls = vec![
+            Url::parse("http://rpc-a.example").unwrap(),
+            Url::parse("http://rpc-b.example").unwrap(),
+        ];
+        let chain_conf = dummy_ethereum_chain_conf(rpc_urls.clone());
+
+        let resolved = Validator::resolve_ethereum_quorum_urls(&chain_conf, &[]);
+
+        assert_eq!(resolved, rpc_urls);
+    }
+
+    #[test]
+    fn resolve_ethereum_quorum_urls_prefers_explicit_quorum_urls_when_set() {
+        let chain_conf =
+            dummy_ethereum_chain_conf(vec![Url::parse("http://normal.example").unwrap()]);
+        let quorum_urls = vec![
+            Url::parse("http://quorum-a.example").unwrap(),
+            Url::parse("http://quorum-b.example").unwrap(),
+        ];
+
+        let resolved = Validator::resolve_ethereum_quorum_urls(&chain_conf, &quorum_urls);
+
+        assert_eq!(resolved, quorum_urls);
+    }
+
+    #[test]
+    fn ethereum_chain_conf_for_url_uses_single_http_connection() {
+        let chain_conf = dummy_ethereum_chain_conf(vec![
+            Url::parse("http://rpc-a.example").unwrap(),
+            Url::parse("http://rpc-b.example").unwrap(),
+        ]);
+        let url = Url::parse("http://quorum-node.example").unwrap();
+
+        let per_url_conf = Validator::ethereum_chain_conf_for_url(&chain_conf, url.clone());
+
+        match per_url_conf.connection {
+            ChainConnectionConf::Ethereum(conn) => match conn.rpc_connection {
+                RpcConnectionConf::Http { url: got } => assert_eq!(got, url),
+                other => panic!("expected a single Http connection, got {other:?}"),
+            },
+            _ => panic!("expected an ethereum connection"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_validator_ethereum_quorum_hooks_produces_one_hook_per_url() {
+        let chain_conf =
+            dummy_ethereum_chain_conf(vec![Url::parse("http://normal-rpc.example").unwrap()]);
+        let quorum_urls = vec![
+            Url::parse("http://quorum-a.example").unwrap(),
+            Url::parse("http://quorum-b.example").unwrap(),
+            Url::parse("http://quorum-c.example").unwrap(),
+        ];
+        let metrics = CoreMetrics::new(
+            "validator-test-ethereum-quorum-hooks",
+            9091,
+            Registry::new(),
+        )
+        .unwrap();
+
+        let hooks =
+            Validator::build_validator_ethereum_quorum_hooks(&chain_conf, &quorum_urls, &metrics)
+                .await
+                .unwrap();
+
+        assert_eq!(hooks.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn build_validator_ethereum_quorum_hooks_falls_back_to_normal_rpcs_when_unset() {
+        let chain_conf = dummy_ethereum_chain_conf(vec![
+            Url::parse("http://normal-a.example").unwrap(),
+            Url::parse("http://normal-b.example").unwrap(),
+        ]);
+        let metrics = CoreMetrics::new(
+            "validator-test-ethereum-quorum-hooks-fallback",
+            9092,
+            Registry::new(),
+        )
+        .unwrap();
+
+        let hooks = Validator::build_validator_ethereum_quorum_hooks(&chain_conf, &[], &metrics)
+            .await
+            .unwrap();
+
+        assert_eq!(hooks.len(), 2);
+    }
 
     mockall::mock! {
         pub MerkleTreeHook {}
@@ -1039,16 +1144,16 @@ mod tests {
             block_height: Some(100),
         };
 
-        let mut fallback = MockMerkleTreeHook::new();
-        fallback.expect_domain().return_const(domain.clone());
-        fallback
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_domain().return_const(domain.clone());
+        base_hook
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        fallback.expect_provider().never();
-        fallback.expect_count().once().return_once(|_| Ok(3));
-        fallback.expect_tree().never();
-        fallback.expect_latest_checkpoint().never();
-        fallback.expect_latest_checkpoint_at_block().never();
+        base_hook.expect_provider().never();
+        base_hook.expect_count().once().return_once(|_| Ok(3));
+        base_hook.expect_tree().never();
+        base_hook.expect_latest_checkpoint().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
 
         let mut quorum_a = MockMerkleTreeHook::new();
         quorum_a.expect_domain().return_const(domain.clone());
@@ -1144,7 +1249,7 @@ mod tests {
             });
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
-            fallback: Arc::new(fallback),
+            base_hook: Arc::new(base_hook),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
@@ -1175,16 +1280,16 @@ mod tests {
     async fn validator_multi_rpc_quorum_merkle_tree_hook_errors_without_quorum() {
         let domain = dummy_domain(1337, "test-domain");
 
-        let mut fallback = MockMerkleTreeHook::new();
-        fallback.expect_domain().return_const(domain.clone());
-        fallback
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_domain().return_const(domain.clone());
+        base_hook
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        fallback.expect_provider().never();
-        fallback.expect_count().never();
-        fallback.expect_tree().never();
-        fallback.expect_latest_checkpoint().never();
-        fallback.expect_latest_checkpoint_at_block().never();
+        base_hook.expect_provider().never();
+        base_hook.expect_count().never();
+        base_hook.expect_tree().never();
+        base_hook.expect_latest_checkpoint().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
 
         let mut quorum_a = MockMerkleTreeHook::new();
         quorum_a.expect_domain().return_const(domain.clone());
@@ -1235,7 +1340,7 @@ mod tests {
         quorum_c.expect_latest_checkpoint_at_block().never();
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
-            fallback: Arc::new(fallback),
+            base_hook: Arc::new(base_hook),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
@@ -1250,16 +1355,16 @@ mod tests {
             block_height: Some(11),
         };
 
-        let mut fallback = MockMerkleTreeHook::new();
-        fallback.expect_domain().return_const(domain.clone());
-        fallback
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_domain().return_const(domain.clone());
+        base_hook
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        fallback.expect_provider().never();
-        fallback.expect_count().never();
-        fallback.expect_tree().never();
-        fallback.expect_latest_checkpoint().never();
-        fallback.expect_latest_checkpoint_at_block().never();
+        base_hook.expect_provider().never();
+        base_hook.expect_count().never();
+        base_hook.expect_tree().never();
+        base_hook.expect_latest_checkpoint().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
 
         let mut quorum_a = MockMerkleTreeHook::new();
         quorum_a.expect_domain().return_const(domain.clone());
@@ -1304,7 +1409,7 @@ mod tests {
         quorum_c.expect_latest_checkpoint_at_block().never();
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
-            fallback: Arc::new(fallback),
+            base_hook: Arc::new(base_hook),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
