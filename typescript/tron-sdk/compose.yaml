@@ -1,6 +1,6 @@
 services:
   devnode:
-    image: tronbox/tre
+    image: tronbox/tre@sha256:f4332e11df12a9f360639a4546fd046593909630fda48af00b30410c144342f0
     container_name: tron
     ports:
       - '9090:9090'

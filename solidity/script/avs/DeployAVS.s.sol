@@ -111,7 +111,10 @@ contract DeployAVS is Script {
         TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
                 address(stakeRegistryImpl),
                 address(proxyAdmin),
-                ""
+                abi.encodeWithSelector(
+                    ECDSAStakeRegistry.initializeOwner.selector,
+                    address(deployerAddress)
+                )
             );
 
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
@@ -130,24 +133,17 @@ contract DeployAVS is Script {
             )
         );
 
-        // Initialize the ECDSAStakeRegistry once we have the HyperlaneServiceManager proxy
-        (bool success, ) = address(stakeRegistryProxy).call(
-            abi.encodeWithSelector(
-                ECDSAStakeRegistry.initialize.selector,
-                address(hsmProxy),
-                thresholdWeight,
-                quorum
-            )
+        ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(
+            address(stakeRegistryProxy)
         );
+        stakeRegistry.configure(address(hsmProxy), thresholdWeight, quorum);
 
         HyperlaneServiceManager hsm = HyperlaneServiceManager(
             address(hsmProxy)
         );
 
-        require(success, "Failed to initialize ECDSAStakeRegistry");
         require(
-            ECDSAStakeRegistry(address(stakeRegistryProxy)).owner() ==
-                address(deployerAddress),
+            stakeRegistry.owner() == address(deployerAddress),
             "Owner of ECDSAStakeRegistry is not the deployer"
         );
         require(

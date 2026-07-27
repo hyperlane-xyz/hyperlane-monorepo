@@ -72,6 +72,10 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   upgrade?: UpgradeConfig;
 };
 
+export function getConfiguredMailboxOwner(config: CoreConfig): Address {
+  return config.ownerOverrides?.mailbox ?? config.owner;
+}
+
 export type CoreConfigHookFieldKey = keyof Pick<
   CoreConfig,
   'requiredHook' | 'defaultHook'
