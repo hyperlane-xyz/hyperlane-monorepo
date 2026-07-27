@@ -49,4 +49,25 @@ describe('known unevaluable routes allowlist', () => {
       ),
     ).to.equal(undefined);
   });
+
+  it('matches any error for a route blacklisted without error signatures', () => {
+    const lukso = KNOWN_UNEVALUABLE_ROUTES.find(
+      (route) => route.warpRouteId === 'LYX/lukso',
+    );
+    assert(lukso, 'expected a LYX/lukso entry in KNOWN_UNEVALUABLE_ROUTES');
+    expect(lukso.errorSignatures).to.equal(undefined);
+    expect(
+      knownUnevaluableRouteForError(
+        lukso.warpRouteId,
+        new Error('All decimals must be defined'),
+      ),
+    ).to.deep.equal(lukso);
+    // Still scoped to the specific route id.
+    expect(
+      knownUnevaluableRouteForError(
+        'OTHER/route',
+        new Error('All decimals must be defined'),
+      ),
+    ).to.equal(undefined);
+  });
 });
