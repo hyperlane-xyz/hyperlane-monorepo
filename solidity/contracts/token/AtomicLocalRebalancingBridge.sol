@@ -8,11 +8,11 @@ import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {SafeTotalAssets} from "./libs/SafeTotalAssets.sol";
 import {ICollateralBackedToken} from "./interfaces/ICollateralBackedToken.sol";
 import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 import {IRebalancingBridge} from "./interfaces/IRebalancingBridge.sol";
 
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -91,7 +91,6 @@ contract AtomicLocalRebalancingBridge is
 {
     using SafeERC20 for IERC20;
     using TransientStorage for bytes32;
-    using SafeTotalAssets for address;
 
     /// @dev Stores the expected source router during escrow; consumed by
     /// `transferRemote`. Non-zero only between escrow start and its callback.
@@ -196,7 +195,7 @@ contract AtomicLocalRebalancingBridge is
         (
             sourceBefore.tracksTotalAssets,
             sourceBefore.totalAssetsBefore
-        ) = allowedSourceRouter.tryTotalAssets();
+        ) = _tryTotalAssets(allowedSourceRouter);
 
         CallLib.safeMulticall(abi.decode(data, (CallLib.Call[])));
 
@@ -407,7 +406,7 @@ contract AtomicLocalRebalancingBridge is
             (
                 bool stillTracksTotalAssets,
                 uint256 totalAssetsAfter
-            ) = allowedSourceRouter.tryTotalAssets();
+            ) = _tryTotalAssets(allowedSourceRouter);
             if (
                 !stillTracksTotalAssets ||
                 totalAssetsAfter != sourceBefore.totalAssetsBefore
@@ -493,6 +492,27 @@ contract AtomicLocalRebalancingBridge is
     /// @dev Reverts if `token` does not implement `IERC20Metadata.decimals()`.
     function _decimalScale(address token) internal view returns (uint256) {
         return 10 ** uint256(IERC20Metadata(token).decimals());
+    }
+
+    /// @dev Duck-typed, non-reverting read of an ERC4626-style `totalAssets()`
+    /// from `vault`, which may not implement it. Mirrors the `SafeERC20` pattern
+    /// of wrapping an external call, but reports capability instead of reverting so
+    /// the caller can treat a non-vault target as unsupported. Presence of the
+    /// selector is duck typing, not proof of ERC4626 semantics.
+    /// @return supported True only if the call succeeded and returned exactly 32
+    /// bytes. A revert or a malformed return yields false; a failed call is never
+    /// reported as a numeric zero.
+    /// @return assets The decoded value when `supported` is true, otherwise 0.
+    function _tryTotalAssets(
+        address vault
+    ) internal view returns (bool supported, uint256 assets) {
+        (bool ok, bytes memory returnData) = vault.staticcall(
+            abi.encodeCall(IERC4626.totalAssets, ())
+        );
+        if (!ok || returnData.length != 32) {
+            return (false, 0);
+        }
+        return (true, abi.decode(returnData, (uint256)));
     }
 
     function _refundTokenBalance(
