@@ -39,6 +39,7 @@ import {
   getEclipseUSDTGnosisSafeBuilderStrategyConfig,
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
+import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
@@ -101,6 +102,8 @@ import { getUSDCCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/con
 import { getUSDCCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayStagingWarpConfig.js';
 import { getUSDTCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayWarpConfig.js';
 import { getUSDTCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayStagingWarpConfig.js';
+import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
+import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
 import { getUSDTSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTSTAGEWarpConfig.js';
 
 type WarpConfigGetter = (
@@ -120,6 +123,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EclipseUSDCSTAGE]: getEclipseUSDCSTAGEWarpConfig,
   [WarpRouteIds.ETHSTAGEStage]: getETHStageWarpConfig,
   [WarpRouteIds.EclipseUSDT]: getEclipseUSDTWarpConfig,
+  [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.BaseEthereumREZ]: getREZBaseEthereumWarpConfig,
   [WarpRouteIds.BaseEthereumREZSTAGING]: getRezStagingWarpConfig,
   [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
@@ -154,6 +158,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Eni1Piece]: getEni1PieceWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
+  [WarpRouteIds.USDTOft]: getUSDTOftWarpConfig,
+  [WarpRouteIds.USDTOftLegacy]: getUSDTOftLegacyWarpConfig,
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
