@@ -448,17 +448,25 @@ async fn fetch_offchain_data(
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 
-    // remove leading 0x which hex_decode doesn't like
-    let hex_data = &json.data[2..];
+    let metadata = decode_offchain_hex(&json.data)?;
+    Ok(Metadata::new(metadata))
+}
 
-    let metadata = hex_decode(hex_data).map_err(|err| {
+/// Decode the hex `data` field returned by an offchain lookup server.
+///
+/// Strips an optional `0x` prefix before hex-decoding. Uses `strip_prefix`
+/// rather than a raw `&data[2..]` slice: the latter panics with
+/// "byte index 2 is out of bounds" when the server returns an empty or
+/// otherwise malformed `data` field, and that panic previously killed the
+/// whole per-destination MessageProcessor task and wedged the destination.
+fn decode_offchain_hex(data: &str) -> Result<Vec<u8>, MetadataBuildError> {
+    let hex_data = data.strip_prefix("0x").unwrap_or(data);
+    hex_decode(hex_data).map_err(|err| {
         let msg = format!(
-            "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
-            err, json.data
+            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({data})"
         );
         MetadataBuildError::FailedToBuild(msg)
-    })?;
-    Ok(Metadata::new(metadata))
+    })
 }
 
 fn create_ccip_url_regex() -> RegexSet {
@@ -554,6 +562,26 @@ mod test {
         assert!(!body_signals_pending("not json"));
         // success body -> not pending
         assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
+    }
+
+    #[test]
+    fn test_decode_offchain_hex() {
+        // with and without 0x prefix decode identically
+        assert_eq!(
+            decode_offchain_hex("0xdeadbeef").unwrap(),
+            vec![0xde, 0xad, 0xbe, 0xef]
+        );
+        assert_eq!(
+            decode_offchain_hex("deadbeef").unwrap(),
+            vec![0xde, 0xad, 0xbe, 0xef]
+        );
+        // empty / short inputs must NOT panic (regression: "byte index 2 is
+        // out of bounds of ``" killed the base MessageProcessor task)
+        assert_eq!(decode_offchain_hex("").unwrap(), Vec::<u8>::new());
+        assert_eq!(decode_offchain_hex("0x").unwrap(), Vec::<u8>::new());
+        assert!(decode_offchain_hex("0").is_err());
+        // invalid hex returns an error rather than panicking
+        assert!(decode_offchain_hex("0xzz").is_err());
     }
 
     #[test]
