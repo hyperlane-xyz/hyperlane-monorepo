@@ -867,7 +867,9 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validator,
     },
-    rpcConsensusType: RpcConsensusType.Quorum,
+    // Safety-critical reads are quorum-verified via quorumRpcUrls (see
+    // ValidatorMultiRpcQuorumMerkleTreeHook); rpcUrls itself can stay cheap.
+    rpcConsensusType: RpcConsensusType.Fallback,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -922,7 +924,9 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorRC,
     },
-    rpcConsensusType: RpcConsensusType.Quorum,
+    // Safety-critical reads are quorum-verified via quorumRpcUrls (see
+    // ValidatorMultiRpcQuorumMerkleTreeHook); rpcUrls itself can stay cheap.
+    rpcConsensusType: RpcConsensusType.Fallback,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,

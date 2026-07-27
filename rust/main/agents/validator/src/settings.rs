@@ -55,8 +55,11 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
-    /// RPCs used to quorum-verify the merkle tree hook's safety-critical reads.
-    /// Empty disables quorum verification entirely.
+    /// RPCs that vote together (2/3 majority) on the merkle tree hook's safety-critical
+    /// reads; the winning value must also match what `rpcs`' own configured consensus
+    /// mode independently returns. Empty disables quorum verification entirely.
+    /// Recommended: include your private `rpcs` here too, alongside a sizeable public
+    /// batch — a pool of 1-2 entries provides little real protection.
     pub quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,

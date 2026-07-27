@@ -231,6 +231,12 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
+    customQuorumRpcUrls: z
+      .string()
+      .optional()
+      .describe(
+        'Validator only: comma separated list of RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. The winning value must also match what rpcUrls (its own configured consensus mode) independently returns. Empty disables quorum verification. Recommended: include your private rpcUrls here too, alongside a sizeable public batch -- a pool of 1-2 entries provides little real protection.',
+      ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
       .describe('The consensus type to use when multiple RPCs are configured.')
