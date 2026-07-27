@@ -33,9 +33,9 @@ const LATEST_CHECKPOINT_SELECTOR = '907c0f92';
 
 function fakeCheckpoint(seed: string): { root: string; index: number } {
   const digest = createHash('sha256').update(seed).digest();
-  const root = digest.subarray(0, 32).toString('hex');
-  // Keep the index in a plausible u32 range rather than using all 4 bytes.
-  const index = digest.readUInt32BE(32 % (digest.length - 4)) >>> 8;
+  const root = digest.toString('hex');
+  // Keep the index in a plausible (< 2^24) range rather than a full u32.
+  const index = digest.readUInt32BE(4) >>> 8;
   return { root, index };
 }
 

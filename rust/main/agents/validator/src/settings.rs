@@ -495,4 +495,35 @@ mod test {
         assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
         assert!(!parsed[1].public);
     }
+
+    #[test]
+    fn test_get_rpc_urls_quorum_keys() {
+        let rpcs = r#"
+            {
+                "quorumrpcurls": [
+                    {
+                        "http": "http://quorum-a.example",
+                        "public": true
+                    }
+                ],
+                "customquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(
+            &value_parser,
+            "quorumRpcUrls",
+            "customQuorumRpcUrls",
+            &mut err,
+        );
+
+        // customQuorumRpcUrls overrides quorumRpcUrls, same as customRpcUrls does for rpcUrls.
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].url, "http://quorum-b.example");
+        assert!(!parsed[0].public);
+        assert_eq!(parsed[1].url, "http://quorum-c.example");
+        assert!(!parsed[1].public);
+    }
 }
