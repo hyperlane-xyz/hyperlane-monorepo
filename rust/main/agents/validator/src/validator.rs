@@ -1,4 +1,9 @@
-use std::{collections::HashSet, fmt::Debug, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -7,7 +12,10 @@ use ethers::utils::keccak256;
 use eyre::{eyre, Result};
 use futures_util::future::{join_all, try_join_all};
 use serde::Serialize;
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use tracing::{debug, error, info, info_span, warn, Instrument};
 use url::Url;
 
@@ -40,6 +48,10 @@ use crate::{
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
+/// Caps how long any single quorum/base-hook RPC call can take, so one hanging endpoint
+/// can't stall a safety-critical read (and therefore checkpoint signing) indefinitely.
+const QUORUM_RPC_CALL_TIMEOUT: Duration = Duration::from_secs(20);
+
 /// Below this, `quorumRpcUrls` gives little to no real protection: with 1 entry any
 /// value trivially reaches quorum, and with 2 entries all must unanimously agree.
 const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
@@ -60,6 +72,20 @@ struct ValidatorMultiRpcQuorumMerkleTreeHook {
 }
 
 impl ValidatorMultiRpcQuorumMerkleTreeHook {
+    /// Bounds a single RPC call to `QUORUM_RPC_CALL_TIMEOUT`, so one hanging endpoint
+    /// can't stall a whole read (`join_all` otherwise waits for every response before
+    /// voting, including stragglers past the point a result is already decided).
+    async fn with_call_timeout<T>(
+        fut: impl std::future::Future<Output = ChainResult<T>>,
+    ) -> ChainResult<T> {
+        match timeout(QUORUM_RPC_CALL_TIMEOUT, fut).await {
+            Ok(result) => result,
+            Err(_) => Err(ChainCommunicationError::from_other_str(
+                "quorum RPC call timed out",
+            )),
+        }
+    }
+
     /// Resolves `reorg_period` to a concrete block height via `base_hook`, so every
     /// quorum RPC and `base_hook` itself can be pinned to the same height instead of
     /// each independently resolving its own current tip. `Blocks(n)` periods almost never
@@ -69,11 +95,11 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Option<u64>> {
-        Ok(self
-            .base_hook
-            .latest_checkpoint(reorg_period)
-            .await?
-            .block_height)
+        Ok(
+            Self::with_call_timeout(self.base_hook.latest_checkpoint(reorg_period))
+                .await?
+                .block_height,
+        )
     }
 
     /// Ceiling of `2 * n / 3`, i.e. the smallest count that's at least two thirds of `n`.
@@ -193,19 +219,21 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
 impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         if let Some(height) = self.resolve_quorum_target_height(reorg_period).await? {
-            let results = join_all(
-                self.quorum_hooks
-                    .iter()
-                    .cloned()
-                    .map(|(label, hook)| async move { (label, hook.tree_at_block(height).await) }),
-            )
+            let results = join_all(self.quorum_hooks.iter().cloned().map(
+                |(label, hook)| async move {
+                    (
+                        label,
+                        Self::with_call_timeout(hook.tree_at_block(height)).await,
+                    )
+                },
+            ))
             .await;
             let quorum_result = self.select_quorum_result(
                 results,
                 |a, b| a.tree == b.tree,
                 "Failed to reach quorum for merkle tree",
             )?;
-            let base_result = self.base_hook.tree_at_block(height).await?;
+            let base_result = Self::with_call_timeout(self.base_hook.tree_at_block(height)).await?;
             Self::require_base_hook_agreement(
                 &quorum_result,
                 &base_result,
@@ -217,7 +245,12 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
 
         let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { (label, hook.tree(&reorg_period).await) }
+            async move {
+                (
+                    label,
+                    Self::with_call_timeout(hook.tree(&reorg_period)).await,
+                )
+            }
         }))
         .await;
         let quorum_result = self.select_quorum_result(
@@ -225,7 +258,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.tree == b.tree && a.block_height == b.block_height,
             "Failed to reach quorum for merkle tree",
         )?;
-        let base_result = self.base_hook.tree(reorg_period).await?;
+        let base_result = Self::with_call_timeout(self.base_hook.tree(reorg_period)).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -249,7 +282,12 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
 
         let results = join_all(self.quorum_hooks.iter().cloned().map(|(label, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { (label, hook.latest_checkpoint(&reorg_period).await) }
+            async move {
+                (
+                    label,
+                    Self::with_call_timeout(hook.latest_checkpoint(&reorg_period)).await,
+                )
+            }
         }))
         .await;
         let quorum_result = self.select_quorum_result(
@@ -257,7 +295,8 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
             "Failed to reach quorum for latest_checkpoint",
         )?;
-        let base_result = self.base_hook.latest_checkpoint(reorg_period).await?;
+        let base_result =
+            Self::with_call_timeout(self.base_hook.latest_checkpoint(reorg_period)).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -273,7 +312,10 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
                 .iter()
                 .cloned()
                 .map(|(label, hook)| async move {
-                    (label, hook.latest_checkpoint_at_block(height).await)
+                    (
+                        label,
+                        Self::with_call_timeout(hook.latest_checkpoint_at_block(height)).await,
+                    )
                 }),
         )
         .await;
@@ -282,7 +324,8 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
             "Failed to reach quorum for latest_checkpoint_at_block",
         )?;
-        let base_result = self.base_hook.latest_checkpoint_at_block(height).await?;
+        let base_result =
+            Self::with_call_timeout(self.base_hook.latest_checkpoint_at_block(height)).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -482,6 +525,7 @@ impl BaseAgent for Validator {
             &quorum_rpc_urls,
         ) {
             Self::warn_if_quorum_pool_undersized(&quorum_rpc_urls);
+            Self::warn_if_duplicate_hosts(&quorum_rpc_urls);
             Self::build_validator_quorum_merkle_tree_hook(
                 &origin_chain_conf,
                 &quorum_rpc_urls,
@@ -681,6 +725,29 @@ impl Validator {
             );
         }
         deduped
+    }
+
+    /// Warns (doesn't reject: distinct accounts/API keys on the same provider are a
+    /// legitimate choice) when multiple `quorumRpcUrls` entries share a host, grouped by
+    /// index rather than the host itself so the log never reveals which provider it is.
+    /// Exact-URL dedup alone misses this: different paths/API keys on the same host still
+    /// share a failure domain (one provider outage or compromise counts as N votes).
+    fn warn_if_duplicate_hosts(quorum_rpc_urls: &[Url]) {
+        let mut indices_by_host: HashMap<Option<&str>, Vec<usize>> = HashMap::new();
+        for (i, url) in quorum_rpc_urls.iter().enumerate() {
+            indices_by_host.entry(url.host_str()).or_default().push(i);
+        }
+        let repeated_host_groups: Vec<Vec<usize>> = indices_by_host
+            .into_values()
+            .filter(|indices| indices.len() > 1)
+            .collect();
+        if !repeated_host_groups.is_empty() {
+            warn!(
+                ?repeated_host_groups,
+                "quorumRpcUrls has multiple entries (by index) sharing a host; they likely \
+                 share a failure domain, weakening the independence the vote relies on"
+            );
+        }
     }
 
     /// Warns if `quorumRpcUrls` is too small to provide meaningful protection. Recommended:
@@ -1137,6 +1204,37 @@ mod tests {
         Validator::warn_if_quorum_pool_undersized(&urls);
 
         assert!(!logs_contain("quorumRpcUrls has very few entries"));
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn warn_if_duplicate_hosts_warns_on_shared_host() {
+        let urls = vec![
+            Url::parse("http://shared.example/key-a").unwrap(),
+            Url::parse("http://other.example").unwrap(),
+            Url::parse("http://shared.example/key-b").unwrap(),
+        ];
+
+        Validator::warn_if_duplicate_hosts(&urls);
+
+        assert!(logs_contain(
+            "quorumRpcUrls has multiple entries (by index) sharing a host"
+        ));
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn warn_if_duplicate_hosts_silent_when_all_distinct() {
+        let urls = vec![
+            Url::parse("http://rpc-a.example").unwrap(),
+            Url::parse("http://rpc-b.example").unwrap(),
+        ];
+
+        Validator::warn_if_duplicate_hosts(&urls);
+
+        assert!(!logs_contain(
+            "quorumRpcUrls has multiple entries (by index) sharing a host"
+        ));
     }
 
     #[test]

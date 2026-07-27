@@ -145,7 +145,7 @@ async function main() {
     }
   });
 
-  server.listen(port, () => {
+  server.listen(port, '127.0.0.1', () => {
     logger.info(`listening on http://127.0.0.1:${port} -> proxying ${rpc}`);
   });
 }

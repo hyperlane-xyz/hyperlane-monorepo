@@ -30,6 +30,11 @@ export interface ValidatorBaseChainConfig {
   reorgPeriod: string | number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
+  // Opt-in per chain: populates quorumRpcUrls (private + public batch) for the
+  // validator's safety-critical merkle tree hook reads. Defaults to false/unset
+  // so quorum verification stays off (Fallback consensus) until deliberately
+  // enabled for a chain, rather than turning on for every chain at once.
+  quorumVerificationEnabled?: boolean;
 }
 
 // Configuration for a validator agent.
@@ -122,6 +127,10 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
   get validators(): ValidatorBaseConfig[] {
     return this.#validatorsConfig[this.chainName].validators;
+  }
+
+  get quorumVerificationEnabled(): boolean {
+    return this.#chainConfig.quorumVerificationEnabled ?? false;
   }
 
   get role(): Role {
