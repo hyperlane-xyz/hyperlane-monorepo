@@ -6,6 +6,7 @@ import {
   isNullish,
   isZeroishAddress,
   retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
@@ -23,6 +24,8 @@ import {
   type AleoSyntheticWarpTokenConfig,
   AleoTokenType,
 } from '../utils/types.js';
+
+const logger = rootLogger.child({ module: 'aleo-warp-query' });
 
 /**
  * Returns the ARC-20 token program ID imported by an ARC-20-based warp token.
@@ -536,17 +539,44 @@ export async function getNativeWarpTokenConfig(
 
 /**
  * Resolve token name/symbol/decimals for a warp token — ARC-20 for v2, token_registry for v1.
+ *
+ * name/symbol/decimals live in the ARC-20 token program (v2) or token_registry.aleo (v1).
+ * v1 tokens that were never registered in token_registry.aleo (e.g. legacy synthetics) make
+ * that lookup throw, but decimals are also carried authoritatively in app_metadata.local_decimals
+ * and name/symbol are not compared by check-warp-deploy, so a registry miss is non-fatal: fall
+ * back to local_decimals for decimals and empty strings for name/symbol.
  */
 async function resolveTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   programId: string,
   tokenId: string,
+  localDecimals: number | undefined,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
-  if (isV2WarpToken(programId)) {
-    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
-    return getArc20TokenMetadata(aleoClient, arc20ProgramId);
-  }
-  return getTokenMetadata(aleoClient, tokenId);
+  const registryMetadata = await (
+    isV2WarpToken(programId)
+      ? getArc20ProgramId(aleoClient, programId).then((arc20ProgramId) =>
+          getArc20TokenMetadata(aleoClient, arc20ProgramId),
+        )
+      : getTokenMetadata(aleoClient, tokenId)
+  ).catch((error: unknown) => {
+    logger.warn(
+      { programId, tokenId, err: error },
+      'Failed to read token name/symbol/decimals from token registry; falling back to app_metadata',
+    );
+    return undefined;
+  });
+
+  const decimals = registryMetadata?.decimals ?? localDecimals;
+  assert(
+    decimals != null,
+    `Unable to resolve decimals for token ${programId} (tokenId ${tokenId}): token registry lookup failed and app_metadata.local_decimals is missing`,
+  );
+
+  return {
+    name: registryMetadata?.name ?? '',
+    symbol: registryMetadata?.symbol ?? '',
+    decimals,
+  };
 }
 
 /**
@@ -601,6 +631,7 @@ export async function getCollateralWarpTokenConfig(
     aleoClient,
     programId,
     tokenId,
+    metadata.local_decimals,
   );
 
   const scale = localRemoteDecimalsToScale(
@@ -675,6 +706,7 @@ export async function getSyntheticWarpTokenConfig(
     aleoClient,
     programId,
     tokenId,
+    metadata.local_decimals,
   );
 
   const scale = localRemoteDecimalsToScale(
