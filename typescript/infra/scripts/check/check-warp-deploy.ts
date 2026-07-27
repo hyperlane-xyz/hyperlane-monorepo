@@ -35,6 +35,7 @@ import {
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
 import { resolveAcceptedInactiveOwners } from './governance-ica-owners.js';
+import { knownUnevaluableRouteForError } from './known-unevaluable-routes.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
 const ROUTES_TO_SKIP: string[] = [
@@ -245,6 +246,19 @@ async function main() {
         console.info(chalk.green(`warp checker found no violations`));
       }
     } catch (e) {
+      const knownUnevaluableRoute = knownUnevaluableRouteForError(
+        warpRouteId,
+        e,
+      );
+      if (knownUnevaluableRoute) {
+        console.warn(
+          chalk.yellow(
+            `Skipping known-unevaluable route ${warpRouteId} on ${knownUnevaluableRoute.chain}: ${knownUnevaluableRoute.reason}`,
+          ),
+        );
+        continue;
+      }
+
       console.error(
         chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
       );

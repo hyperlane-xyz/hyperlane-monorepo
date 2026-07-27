@@ -23,6 +23,7 @@ const owners = {
   eni: '0xf0004476DDC8985C067b6BDf94a1759f7b230809',
   optimism: '0xd1219aef6eA190f6aD48525664C33ceE0169c7a8',
   polygon: '0x3211A1Fea94cd4000Bd82D7C9E9334E51938De1b',
+  tron: '0x5ac5e2cf5A0Bb92D1Ca5B8D02a069eC874294976',
 } as const;
 
 const WARP_FEE_BPS = 8;
@@ -43,6 +44,7 @@ const usdtTokenAddresses = {
   ethereum: tokens.ethereum.USDT,
   optimism: tokens.optimism.USDT,
   polygon: tokens.polygon.USDT,
+  tron: tokens.tron.USDT,
 } as const;
 
 const usdcDecimals = {
@@ -63,6 +65,7 @@ const usdtDecimals = {
   eni: 6,
   optimism: 6,
   polygon: 6,
+  tron: 6,
 } as const;
 
 function getScaledTokenConfig(
@@ -223,6 +226,7 @@ export async function getEniUsdtWarpConfig(
     'ethereum',
     'optimism',
     'polygon',
+    'tron',
   ] as const;
 
   const configs: Array<[string, HypTokenRouterConfig]> = [];
