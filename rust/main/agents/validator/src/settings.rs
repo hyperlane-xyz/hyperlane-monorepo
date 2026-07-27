@@ -61,6 +61,10 @@ pub struct ValidatorSettings {
     pub quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
+    /// Test-only escape hatch: skip the on-chain self-announce check/tx
+    /// entirely. Never set this for a production validator — an
+    /// un-announced validator's checkpoints are undiscoverable by relayers.
+    pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
 }
@@ -97,6 +101,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let allow_public_rpcs = p
             .chain(&mut err)
             .get_opt_key("allowPublicRpcs")
+            .parse_bool()
+            .unwrap_or(false);
+
+        let skip_announce = p
+            .chain(&mut err)
+            .get_opt_key("skipAnnounce")
             .parse_bool()
             .unwrap_or(false);
 
@@ -248,6 +258,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             rpcs,
             quorum_rpcs,
             allow_public_rpcs,
+            skip_announce,
             max_sign_concurrency,
         })
     }

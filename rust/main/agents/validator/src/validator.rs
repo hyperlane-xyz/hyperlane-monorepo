@@ -15,9 +15,7 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::{
-        ChainConf, ChainConnectionConf, CheckpointSyncerBuildError, ContractSyncBuildOptions,
-    },
+    settings::{ChainConf, ChainConnectionConf, CheckpointSyncerBuildError},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
@@ -28,9 +26,7 @@ use hyperlane_core::{
     HyperlaneSignerExt, IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion,
     ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
 };
-use hyperlane_ethereum::{
-    self as h_eth, RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle,
-};
+use hyperlane_ethereum::{RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle};
 
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
@@ -43,46 +39,22 @@ use crate::{
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
+/// Wraps a plain (unmodified-config) hook for `count()`/domain/address, and a set of
+/// independently-built, single-provider hooks for the safety-critical reads (`tree()`,
+/// `latest_checkpoint()`, `latest_checkpoint_at_block()`), which are only accepted once
+/// a majority of them agree byte-for-byte. Used for both Ethereum and Tron.
 #[derive(Debug)]
-struct ValidatorQuorumMerkleTreeHook {
-    fallback: Arc<dyn MerkleTreeHook>,
-    quorum: Arc<dyn MerkleTreeHook>,
-}
-
-#[async_trait]
-impl MerkleTreeHook for ValidatorQuorumMerkleTreeHook {
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        self.quorum.tree(reorg_period).await
-    }
-
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.fallback.count(reorg_period).await
-    }
-
-    async fn latest_checkpoint(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> ChainResult<CheckpointAtBlock> {
-        self.quorum.latest_checkpoint(reorg_period).await
-    }
-
-    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
-        self.quorum.latest_checkpoint_at_block(height).await
-    }
-}
-
-#[derive(Debug)]
-struct ValidatorTronQuorumMerkleTreeHook {
+struct ValidatorMultiRpcQuorumMerkleTreeHook {
     fallback: Arc<dyn MerkleTreeHook>,
     quorum_hooks: Vec<Arc<dyn MerkleTreeHook>>,
 }
 
-impl ValidatorTronQuorumMerkleTreeHook {
+impl ValidatorMultiRpcQuorumMerkleTreeHook {
     fn quorum_threshold(&self) -> usize {
         (self.quorum_hooks.len() / 2).saturating_add(1)
     }
 
-    fn select_quorum_result<T: Clone>(
+    fn select_quorum_result<T: Clone + Debug>(
         &self,
         results: Vec<ChainResult<T>>,
         matches: impl Fn(&T, &T) -> bool,
@@ -103,9 +75,21 @@ impl ValidatorTronQuorumMerkleTreeHook {
         }
 
         for candidate in &oks {
-            if oks.iter().filter(|other| matches(candidate, other)).count()
-                >= self.quorum_threshold()
-            {
+            let agreeing = oks.iter().filter(|other| matches(candidate, other)).count();
+            if agreeing >= self.quorum_threshold() {
+                if agreeing < oks.len() {
+                    // Majority was reached, but not everyone agreed. Not fatal, but
+                    // worth surfacing: this is what a compromised/lagging minority
+                    // provider being outvoted looks like.
+                    warn!(
+                        context,
+                        accepted = ?candidate,
+                        agreeing_count = agreeing,
+                        total_successful = oks.len(),
+                        all_values = ?oks,
+                        "Quorum reached despite provider disagreement"
+                    );
+                }
                 return Ok(candidate.clone());
             }
         }
@@ -113,6 +97,12 @@ impl ValidatorTronQuorumMerkleTreeHook {
         if oks.is_empty() {
             Err(first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context)))
         } else {
+            warn!(
+                context,
+                total_successful = oks.len(),
+                all_values = ?oks,
+                "Failed to reach quorum: successful responses disagreed"
+            );
             Err(ChainCommunicationError::from_other_str(&format!(
                 "{context}; {ok_count} successful hooks disagreed",
                 ok_count = oks.len()
@@ -122,7 +112,7 @@ impl ValidatorTronQuorumMerkleTreeHook {
 }
 
 #[async_trait]
-impl MerkleTreeHook for ValidatorTronQuorumMerkleTreeHook {
+impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let results = join_all(self.quorum_hooks.iter().cloned().map(|hook| {
             let reorg_period = reorg_period.clone();
@@ -133,7 +123,7 @@ impl MerkleTreeHook for ValidatorTronQuorumMerkleTreeHook {
         self.select_quorum_result(
             results,
             |a, b| a.tree == b.tree && a.block_height == b.block_height,
-            "Failed to reach quorum for tron merkle tree",
+            "Failed to reach quorum for merkle tree",
         )
     }
 
@@ -154,7 +144,7 @@ impl MerkleTreeHook for ValidatorTronQuorumMerkleTreeHook {
         self.select_quorum_result(
             results,
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
-            "Failed to reach quorum for tron latest_checkpoint",
+            "Failed to reach quorum for latest_checkpoint",
         )
     }
 
@@ -170,12 +160,12 @@ impl MerkleTreeHook for ValidatorTronQuorumMerkleTreeHook {
         self.select_quorum_result(
             results,
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
-            "Failed to reach quorum for tron latest_checkpoint_at_block",
+            "Failed to reach quorum for latest_checkpoint_at_block",
         )
     }
 }
 
-impl HyperlaneChain for ValidatorTronQuorumMerkleTreeHook {
+impl HyperlaneChain for ValidatorMultiRpcQuorumMerkleTreeHook {
     fn domain(&self) -> &HyperlaneDomain {
         self.fallback.domain()
     }
@@ -185,23 +175,7 @@ impl HyperlaneChain for ValidatorTronQuorumMerkleTreeHook {
     }
 }
 
-impl HyperlaneContract for ValidatorTronQuorumMerkleTreeHook {
-    fn address(&self) -> H256 {
-        self.fallback.address()
-    }
-}
-
-impl HyperlaneChain for ValidatorQuorumMerkleTreeHook {
-    fn domain(&self) -> &HyperlaneDomain {
-        self.fallback.domain()
-    }
-
-    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        self.fallback.provider()
-    }
-}
-
-impl HyperlaneContract for ValidatorQuorumMerkleTreeHook {
+impl HyperlaneContract for ValidatorMultiRpcQuorumMerkleTreeHook {
     fn address(&self) -> H256 {
         self.fallback.address()
     }
@@ -233,6 +207,7 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    skip_announce: bool,
 }
 
 /// Metadata for `validator`
@@ -292,11 +267,12 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        // Check for public rpcs in the config
+        // Check for public rpcs in the config. Only `rpcs` (indexing/fallback)
+        // is gated here — `quorum_rpcs` is designed to use public RPCs safely
+        // via majority agreement, so a public entry there isn't a risk to flag.
         let public_rpc_urls: Vec<String> = settings
             .rpcs
             .iter()
-            .chain(settings.quorum_rpcs.iter())
             .filter_map(|x| if x.public { Some(x.url.clone()) } else { None })
             .collect();
         if !public_rpc_urls.is_empty() && !settings.allow_public_rpcs {
@@ -348,8 +324,6 @@ impl BaseAgent for Validator {
         let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let fallback_origin_chain_conf =
-            Self::validator_chain_conf_with_fallback_rpc(&origin_chain_conf);
         let quorum_rpc_urls: Vec<Url> = settings
             .quorum_rpcs
             .iter()
@@ -358,16 +332,18 @@ impl BaseAgent for Validator {
                     .map_err(|err| eyre!("Invalid quorumRpcUrls entry `{}`: {err}", rpc.url))
             })
             .collect::<Result<_>>()?;
-        let quorum_origin_chain_conf =
-            Self::validator_chain_conf_with_quorum_rpc(&origin_chain_conf, &quorum_rpc_urls);
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
+        // Note: indexing and `count()` always use the chain's normally-configured
+        // RPC connection (whatever `rpcConsensusType` the operator already chose --
+        // fallback, quorum, or single). Only the safety-critical reads below get a
+        // dedicated, independently-verified quorum path; nothing here overrides how
+        // the chain is otherwise configured.
         let merkle_tree_hook = if Self::validator_uses_split_quorum_hook(&origin_chain_conf) {
             Self::build_validator_quorum_merkle_tree_hook(
                 &origin_chain_conf,
-                &fallback_origin_chain_conf,
-                &quorum_origin_chain_conf,
+                &quorum_rpc_urls,
                 &metrics,
             )
             .await?
@@ -383,32 +359,16 @@ impl BaseAgent for Validator {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let merkle_tree_hook_sync = if Self::validator_uses_split_quorum_hook(&origin_chain_conf) {
-            settings
-                .sequenced_contract_sync_with_chain_conf::<MerkleTreeInsertion, _>(
-                    &settings.origin_chain,
-                    &metrics,
-                    &contract_sync_metrics,
-                    msg_db.clone().into(),
-                    ContractSyncBuildOptions {
-                        advanced_log_meta: false,
-                        broadcast_sender_enabled: false,
-                    },
-                    &fallback_origin_chain_conf,
-                )
-                .await?
-        } else {
-            settings
-                .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                    &settings.origin_chain,
-                    &metrics,
-                    &contract_sync_metrics,
-                    msg_db.clone().into(),
-                    false,
-                    false,
-                )
-                .await?
-        };
+        let merkle_tree_hook_sync = settings
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                &settings.origin_chain,
+                &metrics,
+                &contract_sync_metrics,
+                msg_db.clone().into(),
+                false,
+                false,
+            )
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -432,6 +392,7 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            skip_announce: settings.skip_announce,
         })
     }
 
@@ -551,38 +512,71 @@ impl Validator {
         )
     }
 
+    /// Builds the validator's merkle tree hook. `count()`/domain/address are served by a
+    /// plain hook built from the chain's normal, already-configured connection (whatever
+    /// `rpcConsensusType` the operator chose is left untouched). The safety-critical reads
+    /// (`tree()`, `latest_checkpoint()`, `latest_checkpoint_at_block()`) are served by a set
+    /// of independent, single-provider hooks that must reach majority agreement.
     async fn build_validator_quorum_merkle_tree_hook(
         origin_chain_conf: &ChainConf,
-        fallback_origin_chain_conf: &ChainConf,
-        quorum_origin_chain_conf: &ChainConf,
+        quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
-        match &origin_chain_conf.connection {
+        let fallback_hook = origin_chain_conf.build_merkle_tree_hook(metrics).await?;
+        let quorum_hooks = match &origin_chain_conf.connection {
             ChainConnectionConf::Ethereum(_) => {
-                let fallback_hook = fallback_origin_chain_conf
-                    .build_merkle_tree_hook(metrics)
-                    .await?;
-                let quorum_hook = quorum_origin_chain_conf
-                    .build_merkle_tree_hook(metrics)
-                    .await?;
-                Ok(Box::new(ValidatorQuorumMerkleTreeHook {
-                    fallback: fallback_hook.into(),
-                    quorum: quorum_hook.into(),
-                }) as Box<dyn MerkleTreeHook>)
+                Self::build_validator_ethereum_quorum_hooks(
+                    origin_chain_conf,
+                    quorum_rpc_urls,
+                    metrics,
+                )
+                .await?
             }
             ChainConnectionConf::Tron(_) => {
-                let fallback_hook = fallback_origin_chain_conf
-                    .build_merkle_tree_hook(metrics)
-                    .await?;
-                let quorum_hooks =
-                    Self::build_validator_tron_quorum_hooks(origin_chain_conf, metrics).await?;
-                Ok(Box::new(ValidatorTronQuorumMerkleTreeHook {
-                    fallback: fallback_hook.into(),
-                    quorum_hooks,
-                }) as Box<dyn MerkleTreeHook>)
+                Self::build_validator_tron_quorum_hooks(origin_chain_conf, metrics).await?
             }
             _ => unreachable!("validator split quorum hook only supports ethereum and tron"),
+        };
+        Ok(Box::new(ValidatorMultiRpcQuorumMerkleTreeHook {
+            fallback: fallback_hook.into(),
+            quorum_hooks,
+        }) as Box<dyn MerkleTreeHook>)
+    }
+
+    async fn build_validator_ethereum_quorum_hooks(
+        origin_chain_conf: &ChainConf,
+        quorum_rpc_urls: &[Url],
+        metrics: &CoreMetrics,
+    ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
+        let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection else {
+            unreachable!("ethereum quorum hooks only supported for ethereum chains");
+        };
+
+        // Prefer a dedicated quorum RPC set (e.g. a broader public pool) when configured;
+        // otherwise fall back to reusing the chain's normal RPCs.
+        let urls: Vec<Url> = if quorum_rpc_urls.is_empty() {
+            conn.rpc_urls()
+        } else {
+            quorum_rpc_urls.to_vec()
+        };
+
+        if urls.is_empty() {
+            return Err(ChainCommunicationError::from_other_str(
+                "Ethereum validator safety hooks require at least one RPC URL",
+            ));
         }
+
+        let mut quorum_hooks = Vec::new();
+
+        for url in urls {
+            let mut chain_conf = origin_chain_conf.clone();
+            if let ChainConnectionConf::Ethereum(updated_conn) = &mut chain_conf.connection {
+                updated_conn.rpc_connection = RpcConnectionConf::Http { url };
+            }
+            quorum_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
+        }
+
+        Ok(quorum_hooks)
     }
 
     async fn build_validator_tron_quorum_hooks(
@@ -610,53 +604,6 @@ impl Validator {
         }
 
         Ok(quorum_hooks)
-    }
-
-    fn validator_chain_conf_with_fallback_rpc(origin_chain_conf: &ChainConf) -> ChainConf {
-        Self::validator_chain_conf_with_rpc_connection(origin_chain_conf, |urls| {
-            RpcConnectionConf::HttpFallback { urls }
-        })
-    }
-
-    fn validator_chain_conf_with_quorum_rpc(
-        origin_chain_conf: &ChainConf,
-        quorum_rpc_urls: &[Url],
-    ) -> ChainConf {
-        Self::validator_chain_conf_with_rpc_connection(origin_chain_conf, |urls| {
-            RpcConnectionConf::HttpQuorum {
-                // Prefer a dedicated quorum RPC set (e.g. a broader public pool) when
-                // configured; otherwise fall back to reusing the chain's normal RPCs.
-                urls: if quorum_rpc_urls.is_empty() {
-                    urls
-                } else {
-                    quorum_rpc_urls.to_vec()
-                },
-            }
-        })
-    }
-
-    fn validator_chain_conf_with_rpc_connection(
-        origin_chain_conf: &ChainConf,
-        build_rpc_connection: impl FnOnce(Vec<url::Url>) -> RpcConnectionConf,
-    ) -> ChainConf {
-        let mut chain_conf = origin_chain_conf.clone();
-        if let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection {
-            let mut updated_conn: h_eth::ConnectionConf = conn.clone();
-            updated_conn.rpc_connection = build_rpc_connection(conn.rpc_urls());
-            chain_conf.connection = ChainConnectionConf::Ethereum(updated_conn);
-        } else if let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection {
-            let mut updated_conn = conn.clone();
-            updated_conn.rpc_urls = match build_rpc_connection(conn.rpc_urls.clone()) {
-                RpcConnectionConf::HttpFallback { urls }
-                | RpcConnectionConf::HttpQuorum { urls } => urls,
-                RpcConnectionConf::Http { url } => vec![url],
-                RpcConnectionConf::Ws { .. } => {
-                    unreachable!("validator split rpc does not support ws")
-                }
-            };
-            chain_conf.connection = ChainConnectionConf::Tron(updated_conn);
-        }
-        chain_conf
     }
 
     /// Try to create merkle tree hook contract sync attempts times before giving up.
@@ -810,6 +757,15 @@ impl Validator {
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
+
+        if self.skip_announce {
+            warn!(
+                "Skipping on-chain validator announcement (skipAnnounce=true) — \
+                 test-only, checkpoints signed by this validator will not be \
+                 discoverable by relayers until it actually announces"
+            );
+            return Ok(());
+        }
 
         // Ensure that the validator has announced themselves before we enter
         // the main validator submit loop. This is to avoid a situation in
@@ -1028,92 +984,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_quorum_merkle_tree_hook_only_routes_quorum_reads_to_quorum() {
-        let domain = dummy_domain(1337, "test-domain");
-        let checkpoint = CheckpointAtBlock {
-            checkpoint: hyperlane_core::Checkpoint {
-                merkle_tree_hook_address: H256::from_low_u64_be(11),
-                mailbox_domain: domain.id(),
-                root: H256::from_low_u64_be(22),
-                index: 7,
-            },
-            block_height: Some(99),
-        };
-
-        let mut fallback = MockMerkleTreeHook::new();
-        fallback.expect_domain().return_const(domain.clone());
-        fallback
-            .expect_address()
-            .return_const(H256::from_low_u64_be(11));
-        fallback.expect_provider().never();
-        fallback.expect_count().once().return_once(|_| Ok(3));
-        fallback.expect_tree().never();
-        fallback.expect_latest_checkpoint().never();
-        fallback.expect_latest_checkpoint_at_block().never();
-
-        let mut quorum = MockMerkleTreeHook::new();
-        quorum.expect_domain().return_const(domain.clone());
-        quorum
-            .expect_address()
-            .return_const(H256::from_low_u64_be(11));
-        quorum.expect_provider().never();
-        quorum.expect_count().never();
-        quorum.expect_tree().once().return_once(|_| {
-            Ok(IncrementalMerkleAtBlock {
-                tree: Default::default(),
-                block_height: Some(123),
-            })
-        });
-        quorum
-            .expect_latest_checkpoint()
-            .once()
-            .return_once(|_| Ok(checkpoint));
-        quorum
-            .expect_latest_checkpoint_at_block()
-            .once()
-            .with(mockall::predicate::eq(42))
-            .return_once(|height| {
-                Ok(CheckpointAtBlock {
-                    checkpoint: hyperlane_core::Checkpoint {
-                        merkle_tree_hook_address: H256::from_low_u64_be(11),
-                        mailbox_domain: 1337,
-                        root: H256::from_low_u64_be(height),
-                        index: height as u32,
-                    },
-                    block_height: Some(height),
-                })
-            });
-
-        let hook = ValidatorQuorumMerkleTreeHook {
-            fallback: Arc::new(fallback),
-            quorum: Arc::new(quorum),
-        };
-
-        assert_eq!(
-            hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
-            Some(123)
-        );
-        assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
-        assert_eq!(
-            hook.latest_checkpoint(&ReorgPeriod::None)
-                .await
-                .unwrap()
-                .checkpoint
-                .index,
-            7
-        );
-        assert_eq!(
-            hook.latest_checkpoint_at_block(42)
-                .await
-                .unwrap()
-                .checkpoint
-                .index,
-            42
-        );
-    }
-
-    #[tokio::test]
-    async fn validator_tron_quorum_merkle_tree_hook_uses_quorum_for_quorum_reads() {
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_uses_quorum_for_quorum_reads() {
         let domain = dummy_domain(1337, "test-domain");
         let expected_tree = IncrementalMerkleAtBlock {
             tree: Default::default(),
@@ -1246,7 +1117,7 @@ mod tests {
                 })
             });
 
-        let hook = ValidatorTronQuorumMerkleTreeHook {
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
@@ -1275,7 +1146,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_tron_quorum_merkle_tree_hook_errors_without_quorum() {
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_errors_without_quorum() {
         let domain = dummy_domain(1337, "test-domain");
 
         let mut fallback = MockMerkleTreeHook::new();
@@ -1337,7 +1208,7 @@ mod tests {
         quorum_c.expect_latest_checkpoint().never();
         quorum_c.expect_latest_checkpoint_at_block().never();
 
-        let hook = ValidatorTronQuorumMerkleTreeHook {
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
@@ -1346,7 +1217,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_tron_quorum_merkle_tree_hook_tolerates_partial_failures() {
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_tolerates_partial_failures() {
         let domain = dummy_domain(1337, "test-domain");
         let expected_tree = IncrementalMerkleAtBlock {
             tree: Default::default(),
@@ -1406,7 +1277,7 @@ mod tests {
         quorum_c.expect_latest_checkpoint().never();
         quorum_c.expect_latest_checkpoint_at_block().never();
 
-        let hook = ValidatorTronQuorumMerkleTreeHook {
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
             quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
