@@ -45,7 +45,9 @@ const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
     base_hook: Arc<dyn MerkleTreeHook>,
-    quorum_hooks: Vec<Arc<dyn MerkleTreeHook>>,
+    /// Paired with a redacted host (no path/query, so no embedded API keys) for
+    /// attributing disagreement to a specific RPC in logs.
+    quorum_hooks: Vec<(String, Arc<dyn MerkleTreeHook>)>,
 }
 
 impl ValidatorMultiRpcQuorumMerkleTreeHook {
@@ -55,16 +57,16 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
 
     fn select_quorum_result<T: Clone + Debug>(
         &self,
-        results: Vec<ChainResult<T>>,
+        results: Vec<(String, ChainResult<T>)>,
         matches: impl Fn(&T, &T) -> bool,
         context: &str,
     ) -> ChainResult<T> {
-        let mut oks = Vec::new();
+        let mut oks: Vec<(String, T)> = Vec::new();
         let mut first_err = None;
 
-        for result in results {
+        for (host, result) in results {
             match result {
-                Ok(value) => oks.push(value),
+                Ok(value) => oks.push((host, value)),
                 Err(err) => {
                     if first_err.is_none() {
                         first_err = Some(err);
@@ -74,20 +76,30 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         }
 
         let mut max_agreeing = 0;
-        for candidate in &oks {
-            let agreeing = oks.iter().filter(|other| matches(candidate, other)).count();
-            max_agreeing = max_agreeing.max(agreeing);
-            if agreeing >= self.quorum_threshold() {
-                if agreeing < oks.len() {
+        for (_, candidate) in &oks {
+            let agreeing: Vec<&str> = oks
+                .iter()
+                .filter(|(_, other)| matches(candidate, other))
+                .map(|(host, _)| host.as_str())
+                .collect();
+            max_agreeing = max_agreeing.max(agreeing.len());
+            if agreeing.len() >= self.quorum_threshold() {
+                if agreeing.len() < oks.len() {
+                    let disagreeing_rpcs: Vec<&str> = oks
+                        .iter()
+                        .filter(|(_, other)| !matches(candidate, other))
+                        .map(|(host, _)| host.as_str())
+                        .collect();
                     // minority outvoted; full values logged separately at debug (can be large)
                     warn!(
                         context,
                         accepted = ?candidate,
-                        agreeing_count = agreeing,
+                        agreeing_count = agreeing.len(),
                         total_successful = oks.len(),
+                        disagreeing_rpcs = ?disagreeing_rpcs,
                         "Quorum reached despite provider disagreement"
                     );
-                    debug!(context, all_values = ?oks, "Full quorum candidate values");
+                    debug!(context, all_values = ?oks, "Full quorum candidate values by RPC");
                 }
                 return Ok(candidate.clone());
             }
@@ -108,20 +120,22 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 threshold,
                 "Failed to reach quorum: not enough successful responses"
             );
-            debug!(context, all_values = ?oks, "Full quorum candidate values");
+            debug!(context, all_values = ?oks, "Full quorum candidate values by RPC");
             Err(ChainCommunicationError::from_other_str(&format!(
                 "{context}; only {ok_count} of {threshold} required responses succeeded",
                 ok_count = oks.len()
             )))
         } else {
+            let rpcs: Vec<&str> = oks.iter().map(|(host, _)| host.as_str()).collect();
             warn!(
                 context,
                 total_successful = oks.len(),
                 max_agreeing,
                 threshold,
+                rpcs = ?rpcs,
                 "Failed to reach quorum: successful responses disagreed"
             );
-            debug!(context, all_values = ?oks, "Full quorum candidate values");
+            debug!(context, all_values = ?oks, "Full quorum candidate values by RPC");
             Err(ChainCommunicationError::from_other_str(&format!(
                 "{context}; {ok_count} successful responses disagreed (largest agreeing group: {max_agreeing}, needed {threshold})",
                 ok_count = oks.len()
@@ -133,9 +147,9 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|hook| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|(host, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { hook.tree(&reorg_period).await }
+            async move { (host, hook.tree(&reorg_period).await) }
         }))
         .await;
 
@@ -154,9 +168,9 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        let results = join_all(self.quorum_hooks.iter().cloned().map(|hook| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|(host, hook)| {
             let reorg_period = reorg_period.clone();
-            async move { hook.latest_checkpoint(&reorg_period).await }
+            async move { (host, hook.latest_checkpoint(&reorg_period).await) }
         }))
         .await;
 
@@ -172,7 +186,9 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             self.quorum_hooks
                 .iter()
                 .cloned()
-                .map(|hook| async move { hook.latest_checkpoint_at_block(height).await }),
+                .map(|(host, hook)| async move {
+                    (host, hook.latest_checkpoint_at_block(height).await)
+                }),
         )
         .await;
 
@@ -569,11 +585,16 @@ impl Validator {
         chain_conf
     }
 
+    /// Host only (no path/query), so logging it can't leak API keys embedded in the URL.
+    fn redact_host(url: &Url) -> String {
+        url.host_str().unwrap_or("unknown").to_string()
+    }
+
     async fn build_validator_ethereum_quorum_hooks(
         origin_chain_conf: &ChainConf,
         quorum_rpc_urls: &[Url],
         metrics: &CoreMetrics,
-    ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
+    ) -> ChainResult<Vec<(String, Arc<dyn MerkleTreeHook>)>> {
         if quorum_rpc_urls.is_empty() {
             return Err(ChainCommunicationError::from_other_str(
                 "build_validator_ethereum_quorum_hooks requires a non-empty quorumRpcUrls",
@@ -581,10 +602,11 @@ impl Validator {
         }
 
         let hooks = try_join_all(quorum_rpc_urls.iter().cloned().map(|url| async move {
+            let host = Self::redact_host(&url);
             Self::ethereum_chain_conf_for_url(origin_chain_conf, url)
                 .build_merkle_tree_hook(metrics)
                 .await
-                .map(Arc::from)
+                .map(|hook| (host, Arc::from(hook)))
         }))
         .await?;
 
@@ -965,6 +987,11 @@ mod tests {
                 .unwrap();
 
         assert_eq!(hooks.len(), 3);
+        let hosts: Vec<&str> = hooks.iter().map(|(host, _)| host.as_str()).collect();
+        assert_eq!(
+            hosts,
+            vec!["quorum-a.example", "quorum-b.example", "quorum-c.example"]
+        );
     }
 
     #[tokio::test]
@@ -1209,7 +1236,20 @@ mod tests {
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: Arc::new(base_hook),
-            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
+            quorum_hooks: vec![
+                (
+                    "rpc-a".to_string(),
+                    Arc::new(quorum_a) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-b".to_string(),
+                    Arc::new(quorum_b) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-c".to_string(),
+                    Arc::new(quorum_c) as Arc<dyn MerkleTreeHook>,
+                ),
+            ],
         };
 
         assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
@@ -1300,7 +1340,20 @@ mod tests {
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: Arc::new(base_hook),
-            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
+            quorum_hooks: vec![
+                (
+                    "rpc-a".to_string(),
+                    Arc::new(quorum_a) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-b".to_string(),
+                    Arc::new(quorum_b) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-c".to_string(),
+                    Arc::new(quorum_c) as Arc<dyn MerkleTreeHook>,
+                ),
+            ],
         };
 
         assert!(hook.tree(&ReorgPeriod::None).await.is_err());
@@ -1369,7 +1422,20 @@ mod tests {
 
         let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
             base_hook: Arc::new(base_hook),
-            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
+            quorum_hooks: vec![
+                (
+                    "rpc-a".to_string(),
+                    Arc::new(quorum_a) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-b".to_string(),
+                    Arc::new(quorum_b) as Arc<dyn MerkleTreeHook>,
+                ),
+                (
+                    "rpc-c".to_string(),
+                    Arc::new(quorum_c) as Arc<dyn MerkleTreeHook>,
+                ),
+            ],
         };
 
         assert_eq!(
