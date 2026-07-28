@@ -142,6 +142,7 @@ pub enum KnownHyperlaneDomain {
     Bob = 60808,
     Boba = 288,
     Botanix = 3637,
+    BSquared = 223,
     Celo = 42220,
     Corn = 21000000,
     Coti = 2632500,
