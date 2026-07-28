@@ -142,7 +142,10 @@ export type ValidatorMetadataRpcEntry = {
 
 export type ValidatorMetadata = {
   git_sha: string;
-  rpcs?: ValidatorMetadataRpcEntry[];
+  /** Unchanged wire shape (a flat array of URL hash strings) for backwards
+   * compatibility with already-deployed validators and unversioned metadata
+   * blobs. */
+  rpcs?: string[];
   /** The `quorumRpcUrls` set, reported separately from `rpcs`. */
   quorum_rpcs?: ValidatorMetadataRpcEntry[];
   allows_public_rpcs?: boolean;

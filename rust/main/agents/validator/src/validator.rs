@@ -402,8 +402,7 @@ pub struct Validator {
 #[derive(Debug, Serialize)]
 pub struct ValidatorMetadata {
     git_sha: String,
-    rpcs: Vec<ValidatorMetadataRpcEntry>,
-    /// The `quorumRpcUrls` set, reported separately from `rpcs`.
+    rpcs: Vec<H256>,
     quorum_rpcs: Vec<ValidatorMetadataRpcEntry>,
     allows_public_rpcs: bool,
 }
@@ -434,7 +433,7 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
         let rpcs = settings
             .rpcs
             .iter()
-            .map(ValidatorMetadataRpcEntry::hash_rpc)
+            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
             .collect();
         let quorum_rpcs = settings
             .quorum_rpcs

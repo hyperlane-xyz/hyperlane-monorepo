@@ -74,7 +74,7 @@ async function main() {
           const metadata = await validatorInstance.getMetadata();
 
           const matchCount = publicRpcs.filter((rpc) =>
-            metadata.rpcs?.some((x) => x.url_hash === rpc),
+            metadata.rpcs?.some((x) => x === rpc),
           ).length;
           const rpcCount = metadata.rpcs?.length;
 
