@@ -21,7 +21,7 @@ export const agentIndexOverrides: ChainMap<
   Partial<NonNullable<AgentChainMetadata['index']>>
 > = {
   bsquared: {
-    // All configured RPCs reject eth_getLogs ranges of 1,000 blocks.
+    // Agent ranges are inclusive; 999 stays within the RPCs' 1,000-block limit.
     chunk: 999,
   },
 };
