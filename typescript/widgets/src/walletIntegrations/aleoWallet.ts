@@ -27,14 +27,18 @@ export function useAleoAccount(
       const handleAccountChange = () => {
         setAccount(adapterInstance.account);
       };
-      const handleAccountSwitched = () => {
-        void adapterInstance
-          .connect(getAleoNetwork(), WalletDecryptPermission.AutoDecrypt, [])
-          .catch((error: unknown) => {
-            logger.error('Failed to reconnect after Aleo account switch', {
-              error,
-            });
+      const handleAccountSwitched = async () => {
+        try {
+          await adapterInstance.connect(
+            getAleoNetwork(),
+            WalletDecryptPermission.AutoDecrypt,
+            [],
+          );
+        } catch (error: unknown) {
+          logger.error('Failed to reconnect after Aleo account switch', {
+            error,
           });
+        }
       };
 
       adapterInstance.on('connect', handleAccountChange);
