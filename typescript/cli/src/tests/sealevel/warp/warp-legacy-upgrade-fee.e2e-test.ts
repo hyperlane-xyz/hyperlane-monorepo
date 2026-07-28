@@ -104,7 +104,10 @@ describe('hyperlane warp legacy-upgrade + fee apply CLI e2e tests (Sealevel)', f
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
     rpc = createRpc(rpcUrl);
     connection = new Connection(rpcUrl, 'confirmed');
-    signer = await SealevelSigner.connectWithSigner([rpcUrl], SVM_KEY);
+    signer = await SealevelSigner.connectWithSigner(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      SVM_KEY,
+    );
 
     await airdropSol(rpc, signer.getSignerAddress(), 50_000_000_000n);
 

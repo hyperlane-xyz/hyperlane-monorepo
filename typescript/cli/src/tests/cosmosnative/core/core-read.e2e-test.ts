@@ -51,13 +51,7 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
 
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
-    signer = await CosmosNativeSigner.connectWithSigner(
-      chainMetadata.rpcUrls.map((rpc) => rpc.http),
-      wallet,
-      {
-        metadata: chainMetadata,
-      },
-    );
+    signer = await CosmosNativeSigner.connectWithSigner(chainMetadata, wallet);
 
     initialOwnerAddress = signer.getSignerAddress();
   });

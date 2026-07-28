@@ -432,8 +432,21 @@ export async function executeWarpDeploy(
           rateLimitedSnapshot,
           (_chain, _ismConfig): _ismConfig is IsmConfig => chainSet.has(_chain),
         );
+        // Deploy as the deployer signer (intermediate owner), mirroring the
+        // AltVM branch below. Cross-chain router enrollment runs after deploy
+        // in enrollCrossChainRouters, submitted by the deployer key, and hands
+        // ownership to the configured owner. If deploy set the configured owner
+        // up front, the deployer could no longer sign those post-deploy
+        // enrollment txs. Only the top-level router owner is overridden; ISM and
+        // hook owners come from their own config sub-trees and are unaffected.
+        const intermediateOwnerConfig = await promiseObjAll(
+          objMap(protocolSpecificConfig, async (chain, config) => ({
+            ...config,
+            owner: await multiProvider.getSigner(chain).getAddress(),
+          })),
+        );
         const evmContracts = await deployer.deploy(
-          protocolSpecificConfig,
+          intermediateOwnerConfig,
           rateLimitedForBatch,
         );
         deployedContracts = {
@@ -946,6 +959,17 @@ export async function enrollCrossChainRouters(
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: resolvedConfigMap[currentChain].owner,
+            // Deploy set the ProxyAdmin owner to the intermediate deployer owner
+            // so post-deploy enrollment could be self-signed. actualConfig reads
+            // that live (deployer) owner, so carry the configured owner through
+            // here — otherwise the deferred update sees no change and the
+            // deployer keeps upgrade authority over the proxy.
+            proxyAdmin: actualConfig.proxyAdmin && {
+              address: actualConfig.proxyAdmin.address,
+              owner:
+                resolvedConfigMap[currentChain].proxyAdmin?.owner ??
+                resolvedConfigMap[currentChain].owner,
+            },
             remoteRouters,
             destinationGas,
             // For cross-protocol routes (EVM+SVM/Cosmos), the EVM deployer

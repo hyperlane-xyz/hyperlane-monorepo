@@ -53,6 +53,10 @@ export interface CheckWarpDeployConfig extends CronJobConfig {
   registryCommit?: string;
 }
 
+export interface ValidatorMonitorConfig extends CronJobConfig {
+  registryCommit?: string;
+}
+
 // Zod validation schema for sweep override configuration
 export type SweepOverrideConfig = z.infer<typeof SweepOverrideConfigSchema>;
 

@@ -255,11 +255,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
   private readonly provider: StarknetProvider;
 
   constructor(private readonly chainMetadata: ChainMetadataForAltVM) {
-    this.provider = StarknetProvider.connect(
-      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
-      chainMetadata.chainId,
-      { metadata: chainMetadata },
-    );
+    this.provider = StarknetProvider.connect(chainMetadata);
   }
 
   private requireStarknetSigner(

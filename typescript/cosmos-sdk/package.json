@@ -36,8 +36,9 @@
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "echo \"no tests in cosmos-sdk\"",
-    "test:ci": "echo \"no tests in cosmos-sdk\"",
+    "test": "pnpm test:unit",
+    "test:ci": "pnpm test:unit",
+    "test:unit": "mocha --require tsx --timeout 10000 'src/**/*.unit-test.ts'",
     "test:e2e": "mocha --config .mocharc-e2e.json"
   },
   "dependencies": {
@@ -63,6 +64,7 @@
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

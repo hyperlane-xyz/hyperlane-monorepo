@@ -19,7 +19,7 @@ import {
   IRawFeeArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -34,27 +34,23 @@ import { RadixSigner } from './signer.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
+// Base router deploy cost in native denom (XRD), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// RadixProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_XRD = 0n;
+
 export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return RadixProvider.connect(rpcUrls, chainMetadata.chainId, {
-      metadata: chainMetadata,
-    });
+    return RadixProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return RadixSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return RadixSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -125,7 +121,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_XRD,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,

@@ -43,7 +43,7 @@ describe('SVM Warp Quote Reader E2E', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     txSigner = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TX_PRIVATE_KEY,
     );
     await airdropSol(

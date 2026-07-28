@@ -1,17 +1,47 @@
 import { expect } from 'chai';
 
-import { createLazyAleoProvider } from './aleo.browser.js';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
+import { ProviderType } from '../ProviderType.js';
+
+import {
+  createLazyAleoProvider,
+  defaultAleoProviderBuilder,
+} from './aleo.browser.js';
+
+function aleoMetadata(chainId: number, rpcUrl: string): ChainMetadata {
+  return {
+    name: `aleo${chainId}`,
+    chainId,
+    domainId: chainId,
+    protocol: ProtocolType.Aleo,
+    rpcUrls: [{ http: rpcUrl }],
+  };
+}
 
 describe('createLazyAleoProvider', () => {
+  it('builds a lazy provider from full chain metadata', () => {
+    const result = defaultAleoProviderBuilder(
+      aleoMetadata(0, 'https://rpc.example/mainnet'),
+    );
+
+    expect(result.type).to.equal(ProviderType.Aleo);
+    expect(result.provider.getRpcUrls()).to.deep.equal(['https://rpc.example']);
+  });
+
   it('loads and reuses the Aleo runtime on first async provider use', async () => {
     let loadCount = 0;
     let constructionCount = 0;
+    const metadata = aleoMetadata(0, 'https://rpc.example/mainnet');
 
     class FakeAleoProvider {
       constructor(
         public readonly rpcUrls: string[],
         public readonly network: string | number,
+        public readonly chainMetadata: ChainMetadata,
       ) {
+        expect(chainMetadata).to.equal(metadata);
         constructionCount++;
       }
 
@@ -29,14 +59,13 @@ describe('createLazyAleoProvider', () => {
     }
 
     const provider = createLazyAleoProvider(
-      ['https://rpc.example/mainnet'],
-      0,
+      metadata,
       // CAST: The fake only implements methods exercised by this proxy test.
       (async (network: string | number) => {
         expect(network).to.equal(0);
         loadCount++;
         return { AleoProvider: FakeAleoProvider };
-      }) as unknown as Parameters<typeof createLazyAleoProvider>[2],
+      }) as unknown as Parameters<typeof createLazyAleoProvider>[1],
     );
 
     expect(provider.getRpcUrls()).to.deep.equal(['https://rpc.example']);
@@ -57,6 +86,7 @@ describe('createLazyAleoProvider', () => {
       constructor(
         public readonly rpcUrls: string[],
         public readonly network: string | number,
+        public readonly chainMetadata: ChainMetadata,
       ) {}
 
       async getHeight() {
@@ -69,16 +99,14 @@ describe('createLazyAleoProvider', () => {
       return { AleoProvider: FakeAleoProvider };
     };
     const mainnetProvider = createLazyAleoProvider(
-      ['https://rpc.example/mainnet'],
-      0,
+      aleoMetadata(0, 'https://rpc.example/mainnet'),
       // CAST: The fake only implements methods exercised by this proxy test.
-      loadProvider as unknown as Parameters<typeof createLazyAleoProvider>[2],
+      loadProvider as unknown as Parameters<typeof createLazyAleoProvider>[1],
     );
     const testnetProvider = createLazyAleoProvider(
-      ['https://rpc.example/testnet'],
-      1,
+      aleoMetadata(1, 'https://rpc.example/testnet'),
       // CAST: The fake only implements methods exercised by this proxy test.
-      loadProvider as unknown as Parameters<typeof createLazyAleoProvider>[2],
+      loadProvider as unknown as Parameters<typeof createLazyAleoProvider>[1],
     );
 
     expect(loadedNetworks).to.deep.equal([]);
@@ -90,7 +118,9 @@ describe('createLazyAleoProvider', () => {
   });
 
   it('rejects unsupported Aleo network ids before loading a runtime', async () => {
-    const provider = createLazyAleoProvider(['https://rpc.example'], 2);
+    const provider = createLazyAleoProvider(
+      aleoMetadata(2, 'https://rpc.example'),
+    );
 
     const error = await provider.getHeight().then(
       () => undefined,

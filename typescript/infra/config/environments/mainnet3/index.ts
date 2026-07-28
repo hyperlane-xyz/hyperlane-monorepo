@@ -17,6 +17,7 @@ import { getIgp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { validatorMonitorConfig } from './validatorMonitor.js';
 import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
 export const environment: EnvironmentConfig = {
@@ -59,4 +60,5 @@ export const environment: EnvironmentConfig = {
   infra: infrastructure,
   keyFunderConfig,
   checkWarpDeployConfig,
+  validatorMonitorConfig,
 };

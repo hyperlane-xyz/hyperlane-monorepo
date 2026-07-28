@@ -33,13 +33,5 @@ export const createSignerWithPrivateKey = async (
     metadata.bech32Prefix ?? 'hyp',
   );
 
-  return CosmosNativeSigner.connectWithSigner([metadata.rpcUrl], wallet, {
-    metadata: {
-      ...metadata,
-      gasPrice: metadata.gasPrice ?? {
-        amount: '0.2',
-        denom: 'uhyp',
-      },
-    },
-  });
+  return CosmosNativeSigner.connectWithSigner(metadata, wallet);
 };

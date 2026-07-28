@@ -2,7 +2,7 @@ import type { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk/ru
 import { AleoNetworkId } from '@hyperlane-xyz/aleo-sdk/constants';
 import { LazyAsync } from '@hyperlane-xyz/utils';
 
-import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
+import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import type { AleoProvider } from '../ProviderType.js';
 import { ProviderType } from '../ProviderType.js';
 
@@ -11,6 +11,7 @@ import type { ProviderBuilderFn } from './types.js';
 type AleoProviderConstructor = new (
   rpcUrls: string[],
   network: string | number,
+  metadata: ChainMetadata,
 ) => AleoSDKProvider;
 
 interface AleoRuntimeModule {
@@ -56,16 +57,17 @@ function createAsyncMethodProxy<T extends object>(
 }
 
 export function createLazyAleoProvider(
-  rpcUrls: string[],
-  network: string | number,
+  metadata: ChainMetadata,
   loadProvider: AleoProviderLoader = loadAleoProvider,
 ): AleoSDKProvider {
+  const { chainId: network } = metadata;
+  const rpcUrls = metadata.rpcUrls.map((rpc) => rpc.http);
   const normalizedRpcUrls = rpcUrls.map((url) =>
     url.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
   );
   const provider = new LazyAsync(() =>
     loadProvider(network).then(
-      ({ AleoProvider }) => new AleoProvider(rpcUrls, network),
+      ({ AleoProvider }) => new AleoProvider(rpcUrls, network, metadata),
     ),
   );
   const getProvider = () => provider.get();
@@ -86,12 +88,8 @@ export function createLazyAleoProvider(
 }
 
 export const defaultAleoProviderBuilder: ProviderBuilderFn<AleoProvider> = (
-  rpcUrls: RpcUrl[],
-  network: string | number,
+  metadata: ChainMetadata,
 ) => {
-  const provider = createLazyAleoProvider(
-    rpcUrls.map((rpc) => rpc.http),
-    network,
-  );
+  const provider = createLazyAleoProvider(metadata);
   return { provider, type: ProviderType.Aleo };
 };

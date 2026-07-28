@@ -122,7 +122,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, protocol, technicalStack } = metadata;
+    const { name, rpcUrls, protocol, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -137,14 +137,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       }
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
-        this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+        this.providers[name] = defaultZKProviderBuilder(metadata);
       } else if (protocol === ProtocolType.Tron) {
-        this.providers[name] = defaultTronEthersProviderBuilder(
-          rpcUrls,
-          chainId,
-        );
+        this.providers[name] = defaultTronEthersProviderBuilder(metadata);
       } else {
-        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+        this.providers[name] = this.providerBuilder(metadata);
       }
     } else {
       return null;

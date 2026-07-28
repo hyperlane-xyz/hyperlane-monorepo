@@ -99,7 +99,10 @@ describe('hyperlane warp send EVM+SVM e2e tests', function () {
     ]);
 
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
-    svmSigner = await SealevelSigner.connectWithSigner([rpcUrl], SVM_KEY);
+    svmSigner = await SealevelSigner.connectWithSigner(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      SVM_KEY,
+    );
     const svmRpc = createRpc(rpcUrl);
     await airdropSol(svmRpc, svmSigner.getSignerAddress(), 50_000_000_000n);
 
