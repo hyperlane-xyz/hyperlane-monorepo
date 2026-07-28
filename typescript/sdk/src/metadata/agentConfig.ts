@@ -11,7 +11,10 @@ import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
+import {
+  ChainMetadataSchemaObject,
+  RpcUrlSchema,
+} from './chainMetadataTypes.js';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
@@ -230,6 +233,18 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .optional()
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+      ),
+    quorumRpcUrls: z
+      .array(RpcUrlSchema)
+      .optional()
+      .describe(
+        'Validator only: statically configured RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. Overridden entirely by customQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customQuorumRpcUrls for the full quorum semantics.',
+      ),
+    customQuorumRpcUrls: z
+      .string()
+      .optional()
+      .describe(
+        'Validator only: comma separated list of RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. The winning value must also match what rpcUrls (its own configured consensus mode) independently returns. Empty disables quorum verification. Recommended: include your private rpcUrls here too, alongside a sizeable public batch -- a pool of 1-2 entries provides little real protection.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
