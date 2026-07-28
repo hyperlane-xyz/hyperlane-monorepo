@@ -324,18 +324,27 @@ export async function expandWarpDeployConfig(params: {
         isMovableCollateralTokenConfig(chainConfig) &&
         chainConfig.allowedRebalancingBridges
       ) {
-        chainConfig.allowedRebalancingBridges = Object.fromEntries(
-          Object.entries(chainConfig.allowedRebalancingBridges).map(
-            ([domainOrChain, bridges]) => [
-              // Fall back to the original key for domains the MultiProvider
-              // does not know, preserving prior behavior rather than erroring
-              // the whole route check.
-              multiProvider.tryGetDomainId(domainOrChain)?.toString() ??
-                domainOrChain,
-              bridges,
-            ],
-          ),
-        );
+        const canonicalizedBridges: NonNullable<
+          typeof chainConfig.allowedRebalancingBridges
+        > = {};
+        for (const [domainOrChain, bridges] of Object.entries(
+          chainConfig.allowedRebalancingBridges,
+        )) {
+          // Fall back to the original key for domains the MultiProvider does
+          // not know, preserving prior behavior rather than erroring the whole
+          // route check.
+          const canonicalKey =
+            multiProvider.tryGetDomainId(domainOrChain)?.toString() ??
+            domainOrChain;
+          // A source config may key the same destination by both chain name
+          // and domain id; both canonicalize to one key, so merge their bridge
+          // lists rather than letting one overwrite the other.
+          canonicalizedBridges[canonicalKey] = [
+            ...(canonicalizedBridges[canonicalKey] ?? []),
+            ...bridges,
+          ];
+        }
+        chainConfig.allowedRebalancingBridges = canonicalizedBridges;
       }
 
       const protocol = multiProvider.getProtocol(chain);

@@ -164,7 +164,7 @@ export function getRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => {
+          .map((remoteChain): [string, Array<{ bridge: string }>] => {
             const bridges = routeData
               .filter(
                 ({ chainSet }) =>
@@ -175,7 +175,7 @@ export function getRebalancingBridgesConfigFor(
                 assert(bridge, `No bridge found for chain ${currentChain}`);
                 return { bridge };
               });
-            return [remoteChain, bridges] as const;
+            return [remoteChain, bridges];
           })
           .filter(([, bridges]) => bridges.length > 0),
       );
