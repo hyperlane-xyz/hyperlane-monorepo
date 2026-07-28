@@ -1,6 +1,7 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
@@ -55,7 +56,7 @@ export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
-  return {
+  const configs: ValidatorBaseChainConfigMap = {
     celo: {
       interval: 5,
       reorgPeriod: getReorgPeriod('celo'),
@@ -1145,4 +1146,16 @@ export const validatorChainConfig = (
       ),
     },
   };
+
+  // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for
+  // every EVM chain's AW (Hyperlane context) validator. Scoped to Hyperlane
+  // only -- ReleaseCandidate/FastPath/Neutron validator sets are unaffected.
+  if (context !== Contexts.Hyperlane) {
+    return configs;
+  }
+  return objMap(configs, (chain, config) =>
+    isEthereumProtocolChain(chain)
+      ? { ...config, quorumVerificationEnabled: true }
+      : config,
+  );
 };
