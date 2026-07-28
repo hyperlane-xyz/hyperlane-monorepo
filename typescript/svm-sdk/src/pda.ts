@@ -65,15 +65,14 @@ export async function deriveTestIsmStoragePda(
 }
 
 /**
- * Composite ISM's storage PDA uses the shared VAM (VerifyAccountMetas) seed
- * convention (`VERIFY_ACCOUNT_METAS_PDA_SEEDS` in
+ * The shared VAM (VerifyAccountMetas) seed convention
+ * (`VERIFY_ACCOUNT_METAS_PDA_SEEDS` in
  * hyperlane_sealevel_interchain_security_module_interface) rather than a
  * program-specific seed — this is what lets the relayer discover any Sealevel
- * ISM's account-metas PDA generically. No collision risk with
- * `deriveTestIsmStoragePda`/`deriveMultisigIsmAccessControlPda` above since
- * each uses its own distinct seed string relative to the same program ID.
+ * ISM's account-metas PDA generically, keyed only by the ISM/recipient
+ * program's own address.
  */
-export async function deriveCompositeIsmStoragePda(
+export async function deriveVerifyAccountMetasPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {
   return derive(programAddress, [
@@ -83,6 +82,14 @@ export async function deriveCompositeIsmStoragePda(
     utf8.encode('-'),
     utf8.encode('account_metas'),
   ]);
+}
+
+/** No collision risk with `deriveTestIsmStoragePda`/`deriveMultisigIsmAccessControlPda`
+ * above since each uses its own distinct seed string relative to the same program ID. */
+export async function deriveCompositeIsmStoragePda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return deriveVerifyAccountMetasPda(programAddress);
 }
 
 /** Per-domain override PDA for a composite ISM's `Routing`/`FallbackRouting` node. */
@@ -435,6 +442,21 @@ export async function deriveCctpMessageTransmitterPda(): Promise<PdaWithBump> {
   ]);
 }
 
+/**
+ * Seed for the authority PDA `MessageTransmitterV2` signs (via its own
+ * internal `invoke_signed`) when it CPIs into a `receiver` program's
+ * callback. Derived under `MessageTransmitterV2`'s own program ID with the
+ * receiver's program ID (always `token_messenger_minter` here) as part of
+ * the seed. Matches `circle::derive_message_transmitter_authority_pda` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/circle.rs.
+ */
+export async function deriveCctpMessageTransmitterAuthorityPda(): Promise<PdaWithBump> {
+  return derive(CCTP_MESSAGE_TRANSMITTER_PROGRAM_ADDRESS, [
+    utf8.encode('message_transmitter_authority'),
+    addressEncoder.encode(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS),
+  ]);
+}
+
 /** Keyed by whatever `owner` is passed to Circle's `deposit_for_burn` — the
  * CCTP warp program's own `ata_payer` PDA, not any individual end user. */
 export async function deriveCctpDenylistAccountPda(
@@ -476,6 +498,36 @@ export async function deriveCctpRemoteTokenMessengerPda(
   return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
     utf8.encode('remote_token_messenger'),
     utf8.encode(circleDomain.toString()),
+  ]);
+}
+
+/**
+ * Per-(remote domain, burn token) pair PDA. `remoteBurnToken` is the
+ * collateral/USDC contract address on the remote chain for that Circle
+ * domain (32 bytes — an EVM address is left-padded to this width), matching
+ * `BurnMessage.burn_token` for messages from that domain. Matches
+ * `circle::derive_token_pair_pda` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/circle.rs.
+ */
+export async function deriveCctpTokenPairPda(
+  circleDomain: number,
+  remoteBurnToken: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('token_pair'),
+    utf8.encode(circleDomain.toString()),
+    remoteBurnToken,
+  ]);
+}
+
+/** Matches `circle::derive_custody_token_account_pda` in
+ * rust/sealevel/programs/hyperlane-sealevel-token-cctp/src/circle.rs. */
+export async function deriveCctpCustodyTokenAccountPda(
+  mint: Address,
+): Promise<PdaWithBump> {
+  return derive(CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS, [
+    utf8.encode('custody'),
+    addressEncoder.encode(mint),
   ]);
 }
 

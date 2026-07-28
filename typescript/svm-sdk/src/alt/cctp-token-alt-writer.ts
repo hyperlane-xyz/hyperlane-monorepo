@@ -15,9 +15,11 @@ import {
 import {
   deriveAssociatedTokenAddress,
   deriveCctpAtaPayerPda,
+  deriveCctpCustodyTokenAccountPda,
   deriveCctpDenylistAccountPda,
   deriveCctpEventAuthorityPda,
   deriveCctpLocalTokenPda,
+  deriveCctpMessageTransmitterAuthorityPda,
   deriveCctpMessageTransmitterPda,
   deriveCctpRemoteTokenMessengerPda,
   deriveCctpSenderAuthorityPda,
@@ -25,6 +27,7 @@ import {
   deriveCctpTokenMinterPda,
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
+  deriveVerifyAccountMetasPda,
 } from '../pda.js';
 import type { SvmReceipt, SvmRpc } from '../types.js';
 
@@ -69,6 +72,7 @@ export class SvmCctpTokenAltReader extends SvmTokenAltReaderBase<CollateralCctpW
     const mint = parseAddress(deployed.config.token);
     const tokenProgram = await fetchMintTokenProgram(this.rpc, mint);
 
+    const vamPda = await deriveVerifyAccountMetasPda(warpProgramId);
     const tokenPda = await deriveHyperlaneTokenPda(warpProgramId);
     const dispatchAuthority =
       await deriveMailboxDispatchAuthorityPda(warpProgramId);
@@ -83,9 +87,12 @@ export class SvmCctpTokenAltReader extends SvmTokenAltReaderBase<CollateralCctpW
       ataPayer.address,
     );
     const messageTransmitter = await deriveCctpMessageTransmitterPda();
+    const messageTransmitterAuthority =
+      await deriveCctpMessageTransmitterAuthorityPda();
     const tokenMessenger = await deriveCctpTokenMessengerPda();
     const tokenMinter = await deriveCctpTokenMinterPda();
     const localToken = await deriveCctpLocalTokenPda(mint);
+    const custodyTokenAccount = await deriveCctpCustodyTokenAccountPda(mint);
     const tokenMessengerMinterEventAuthority =
       await deriveCctpEventAuthorityPda(
         CCTP_TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
@@ -96,6 +103,7 @@ export class SvmCctpTokenAltReader extends SvmTokenAltReaderBase<CollateralCctpW
 
     const out: AnnotatedAltAddress[] = [
       { address: warpProgramId, description: 'warp.program' },
+      { address: vamPda.address, description: 'warp.vam_pda' },
       { address: tokenPda.address, description: 'warp.token_pda' },
       {
         address: dispatchAuthority.address,
@@ -129,9 +137,17 @@ export class SvmCctpTokenAltReader extends SvmTokenAltReaderBase<CollateralCctpW
         address: messageTransmitter.address,
         description: 'cctp.message_transmitter',
       },
+      {
+        address: messageTransmitterAuthority.address,
+        description: 'cctp.message_transmitter_authority',
+      },
       { address: tokenMessenger.address, description: 'cctp.token_messenger' },
       { address: tokenMinter.address, description: 'cctp.token_minter' },
       { address: localToken.address, description: 'cctp.local_token' },
+      {
+        address: custodyTokenAccount.address,
+        description: 'cctp.custody_token_account',
+      },
       {
         address: tokenMessengerMinterEventAuthority.address,
         description: 'cctp.token_messenger_minter_event_authority',

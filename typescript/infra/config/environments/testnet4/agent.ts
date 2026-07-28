@@ -278,6 +278,18 @@ const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
       addressLookupTable: '4zybokQ8gLLPWUawXaw1JhrPZZsTaTGeaHZhLLb5nPhS',
     },
   ],
+  solanadevnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            '8SDqTnznDUMkDgJ4yPh8hu73saxSHJG1EMUusjMGxHqL',
+          ),
+        },
+      ],
+      addressLookupTable: 'D4Ydy545RvuUGAcHdrwRYpn4RnjfmJ8jAbrqXpbB886n',
+    },
+  ],
 };
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
