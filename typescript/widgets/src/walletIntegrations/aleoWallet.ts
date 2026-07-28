@@ -1,13 +1,19 @@
-import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
+import type { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { widgetLogger } from '../logger.js';
+
 import { useAleoPopup } from './aleo/AleoProviders.js';
-import { getAdapter, getAleoNetwork } from './aleo/utils.js';
+import { getAdapter, getAleoNetwork, onAdapterCreated } from './aleo/utils.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
+
+const logger = widgetLogger.child({
+  module: 'widgets/walletIntegrations/aleoWallet',
+});
 
 export function useAleoAccount(
   _multiProvider: MinimalProviderRegistry,
@@ -16,29 +22,38 @@ export function useAleoAccount(
     useState<ShieldWalletAdapter['account']>(undefined);
 
   useEffect(() => {
-    const adapterInstance = getAdapter();
+    let removeAdapterListeners: (() => void) | undefined;
+    const unsubscribe = onAdapterCreated((adapterInstance) => {
+      const handleAccountChange = () => {
+        setAccount(adapterInstance.account);
+      };
+      const handleAccountSwitched = async () => {
+        try {
+          await adapterInstance.connect(
+            getAleoNetwork(),
+            WalletDecryptPermission.AutoDecrypt,
+            [],
+          );
+        } catch (error: unknown) {
+          logger.error('Failed to reconnect after Aleo account switch', {
+            error,
+          });
+        }
+      };
 
-    const handleAccountChange = () => {
-      setAccount(adapterInstance.account);
-    };
-
-    const handleAccountSwitched = async () => {
-      await adapterInstance.connect(
-        getAleoNetwork(),
-        WalletDecryptPermission.AutoDecrypt,
-        [],
-      );
-    };
-
-    adapterInstance.on('connect', handleAccountChange);
-    adapterInstance.on('disconnect', handleAccountChange);
-    adapterInstance.on('accountChange', handleAccountSwitched);
-    handleAccountChange();
-
+      adapterInstance.on('connect', handleAccountChange);
+      adapterInstance.on('disconnect', handleAccountChange);
+      adapterInstance.on('accountChange', handleAccountSwitched);
+      handleAccountChange();
+      removeAdapterListeners = () => {
+        adapterInstance.off('connect', handleAccountChange);
+        adapterInstance.off('disconnect', handleAccountChange);
+        adapterInstance.off('accountChange', handleAccountSwitched);
+      };
+    });
     return () => {
-      adapterInstance.off('connect', handleAccountChange);
-      adapterInstance.off('disconnect', handleAccountChange);
-      adapterInstance.off('accountChange', handleAccountSwitched);
+      unsubscribe();
+      removeAdapterListeners?.();
     };
   }, []);
 
@@ -65,10 +80,11 @@ export function useAleoWalletDetails(): WalletDetails {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const adapterInstance = getAdapter();
-    setDetails({
-      name: adapterInstance.name,
-      logoUrl: adapterInstance.icon,
+    return onAdapterCreated((adapterInstance) => {
+      setDetails({
+        name: adapterInstance.name,
+        logoUrl: adapterInstance.icon,
+      });
     });
   }, []);
 
@@ -89,7 +105,8 @@ export function useAleoConnectFn(): () => void {
 
 export function useAleoDisconnectFn(): () => Promise<void> {
   return async () => {
-    await getAdapter().disconnect();
+    const adapter = await getAdapter();
+    await adapter.disconnect();
   };
 }
 

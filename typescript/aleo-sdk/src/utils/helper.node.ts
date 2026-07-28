@@ -4,7 +4,8 @@ import { Program } from '@provablehq/sdk/mainnet.js';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram, programRegistry } from '../artifacts.js';
+import { programRegistry } from '../artifacts.js';
+import { type AleoProgram } from '../programs.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');

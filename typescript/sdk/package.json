@@ -15,6 +15,9 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "browser": {
+    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js"
+  },
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {

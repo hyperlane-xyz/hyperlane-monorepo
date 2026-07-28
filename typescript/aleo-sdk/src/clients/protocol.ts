@@ -39,7 +39,7 @@ import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
 import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-import { AleoProvider } from './provider.js';
+import { AleoProvider } from './provider.node.js';
 import { AleoSigner } from './signer.js';
 
 // Base router deploy cost in native denom (microcredits), used to size

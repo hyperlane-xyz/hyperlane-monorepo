@@ -3,7 +3,7 @@ import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram } from '../artifacts.js';
+import { type AleoProgram } from '../programs.js';
 import {
   getFileOverrideProgramId,
   loadProgramsInDeployOrder,
@@ -17,7 +17,7 @@ import {
 import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 import { type AnyProgramManager } from './base.js';
-import { AleoProvider } from './provider.js';
+import { AleoProvider } from './provider.node.js';
 
 export class AleoSigner
   extends AleoProvider
