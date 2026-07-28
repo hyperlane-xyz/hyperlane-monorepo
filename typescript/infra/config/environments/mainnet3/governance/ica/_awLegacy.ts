@@ -53,6 +53,7 @@ export const awIcasLegacy: ChainMap<Address> = {
   boba: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+  bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
 
   // Dec 4, 2024 batch

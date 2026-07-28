@@ -560,6 +560,16 @@ export const validatorChainConfig = (
         'vana',
       ),
     },
+    bsquared: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bsquared'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcadc90933c9fbe843358a4e70e46ad2db78e28aa'],
+        },
+        'bsquared',
+      ),
+    },
     lumiaprism: {
       interval: 5,
       reorgPeriod: getReorgPeriod('lumiaprism'),
