@@ -2,7 +2,6 @@ import { Plaintext } from '@provablehq/sdk';
 
 import {
   assert,
-  ensure0x,
   isNullish,
   isZeroishAddress,
   retryAsync,
@@ -15,97 +14,27 @@ import {
   U128ToString,
   fromAleoAddress,
   isV2WarpToken,
-  toAleoAddress,
 } from '../utils/helper.js';
+import { toAleoAddress } from '../utils/helper.crypto.js';
 import {
   type AleoCollateralWarpTokenConfig,
   type AleoNativeWarpTokenConfig,
   type AleoSyntheticWarpTokenConfig,
   AleoTokenType,
 } from '../utils/types.js';
+import {
+  getArc20ProgramId,
+  getArc20TokenMetadata,
+  getRemoteRoutersWithSdk,
+} from './provider-query.js';
 
-/**
- * Returns the ARC-20 token program ID imported by an ARC-20-based warp token.
- * The arc20 token import is the one that contains 'arc20' but not 'multisig'.
- */
-export async function getArc20ProgramId(
-  aleoClient: AnyAleoNetworkClient,
-  warpProgramId: string,
-): Promise<string> {
-  const imports = await aleoClient.getProgramImportNames(warpProgramId);
-  const arc20ProgramId = imports.find(
-    (i) => i.includes('arc20') && !i.includes('multisig'),
-  );
-  assert(
-    arc20ProgramId,
-    `Could not find ARC-20 token import in program ${warpProgramId}`,
-  );
-  return arc20ProgramId;
-}
-
-/**
- * Validates and extracts the first output from a view function response body.
- * Expects a JSON array of wire-format strings (e.g. ["6u8"], ["'USDC'"]).
- */
-export function parseViewFunctionOutputs(
-  outputs: unknown,
-  programId: string,
-  viewName: string,
-): string {
-  assert(
-    Array.isArray(outputs) &&
-      outputs.length > 0 &&
-      typeof outputs[0] === 'string',
-    `View function ${programId}/${viewName} returned an unexpected response shape: ${JSON.stringify(outputs)}`,
-  );
-  return outputs[0];
-}
-
-/**
- * Calls a view function on an Aleo program via the Explorer REST API.
- * POST {host}/program/{programId}/view/{viewName}
- * No-input functions use an empty object body `{}`; functions with inputs use a JSON array.
- * Returns the raw wire-format string of the first output (e.g. "6u8", "'USDC'", "1000000u128").
- */
-export async function callViewFunction(
-  aleoClient: AnyAleoNetworkClient,
-  programId: string,
-  viewName: string,
-  inputs: string[] = [],
-): Promise<string> {
-  const url = `${aleoClient.host}/program/${programId}/view/${viewName}`;
-  const body = inputs.length === 0 ? '{}' : JSON.stringify(inputs);
-  return retryAsync(
-    async () => {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      assert(res.ok, `View function call failed (${res.status}): ${url}`);
-      const outputs: unknown = await res.json();
-      return parseViewFunctionOutputs(outputs, programId, viewName);
-    },
-    RETRY_ATTEMPTS,
-    RETRY_DELAY_MS,
-  );
-}
-
-/**
- * Parse a raw Aleo uint literal (e.g. "1000000u128", "6u8") to BigInt.
- */
-export function parseAleoUint(raw: string): bigint {
-  const match = raw.match(/^(\d+)/);
-  assert(match, `Expected numeric Aleo literal, got: ${raw}`);
-  return BigInt(match[1]);
-}
-
-/**
- * Parse a raw Aleo identifier literal (e.g. "'USDC'") to a plain string.
- */
-function parseAleoIdentifier(raw: string): string {
-  return raw.replace(/^'|'$/g, '');
-}
+export {
+  callViewFunction,
+  getArc20ProgramId,
+  getArc20TokenMetadata,
+  parseAleoUint,
+  parseViewFunctionOutputs,
+} from './provider-query.js';
 
 /**
  * Converts the v2 ARC-20 warp token standard's on-chain local_decimals/
@@ -133,31 +62,6 @@ export function nativeScaleExponentToMultiplier(
 ): number | undefined {
   if (isNullish(exponent) || exponent === 0) return undefined;
   return Math.pow(10, exponent);
-}
-
-/**
- * Query token metadata from an ARC-20 token program via its view functions.
- */
-export async function getArc20TokenMetadata(
-  aleoClient: AnyAleoNetworkClient,
-  arc20ProgramId: string,
-): Promise<{ name: string; symbol: string; decimals: number }> {
-  const [nameRaw, symbolRaw, decimalsRaw] = await Promise.all([
-    callViewFunction(aleoClient, arc20ProgramId, 'name'),
-    callViewFunction(aleoClient, arc20ProgramId, 'symbol'),
-    callViewFunction(aleoClient, arc20ProgramId, 'decimals'),
-  ]);
-  const decimals = parseInt(decimalsRaw, 10);
-  assert(
-    !Number.isNaN(decimals),
-    `Expected numeric decimals from ${arc20ProgramId}, got: ${decimalsRaw}`,
-  );
-
-  return {
-    name: parseAleoIdentifier(nameRaw),
-    symbol: parseAleoIdentifier(symbolRaw),
-    decimals,
-  };
 }
 
 /**
@@ -263,64 +167,7 @@ export async function getRemoteRouters(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
 ): Promise<Record<number, { address: string; gas: string }>> {
-  const { programId } = fromAleoAddress(tokenAddress);
-
-  const remoteRouters: Record<number, { address: string; gas: string }> = {};
-
-  const routerLengthRes = await aleoClient.getProgramMappingValue(
-    programId,
-    'remote_router_length',
-    'true',
-  );
-
-  if (!routerLengthRes) {
-    return remoteRouters;
-  }
-
-  const routerLength = parseInt(routerLengthRes);
-  assert(
-    !isNaN(routerLength) && routerLength >= 0,
-    `Expected remote_router_length to be a non-negative number for token ${tokenAddress} but got ${routerLengthRes}`,
-  );
-
-  for (let i = 0; i < routerLength; i++) {
-    const routerKey = await aleoClient.getProgramMappingPlaintext(
-      programId,
-      'remote_router_iter',
-      `${i}u32`,
-    );
-
-    if (!routerKey) continue;
-
-    const remoteRouterValue = await aleoClient.getProgramMappingValue(
-      programId,
-      'remote_routers',
-      routerKey,
-    );
-
-    if (!remoteRouterValue) continue;
-
-    const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
-
-    const domainId = Number(remoteRouter['domain']);
-
-    // Skip duplicates (defensive: shouldn't occur in normal operation)
-    if (remoteRouters[domainId]) {
-      continue;
-    }
-
-    assert(
-      Array.isArray(remoteRouter['recipient']),
-      `Expected recipient to be an array in remote router for domain ${domainId} but got ${typeof remoteRouter['recipient']}`,
-    );
-
-    remoteRouters[domainId] = {
-      address: ensure0x(Buffer.from(remoteRouter['recipient']).toString('hex')),
-      gas: remoteRouter['gas'].toString(),
-    };
-  }
-
-  return remoteRouters;
+  return getRemoteRoutersWithSdk({ Plaintext }, aleoClient, tokenAddress);
 }
 
 /**

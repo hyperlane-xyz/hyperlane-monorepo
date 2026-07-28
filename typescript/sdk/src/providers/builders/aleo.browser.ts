@@ -1,4 +1,6 @@
 import type { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk/runtime';
+import { AleoNetworkId } from '@hyperlane-xyz/aleo-sdk/constants';
+import { LazyAsync } from '@hyperlane-xyz/utils';
 
 import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
 import type { AleoProvider } from '../ProviderType.js';
@@ -15,10 +17,20 @@ interface AleoRuntimeModule {
   AleoProvider: AleoProviderConstructor;
 }
 
-type AleoProviderLoader = () => Promise<AleoRuntimeModule>;
+type AleoProviderLoader = (
+  network: string | number,
+) => Promise<AleoRuntimeModule>;
 
-const loadAleoProvider: AleoProviderLoader = () =>
-  import('@hyperlane-xyz/aleo-sdk/runtime');
+const loadAleoProvider: AleoProviderLoader = (network) => {
+  switch (+network) {
+    case AleoNetworkId.MAINNET:
+      return import('@hyperlane-xyz/aleo-sdk/runtime/mainnet');
+    case AleoNetworkId.TESTNET:
+      return import('@hyperlane-xyz/aleo-sdk/runtime/testnet');
+    default:
+      throw new Error(`Unsupported Aleo network id ${network}`);
+  }
+};
 
 function createAsyncMethodProxy<T extends object>(
   getTarget: () => Promise<T>,
@@ -51,11 +63,12 @@ export function createLazyAleoProvider(
   const normalizedRpcUrls = rpcUrls.map((url) =>
     url.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
   );
-  let providerPromise: Promise<AleoSDKProvider> | undefined;
-  const getProvider = () =>
-    (providerPromise ??= loadProvider().then(
+  const provider = new LazyAsync(() =>
+    loadProvider(network).then(
       ({ AleoProvider }) => new AleoProvider(rpcUrls, network),
-    ));
+    ),
+  );
+  const getProvider = () => provider.get();
   const asyncProvider = createAsyncMethodProxy(getProvider);
 
   return new Proxy(asyncProvider, {

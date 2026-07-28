@@ -4,7 +4,7 @@ export { AleoProtocolProvider } from './clients/protocol.js';
 
 export { AleoReceipt, AleoTransaction } from './utils/types.js';
 
-export { AleoProvider } from './clients/provider.js';
+export { AleoProvider } from './clients/provider.node.js';
 export { AleoSigner } from './clients/signer.js';
 export { AleoIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { AleoHookArtifactManager } from './hook/hook-artifact-manager.js';

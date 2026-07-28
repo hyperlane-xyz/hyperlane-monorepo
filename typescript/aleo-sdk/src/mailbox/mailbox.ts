@@ -13,12 +13,12 @@ import { assert, eqAddressAleo, eqOptionalAddress } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
+import { toAleoAddress } from '../utils/helper.crypto.js';
 import {
   ALEO_NULL_ADDRESS,
   getNetworkPrefix,
   getUnusedSuffix,
   SUFFIX_LENGTH_LONG,
-  toAleoAddress,
 } from '../utils/helper.js';
 import {
   type AleoArtifactNetworkConfig,
