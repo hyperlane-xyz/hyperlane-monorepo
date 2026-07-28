@@ -52,10 +52,10 @@
           "http": "https://arb1.arbitrum.io/rpc"
         },
         {
-          "http": "https://arbitrum.rpc.subquery.network/public"
+          "http": "https://arbitrum.drpc.org"
         },
         {
-          "http": "https://arbitrum.drpc.org"
+          "http": "https://arbitrum-one-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x47113936706B3FfF21a14807A93cc3ab8C76bff8",
@@ -229,7 +229,10 @@
           "http": "https://1rpc.io/base"
         },
         {
-          "http": "https://base.llamarpc.com"
+          "http": "https://base.gateway.tenderly.co"
+        },
+        {
+          "http": "https://base-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x4f0547800Db0a2427F7367960dc331f8Cbe2e270",
@@ -308,7 +311,7 @@
           "http": "https://rpc.blast.io"
         },
         {
-          "http": "https://rpc.ankr.com/blast"
+          "http": "https://blast-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x2214711817f49665240f68efED0De888838BB375",
@@ -440,19 +443,13 @@
       "proxyAdmin": "0x65993Af9D0D3a64ec77590db7ba362D6eB78eF70",
       "rpcUrls": [
         {
-          "http": "https://bsc.blockrazor.xyz"
-        },
-        {
-          "http": "https://bsc-pokt.nodies.app"
-        },
-        {
           "http": "https://bsc.drpc.org"
         },
         {
-          "http": "https://bnb.rpc.subquery.network/public"
+          "http": "https://bsc-rpc.publicnode.com"
         },
         {
-          "http": "https://binance.llamarpc.com"
+          "http": "https://bsc.rpc.blxrbdn.com"
         }
       ],
       "staticAggregationHookFactory": "0x73AC2db1efB07A3432a2A1128e40a63DA149351f",
@@ -1418,13 +1415,10 @@
           "http": "https://polygon-bor.publicnode.com"
         },
         {
-          "http": "https://polygon-rpc.com"
-        },
-        {
           "http": "https://polygon.drpc.org"
         },
         {
-          "http": "https://polygon-pokt.nodies.app"
+          "http": "https://polygon.gateway.tenderly.co"
         }
       ],
       "staticAggregationHookFactory": "0xF30E3d79F8B9520Fc53454cf43bB2D90Cd65e066",
@@ -1684,7 +1678,7 @@
           "http": "https://viction.drpc.org"
         },
         {
-          "http": "https://viction.blockpi.network/v1/rpc/public"
+          "http": "https://88.rpc.thirdweb.com"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
@@ -5719,7 +5713,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.adichain"
+          "http": "https://rpc.adifoundation.ai"
         }
       ],
       "technicalStack": "other",
@@ -6686,10 +6680,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.chain.robinhood.com"
+          "http": "https://rpc.mainnet.chain.robinhood.com"
         }
       ],
-      "technicalStack": "other",
+      "technicalStack": "arbitrumnitro",
       "aggregationHook": "0xb1502A527eFB688708a24c390Cd9AD274F35B917",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -6716,7 +6710,7 @@
       "testRecipient": "0xc261Bd2BD995d3D0026e918cBFD44b0Cc5416a57",
       "validatorAnnounce": "0x2D374F85AE2B80147CffEb34d294ce02d1afd4D8",
       "index": {
-        "from": 25286519
+        "from": 47247
       }
     },
     "tea": {
