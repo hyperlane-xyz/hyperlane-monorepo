@@ -54,7 +54,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
@@ -321,7 +321,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
     const current = await legacyWriter.read(programId);
 
     const newOwner = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       '0x0000000000000000000000000000000000000000000000000000000000000004',
     );
     await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);
@@ -394,7 +394,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     // Transfer warp-token ownership and BPF upgrade authority to newOwner BEFORE the upgrade
     const newOwner = await SvmSigner.connectWithSigner(
-      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      TEST_SVM_CHAIN_METADATA,
       '0x0000000000000000000000000000000000000000000000000000000000000005',
     );
     await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);

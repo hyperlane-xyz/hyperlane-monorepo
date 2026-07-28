@@ -50,7 +50,7 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
       type: TokenType.synthetic,
       proxyAdmin: {
         address: '0x54bB5b12c67095eB3dabCD11FA74AAcfE46E7767',
-        owner: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+        owner: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
       },
     };
 
@@ -61,7 +61,7 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
       token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
       proxyAdmin: {
         address: '0xdaB976ae358D4D2d25050b5A25f71520983C46c9',
-        owner: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+        owner: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
       },
     };
 
@@ -71,7 +71,7 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
       type: TokenType.native,
       proxyAdmin: {
         address: '0xBC53dACd8c0ac0d2bAC461479EAaf5519eCC8853',
-        owner: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+        owner: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
       },
     };
 

@@ -10,6 +10,11 @@ import {
 } from '@solana/kit';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
@@ -20,23 +25,54 @@ import {
 import { createRpc } from '../rpc.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
+// Warp-deploy cost breakdown for Sealevel. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape.
+//
+// Numbers observed from live cross-collateral + fee-program deploys on
+// mainnet-beta; the base value matches the flat WARP_DEPLOY_GAS used before
+// this method existed (~2.6 SOL covers program account rent + token PDA rent
+// + ATA payer funding for a base router).
+export const WARP_DEPLOY_BASE_LAMPORTS = 2_600_000_000n; // base router deploy
+export const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS = 1_100_000_000n; // + crossCollateral router extras (~1.1 SOL)
+export const WARP_DEPLOY_FEE_PROGRAM_LAMPORTS = 2_500_000_000n; // + fee program deploy (~2.5 SOL, separate program)
+// TODO: fill from observed deploy — we don't have a measured breakdown for
+// custom ISM / hook deploys on Sealevel yet, so these currently contribute
+// nothing until real numbers land.
+export const WARP_DEPLOY_CUSTOM_ISM_LAMPORTS = 0n; // + custom ISM (config.interchainSecurityModule object)
+export const WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS = 0n; // + custom hook / IGP (config.hook object)
+
 export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
   protected rpc: SvmRpc;
   protected rpcUrls: string[];
+  protected chainMetadata: ChainMetadataForAltVM;
 
-  static async connect(
-    rpcUrls: string[],
-    _chainId: string | number,
-    _extraParams?: Record<string, any>,
-  ): Promise<SvmProvider> {
+  static async connect(metadata: ChainMetadataForAltVM): Promise<SvmProvider> {
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
-    return new SvmProvider(rpc, rpcUrls);
+    return new SvmProvider(rpc, rpcUrls, metadata);
   }
 
-  constructor(rpc: SvmRpc, rpcUrls: string[]) {
+  constructor(
+    rpc: SvmRpc,
+    rpcUrls: string[],
+    chainMetadata: ChainMetadataForAltVM,
+  ) {
     this.rpc = rpc;
     this.rpcUrls = rpcUrls;
+    this.chainMetadata = chainMetadata;
+  }
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_LAMPORTS,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_LAMPORTS,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_LAMPORTS,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_LAMPORTS,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_LAMPORTS,
+    });
   }
 
   getRpc(): SvmRpc {

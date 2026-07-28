@@ -4,6 +4,28 @@ import { format } from 'util';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+function getStatusCode(response: unknown): number | 'unknown' {
+  if (
+    typeof response !== 'object' ||
+    response === null ||
+    !('statusCode' in response)
+  ) {
+    return 'unknown';
+  }
+
+  return typeof response.statusCode === 'number' &&
+    Number.isInteger(response.statusCode)
+    ? response.statusCode
+    : 'unknown';
+}
+
+export function isSuccessfulPushGatewayResponse(response: unknown): boolean {
+  const statusCode = getStatusCode(response);
+  return (
+    typeof statusCode === 'number' && statusCode >= 200 && statusCode < 300
+  );
+}
+
 /**
  * Gets the push gateway if PROMETHEUS_PUSH_GATEWAY environment variable is set.
  *
@@ -39,6 +61,10 @@ export function getPushGateway(
  * @param options.groupings - Extra grouping labels appended to the PushGateway
  *   group key. When each series is pushed under its own grouping, it can be
  *   cleared independently via deleteMetrics without touching other series.
+ * @param options.throwOnError - If true, a failed push (network error or a
+ *   non-2xx response) is rethrown instead of swallowed, so a caller running as
+ *   a batch/CronJob can fail loudly rather than record a false success while the
+ *   previous snapshot goes stale. Defaults to false for backwards compatibility.
  * @param logger - Optional logger instance
  */
 export async function submitMetrics(
@@ -47,6 +73,7 @@ export async function submitMetrics(
   options?: {
     overwriteAllMetrics?: boolean;
     groupings?: Record<string, string>;
+    throwOnError?: boolean;
   },
   logger?: Logger,
 ): Promise<void> {
@@ -65,13 +92,16 @@ export async function submitMetrics(
     }
   } catch (e) {
     log.error('Error when pushing metrics', { error: format(e) });
+    if (options?.throwOnError) throw e;
     return;
   }
 
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
+  const statusCode = getStatusCode(resp);
+  if (options?.throwOnError && !isSuccessfulPushGatewayResponse(resp)) {
+    throw new Error(
+      `PushGateway returned status ${statusCode} for job ${jobName}`,
+    );
+  }
   log.info('Prometheus metrics pushed to PushGateway', { statusCode });
 }
 
@@ -104,10 +134,7 @@ export async function deleteMetrics(
     return;
   }
 
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
+  const statusCode = getStatusCode(resp);
   log.info('Prometheus metrics deleted from PushGateway', {
     jobName,
     groupings,

@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 7.2.0
+
+### Minor Changes
+
+- 961a89d: Two new CLI commands for managing offchain-signed warp fee quotes were added: `hyperlane warp quote create` submits a standing signed quote (`--ttl` in seconds, must be > 0) against a deployed `OffchainQuotedLinearFee` leaf on EVM or SVM, and `hyperlane warp quote read` enumerates the standing quotes stored on every supported chain in a warp route (or a single `--chain`), with an optional `--recipients` array to additionally probe non-router recipient addresses on protocols with non-enumerable storage (EVM). Output renders bytes32 sentinels (`TARGET_ROUTER_NONE`, `DEFAULT_CROSS_COLLATERAL_ROUTER`, `WILDCARD_RECIPIENT`) as labels with ISO timestamps and an `expired` flag. The CLI bridges EVM and AltVM via a single `factories.ts` switch (EVM doesn't implement `ProtocolProvider`), shared by both commands. Underneath, `@hyperlane-xyz/sdk` adds `EvmQuoteArtifactManager` / `EvmQuoteWriter` / `EvmQuoteReader` / `EvmPrivateKeyQuoteSigner` against the EIP-712 typed-data layout plus a `buildFeeReadContextFromWarpDeployConfig` helper that bypasses AltVM token-type validation; `@hyperlane-xyz/sealevel-sdk` adds the equivalent `SvmQuote*` surface against the SVM fee-program's `SubmitQuote` instruction and exports `resolveFeeSalt`; `@hyperlane-xyz/provider-sdk` defines the cross-VM interfaces (`IRawWarpQuoteArtifactManager`, `RawQuoteSigner`, `enumerateWarpQuoteCandidates`, `ReadStandingQuotesOpts`). For cross-collateral routes, `warp quote create` resolves the target router leaf from the destination's `remoteRouters` then `crossCollateralRouters` then the DEFAULT fallback, and accepts a `--target-router` override (destination-native address) to target a specific router-keyed leaf. `--quote-signer-key` also reads from the `HYP_QUOTE_SIGNER_KEY` env var, and a standing-quote submission that is an on-chain no-op (an equal-or-newer quote already exists) now warns instead of reporting success.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@38.0.0
+
 ## 7.1.0
 
 ### Minor Changes

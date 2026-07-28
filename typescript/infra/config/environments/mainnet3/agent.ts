@@ -99,7 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -131,7 +131,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: true,
+    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
     noble: true,
     oortmainnet: true,
     optimism: true,
@@ -200,7 +200,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -232,7 +232,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: true,
+    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
     noble: true,
     oortmainnet: true,
     optimism: true,
@@ -301,7 +301,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     fluent: true,
     flowmainnet: true,
-    forma: false, // disabled — RPC unavailable
+    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -333,7 +333,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nesa: true,
     nexus: true,
-    nibiru: true,
+    nibiru: false, // disabled — sole RPC (evm-rpc.nibiru.fi) down, removed from agent ops (AW-721)
     noble: true,
     oortmainnet: true,
     optimism: true,

@@ -19,7 +19,6 @@ import {
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
-  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
   ProxyAdmin__factory,
@@ -72,7 +71,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
-import { isMissingSelectorRevert } from '../utils/contract.js';
+import { fetchPackageVersion } from '../utils/contract.js';
 
 import {
   VERSION_ERROR_MESSAGE,
@@ -487,20 +486,11 @@ export class EvmHookModule extends HyperlaneModule<
     const igpAddress = this.args.addresses.deployedHook;
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
     const provider = this.multiProvider.getProvider(this.domainId);
-    let currentVersion: string | undefined;
-    try {
-      currentVersion = await PackageVersioned__factory.connect(
-        igpAddress,
-        provider,
-      ).PACKAGE_VERSION();
-    } catch (error) {
-      if (!isMissingSelectorRevert(error)) {
-        throw error;
-      }
-      this.logger.debug(
-        `IGP ${igpAddress} on ${this.chain} does not expose PACKAGE_VERSION`,
-      );
-    }
+    const currentVersion = await fetchPackageVersion(
+      provider,
+      igpAddress,
+      this.logger,
+    );
 
     // Upgrade IGP proxy implementation only if contractVersion is specified in config
     if (targetConfig.contractVersion && (await isProxy(provider, igpAddress))) {
@@ -509,12 +499,9 @@ export class EvmHookModule extends HyperlaneModule<
         VERSION_ERROR_MESSAGE,
       );
 
-      if (
-        !currentVersion ||
-        compareVersions(targetConfig.contractVersion, currentVersion) > 0
-      ) {
+      if (compareVersions(targetConfig.contractVersion, currentVersion) > 0) {
         this.logger.info(
-          `Upgrading IGP implementation from ${currentVersion ?? 'unknown'} to ${targetConfig.contractVersion}`,
+          `Upgrading IGP implementation from ${currentVersion} to ${targetConfig.contractVersion}`,
         );
         const newImpl = await this.deployer.deployContractFromFactory(
           this.chain,
@@ -597,7 +584,7 @@ export class EvmHookModule extends HyperlaneModule<
     // update quote signers only if explicitly specified in target config
     // and IGP supports them (detected from on-chain read or version upgrade)
     const offchainFeeQuotingVersion =
-      targetConfig.contractVersion ?? currentVersion ?? undefined;
+      targetConfig.contractVersion ?? currentVersion;
     const supportsOffchainFeeQuoting = igpSupportsOffchainFeeQuoting({
       igpVersion: targetConfig.igpVersion,
       contractVersion: offchainFeeQuotingVersion,

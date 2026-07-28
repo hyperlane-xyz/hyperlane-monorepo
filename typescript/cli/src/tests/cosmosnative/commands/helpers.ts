@@ -40,13 +40,7 @@ export async function deployCollateralToken(
   if (!metadata.gasPrice)
     throw new Error(`Missing gasPrice for chain ${chain}`);
 
-  const signer = await CosmosNativeSigner.connectWithSigner(
-    metadata.rpcUrls.map((rpc) => rpc.http),
-    wallet,
-    {
-      metadata,
-    },
-  );
+  const signer = await CosmosNativeSigner.connectWithSigner(metadata, wallet);
 
   const denom = metadata.nativeToken?.denom;
   assert(denom, `Missing nativeToken denom for chain ${chain}`);
@@ -88,13 +82,7 @@ export async function deploySyntheticToken(
     metadata.bech32Prefix,
   );
 
-  const signer = await CosmosNativeSigner.connectWithSigner(
-    metadata.rpcUrls.map((rpc) => rpc.http),
-    wallet,
-    {
-      metadata,
-    },
-  );
+  const signer = await CosmosNativeSigner.connectWithSigner(metadata, wallet);
 
   const rpcUrls = signer.getRpcUrls();
   const artifactManager = new CosmosWarpArtifactManager(rpcUrls);

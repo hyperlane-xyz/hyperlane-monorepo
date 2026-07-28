@@ -24,15 +24,47 @@ const SET_AUTHORITY_DISCRIMINANT = new Uint8Array([4, 0, 0, 0]);
 /** BPF Loader Upgradeable Upgrade discriminant (u32 LE). */
 const UPGRADE_DISCRIMINANT = new Uint8Array([3, 0, 0, 0]);
 
+/** BPF Loader Upgradeable ExtendProgram discriminant (variant 6). */
+const EXTEND_PROGRAM_DISCRIMINANT = 6;
+
 /** BPF Loader Upgradeable ExtendProgramChecked discriminant (variant 9). */
 const EXTEND_PROGRAM_CHECKED_DISCRIMINANT = 9;
 
 /**
+ * Builds an ExtendProgram instruction (variant 6).
+ *
+ * Permissionless legacy extend that does not verify the upgrade authority.
+ * Use when the enable_extend_program_checked feature gate is inactive on the
+ * target cluster.
+ */
+export function getExtendProgramInstruction(
+  programDataAddress: Address,
+  programAddress: Address,
+  payer: Address,
+  additionalBytes: number,
+): SvmInstruction {
+  const data = new Uint8Array(8);
+  data.set(u32le(EXTEND_PROGRAM_DISCRIMINANT), 0);
+  data.set(u32le(additionalBytes), 4);
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    [
+      writableAccount(programDataAddress),
+      writableAccount(programAddress),
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSignerAddress(payer),
+    ],
+    data,
+  );
+}
+
+/**
  * Builds an ExtendProgramChecked instruction (variant 9).
  *
- * Requires the upgrade authority as signer. Variant 6 (ExtendProgram)
- * is rejected on validators with the enable_extend_program_checked
- * feature gate active (default on Agave 3.0+).
+ * Requires the upgrade authority as signer. Only valid where the
+ * enable_extend_program_checked feature gate is active; activation is
+ * per-cluster, so callers must select the variant based on the target
+ * cluster's feature state rather than the validator binary version.
  */
 export function getExtendProgramCheckedInstruction(
   programDataAddress: Address,

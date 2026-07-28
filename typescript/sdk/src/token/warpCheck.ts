@@ -48,7 +48,7 @@ import {
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
-import { TokenType } from './config.js';
+import { TokenType, isSyntheticTokenType } from './config.js';
 import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -59,6 +59,7 @@ import {
 import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   TokenMetadata,
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
@@ -86,6 +87,19 @@ const ALTVM_CHECK_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
 
 function isSupportedAltVmProtocol(protocol: ProtocolType | null): boolean {
   return protocol !== null && ALTVM_CHECK_PROTOCOLS.has(protocol);
+}
+
+// Protocols with no interchain gas paymaster: their routers never consume a
+// per-destination gas, so the on-chain `destination_gas` is always 0 and the
+// EVM-derived expected default is meaningless. Only these origins get the
+// zero-destinationGas normalization (see normalizeAltVmDestinationGas).
+// IGP-capable altVM protocols (e.g. Sealevel, CosmosNative) keep the drift.
+const NO_IGP_ALTVM_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
+  ProtocolType.Starknet,
+]);
+
+function isNoIgpAltVmProtocol(protocol: ProtocolType | null): boolean {
+  return protocol !== null && NO_IGP_ALTVM_PROTOCOLS.has(protocol);
 }
 
 type ObjectDiffMap = Exclude<ObjectDiff, ObjectDiff[] | undefined>;
@@ -221,7 +235,17 @@ export function derivedWarpConfigToCheckConfig(
   if (protocol !== ProtocolType.CosmosNative && !isNullish(decimals)) {
     result.decimals = decimals;
   }
-  if ('token' in config && typeof config.token === 'string') {
+  // A synthetic token's `token` (the SVM mint / cosmos denom) is a deterministic
+  // deployment artifact derived from the deployed router, not a user-configured
+  // value -- the SVM reader populates it while the deploy-config-derived expected
+  // side has no counterpart, producing a spurious ConfigMismatch. Skip it here so
+  // both sides stay symmetric; the router that determines the mint is checked via
+  // remoteRouters. See expandedDeployConfigToAltVmCheckConfig for the mirror.
+  if (
+    !isSyntheticTokenType(config.type) &&
+    'token' in config &&
+    typeof config.token === 'string'
+  ) {
     result.token = normalizeAddress(config.token, protocol);
   }
   if (!isNullish(config.contractVersion)) {
@@ -272,6 +296,16 @@ function normalizeCrossCollateralRouters(
     ).filter(([, addresses]) => addresses.length > 0),
   );
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+// `collateralDex` is a paradex-only registry annotation for a collateral route
+// that performs a DEX conversion (see registry ETH/paradex & DIME/paradex). It has
+// no matching SDK TokenType, and on-chain the leg is a standard collateral router,
+// so the deriver reports `collateral`. Treat the annotation as its underlying
+// collateral type so the generic altVM diff doesn't false-flag a `type` mismatch.
+const COLLATERAL_DEX_TYPE_ALIAS = 'collateralDex';
+export function normalizeAltVmExpectedTokenType(type: string): string {
+  return type === COLLATERAL_DEX_TYPE_ALIAS ? TokenType.collateral : type;
 }
 
 export function expandedDeployConfigToAltVmCheckConfig(
@@ -331,7 +365,7 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // altVmScaleMismatch (exact bigint fraction compare against the raw expected
   // config.scale), not through this generic diff. See checkWarpRouteDeployConfig.
   const result: AltVmCheckConfig = {
-    type: config.type,
+    type: normalizeAltVmExpectedTokenType(config.type),
     owner: normalizeAddress(config.owner, protocol),
     mailbox: normalizeAddress(config.mailbox, protocol),
     interchainSecurityModule: ismAddress,
@@ -347,11 +381,25 @@ export function expandedDeployConfigToAltVmCheckConfig(
   // positives from unresolved metadata on the expected side. Cosmos SDK's
   // decimals=0 placeholder is excluded on the actual side (see
   // derivedWarpConfigToCheckConfig), so it's excluded here too for symmetry.
-  if (protocol !== ProtocolType.CosmosNative && !isNullish(config.decimals)) {
+  // AltVM native tokens (e.g. Aleo AleoHypNative) never carry decimals on the
+  // actual side -- DerivedNativeWarpConfig has no decimals field -- so their
+  // core-config decimals is excluded here to keep both sides symmetric.
+  if (
+    protocol !== ProtocolType.CosmosNative &&
+    normalizeAltVmExpectedTokenType(config.type) !== TokenType.native &&
+    !isNullish(config.decimals)
+  ) {
     result.decimals = config.decimals;
   }
 
-  if ('token' in config && typeof config.token === 'string') {
+  // Mirror of derivedWarpConfigToCheckConfig: a synthetic token's `token` is a
+  // deterministic deployment artifact, not user config, so it's excluded from
+  // the diff to avoid a spurious mismatch against the reader-populated value.
+  if (
+    !isSyntheticTokenType(config.type) &&
+    'token' in config &&
+    typeof config.token === 'string'
+  ) {
     result.token = normalizeAddress(config.token, protocol);
   }
 
@@ -442,9 +490,38 @@ async function getAltVmOnChainDerivedConfigs({
   );
 }
 
+// On no-IGP altVM origins (Starknet/paradex) a per-destination gas that was never
+// set on-chain reads back as 0 from the contract's `destination_gas` entrypoint.
+// The expected side derives a non-zero EVM `gasOverhead` default for every remote
+// (see getGasConfig in configUtils.ts), so comparing the two would false-flag every
+// route that never set per-domain gas on-chain -- and these chains have no IGP that
+// consumes the value anyway. Mirror the ISM/hook zero-address normalization below:
+// treat a 0 on-chain gas as "unset" and drop that destination from both sides. A
+// genuinely-configured (non-zero) on-chain gas still diffs normally.
+//
+// This is applied ONLY to no-IGP origins (see isNoIgpAltVmProtocol). IGP-capable
+// altVM protocols (Sealevel, CosmosNative, ...) consume destination_gas, so a
+// zero-vs-nonzero drift there is a real regression and must still be flagged.
+export function normalizeAltVmDestinationGas(
+  actual: Record<string, string>,
+  expected: Record<string, string>,
+): { actual: Record<string, string>; expected: Record<string, string> } {
+  const normalizedActual: Record<string, string> = {};
+  const normalizedExpected: Record<string, string> = { ...expected };
+  for (const [chain, gas] of Object.entries(actual)) {
+    if (BigInt(gas) === 0n) {
+      delete normalizedExpected[chain];
+      continue;
+    }
+    normalizedActual[chain] = gas;
+  }
+  return { actual: normalizedActual, expected: normalizedExpected };
+}
+
 export function buildAltVmWarpRouteDiff(
   onChainConfigs: Record<string, AltVmCheckConfig>,
   expectedConfigs: Record<string, AltVmCheckConfig>,
+  noIgpChains: ReadonlySet<string> = new Set(),
 ): Record<string, ObjectDiff> {
   const diff: Record<string, ObjectDiff> = {};
 
@@ -466,8 +543,21 @@ export function buildAltVmWarpRouteDiff(
     // EVM path (buildWarpRouteDiff) and only compare when both sides opt in.
     // contractVersion is excluded the same way (mirrors buildWarpRouteDiff): it's
     // rarely set explicitly, so only compare when the deploy config opts in.
+    // decimals is excluded the same way: the expected side omits it for altVM
+    // native tokens (expandedDeployConfigToAltVmCheckConfig), but the derived
+    // side resolves a concrete value for some protocols (e.g. Sealevel native =
+    // 9) and omits it for others (e.g. Aleo native). Only compare when the
+    // deploy config opts in, otherwise every Sealevel native leg reports a
+    // false-positive decimals mismatch.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
+    const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
+      noIgpChains.has(chain)
+        ? normalizeAltVmDestinationGas(
+            actual.destinationGas,
+            expected.destinationGas,
+          )
+        : { actual: actual.destinationGas, expected: expected.destinationGas };
     const normalizedActual: AltVmCheckConfig = {
       ...actual,
       interchainSecurityModule: isNullish(expected.interchainSecurityModule)
@@ -477,11 +567,14 @@ export function buildAltVmWarpRouteDiff(
       contractVersion: isNullish(expected.contractVersion)
         ? undefined
         : actual.contractVersion,
+      decimals: isNullish(expected.decimals) ? undefined : actual.decimals,
       scale: undefined,
+      destinationGas: normalizedActualGas,
     };
     const normalizedExpected: AltVmCheckConfig = {
       ...expected,
       scale: undefined,
+      destinationGas: normalizedExpectedGas,
     };
 
     const { mergedObject, isInvalid } = diffObjMerge(
@@ -556,14 +649,76 @@ export function altVmScaleMismatch(
   };
 }
 
+// An owner the caller vetted and decided to accept in an Inactive on-chain
+// state. `chain`/`owner` identify the exact ownerStatus entry to accept; a
+// chain may appear more than once with different owners.
+export interface AcceptedInactiveOwner {
+  chain: ChainName;
+  owner: Address;
+}
+
+// Re-accepts caller-vetted Inactive owners by overriding the expected
+// ownerStatus back to Inactive, but ONLY where the owner is Inactive on-chain.
+// Mutates `expandedWarpDeployConfig` in place. Exported for unit testing.
+export function applyAcceptedInactiveOwnerStatus({
+  expandedWarpDeployConfig,
+  onChainWarpConfig,
+  acceptedInactiveOwners,
+}: {
+  expandedWarpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: Record<
+    string,
+    { ownerStatus?: Record<string, OwnerStatus> }
+  >;
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
+}): void {
+  if (!acceptedInactiveOwners?.length) {
+    return;
+  }
+
+  // Group accepted owners per chain into lowercased sets for case-insensitive
+  // address matching.
+  const acceptedByChain = new Map<ChainName, Set<string>>();
+  for (const { chain, owner } of acceptedInactiveOwners) {
+    const owners = acceptedByChain.get(chain) ?? new Set<string>();
+    owners.add(owner.toLowerCase());
+    acceptedByChain.set(chain, owners);
+  }
+
+  for (const [chain, acceptedOwners] of acceptedByChain) {
+    const observedOwnerStatus = onChainWarpConfig[chain]?.ownerStatus;
+    const expectedOwnerStatus = expandedWarpDeployConfig[chain]?.ownerStatus;
+    if (!observedOwnerStatus || !expectedOwnerStatus) {
+      continue;
+    }
+
+    for (const [owner, status] of Object.entries(observedOwnerStatus)) {
+      if (
+        status === OwnerStatus.Inactive &&
+        acceptedOwners.has(owner.toLowerCase())
+      ) {
+        expectedOwnerStatus[owner] = OwnerStatus.Inactive;
+      }
+    }
+  }
+}
+
 export async function checkWarpRouteDeployConfig({
   multiProvider,
   warpCoreConfig,
   warpDeployConfig,
+  acceptedInactiveOwners,
 }: {
   multiProvider: MultiProvider;
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  // Owners the caller has decided to accept in an Inactive on-chain state
+  // (e.g. a nonce-less governance ICA on Tron/AltVM that a multisig controls).
+  // The caller owns the decision — including deriving and verifying the ICA and
+  // its origin Safe threshold. Here we only pass Inactive through as the
+  // expected control when the observed status is Inactive AND the exact
+  // {chain, owner} pair is present. A chain may list multiple accepted owners.
+  acceptedInactiveOwners?: readonly AcceptedInactiveOwner[];
 }): Promise<WarpRouteCheckResult> {
   const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
     (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
@@ -673,6 +828,17 @@ export async function checkWarpRouteDeployConfig({
     expandedOnChainWarpConfig,
     validateScale: false,
   });
+
+  // expandWarpDeployConfig deterministically maps every Inactive owner to an
+  // expected Active (a violation). Re-accept the specific owners the caller
+  // vetted, but only where the owner is actually Inactive on-chain, so a
+  // stale/incorrect accept entry can never mask a real status change.
+  applyAcceptedInactiveOwnerStatus({
+    expandedWarpDeployConfig,
+    onChainWarpConfig: expandedOnChainWarpConfig,
+    acceptedInactiveOwners,
+  });
+
   const normalizedWarpDeployConfig = normalizeWarpDeployConfigForCheck({
     multiProvider,
     warpDeployConfig: expandedWarpDeployConfig,
@@ -713,9 +879,16 @@ export async function checkWarpRouteDeployConfig({
     }
   }
 
+  const noIgpAltVmChains = new Set(
+    Object.keys(altVmExpectedConfigs).filter((chain) =>
+      isNoIgpAltVmProtocol(multiProvider.tryGetProtocol(chain)),
+    ),
+  );
+
   const rawAltVmDiff = buildAltVmWarpRouteDiff(
     altVmOnChainConfigs,
     altVmExpectedConfigs,
+    noIgpAltVmChains,
   );
 
   for (const chain of Object.keys(altVmExpectedConfigs)) {
@@ -751,7 +924,7 @@ export async function checkWarpRouteDeployConfig({
   };
 }
 
-function buildWarpRouteDiff({
+export function buildWarpRouteDiff({
   warpRouteConfig,
   onChainWarpConfig,
 }: {
@@ -777,6 +950,17 @@ function buildWarpRouteDiff({
 
       if (typeof expectedDeployedConfig.hook === 'string') {
         currentDeployedConfig.hook = derivedHookAddress(currentDeployedConfig);
+      } else if (isNullish(expectedDeployedConfig.hook)) {
+        // expandVirtualWarpDeployConfig resolves an unset on-chain hook to the
+        // zero address, but the expected config omits the field. Treat a
+        // zero-address on-chain hook as unset so it doesn't diff against the
+        // omitted expected value; a genuinely configured (non-zero) hook still
+        // surfaces as a violation. (This differs from buildAltVmWarpRouteDiff,
+        // which clears the actual hook for any nullish expected hook and so does
+        // not surface a non-zero mismatch.)
+        if (eqAddress(derivedHookAddress(currentDeployedConfig), zeroAddress)) {
+          currentDeployedConfig.hook = undefined;
+        }
       }
 
       if (typeof expectedDeployedConfig.interchainSecurityModule === 'string') {

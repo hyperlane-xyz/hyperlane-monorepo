@@ -13,7 +13,10 @@ import {
 
 import { type CommandContext } from '../context/types.js';
 import { log, logGray, logGreen, logRed } from '../logger.js';
-import { getWarpCoreConfigOrExit } from '../utils/warp.js';
+import {
+  findWarpTokenForChain,
+  getWarpCoreConfigOrExit,
+} from '../utils/warp.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 export async function runWarpAltCheck({
@@ -53,9 +56,7 @@ export async function runWarpAltCheck({
 
   const diffs = await promiseObjAll(
     objMap(filtered, async (chainName, addresses) => {
-      const token = warpCoreConfig.tokens.find(
-        (t) => t.chainName === chainName,
-      );
+      const token = findWarpTokenForChain(warpCoreConfig, chainName);
       assert(
         token?.addressOrDenom,
         `No warp token entry found for chain "${chainName}"`,
