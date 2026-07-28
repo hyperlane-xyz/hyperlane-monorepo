@@ -234,6 +234,7 @@ export {
   SignatureLike,
   TokenCaip19Id,
   ValidatorMetadata,
+  ValidatorMetadataRpcEntry,
   WithAddress,
 } from './types.js';
 export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';

@@ -135,9 +135,16 @@ export type Annotated<T> = T & {
   annotation?: string;
 };
 
+export type ValidatorMetadataRpcEntry = {
+  url_hash: string;
+  host_hash: string;
+};
+
 export type ValidatorMetadata = {
   git_sha: string;
-  rpcs?: string[];
+  rpcs?: ValidatorMetadataRpcEntry[];
+  /** The `quorumRpcUrls` set, reported separately from `rpcs`. */
+  quorum_rpcs?: ValidatorMetadataRpcEntry[];
   allows_public_rpcs?: boolean;
 };
 

@@ -72,9 +72,17 @@ struct ValidatorMultiRpcQuorumMerkleTreeHook {
 }
 
 impl ValidatorMultiRpcQuorumMerkleTreeHook {
-    /// Bounds a single RPC call to `QUORUM_RPC_CALL_TIMEOUT`, so one hanging endpoint
-    /// can't stall a whole read (`join_all` otherwise waits for every response before
-    /// voting, including stragglers past the point a result is already decided).
+    /// Bounds a single `quorum_hooks` RPC call to `QUORUM_RPC_CALL_TIMEOUT`, so one hanging
+    /// endpoint can't stall a whole read (`join_all` otherwise waits for every response
+    /// before voting, including stragglers past the point a result is already decided).
+    ///
+    /// Deliberately NOT used for `base_hook` calls: each `quorum_hooks` entry is a single,
+    /// unwrapped HTTP connection (`ethereum_chain_conf_for_url`), so this is the only bound
+    /// on how long it can take. `base_hook` instead uses whatever consensus mode `rpcUrls`
+    /// is configured with (e.g. `Fallback`, which internally cycles across providers, each
+    /// with its own ~60s HTTP client timeout) — wrapping that whole call in a shorter outer
+    /// timeout would cancel it before that internal cycling can complete, defeating it
+    /// rather than bounding it.
     async fn with_call_timeout<T>(
         fut: impl std::future::Future<Output = ChainResult<T>>,
     ) -> ChainResult<T> {
@@ -91,15 +99,26 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
     /// each independently resolving its own current tip. `Blocks(n)` periods almost never
     /// agree across independent RPCs on an active chain otherwise. Returns `None` for a
     /// tag-based reorg period, which doesn't resolve to an explicit height.
+    ///
+    /// Known limitation: this call is intentionally NOT wrapped in `with_call_timeout` (see
+    /// that fn's doc comment) and inherits whatever consensus mode `base_hook` is configured
+    /// with. Under `Fallback` consensus specifically, a first-priority endpoint that responds
+    /// successfully but with a stale height (rather than erroring) can't be detected here —
+    /// ethers' `FallbackProvider` has no notion of freshness, only success/error — and would
+    /// stall height (and therefore checkpoint) progress indefinitely. This is an existing
+    /// characteristic of `Fallback` consensus generally, not introduced by quorum
+    /// verification; `Quorum` consensus naturally tolerates a single stale outlier via
+    /// majority agreement. A real fix needs cross-provider freshness/skew checks, which is a
+    /// bigger design effort left for a follow-up.
     async fn resolve_quorum_target_height(
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Option<u64>> {
-        Ok(
-            Self::with_call_timeout(self.base_hook.latest_checkpoint(reorg_period))
-                .await?
-                .block_height,
-        )
+        Ok(self
+            .base_hook
+            .latest_checkpoint(reorg_period)
+            .await?
+            .block_height)
     }
 
     /// Ceiling of `2 * n / 3`, i.e. the smallest count that's at least two thirds of `n`.
@@ -233,7 +252,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
                 |a, b| a.tree == b.tree,
                 "Failed to reach quorum for merkle tree",
             )?;
-            let base_result = Self::with_call_timeout(self.base_hook.tree_at_block(height)).await?;
+            let base_result = self.base_hook.tree_at_block(height).await?;
             Self::require_base_hook_agreement(
                 &quorum_result,
                 &base_result,
@@ -258,7 +277,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.tree == b.tree && a.block_height == b.block_height,
             "Failed to reach quorum for merkle tree",
         )?;
-        let base_result = Self::with_call_timeout(self.base_hook.tree(reorg_period)).await?;
+        let base_result = self.base_hook.tree(reorg_period).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -295,8 +314,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
             "Failed to reach quorum for latest_checkpoint",
         )?;
-        let base_result =
-            Self::with_call_timeout(self.base_hook.latest_checkpoint(reorg_period)).await?;
+        let base_result = self.base_hook.latest_checkpoint(reorg_period).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -324,8 +342,7 @@ impl MerkleTreeHook for ValidatorMultiRpcQuorumMerkleTreeHook {
             |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
             "Failed to reach quorum for latest_checkpoint_at_block",
         )?;
-        let base_result =
-            Self::with_call_timeout(self.base_hook.latest_checkpoint_at_block(height)).await?;
+        let base_result = self.base_hook.latest_checkpoint_at_block(height).await?;
         Self::require_base_hook_agreement(
             &quorum_result,
             &base_result,
@@ -511,9 +528,13 @@ impl BaseAgent for Validator {
             settings
                 .quorum_rpcs
                 .iter()
-                .map(|rpc| {
+                .enumerate()
+                .map(|(i, rpc)| {
+                    // Identify the entry by index, never by the URL itself: it may embed
+                    // an API key, and a parse failure (e.g. a typo) is exactly the case
+                    // where the URL is most likely to end up copied verbatim into logs.
                     Url::parse(&rpc.url)
-                        .map_err(|err| eyre!("Invalid quorumRpcUrls entry `{}`: {err}", rpc.url))
+                        .map_err(|err| eyre!("Invalid quorumRpcUrls[{i}] entry: {err}"))
                 })
                 .collect::<Result<_>>()?,
         );

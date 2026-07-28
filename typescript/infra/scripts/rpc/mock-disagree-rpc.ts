@@ -43,6 +43,16 @@ function encodeCheckpointResult(root: string, index: number): string {
   return '0x' + root + index.toString(16).padStart(64, '0');
 }
 
+// Upstream RPC URLs commonly embed API keys; only ever log the host, not the
+// full URL (which is still visible to the operator via --rpc itself).
+function redactedHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '<invalid-url>';
+  }
+}
+
 async function forward(upstream: string, body: Buffer): Promise<Buffer> {
   const res = await fetch(upstream, {
     method: 'POST',
@@ -98,7 +108,7 @@ async function main() {
   const { root, index } = fakeCheckpoint(effectiveSeed);
 
   logger.info(
-    { port, upstream: rpc, seed: effectiveSeed, root, index },
+    { port, upstreamHost: redactedHost(rpc), seed: effectiveSeed, root, index },
     'mock disagreeing RPC starting; latestCheckpoint() calls will be spoofed',
   );
 
@@ -146,7 +156,9 @@ async function main() {
   });
 
   server.listen(port, '127.0.0.1', () => {
-    logger.info(`listening on http://127.0.0.1:${port} -> proxying ${rpc}`);
+    logger.info(
+      `listening on http://127.0.0.1:${port} -> proxying ${redactedHost(rpc)}`,
+    );
   });
 }
 
