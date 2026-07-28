@@ -5,9 +5,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { widgetLogger } from '../logger.js';
+
 import { useAleoPopup } from './aleo/AleoProviders.js';
 import { getAdapter, getAleoNetwork, onAdapterCreated } from './aleo/utils.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
+
+const logger = widgetLogger.child({
+  module: 'widgets/walletIntegrations/aleoWallet',
+});
 
 export function useAleoAccount(
   _multiProvider: MinimalProviderRegistry,
@@ -21,12 +27,14 @@ export function useAleoAccount(
       const handleAccountChange = () => {
         setAccount(adapterInstance.account);
       };
-      const handleAccountSwitched = async () => {
-        await adapterInstance.connect(
-          getAleoNetwork(),
-          WalletDecryptPermission.AutoDecrypt,
-          [],
-        );
+      const handleAccountSwitched = () => {
+        void adapterInstance
+          .connect(getAleoNetwork(), WalletDecryptPermission.AutoDecrypt, [])
+          .catch((error: unknown) => {
+            logger.error('Failed to reconnect after Aleo account switch', {
+              error,
+            });
+          });
       };
 
       adapterInstance.on('connect', handleAccountChange);

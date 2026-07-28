@@ -68,7 +68,7 @@ const main = async () => {
       '`;\n';
   }
 
-  let programsOutput = `export const ALEO_PROGRAMS = [`;
+  let programsOutput = `// CAST: Preserve literal program names for the AleoProgram union.\nexport const ALEO_PROGRAMS = [`;
 
   for (const file of files) {
     programsOutput += `\n  '${file.filename}',`;

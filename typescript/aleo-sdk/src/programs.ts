@@ -1,3 +1,4 @@
+// CAST: Preserve literal program names for the AleoProgram union.
 export const ALEO_PROGRAMS = [
   'credits',
   'dispatch_proxy',

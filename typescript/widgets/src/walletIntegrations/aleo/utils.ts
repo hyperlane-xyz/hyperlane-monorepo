@@ -1,16 +1,17 @@
 import { Network } from '@provablehq/aleo-types';
 import type { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 let adapter: ShieldWalletAdapter | null = null;
 let adapterPromise: Promise<ShieldWalletAdapter> | null = null;
 const adapterListeners = new Set<(adapter: ShieldWalletAdapter) => void>();
 
 export async function getAdapter(): Promise<ShieldWalletAdapter> {
-  if (typeof window === 'undefined') {
-    throw new Error(
-      'ShieldWalletAdapter requires a browser environment and cannot be used during server-side rendering',
-    );
-  }
+  assert(
+    typeof window !== 'undefined',
+    'ShieldWalletAdapter requires a browser environment and cannot be used during server-side rendering',
+  );
 
   adapterPromise ??= import('@provablehq/aleo-wallet-adaptor-shield')
     .then(({ ShieldWalletAdapter }) => {

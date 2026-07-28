@@ -36,6 +36,8 @@ const loadAleoProvider: AleoProviderLoader = (network) => {
 function createAsyncMethodProxy<T extends object>(
   getTarget: () => Promise<T>,
 ): T {
+  // CAST: The proxy preserves T's async method surface while deferring target
+  // creation; synchronous Aleo methods are handled explicitly by its caller.
   return new Proxy(
     {},
     {
