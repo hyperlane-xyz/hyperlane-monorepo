@@ -353,6 +353,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  bsquared: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xcadc90933c9fbe843358a4e70e46ad2db78e28aa',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   carrchain: {
     threshold: 2,
     validators: [

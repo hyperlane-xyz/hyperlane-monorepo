@@ -47,6 +47,9 @@
   "bsc": {
     "validators": ["0x570af9b7b36568c8877eebba6c6727aa9dab7268"]
   },
+  "bsquared": {
+    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
+  },
   "carrchain": {
     "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
   },
