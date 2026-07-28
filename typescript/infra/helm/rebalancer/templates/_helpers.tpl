@@ -69,6 +69,12 @@ The rebalancer container
 - name: rebalancer
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
   env:
   - name: SERVICE_NAME
     value: {{ .Values.serviceName | default "rebalancer" | quote }}
