@@ -9,6 +9,7 @@ import {
   TronJsonRpcProvider,
 } from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
+import { assertTronReceiptSuccess } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 /** Union of possible TronWeb transaction types */
@@ -214,11 +215,31 @@ export class TronTransactionBuilder extends TronWeb {
       value: BigNumber.from(evmTx.value ?? 0),
       chainId: evmTx.chainId!,
       tronTransaction: tronTx,
-      wait: (confirmations?: number) =>
-        this.provider!.waitForTransaction(
-          txHash ? ensure0x(txHash) : originalTxHash,
+      wait: async (confirmations?: number) => {
+        const hash = txHash ? ensure0x(txHash) : originalTxHash;
+        const receipt = await this.provider.waitForTransaction(
+          hash,
           confirmations,
-        ),
+        );
+        // Stock ethers waitForTransaction resolves the receipt without the
+        // status-0 revert throw it only injects for EVM. getTransactionInfo
+        // queries the solidity node, which lags mining and returns {} until the
+        // block solidifies, so use the full-node unconfirmed info that is
+        // available immediately. If it is not yet populated, fall back to the
+        // JSON-RPC receipt status so a reverted tx still fails loudly.
+        const info = await this.trx.getUnconfirmedTransactionInfo(
+          strip0x(hash),
+        );
+        if (info?.id) {
+          assertTronReceiptSuccess(info, this, strip0x(hash));
+        } else {
+          assert(
+            receipt.status !== 0,
+            `Tron Transaction Failed: reverted (txid: ${strip0x(hash)})`,
+          );
+        }
+        return receipt;
+      },
     };
   }
 

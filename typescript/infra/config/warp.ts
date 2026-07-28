@@ -25,10 +25,7 @@ import {
   getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
   getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig.js';
-import { getBaseEthereumSuperseedCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumSuperseedCBBTCWarpConfig.js';
 import { getTRUMPWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseSolanaTRUMPWarpConfig.js';
-import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
-import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
 import {
   getCCTPV1StrategyConfig,
   getCCTPV1WarpConfig,
@@ -37,9 +34,6 @@ import {
   getCCTPV2StrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
-import { getCarchainnUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainUSDCWarpConfig.js';
-import { getCarchainnUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainUSDTWarpConfig.js';
-import { getCarchainnWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainWBTCWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import {
   getEclipseUSDTGnosisSafeBuilderStrategyConfig,
@@ -68,7 +62,6 @@ import {
   getEniWbtcWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEniWarpConfigs.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
-import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
@@ -135,8 +128,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]: getRezStagingWarpConfig,
   [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
-  [WarpRouteIds.BaseEthereumSuperseedCBBTC]:
-    getBaseEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCWarpConfig,
   [WarpRouteIds.EclipseEthereumES]: getEclipseEthereumESWarpConfig,
   // TODO: uncomment after merging the staging route to registry
@@ -144,9 +135,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.oXAUT]: getoXAUTTokenProductionWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
     getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
-  [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
-  [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
-  [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
@@ -163,9 +151,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCWarpConfig,
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
-  [WarpRouteIds.CarrChainUSDC]: getCarchainnUSDCWarpConfig,
-  [WarpRouteIds.CarrChainUSDT]: getCarchainnUSDTWarpConfig,
-  [WarpRouteIds.CarrChainWBTC]: getCarchainnWBTCWarpConfig,
   [WarpRouteIds.EniETH]: getEniEthWarpConfig,
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,

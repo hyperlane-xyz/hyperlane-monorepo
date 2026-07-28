@@ -183,5 +183,34 @@ describe('TronWallet Integration Tests', function () {
       const value = await contract.get();
       expect(value.toNumber()).to.equal(newValue);
     });
+
+    it('should reject wait() when a mined tx reverts on-chain', async () => {
+      // wait() only rejects for a tx that passes pre-flight checks (TronWeb
+      // build + broadcast) yet fails during on-chain execution. TronWallet
+      // forwards raw calldata to triggerSmartContract, which does not reject a
+      // revert at build time, so calling a selector that matches no function
+      // reverts in the Solidity dispatcher (TestStorage has no fallback): the
+      // tx passes build and broadcast but mines with receipt.result ===
+      // 'REVERT', which assertTronReceiptSuccess must surface as a rejection. A
+      // generous gasLimit keeps the failure a REVERT rather than
+      // OUT_OF_ENERGY, which the TRE node rejects at broadcast before mining.
+      const tx = await wallet.sendTransaction({
+        to: contract.address,
+        data: '0xdeadbeef',
+        gasLimit: BigNumber.from(100_000),
+      });
+
+      let error: unknown;
+      try {
+        await tx.wait();
+      } catch (e) {
+        error = e;
+      }
+
+      if (!(error instanceof Error)) {
+        expect.fail('Expected wait() to reject with an Error');
+      }
+      expect(error.message).to.match(/Tron Transaction Failed/);
+    });
   });
 });

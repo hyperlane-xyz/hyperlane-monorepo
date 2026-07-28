@@ -24,6 +24,7 @@ import {
 } from '@solana/errors';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   assert,
   concurrentMap,
@@ -175,17 +176,18 @@ export class SvmSigner
   private constructor(
     rpc: SvmRpc,
     rpcUrls: string[],
+    chainMetadata: ChainMetadataForAltVM,
     signer: TransactionSigner,
   ) {
-    super(rpc, rpcUrls);
+    super(rpc, rpcUrls, chainMetadata);
     this.signer = signer;
   }
 
   static async connectWithSigner(
-    rpcUrls: string[],
+    metadata: ChainMetadataForAltVM,
     privateKey: string,
-    _extraParams?: Record<string, any>,
   ): Promise<SvmSigner> {
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
     const keyBytes = parseKeyBytes(privateKey);
@@ -201,7 +203,7 @@ export class SvmSigner
       );
     }
 
-    return new SvmSigner(rpc, rpcUrls, keypair);
+    return new SvmSigner(rpc, rpcUrls, metadata, keypair);
   }
 
   getSignerAddress(): string {

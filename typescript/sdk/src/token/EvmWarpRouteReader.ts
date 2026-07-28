@@ -624,22 +624,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.logger.debug(`${owner} may not be a safe`);
     }
 
-    // Check Proxy admin and implementation recursively
-    const contractType = (await isProxy(this.provider, address))
-      ? VerifyContractTypes.Proxy
-      : VerifyContractTypes.Implementation;
-    if (contractType === VerifyContractTypes.Proxy) {
-      const [proxyStatus, implementationStatus] = await Promise.all([
-        this.getOwnerStatus(chain, await proxyAdmin(provider, address)),
-        this.getOwnerStatus(
-          chain,
-          await proxyImplementation(this.provider, address),
-        ),
-      ]);
+    // Recurse into the proxyAdmin owner only. The proxyAdmin holds upgrade
+    // authority and is an owner we actually manage, so a dead owner there is a
+    // real concern. We deliberately do NOT recurse into the implementation
+    // contract's owner: under the transparent-proxy pattern the impl is inert
+    // (upgrade authority lives in the proxyAdmin, not the impl), we never
+    // configure the impl owner, and the ownerStatus check has no expected value
+    // for it — so a spent deployer EOA there is pure false-positive drift.
+    if (await isProxy(this.provider, address)) {
+      const proxyAdminStatus = await this.getOwnerStatus(
+        chain,
+        await proxyAdmin(provider, address),
+      );
       ownerStatus = {
         ...ownerStatus,
-        ...proxyStatus,
-        ...implementationStatus,
+        ...proxyAdminStatus,
       };
     }
 

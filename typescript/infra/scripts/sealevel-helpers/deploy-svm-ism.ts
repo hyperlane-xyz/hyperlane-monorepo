@@ -148,7 +148,7 @@ async function processChain(
 
   // Connect svm-sdk signer
   const signer = await SealevelSigner.connectWithSigner(
-    rpcUrls,
+    chainMeta,
     deployerKeyBase58,
   );
   const rpc = createRpc(rpcUrls[0]);
