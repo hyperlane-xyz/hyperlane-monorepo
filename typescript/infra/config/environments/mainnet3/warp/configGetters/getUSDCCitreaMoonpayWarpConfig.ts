@@ -337,7 +337,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }] },
+        { citrea: [{ bridge: tbda.arbitrum }] },
       ),
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -356,7 +356,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.base }] },
+        { citrea: [{ bridge: tbda.base }] },
       ),
       hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -398,10 +398,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       owner: citreaOwner,
       allowedRebalancers: [REBALANCER],
       allowedRebalancingBridges: Object.fromEntries(
-        EVM_CHAINS.map((dest) => [
-          String(getDomainId(dest)),
-          [{ bridge: tbda.citrea }],
-        ]),
+        EVM_CHAINS.map((dest) => [dest, [{ bridge: tbda.citrea }]]),
       ),
       interchainSecurityModule: buildInterchainSecurityModule(
         'citrea',
@@ -422,7 +419,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }] },
+        { citrea: [{ bridge: tbda.ethereum }] },
       ),
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -441,7 +438,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
-        { [String(getDomainId('citrea'))]: [{ bridge: tbda.polygon }] },
+        { citrea: [{ bridge: tbda.polygon }] },
       ),
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(

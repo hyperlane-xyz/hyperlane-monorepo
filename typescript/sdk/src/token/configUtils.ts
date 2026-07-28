@@ -315,6 +315,29 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.destinationGas = formattedDestinationGas;
 
+      // allowedRebalancingBridges keys accept either a chain name or a domain
+      // id (RemoteRouterDomainOrChainNameSchema). The on-chain reader emits
+      // domain-id keys, so canonicalize to domain ids here — as we do for
+      // remoteRouters/destinationGas — so a name-keyed source config does not
+      // read as drift against on-chain state.
+      if (
+        isMovableCollateralTokenConfig(chainConfig) &&
+        chainConfig.allowedRebalancingBridges
+      ) {
+        chainConfig.allowedRebalancingBridges = Object.fromEntries(
+          Object.entries(chainConfig.allowedRebalancingBridges).map(
+            ([domainOrChain, bridges]) => [
+              // Fall back to the original key for domains the MultiProvider
+              // does not know, preserving prior behavior rather than erroring
+              // the whole route check.
+              multiProvider.tryGetDomainId(domainOrChain)?.toString() ??
+                domainOrChain,
+              bridges,
+            ],
+          ),
+        );
+      }
+
       const protocol = multiProvider.getProtocol(chain);
       const isEVMChain = isEVMLike(protocol);
 

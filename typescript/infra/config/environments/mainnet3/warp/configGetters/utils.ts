@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getDomainId, getRegistry } from '../../../../registry.js';
+import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
@@ -80,7 +80,7 @@ export function getUSDCRebalancingBridgesConfigFor(
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => [String(getDomainId(remoteChain)), bridges]),
+          .map((remoteChain) => [remoteChain, bridges]),
       );
 
       return {
@@ -175,7 +175,7 @@ export function getRebalancingBridgesConfigFor(
                 assert(bridge, `No bridge found for chain ${currentChain}`);
                 return { bridge };
               });
-            return [String(getDomainId(remoteChain)), bridges] as const;
+            return [remoteChain, bridges] as const;
           })
           .filter(([, bridges]) => bridges.length > 0),
       );
