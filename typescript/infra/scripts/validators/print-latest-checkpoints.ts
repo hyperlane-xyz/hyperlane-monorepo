@@ -17,7 +17,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getChainAddresses } from '../../config/registry.js';
 import { Role } from '../../src/roles.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
-import { getArgs, withChainsRequired } from '../agent-utils.js';
+import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
@@ -27,20 +27,28 @@ async function main() {
     chains,
     all = false,
     validator,
-  } = await withChainsRequired(getArgs())
+    alias: aliasFilter,
+  } = await withChains(getArgs())
     .describe('all', 'all validators, including non-default ISM')
     .boolean('all')
     .alias('a', 'all')
     .describe('validator', 'specific validator address to check')
     .string('validator')
-    .alias('v', 'validator').argv;
+    .alias('v', 'validator')
+    .describe(
+      'alias',
+      'filter to validators whose default ISM alias matches this string (case-insensitive substring match, e.g. "Abacus Works")',
+    )
+    .string('alias').argv;
 
-  if (chains.length === 0) {
-    rootLogger.error('Must provide at least one chain');
-    process.exit(1);
-  }
+  // Get multiprovider for target networks
+  const envConfig = getEnvironmentConfig(environment);
 
-  const targetNetworks = chains.filter((chain) => {
+  // Default to every chain in the environment when --chains is omitted
+  const requestedChains =
+    chains && chains.length > 0 ? chains : envConfig.supportedChainNames;
+
+  const targetNetworks = requestedChains.filter((chain) => {
     const isEthereum = isEthereumProtocolChain(chain);
     if (!isEthereum) {
       rootLogger.info(`Skipping non-Ethereum chain: ${chain}`);
@@ -67,8 +75,6 @@ async function main() {
     ),
   );
 
-  // Get multiprovider for target networks
-  const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
@@ -78,17 +84,25 @@ async function main() {
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
-      const validatorAnnounce = ValidatorAnnounce__factory.connect(
-        chainAddresses[chain]['validatorAnnounce'],
-        multiProvider.getProvider(chain),
-      );
-
-      const announcedValidators =
-        await validatorAnnounce.getAnnouncedValidators();
-      const storageLocations =
-        await validatorAnnounce.getAnnouncedStorageLocations(
-          announcedValidators,
+      let announcedValidators: Address[];
+      let storageLocations: string[][];
+      try {
+        const validatorAnnounce = ValidatorAnnounce__factory.connect(
+          chainAddresses[chain]['validatorAnnounce'],
+          multiProvider.getProvider(chain),
         );
+
+        announcedValidators = await validatorAnnounce.getAnnouncedValidators();
+        storageLocations =
+          await validatorAnnounce.getAnnouncedStorageLocations(
+            announcedValidators,
+          );
+      } catch (error) {
+        rootLogger.error(
+          `Error fetching announced validators for chain ${chain}: ${error}`,
+        );
+        return;
+      }
 
       const defaultIsmValidators =
         defaultMultisigConfigs[chain]?.validators || [];
@@ -110,11 +124,21 @@ async function main() {
           continue;
         }
 
-        // Skip validators not in default ISM unless --all flag is set or specific validator is provided
         // If it's not a core chain, then we'll want to check all announced validators
         const isDefaultIsmValidator =
           findDefaultValidatorAlias(validatorAddress);
-        if (
+
+        if (aliasFilter) {
+          // --alias takes precedence: only keep validators whose alias matches
+          if (
+            !isDefaultIsmValidator
+              .toLowerCase()
+              .includes(aliasFilter.toLowerCase())
+          ) {
+            continue;
+          }
+        } else if (
+          // Skip validators not in default ISM unless --all flag is set or specific validator is provided
           defaultIsmValidators.length > 0 &&
           !isDefaultIsmValidator &&
           !all &&
