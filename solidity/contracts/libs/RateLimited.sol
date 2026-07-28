@@ -178,6 +178,12 @@ contract RateLimited is OwnableUpgradeable {
         uint256 _consumedAmount
     ) internal returns (uint256) {
         uint256 adjustedFilledLevel = calculateCurrentLevel();
+        // Heal tracked debt by the elapsed refill, mirroring `_consume` and
+        // `_credit`. Read the debt-adjusted level before settling so the refill
+        // is not counted twice; without this a debt-carrying subclass would
+        // subtract its debt once into the stored level and again on the next
+        // read.
+        _RateLimited_settleDebt(calculateRefilledAmount());
         require(_consumedAmount <= adjustedFilledLevel, "RateLimitExceeded");
 
         // Reduce the filledLevel and update lastUpdated

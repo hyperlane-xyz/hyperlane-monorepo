@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
 contract TestRateLimited is RateLimited {
@@ -60,6 +61,84 @@ contract DynamicRateLimited is RateLimited {
 
     function credit(uint256 _amount) external returns (uint256) {
         return _credit(_amount);
+    }
+
+    function softConsume(uint256 _amount) external returns (uint256) {
+        return _consume(_amount);
+    }
+}
+
+/// @dev A dynamic-capacity bucket that also carries `debt`, mirroring
+/// `DelayedFlowRouterHookIsm`'s four debt hooks. Stands in for a debt-carrying
+/// subclass so the debt path can be driven through the reject-mode
+/// `_validateAndConsumeFilledLevel` entrypoint — which must settle debt on
+/// every touch, exactly like `_consume`/`_credit`.
+contract DebtRateLimited is RateLimited {
+    uint256 private _capacity;
+    bool private _initialized;
+    uint256 public debt;
+
+    constructor() RateLimited(0, 1 days) {}
+
+    function setCapacity(uint256 _c) external {
+        _capacity = _c;
+    }
+
+    function maxCapacity() public view override returns (uint256) {
+        return _capacity;
+    }
+
+    function _RateLimited_isInitialized()
+        internal
+        view
+        override
+        returns (bool)
+    {
+        return _initialized;
+    }
+
+    function _RateLimited_initialize() internal override {
+        _initialized = true;
+    }
+
+    function _RateLimited_adjustLevel(
+        uint256 _replenishedLevel
+    ) internal view override returns (uint256) {
+        return _replenishedLevel > debt ? _replenishedLevel - debt : 0;
+    }
+
+    function _RateLimited_settleDebt(uint256 _refill) internal override {
+        if (debt != 0) {
+            debt = _refill >= debt ? 0 : debt - _refill;
+        }
+    }
+
+    function _RateLimited_recordDeficit(
+        uint256 _overage,
+        uint256 _cap
+    ) internal override returns (uint256) {
+        debt += _overage;
+        return
+            _cap == 0 ? type(uint256).max : Math.mulDiv(debt, DURATION, _cap);
+    }
+
+    function _RateLimited_applyCredit(
+        uint256 _amount
+    ) internal override returns (uint256) {
+        if (debt == 0) {
+            return _amount;
+        }
+        if (_amount >= debt) {
+            uint256 remainder = _amount - debt;
+            debt = 0;
+            return remainder;
+        }
+        debt -= _amount;
+        return 0;
+    }
+
+    function consume(uint256 _amount) external returns (uint256) {
+        return _validateAndConsumeFilledLevel(_amount);
     }
 
     function softConsume(uint256 _amount) external returns (uint256) {
@@ -356,5 +435,39 @@ contract RateLimitBehaviorTest is Test {
         // Overage of 50 ether against a 100 ether/day rate ⇒ half a day.
         assertEq(bucket.softConsume(150 ether), 12 hours);
         assertEq(bucket.filledLevel(), 0);
+    }
+}
+
+/// @dev Regression for the HL-2026Q3-001 follow-up: the reject-mode
+/// `_validateAndConsumeFilledLevel` must heal tracked debt by the elapsed
+/// refill, exactly like `_consume`/`_credit`. Without the settle, a
+/// debt-carrying subclass double-counts its debt (once folded into the stored
+/// level, once re-applied on the next read) and never heals on the reject path.
+contract RateLimitDebtSettlementTest is Test {
+    DebtRateLimited bucket;
+    uint256 constant CAP = 100 ether;
+
+    function setUp() public {
+        bucket = new DebtRateLimited();
+        bucket.setCapacity(CAP);
+    }
+
+    function test_validateAndConsume_settlesDebtByRefill() public {
+        // Build 20 ether of debt via an over-limit soft consume.
+        bucket.softConsume(120 ether);
+        assertEq(bucket.debt(), 20 ether);
+
+        // Half a window refills 50 ether; level = 50 refill − 20 debt = 30.
+        vm.warp(block.timestamp + 12 hours);
+
+        // Reject-path consume of the full available level heals the debt.
+        bucket.consume(30 ether);
+
+        assertEq(bucket.debt(), 0);
+
+        // Debt healed → the bucket refills unobstructed on the next window.
+        vm.warp(block.timestamp + 12 hours);
+
+        assertEq(bucket.calculateCurrentLevel(), 50 ether);
     }
 }
