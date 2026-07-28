@@ -19,6 +19,9 @@ import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const contractVersion = '11.1.0';
 
+// Hyperlane quote signer authorized to sign offchain standing fee quotes.
+const QUOTE_SIGNER = '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d';
+
 const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
   ethereum: { name: 'Tether USD', symbol: 'USDT' },
   tron: { name: 'Tether USD', symbol: 'USDT' },
@@ -128,11 +131,14 @@ export interface EclipseUSDTWarpConfigOptions {
     solanamainnet: string;
   };
   proxyAdmins: ChainMap<{ address?: string; owner: string }>;
+  /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
+  quoteSigners?: string[];
 }
 
 const getBaseEvmConfig = (
   chain: DeploymentChain,
   proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+  quoteSigners?: string[],
 ) => {
   const proxyAdmin = proxyAdmins[chain];
   assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
@@ -141,6 +147,8 @@ const getBaseEvmConfig = (
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
   const destinationFeeBps = feeBps[chain];
   assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
+  // Tron OQLF quote signing is not wired up; keep tron source legs on LinearFee.
+  const chainQuoteSigners = chain === 'tron' ? undefined : quoteSigners;
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
@@ -150,6 +158,8 @@ const getBaseEvmConfig = (
       getWarpFeeOwner(chain),
       destinations,
       destinationFeeBps,
+      undefined,
+      chainQuoteSigners,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
@@ -159,7 +169,7 @@ export const buildEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDTWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, proxyAdmins } = options;
+  const { ownersByChain, programIds, proxyAdmins, quoteSigners } = options;
 
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -180,7 +190,7 @@ export const buildEclipseUSDTWarpConfig = async (
     );
     configs.push([
       chain,
-      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins) },
+      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners) },
     ]);
   }
 
@@ -192,7 +202,7 @@ export const buildEclipseUSDTWarpConfig = async (
     configs.push([
       chain,
       {
-        ...getBaseEvmConfig(chain, proxyAdmins),
+        ...getBaseEvmConfig(chain, proxyAdmins, quoteSigners),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
@@ -241,6 +251,7 @@ export const getEclipseUSDTWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies

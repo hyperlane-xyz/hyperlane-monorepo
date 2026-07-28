@@ -48,6 +48,9 @@ type DeploymentChains<T> = {
 
 export type DeploymentChain = keyof DeploymentChains<unknown>;
 
+// Hyperlane quote signer authorized to sign offchain standing fee quotes.
+const QUOTE_SIGNER = '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d';
+
 /**
  * Eclipse USDC Warp Route
  *
@@ -376,6 +379,7 @@ export const getEclipseUSDCWarpConfig = async (
       name: 'USD Coin',
       symbol: 'USDC',
     },
+    quoteSigners: [QUOTE_SIGNER],
   });
 
 // Strategies
