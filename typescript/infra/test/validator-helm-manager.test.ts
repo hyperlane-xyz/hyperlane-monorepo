@@ -17,6 +17,11 @@ describe('ValidatorHelmManager', () => {
       context: Contexts.FastPath,
       rolesWithKeys: [Role.Validator],
       environmentChainNames: ['sepolia'],
+      indexOverrides: {
+        sepolia: {
+          chunk: 999,
+        },
+      },
       contextChainNames: {
         [Role.Validator]: ['sepolia'],
         [Role.Relayer]: [],
@@ -55,6 +60,7 @@ describe('ValidatorHelmManager', () => {
     expect(values.hyperlane.chains[0].blocks?.reorgPeriod).to.equal(1);
     // Set from the validator's own chain config, independent of any relayer config
     // (there is none in this RootAgentConfig).
+    expect(values.hyperlane.chains[0].index?.chunk).to.equal(999);
     expect(values.hyperlane.chains[0].index?.interval).to.equal(1);
     expect(values.hyperlane.validator?.configs).to.have.lengthOf(1);
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);

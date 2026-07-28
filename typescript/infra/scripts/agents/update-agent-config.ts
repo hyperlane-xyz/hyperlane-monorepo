@@ -28,6 +28,7 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import {
+  agentIndexOverrides,
   agentSpecificChainMetadataOverrides,
   chainMetadataOverrides as mainnet3ChainMetadataOverrides,
 } from '../../config/environments/mainnet3/chains.js';
@@ -134,12 +135,17 @@ export async function writeAgentConfig(
         if (agentSpecificOverrides && registry) {
           const chainMetadata = await registry.getChainMetadata(chain);
           assert(chainMetadata, `Chain metadata not found for chain ${chain}`);
-          // Only care about blocks and transactionOverrides from the agent-specific overrides
+          // Only care about agent-consumed metadata from the agent-specific overrides
           const { blocks, transactionOverrides } = objMerge(
             chainMetadata,
             agentSpecificOverrides,
           );
           config = objMerge(config, { blocks, transactionOverrides });
+        }
+
+        const index = agentIndexOverrides[chain];
+        if (index) {
+          config = objMerge(config, { index });
         }
 
         return [chain, config];

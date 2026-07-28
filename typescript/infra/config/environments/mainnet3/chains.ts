@@ -1,5 +1,10 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentChainMetadata,
+  ChainMap,
+  ChainMetadata,
+  ChainName,
+} from '@hyperlane-xyz/sdk';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -11,6 +16,15 @@ export const environment = 'mainnet3';
 export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
+
+export const agentIndexOverrides: ChainMap<
+  Partial<NonNullable<AgentChainMetadata['index']>>
+> = {
+  bsquared: {
+    // All configured RPCs reject eth_getLogs ranges of 1,000 blocks.
+    chunk: 999,
+  },
+};
 
 // Agent specific chain metadata overrides
 // Such as minGasPrice, minFeePerGas, minPriorityFeePerGas
