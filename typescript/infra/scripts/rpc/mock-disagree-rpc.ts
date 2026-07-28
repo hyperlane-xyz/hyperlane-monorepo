@@ -81,7 +81,8 @@ function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as { method?: unknown }).method === 'string'
+    'method' in value &&
+    typeof value.method === 'string'
   );
 }
 
