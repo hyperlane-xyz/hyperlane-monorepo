@@ -1148,9 +1148,9 @@ export const validatorChainConfig = (
   };
 
   // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for
-  // every EVM chain's AW (Hyperlane context) validator. Scoped to Hyperlane
-  // only -- ReleaseCandidate/FastPath/Neutron validator sets are unaffected.
-  if (context !== Contexts.Hyperlane) {
+  // every EVM chain's Hyperlane and FastPath validators. ReleaseCandidate/Neutron
+  // validator sets are unaffected.
+  if (context !== Contexts.Hyperlane && context !== Contexts.FastPath) {
     return configs;
   }
   return objMap(configs, (chain, config) =>
