@@ -142,14 +142,25 @@ export type ValidatorMetadataRpcEntry = {
 
 export type ValidatorMetadata = {
   git_sha: string;
-  /** Unchanged wire shape (a flat array of URL hash strings) for backwards
-   * compatibility with already-deployed validators and unversioned metadata
-   * blobs. */
-  rpcs?: string[];
+  /** Current validators (agents-v1.6.0+) publish `{ url_hash, host_hash }`
+   * entries; pre-v1.6.0 validators published a flat array of URL hash
+   * strings. Metadata blobs are unversioned, so a rolling fleet or
+   * historical blob can be in either shape -- narrow before use, e.g. via
+   * `validatorMetadataRpcUrlHash`. */
+  rpcs?: Array<string | ValidatorMetadataRpcEntry>;
   /** The `quorumRpcUrls` set, reported separately from `rpcs`. */
   quorum_rpcs?: ValidatorMetadataRpcEntry[];
   allows_public_rpcs?: boolean;
 };
+
+/** The URL hash of a `ValidatorMetadata.rpcs` entry, regardless of which of the
+ * two historical wire shapes (bare hash string, or `{ url_hash, host_hash }`)
+ * it was serialized in. */
+export function validatorMetadataRpcUrlHash(
+  entry: string | ValidatorMetadataRpcEntry,
+): string {
+  return typeof entry === 'string' ? entry : entry.url_hash;
+}
 
 export type ReorgEvent = {
   /** the merkle root built from this agent's indexed events */

@@ -236,6 +236,7 @@ export {
   ValidatorMetadata,
   ValidatorMetadataRpcEntry,
   WithAddress,
+  validatorMetadataRpcUrlHash,
 } from './types.js';
 export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
