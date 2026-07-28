@@ -1,6 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TronReceipt, TronTransaction } from '../utils/types.js';
@@ -12,20 +13,21 @@ export class TronSigner
   implements AltVM.ISigner<TronTransaction, TronReceipt>
 {
   static async connectWithSigner(
-    rpcUrls: string[],
+    metadata: ChainMetadataForAltVM,
     privateKey: string,
-    extraParams?: Record<string, any>,
   ): Promise<TronSigner> {
-    assert(extraParams, `extra params not defined`);
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
 
-    const metadata = extraParams.metadata as Record<string, unknown>;
-    assert(metadata, `metadata not defined in extra params`);
-
-    return new TronSigner(rpcUrls, privateKey);
+    return new TronSigner(rpcUrls, metadata, privateKey);
   }
 
-  protected constructor(rpcUrls: string[], privateKey: string) {
-    super(rpcUrls, privateKey);
+  protected constructor(
+    rpcUrls: string[],
+    chainMetadata: ChainMetadataForAltVM,
+    privateKey: string,
+  ) {
+    super(rpcUrls, chainMetadata, privateKey);
   }
 
   getSignerAddress(): string {

@@ -13,9 +13,7 @@ import {
 export function createProvider(
   metadata: TestChainMetadata = TEST_STARKNET_CHAIN_METADATA,
 ): StarknetProvider {
-  const rpcUrls = metadata.rpcUrls?.map(({ http }) => http) ?? [];
-  assert(rpcUrls.length > 0, 'Expected Starknet rpc urls to be defined');
-  return StarknetProvider.connect(rpcUrls, metadata.chainId, { metadata });
+  return StarknetProvider.connect(metadata);
 }
 
 export async function createSigner(
@@ -23,10 +21,7 @@ export async function createSigner(
   accountAddress: string = TEST_STARKNET_ACCOUNT_ADDRESS,
   metadata: TestChainMetadata = TEST_STARKNET_CHAIN_METADATA,
 ): Promise<StarknetSigner> {
-  const rpcUrls = metadata.rpcUrls?.map(({ http }) => http) ?? [];
-  assert(rpcUrls.length > 0, 'Expected Starknet rpc urls to be defined');
-  const signer = await StarknetSigner.connectWithSigner(rpcUrls, privateKey, {
-    metadata,
+  const signer = await StarknetSigner.connectWithSigner(metadata, privateKey, {
     accountAddress,
   });
   assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');

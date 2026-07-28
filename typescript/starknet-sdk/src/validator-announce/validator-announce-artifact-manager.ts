@@ -191,11 +191,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
   private readonly provider: StarknetProvider;
 
   constructor(chainMetadata: ChainMetadataForAltVM) {
-    this.provider = StarknetProvider.connect(
-      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
-      chainMetadata.chainId,
-      { metadata: chainMetadata },
-    );
+    this.provider = StarknetProvider.connect(chainMetadata);
   }
 
   private requireStarknetSigner(

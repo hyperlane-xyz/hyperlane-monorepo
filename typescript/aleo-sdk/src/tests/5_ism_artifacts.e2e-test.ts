@@ -21,6 +21,7 @@ import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { TEST_ALEO_CHAIN_METADATA } from '../testing/constants.js';
 
 chai.use(chaiAsPromised);
 
@@ -39,16 +40,14 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
   ].sort();
 
   before(async () => {
-    const localnetRpc = 'http://localhost:3030';
     // test private key with funds
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
-    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
-      metadata: {
-        chainId: 1,
-      },
-    });
+    signer = await AleoSigner.connectWithSigner(
+      TEST_ALEO_CHAIN_METADATA,
+      privateKey,
+    );
 
     providerSdkSigner = signer;
 

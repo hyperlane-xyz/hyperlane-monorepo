@@ -50,7 +50,10 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
   before(async function () {
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
     const rpc = createRpc(rpcUrl);
-    signer = await SealevelSigner.connectWithSigner([rpcUrl], SVM_KEY);
+    signer = await SealevelSigner.connectWithSigner(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      SVM_KEY,
+    );
 
     await airdropSol(rpc, signer.getSignerAddress(), 50_000_000_000n);
 

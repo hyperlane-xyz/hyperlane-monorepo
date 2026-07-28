@@ -5,6 +5,7 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { Annotated } from '@hyperlane-xyz/utils';
 
 export interface RadixSDKTransaction {
@@ -40,6 +41,7 @@ export interface RadixSDKOptions {
   rpcUrls: string[];
   gatewayUrls?: string[];
   packageAddress?: string;
+  chainMetadata: ChainMetadataForAltVM;
 }
 
 export interface MultisigIsmReq {
