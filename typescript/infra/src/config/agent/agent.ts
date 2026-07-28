@@ -79,8 +79,6 @@ interface AgentEnvConfig {
   runEnv: DeployEnvironment;
   // Names of all chains in the environment
   environmentChainNames: ChainName[];
-  // Agent-only per-chain indexing overrides.
-  indexOverrides?: ChainMap<Partial<NonNullable<AgentChainMetadata['index']>>>;
 }
 
 export interface AgentContextConfig extends AgentEnvConfig {

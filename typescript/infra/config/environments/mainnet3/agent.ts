@@ -44,11 +44,7 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
-import {
-  agentIndexOverrides,
-  environment,
-  ethereumChainNames,
-} from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import fastpathTestRecipients from './fastpath/test-recipients.json' with { type: 'json' };
@@ -458,7 +454,6 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
-  indexOverrides: agentIndexOverrides,
   aws: {
     region: 'us-east-1',
   },

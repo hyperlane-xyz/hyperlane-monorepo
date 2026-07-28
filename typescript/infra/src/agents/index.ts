@@ -126,12 +126,6 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           }
 
           const batchConfig = this.batchConfig(chain);
-          const index = {
-            ...this.config.rawConfig.indexOverrides?.[chain],
-            ...(this.config.rawConfig.relayer?.interval != null
-              ? { interval: this.config.rawConfig.relayer.interval }
-              : {}),
-          };
 
           return {
             name: chain,
@@ -145,7 +139,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
                   maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
                 }
               : {}),
-            ...(Object.keys(index).length > 0 ? { index } : {}),
+            ...(this.config.rawConfig.relayer?.interval != null
+              ? { index: { interval: this.config.rawConfig.relayer.interval } }
+              : {}),
             priorityFeeOracle,
             transactionSubmitter,
             urReveal,
