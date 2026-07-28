@@ -20,13 +20,13 @@ import {
   formatAddress,
   fromAleoAddress,
   generateSuffix,
-  getAddressFromProgramIdWithSdk,
-  getBalanceKeyWithSdk,
+  getAddressFromProgramId,
+  getBalanceKey,
   getProgramIdFromSuffix,
   getProgramSuffix,
   isArc20ProgramId,
   isV2WarpToken,
-  toAleoAddressWithSdk,
+  toAleoAddress,
 } from '../utils/helper.js';
 import type { AleoSdk } from '../utils/provable.js';
 import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
@@ -34,7 +34,7 @@ import {
   callViewFunction,
   getArc20ProgramId,
   getArc20TokenMetadata,
-  getRemoteRoutersWithSdk,
+  getRemoteRouters,
   parseAleoUint,
 } from '../warp/provider-query.js';
 
@@ -146,7 +146,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        getBalanceKeyWithSdk(this.sdk, aleoAddress, req.denom),
+        getBalanceKey(this.sdk, aleoAddress, req.denom),
       );
 
       if (!result) {
@@ -323,7 +323,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxProgramId,
       `could not find mailbox program id on token ${req.tokenAddress}`,
     );
-    token.mailboxAddress = toAleoAddressWithSdk(this.sdk, mailboxProgramId);
+    token.mailboxAddress = toAleoAddress(this.sdk, mailboxProgramId);
 
     const tokenMetadata = await this.queryMappingValue(
       programId,
@@ -381,7 +381,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteRouters(
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
-    const remoteRouters = await getRemoteRoutersWithSdk(
+    const remoteRouters = await getRemoteRouters(
       this.sdk,
       this.aleoClient,
       req.tokenAddress,
@@ -413,7 +413,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     switch (metadata['token_type']) {
       case AleoTokenType.NATIVE: {
         return this.getBalance({
-          address: getAddressFromProgramIdWithSdk(this.sdk, programId),
+          address: getAddressFromProgramId(this.sdk, programId),
           denom: '',
         });
       }
@@ -425,7 +425,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
-          address: getAddressFromProgramIdWithSdk(this.sdk, programId),
+          address: getAddressFromProgramId(this.sdk, programId),
           denom: arc20ProgramId ?? metadata['token_id'],
         });
       }

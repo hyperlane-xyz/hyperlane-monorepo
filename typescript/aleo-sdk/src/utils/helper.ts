@@ -52,15 +52,15 @@ export function programIdToPlaintext(programId: string): string {
   return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
 }
 
-export function getAddressFromProgramIdWithSdk(
+export function getAddressFromProgramId(
   sdk: AleoSdk,
   programId: string,
 ): string {
   return sdk.Plaintext.fromString(programId).toString();
 }
 
-export function toAleoAddressWithSdk(sdk: AleoSdk, programId: string): string {
-  return `${programId}/${getAddressFromProgramIdWithSdk(sdk, programId)}`;
+export function toAleoAddress(sdk: AleoSdk, programId: string): string {
+  return `${programId}/${getAddressFromProgramId(sdk, programId)}`;
 }
 
 export function fromAleoAddress(aleoAddress: string): {
@@ -229,7 +229,7 @@ export function u128PairToBytes32(u128PairStr: string): string {
   return toHexString(Buffer.from(bytes));
 }
 
-export function getBalanceKeyWithSdk(
+export function getBalanceKey(
   sdk: AleoSdk,
   address: string,
   denom: string,
@@ -272,7 +272,7 @@ function programIdToBitsLe(programId: string): boolean[] {
 // Matches the Rust `to_key_id` in hyperlane-aleo/src/utils.rs:
 //   BHP1024(programId_bits | false | mappingName_bits | false | plaintextKey_bits)
 // key must be a valid Aleo plaintext string, e.g. "0u32".
-export function toKeyIdWithSdk(
+export function toKeyId(
   sdk: AleoSdk,
   programId: string,
   mappingName: string,

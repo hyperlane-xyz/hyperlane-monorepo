@@ -22,11 +22,7 @@ import {
   type AleoSyntheticWarpTokenConfig,
   AleoTokenType,
 } from '../utils/types.js';
-import {
-  getArc20ProgramId,
-  getArc20TokenMetadata,
-  getRemoteRoutersWithSdk,
-} from './provider-query.js';
+import * as providerQuery from './provider-query.js';
 
 export {
   callViewFunction,
@@ -167,7 +163,11 @@ export async function getRemoteRouters(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
 ): Promise<Record<number, { address: string; gas: string }>> {
-  return getRemoteRoutersWithSdk({ Plaintext }, aleoClient, tokenAddress);
+  return providerQuery.getRemoteRouters(
+    { Plaintext },
+    aleoClient,
+    tokenAddress,
+  );
 }
 
 /**
@@ -390,8 +390,11 @@ async function resolveTokenMetadata(
   tokenId: string,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
   if (isV2WarpToken(programId)) {
-    const arc20ProgramId = await getArc20ProgramId(aleoClient, programId);
-    return getArc20TokenMetadata(aleoClient, arc20ProgramId);
+    const arc20ProgramId = await providerQuery.getArc20ProgramId(
+      aleoClient,
+      programId,
+    );
+    return providerQuery.getArc20TokenMetadata(aleoClient, arc20ProgramId);
   }
   return getTokenMetadata(aleoClient, tokenId);
 }

@@ -99,7 +99,7 @@ export async function getArc20TokenMetadata(
 }
 
 /** Queries a warp token's remote routers with the selected network runtime. */
-export async function getRemoteRoutersWithSdk(
+export async function getRemoteRouters(
   sdk: AleoPlaintextRuntime,
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,

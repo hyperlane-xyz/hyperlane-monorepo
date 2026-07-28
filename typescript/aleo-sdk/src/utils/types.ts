@@ -7,13 +7,9 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { type RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { type Annotated, assert } from '@hyperlane-xyz/utils';
 
-import {
-  AleoNetworkId as AleoNetworkIds,
-  type AleoNetworkId as AleoNetworkIdValue,
-} from '../constants.js';
+import { AleoNetworkId } from '../constants.js';
 
-export const AleoNetworkId = AleoNetworkIds;
-export type AleoNetworkId = AleoNetworkIdValue;
+export { AleoNetworkId };
 
 export interface AleoTransaction extends ExecuteOptions {}
 export type AnnotatedAleoTransaction = Annotated<AleoTransaction>;
@@ -45,8 +41,8 @@ export enum AleoIsmType {
 
 export function toAleoNetworkId(chainId: number): AleoNetworkId {
   assert(
-    chainId === AleoNetworkIds.MAINNET || chainId === AleoNetworkIds.TESTNET,
-    `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkIds.MAINNET} or ${AleoNetworkIds.TESTNET} allowed`,
+    chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+    `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
   );
   return chainId;
 }

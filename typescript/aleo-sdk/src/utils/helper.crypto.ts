@@ -1,17 +1,13 @@
 import * as mainnetSdk from '@provablehq/sdk/mainnet.js';
 
-import {
-  getAddressFromProgramIdWithSdk,
-  toAleoAddressWithSdk,
-  toKeyIdWithSdk,
-} from './helper.js';
+import * as helper from './helper.js';
 
 export function getAddressFromProgramId(programId: string): string {
-  return getAddressFromProgramIdWithSdk(mainnetSdk, programId);
+  return helper.getAddressFromProgramId(mainnetSdk, programId);
 }
 
 export function toAleoAddress(programId: string): string {
-  return toAleoAddressWithSdk(mainnetSdk, programId);
+  return helper.toAleoAddress(mainnetSdk, programId);
 }
 
 export function toKeyId(
@@ -19,5 +15,5 @@ export function toKeyId(
   mappingName: string,
   key: string,
 ): string {
-  return toKeyIdWithSdk(mainnetSdk, programId, mappingName, key);
+  return helper.toKeyId(mainnetSdk, programId, mappingName, key);
 }

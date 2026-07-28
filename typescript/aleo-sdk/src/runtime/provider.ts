@@ -3,11 +3,7 @@ import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { AleoProvider as RuntimeAleoProvider } from '../clients/provider.js';
 import type { AleoSdk } from '../utils/provable.js';
-import {
-  AleoNetworkId,
-  type AleoNetworkId as AleoNetworkIdValue,
-  toAleoNetworkId,
-} from '../utils/types.js';
+import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
 
 export interface AleoProviderConstructor {
   new (
@@ -20,7 +16,7 @@ export interface AleoProviderConstructor {
 
 export function createAleoProviderClass(
   sdk: AleoSdk,
-  expectedNetwork: AleoNetworkIdValue,
+  expectedNetwork: AleoNetworkId,
 ): AleoProviderConstructor {
   const runtimeName =
     expectedNetwork === AleoNetworkId.MAINNET ? 'Mainnet' : 'Testnet';
