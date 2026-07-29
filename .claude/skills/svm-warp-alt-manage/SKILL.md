@@ -34,7 +34,7 @@ All commands run from `typescript/cli` and require `--warp-route-id`. `--chain` 
 ```bash
 cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp alt create \
   --registry http://localhost:<port> \
-  --key.sealevel $<SEALEVEL_KEY_VAR> \
+  --key.sealevel "$SEALEVEL_KEY_VAR" \
   -w <WARP_ROUTE_ID> \
   [--chain <chain>]
 ```
@@ -55,7 +55,7 @@ cd <MONOREPO_ROOT>/typescript/cli && pnpm hyperlane warp alt check \
   [--chain <chain>]
 ```
 
-Compares on-chain ALT contents against the expected account set for the route. **Exits non-zero on drift** — treat a non-zero exit as "ALTs are stale, recreate them" (usually `create --force`). Report the specific diff to the user.
+Compares on-chain ALT contents against the expected account set for the route. **Exits non-zero on drift** — treat a non-zero exit as "ALTs are stale, recreate them". `check` reports `core` and `warpSpecific` drift **separately**, and the fix differs by bucket: recreate `warpSpecific` drift with `create --force` (reuses the shared core ALT); recreate `core` drift (including an unfrozen core) with `create --full-force`. Do NOT use `--force` for a core diff — it reuses the existing core, so the core stays broken and the next `check` still fails. Report the specific diff and its bucket to the user.
 
 ### read — dump ALT contents
 
@@ -71,14 +71,10 @@ Read-only. Prints (or writes) the current on-chain ALT addresses and their entri
 
 ## Execution Flow
 
-1. **Start the HTTP registry** (needed for private Sealevel RPC; `--writeMode` for `create`):
-   ```bash
-   cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-   ```
-   Run in background; wait for `Listening on http://localhost:<port>`; note port + task ID. (`/start-http-registry`.)
+1. **Start the HTTP registry** per `/start-http-registry` (needed for private Sealevel RPC; add `--writeMode` for `create`, omit for `check`/`read`). Note the port + task ID.
 2. **Run the requested subcommand** (`create` / `check` / `read`) against `--registry http://localhost:<port>`.
 3. For `create`: after success, confirm the registry warp config now has `options.sealevel.altAddresses.<chain>.{core,warpSpecific}` and follow with a `check` to prove no drift.
-4. **Stop the HTTP registry** background task, even on failure.
+4. **Stop the HTTP registry** per `/stop-http-registry`, even on failure.
 5. If `create` mutated the registry, open a registry PR with the updated warp config (the `altAddresses` block) so the ALT pointers are canonical.
 
 ## Caveats
@@ -86,5 +82,5 @@ Read-only. Prints (or writes) the current on-chain ALT addresses and their entri
 - **ALTs are frozen and unrecoverable.** Never assume you can reclaim rent or mutate a table. `--force`/`--full-force` intentionally abandon old frozen tables — only use them when the account set actually changed.
 - **Always create ALTs after any deploy/extend/upgrade** of an SVM route. Missing or stale ALTs are the usual cause of transaction-too-large failures on fee-enabled SVM transfers.
 - **`check` exit code is the signal** — non-zero = drift; don't ignore it. Recreate and re-check.
-- **Core vs warp-specific:** prefer `--force` (keeps the shared core ALT) over `--full-force` unless the core table itself is stale.
+- **Core vs warp-specific:** match the fix to the drift bucket `check` reports — `--force` for `warpSpecific` drift (keeps the shared core ALT), `--full-force` for `core` drift. A `--force` won't touch the core, so using it on a core diff leaves the check failing.
 - `create` needs write context and a funded `--key.sealevel`; `check`/`read` do not.

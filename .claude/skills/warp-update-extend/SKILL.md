@@ -1,39 +1,51 @@
 ---
-name: warp-deploy-extend-route
+name: warp-update-extend
 description: Add a new chain to an existing warp route owned by a customer. Reads a Linear ticket, adds the new chain to the deploy.yaml, builds a customer-specific strategy file for existing chains, runs warp apply, and outputs transaction files for the customer to sign via their multisig.
 ---
 
 # Warp Route Extension
 
-You are adding a new chain to an existing Hyperlane warp route. The route is owned by the customer (their Gnosis Safe on ethereum, ICAs on other chains). You will deploy the new chain contracts with a deployer key, and generate transaction files for existing chains that the customer must sign.
+You are adding a new chain to an existing Hyperlane warp route. Routes are commonly owned by the customer via a Gnosis Safe on ethereum with ICAs on the other EVM chains — but the owner set is open: a route may have no ethereum leg, or be owned by Squads (SVM), a Starknet account, a Cosmos multisig, etc. Don't assume the ethereum-Safe-plus-ICA model; resolve the actual owner per chain. You will deploy the new chain contracts with a deployer key, and generate transaction files for existing chains that the customer must sign.
+
+## Run Log (mandatory)
+
+Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update-extend` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+
+**Log at least:** (a) skill entry with the ticket ID + warp route ID + the new chain, (b) every `[CONFIRM:]` gate — before and after the response, (c) the new-chain contract deploy (deployed addresses + tx hashes), (d) the `warp apply` run for existing chains, (e) the emitted customer transaction-file paths (one per signer/chain), (f) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
 
 ## Input
 
 The user provides:
 
 - **Linear ticket URL or ID** (required, e.g. `ENG-3516`)
-- **Deployer address** (required — used to fund and sign new chain deployment transactions)
 
-If either is missing, ask now.
+If missing, ask now.
 
-**Multi-protocol note**: if the new chain is Sealevel, Cosmos, or Tron, ask for a separate deployer address for that protocol.
+### Key Context (Prerequisite)
+
+This skill runs `warp apply` to extend a warp route to a new chain. It needs a deployer key matching the new chain's protocol to sign the new-chain deployment txs. It auto-loads `~/.hyperlane/key-contexts/<ticket-id>.yaml` produced by `/warp-deploy-select-keys`. If the artifact does not exist, invoke `/warp-deploy-select-keys <ticket-id>` first.
+
+For each unique protocol touched by the extension (typically just the new chain's protocol, but `warp apply` may also need to sign on existing chains when re-applying their state), read `keys.<protocol>.name` and `keys.<protocol>.source` from the artifact. Expand `<KEY_<PROTOCOL>_VALUE>` placeholders in the commands below per the canonical key-value expansion legend in `/warp-key-value-expansion`.
+
+### Ownership model (read before Step 5/6)
+
+The deployer key plays TWO distinct roles in a chain extension; do not confuse them:
+
+1. **Deploy signer** — signs the deployment txs on the new chain (contract bytecode + initial proxy setup). The deployer transiently holds ownership during the deploy phase, for the lifespan of those few txs.
+2. **Initial-owner-transfer signer** — in the **same `warp apply` run**, signs the `transferOwnership(<customer-ICA-or-Safe>)` tx that moves the new contract's ownership to the customer's chosen owner. This is executed by the deployer's `jsonRpc` submitter atomically with the deploy.
+
+Implications for deploy.yaml:
+
+- The new chain's `owner` field in `deploy.yaml` is **always** the customer's ICA or Safe (per Step 5). It is **never** the deployer address.
+- The customer never signs anything on the new chain during the extension — the deployer signs deploy + transferOwnership for them. The customer only signs on existing chains (per the strategy file in Step 7).
+
+This is the opposite of the initial-deploy flow (`/warp-deploy-init-route`), where deploy.yaml carries the deployer as temporary owner and a separate `/warp-deploy-update-owners` run later transfers to the real owner. For extensions of routes already owned by a customer, the transfer happens atomically.
 
 ---
 
 ## Step 1: Fetch the Linear Ticket
 
-Extract the issue ID (e.g. `ENG-3516`) and query:
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $LINEAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
-```
-
-**If `LINEAR_API_KEY` is not set or returns 401:** Stop and tell the user to export it and restart.
-
-Show the ticket title and description.
+Fetch the ticket per `/fetch-linear-ticket`, then read the new-chain extension details from the returned description.
 
 ---
 
@@ -102,6 +114,8 @@ This applies to: token address, mailbox address, owner address — anything goin
 The new chain's contract must be owned by the customer from the start — **never use the deployer address as owner**. Match the customer's existing ownership structure.
 
 **Case A — Customer uses ICAs on non-ethereum chains (most common):**
+
+**This ICA path is for an EVM (or Tron) new chain.** `get-owner-ica.ts` filters to Ethereum-protocol chains and **silently drops** Sealevel/Cosmos/Starknet/etc. — if the new chain is non-EVM, it returns no address with no error. For a non-EVM new chain, take the owner from the ticket's native owner (e.g. a Squads multisig on SVM), not from this script; do not proceed on an empty ICA result.
 
 The new chain needs an ICA owned by the customer's ethereum Safe. Run without `--deploy` first to compute the address deterministically, confirm it looks right, then re-run with `--deploy` to create it on-chain (ICAs are permissionless — anyone can deploy one):
 
@@ -187,13 +201,15 @@ tron:
 **Rules:**
 
 - **Only append the new chain — do NOT modify any existing chain entries**
-- Chains in alphabetical order
+- **Alphabetical sort, both levels** per `/registry-yaml-sort-policy` — that skill carries the canonical `deploy.yaml` key order. Insert the new chain at its alphabetical position among the top-level entries (do NOT append at the top or bottom), and keep the keys within the new entry alphabetical (re-sort the inline template above if you edit it). CI blocks unsorted PRs.
 - Copy `decimals`, `name`, `symbol` from existing entries
 - `owner` is always the customer's ICA or Safe address from Step 5 — never the deployer
 
-Write the updated deploy.yaml back to the registry. Show the user the diff (new chain entry only).
+Write the updated deploy.yaml back to the registry. Show the user the diff (new chain entry only), then end your message with this marker (this MUST be the very last thing in your message):
 
-Ask: **"Does this deploy.yaml look correct? Type `yes` to proceed, or describe changes needed."**
+```test
+[CONFIRM: Proceed with deploy.yaml extension for <new-chain>]
+```
 
 Do not proceed until confirmed.
 
@@ -293,20 +309,15 @@ solanamainnet:
 
 ### If the new chain is also ICA-owned:
 
-If in Step 5 we deployed a new ICA for the customer on the new chain, we should still NOT include the new chain in the strategy (the new chain's contracts don't exist yet — `warp apply` will deploy them with our key). After deployment, we'll separately need to transfer ownership if we used the deployer as temp owner.
+If in Step 5 we deployed a new ICA for the customer on the new chain, still do NOT include the new chain in the strategy. The new chain's contracts don't exist yet — `warp apply` deploys them with the deployer key and atomically transfers ownership to the customer's ICA in the same run (per the Ownership model section at the top of this skill). No separate post-deploy ownership-transfer pass is needed.
 
 Write the strategy file.
 
 ---
 
-## Step 8: Ask for Key Environment Variables
+## Step 8: Load Keys from the Key-Context Artifact
 
-Ask the user:
-
-> **What environment variable holds your deployer private key for new chain deployment?**
-> (e.g. `PK_EVM`, `HYP_KEY`)
-
-If the new chain is Sealevel or Tron, also ask for its key var (may be the same EVM key).
+Read `keys.<protocol>.name` and `keys.<protocol>.source` from `~/.hyperlane/key-contexts/<ticket-id>.yaml` for every protocol touched by the extension. Do NOT ask the user for env var names inline — the artifact is the source of truth (see the "Key Context (Prerequisite)" section at the top of this skill).
 
 ---
 
@@ -314,29 +325,23 @@ If the new chain is Sealevel or Tron, also ask for its key var (may be the same 
 
 ### 9a: Start the HTTP Registry
 
-```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
-```
-
-Run with `run_in_background: true`. Wait for `Listening on http://localhost:<port>`. Note the port and task ID.
+Start it per `/start-http-registry` **with `--writeMode`**. Note the port and the background task ID — needed to stop it after this step.
 
 ### 9b: Build and Show the Command
 
-The command runs from `typescript/cli`:
+The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`). Supply `--key.<protocol>` for the **new chain's protocol** — the deployer signs its deploy + atomic ownership transfer; don't assume that's ethereum (existing chains are handled through the strategy's submitters, not a direct key):
 
 ```bash
-cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp apply \
+pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.ethereum $<DEPLOYER_KEY_VAR> \
-  [--key.sealevel $<SEALEVEL_KEY_VAR>]  # only if new chain is Sealevel
-  [--key.tron $<TRON_KEY_VAR>]          # only if new chain is Tron
+  --key.<new-chain-protocol> <KEY_<PROTOCOL>_VALUE> \   # the new chain's protocol: ethereum / sealevel / cosmos / tron / starknet / radix / aleo
   --strategy ~/.hyperlane/strategies/<customer>-strategy.yaml \
   --receipts-dir /tmp/<customer>-<warp-route-id>-txs \
   -w <WARP_ROUTE_ID> \
   --yes
 ```
 
-**Key flag rule**: NEVER combine `--key` (legacy) with `--key.<protocol>`. Always use `--key.ethereum` (and `--key.<protocol>` for other protocols) together. Using both `--key` and `--key.tron` will error: _"make sure to use --key.{protocol} or the legacy flag --key but not both"_.
+**Key flag rule**: NEVER combine `--key` (legacy) with `--key.<protocol>`. Use `--key.<protocol>` for the protocol(s) you're signing. Using both `--key` and `--key.tron` will error: _"make sure to use --key.{protocol} or the legacy flag --key but not both"_.
 
 Tell the user:
 
@@ -345,7 +350,11 @@ Tell the user:
 > Existing chains requiring customer signature: `<list>`
 > New chain being deployed: `<new-chain>`
 
-Ask: **"Ready to run? Type `yes` to execute or `no` to run manually."**
+End your message with this marker (this MUST be the very last thing in your message):
+
+```test
+[CONFIRM: Run warp apply to extend route to <new-chain>]
+```
 
 ### 9c: Run the Command
 
@@ -353,18 +362,24 @@ Run it from `typescript/cli`. Show full output on completion.
 
 **On success:** the CLI deploys new contracts and writes tx proposal files to the receipts-dir.
 
-**After success — verify no `transferOwnership` to deployer:**
+**After success — verify the `transferOwnership` calls match the expected pattern:**
 
 ```bash
 grep -r "transferOwnership" /tmp/<customer>-<warp-route-id>-txs/
 ```
 
-If you see `transferOwnership` calls targeting the deployer address in files for **existing** chains, the deploy.yaml `owner` fields were corrupted (likely by a previous run). **Stop immediately — do not send these files to the customer.** To fix:
+This grep matches **EVM** receipts only. If the new chain is non-EVM (SVM/Cosmos/etc.), its atomic post-deploy transfer is not an EVM `transferOwnership` call, so the grep won't match it — verify that chain's owner via `warp check` (it reads the chain's own owner state) instead of this string search.
+
+Two distinct expectations (per the Ownership model section at the top of this skill):
+
+- **New chain's `jsonRpc` receipt** should contain `transferOwnership(<customer-ICA-or-Safe-from-Step-5>)` — the deployer's atomic post-deploy transfer to the customer. Confirm the target address matches Step 5's resolved ICA / Safe.
+- **Existing chains' receipt files** should NOT contain ANY `transferOwnership` calls. Existing-chain ownership is already where it should be; the extension does not change it.
+
+If either expectation is violated — `transferOwnership` to the deployer address anywhere, or `transferOwnership` calls targeting existing chains — the deploy.yaml `owner` fields were corrupted (typically by a previous run hitting the `runWarpRouteApply` corruption bug; see the Notes section). **Stop immediately — do not send these files to the customer.** To fix:
 
 1. Restore correct ICA owners in `deploy.yaml` for existing chains (check git history for original values)
-2. Restart the HTTP registry and re-run `warp apply`
-
-`transferOwnership` to the **new chain's deployer address** in the new chain's jsonRpc receipt is expected (the deployer owns the new contract and can manage it).
+2. Confirm the new chain's `owner` field is the customer's ICA / Safe (not the deployer address)
+3. Restart the HTTP registry and re-run `warp apply`
 
 **On failure:** stop the HTTP registry and show the error. Common issues:
 
@@ -374,11 +389,16 @@ If you see `transferOwnership` calls targeting the deployer address in files for
 
 ### 9d: Stop the HTTP Registry
 
-```bash
-# Kill background task noted in 9a
-```
+Stop the background task noted in 9a per `/stop-http-registry`. Always stop it, even on failure.
 
-Always stop it even on failure.
+### 9e: Fork-Simulate-Verify Before Shipping (mandatory)
+
+The customer tx files are **pending multisig execution** (the customer signs later), so validate them up front per the `/warp-verify-onchain-config` contract's **Mode B** before handing them off. Invoke `/warp-route-check` with the warp route ID + the receipts directory: it forks each chain, impersonates the customer's Safe / ICA owners, replays the batch calldata from those addresses, self-relays ICA messages, and runs `hyperlane warp check` on the fork against the target deploy.yaml.
+
+- **PASS** → proceed to Step 10 and ship the files.
+- **FAIL** → do NOT ship: the batch would leave the route misconfigured once signed. Surface the violations, fix the deploy.yaml / strategy, and re-run Step 9.
+
+(The real-chain confirmation happens after the customer executes — via the registry PR CI in Step 11.)
 
 ---
 
@@ -439,10 +459,12 @@ If it wasn't updated (e.g., due to registry write failures), manually add the ne
 
 ### 11b: Commit and Open PR
 
+First write the changeset per `/add-registry-changeset` — bump `minor` (a new chain is added to the published route), summary in past tense (e.g. "extended `<WARP_ROUTE_ID>` to `<new-chain>`"). A registry PR without a changeset is blocked by the merge bot. Then commit the config + changeset together (scope `git add` to these paths only — never `git add .` in the registry checkout):
+
 ```bash
 cd $REGISTRY_PATH
 git checkout -b feat/extend-<TOKEN>-<new-chain>
-git add deployments/warp_routes/<TOKEN>/
+git add deployments/warp_routes/<TOKEN>/ .changeset/<changeset-file>
 git commit -m "feat: extend <WARP_ROUTE_ID> to <new-chain>"
 git push -u origin HEAD
 
@@ -497,6 +519,7 @@ Show the user the PR URL.
 - The `file` submitter for Sealevel chains writes raw transactions — the customer executes these with their Solana CLI or tooling.
 - After this skill, run `/warp-deploy-register-route` once the registry PR is merged to update warpIds.ts and agent config.
 - **`warp apply` re-runs corrupt deploy.yaml owners (bug, fixed in monorepo):** `runWarpRouteApply` previously set ALL chain owners to the deployer in `intermediateOwnerConfig` and wrote that back to the registry — meaning a second run would generate `transferOwnership(deployer)` for every existing chain. The fix scopes this override to new chains only. If working with an older CLI, always check for unexpected `transferOwnership` calls after running (see Step 9c).
+- **Multi-RPC failure modes on the new-chain deploy:** a stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`), are read-after-write / short-confirmation-budget artifacts, not real failures. Apply the same cushions a fresh deploy uses — pin a single premium RPC for opstack/multi-RPC chains, and/or raise `estimateBlockTime` in the local registry metadata for short-block chains (ethereum, bsc, tron), then restore per the cleanup gate. Full mechanism in `/warp-deploy-init-route` §8c.
 
 ### Tron-specific notes
 
