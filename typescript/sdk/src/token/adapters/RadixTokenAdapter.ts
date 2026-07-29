@@ -1,7 +1,9 @@
 import { BigNumber } from 'bignumber.js';
 
-import { RadixProvider } from '@hyperlane-xyz/radix-sdk/runtime';
-import type { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk/runtime';
+import type {
+  RadixProvider,
+  RadixSDKTransaction,
+} from '@hyperlane-xyz/radix-sdk/runtime';
 import {
   Address,
   Domain,
@@ -56,10 +58,9 @@ export class RadixTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    // Work around to access the base radix provider getMetadata method
-    const { name, symbol, decimals } = await this.provider['base'].getMetadata({
-      resource: this.tokenAddress,
-    });
+    const { name, symbol, decimals } = await this.provider.getTokenMetadata(
+      this.tokenAddress,
+    );
 
     assert(
       name !== undefined,
