@@ -330,6 +330,29 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 
+/**
+ * Configuration for AtomicLocalRebalancingBridge — a bare ITokenBridge adapter
+ * (no mailbox, no proxy/initialize) that performs same-chain rebalances by
+ * pulling collateral from an immutable source router, running swap calls, and
+ * funding a validated destination router. Deployed unproxied like OFT/DepositAddress.
+ */
+export const AtomicLocalRebalancingBridgeTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.atomicLocalRebalancing),
+    sourceRouter: z
+      .string()
+      .describe(
+        'Source collateral router the bridge is immutably bound to (rebalances pull collateral from it)',
+      ),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
+  });
+export type AtomicLocalRebalancingBridgeTokenConfig = z.infer<
+  typeof AtomicLocalRebalancingBridgeTokenConfigSchema
+>;
+export const isAtomicLocalRebalancingBridgeTokenConfig = isCompliant(
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
+);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -472,6 +495,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   DepositAddressTokenConfigSchema,
+  AtomicLocalRebalancingBridgeTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
@@ -598,6 +622,7 @@ export const WarpRouteDeployConfigSchema = z
           isEverclearTokenBridgeConfig(config) ||
           isDepositAddressTokenConfig(config) ||
           isCrossCollateralTokenConfig(config) ||
+          isAtomicLocalRebalancingBridgeTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );

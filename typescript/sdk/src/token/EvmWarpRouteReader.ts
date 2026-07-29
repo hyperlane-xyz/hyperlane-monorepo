@@ -184,6 +184,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
+      // Bare adapter with no derivable on-chain warp config; deploy-only.
+      [TokenType.atomicLocalRebalancing]: null,
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };
