@@ -15,20 +15,28 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
+use multisig_ism::MultisigIsmMessageIdMetadata;
+
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
-    metadata::MultisigIsmMessageIdMetadata,
 };
 
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, MetadataSpec, MetadataSpecResult,
+    VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
 
 const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
+
+/// Marker type for PackageVersioned trait implementation.
+pub struct MultisigIsmMessageIdProgram;
+impl package_versioned::PackageVersioned for MultisigIsmMessageIdProgram {}
 
 /// PDA seeds relating to the access control PDA account.
 #[macro_export]
@@ -78,6 +86,11 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<MultisigIsmMessageIdProgram>();
+    }
+
     // First, try to decode the instruction as an interchain security module
     // interface supported function based off the discriminator.
     if let Ok(ism_instruction) = InterchainSecurityModuleInstruction::decode(instruction_data) {
@@ -110,6 +123,11 @@ pub fn process_instruction(
                     .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
+            }
+            InterchainSecurityModuleInstruction::VerifyMetadataSpec(data) => {
+                let message = HyperlaneMessage::read_from(&mut &data.message[..])
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                get_metadata_spec(program_id, accounts, message.origin)
             }
         };
     }
@@ -233,7 +251,8 @@ fn verify(
     metadata_bytes: Vec<u8>,
     message_bytes: Vec<u8>,
 ) -> ProgramResult {
-    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)?;
+    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)
+        .map_err(|_| Error::InvalidMetadata)?;
     let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
         .map_err(|_| ProgramError::InvalidArgument)?;
 
@@ -314,6 +333,49 @@ fn get_validators_and_threshold_account_metas(
         Pubkey::find_program_address(domain_data_pda_seeds!(domain), program_id);
 
     Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
+}
+
+/// Returns a [`MetadataSpecResult`] for a given message as return data.
+///
+/// Accounts:
+/// 0. `[]` This program's VAM PDA (derived from `VERIFY_ACCOUNT_METAS_PDA_SEEDS`).
+/// 1. `[]` (optional) The domain data PDA for the given domain.
+///
+/// If account 1 is absent or does not match the expected domain PDA, returns
+/// `spec: None` with `accounts: [vam_pda, domain_pda]` so the caller can
+/// re-simulate with the correct accounts.
+fn get_metadata_spec(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32) -> ProgramResult {
+    let (vam_pda_key, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    let (domain_pda_key, _) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(domain), program_id);
+
+    let has_domain_pda = accounts.len() >= 2 && *accounts[1].key == domain_pda_key;
+
+    if !has_domain_pda {
+        let result = MetadataSpecResult {
+            spec: None,
+            accounts: vec![vam_pda_key, domain_pda_key],
+        };
+        let bytes = borsh::to_vec(&SimulationReturnData::new(result))
+            .map_err(|_| ProgramError::BorshIoError)?;
+        set_return_data(&bytes[..]);
+        return Ok(());
+    }
+
+    // Read validators from account 1 (domain data PDA).
+    // Re-use validators_and_threshold by passing accounts[1..] as a slice.
+    let vat = validators_and_threshold(program_id, &accounts[1..], domain)?;
+    let result = MetadataSpecResult {
+        spec: Some(MetadataSpec::MultisigMessageId {
+            validators: vat.validators,
+            threshold: vat.threshold,
+        }),
+        accounts: vec![],
+    };
+    let bytes = borsh::to_vec(&SimulationReturnData::new(result))
+        .map_err(|_| ProgramError::BorshIoError)?;
+    set_return_data(&bytes[..]);
+    Ok(())
 }
 
 /// Gets the validators and threshold for a given domain.

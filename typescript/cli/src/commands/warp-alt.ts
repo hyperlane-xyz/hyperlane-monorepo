@@ -1,0 +1,111 @@
+import { stringify as yamlStringify } from 'yaml';
+import { type CommandModule } from 'yargs';
+
+import { runWarpAltCheck } from '../check/warp-alt.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runWarpAltCreate } from '../deploy/warp-alt.js';
+import { log, logCommandHeader, logGreen } from '../logger.js';
+import { runWarpAltRead } from '../read/warp-alt.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+
+import {
+  chainCommandOption,
+  outputFileCommandOption,
+  warpRouteIdCommandOption,
+} from './options.js';
+
+const check: CommandModuleWithContext<{
+  warpRouteId: string;
+  chain?: string;
+}> = {
+  command: 'check',
+  describe:
+    'Verify that on-chain SVM Address Lookup Tables match the expected contents for a warp route',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: { ...chainCommandOption, demandOption: false },
+  },
+  handler: async ({ context, warpRouteId, chain }) => {
+    logCommandHeader('Hyperlane Warp ALT Check');
+    await runWarpAltCheck({ context, warpRouteId, chain });
+    process.exit(0);
+  },
+};
+
+const create: CommandModuleWithWriteContext<{
+  warpRouteId: string;
+  chain?: string;
+  force: boolean;
+  fullForce: boolean;
+}> = {
+  command: 'create',
+  describe:
+    'Create on-chain SVM Address Lookup Tables for a warp route and persist them to the registry',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: { ...chainCommandOption, demandOption: false },
+    force: {
+      type: 'boolean',
+      alias: 'f',
+      description:
+        'Recreate warp-specific ALTs for chains that already have entries in the registry. The chain-shared core ALT is reused. Existing frozen ALTs cannot be reclaimed.',
+      default: false,
+    },
+    'full-force': {
+      type: 'boolean',
+      alias: 'F',
+      description:
+        'Recreate ALL ALTs including the chain-shared core ALT. Implies --force. Existing frozen ALTs cannot be reclaimed.',
+      default: false,
+    },
+  },
+  handler: async ({ context, warpRouteId, chain, force, fullForce }) => {
+    logCommandHeader('Hyperlane Warp ALT Create');
+    await runWarpAltCreate({ context, warpRouteId, chain, force, fullForce });
+    process.exit(0);
+  },
+};
+
+const read: CommandModuleWithContext<{
+  warpRouteId: string;
+  chain?: string;
+  out?: string;
+}> = {
+  command: 'read',
+  describe: 'Read on-chain SVM Address Lookup Table contents for a warp route',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: { ...chainCommandOption, demandOption: false },
+    out: outputFileCommandOption(),
+  },
+  handler: async ({ context, warpRouteId, chain, out }) => {
+    logCommandHeader('Hyperlane Warp ALT Reader');
+
+    const result = await runWarpAltRead({ context, warpRouteId, chain });
+
+    if (out) {
+      writeYamlOrJson(out, result, 'yaml');
+      logGreen(`✅ Warp route ALTs written successfully to ${out}:\n`);
+    } else {
+      logGreen(`✅ Warp route ALTs read successfully:\n`);
+    }
+    log(indentYamlOrJson(yamlStringify(result, null, 2), 4));
+    process.exit(0);
+  },
+};
+
+export const altCommand: CommandModule = {
+  command: 'alt',
+  describe: 'Manage SVM Address Lookup Tables for a warp route',
+  builder: (yargs) =>
+    yargs
+      .command(check)
+      .command(create)
+      .command(read)
+      .version(false)
+      .demandCommand(),
+  handler: () => log('Command required'),
+};

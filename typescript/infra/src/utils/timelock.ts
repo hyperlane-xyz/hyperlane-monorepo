@@ -137,16 +137,24 @@ export async function timelockConfigMatches({
   return { matches: issues.length === 0, issues };
 }
 
-const rpcBlockRangesByChain: ChainMap<number> = {
+export const DEFAULT_TIMELOCK_LOG_BLOCK_RANGE = 999;
+
+export const timelockLogBlockRangeByChain: ChainMap<number> = {
   // The rpc limits to a max of 1024 blocks
   moonbeam: 1024,
   // The rpc limits to a max of 5000 blocks
   merlin: 5000,
   // The rpc limits to a max of 1000 blocks
   xlayer: 1000,
-  // The rpc limits to a max of 1000 blocks
+  // The rpc limits to a max of 5000 blocks
   dogechain: 5000,
 };
+
+export function getTimelockLogBlockRange(chain: ChainName): number {
+  return (
+    timelockLogBlockRangeByChain[chain] ?? DEFAULT_TIMELOCK_LOG_BLOCK_RANGE
+  );
+}
 
 export function getTimelockConfigs({
   chains,
@@ -201,7 +209,7 @@ async function getPendingTimelockTxsOnChain(
     chain,
     multiProvider,
     timelockAddress,
-    paginationBlockRange: rpcBlockRangesByChain[chain] ?? 10_000,
+    paginationBlockRange: getTimelockLogBlockRange(chain),
   });
 
   let scheduledTxs: Awaited<

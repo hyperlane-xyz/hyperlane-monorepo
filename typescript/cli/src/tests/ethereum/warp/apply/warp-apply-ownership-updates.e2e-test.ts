@@ -185,7 +185,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     const newOwner = randomAddress();
     const feeOwner = HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum;
     const tokenFeeConfig = {
-      type: TokenFeeType.LinearFee as const,
+      type: TokenFeeType.LinearFee,
       owner: feeOwner,
       bps: 100,
     };

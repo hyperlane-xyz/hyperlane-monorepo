@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  addressToBytes32,
   arrayToObject,
   assert,
   intersection,
@@ -185,6 +186,40 @@ export function getRebalancingBridgesConfigFor(
       };
     },
   );
+}
+
+/**
+ * Returns the set of cross-collateral target routers (as bytes32), keyed by chain,
+ * unioned across the given warp routes and deduplicated.
+ *
+ * Used to key per-destination-token fee contracts in a CrossCollateralRoutingFee:
+ * the inner fee map is keyed by the destination router's bytes32 (the target token),
+ * matching the on-chain lookup `feeContracts[destination][targetRouter]`.
+ */
+export function getCrossCollateralTargetRoutersByChain(
+  warpRouteIds: readonly WarpRouteIds[],
+): ChainMap<string[]> {
+  const registry = getRegistry();
+  const routersByChain: ChainMap<string[]> = {};
+
+  for (const warpRouteId of warpRouteIds) {
+    const route = registry.getWarpRoute(warpRouteId);
+    assert(route, `Warp route ${warpRouteId} not found`);
+
+    for (const { chainName, addressOrDenom } of route.tokens) {
+      assert(
+        addressOrDenom,
+        `Missing router address for ${warpRouteId} on ${chainName}`,
+      );
+      const routerKey = addressToBytes32(addressOrDenom);
+      const existing = (routersByChain[chainName] ??= []);
+      if (!existing.includes(routerKey)) {
+        existing.push(routerKey);
+      }
+    }
+  }
+
+  return routersByChain;
 }
 
 export const getRebalancingUSDTConfigForChain = (
@@ -374,6 +409,27 @@ export function getFileSubmitterStrategyConfig(
       { submitter: { type: 'file', filepath, chain } },
     ]),
   ) as unknown as ChainSubmissionStrategy;
+}
+
+/**
+ * Merges multiple allowedRebalancingBridges maps by concatenating bridge arrays
+ * for overlapping domain IDs. Undefined inputs are skipped.
+ */
+export function mergeAllowedBridges(
+  ...configs: (
+    | NonNullable<MovableTokenConfig['allowedRebalancingBridges']>
+    | undefined
+  )[]
+): NonNullable<MovableTokenConfig['allowedRebalancingBridges']> {
+  const result: NonNullable<MovableTokenConfig['allowedRebalancingBridges']> =
+    {};
+  for (const config of configs) {
+    if (!config) continue;
+    for (const [domain, bridges] of Object.entries(config)) {
+      result[domain] = [...(result[domain] ?? []), ...bridges];
+    }
+  }
+  return result;
 }
 
 /**

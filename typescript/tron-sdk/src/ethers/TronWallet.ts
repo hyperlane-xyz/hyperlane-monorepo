@@ -9,7 +9,8 @@ import {
   TronJsonRpcProvider,
 } from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
-import { stripCustomRpcHeaders } from './urlUtils.js';
+import { assertTronReceiptSuccess } from '../utils/index.js';
+import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -54,21 +55,14 @@ export class TronWallet extends Wallet {
   private txBuilder: TronTransactionBuilder;
 
   constructor(privateKey: string, tronUrl: string) {
-    // tronUrl should be the JSON-RPC endpoint (e.g. http://host:port/jsonrpc
-    // for TronGrid/TRE, or the root URL for third-party providers like Alchemy).
-    // TronWeb needs the base HTTP API URL — strip /jsonrpc path if present, and
-    // fall back to public TronGrid for third-party providers that only serve JSON-RPC.
-    // Extract custom headers before stripping path, as they may contain API keys.
-    const { url: cleanTronUrl, headers } = stripCustomRpcHeaders(tronUrl);
-    const parsed = new URL(cleanTronUrl);
-    if (parsed.pathname.endsWith('/jsonrpc')) {
-      parsed.pathname = parsed.pathname.slice(0, -8);
-    }
-    const baseUrl = parsed.toString();
-    const tronWebUrl =
-      /^https?:\/\/(localhost|127\.0\.0\.1|[^/]*trongrid)/.test(baseUrl)
-        ? baseUrl
-        : 'https://api.trongrid.io';
+    // `tronUrl` is the chain's HTTP RPC endpoint (root URL or a .../jsonrpc URL).
+    // TronWeb needs the Tron HTTP API base host; use the caller-provided host
+    // directly (matching the AltVM TronProvider) so a private/custom RPC is
+    // honored for building, signing and broadcasting instead of being silently
+    // redirected to the public TronGrid endpoint. Custom headers (e.g. API keys)
+    // are preserved via `custom_rpc_header`.
+    const { headers } = stripCustomRpcHeaders(tronUrl);
+    const tronWebUrl = toHttpApiUrl(tronUrl);
     super(privateKey, new TronJsonRpcProvider(tronUrl));
     this.originalTronUrl = tronUrl;
 
@@ -221,11 +215,31 @@ export class TronTransactionBuilder extends TronWeb {
       value: BigNumber.from(evmTx.value ?? 0),
       chainId: evmTx.chainId!,
       tronTransaction: tronTx,
-      wait: (confirmations?: number) =>
-        this.provider!.waitForTransaction(
-          txHash ? ensure0x(txHash) : originalTxHash,
+      wait: async (confirmations?: number) => {
+        const hash = txHash ? ensure0x(txHash) : originalTxHash;
+        const receipt = await this.provider.waitForTransaction(
+          hash,
           confirmations,
-        ),
+        );
+        // Stock ethers waitForTransaction resolves the receipt without the
+        // status-0 revert throw it only injects for EVM. getTransactionInfo
+        // queries the solidity node, which lags mining and returns {} until the
+        // block solidifies, so use the full-node unconfirmed info that is
+        // available immediately. If it is not yet populated, fall back to the
+        // JSON-RPC receipt status so a reverted tx still fails loudly.
+        const info = await this.trx.getUnconfirmedTransactionInfo(
+          strip0x(hash),
+        );
+        if (info?.id) {
+          assertTronReceiptSuccess(info, this, strip0x(hash));
+        } else {
+          assert(
+            receipt.status !== 0,
+            `Tron Transaction Failed: reverted (txid: ${strip0x(hash)})`,
+          );
+        }
+        return receipt;
+      },
     };
   }
 

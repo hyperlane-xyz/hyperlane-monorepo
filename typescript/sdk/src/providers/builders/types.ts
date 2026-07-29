@@ -3,8 +3,7 @@ import type { TypedProvider } from '../ProviderType.js';
 import type { SmartProviderOptions } from '../SmartProvider/types.js';
 
 export type ProviderBuilderFn<P> = (
-  rpcUrls: ChainMetadata['rpcUrls'],
-  network: number | string,
+  metadata: ChainMetadata,
   retryOverride?: SmartProviderOptions,
 ) => P;
 

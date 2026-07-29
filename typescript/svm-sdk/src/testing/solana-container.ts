@@ -402,10 +402,15 @@ async function waitForRpcReady(
 export async function runSolanaNode(
   chainMetadata: TestChainMetadata = TEST_SVM_CHAIN_METADATA,
   preloadedPrograms: PreloadedProgram[] = [],
+  deactivateFeatures: string[] = [],
 ): Promise<SolanaTestValidator> {
   const config: SolanaValidatorConfig = {
     rpcPort: chainMetadata.rpcPort,
     preloadedPrograms,
+    validatorArgs: deactivateFeatures.flatMap((feature) => [
+      '--deactivate-feature',
+      feature,
+    ]),
   };
 
   let validator: SolanaTestValidator;

@@ -9,7 +9,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawCollateralWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -32,10 +31,16 @@ import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import { deriveAtaPayerPda, deriveEscrowPda } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
+import {
+  fetchCollateralTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -48,17 +53,17 @@ import {
 
 export class SvmCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchCollateralTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Collateral token not initialized at ${programId}`,
@@ -84,6 +89,12 @@ export class SvmCollateralTokenReader implements ArtifactReader<
         `warp route initialized with ${token.decimals} but mint reports ${metadata.decimals}`,
     );
 
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
+
     const config: RawCollateralWarpArtifactConfig = {
       type: TokenType.collateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -107,12 +118,22 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       remoteRouters,
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
@@ -120,7 +141,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
 export class SvmCollateralTokenWriter
   extends SvmCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactWriter<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -134,7 +155,7 @@ export class SvmCollateralTokenWriter
     artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -156,7 +177,7 @@ export class SvmCollateralTokenWriter
         splProgram === TOKEN_2022_PROGRAM_ADDRESS,
       `Mint ${collateralMint} is not owned by SPL Token or Token-2022 (owner: ${splProgram})`,
     );
-    const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
+    const mintRawData = Buffer.from(mintInfo.value.data[0], 'base64');
     const localDecimals = getMintDecimals(mintRawData);
     assertLocalDecimals(localDecimals);
     const remoteDecimals = scaleToRemoteDecimals(
@@ -220,6 +241,7 @@ export class SvmCollateralTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
@@ -236,7 +258,7 @@ export class SvmCollateralTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawCollateralWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
@@ -247,13 +269,38 @@ export class SvmCollateralTokenWriter
       `Cannot update collateral token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    let upgradingToVersion: string | undefined;
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `collateral token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.rpc,
       `collateral token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
+      upgradingToVersion,
     );
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

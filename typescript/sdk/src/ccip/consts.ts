@@ -371,46 +371,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  polygonzkevm: {
-    armProxy: {
-      address: '0x272fB92E5D43ffcCEb56bBE5b2D7B88a86235c48',
-      version: '1.0.0',
-    },
-    chainSelector: '4348158687435793198',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0xE97273AD89a082950e7C17c4593d7743c987B8bb',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0xA9999937159B293c72e2367Ce314cb3544e7C1a3',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0xe87fB6c46DCAADA001681819d2bD3c64f58D8963',
-      version: '1.5.0',
-    },
-  },
-  scroll: {
-    armProxy: {
-      address: '0x68B38980aD70650a6f3229BA156e5c1F88A21320',
-      version: '1.5.0',
-    },
-    chainSelector: '13204309965629103672',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0x80E3946A4d3306c903545fdfCEDB57639C00A99d',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x9a55E8Cab6564eb7bbd7124238932963B8Af71DC',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x846dEA1c1706FC35b4aa78B32d31F1599DAA47b4',
-      version: '1.5.0',
-    },
-  },
   worldchain: {
     armProxy: {
       address: '0x7DE7Ef73cF001ff15b3aA558855D7eeC439d43ab',
@@ -448,26 +408,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
     },
     tokenAdminRegistry: {
       address: '0xeCf1eAEE01E82F3388dECD7f4C3792374f3f72F3',
-      version: '1.5.0',
-    },
-  },
-  zircuit: {
-    armProxy: {
-      address: '0xf735667F2F3193d407089bb4c50824941821b156',
-      version: '1.5.0',
-    },
-    chainSelector: '17198166215261833993',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0xE8FD6dE668fD120df5A00E03ce0de71eA5C6d408',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x0A6436B56378D305729713ac332ccdCD367f3918',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x47d2D93EEDb694bf445E7F6458f17669459612c7',
       version: '1.5.0',
     },
   },
@@ -531,26 +471,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  astar: {
-    armProxy: {
-      address: '0x7317D216F3DCDa40144a54eC9bA09829a423cb35',
-      version: '1.0.0',
-    },
-    chainSelector: '6422105447186081193',
-    feeTokens: ['LINK', 'WASTR'],
-    registryModule: {
-      address: '0x9c54A7E067E5bdB8e1A44eA7a657053780d35d58',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0x8D5c5CB8ec58285B424C93436189fB865e437feF',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0xB98eEd70e3cE8E342B0f770589769E3A6bc20A09',
-      version: '1.5.0',
-    },
-  },
   ronin: {
     armProxy: {
       address: '0xceA253a8c2BB995054524d071498281E89aACD59',
@@ -588,26 +508,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
     },
     tokenAdminRegistry: {
       address: '0x910a46cA93E8086BF1d7D65190eE6AEe5256Bd61',
-      version: '1.5.0',
-    },
-  },
-  shibarium: {
-    armProxy: {
-      address: '0xD2bdb98dA1Ff575d091CA5b76412C23Cba88CA02',
-      version: '1.5.0',
-    },
-    chainSelector: '3993510008929295315',
-    feeTokens: ['LINK', 'WBONE'],
-    registryModule: {
-      address: '0xB6e8B0158CDD1AaF280f53604b80686787BB9199',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0xc2CA5d5C17911e4B838194b51585DdF8fe5116C1',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x995d2Aa233aBeaCA2a64Edf898AE9F4e01bE15B9',
       version: '1.5.0',
     },
   },

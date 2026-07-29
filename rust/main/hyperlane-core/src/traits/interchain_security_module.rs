@@ -11,6 +11,12 @@ use serde::{Deserialize, Serialize};
 use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
 
 /// Enumeration of all known module types
+///
+/// Discriminants must match the Solidity IInterchainSecurityModule.Types enum exactly so that
+/// on-chain values round-trip correctly through FromPrimitive.  Borsh serialisation is keyed on
+/// the discriminant (use_discriminant = true) for the same reason.  Never reorder variants or
+/// change values; append new Solidity types at the end of their numeric sequence and put
+/// Sealevel-only types above 127.
 #[derive(
     FromPrimitive,
     Clone,
@@ -26,24 +32,37 @@ use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
     Deserialize,
 )]
 #[cfg_attr(feature = "strum", derive(strum::Display))]
+#[borsh(use_discriminant = true)]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]
-    Unused,
+    Unused = 0,
     /// Routing ISM (defers to another ISM)
-    Routing,
+    Routing = 1,
     /// Aggregation ISM (aggregates multiple ISMs)
-    Aggregation,
+    Aggregation = 2,
     /// Legacy ISM (DEPRECATED)
-    LegacyMultisig,
+    LegacyMultisig = 3,
     /// Merkle Proof ISM (batching and censorship resistance)
-    MerkleRootMultisig,
+    MerkleRootMultisig = 4,
     /// Message ID ISM (cheapest multisig with no batching)
-    MessageIdMultisig,
+    MessageIdMultisig = 5,
     /// No metadata ISM (no metadata)
-    Null,
+    Null = 6,
     /// Ccip Read ISM (accepts offchain signature information)
-    CcipRead,
+    CcipRead = 7,
+    /// Arbitrum L2→L1 native bridge ISM
+    ArbL2ToL1 = 8,
+    /// Weighted Merkle Root multisig ISM
+    WeightedMerkleRootMultisig = 9,
+    /// Weighted Message ID multisig ISM
+    WeightedMessageIdMultisig = 10,
+    /// Optimism L2→L1 native bridge ISM
+    OpL2ToL1 = 11,
+    /// Polymer IBC ISM
+    Polymer = 12,
+    /// Composite ISM (Sealevel inline ISM tree) — Sealevel-only, no Solidity counterpart
+    Composite = 13,
 }
 
 /// Metadata associated with an ISM verification
@@ -98,6 +117,12 @@ impl ModuleType {
             Self::MessageIdMultisig => "message_id_multisig",
             Self::Null => "null",
             Self::CcipRead => "ccip_read",
+            Self::ArbL2ToL1 => "arb_l2_to_l1",
+            Self::WeightedMerkleRootMultisig => "weighted_merkle_root_multisig",
+            Self::WeightedMessageIdMultisig => "weighted_message_id_multisig",
+            Self::OpL2ToL1 => "op_l2_to_l1",
+            Self::Polymer => "polymer",
+            Self::Composite => "composite",
         }
     }
 }

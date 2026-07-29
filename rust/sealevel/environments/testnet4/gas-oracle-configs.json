@@ -1,4 +1,38 @@
 {
+  "solanadevnet": {
+    "solanatestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
+    "sepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "50000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "arbitrumsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "100000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "basesepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "1000068",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    }
+  },
   "solanatestnet": {
     "sonicsvmtestnet": {
       "oracleConfig": {

@@ -6,12 +6,17 @@ export enum Role {
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
   QuoteSigner = 'quotesigner',
+  // Funding-only role: the stableswap rebalancer's EVM inventory
+  // signer. Has no managed agent key — keyfunder only needs the address to
+  // send gas to it. Do NOT add to ALL_KEY_ROLES / ALL_AGENT_ROLES / rolesWithKeys.
+  StableswapInventoryRebalancer = 'stableswapinventoryrebalancer',
 }
 
 export type FundableRole =
   | Role.Relayer
   | Role.Rebalancer
-  | Role.InventoryRebalancer;
+  | Role.InventoryRebalancer
+  | Role.StableswapInventoryRebalancer;
 
 export const ALL_KEY_ROLES = [
   Role.Validator,

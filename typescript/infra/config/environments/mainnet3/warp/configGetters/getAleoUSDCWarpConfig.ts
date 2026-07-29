@@ -14,7 +14,7 @@ import { WarpRouteIds } from '../warpIds.js';
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const owners = {
-  aleo: 'aleo1hs5dstedw5u4nps77h54rnqcplagdst0tvcs2rhvuf8geuxzzvrs383dgs',
+  aleo: 'aleo1xvxtrlg5a4kze76xejvmremj8qnkkquqtfpece47csw64pegeyqq36xvtr',
   arbitrum: '0x63C65aFC66C7247a3d43197744Da7F5838ACbf77',
   avalanche: '0x117f4a84f98b3C8BEF00a2371672031694C1Fa0A',
   base: '0xc88297c52BED07aecAec13BD3bB21647C319a73d',
@@ -129,6 +129,16 @@ export const getAleoUSDCWarpConfig = async (
     token: tokens.solanamainnet.USDC,
     foreignDeployment: 'EiUymjh3vJ2486ozY24s1A1YWXoH6QnSGjWuP95ph35G',
     gas: 300_000,
+    destinationGas: {
+      '1634493807': '64000', // aleo
+      '42161': '68000', // arbitrum
+      '43114': '68000', // avalanche
+      '8453': '68000', // base
+      '56': '68000', // bsc
+      '1': '68000', // ethereum
+      '10': '68000', // optimism
+      '137': '68000', // polygon
+    },
   };
 
   return {

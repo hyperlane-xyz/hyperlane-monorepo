@@ -10,15 +10,19 @@ members = [
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
+    "libraries/package-versioned",
+    "libraries/quote-verifier",
     "libraries/serializable-account-meta",
     "libraries/test-transaction-utils",
     "libraries/test-utils",
+    "programs/hyperlane-sealevel-fee",
     "programs/hyperlane-sealevel-igp",
     "programs/hyperlane-sealevel-igp-test",
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-collateral",
     "programs/hyperlane-sealevel-token-cross-collateral",
     "programs/hyperlane-sealevel-token-native",
+    "programs/ism/composite-ism",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
     "programs/mailbox",
@@ -118,6 +122,7 @@ solana-commitment-config = "=3.0.0"
 solana-compute-budget-interface = { version = "=3.0.0", features = ["borsh"] }
 solana-loader-v3-interface = { version = "=6.1.0", features = ["serde", "bincode"] }
 solana-program = "=3.0.0"
+solana-sdk-ids = "=3.1.0"
 solana-program-test = "=3.0.7"
 solana-sdk = "=3.0.0"
 solana-stake-interface = "=1.2.1"
@@ -183,7 +188,13 @@ overflow-checks = true
 [profile.release.package.multisig-ism]
 overflow-checks = true
 
+[profile.release.package.package-versioned]
+overflow-checks = true
+
 [profile.release.package.serializable-account-meta]
+overflow-checks = true
+
+[profile.release.package.quote-verifier]
 overflow-checks = true
 
 [profile.release.package.hyperlane-test-transaction-utils]
@@ -193,6 +204,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-mailbox]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-fee]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-igp]
@@ -211,6 +225,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-token-native]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-composite-ism]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-multisig-ism-message-id]

@@ -14,6 +14,7 @@ pub use {
     contracts::TronMerkleTreeHookIndexer,
     contracts::TronValidatorAnnounce,
     ism::TronAggregationIsm,
+    ism::TronCcipReadIsm,
     ism::TronInterchainSecurityModule,
     ism::TronMultisigIsm,
     ism::TronRoutingIsm,

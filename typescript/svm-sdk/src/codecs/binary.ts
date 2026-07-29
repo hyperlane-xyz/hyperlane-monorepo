@@ -28,7 +28,7 @@ const VEC_BYTES_CODEC = addCodecSizePrefix(getBytesCodec(), U32_CODEC);
 export class ByteCursor {
   private offset = 0;
 
-  constructor(private readonly data: Uint8Array) {}
+  constructor(private readonly data: ReadonlyUint8Array) {}
 
   remaining(): number {
     return this.data.length - this.offset;
@@ -77,6 +77,12 @@ export class ByteCursor {
     );
     this.offset += 16;
     return value;
+  }
+
+  readI64LE(): bigint {
+    const unsigned = this.readU64LE();
+    const SIGN_BIT = 1n << 63n;
+    return unsigned >= SIGN_BIT ? unsigned - (1n << 64n) : unsigned;
   }
 
   readU256LE(): bigint {
@@ -155,6 +161,15 @@ export function u128le(value: bigint): ReadonlyUint8Array {
   return U128_CODEC.encode(value);
 }
 
+export function i64le(value: bigint): ReadonlyUint8Array {
+  assert(
+    value >= -(1n << 63n) && value < 1n << 63n,
+    `i64 out of range: ${value}`,
+  );
+  const unsigned = value < 0n ? value + (1n << 64n) : value;
+  return U64_CODEC.encode(unsigned);
+}
+
 export function u256le(value: bigint): ReadonlyUint8Array {
   return writeBigIntLE(value, 32);
 }
@@ -230,6 +245,24 @@ export function writeBigIntLE(value: bigint, length: number): Uint8Array {
   const out = new Uint8Array(length);
   let remaining = value;
   for (let i = 0; i < length; i += 1) {
+    out[i] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return out;
+}
+
+const U48_MAX = (1n << 48n) - 1n;
+
+/**
+ * Encodes an unsigned 48-bit integer as 6 big-endian bytes. Used by the
+ * SVM quote signing protocol for `issuedAt` / `expiry` timestamp fields,
+ * which the on-chain `quote-verifier` reads as big-endian u48.
+ */
+export function u48be(value: bigint): Uint8Array {
+  assert(value >= 0n && value <= U48_MAX, `u48 out of range: ${value}`);
+  const out = new Uint8Array(6);
+  let remaining = value;
+  for (let i = 5; i >= 0; i -= 1) {
     out[i] = Number(remaining & 0xffn);
     remaining >>= 8n;
   }

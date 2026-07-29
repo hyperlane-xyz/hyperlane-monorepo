@@ -34,6 +34,7 @@ import {
   runWarpRouteCombine,
   runWarpRouteDeploy,
 } from '../deploy/warp.js';
+import { runWarpRouteBalances } from '../balances/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
@@ -70,6 +71,8 @@ import {
   warpRouteIdCommandOption,
 } from './options.js';
 import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { altCommand } from './warp-alt.js';
+import { quoteCommand } from './warp-quote.js';
 
 /**
  * Parent command
@@ -79,13 +82,16 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
+      .command(altCommand)
       .command(apply)
+      .command(balances)
       .command(check)
       .command(combine)
       .command(deploy)
       .command(fork)
       .command(getFees)
       .command(init)
+      .command(quoteCommand)
       .command(read)
       .command(rebalancer)
       .command(send)
@@ -138,6 +144,50 @@ async function getWarpConfigsFromContextOrRegistry({
     resolvedWarpRouteId,
   };
 }
+
+const balances: CommandModuleWithContext<
+  WarpRouteOptions & {
+    chains?: string[];
+    out?: string;
+    address?: string;
+    raw?: boolean;
+  }
+> = {
+  command: 'balances',
+  describe: 'Display token balances for each leg of a warp route',
+  builder: {
+    ...WARP_ROUTE_OPTIONS,
+    chains: stringArrayOptionConfig({
+      description: 'Filter to specific chains',
+      demandOption: false,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path (JSON or YAML)',
+    ),
+    address: addressCommandOption(
+      "User address to check balances for. When provided, shows the user's token balance on each chain instead of collateral/supply.",
+    ),
+    raw: {
+      type: 'boolean' as const,
+      description: 'Show balances in base units (without decimal formatting)',
+      default: false,
+    },
+  },
+  handler: async ({ context, warpRouteId, chains, out, address, raw }) => {
+    logCommandHeader('Hyperlane Warp Balances');
+    await runWarpRouteBalances({
+      context,
+      warpRouteId,
+      chains,
+      out,
+      address,
+      raw,
+    });
+    process.exit(0);
+  },
+};
 
 export const apply: CommandModuleWithWarpApplyContext<
   WarpRouteOptions & {

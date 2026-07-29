@@ -6,6 +6,7 @@ import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
+  assert,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -76,6 +77,7 @@ async function main() {
           chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
         );
         const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+        assert(safeTx, `Safe transaction ${fullTxHash} not found on ${chain}`);
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,
           data: safeTx.data,

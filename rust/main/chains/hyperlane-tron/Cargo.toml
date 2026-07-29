@@ -50,6 +50,7 @@ abigen = { path = "../../utils/abigen", features = ["ethers"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
 
 [dev-dependencies]
+regex.workspace = true
 tracing-test.workspace = true
 
 [features]

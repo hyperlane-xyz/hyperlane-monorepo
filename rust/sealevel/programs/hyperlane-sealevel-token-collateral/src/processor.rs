@@ -9,7 +9,8 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, Instruction as TokenIxn, TransferRemote},
+    accounts::FeeConfig,
+    instruction::{Init, Instruction as TokenIxn, TransferRemoteWithMemo},
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
@@ -19,12 +20,21 @@ use crate::plugin::CollateralPlugin;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct HyperlaneCollateralProgram;
+impl package_versioned::PackageVersioned for HyperlaneCollateralProgram {}
+
 /// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<HyperlaneCollateralProgram>();
+    }
+
     // First, check if the instruction has a discriminant relating to
     // the message recipient interface.
     if let Ok(message_recipient_instruction) = MessageRecipientInstruction::decode(instruction_data)
@@ -62,7 +72,17 @@ pub fn process_instruction(
     // Otherwise, try decoding a "normal" token instruction
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
-        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::TransferRemote(xfer) => transfer_remote_with_memo(
+            program_id,
+            accounts,
+            TransferRemoteWithMemo {
+                xfer,
+                memo: Vec::with_capacity(0),
+            },
+        ),
+        TokenIxn::TransferRemoteWithMemo(xfer) => {
+            transfer_remote_with_memo(program_id, accounts, xfer)
+        }
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
@@ -79,6 +99,7 @@ pub fn process_instruction(
         TokenIxn::SetInterchainGasPaymaster(new_igp) => {
             set_interchain_gas_paymaster(program_id, accounts, new_igp)
         }
+        TokenIxn::SetFeeConfig(fee_config) => set_fee_config(program_id, accounts, fee_config),
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -127,12 +148,14 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 15.  `[writeable]` The mint.
 /// 16.  `[writeable]` The token sender's associated token account, from which tokens will be sent.
 /// 17.  `[writeable]` The escrow PDA account.
-fn transfer_remote(
+fn transfer_remote_with_memo(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferRemote,
+    transfer: TransferRemoteWithMemo,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote(program_id, accounts, transfer)
+    HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_with_memo(
+        program_id, accounts, transfer,
+    )
 }
 
 // Accounts:
@@ -269,4 +292,12 @@ fn set_interchain_gas_paymaster(
     HyperlaneSealevelToken::<CollateralPlugin>::set_interchain_gas_paymaster(
         program_id, accounts, new_igp,
     )
+}
+
+fn set_fee_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    fee_config: Option<FeeConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<CollateralPlugin>::set_fee_config(program_id, accounts, fee_config)
 }

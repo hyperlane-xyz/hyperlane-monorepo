@@ -17,6 +17,8 @@ Use this skill to review code changes against Hyperlane monorepo standards.
 
 Read and apply the guidelines from `REVIEW.md` to review the code changes.
 
+When delegating the review to subagents/teams, pass `REVIEW.md` to each one so every checklist item (e2e tests, casts, allocations, enums) is actually applied — findings the rules already cover should never slip through.
+
 ### For PR Reviews
 
 When reviewing a PR, deliver feedback as a **single consolidated GitHub review** using `/inline-pr-comments`. Each run produces a separate review — nothing is overwritten.

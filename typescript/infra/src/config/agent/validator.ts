@@ -30,6 +30,13 @@ export interface ValidatorBaseChainConfig {
   reorgPeriod: string | number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
+  // Opt-in per chain: populates quorumRpcUrls (private + public batch) for the
+  // validator's safety-critical merkle tree hook reads. Defaults to false/unset
+  // so quorum verification stays off until deliberately enabled for a chain,
+  // rather than turning on for every chain at once. Independent of this, the
+  // base hook still uses whatever rpcConsensusType the chain is configured
+  // with (currently Quorum for mainnet Hyperlane/ReleaseCandidate validators).
+  quorumVerificationEnabled?: boolean;
 }
 
 // Configuration for a validator agent.
@@ -42,6 +49,7 @@ export interface ValidatorBaseConfig {
 export interface ValidatorConfig {
   interval: number;
   originChainName: ChainName;
+  reorgPeriod: string | number;
   validators: Array<{
     checkpointSyncer: CheckpointSyncerConfig;
     // The key that signs checkpoints
@@ -110,6 +118,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return {
       interval: this.#chainConfig.interval,
       originChainName: this.chainName!,
+      reorgPeriod: this.#chainConfig.reorgPeriod,
       validators: await Promise.all(
         this.#chainConfig.validators.map((val, i) =>
           this.#configForValidator(val, i),
@@ -120,6 +129,10 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
   get validators(): ValidatorBaseConfig[] {
     return this.#validatorsConfig[this.chainName].validators;
+  }
+
+  get quorumVerificationEnabled(): boolean {
+    return this.#chainConfig.quorumVerificationEnabled ?? false;
   }
 
   get role(): Role {
@@ -158,7 +171,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       }
     } else {
       console.warn(
-        `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+        `Validator ${cfg.address || cfg.name}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
       );
     }
 

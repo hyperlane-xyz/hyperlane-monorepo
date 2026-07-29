@@ -5,6 +5,14 @@ import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
 
+const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
+
+export const fastPathReorgPeriodOverrides: Record<string, number> = {
+  arbitrumsepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  basesepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+  sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+};
+
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
@@ -131,6 +139,18 @@ export const validatorChainConfig = (
         'solanatestnet',
       ),
     },
+    solanadevnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solanadevnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6424142536c9e40b61076571cba83a255835b799'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanadevnet',
+      ),
+    },
     sonicsvmtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
@@ -247,17 +267,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    incentivtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('incentivtestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x3133eeb96fd96f9f99291088613edf7401149e6f'],
-        },
-        'incentivtestnet',
-      ),
-    },
-
     radixtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('radixtestnet'),
@@ -288,6 +297,17 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x189ea37efb3764ab638cbaecbe764a8e814e7583'],
         },
         'tronshasta',
+      ),
+    },
+
+    seismictestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('seismictestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcfa3ec84fe69dde351760e9fdb667af912cb8368'],
+        },
+        'seismictestnet',
       ),
     },
   };

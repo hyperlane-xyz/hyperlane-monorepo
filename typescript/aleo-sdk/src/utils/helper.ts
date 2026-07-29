@@ -1,24 +1,20 @@
-import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
-
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
+  assert,
   isValidAddressAleo,
   isZeroishAddress,
   strip0x,
+  toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { type AleoProgram, programRegistry } from '../artifacts.js';
 import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { ALEO_NULL_ADDRESS } from '../constants.js';
+import { ALEO_PROGRAMS, type AleoProgram } from '../programs.js';
 
 import { AleoNetworkId, AleoTokenType } from './types.js';
+import type { AleoSdk } from './provable.js';
 
-const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
-const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-
-function getCustomWarpSuffixFromEnv(): string | undefined {
-  return process.env['ALEO_WARP_SUFFIX'];
-}
 
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
@@ -35,171 +31,7 @@ export const RETRY_DELAY_MS = 100;
 export const SUFFIX_LENGTH_LONG = 6;
 export const SUFFIX_LENGTH_SHORT = 3;
 
-export function loadProgramsInDeployOrder(
-  prefix: string,
-  programName: AleoProgram,
-  coreSuffix: string,
-  warpSuffix?: string,
-): { id: string; name: string; program: string }[] {
-  const visited = new Set<string>();
-  let programs: Program[] = [];
-
-  function visit(p: AleoProgram) {
-    if (visited.has(p)) return;
-    visited.add(p);
-
-    const code = programRegistry[p];
-    if (!code) throw new Error(`Program ${p} not found`);
-
-    const program = Program.fromString(code);
-
-    program
-      .getImports()
-      .map((dep) => dep.replace('.aleo', ''))
-      .forEach((dep) => visit(dep));
-
-    programs.push(program);
-  }
-
-  visit(programName);
-
-  programs = programs.map((p) => {
-    let output = p.toString();
-
-    for (const r of Object.keys(programRegistry)) {
-      if (r === 'credits' || r === 'token_registry') {
-        continue;
-      }
-
-      output = output.replaceAll(
-        `${r}.aleo`,
-        `${prefix}_${r.replaceAll('hyp_', '')}.aleo`,
-      );
-    }
-
-    return Program.fromString(output);
-  });
-
-  if (!skipSuffixes) {
-    programs = programs.map((p) =>
-      Program.fromString(
-        p
-          .toString()
-          .replaceAll(
-            /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-            (_, p1) => (coreSuffix ? `${p1}_${coreSuffix}.aleo` : `${p1}.aleo`),
-          )
-          .replaceAll(
-            /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) => {
-              if (p1 === 'hyp_native') {
-                return `hyp_warp_token_credits.aleo`;
-              }
-              const effectiveSuffix =
-                getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
-              return `hyp_warp_token_${effectiveSuffix}.aleo`;
-            },
-          ),
-      ),
-    );
-
-    if (customIsmSuffix) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          p
-            .toString()
-            .replaceAll(
-              'ism_manager.aleo',
-              `ism_manager_${customIsmSuffix}.aleo`,
-            ),
-        ),
-      );
-    }
-  }
-
-  if (upgradeAuthority) {
-    if (new RegExp(/^(aleo1[a-z0-9]{58})$/).test(upgradeAuthority)) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          p.toString().replaceAll(
-            `constructor:
-    assert.eq edition 0u16;`,
-            `constructor:
-    assert.eq program_owner ${upgradeAuthority};`,
-          ),
-        ),
-      );
-    } else if (new RegExp(/^[a-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
-      programs = programs.map((p) =>
-        Program.fromString(
-          `import ${upgradeAuthority};\n` +
-            p.toString().replaceAll(
-              `constructor:
-    assert.eq edition 0u16;`,
-              `struct ChecksumEdition:
-    checksum as [u8; 32u32];
-    edition as u16;
-
-struct WalletEcdsaSigner:
-    wallet_id as address;
-    ecdsa_signer as [u8; 20u32];
-
-struct WalletSigningOpId:
-    wallet_id as address;
-    signing_op_id as field;
-
-struct AdminOp:
-    op as u8;
-    threshold as u8;
-    aleo_signer as address;
-    ecdsa_signer as [u8; 20u32];
-    
-constructor:
-    gt edition 0u16 into r0;
-    branch.eq r0 false to end_then_0_2;
-    cast checksum edition into r1 as ChecksumEdition;
-    hash.bhp256 r1 into r2 as field;
-    cast ${p.id()} r2 into r3 as WalletSigningOpId;
-    hash.bhp256 r3 into r4 as field;
-    contains ${upgradeAuthority}/completed_signing_ops[r4] into r5;
-    assert.eq r5 true;
-    branch.eq true true to end_otherwise_0_3;
-    position end_then_0_2;
-    position end_otherwise_0_3;`,
-            ),
-        ),
-      );
-    } else {
-      throw new Error(
-        `upgrade authority must be an aleo account address or the program id of a multisig program`,
-      );
-    }
-  }
-
-  return programs.map((p) => ({
-    id: p.id(),
-    name:
-      Object.keys(programRegistry).find((r) => {
-        if (r === 'hyp_native') {
-          return p.id() === `${prefix}_warp_token_credits.aleo`;
-        }
-        if (
-          (r === 'hyp_collateral' || r === 'hyp_synthetic') &&
-          r === programName &&
-          p.id().startsWith(`${prefix}_warp_token_`) &&
-          p.id() !== `${prefix}_warp_token_credits.aleo`
-        ) {
-          return true;
-        }
-        return p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`);
-      }) || '',
-    program: p.toString(),
-  }));
-}
-
-export const ALEO_NULL_ADDRESS =
-  'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
-export const ALEO_NATIVE_DENOM = 'credits';
+export { ALEO_NATIVE_DENOM, ALEO_NULL_ADDRESS } from '../constants.js';
 
 export function formatAddress(address: string): string {
   return isZeroishAddress(address) ? '' : address;
@@ -220,12 +52,15 @@ export function programIdToPlaintext(programId: string): string {
   return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
 }
 
-export function getAddressFromProgramId(programId: string): string {
-  return Plaintext.fromString(programId).toString();
+export function getAddressFromProgramId(
+  sdk: AleoSdk,
+  programId: string,
+): string {
+  return sdk.Plaintext.fromString(programId).toString();
 }
 
-export function toAleoAddress(programId: string): string {
-  return `${programId}/${getAddressFromProgramId(programId)}`;
+export function toAleoAddress(sdk: AleoSdk, programId: string): string {
+  return `${programId}/${getAddressFromProgramId(sdk, programId)}`;
 }
 
 export function fromAleoAddress(aleoAddress: string): {
@@ -263,7 +98,7 @@ export function getProgramSuffix(address: string): string {
     suffix = suffix.replaceAll(prefix, '');
   }
 
-  for (const key of Object.keys(programRegistry)) {
+  for (const key of ALEO_PROGRAMS) {
     suffix = suffix.replaceAll(key, '');
   }
 
@@ -343,15 +178,114 @@ export function bytes32ToU128String(input: string): string {
   const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
   const highBytes = Uint8Array.from(bytes.subarray(16, 32));
 
-  return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
+  return `[${bytesLeToU128String(lowBytes)},${bytesLeToU128String(highBytes)}]`;
 }
 
-export function getBalanceKey(address: string, denom: string): string {
-  return new BHP256()
+export function bytesLeToU128String(bytes: Uint8Array): string {
+  assert(bytes.length <= 16, `bytesLeToU128String: expected at most 16 bytes`);
+  let value = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) {
+    value = (value << 8n) | BigInt(bytes[i]);
+  }
+  return `${value}u128`;
+}
+
+// Inverse of bytes32ToU128String: parses "[lowU128u128, highU128u128]" from dispatch_id_events
+// and converts back to a 0x-prefixed 32-byte hex string.
+export function u128PairToBytes32(u128PairStr: string): string {
+  assert(
+    u128PairStr.startsWith('[') && u128PairStr.endsWith(']'),
+    `u128PairToBytes32: expected "[low,high]" format, got: ${u128PairStr}`,
+  );
+  const inner = u128PairStr.slice(1, -1);
+  const parts = inner.split(',').map((s) => s.trim().replace(/u128$/, ''));
+  assert(
+    parts.length === 2,
+    `u128PairToBytes32: expected exactly 2 comma-separated parts, got ${parts.length}: ${inner}`,
+  );
+  const low = BigInt(parts[0]);
+  const high = BigInt(parts[1]);
+  const u128Max = 2n ** 128n;
+  assert(
+    low >= 0n && low < u128Max,
+    `u128PairToBytes32: low value out of u128 range: ${low}`,
+  );
+  assert(
+    high >= 0n && high < u128Max,
+    `u128PairToBytes32: high value out of u128 range: ${high}`,
+  );
+
+  const bytes = new Uint8Array(32);
+  let tempLow = low;
+  for (let i = 0; i < 16; i++) {
+    bytes[i] = Number(tempLow & 0xffn);
+    tempLow >>= 8n;
+  }
+  let tempHigh = high;
+  for (let i = 0; i < 16; i++) {
+    bytes[16 + i] = Number(tempHigh & 0xffn);
+    tempHigh >>= 8n;
+  }
+  return toHexString(Buffer.from(bytes));
+}
+
+export function getBalanceKey(
+  sdk: AleoSdk,
+  address: string,
+  denom: string,
+): string {
+  return new sdk.BHP256()
     .hash(
-      Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
+      sdk.Plaintext.fromString(
+        `{account:${address},token_id:${denom}}`,
+      ).toBitsLe(),
     )
     .toString();
+}
+
+// Aleo scalar field (BLS12-377 Fr) is 253 bits.
+const ALEO_FIELD_BITS = 253;
+
+// Encodes an Aleo Identifier to its snarkVM LE bit representation.
+// Identifier stores ASCII bytes packed into a field element: chars → LE bits → zero-padded to 253 bits.
+function identifierToBitsLe(name: string): boolean[] {
+  const bits: boolean[] = [];
+  for (let i = 0; i < name.length; i++) {
+    const byte = name.charCodeAt(i);
+    for (let b = 0; b < 8; b++) bits.push(((byte >> b) & 1) === 1);
+  }
+  while (bits.length < ALEO_FIELD_BITS) bits.push(false);
+  return bits;
+}
+
+// Encodes an Aleo ProgramID (e.g., "mailbox.aleo") as LE bits.
+// ProgramID serializes as: name identifier bits || network identifier bits.
+function programIdToBitsLe(programId: string): boolean[] {
+  const dot = programId.lastIndexOf('.');
+  return [
+    ...identifierToBitsLe(programId.slice(0, dot)),
+    ...identifierToBitsLe(programId.slice(dot + 1)),
+  ];
+}
+
+// Computes the Aleo mapping key_id used in FinalizeJSON.
+// Matches the Rust `to_key_id` in hyperlane-aleo/src/utils.rs:
+//   BHP1024(programId_bits | false | mappingName_bits | false | plaintextKey_bits)
+// key must be a valid Aleo plaintext string, e.g. "0u32".
+export function toKeyId(
+  sdk: AleoSdk,
+  programId: string,
+  mappingName: string,
+  key: string,
+): string {
+  const bits: boolean[] = [
+    ...programIdToBitsLe(programId),
+    false,
+    ...identifierToBitsLe(mappingName),
+    false,
+    ...sdk.Plaintext.fromString(key).toBitsLe(),
+  ];
+  return new sdk.BHP1024().hash(bits).toString();
 }
 
 /**
@@ -464,4 +398,12 @@ export function formatHookAddress(
   );
 
   return `${hookManagerProgramId}/${hookAddress}`;
+}
+
+export function isV2WarpToken(programId: string): boolean {
+  return programId.endsWith('_v2.aleo');
+}
+
+export function isArc20ProgramId(denom: string): boolean {
+  return denom.endsWith('.aleo');
 }

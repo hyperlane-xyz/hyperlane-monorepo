@@ -7,10 +7,22 @@ import {
 } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
-import { assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { defaultZKProviderBuilder } from '../providers/builders/zksync.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
+
+// Local zksync in-memory test node (era-test-node) defaults: chainId 260 on
+// port 8011. Used when a ZKSyncDeployer is constructed without a
+// provider-backed wallet.
+const LOCAL_ZKSYNC_TEST_NODE: ChainMetadata = {
+  name: 'localZkSyncTestNode',
+  protocol: ProtocolType.Ethereum,
+  chainId: 260,
+  domainId: 260,
+  rpcUrls: [{ http: 'http://127.0.0.1:8011' }],
+};
 
 /**
  * Class for deploying contracts to the ZKSync network.
@@ -23,8 +35,7 @@ export class ZKSyncDeployer {
     this.deploymentType = deploymentType;
 
     this.zkWallet = zkWallet.connect(
-      zkWallet.provider ??
-        defaultZKProviderBuilder([{ http: 'http://127.0.0.1:8011' }], 260),
+      zkWallet.provider ?? defaultZKProviderBuilder(LOCAL_ZKSYNC_TEST_NODE),
     );
   }
 

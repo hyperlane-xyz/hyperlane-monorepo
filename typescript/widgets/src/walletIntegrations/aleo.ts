@@ -11,7 +11,7 @@ import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
-import { getAdapter } from './aleo/utils.js';
+import { getAdapter, setAleoNetwork } from './aleo/utils.js';
 import {
   ChainTransactionFns,
   SwitchNetworkFns,
@@ -27,6 +27,8 @@ export {
   useAleoDisconnectFn,
   useAleoWalletDetails,
 } from './aleoWallet.js';
+export { Network as AleoNetwork } from '@provablehq/aleo-types';
+export { setAleoNetwork };
 
 export function useAleoSwitchNetwork(
   multiProvider: MultiProviderAdapter,
@@ -81,7 +83,7 @@ export function useAleoTransactionFns(
         transaction,
       });
 
-      const adapterInstance = getAdapter();
+      const adapterInstance = await getAdapter();
       const transactionResult = await adapterInstance.executeTransaction({
         program: transaction.programName,
         function: transaction.functionName,
@@ -121,7 +123,7 @@ export function useAleoTransactionFns(
         } catch (err) {
           if (attempts >= MAX_POLLING_ATTEMPTS) {
             throw new Error(
-              `Failed to get transaction status from ${transactionResult.transactionId} after ${MAX_POLLING_ATTEMPTS} attempts: ${err}`,
+              `Failed to get transaction status from ${transactionResult.transactionId} after ${MAX_POLLING_ATTEMPTS} attempts: ${String(err)}`,
             );
           }
         }

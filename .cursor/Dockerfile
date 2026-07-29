@@ -86,7 +86,7 @@ RUN NODE_VER=$(ls "$NODENV_ROOT/plugins/node-build/share/node-build/" \
     nodenv global "$NODE_VER" && \
     nodenv rehash && \
     corepack enable pnpm && \
-    corepack prepare pnpm@latest --activate && \
+    corepack prepare pnpm@11.1.3 --activate && \
     nodenv rehash
 
 # --------------------------------------------------------------------------

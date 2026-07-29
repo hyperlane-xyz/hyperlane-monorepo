@@ -2,6 +2,7 @@ import search from '@inquirer/search';
 
 import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
+  type ChainName,
   filterWarpCoreConfigMapByChains,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
@@ -50,6 +51,21 @@ export async function getWarpCoreConfigOrExit({
   const config = await context.registry.getWarpRoute(resolvedWarpRouteId);
   assert(config, `No warp route found with ID "${resolvedWarpRouteId}"`);
   return config;
+}
+
+/**
+ * Selects the warp token entry for a chain, returning the first match.
+ *
+ * A chain may appear more than once in `tokens` (e.g. cross-collateral
+ * routes). The warp ALT `create` and `check` commands must agree on which
+ * entry they operate on, otherwise `create` freezes the ALT set for one token
+ * while `check` validates a different one.
+ */
+export function findWarpTokenForChain<T extends { chainName: ChainName }>(
+  warpCoreConfig: { tokens: readonly T[] },
+  chainName: ChainName,
+): T | undefined {
+  return warpCoreConfig.tokens.find((t) => t.chainName === chainName);
 }
 
 /**

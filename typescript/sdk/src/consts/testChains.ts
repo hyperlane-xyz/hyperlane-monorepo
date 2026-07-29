@@ -96,6 +96,22 @@ export const testXERC20Lockbox: ChainMetadata = {
   name: 'testxerc20lockbox',
 };
 
+export const testOwnerCollateral: ChainMetadata = {
+  ...test1,
+  chainId: 9913380,
+  domainId: 9913380,
+  displayName: 'Test OwnerCollateral',
+  name: 'testownercollateral',
+};
+
+export const testRebaseCollateral: ChainMetadata = {
+  ...test1,
+  chainId: 9913381,
+  domainId: 9913381,
+  displayName: 'Test RebaseCollateral',
+  name: 'testrebasecollateral',
+};
+
 export const testScale1: ChainMetadata = {
   ...test1,
   chainId: 9913377,
@@ -240,6 +256,8 @@ export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   testscale1: testScale1,
   testscale2: testScale2,
   testcollateralfiat: testCollateralFiat,
+  testownercollateral: testOwnerCollateral,
+  testrebasecollateral: testRebaseCollateral,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

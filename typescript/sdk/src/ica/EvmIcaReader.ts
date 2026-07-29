@@ -2,6 +2,7 @@ import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import { DerivedIcaRouterConfig, IcaRouterType } from './types.js';
 
@@ -17,7 +18,8 @@ export class EvmIcaRouterReader extends EvmRouterReader {
     try {
       commitmentIsmAddress = await icaRouterInstance.CCIP_READ_ISM();
       routerType = IcaRouterType.REGULAR;
-    } catch {
+    } catch (error) {
+      throwIfNotMissingSelector(error);
       rootLogger.debug(
         `No CCIP_READ_ISM on ${address} — MinimalInterchainAccountRouter`,
       );

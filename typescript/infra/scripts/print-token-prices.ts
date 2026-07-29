@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import path from 'path';
 
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainStatus } from '@hyperlane-xyz/sdk';
 import { objMap, pick } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `{mainnet3,testnet4}/index.ts` and `getEnvironmentConfig({'mainnet3','testnet4'})`
@@ -113,11 +113,16 @@ async function main() {
       return tokenPriceOverrides[chain];
     }
 
-    const idData = idPrices[id];
     const prevPrice = getSafeNumericValue(
       prevTokenPrices[chain],
       DEFAULT_PRICE[environment],
     );
+
+    if (chainMetadata[chain]?.availability?.status === ChainStatus.Disabled) {
+      return prevPrice.toString();
+    }
+
+    const idData = idPrices[id];
     const newPrice = getNewTokenPrice(idData, id, environment);
 
     return shouldUpdatePrice(newPrice, prevPrice)

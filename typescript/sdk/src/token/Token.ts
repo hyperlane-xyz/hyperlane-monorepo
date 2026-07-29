@@ -10,8 +10,9 @@ import {
 
 import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ChainName } from '../types.js';
+import type { WarpCoreConfig } from '../warp/types.js';
 
-import type { IToken } from './IToken.js';
+import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
@@ -55,6 +56,13 @@ import { createStarknetHypAdapter } from './adapters/starknetHyp.js';
 import { createTronHypAdapter } from './adapters/tronHyp.js';
 
 export class Token extends TokenMetadata implements IToken {
+  protected readonly warpCoreOptions?: WarpCoreConfig['options'];
+
+  constructor(args: TokenArgs, warpCoreOptions?: WarpCoreConfig['options']) {
+    super(args);
+    this.warpCoreOptions = warpCoreOptions;
+  }
+
   override amount(amount: Numberish): TokenAmount<this> {
     return new TokenAmount(amount, this);
   }
@@ -192,7 +200,7 @@ export class Token extends TokenMetadata implements IToken {
     const hypAdapter =
       createEvmHypAdapter(multiProvider, this) ||
       createTronHypAdapter(multiProvider, this) ||
-      createSealevelHypAdapter(multiProvider, this) ||
+      createSealevelHypAdapter(multiProvider, this, this.warpCoreOptions) ||
       createCosmosHypAdapter(multiProvider, this) ||
       createStarknetHypAdapter(multiProvider, this) ||
       createRadixHypAdapter(multiProvider, this) ||

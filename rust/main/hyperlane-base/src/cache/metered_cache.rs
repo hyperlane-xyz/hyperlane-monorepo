@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::cache::FunctionCallCache;
 
-use super::CacheResult;
+use super::{CacheResult, ExpirationType};
 
 /// Basic cache information.
 #[derive(Debug, Clone)]
@@ -69,6 +69,19 @@ where
     ) -> CacheResult<()> {
         self.inner
             .cache_call_result(domain_name, fn_key, fn_params, result)
+            .await
+    }
+
+    async fn cache_call_result_with_expiration(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+        expiration: ExpirationType,
+    ) -> CacheResult<()> {
+        self.inner
+            .cache_call_result_with_expiration(domain_name, fn_key, fn_params, result, expiration)
             .await
     }
 

@@ -1,13 +1,19 @@
 //! Interchain gas paymaster accounts.
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+};
 
 use access_control::AccessControl;
-use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
+use account_utils::{
+    AccountData, DiscriminatorData, DiscriminatorPrefixed, OptionalDiscriminatedData, SizedData,
+    BORSH_LEN_PREFIX, H160_SIZE, H256_SIZE, PUBKEY_SIZE,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::{H160, H256, U256};
+use quote_verifier::ValidatableQuote;
 use solana_program::{clock::Slot, program_error::ProgramError, pubkey::Pubkey};
-
-use hyperlane_core::{H256, U256};
 
 use crate::error::Error;
 
@@ -47,6 +53,14 @@ pub enum GasOracle {
     RemoteGasData(RemoteGasData),
     // Future gas oracle variants could include a Pyth type, generalized CPI type, etc.
 }
+
+/// Serialized size of one `(u32 key, GasOracle)` entry in the `gas_oracles`
+/// HashMap. Layout: 4 (u32 key) + 1 (GasOracle variant tag) + 33
+/// (`RemoteGasData` = 2x u128 + u8). Layout-coupled to `GasOracle::RemoteGasData`;
+/// if a new variant with a different serialized size is added — or
+/// `RemoteGasData` fields change — this constant must be updated. The
+/// `test_gas_oracle_entry_size_matches_borsh` test catches drift.
+const GAS_ORACLE_ENTRY_SIZE: usize = 4 + 1 + 16 + 16 + 1;
 
 impl Default for GasOracle {
     fn default() -> Self {
@@ -118,8 +132,11 @@ impl OverheadIgp {
         destination_domain: u32,
         gas_amount: u64,
         inner_igp: &Igp,
-    ) -> Result<u64, Error> {
-        let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
+    ) -> Result<u64, ProgramError> {
+        let total_gas_amount = self
+            .gas_overhead(destination_domain)
+            .checked_add(gas_amount)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         inner_igp.quote_gas_payment(destination_domain, total_gas_amount)
     }
 }
@@ -167,6 +184,9 @@ pub struct Igp {
     pub beneficiary: Pubkey,
     /// The gas oracles for each destination domain.
     pub gas_oracles: HashMap<u32, GasOracle>,
+    /// Offchain quoting configuration. None = quoting disabled (oracle-only).
+    /// Managed via SetIgpQuoteConfig. Trailing field for backward compat.
+    pub fee_config: OptionalDiscriminatedData<IgpFeeConfig>,
 }
 
 impl SizedData for Igp {
@@ -176,8 +196,14 @@ impl SizedData for Igp {
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
         // 32 for beneficiary
         // 4 for gas_oracles.len()
-        // M * (4 + (1 + 257)) for gas_oracles contents
-        1 + 32 + 33 + 32 + 4 + (self.gas_oracles.len() * (1 + 257))
+        // M * (4 + 1 + 33) for gas_oracles contents (u32 key + enum disc + RemoteGasData)
+        1 + 32
+            + 33
+            + 32
+            + 4
+            + (self.gas_oracles.len() * (4 + 1 + 33))
+            // fee_config: 0 when None, DISCRIMINATOR (8) + payload when Some.
+            + self.fee_config.size()
     }
 }
 
@@ -188,31 +214,19 @@ impl Igp {
         &self,
         destination_domain: u32,
         gas_amount: u64,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, ProgramError> {
         let oracle = self
             .gas_oracles
             .get(&destination_domain)
             .ok_or(Error::NoGasOracleSetForDestinationDomain)?;
-        let GasOracle::RemoteGasData(RemoteGasData {
-            token_exchange_rate,
-            gas_price,
-            token_decimals,
-        }) = oracle;
+        let GasOracle::RemoteGasData(data) = oracle;
 
-        // Arithmetic is done using U256 to avoid overflows.
-
-        // The total cost quoted in the destination chain's native token.
-        let destination_gas_cost = U256::from(gas_amount) * U256::from(*gas_price);
-
-        // Convert to the local native token (decimals not yet accounted for).
-        let origin_cost = (destination_gas_cost * U256::from(*token_exchange_rate))
-            / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
-
-        // Convert from the remote token's decimals to the local token's decimals.
-        let origin_cost = convert_decimals(origin_cost, *token_decimals, SOL_DECIMALS);
-
-        // Panics if an overflow occurs.
-        Ok(origin_cost.as_u64())
+        compute_gas_fee(
+            data.token_exchange_rate,
+            data.gas_price,
+            gas_amount,
+            data.token_decimals,
+        )
     }
 }
 
@@ -225,6 +239,75 @@ impl AccessControl for Igp {
         self.owner = new_owner;
         Ok(())
     }
+}
+
+/// The quoting mode for an IGP account, determined by whether `fee_config` is set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IgpQuoteMode {
+    /// No `fee_config` — use the legacy on-chain gas oracle path.
+    Legacy,
+    /// `fee_config` is set — require the offchain quoting cascade.
+    Quoted,
+}
+
+/// Determines the quoting mode of an IGP account by partially deserializing
+/// its data. Skips through variable-length fields (owner, gas_oracles) using
+/// Borsh length prefixes, then validates the trailing `IgpFeeConfig`.
+///
+/// Returns `Legacy` if the account lacks `fee_config`, or an error if the
+/// account data is malformed.
+pub fn igp_quote_mode(data: &[u8]) -> Result<IgpQuoteMode, ProgramError> {
+    use borsh::BorshDeserialize;
+
+    let mut reader: &[u8] = data;
+
+    // AccountData init flag (1 byte bool).
+    bool::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // Discriminator — must match Igp.
+    let disc =
+        <[u8; 8]>::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+    if disc != Igp::DISCRIMINATOR {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    // Igp fixed fields: bump (1) + salt (32).
+    u8::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+    H256::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // owner (Option<Pubkey> — variable: 1 byte for None, 33 for Some).
+    Option::<Pubkey>::deserialize_reader(&mut reader)
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // beneficiary (32 bytes).
+    Pubkey::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // Skip gas_oracles HashMap entries using Borsh length prefix.
+    let map_len = u32::deserialize_reader(&mut reader)
+        .map_err(|_| ProgramError::InvalidAccountData)? as usize;
+    let skip = map_len
+        .checked_mul(GAS_ORACLE_ENTRY_SIZE)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    if reader.len() < skip {
+        return Err(ProgramError::InvalidAccountData);
+    }
+    reader = &reader[skip..];
+
+    // Present only if the tail begins with the discriminator; any other tail
+    // (incl. stale pre-zero-fill bytes) is Legacy, never an error. Mirrors
+    // OptionalDiscriminatedData.
+    let discriminator_len = IgpFeeConfig::DISCRIMINATOR_LENGTH;
+    if reader.len() < discriminator_len
+        || reader[..discriminator_len] != IgpFeeConfig::DISCRIMINATOR
+    {
+        return Ok(IgpQuoteMode::Legacy);
+    }
+
+    // deserialize_reader (not try_from_slice) tolerates trailing bytes after a
+    // valid config, matching the full Igp read path.
+    IgpFeeConfig::deserialize_reader(&mut &reader[discriminator_len..])
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+    Ok(IgpQuoteMode::Quoted)
 }
 
 /// Remote gas data.
@@ -292,12 +375,281 @@ impl SizedData for GasPaymentData {
     }
 }
 
+// --- IGP quoting types ---
+
+/// Wildcard sender: matches any sender in standing quote PDA lookups.
+pub const WILDCARD_SENDER: Pubkey = Pubkey::new_from_array([0xFF; 32]);
+
+/// Wildcard domain: matches any destination domain in standing quote PDA lookups.
+pub const WILDCARD_DOMAIN: u32 = u32::MAX;
+
+// --- IGP quote context and data parsing ---
+
+/// Expected size of the IGP quote context bytes.
+/// Layout: [0:32] fee_token_mint | [32:36] destination_domain (u32 LE) | [36:68] sender
+pub const IGP_QUOTE_CONTEXT_SIZE: usize = PUBKEY_SIZE + std::mem::size_of::<u32>() + PUBKEY_SIZE;
+
+/// Expected size of the IGP quote data bytes.
+/// Layout: [0:16] token_exchange_rate (u128 LE) | [16:32] gas_price (u128 LE) | [32:33] token_decimals (u8)
+pub const IGP_QUOTE_DATA_SIZE: usize =
+    std::mem::size_of::<u128>() + std::mem::size_of::<u128>() + std::mem::size_of::<u8>();
+
+/// Parsed IGP quote context from signed quote context bytes.
+#[derive(Debug, PartialEq)]
+pub struct IgpQuoteContext {
+    /// Fee token mint (Pubkey::default() for SOL).
+    pub fee_token_mint: Pubkey,
+    /// Hyperlane destination domain.
+    pub destination_domain: u32,
+    /// Sender program ID for per-sender pricing.
+    pub sender: Pubkey,
+}
+
+impl TryFrom<&[u8]> for IgpQuoteContext {
+    type Error = ProgramError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != IGP_QUOTE_CONTEXT_SIZE {
+            return Err(Error::InvalidIgpQuoteContext.into());
+        }
+
+        Ok(Self {
+            fee_token_mint: Pubkey::try_from(&bytes[..32])
+                .map_err(|_| Error::InvalidIgpQuoteContext)?,
+            destination_domain: u32::from_le_bytes(
+                bytes[32..36]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteContext)?,
+            ),
+            sender: Pubkey::try_from(&bytes[36..68]).map_err(|_| Error::InvalidIgpQuoteContext)?,
+        })
+    }
+}
+
+/// Parsed IGP quote data from signed quote data bytes.
+#[derive(Debug, PartialEq)]
+pub struct IgpQuoteData {
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals for decimal conversion.
+    pub token_decimals: u8,
+}
+
+impl TryFrom<&[u8]> for IgpQuoteData {
+    type Error = ProgramError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != IGP_QUOTE_DATA_SIZE {
+            return Err(Error::InvalidIgpQuoteData.into());
+        }
+
+        Ok(Self {
+            token_exchange_rate: u128::from_le_bytes(
+                bytes[..16]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteData)?,
+            ),
+            gas_price: u128::from_le_bytes(
+                bytes[16..32]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteData)?,
+            ),
+            token_decimals: bytes[32],
+        })
+    }
+}
+
+/// Configuration for offchain quoting on an IGP account.
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
+pub struct IgpFeeConfig {
+    /// Authorized secp256k1 signer addresses for quote submission.
+    pub signers: BTreeSet<H160>,
+    /// Hyperlane domain ID for cross-chain replay prevention in signing messages.
+    pub domain_id: u32,
+    /// Emergency revocation threshold: reject quotes with issued_at below this value.
+    pub min_issued_at: i64,
+}
+
+impl SizedData for IgpFeeConfig {
+    fn size(&self) -> usize {
+        BORSH_LEN_PREFIX + (self.signers.len() * H160_SIZE)
+            + std::mem::size_of::<u32>()  // domain_id
+            + std::mem::size_of::<i64>() // min_issued_at
+    }
+}
+
+impl DiscriminatorData for IgpFeeConfig {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPFEEV1";
+}
+
+// --- Standing quote PDA ---
+
+/// AccountData wrapper for IgpStandingQuote.
+pub type IgpStandingQuoteAccount = AccountData<DiscriminatorPrefixed<IgpStandingQuote>>;
+
+impl DiscriminatorData for IgpStandingQuote {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPSTQTE";
+}
+
+/// Standing quote data for a specific (igp, fee_token_mint, domain, sender) combination.
+/// Context fields are stored for PDA re-derivation in CloseIgpStandingQuote.
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
+pub struct IgpStandingQuote {
+    /// PDA bump seed.
+    pub bump_seed: u8,
+    /// Fee token mint (Pubkey::default() for SOL). Stored for PDA re-derivation.
+    pub fee_token_mint: Pubkey,
+    /// Destination domain. Stored for PDA re-derivation.
+    pub destination_domain: u32,
+    /// Sender (warp route program ID). Stored for PDA re-derivation.
+    pub sender: Pubkey,
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals (same role as RemoteGasData.token_decimals).
+    pub token_decimals: u8,
+    /// When the quote was issued (unix timestamp).
+    pub issued_at: i64,
+    /// When the quote expires (unix timestamp).
+    pub expiry: i64,
+}
+
+impl SizedData for IgpStandingQuote {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u8>()       // bump_seed
+            + PUBKEY_SIZE               // fee_token_mint
+            + std::mem::size_of::<u32>() // destination_domain
+            + PUBKEY_SIZE               // sender
+            + std::mem::size_of::<u128>() // token_exchange_rate
+            + std::mem::size_of::<u128>() // gas_price
+            + std::mem::size_of::<u8>()  // token_decimals
+            + std::mem::size_of::<i64>() // issued_at
+            + std::mem::size_of::<i64>() // expiry
+    }
+}
+
+impl ValidatableQuote for IgpStandingQuote {
+    fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> i64 {
+        self.issued_at
+    }
+}
+
+// --- Transient quote PDA ---
+
+/// AccountData wrapper for IgpTransientQuote.
+pub type IgpTransientQuoteAccount = AccountData<DiscriminatorPrefixed<IgpTransientQuote>>;
+
+impl DiscriminatorData for IgpTransientQuote {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPTQOTE";
+}
+
+/// Transient quote data, created and consumed in the same transaction.
+/// Keyed by (igp_account, scoped_salt) where scoped_salt = keccak256(payer || client_salt).
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
+pub struct IgpTransientQuote {
+    /// PDA bump seed.
+    pub bump_seed: u8,
+    /// Payer who created the transient quote (receives rent refund on autoclose).
+    pub payer: Pubkey,
+    /// Scoped salt: keccak256(payer || client_salt).
+    pub scoped_salt: H256,
+    /// Fee token mint from the quote context (Pubkey::default() for SOL).
+    pub fee_token_mint: Pubkey,
+    /// Destination domain from the quote context.
+    pub destination_domain: u32,
+    /// Sender (warp route program ID) from the quote context.
+    pub sender: Pubkey,
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals.
+    pub token_decimals: u8,
+    /// Expiry timestamp (equals issued_at for transient quotes).
+    pub expiry: i64,
+}
+
+impl SizedData for IgpTransientQuote {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u8>()       // bump_seed
+            + PUBKEY_SIZE               // payer
+            + H256_SIZE                 // scoped_salt
+            + PUBKEY_SIZE               // fee_token_mint
+            + std::mem::size_of::<u32>() // destination_domain
+            + PUBKEY_SIZE               // sender
+            + std::mem::size_of::<u128>() // token_exchange_rate
+            + std::mem::size_of::<u128>() // gas_price
+            + std::mem::size_of::<u8>()  // token_decimals
+            + std::mem::size_of::<i64>() // expiry
+    }
+}
+
+impl ValidatableQuote for IgpTransientQuote {
+    fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> i64 {
+        // Transient quotes have expiry == issued_at by construction.
+        self.expiry
+    }
+}
+
+/// Resolved quote values from the cascade.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedQuote {
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals for decimal conversion.
+    pub token_decimals: u8,
+}
+
+/// Computes the gas fee from quote parameters.
+/// Same formula as the on-chain oracle path but with checked u64 conversion.
+pub fn compute_gas_fee(
+    token_exchange_rate: u128,
+    gas_price: u128,
+    gas_amount: u64,
+    token_decimals: u8,
+) -> Result<u64, ProgramError> {
+    let dest_cost = U256::from(gas_amount)
+        .checked_mul(U256::from(gas_price))
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    let origin_cost = dest_cost
+        .checked_mul(U256::from(token_exchange_rate))
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
+    let origin_cost = convert_decimals(origin_cost, token_decimals, SOL_DECIMALS)?;
+
+    u64::try_from(origin_cost).map_err(|_| ProgramError::ArithmeticOverflow)
+}
+
 /// Converts `num` from `from_decimals` to `to_decimals`.
-fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
+fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> Result<U256, ProgramError> {
     match from_decimals.cmp(&to_decimals) {
-        Ordering::Greater => num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)),
-        Ordering::Less => num * U256::from(10u64).pow(U256::from(to_decimals - from_decimals)),
-        Ordering::Equal => num,
+        Ordering::Greater => {
+            let factor = U256::from(10u64)
+                .checked_pow(U256::from(from_decimals - to_decimals))
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            Ok(num / factor)
+        }
+        Ordering::Less => {
+            let factor = U256::from(10u64)
+                .checked_pow(U256::from(to_decimals - from_decimals))
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            num.checked_mul(factor)
+                .ok_or(ProgramError::ArithmeticOverflow)
+        }
+        Ordering::Equal => Ok(num),
     }
 }
 
@@ -305,38 +657,588 @@ fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
 mod test {
     use super::*;
 
+    // --- IgpFeeConfig ---
+
+    #[test]
+    fn test_igp_fee_config_borsh_roundtrip() {
+        let config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random(), H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let encoded = borsh::to_vec(&config).unwrap();
+        let decoded: IgpFeeConfig = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(config, decoded);
+    }
+
+    #[test]
+    fn test_igp_fee_config_sized_data_empty() {
+        let config = IgpFeeConfig::default();
+        assert_eq!(config.size(), borsh::to_vec(&config).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_fee_config_sized_data_with_signers() {
+        let config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random(), H160::random(), H160::random()]),
+            domain_id: 1,
+            min_issued_at: 500,
+        };
+        assert_eq!(config.size(), borsh::to_vec(&config).unwrap().len());
+    }
+
+    #[test]
+    fn test_gas_oracle_entry_size_matches_borsh() {
+        let entry: (u32, GasOracle) = (0, GasOracle::RemoteGasData(RemoteGasData::default()));
+        assert_eq!(borsh::to_vec(&entry).unwrap().len(), GAS_ORACLE_ENTRY_SIZE);
+    }
+
+    // --- IgpStandingQuote ---
+
+    #[test]
+    fn test_igp_standing_quote_borsh_roundtrip() {
+        let quote = IgpStandingQuote {
+            bump_seed: 1,
+            fee_token_mint: Pubkey::default(),
+            destination_domain: 137,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 2_000_000_000_000_000_000,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+            issued_at: 1000,
+            expiry: 2000,
+        };
+        let encoded = borsh::to_vec(&quote).unwrap();
+        let decoded: IgpStandingQuote = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(quote, decoded);
+    }
+
+    #[test]
+    fn test_igp_standing_quote_sized_data() {
+        let quote = IgpStandingQuote {
+            bump_seed: 1,
+            fee_token_mint: Pubkey::default(),
+            destination_domain: 137,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 2_000_000_000_000_000_000,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+            issued_at: 1000,
+            expiry: 2000,
+        };
+        assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
+    }
+
+    // --- IgpTransientQuote ---
+
+    #[test]
+    fn test_igp_transient_quote_borsh_roundtrip() {
+        let quote = IgpTransientQuote {
+            bump_seed: 2,
+            payer: Pubkey::new_unique(),
+            scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
+            destination_domain: 42,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 1_000_000_000_000_000_000,
+            gas_price: 25_000_000_000,
+            token_decimals: 9,
+            expiry: 500,
+        };
+        let encoded = borsh::to_vec(&quote).unwrap();
+        let decoded: IgpTransientQuote = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(quote, decoded);
+    }
+
+    #[test]
+    fn test_igp_transient_quote_sized_data() {
+        let quote = IgpTransientQuote {
+            bump_seed: 2,
+            payer: Pubkey::new_unique(),
+            scoped_salt: H256::random(),
+            fee_token_mint: Pubkey::new_unique(),
+            destination_domain: 42,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 1_000_000_000_000_000_000,
+            gas_price: 25_000_000_000,
+            token_decimals: 9,
+            expiry: 500,
+        };
+        assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
+    }
+
+    // --- Igp backward-compat deserialization ---
+
+    #[test]
+    fn test_igp_borsh_roundtrip_with_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            })
+            .into(),
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        let decoded: Igp = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(igp, decoded);
+    }
+
+    #[test]
+    fn test_igp_borsh_roundtrip_without_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None.into(),
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        let decoded: Igp = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(igp, decoded);
+    }
+
+    #[test]
+    fn test_igp_backward_compat_deserialize_without_fee_config() {
+        // fee_config: None writes no trailing bytes, producing the same byte
+        // layout as pre-upgrade accounts.
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None.into(),
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        // No trailing Option tag — matches old format exactly.
+        let mut reader = encoded.as_slice();
+        let deserialized = Igp::deserialize_reader(&mut reader).unwrap();
+        assert_eq!(deserialized.fee_config, None);
+        assert_eq!(deserialized.bump_seed, igp.bump_seed);
+        assert_eq!(deserialized.beneficiary, igp.beneficiary);
+    }
+
+    #[test]
+    fn test_igp_sized_data_with_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random(), H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            })
+            .into(),
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_sized_data_without_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None.into(),
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_sized_data_with_gas_oracles() {
+        let mut gas_oracles = HashMap::new();
+        gas_oracles.insert(1u32, GasOracle::RemoteGasData(RemoteGasData::default()));
+        gas_oracles.insert(2u32, GasOracle::RemoteGasData(RemoteGasData::default()));
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles,
+            fee_config: None.into(),
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    // --- IgpQuoteContext parsing ---
+
+    #[test]
+    fn test_igp_quote_context_try_from_valid() {
+        let mint = Pubkey::new_unique();
+        let sender = Pubkey::new_unique();
+        let domain: u32 = 137;
+
+        let mut bytes = Vec::with_capacity(IGP_QUOTE_CONTEXT_SIZE);
+        bytes.extend_from_slice(mint.as_ref());
+        bytes.extend_from_slice(&domain.to_le_bytes());
+        bytes.extend_from_slice(sender.as_ref());
+
+        let ctx = IgpQuoteContext::try_from(bytes.as_slice()).unwrap();
+        assert_eq!(ctx.fee_token_mint, mint);
+        assert_eq!(ctx.destination_domain, domain);
+        assert_eq!(ctx.sender, sender);
+    }
+
+    #[test]
+    fn test_igp_quote_context_try_from_wrong_length() {
+        let result = IgpQuoteContext::try_from(&[0u8; 10][..]);
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::Custom(Error::InvalidIgpQuoteContext as u32),
+        );
+    }
+
+    // --- IgpQuoteData parsing ---
+
+    #[test]
+    fn test_igp_quote_data_try_from_valid() {
+        let exchange_rate: u128 = 2_000_000_000_000_000_000;
+        let gas_price: u128 = 50_000_000_000;
+        let decimals: u8 = 18;
+
+        let mut bytes = Vec::with_capacity(IGP_QUOTE_DATA_SIZE);
+        bytes.extend_from_slice(&exchange_rate.to_le_bytes());
+        bytes.extend_from_slice(&gas_price.to_le_bytes());
+        bytes.push(decimals);
+
+        let data = IgpQuoteData::try_from(bytes.as_slice()).unwrap();
+        assert_eq!(data.token_exchange_rate, exchange_rate);
+        assert_eq!(data.gas_price, gas_price);
+        assert_eq!(data.token_decimals, decimals);
+    }
+
+    #[test]
+    fn test_igp_quote_data_try_from_wrong_length() {
+        let result = IgpQuoteData::try_from(&[0u8; 5][..]);
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::Custom(Error::InvalidIgpQuoteData as u32),
+        );
+    }
+
+    // --- compute_gas_fee ---
+
+    #[test]
+    fn test_compute_gas_fee_matches_oracle_path() {
+        // Same inputs as the oracle would provide — result must match.
+        let exchange_rate: u128 = 10u128.pow(19); // 1:1
+        let gas_price: u128 = 1_000_000_000; // 1 gwei
+        let gas_amount: u64 = 100_000;
+        let token_decimals: u8 = 9; // same as SOL
+
+        let result = compute_gas_fee(exchange_rate, gas_price, gas_amount, token_decimals).unwrap();
+
+        // Manual: 100_000 * 1e9 * 1e19 / 1e19 = 100_000 * 1e9 = 1e14
+        // convert_decimals(1e14, 9, 9) = 1e14
+        assert_eq!(result, 100_000_000_000_000);
+    }
+
+    #[test]
+    fn test_compute_gas_fee_with_decimal_conversion() {
+        let exchange_rate: u128 = 10u128.pow(19);
+        let gas_price: u128 = 1_000_000_000;
+        let gas_amount: u64 = 100_000;
+        let token_decimals: u8 = 18; // remote has 18 decimals, local has 9
+
+        let result = compute_gas_fee(exchange_rate, gas_price, gas_amount, token_decimals).unwrap();
+
+        // convert_decimals divides by 10^(18-9) = 10^9
+        assert_eq!(result, 100_000);
+    }
+
+    #[test]
+    fn test_compute_gas_fee_overflow_returns_error() {
+        // Values that produce a result > u64::MAX but within U256 range.
+        // exchange_rate=1e19, gas_price=1e18, gas_amount=u64::MAX, decimals=0
+        // result = u64::MAX * 1e18 * 1e19 / 1e19 = u64::MAX * 1e18 >> u64::MAX
+        let result = compute_gas_fee(10u128.pow(19), 10u128.pow(18), u64::MAX, 0);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
+    }
+
+    // --- Existing tests ---
+
     #[test]
     fn test_convert_decimals() {
         let num = U256::from(1000000u128);
         let from_decimals = 9;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, num);
 
         let num = U256::from(1000000000000000u128);
         let from_decimals = 18;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(1000000u128));
 
         let num = U256::from(1000000u128);
         let from_decimals = 4;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(100000000000u128));
 
         // Some loss of precision
         let num = U256::from(9999999u128);
         let from_decimals = 9;
         let to_decimals = 4;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(99u128));
 
         // Total loss of precision
         let num = U256::from(999u128);
         let from_decimals = 9;
         let to_decimals = 4;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(0u128));
+    }
+
+    #[test]
+    fn test_convert_decimals_pow_overflow_is_arithmetic_error() {
+        // 10^(from-to) panics in raw U256::pow once exp > ~77. With
+        // checked_pow it must surface as ArithmeticOverflow instead of
+        // aborting the program.
+        let num = U256::from(1u128);
+        let result = convert_decimals(num, /* from */ 200, /* to */ 9);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
+
+        let result = convert_decimals(num, /* from */ 9, /* to */ 200);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
+    }
+
+    // --- igp_quote_mode tests ---
+
+    /// Serializes an Igp into the on-chain AccountData layout using store_in_slice.
+    fn make_igp_account_data(igp: Igp) -> Vec<u8> {
+        let account = IgpAccount::new(igp.into());
+        let mut buf = vec![0u8; account.size()];
+        account.store_in_slice(&mut buf).unwrap();
+        buf
+    }
+
+    fn default_igp(fee_config: Option<IgpFeeConfig>) -> Igp {
+        Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: fee_config.into(),
+        }
+    }
+
+    #[test]
+    fn test_igp_quote_mode_none() {
+        let data = make_igp_account_data(default_igp(None));
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_some() {
+        let data = make_igp_account_data(default_igp(Some(IgpFeeConfig {
+            signers: BTreeSet::new(),
+            domain_id: 1,
+            min_issued_at: 0,
+        })));
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_with_oracles() {
+        let mut gas_oracles = HashMap::new();
+        gas_oracles.insert(
+            1,
+            GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 1_000_000_000,
+                gas_price: 50_000_000_000,
+                token_decimals: 18,
+            }),
+        );
+        gas_oracles.insert(
+            2,
+            GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 2_000_000_000,
+                gas_price: 100_000_000_000,
+                token_decimals: 9,
+            }),
+        );
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles,
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            })
+            .into(),
+        };
+        let data = make_igp_account_data(igp);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_garbage_trailing_bytes() {
+        let mut data = make_igp_account_data(default_igp(None));
+        // Trailing bytes that don't begin with IgpFeeConfig::DISCRIMINATOR are
+        // stale/absent, not a present config: classified Legacy, never an error.
+        data.extend_from_slice(&[0xFF; 16]);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_tolerates_padding_after_fee_config() {
+        // A future shrink path could leave stale zero padding after a valid
+        // IgpFeeConfig. The probe must not reject in that case — full
+        // Igp::deserialize_reader silently ignores trailing bytes, so
+        // igp_quote_mode needs to match.
+        let mut data = make_igp_account_data(default_igp(Some(IgpFeeConfig {
+            signers: BTreeSet::new(),
+            domain_id: 1,
+            min_issued_at: 0,
+        })));
+        data.extend_from_slice(&[0u8; 8]);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_truncated_data() {
+        assert!(igp_quote_mode(&[]).is_err());
+        assert!(igp_quote_mode(&[0u8; 50]).is_err());
+    }
+
+    // HLSVM-2026Q2-010 regression guards: a stale gas_oracles tail must not create
+    // a false fee_config (`*_stale_oracle_tail_*`), and a genuine fee_config must
+    // survive stale trailing bytes (`*_real_fee_config_*`).
+
+    fn igp_with(domains: &[u32], fee_config: Option<IgpFeeConfig>) -> Igp {
+        let mut gas_oracles = HashMap::new();
+        for &domain in domains {
+            gas_oracles.insert(
+                domain,
+                GasOracle::RemoteGasData(RemoteGasData {
+                    token_exchange_rate: 1_000_000_000,
+                    gas_price: 50_000_000_000,
+                    token_decimals: 18,
+                }),
+            );
+        }
+        Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_from_array([7u8; 32])),
+            beneficiary: Pubkey::new_from_array([9u8; 32]),
+            gas_oracles,
+            fee_config: fee_config.into(),
+        }
+    }
+
+    // Overlays `keep` (post-shrink) onto `before` (pre-shrink) — a pre-#8698 store
+    // that left the removed entry's bytes as a stale tail. borsh sorts the map by
+    // key, so a removed domain > 0 lands at the tail boundary.
+    fn overlay_shrunk(before: Vec<u8>, keep: Vec<u8>) -> Vec<u8> {
+        assert!(keep.len() < before.len());
+        let mut buf = before;
+        buf[..keep.len()].copy_from_slice(&keep);
+        buf
+    }
+
+    /// Stale 0x02 tail must not reject the account.
+    #[test]
+    fn test_igp_stale_oracle_tail_does_not_reject_account() {
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 0xFF02], None)).unwrap(),
+            borsh::to_vec(&igp_with(&[0], None)).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..])
+            .expect("stale removed-oracle tail must not make a legacy IGP unreadable");
+        assert_eq!(
+            decoded.fee_config, None,
+            "stale bytes must not be read as fee_config",
+        );
+    }
+
+    /// Stale 0x01 tail that decodes as a plausible IgpFeeConfig must not be read
+    /// as Some.
+    #[test]
+    fn test_igp_stale_oracle_tail_not_misread_as_fee_config() {
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 1], None)).unwrap(),
+            borsh::to_vec(&igp_with(&[0], None)).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..]).unwrap();
+        assert_eq!(
+            decoded.fee_config, None,
+            "stale tail starting with 0x01 must not be misread as Some(IgpFeeConfig)",
+        );
+    }
+
+    /// Dispatch-path probe must not reject on a 0x02 stale tail.
+    #[test]
+    fn test_igp_quote_mode_stale_oracle_tail_stays_legacy() {
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 0xFF02], None)),
+            make_igp_account_data(igp_with(&[0], None)),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    /// Dispatch-path probe must not classify a legacy IGP as Quoted on a 0x01
+    /// stale tail.
+    #[test]
+    fn test_igp_quote_mode_stale_oracle_tail_not_false_quoted() {
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 1], None)),
+            make_igp_account_data(igp_with(&[0], None)),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    /// A genuine fee_config must survive stale oracle bytes trailing after it.
+    #[test]
+    fn test_igp_real_fee_config_survives_stale_map_tail() {
+        let fee_config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let buf = overlay_shrunk(
+            borsh::to_vec(&igp_with(&[0, 0xFF02], Some(fee_config.clone()))).unwrap(),
+            borsh::to_vec(&igp_with(&[0], Some(fee_config.clone()))).unwrap(),
+        );
+        let decoded = Igp::deserialize_reader(&mut &buf[..]).unwrap();
+        assert_eq!(
+            decoded.fee_config,
+            Some(fee_config),
+            "real quote settings must survive a stale gas_oracles tail",
+        );
+    }
+
+    /// Dispatch-path probe reports Quoted for a genuine fee_config behind a tail.
+    #[test]
+    fn test_igp_quote_mode_real_fee_config_with_stale_map_tail() {
+        let fee_config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let data = overlay_shrunk(
+            make_igp_account_data(igp_with(&[0, 0xFF02], Some(fee_config.clone()))),
+            make_igp_account_data(igp_with(&[0], Some(fee_config))),
+        );
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
     }
 }

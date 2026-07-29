@@ -54,13 +54,5 @@
       "isProxy": false,
       "constructorArguments": "0x"
     }
-  ],
-  "moonbeam": [
-    {
-      "name": "TestQuerySender",
-      "address": "0x8566F965f613cB47A5Bd59879d07186122590895",
-      "isProxy": false,
-      "constructorArguments": "0x"
-    }
   ]
 }

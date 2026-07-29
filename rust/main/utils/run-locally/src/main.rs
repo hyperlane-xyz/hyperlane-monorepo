@@ -591,28 +591,22 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    let line_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
+    let no_metadata_message_count = restored_unavailable_metadata_count(&relayer_logfile);
 
     log!("Checking message statuses were retrieved from logs...");
-    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
-
-    let no_metadata_message_count = *matched_logs
-        .get(&line_filters)
-        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
-
     log!(
-        "CouldNotFetchMetadata log count found {}, expected {}",
+        "Unavailable metadata log count found {}, expected {}",
         no_metadata_message_count,
         ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     );
     // These messages are never inserted into the merkle tree.
     // So these messages will never be deliverable and will always
-    // be in a CouldNotFetchMetadata state.
+    // have an unavailable metadata state.
     // When the relayer restarts, these messages' statuses should be
-    // retrieved from the database with CouldNotFetchMetadata status.
+    // retrieved from the database with an unavailable metadata status.
     if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
-            "No metadata message count is {}, expected {}",
+            "Unavailable metadata message count is {}, expected {}",
             no_metadata_message_count,
             ZERO_MERKLE_INSERTION_KATHY_MESSAGES
         );
@@ -624,6 +618,57 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     // Causing this invariant to be higher than expected
     assert!(no_metadata_message_count >= ZERO_MERKLE_INSERTION_KATHY_MESSAGES);
     Ok(true)
+}
+
+fn restored_unavailable_metadata_count(relayer_logfile: &File) -> u32 {
+    let could_not_fetch_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
+    let metadata_refused_filters = vec![RETRIEVED_MESSAGE_LOG, "MessageMetadataRefused"];
+
+    let matched_logs = get_matching_lines(
+        relayer_logfile,
+        vec![
+            could_not_fetch_filters.clone(),
+            metadata_refused_filters.clone(),
+        ],
+    );
+
+    // Once the reorg flag is set, zero-merkle-insertion messages can move from
+    // CouldNotFetchMetadata to MessageMetadataRefused before the relayer restarts.
+    // Both states prove the message status was restored from the database.
+    matched_logs
+        .get(&could_not_fetch_filters)
+        .copied()
+        .unwrap_or_default()
+        + matched_logs
+            .get(&metadata_refused_filters)
+            .copied()
+            .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Seek, SeekFrom};
+
+    use super::*;
+
+    #[test]
+    fn counts_all_restored_unavailable_metadata_states() {
+        let mut log_file = tempfile::tempfile().unwrap();
+        writeln!(
+            log_file,
+            r#"status=Retry(CouldNotFetchMetadata) {RETRIEVED_MESSAGE_LOG}"#
+        )
+        .unwrap();
+        writeln!(
+            log_file,
+            r#"status=Retry(MessageMetadataRefused) {RETRIEVED_MESSAGE_LOG}"#
+        )
+        .unwrap();
+        writeln!(log_file, "CouldNotFetchMetadata without retrieval").unwrap();
+        log_file.seek(SeekFrom::Start(0)).unwrap();
+
+        assert_eq!(restored_unavailable_metadata_count(&log_file), 2);
+    }
 }
 
 /// Check relayer reused already built metadata
@@ -669,9 +714,6 @@ where
     while loop_invariant_fn() {
         log!("Checking e2e invariants...");
         sleep(loop_check_interval);
-        if !config.ci_mode {
-            continue;
-        }
         match condition_fn() {
             Ok(true) => {
                 // end condition reached successfully
@@ -684,7 +726,7 @@ where
                 log!("Error checking e2e invariants: {}", e);
             }
         }
-        if check_ci_timed_out(config.ci_mode_timeout, start_time) {
+        if config.ci_mode && check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
             log!("Error: CI timeout reached before invariants were met");
             return false;

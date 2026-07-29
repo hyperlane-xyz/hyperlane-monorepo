@@ -543,7 +543,7 @@ describe('configUtils', () => {
 
     it('should resolve token to router address for synthetic tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -560,7 +560,7 @@ describe('configUtils', () => {
 
     it('should resolve token to collateral address for collateral tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -576,7 +576,7 @@ describe('configUtils', () => {
 
     it('should resolve token to AddressZero for native tokens', () => {
       const input = {
-        type: TokenFeeType.LinearFee as const,
+        type: TokenFeeType.LinearFee,
         owner: OWNER_ADDRESS,
         bps: 100,
       };
@@ -592,16 +592,16 @@ describe('configUtils', () => {
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {
           ethereum: {
-            type: TokenFeeType.LinearFee as const,
+            type: TokenFeeType.LinearFee,
             owner: OWNER_ADDRESS,
             bps: 100,
           },
           arbitrum: {
-            type: TokenFeeType.LinearFee as const,
+            type: TokenFeeType.LinearFee,
             owner: OWNER_ADDRESS,
             bps: 50,
           },
@@ -623,7 +623,7 @@ describe('configUtils', () => {
 
     it('should handle RoutingFee with empty feeContracts', () => {
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.RoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {},
       };
@@ -642,17 +642,17 @@ describe('configUtils', () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const input = {
-        type: TokenFeeType.CrossCollateralRoutingFee as const,
+        type: TokenFeeType.CrossCollateralRoutingFee,
         owner: OWNER_ADDRESS,
         feeContracts: {
           ethereum: {
             [DEFAULT_ROUTER_KEY]: {
-              type: TokenFeeType.LinearFee as const,
+              type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
               bps: 100n,
             },
             [ROUTER_KEY]: {
-              type: TokenFeeType.LinearFee as const,
+              type: TokenFeeType.LinearFee,
               owner: OWNER_ADDRESS,
               bps: 200n,
             },

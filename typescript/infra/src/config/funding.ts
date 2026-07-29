@@ -39,6 +39,7 @@ export interface KeyFunderConfig<
   desiredBalancePerChain: Record<SupportedChains[number], string>;
   desiredRebalancerBalancePerChain: ChainMap<string>;
   desiredInventoryRebalancerBalancePerChain?: ChainMap<string>;
+  desiredStableswapInventoryRebalancerBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
   // Per-chain overrides for automatic sweep of excess funds to Safes
@@ -49,6 +50,10 @@ export interface KeyFunderConfig<
 }
 
 export interface CheckWarpDeployConfig extends CronJobConfig {
+  registryCommit?: string;
+}
+
+export interface ValidatorMonitorConfig extends CronJobConfig {
   registryCommit?: string;
 }
 

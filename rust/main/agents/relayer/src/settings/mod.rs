@@ -16,7 +16,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -222,6 +222,19 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
 
                 let matching_list = policy.chain(&mut err).get_opt_key("matchingList").and_then(parse_matching_list).unwrap_or_default();
+                let fee_token = policy.chain(&mut err)
+                    .get_opt_key("feeToken")
+                    .parse_from_str::<H160>("Expected feeToken to be an EVM address")
+                    .end()
+                    .unwrap_or_else(H160::zero);
+                if fee_token != H160::zero() {
+                    err.push(
+                        (&policy.cwp).add("fee_token"),
+                        eyre!(
+                            "`feeToken` gas payment enforcement is not supported without token-aware IGP indexing; use onChainFeeQuoting with the native token field unset"
+                        ),
+                    );
+                }
 
                 let parse_minimum = |p| GasPaymentEnforcementPolicy::Minimum { payment: p };
                 match policy_type {
@@ -514,6 +527,38 @@ fn parse_address_list(
 mod test {
     use super::*;
     use hyperlane_core::H160;
+    use serde_json::json;
+
+    fn chain_config(name: &str, domain_id: u32) -> Value {
+        json!({
+            "name": name,
+            "domainid": domain_id,
+            "chainid": domain_id,
+            "protocol": "ethereum",
+            "rpcurls": [{ "http": "http://localhost:8545" }],
+            "mailbox": "0x0000000000000000000000000000000000000001",
+            "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+            "validatorannounce": "0x0000000000000000000000000000000000000003",
+            "merkletreehook": "0x0000000000000000000000000000000000000004",
+        })
+    }
+
+    fn parse_settings(raw: Value) -> ConfigResult<RelayerSettings> {
+        RelayerSettings::from_config_filtered(
+            RawRelayerSettings(raw),
+            &ConfigPath::default(),
+            (),
+            "relayer",
+        )
+    }
+
+    fn assert_fee_token_error(error: ConfigParsingError) {
+        let error = error.to_string();
+        assert!(
+            error.contains("`feeToken` gas payment enforcement is not supported"),
+            "unexpected error: {error}",
+        );
+    }
 
     #[test]
     fn test_parse_address_blacklist() {
@@ -571,5 +616,51 @@ mod test {
         let p = ValueParser::new(ConfigPath::default(), &value);
         let configs = parse_ism_cache_configs(p).expect("Failed to parse ism cache config");
         assert_eq!(configs.len(), 2);
+    }
+
+    #[test]
+    fn fee_token_policy_rejects_non_zero_fee_token() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+            "gaspaymentenforcement": [{
+                "type": "minimum",
+                "payment": "1",
+                "feetoken": "0x0000000000000000000000000000000000000005",
+            }],
+        }));
+
+        assert_fee_token_error(settings.expect_err("non-zero feeToken policy must reject"));
+    }
+
+    #[test]
+    fn fee_token_policy_allows_unset_fee_token() {
+        parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+            "gaspaymentenforcement": [{
+                "type": "onChainFeeQuoting",
+            }],
+        }))
+        .expect("unset feeToken should parse");
+    }
+
+    #[test]
+    fn fee_token_policy_allows_zero_fee_token() {
+        parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+            "gaspaymentenforcement": [{
+                "type": "onChainFeeQuoting",
+                "feetoken": "0x0000000000000000000000000000000000000000",
+            }],
+        }))
+        .expect("zero feeToken should parse");
     }
 }

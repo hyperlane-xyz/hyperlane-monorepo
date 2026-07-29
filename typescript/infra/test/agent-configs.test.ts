@@ -34,6 +34,13 @@ const environmentChainConfigs = {
 };
 
 describe('Agent configs', () => {
+  it('uses an RPC-compatible B² index chunk', () => {
+    expect(
+      environmentChainConfigs.mainnet3.agentJsonConfig.chains.bsquared.index
+        ?.chunk,
+    ).to.equal(999);
+  });
+
   Object.entries(environmentChainConfigs).forEach(([environment, config]) => {
     describe(`Environment: ${environment}`, () => {
       // eslint-disable-next-line jest/expect-expect -- ensureAgentChainConfigIncludesAllChainNames throws on failure

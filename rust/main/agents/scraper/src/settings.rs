@@ -4,7 +4,12 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, default::Default, ops::Add};
+use std::{
+    collections::{HashMap, HashSet},
+    default::Default,
+    ops::Add,
+    str::FromStr,
+};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::Context;
@@ -15,7 +20,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -30,6 +35,10 @@ pub struct ScraperSettings {
 
     pub db: String,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
+    /// Per-domain CCR contract → underlying ERC20 token mapping.
+    /// Domain ID → { router_address → token_address }.
+    /// Only domains present here will spawn a CCR swap indexer.
+    pub ccr_routers: HashMap<u32, HashMap<H160, H160>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,12 +94,56 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             Default::default()
         };
 
+        // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
+        let raw_ccr_routers = p
+            .chain(&mut err)
+            .get_opt_key("ccrRouters")
+            .parse_value::<HashMap<String, HashMap<String, String>>>("parsing ccrRouters")
+            .end()
+            .unwrap_or_default();
+
+        let mut ccr_routers: HashMap<u32, HashMap<H160, H160>> = HashMap::new();
+        for (domain_str, router_map) in raw_ccr_routers {
+            let Some(domain_id) = domain_str
+                .parse::<u32>()
+                .with_context(|| format!("Invalid domain ID '{domain_str}' in ccrRouters"))
+                .into_config_result(|| cwp.add("ccrRouters"))
+                .take_config_err(&mut err)
+            else {
+                continue;
+            };
+            let mut domain_routers = HashMap::new();
+            for (router, token) in router_map {
+                let Some(r) = H160::from_str(&router)
+                    .with_context(|| {
+                        format!("Invalid router address '{router}' for domain '{domain_str}' in ccrRouters")
+                    })
+                    .into_config_result(|| cwp.add("ccrRouters"))
+                    .take_config_err(&mut err)
+                else {
+                    continue;
+                };
+                let Some(t) = H160::from_str(&token)
+                    .with_context(|| {
+                        format!("Invalid token address '{token}' for router '{router}' in domain '{domain_str}' ccrRouters")
+                    })
+                    .into_config_result(|| cwp.add("ccrRouters"))
+                    .take_config_err(&mut err)
+                else {
+                    continue;
+                };
+                domain_routers.insert(r, t);
+            }
+            ccr_routers.insert(domain_id, domain_routers);
+        }
+
         cfg_unwrap_all!(&p.cwp, err: [base, db]);
 
         err.into_result(Self {
             base,
             db,
             chains_to_scrape,
+            ccr_routers,
         })
     }
 }

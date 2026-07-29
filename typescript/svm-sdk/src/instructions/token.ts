@@ -35,18 +35,23 @@ import {
   InterchainGasPaymasterTypeKind,
   type RemoteRouterConfig,
 } from '../codecs/shared.js';
+import type { TokenFeeConfig } from '../accounts/token.js';
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
+  SPL_NOOP_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
 import {
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
+  deriveMailboxDispatchedMessagePda,
+  deriveMailboxOutboxPda,
 } from '../pda.js';
 import {
   buildInstruction,
   type InstructionAccountMeta,
   readonlyAccount,
+  readonlySigner,
   readonlySignerAddress,
   writableAccount,
   writableSigner,
@@ -62,6 +67,8 @@ export enum TokenProgramInstructionKind {
   SetInterchainSecurityModule = 5,
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
+  TransferRemoteWithMemo = 8,
+  SetFeeConfig = 9,
 }
 
 export interface TokenInitInstructionData {
@@ -92,7 +99,8 @@ export type TokenProgramInstructionData =
       kind: 'setInterchainGasPaymaster';
       value: [Address, InterchainGasPaymasterType] | null;
     }
-  | { kind: 'transferOwnership'; value: Address | null };
+  | { kind: 'transferOwnership'; value: Address | null }
+  | { kind: 'setFeeConfig'; value: TokenFeeConfig | null };
 
 interface TokenInitIgpValue {
   programId: Address;
@@ -195,6 +203,17 @@ export function encodeTokenProgramInstruction(
         u8(TokenProgramInstructionKind.TransferOwnership),
         option(instruction.value, (addr) => ADDRESS_CODEC.encode(addr)),
       );
+    case 'setFeeConfig':
+      return concatBytes(
+        PROGRAM_INSTRUCTION_DISCRIMINATOR,
+        u8(TokenProgramInstructionKind.SetFeeConfig),
+        option(instruction.value, (fc) =>
+          concatBytes(
+            ADDRESS_CODEC.encode(fc.feeProgram),
+            ADDRESS_CODEC.encode(fc.feeAccount),
+          ),
+        ),
+      );
   }
 }
 
@@ -242,14 +261,189 @@ export function decodeTokenProgramInstruction(
       };
     case TokenProgramInstructionKind.TransferOwnership:
       return { kind: 'transferOwnership', value: decodeOptionAddress(cursor) };
+    case TokenProgramInstructionKind.SetFeeConfig:
+      return { kind: 'setFeeConfig', value: decodeOptionFeeConfig(cursor) };
     default:
-      if (kind <= TokenProgramInstructionKind.TransferOwnership) {
+      if (kind <= TokenProgramInstructionKind.SetFeeConfig) {
         throw new Error(
           `Token instruction kind ${kind} is recognized but decoding is not yet implemented`,
         );
       }
       return null;
   }
+}
+
+/**
+ * Optional fee section consumed by warp token `transfer_remote`.
+ * Appended between the static prefix and the IGP section when the warp
+ * token has a `fee_config` set on-chain.
+ *
+ *   feeProgram
+ *   feeAccount
+ *   ...passThroughAccounts (0..15 — cascade quote PDAs, route PDAs, etc.)
+ *   feeBeneficiary (writable, terminal sentinel)
+ */
+export interface FeeTransferRemoteSection {
+  feeProgram: Address;
+  feeAccount: Address;
+  /** Variable QuoteFee pass-through accounts (e.g. standing-quote PDAs). */
+  passThroughAccounts?: InstructionAccountMeta[];
+  feeBeneficiary: Address;
+}
+
+export function buildFeeTransferRemoteSectionAccounts(
+  fee: FeeTransferRemoteSection,
+): InstructionAccountMeta[] {
+  return [
+    readonlyAccount(fee.feeProgram),
+    readonlyAccount(fee.feeAccount),
+    ...(fee.passThroughAccounts ?? []),
+    writableAccount(fee.feeBeneficiary),
+  ];
+}
+
+/**
+ * Optional "quoted-mode" extension to the IGP section. When set, the IGP
+ * uses offchain quote pricing and the warp program invokes PayForGas with
+ * `invoke_signed` using the route's `igp_quote_authority` PDA. The matching
+ * `SubmitIgpQuote` instruction must run earlier in the same transaction.
+ */
+export interface IgpQuotedExtension {
+  /**
+   * The route's dedicated `igp_quote_authority` PDA (derive via
+   * `deriveIgpQuoteAuthorityPda`) — distinct from the mailbox and CC
+   * dispatch-authority PDAs. The IGP signs the quoted PayForGas CPI with
+   * this authority.
+   */
+  senderAuthority: Address;
+  /**
+   * Warp program id (= the sender). The on-chain IGP rejects the quote
+   * unless this matches the `sender` field in the signed quote context.
+   */
+  senderProgramId: Address;
+  /**
+   * Cascade standing/transient quote PDAs (0..N), appended after
+   * `senderProgramId`. Account roles must mirror what
+   * `GetIgpQuoteAccountMetas` returns at simulation time (the transient
+   * quote PDA is typically writable since the IGP closes it during
+   * consumption).
+   */
+  cascadeQuotePdas?: InstructionAccountMeta[];
+}
+
+/**
+ * Optional IGP account section consumed by warp token `transfer_remote`.
+ * Layout matches the Rust processor: when the token has an IGP configured,
+ * these accounts are appended after the (optional) fee section and before
+ * the plugin-specific accounts.
+ *
+ * Legacy + Igp:           [program, data(w), payment(w), igpAccount(w)]
+ * Legacy + OverheadIgp:   [program, data(w), payment(w), overheadIgp(w), innerIgp(w)]
+ * Quoted + Igp:           [program, data(w), payment(w), senderAuthority, programAddress,
+ *                          ...cascadeQuotePdas, igpAccount(w)]
+ * Quoted + OverheadIgp:   [program, data(w), payment(w), senderAuthority, programAddress,
+ *                          ...cascadeQuotePdas, overheadIgp(w), innerIgp(w)]
+ *
+ * `igpAccount` is the configured IGP — for `Igp` types it is the IGP PDA;
+ * for `OverheadIgp` types it is the overhead IGP PDA and `innerIgp` must
+ * also be set.
+ */
+export interface IgpTransferRemoteSection {
+  programId: Address;
+  programData: Address;
+  paymentPda: Address;
+  igpAccount: Address;
+  /** Set only when `igpAccount` is the configured OverheadIgp PDA. */
+  innerIgp?: Address;
+  /** When set, the IGP uses Quoted-mode pricing. */
+  quoted?: IgpQuotedExtension;
+}
+
+export function buildIgpTransferRemoteSectionAccounts(
+  igp: IgpTransferRemoteSection,
+): InstructionAccountMeta[] {
+  const accounts: InstructionAccountMeta[] = [
+    readonlyAccount(igp.programId),
+    writableAccount(igp.programData),
+    writableAccount(igp.paymentPda),
+  ];
+  if (igp.quoted) {
+    accounts.push(
+      readonlyAccount(igp.quoted.senderAuthority),
+      readonlyAccount(igp.quoted.senderProgramId),
+      ...(igp.quoted.cascadeQuotePdas ?? []),
+    );
+  }
+  accounts.push(writableAccount(igp.igpAccount));
+  if (igp.innerIgp) {
+    accounts.push(writableAccount(igp.innerIgp));
+  }
+  return accounts;
+}
+
+/**
+ * Builds the warp token `TransferRemote` instruction (collateral / native /
+ * synthetic). Mirrors the account ordering in the on-chain processor:
+ *
+ *   0  system program
+ *   1  spl noop
+ *   2  token PDA
+ *   3  mailbox program
+ *   4  mailbox outbox (writable)
+ *   5  mailbox dispatch authority PDA
+ *   6  sender wallet (signer + payer)
+ *   7  unique message account (signer)
+ *   8  dispatched message PDA (writable)
+ *   --- Fee section (when fee_config is Some) ---
+ *   9..M  fee program, fee account, pass-through accounts, fee beneficiary(w)
+ *   --- IGP section (when an IGP is configured) ---
+ *   M+1..N  IGP program, data(w), payment PDA(w), optional quoted-mode
+ *           accounts, configured IGP(w), optional inner IGP(w)
+ *   --- Plugin ---
+ *   N+1..K  plugin transfer_in accounts (supplied by caller)
+ */
+export async function getTokenTransferRemoteInstruction(args: {
+  programAddress: Address;
+  sender: TransactionSigner;
+  uniqueMessageAccount: TransactionSigner;
+  mailbox: Address;
+  data: TransferRemoteInstructionData;
+  fee?: FeeTransferRemoteSection;
+  igp?: IgpTransferRemoteSection;
+  pluginAccounts: InstructionAccountMeta[];
+}): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(
+    args.programAddress,
+  );
+  const { address: mailboxOutbox } = await deriveMailboxOutboxPda(args.mailbox);
+  const { address: dispatchAuthority } =
+    await deriveMailboxDispatchAuthorityPda(args.programAddress);
+  const { address: dispatchedMessagePda } =
+    await deriveMailboxDispatchedMessagePda(
+      args.mailbox,
+      args.uniqueMessageAccount.address,
+    );
+
+  const accounts: InstructionAccountMeta[] = [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    readonlyAccount(SPL_NOOP_PROGRAM_ADDRESS),
+    readonlyAccount(tokenPda),
+    readonlyAccount(args.mailbox),
+    writableAccount(mailboxOutbox),
+    readonlyAccount(dispatchAuthority),
+    writableSigner(args.sender),
+    readonlySigner(args.uniqueMessageAccount),
+    writableAccount(dispatchedMessagePda),
+    ...(args.fee ? buildFeeTransferRemoteSectionAccounts(args.fee) : []),
+    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
+    ...args.pluginAccounts,
+  ];
+
+  return buildInstruction(
+    args.programAddress,
+    accounts,
+    encodeTokenProgramInstruction({ kind: 'transferRemote', value: args.data }),
+  );
 }
 
 export async function getTokenInitInstruction(
@@ -461,6 +655,15 @@ function decodeOptionIgpTuple(
   ];
 }
 
+function decodeOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
+  const hasValue = cursor.readU8() === 1;
+  if (!hasValue) return null;
+  return {
+    feeProgram: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+    feeAccount: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+  };
+}
+
 function decodeVec<T>(
   cursor: ByteCursor,
   decoder: (cursor: ByteCursor) => T,
@@ -471,4 +674,33 @@ function decodeVec<T>(
     out.push(decoder(cursor));
   }
   return out;
+}
+
+// ====== SetFeeConfig instruction builder ======
+
+export async function getTokenSetFeeConfigInstruction(
+  programAddress: Address,
+  owner: Address,
+  mailbox: Address,
+  value: TokenFeeConfig | null,
+): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
+  const accounts = [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    writableAccount(tokenPda),
+    writableSignerAddress(owner),
+  ];
+  if (value) {
+    const outboxPda = await deriveMailboxOutboxPda(mailbox);
+    accounts.push(
+      readonlyAccount(value.feeProgram),
+      readonlyAccount(value.feeAccount),
+      readonlyAccount(outboxPda.address),
+    );
+  }
+  return buildInstruction(
+    programAddress,
+    accounts,
+    encodeTokenProgramInstruction({ kind: 'setFeeConfig', value }),
+  );
 }

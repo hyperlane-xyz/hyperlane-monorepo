@@ -1,3 +1,9 @@
+## [2.3.0] - 2026-07-20
+
+* feat(sealevel): sealevel igp and warp route offchain quoting + new isms (#8695)
+* feat(sealevel): svm cross collateral token impl (#8373)
+* feat: sealevel metaswaps reveals (#8930)
+
 ## [2.2.0] - 2026-03-09
 
 * feat(sealevel): per-message ALT overrides for relayer (#8271)

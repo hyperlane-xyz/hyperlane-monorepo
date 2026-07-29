@@ -177,6 +177,10 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
         None
     }
 
+    /// Called immediately after the process tx for this operation is successfully submitted.
+    /// Default no-op; override for latency-sensitive follow-up work (e.g. UR reveal).
+    fn on_submitted_success(&self) {}
+
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
 
@@ -305,6 +309,12 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to create payload success criteria")]
     /// Failed to create payload success criteria
     ErrorCreatingPayloadSuccessCriteria,
+    #[strum(to_string = "Awaiting validator signatures")]
+    /// Validator quorum not yet reached — signatures are still being collected
+    AwaitingValidatorSignatures,
+    #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
+    /// ICA reveal commit not yet confirmed on-chain; polling until visible
+    AwaitingIcaReveal,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

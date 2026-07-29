@@ -1,6 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { join } from 'path';
+import { basename, dirname, join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
@@ -402,7 +402,7 @@ export function getValidatorKeysForChain(
 // ==================
 
 export async function createAgentKeysIfNotExistsWithPrompt(
-  agentConfig: AgentContextConfig,
+  agentConfig: RootAgentConfig,
 ) {
   const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
   const shouldCreateKeys = agentKeysToCreate.length > 0;
@@ -430,7 +430,7 @@ export async function createAgentKeysIfNotExistsWithPrompt(
 }
 
 // We can create or delete keys if they are not Starknet keys.
-function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
+function getModifiableKeys(agentConfig: RootAgentConfig): CloudAgentKey[] {
   const keys = getAllCloudAgentKeys(agentConfig);
   // if the key has a chainName and it is a Starknet chain, filter it out
   return keys.filter(
@@ -439,7 +439,7 @@ function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
 }
 
 async function createAgentKeys(
-  agentConfig: AgentContextConfig,
+  agentConfig: RootAgentConfig,
   agentKeysToCreate: string[],
 ) {
   logger.debug('Creating agent keys if none exist');
@@ -461,7 +461,7 @@ async function createAgentKeys(
   await persistAddresses(agentConfig);
 }
 
-async function persistAddresses(agentConfig: AgentContextConfig) {
+async function persistAddresses(agentConfig: RootAgentConfig) {
   const keys = getModifiableKeys(agentConfig);
   const addresses = await Promise.all(
     keys.map(async (key) => {
@@ -479,7 +479,7 @@ async function persistAddresses(agentConfig: AgentContextConfig) {
 }
 
 async function agentKeysToBeCreated(
-  agentConfig: AgentContextConfig,
+  agentConfig: RootAgentConfig,
 ): Promise<string[]> {
   const keysToCreateIfNotExist = getModifiableKeys(agentConfig);
   return (
@@ -491,7 +491,7 @@ async function agentKeysToBeCreated(
   ).filter((id): id is string => !!id);
 }
 
-export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
+export async function deleteAgentKeys(agentConfig: RootAgentConfig) {
   logger.debug('Deleting agent keys');
 
   // Filter out Starknet keys - we don't want to delete them
@@ -510,11 +510,66 @@ export async function rotateKey(
   agentConfig: AgentContextConfig,
   role: Role,
   chainName: ChainName,
+  index?: number,
 ) {
   logger.debug(`Rotating key for ${role} on ${chainName}`);
-  const key = getCloudAgentKey(agentConfig, role, chainName);
-  await key.update();
-  await persistAddressesLocally(agentConfig, [key]);
+  const key = getCloudAgentKey(agentConfig, role, chainName, index);
+  const updatedAddress = await key.update();
+  await persistRotatedKeyAddressLocally(agentConfig, key, updatedAddress);
+}
+
+async function persistRotatedKeyAddressLocally(
+  agentConfig: AgentContextConfig,
+  key: CloudAgentKey,
+  updatedAddress: Address,
+) {
+  switch (key.role) {
+    case Role.Relayer:
+      await persistRoleAddressesToLocalArtifacts(
+        Role.Relayer,
+        agentConfig.runEnv,
+        agentConfig.context,
+        updatedAddress,
+        relayerAddresses,
+      );
+      break;
+    case Role.Validator: {
+      if (!key.chainName || key.index === undefined) {
+        throw new Error('Validator key rotation requires chain name and index');
+      }
+      const validatorsPath = getAWValidatorsPath(
+        agentConfig.runEnv,
+        agentConfig.context,
+      );
+      const validatorAddresses = readJsonFromDir<
+        ChainMap<{ validators: Address[] }>
+      >(dirname(validatorsPath), basename(validatorsPath));
+      const chainValidators = [
+        ...(validatorAddresses[key.chainName]?.validators ?? []),
+      ];
+      if (key.index >= chainValidators.length) {
+        throw new Error(
+          `No existing validator address at index ${key.index} for ${key.chainName}`,
+        );
+      }
+      chainValidators[key.index] = updatedAddress;
+      await persistValidatorAddressesToLocalArtifacts(
+        agentConfig.runEnv,
+        agentConfig.context,
+        {
+          ...validatorAddresses,
+          [key.chainName]: {
+            validators: chainValidators,
+          },
+        },
+      );
+      break;
+    }
+    default:
+      throw new Error(
+        `Local address persistence is not supported for rotated ${key.role} keys`,
+      );
+  }
 }
 
 async function persistAddressesInGcp(
@@ -554,7 +609,7 @@ async function persistAddressesInGcp(
 }
 
 async function persistAddressesLocally(
-  agentConfig: AgentContextConfig,
+  agentConfig: RootAgentConfig,
   keys: CloudAgentKey[],
 ) {
   logger.debug(
@@ -563,6 +618,10 @@ async function persistAddressesLocally(
   // recent keys fetched from aws saved to local artifacts
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
   let relayer: Address | undefined;
+  const keysByIdentifier = Object.fromEntries(
+    keys.map((key) => [key.identifier, key]),
+  );
+
   for (const key of keys) {
     // Some types of keys come in an AWS and a GCP variant. We prefer
     // to persist the AWS version of the key if AWS is enabled.
@@ -579,15 +638,35 @@ async function persistAddressesLocally(
         throw new Error('More than one Relayer found in gcpCloudAgentKeys');
       relayer = key.address;
     }
+  }
 
-    if (key.chainName) {
-      multisigValidatorKeys[key.chainName] ||= {
-        validators: [],
-      };
+  const validators = agentConfig.validators;
+  if (validators && agentConfig.rolesWithKeys.includes(Role.Validator)) {
+    for (const chainName of agentConfig.contextChainNames.validator) {
+      const validatorCount =
+        validators.chains[chainName]?.validators.length ?? 1;
+      const validatorAddresses: Address[] = [];
 
-      // The validator role always has a chainName.
-      if (key.role === Role.Validator) {
-        multisigValidatorKeys[key.chainName].validators.push(key.address);
+      for (let index = 0; index < validatorCount; index++) {
+        const { validator } = getValidatorKeysForChain(
+          agentConfig,
+          chainName,
+          index,
+        );
+        const key = keysByIdentifier[validator.identifier];
+        if (!key) {
+          if (isStarknetChain(chainName)) {
+            continue;
+          }
+          throw new Error(`No fetched key found for ${validator.identifier}`);
+        }
+        validatorAddresses.push(key.address);
+      }
+
+      if (validatorAddresses.length > 0) {
+        multisigValidatorKeys[chainName] = {
+          validators: validatorAddresses,
+        };
       }
     }
   }

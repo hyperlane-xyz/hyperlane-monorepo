@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use derive_more::Deref;
 
-use crate::{ChainResult, Checkpoint, HyperlaneContract, ReorgPeriod};
+use crate::{ChainCommunicationError, ChainResult, Checkpoint, HyperlaneContract, ReorgPeriod};
 
 /// A wrapper around the IncrementalMerkle tree and the block height at which it was requested.
 #[derive(Clone, Debug, Deref)]
@@ -51,4 +51,14 @@ pub trait MerkleTreeHook: HyperlaneContract + Send + Sync + Debug {
 
     /// Get the latest checkpoint at a specific block height.
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock>;
+
+    /// Return the incremental merkle tree at a specific block height.
+    ///
+    /// Only chains that need to pin reads to a shared height across multiple RPCs
+    /// (e.g. quorum verification) implement this; others inherit this default.
+    async fn tree_at_block(&self, _height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
+        Err(ChainCommunicationError::from_other_str(
+            "tree_at_block is not supported for this chain",
+        ))
+    }
 }

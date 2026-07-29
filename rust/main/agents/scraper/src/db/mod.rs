@@ -4,6 +4,7 @@ use eyre::Result;
 pub use message::*;
 pub use payment::*;
 pub use raw_message_dispatch::*;
+pub use same_chain_ccr_swap::*;
 use sea_orm::{Database, DatabaseConnection, DbConn};
 use tracing::instrument;
 pub use txn::*;
@@ -17,6 +18,7 @@ mod block_cursor;
 mod message;
 mod payment;
 mod raw_message_dispatch;
+mod same_chain_ccr_swap;
 mod txn;
 
 /// Database interface to the message explorer database for the scraper. This is

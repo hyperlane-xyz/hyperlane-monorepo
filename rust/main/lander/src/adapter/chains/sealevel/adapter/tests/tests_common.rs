@@ -98,15 +98,16 @@ mock! {
 
     #[async_trait]
     impl SealevelProviderForLander for SvmProvider {
-        async fn create_transaction_for_instruction(
+        async fn create_transaction_for_instruction<'a>(
             &self,
             compute_unit_limit: u32,
             compute_unit_price_micro_lamports: u64,
             instruction: SealevelInstruction,
-            payer: &SealevelKeypair,
+            payer: &'a SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
             alt_address: Option<Pubkey>,
+            additional_signers: &'a [&'a SealevelKeypair],
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
@@ -198,7 +199,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             let keypair = payer;
             let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],

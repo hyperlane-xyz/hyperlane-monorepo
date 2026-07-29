@@ -26,12 +26,6 @@
   "gnosis": {
     "sender": "0x8Dc5310fc9D3D7D1Bb3D1F686899c8F082316c9F"
   },
-  "scroll": {
-    "sender": "0x03073D3F4769f6b6604d616238fD6c636C99AD0A"
-  },
-  "polygonzkevm": {
-    "sender": "0xed7e0874526B9BB9E36C7e9472ed7ed324CEeE3B"
-  },
   "celo": {
     "sender": "0x4A5f4b29C0407E5Feb323305e121f563c7bC4d79"
   }

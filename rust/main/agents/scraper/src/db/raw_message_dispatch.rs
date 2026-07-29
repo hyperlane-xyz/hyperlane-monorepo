@@ -1,17 +1,20 @@
 use eyre::Result;
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
+use sea_orm::{
+    prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, Statement, TransactionTrait,
+};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    address_to_bytes, h256_to_bytes, h512_to_bytes, HyperlaneMessage, LogMeta, H256,
+    address_to_bytes, bytes_to_address, bytes_to_h512, h256_to_bytes, h512_to_bytes,
+    HyperlaneMessage, LogMeta, H256, U256,
 };
 use migration::OnConflict;
 
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::raw_message_dispatch;
+use super::{generated::raw_message_dispatch, StorableMessage};
 
 /// Struct representing a raw message dispatch that can be stored in the database.
 /// This contains all data available from the dispatch event log without requiring RPC calls.
@@ -21,14 +24,34 @@ pub struct StorableRawMessageDispatch<'a> {
     pub meta: &'a LogMeta,
 }
 
+#[derive(Debug, Clone)]
+pub struct RawDispatchForEnrichment {
+    pub raw_id: i64,
+    pub time_created: TimeDateTime,
+    pub msg_id: H256,
+    pub msg: HyperlaneMessage,
+    pub meta: LogMeta,
+}
+
+impl RawDispatchForEnrichment {
+    pub fn storable_message(&self, txn_id: i64) -> StorableMessage<'_> {
+        StorableMessage {
+            msg: self.msg.clone(),
+            meta: &self.meta,
+            txn_id,
+            id_override: Some(self.msg_id),
+        }
+    }
+}
+
 impl ScraperDb {
     /// Used for store_raw_message_dispatches().
-    /// raw_message_dispatch::ActiveModel has 12 fields, on conflict has 1 column,
-    /// update has 7 columns. So there should be about a maximum of 20 sql
+    /// raw_message_dispatch::ActiveModel has 13 fields, on conflict has 1 column,
+    /// update has 8 columns. So there should be about a maximum of 22 sql
     /// parameters per ActiveModel.
     /// u16::MAX (65_535u16) is the maximum amount of parameters we can
-    /// have for Postgres. So 65000 / 20 = 3250
-    const STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE: usize = 3250;
+    /// have for Postgres. So 65000 / 22 = 2954
+    const STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE: usize = 2954;
 
     /// Get the latest raw message dispatch ID for a specific domain and mailbox.
     async fn latest_raw_dispatch_id(
@@ -96,6 +119,7 @@ impl ScraperDb {
                 sender: Set(address_to_bytes(&storable.msg.sender)),
                 recipient: Set(address_to_bytes(&storable.msg.recipient)),
                 origin_mailbox: Unchanged(origin_mailbox.clone()),
+                msg_body: Set(Some(storable.msg.body.clone())),
             })
             .collect_vec();
 
@@ -128,6 +152,7 @@ impl ScraperDb {
                                         raw_message_dispatch::Column::DestinationDomain,
                                         raw_message_dispatch::Column::Sender,
                                         raw_message_dispatch::Column::Recipient,
+                                        raw_message_dispatch::Column::MsgBody,
                                     ])
                                     .to_owned(),
                             )
@@ -150,6 +175,49 @@ impl ScraperDb {
         Ok(new_dispatch_count)
     }
 
+    #[instrument(skip(self))]
+    pub async fn retrieve_unenriched_raw_dispatches(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: &H256,
+        after_id: i64,
+        limit: u64,
+    ) -> Result<Vec<RawDispatchForEnrichment>> {
+        let origin_mailbox = address_to_bytes(origin_mailbox);
+        let raw_dispatches = raw_message_dispatch::Entity::find()
+            .from_raw_sql(Statement::from_sql_and_values(
+                self.0.get_database_backend(),
+                r#"
+                SELECT raw_message_dispatch.*
+                FROM raw_message_dispatch
+                LEFT JOIN "message"
+                  ON "message".origin = raw_message_dispatch.origin_domain
+                 AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
+                 AND "message".nonce = raw_message_dispatch.nonce
+                WHERE raw_message_dispatch.origin_domain = $1
+                  AND raw_message_dispatch.origin_mailbox = $2
+                  AND raw_message_dispatch.msg_body IS NOT NULL
+                  AND "message".id IS NULL
+                  AND raw_message_dispatch.id > $3
+                ORDER BY raw_message_dispatch.id ASC
+                LIMIT $4
+                "#,
+                [
+                    (origin_domain as i32).into(),
+                    origin_mailbox.into(),
+                    after_id.into(),
+                    (limit as i64).into(),
+                ],
+            ))
+            .all(&self.0)
+            .await?;
+
+        raw_dispatches
+            .into_iter()
+            .map(raw_dispatch_to_candidate)
+            .collect()
+    }
+
     /// Get the raw message dispatch by message ID.
     #[instrument(skip(self))]
     #[cfg(test)]
@@ -165,6 +233,36 @@ impl ScraperDb {
     }
 }
 
+fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDispatchForEnrichment> {
+    let body = raw
+        .msg_body
+        .ok_or_else(|| eyre::eyre!("raw message dispatch missing msg_body"))?;
+    let origin_mailbox = bytes_to_address(raw.origin_mailbox)?;
+
+    Ok(RawDispatchForEnrichment {
+        raw_id: raw.id,
+        time_created: raw.time_created,
+        msg_id: H256::from_slice(&raw.msg_id),
+        msg: HyperlaneMessage {
+            version: 3,
+            nonce: raw.nonce as u32,
+            origin: raw.origin_domain as u32,
+            destination: raw.destination_domain as u32,
+            sender: bytes_to_address(raw.sender)?,
+            recipient: bytes_to_address(raw.recipient)?,
+            body,
+        },
+        meta: LogMeta {
+            address: origin_mailbox,
+            block_number: raw.origin_block_height as u64,
+            block_hash: H256::from_slice(&raw.origin_block_hash),
+            transaction_id: bytes_to_h512(&raw.origin_tx_hash),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use migration::MigratorTrait;
@@ -177,13 +275,14 @@ mod tests {
     use time::PrimitiveDateTime;
 
     use hyperlane_core::{
-        address_to_bytes, h256_to_bytes, h512_to_bytes, HyperlaneMessage, LogMeta, H256, H512, U256,
+        address_to_bytes, h256_to_bytes, h512_to_bytes, BlockInfo, HyperlaneMessage, LogMeta,
+        TxnInfo, TxnReceiptInfo, H256, H512, U256,
     };
 
     use crate::db::generated::raw_message_dispatch;
-    use crate::db::ScraperDb;
+    use crate::db::{ScraperDb, StorableMessage, StorableTxn};
 
-    use super::StorableRawMessageDispatch;
+    use super::{raw_dispatch_to_candidate, StorableRawMessageDispatch};
 
     /// Helper to create a test message with specific values
     fn create_test_message(nonce: u32, origin: u32, destination: u32) -> HyperlaneMessage {
@@ -283,7 +382,46 @@ mod tests {
             sender: vec![0u8; 32],
             recipient: vec![0u8; 32],
             origin_mailbox: vec![0u8; 32],
+            msg_body: Some(vec![1, 2, 3, 4]),
         }
+    }
+
+    #[test]
+    fn test_raw_dispatch_to_candidate_preserves_body_and_msg_id() {
+        let msg = create_test_message(42, 1, 2);
+        let msg_id = msg.id();
+        let tx_hash = H512::from_low_u64_be(5);
+        let block_hash = H256::from_low_u64_be(100);
+        let mailbox = H256::from_low_u64_be(999);
+        let raw = raw_message_dispatch::Model {
+            id: 1,
+            time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
+            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
+            msg_id: h256_to_bytes(&msg_id),
+            origin_tx_hash: h512_to_bytes(&tx_hash),
+            origin_block_hash: h256_to_bytes(&block_hash),
+            origin_block_height: 100,
+            nonce: msg.nonce as i32,
+            origin_domain: msg.origin as i32,
+            destination_domain: msg.destination as i32,
+            sender: address_to_bytes(&msg.sender),
+            recipient: address_to_bytes(&msg.recipient),
+            origin_mailbox: address_to_bytes(&mailbox),
+            msg_body: Some(msg.body.clone()),
+        };
+
+        let candidate = raw_dispatch_to_candidate(raw).unwrap();
+        let storable = candidate.storable_message(7);
+
+        assert_eq!(candidate.msg_id, msg_id);
+        assert_eq!(candidate.raw_id, 1);
+        assert_eq!(candidate.msg, msg);
+        assert_eq!(candidate.meta.address, mailbox);
+        assert_eq!(candidate.meta.block_number, 100);
+        assert_eq!(candidate.meta.block_hash, block_hash);
+        assert_eq!(candidate.meta.transaction_id, tx_hash);
+        assert_eq!(storable.id_override, Some(msg_id));
+        assert_eq!(storable.txn_id, 7);
     }
 
     #[tokio::test]
@@ -411,6 +549,7 @@ mod tests {
             sender: address_to_bytes(&msg.sender),
             recipient: address_to_bytes(&msg.recipient),
             origin_mailbox: vec![0u8; 32],
+            msg_body: Some(msg.body.clone()),
         };
 
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
@@ -534,7 +673,87 @@ mod tests {
             .expect("Last message should exist");
         assert_eq!(last_result.nonce, (MESSAGE_COUNT - 1) as i32);
 
-        // Test 4: Duplicate handling (same message ID should update, not fail)
+        // Test 4: raw dispatches with matching message rows are excluded from
+        // the reconciliation candidate query.
+        scraper_db
+            .store_blocks(
+                1,
+                [BlockInfo {
+                    hash: metas[1].block_hash,
+                    timestamp: 1,
+                    number: metas[1].block_number,
+                }]
+                .into_iter(),
+            )
+            .await?;
+        let block = scraper_db
+            .get_block_basic([&metas[1].block_hash].into_iter())
+            .await?
+            .pop()
+            .expect("block should exist");
+        scraper_db
+            .store_txns(
+                [StorableTxn {
+                    info: TxnInfo {
+                        hash: metas[1].transaction_id,
+                        gas_limit: U256::one(),
+                        max_priority_fee_per_gas: None,
+                        max_fee_per_gas: None,
+                        gas_price: None,
+                        nonce: 1,
+                        sender: H256::from_low_u64_be(1),
+                        recipient: Some(H256::from_low_u64_be(2)),
+                        receipt: Some(TxnReceiptInfo {
+                            gas_used: U256::one(),
+                            cumulative_gas_used: U256::one(),
+                            effective_gas_price: None,
+                        }),
+                        raw_input_data: None,
+                    },
+                    block_id: block.id,
+                }]
+                .into_iter(),
+            )
+            .await?;
+        let txn_id = scraper_db
+            .get_txn_ids([&metas[1].transaction_id].into_iter())
+            .await?
+            .get(&metas[1].transaction_id)
+            .copied()
+            .expect("txn should exist");
+        scraper_db
+            .store_dispatched_messages(
+                1,
+                &H256::from_low_u64_be(999),
+                [StorableMessage {
+                    msg: messages[1].clone(),
+                    meta: &metas[1],
+                    txn_id,
+                    id_override: None,
+                }]
+                .into_iter(),
+            )
+            .await?;
+
+        let candidates = scraper_db
+            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, 100)
+            .await?;
+        assert_eq!(candidates.len(), MESSAGE_COUNT - 1);
+        assert!(candidates.iter().any(|candidate| candidate.msg.nonce == 0));
+        assert!(candidates.iter().all(|candidate| candidate.msg.nonce != 1));
+
+        let paged_candidates = scraper_db
+            .retrieve_unenriched_raw_dispatches(
+                1,
+                &H256::from_low_u64_be(999),
+                candidates[0].raw_id,
+                1,
+            )
+            .await?;
+        assert_eq!(paged_candidates.len(), 1);
+        assert!(paged_candidates[0].raw_id > candidates[0].raw_id);
+
+        // Test 5: Duplicate handling (same message ID should update, not fail)
         let storables_dup: Vec<StorableRawMessageDispatch> = messages
             .iter()
             .take(10)
@@ -682,6 +901,7 @@ mod tests {
             sender: address_to_bytes(&msg.sender),
             recipient: address_to_bytes(&msg.recipient),
             origin_mailbox: vec![0u8; 32],
+            msg_body: Some(msg.body.clone()),
         };
 
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
