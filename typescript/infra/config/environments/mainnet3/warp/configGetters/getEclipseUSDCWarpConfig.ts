@@ -15,7 +15,10 @@ import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import {
+  QUOTE_SIGNER,
+  SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+} from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -47,9 +50,6 @@ type DeploymentChains<T> = {
 };
 
 export type DeploymentChain = keyof DeploymentChains<unknown>;
-
-// Hyperlane quote signer authorized to sign offchain standing fee quotes.
-const QUOTE_SIGNER = '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d';
 
 /**
  * Eclipse USDC Warp Route
