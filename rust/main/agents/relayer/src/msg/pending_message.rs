@@ -1268,7 +1268,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, VALIDATOR_SIGNATURE_FAST_RETRY_MAX};
 
     #[test]
     fn test_calculate_msg_backoff_does_not_overflow() {
