@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 
-import type { IRegistry } from '@hyperlane-xyz/registry';
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type {
   PendingDestinationTransfer,
@@ -13,7 +12,7 @@ import {
   resetPendingDestinationMetrics,
   metricsRegister,
 } from './metrics.js';
-import { WarpMonitor } from './monitor.js';
+import { updatePendingAndInventoryMetrics } from './monitor.js';
 
 function createMockToken({
   collateralized,
@@ -35,54 +34,13 @@ function createMockToken({
   } as Token;
 }
 
-async function invokeUpdatePendingAndInventoryMetrics(
-  monitor: WarpMonitor,
-  warpCore: WarpCore,
-  routerNodes: RouterNodeMetadata[],
-  collateralByNodeId: Map<string, bigint>,
-  warpRouteId: string,
-  pendingTransfersClient?: ExplorerPendingTransfersClient,
-  explorerQueryLimit?: number,
-  inventoryAddress?: string,
-) {
-  const updatePendingAndInventoryMetrics = (monitor as any)
-    .updatePendingAndInventoryMetrics as (
-    warpCore: WarpCore,
-    routerNodes: RouterNodeMetadata[],
-    collateralByNodeId: Map<string, bigint>,
-    warpRouteId: string,
-    pendingTransfersClient?: ExplorerPendingTransfersClient,
-    explorerQueryLimit?: number,
-    inventoryAddress?: string,
-  ) => Promise<void>;
-
-  await updatePendingAndInventoryMetrics.call(
-    monitor,
-    warpCore,
-    routerNodes,
-    collateralByNodeId,
-    warpRouteId,
-    pendingTransfersClient,
-    explorerQueryLimit,
-    inventoryAddress,
-  );
-}
-
-describe('WarpMonitor', () => {
+describe('updatePendingAndInventoryMetrics', () => {
   afterEach(() => {
     resetPendingDestinationMetrics();
     resetInventoryBalanceMetrics();
   });
 
   it('emits projected deficit metrics only for collateralized nodes', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/deficit-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
     const collateralizedNodeId = 'COLLAT|anvil2|0xroutera';
     const nonCollateralizedNodeId = 'SYNTH|anvil2|0xrouterb';
     const routerNodes: RouterNodeMetadata[] = [
@@ -149,8 +107,7 @@ describe('WarpMonitor', () => {
       [nonCollateralizedNodeId, 1_000_000n],
     ]);
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       collateralByNodeId,
@@ -195,14 +152,6 @@ describe('WarpMonitor', () => {
   });
 
   it('does not emit inventory metrics when balance read fails', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/inventory-fail-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
     const nodeId = 'COLLAT|anvil2|0xroutera';
     const routerNodes: RouterNodeMetadata[] = [
       {
@@ -233,8 +182,7 @@ describe('WarpMonitor', () => {
       },
     };
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       new Map([[nodeId, 1_000_000n]]),
@@ -256,14 +204,6 @@ describe('WarpMonitor', () => {
   });
 
   it('resets pending metrics and still updates inventory when explorer query fails', async () => {
-    const monitor = new WarpMonitor(
-      {
-        warpRouteId: 'MULTI/explorer-fail-test',
-        checkFrequency: 10_000,
-      },
-      {} as IRegistry,
-    );
-
     const nodeId = 'COLLAT|anvil2|0xroutera';
     const routerNodes: RouterNodeMetadata[] = [
       {
@@ -292,8 +232,7 @@ describe('WarpMonitor', () => {
       },
     };
 
-    await invokeUpdatePendingAndInventoryMetrics(
-      monitor,
+    await updatePendingAndInventoryMetrics(
       { multiProvider: {} } as WarpCore,
       routerNodes,
       new Map([[nodeId, 2_000_000n]]),
