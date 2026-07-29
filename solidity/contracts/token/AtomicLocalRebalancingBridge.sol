@@ -12,6 +12,7 @@ import {ICollateralBackedToken} from "./interfaces/ICollateralBackedToken.sol";
 import {IRebalanceTargets} from "./interfaces/IRebalanceTargets.sol";
 import {IRebalancingBridge} from "./interfaces/IRebalancingBridge.sol";
 
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -27,6 +28,15 @@ struct SelfBalanceSnapshot {
     uint256 sourceToken;
     uint256 destinationToken;
     uint256 native;
+}
+
+/// @dev Source router reference values for the post-call invariants.
+/// `routerBalance` is snapshotted before escrow; `totalAssetsBefore` is captured
+/// after the canonical pull, so the equality check constrains only the
+/// untrusted-call window. Used to avoid stack too deep.
+struct SourceSnapshot {
+    uint256 routerBalance;
+    uint256 totalAssetsBefore;
 }
 
 /// @title AtomicLocalRebalancingBridge
@@ -50,10 +60,25 @@ struct SelfBalanceSnapshot {
 ///   bound a compromised or buggy rebalancer, since the calls run arbitrary code.
 /// - A rebalance moves at most `amount` out of the source router and funds the
 ///   destination only with output the calls produce.
+/// - The source's `LpCollateralRouter.totalAssets()` must be identical before and
+///   after the rebalancer's calls, blocking a source drain masked by depositing
+///   collateral back into the source's LP vault for redeemable shares. See
+///   "Source compatibility".
 /// - The bridge keeps no value of its own: any balance present before a call is
 ///   neither consumed to fund the destination nor refunded to the rebalancer.
 ///   Such stray balances are recoverable only by the owner via
 ///   `recoverToken`/`recoverNativeBalance`.
+///
+/// @dev Source compatibility for the `totalAssets()` invariant:
+/// - The bridge assumes the source is an `LpCollateralRouter` (an ERC4626 vault
+///   exposing `totalAssets()`), which is the case for the collateral routers used
+///   as sources today, and reads `totalAssets()` unconditionally; a source that
+///   does not expose it reverts the rebalance.
+/// - `totalAssets()` must stay stable for the whole rebalancer-call window, so
+///   intended calls (approvals, swaps) MUST NOT change it. Deposits, withdrawals,
+///   or donations into the source's vault during the calls fail the invariant.
+/// - The canonical collateral pull is excluded, since the snapshot is taken after
+///   it; the trusted pull changing the source's own accounting is still allowed.
 contract AtomicLocalRebalancingBridge is
     IRebalancingBridge,
     ITokenBridge,
@@ -93,6 +118,7 @@ contract AtomicLocalRebalancingBridge is
     error PreexistingSourceTokenSpent();
     error PreexistingNativeBalanceSpent();
     error InsufficientOutputTokenProduced();
+    error SourceTotalAssetsChanged();
 
     constructor(uint32 _localDomain, address _sourceRouter, address _owner) {
         if (!Address.isContract(_sourceRouter)) revert InvalidSource();
@@ -112,6 +138,10 @@ contract AtomicLocalRebalancingBridge is
     /// @param data ABI-encoded `CallLib.Call[]` run after escrow (token approvals
     /// and DEX swaps). Calls must leave enough output token on this wrapper to pay
     /// the destination router.
+    /// @dev The calls run with this wrapper's authority: an allowed rebalancer can
+    /// grant a standing token allowance (e.g. `approve`) over any balance this
+    /// wrapper holds, so `recoverToken` does not protect the wrapper's holdings
+    /// from an allowed rebalancer.
     function rebalance(
         uint32 domain,
         uint256 amount,
@@ -145,20 +175,31 @@ contract AtomicLocalRebalancingBridge is
             sourceToken,
             destinationToken
         );
-        uint256 sourceRouterBalanceBefore = IERC20(sourceToken).balanceOf(
+        SourceSnapshot memory sourceBefore;
+        sourceBefore.routerBalance = IERC20(sourceToken).balanceOf(
             allowedSourceRouter
         );
 
         // Escrow the source collateral, then run the rebalancer's calls.
+        // `safeMulticall` rejects delegatecalls: the calls run with this
+        // wrapper's authority, so a delegatecall could re-arm the callback slot
+        // to over-pull the source router or otherwise write this contract's
+        // storage.
         _pullSourceRouterCollateral(source, amount);
-        CallLib.multicall(abi.decode(data, (CallLib.Call[])));
+
+        // Snapshot the source's `totalAssets()` after the canonical pull, so only
+        // the untrusted-call window is constrained.
+        sourceBefore.totalAssetsBefore = IERC4626(allowedSourceRouter)
+            .totalAssets();
+
+        CallLib.safeMulticall(abi.decode(data, (CallLib.Call[])));
 
         _validatePostCallBalances(
             sourceToken,
             destinationToken,
             amount,
             requiredOutputAmount,
-            sourceRouterBalanceBefore,
+            sourceBefore,
             selfBefore
         );
 
@@ -332,22 +373,34 @@ contract AtomicLocalRebalancingBridge is
 
     /// @dev Post-call invariants. The calls run with this wrapper's privileges, so
     /// these bound what they can do: the source router is not drained beyond the
-    /// escrowed `amount`, the wrapper's pre-existing source and native balances are
-    /// untouched, and enough new output is produced to fund the destination.
+    /// escrowed `amount`, its LP accounting is unchanged across the calls, the
+    /// wrapper's pre-existing source and native balances are untouched, and enough
+    /// new output is produced to fund the destination.
     function _validatePostCallBalances(
         address sourceToken,
         address destinationToken,
         uint256 amount,
         uint256 requiredOutputAmount,
-        uint256 sourceRouterBalanceBefore,
+        SourceSnapshot memory sourceBefore,
         SelfBalanceSnapshot memory selfBefore
     ) internal view {
         // The source router may be topped up, but not drained beyond `amount`.
         if (
             IERC20(sourceToken).balanceOf(allowedSourceRouter) <
-            sourceRouterBalanceBefore - amount
+            sourceBefore.routerBalance - amount
         ) {
             revert SourceRouterOverdrawn();
+        }
+
+        // The source's `totalAssets()` must be identical across the calls. A
+        // canonical pull leaves it unchanged, so any change means the calls
+        // deposited into or withdrew from the source's LP vault — e.g. masking a
+        // source-token drain by minting redeemable shares.
+        if (
+            IERC4626(allowedSourceRouter).totalAssets() !=
+            sourceBefore.totalAssetsBefore
+        ) {
+            revert SourceTotalAssetsChanged();
         }
 
         // Calls may consume at most the escrowed amount, never source collateral

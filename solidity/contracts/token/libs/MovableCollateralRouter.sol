@@ -24,6 +24,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     MovableCollateralRouterStorage internal allowed;
 
+    /// @dev For a move driven by `AtomicLocalRebalancingBridge`, `recipient` is
+    /// this router's configured recipient rather than the address the bridge
+    /// funds, and `amount` is the source outflow rather than the (decimal-
+    /// converted) amount delivered. Off-chain consumers should read the bridge's
+    /// `LocalRebalanceExecuted` event for that flow instead.
     event CollateralMoved(
         uint32 indexed domain,
         bytes32 recipient,
