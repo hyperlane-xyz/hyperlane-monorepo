@@ -86,12 +86,21 @@ export const REGISTRY_MODULES = [
   Modules.CCIP,
 ];
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
+export function withEnvironment<T>(
+  args: Argv<T>,
+  opts?: { defaultEnv?: DeployEnvironment },
+) {
+  const chain = args
     .describe('environment', 'deploy environment')
     .coerce('environment', assertEnvironment)
-    .demandOption('environment')
     .alias('e', 'environment');
+  return opts?.defaultEnv
+    ? chain.default('environment', opts.defaultEnv)
+    : chain.demandOption('environment');
+}
+
+export function getArgs() {
+  return withEnvironment(yargs(process.argv.slice(2)));
 }
 
 export function withBalanceThresholdConfig<T>(args: Argv<T>) {
