@@ -327,7 +327,7 @@ Print a clear summary table:
 ## Preflight Check: <TOKEN_SYMBOL> Warp Route
 Deployer: <ADDRESS>
 
-### Gas Balance Check (min 10 USD per chain)
+### Gas Balance Check (per-chain route-shape floor; $10 is a warning threshold, not a minimum)
 
 | Chain     | Type        | Balance          | USD Value | Status |
 |-----------|-------------|------------------|-----------|--------|

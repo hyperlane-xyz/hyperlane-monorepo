@@ -515,6 +515,8 @@ Examples:
 
 The route ID always matches the filename suffix (without `-deploy.yaml`), so it follows the same Step 5 precedence: if the ticket gave an explicit route ID (e.g. `WBTC/staging`) the suffix is that ID; otherwise it is every chain in the route, lowercase, joined by `-` in alphabetical order. Never re-derive a chain-list ID over an explicit one the ticket provided.
 
+Refer to this resolved value as `<warp-route-id>` in the commands below (Steps 7d and 8) — it is the explicit ticket ID when one was given, the derived chains-alphabetical ID otherwise. Do not hardcode `<TOKEN>/<chains-alphabetical>` in the deploy commands, or an explicit-ID deploy (e.g. `WBTC/staging`) would write/deploy under the wrong id.
+
 ### 7b: Identify Required Protocols
 
 For each chain in the route, determine its VM protocol type:
@@ -541,14 +543,14 @@ The command must be run from `typescript/cli`. Always include `--yes` to skip th
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<chains-alphabetical> \
+  --warp-route-id <warp-route-id> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
   [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
   --yes
 ```
 
-Where `<TOKEN>/<chains-alphabetical>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
+Where `<warp-route-id>` is the resolved route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `<KEY_<PROTOCOL>_VALUE>` is expanded per the artifact's `source` for that protocol (e.g. `"$(gcloud secrets versions access latest --secret=<name>)"` for `gcp-secret`, `"$<name>"` for `env-var`).
 
 Show the user the exact command with the resolved secret/env-var NAMES substituted (from the artifact), never private-key values. Also show the corresponding derived `address` per protocol so the human can spot a wrong-key foot-gun at the gate. End your message with this marker (this MUST be the very last thing in your message):
 
@@ -570,7 +572,7 @@ Start it per `/start-http-registry` **with `--writeMode`** (the deploy persists 
 
 Tell the user upfront:
 
-> **Starting warp deploy for `<TOKEN>/<chains-alphabetical>`.**
+> **Starting warp deploy for `<warp-route-id>`.**
 > This deploys contracts on each chain sequentially and typically takes **5–15 minutes**.
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
@@ -580,7 +582,7 @@ Then run the deploy command from `typescript/cli`, with the port substituted fro
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
   --registry http://localhost:<port> \
-  --warp-route-id <TOKEN>/<chains-alphabetical> \
+  --warp-route-id <warp-route-id> \
   --key.ethereum <KEY_ETHEREUM_VALUE> \
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
   [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present

@@ -23,11 +23,14 @@ Fetch the issue's **title** and **description** using whichever Linear access th
 - **Fallback — the GraphQL API.** If no integration is available but `LINEAR_API_KEY` is set, query the API directly:
 
   ```bash
-  curl -s -X POST https://api.linear.app/graphql \
+  curl -sS -X POST https://api.linear.app/graphql \
+    -w '\nHTTP %{http_code}\n' \
     -H "Authorization: $LINEAR_API_KEY" \
     -H "Content-Type: application/json" \
     -d '{"query": "{ issue(id: \"<ISSUE_ID>\") { title description } }"}'
   ```
+
+  **Fail closed — validate the response before using it.** `curl` won't error on an HTTP failure by itself, and GraphQL returns HTTP 200 even on errors. Treat any of these as a failed fetch and **halt** (do NOT proceed with an empty/partial description): a non-2xx HTTP status (e.g. 401/403/429/5xx), a body containing a top-level `errors` array, or a null `data.issue`.
 
 **If neither is available** — no Linear integration AND `LINEAR_API_KEY` unset or returning 401 — halt and tell the user:
 
