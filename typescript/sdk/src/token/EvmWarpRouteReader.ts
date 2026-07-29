@@ -35,10 +35,12 @@ import {
   Address,
   arrayToObject,
   assert,
+  bytes32ToAddress,
   eqAddress,
   getLogLevel,
   isZeroish,
   isZeroishAddress,
+  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -1439,6 +1441,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ]),
     ];
     const crossCollateralRouters: Record<string, string[]> = {};
+    const rebalanceTargets: Record<string, string[]> = {};
+    const rebalanceRecipients: Record<string, string> = {};
 
     await Promise.all(
       allDomains.map(async (domain) => {
@@ -1450,6 +1454,55 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }),
     );
 
+    // `rebalanceTargets()` only exists on the #8894+ CrossCollateralRouter;
+    // older deployed impls revert. Probe once so a pre-upgrade router is derived
+    // without failing (e.g. when the same `warp apply` both upgrades the impl
+    // and adds targets), and skip the per-domain reads if unsupported.
+    let supportsRebalanceTargets = true;
+    try {
+      await crossCollateralRouter.rebalanceTargets(localDomain);
+    } catch {
+      supportsRebalanceTargets = false;
+    }
+
+    if (supportsRebalanceTargets) {
+      await Promise.all(
+        allDomains.map(async (domain) => {
+          const targets = await crossCollateralRouter.rebalanceTargets(domain);
+          if (targets.length > 0) {
+            // rebalanceTargets stores addresses (as bytes32); the config keeps
+            // plain addresses, so normalize for a clean apply/read round-trip.
+            rebalanceTargets[domain.toString()] = targets.map((t) =>
+              normalizeAddressEvm(bytes32ToAddress(t)),
+            );
+          }
+        }),
+      );
+    }
+
+    // `allowedRecipient()` may not exist on older deployed implementations.
+    // Probe once so deriving a pre-upgrade router does not fail.
+    let supportsRebalanceRecipients = true;
+    try {
+      await crossCollateralRouter.allowedRecipient(localDomain);
+    } catch {
+      supportsRebalanceRecipients = false;
+    }
+
+    if (supportsRebalanceRecipients) {
+      await Promise.all(
+        allDomains.map(async (domain) => {
+          const recipient =
+            await crossCollateralRouter.allowedRecipient(domain);
+          if (!isZeroishAddress(recipient)) {
+            rebalanceRecipients[domain.toString()] = normalizeAddressEvm(
+              bytes32ToAddress(recipient),
+            );
+          }
+        }),
+      );
+    }
+
     return {
       ...erc20TokenMetadata,
       type: TokenType.crossCollateral,
@@ -1458,6 +1511,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       crossCollateralRouters:
         Object.keys(crossCollateralRouters).length > 0
           ? crossCollateralRouters
+          : undefined,
+      rebalanceTargets:
+        Object.keys(rebalanceTargets).length > 0 ? rebalanceTargets : undefined,
+      rebalanceRecipients:
+        Object.keys(rebalanceRecipients).length > 0
+          ? rebalanceRecipients
           : undefined,
     };
   }
