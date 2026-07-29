@@ -287,9 +287,10 @@ The fork-simulate-verify gate (Step 8) runs before any propose, but the _deploy_
 Use the key-context artifact to resolve per-protocol key values (see the canonical key-value expansion legend in `/warp-key-value-expansion`). Supply **one `--key.<protocol>` for every protocol the route spans** — the artifact enumerates them. Don't assume an ethereum leg exists (a route may be, e.g., SVM + Cosmos only), and don't omit a protocol: a missing `--key.<protocol>` silently skips that protocol's txs.
 
 ```bash
+# repeat --key.<protocol> per protocol in the route: ethereum / sealevel / cosmos / tron / starknet / radix / aleo
 pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
-  --key.<protocol> <KEY_<PROTOCOL>_VALUE> \   # repeat per protocol in the route: ethereum / sealevel / cosmos / tron / starknet / radix / aleo
+  --key.<protocol> <KEY_<PROTOCOL>_VALUE> \
   --strategy ~/.hyperlane/strategies/<ticket-id>-strategy.yaml \
   --receipts-dir <receipts-dir> \
   -w <WARP_ROUTE_ID> \
