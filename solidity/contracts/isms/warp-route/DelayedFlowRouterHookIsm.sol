@@ -13,6 +13,9 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+// ============ External Imports ============
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 // ============ Internal Imports ============
 import {TimelockRouter} from "../routing/TimelockRouter.sol";
 import {TvlRateLimited} from "../../libs/TvlRateLimited.sol";
@@ -71,6 +74,11 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
     /// Combined with `TimelockRouter`'s `_isLatestDispatched` check, this
     /// single slot prevents same-message replay of the bucket credit.
     uint32 public lastCreditedNonce;
+
+    /// @notice Outstanding over-limit consumption (in local token units) not
+    /// yet healed by refill or offset by a credit. Netted out of the bucket
+    /// level so an underwater bucket reports zero headroom.
+    uint256 public debt;
 
     // ============ Constructor ============
 
@@ -169,5 +177,52 @@ contract DelayedFlowRouterHookIsm is TimelockRouter, TvlRateLimited {
         uint256 deficitSecs = _consume(_toLocalAmount(messageAmount));
         uint48 wait = deficitSecs > maxDelay ? maxDelay : uint48(deficitSecs);
         _TimelockRouter_commitReadyAt(id, wait);
+    }
+
+    // ============ RateLimited debt hooks ============
+
+    /// @dev Net outstanding debt out of the level so an underwater bucket
+    /// reports zero headroom. Guarded to avoid underflow when debt exceeds the
+    /// replenished level.
+    function _RateLimited_adjustLevel(
+        uint256 _replenishedLevel
+    ) internal view override returns (uint256) {
+        return _replenishedLevel > debt ? _replenishedLevel - debt : 0;
+    }
+
+    /// @dev Heal debt by the refill accrued this touch, at the shared refill
+    /// rate (`cap / DURATION`).
+    function _RateLimited_settleDebt(uint256 _refill) internal override {
+        if (debt != 0) {
+            debt = _refill >= debt ? 0 : debt - _refill;
+        }
+    }
+
+    /// @dev Accumulate the overage as debt and derive the wait from the total
+    /// outstanding debt, so splitting one transfer into many cannot shrink it.
+    function _RateLimited_recordDeficit(
+        uint256 _overage,
+        uint256 _cap
+    ) internal override returns (uint256) {
+        debt += _overage;
+        return
+            _cap == 0 ? type(uint256).max : Math.mulDiv(debt, DURATION, _cap);
+    }
+
+    /// @dev Apply a credit against outstanding debt first; return the remainder
+    /// to add as headroom.
+    function _RateLimited_applyCredit(
+        uint256 _amount
+    ) internal override returns (uint256) {
+        if (debt == 0) {
+            return _amount;
+        }
+        if (_amount >= debt) {
+            uint256 remainder = _amount - debt;
+            debt = 0;
+            return remainder;
+        }
+        debt -= _amount;
+        return 0;
     }
 }
