@@ -3,6 +3,7 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   SubmissionStrategy,
+  SubmitterMetadata,
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
@@ -27,6 +28,7 @@ import {
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
+  getWarpFeeSubmitter,
   scaleDownConfig,
 } from './utils.js';
 
@@ -409,21 +411,27 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   );
 
   const icaChains = evmDeploymentChains.filter((c) => c !== ORIGIN_CHAIN);
-  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
-    (chain) => [
-      chain,
-      {
-        submitter: {
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
-          chain: ORIGIN_CHAIN,
-          destinationChain: chain,
-          owner: safeAddress,
-          originInterchainAccountRouter,
-          internalSubmitter: originSafeSubmitter,
-        },
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
       },
-    ],
-  );
+      feeSubmitter: getWarpFeeSubmitter(
+        chain,
+        ORIGIN_CHAIN,
+        originInterchainAccountRouter,
+      ),
+    },
+  ]);
 
   const svmFileStrategies: [
     string,
@@ -439,7 +447,17 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   ]);
 
   return Object.fromEntries([
-    [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],
+    [
+      ORIGIN_CHAIN,
+      {
+        submitter: originSafeSubmitter,
+        feeSubmitter: getWarpFeeSubmitter(
+          ORIGIN_CHAIN,
+          ORIGIN_CHAIN,
+          originInterchainAccountRouter,
+        ),
+      },
+    ],
     ...icaStrategies,
     ...svmFileStrategies,
   ]);

@@ -1,6 +1,15 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  SubmissionStrategy,
+  SubmitterMetadata,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -16,9 +25,9 @@ import {
   getFixedRoutingFeeConfig,
   getRebalancingBridgesConfigFor,
   getRebalancingUSDTConfigForChain,
+  getWarpFeeSubmitter,
   scaleDownConfig,
 } from './utils.js';
-import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const contractVersion = '11.1.0';
 
@@ -255,10 +264,74 @@ export const getEclipseUSDTWarpConfig = async (
   });
 
 // Strategies
-export const getEclipseUSDTGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(
-    objFilter(
-      productionOwnersByChain,
-      (chain, _v): _v is string => chain === 'ethereum',
-    ),
+const ORIGIN_CHAIN = 'ethereum';
+
+export const getEclipseUSDTStrategyConfig = (): ChainSubmissionStrategy => {
+  const safeAddress = awSafes[ORIGIN_CHAIN];
+  const originSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+    chain: ORIGIN_CHAIN,
+    safeAddress,
+    version: '1',
+  };
+
+  const chainAddress = getChainAddresses();
+  const originInterchainAccountRouter =
+    chainAddress[ORIGIN_CHAIN].interchainAccountRouter;
+  assert(
+    originInterchainAccountRouter,
+    `Could not fetch originInterchainAccountRouter for ${ORIGIN_CHAIN}`,
   );
+
+  const icaChains = evmDeploymentChains.filter((c) => c !== ORIGIN_CHAIN);
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
+      },
+      feeSubmitter: getWarpFeeSubmitter(
+        chain,
+        ORIGIN_CHAIN,
+        originInterchainAccountRouter,
+      ),
+    },
+  ]);
+
+  const svmFileStrategies: [
+    string,
+    { submitter: { type: 'file'; filepath: string } },
+  ][] = nonEvmDeploymentChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: 'file' as const,
+        filepath: `/tmp/eclipse-usdt-${chain}.json`,
+      },
+    },
+  ]);
+
+  return Object.fromEntries([
+    [
+      ORIGIN_CHAIN,
+      {
+        submitter: originSafeSubmitter,
+        feeSubmitter: getWarpFeeSubmitter(
+          ORIGIN_CHAIN,
+          ORIGIN_CHAIN,
+          originInterchainAccountRouter,
+        ),
+      },
+    ],
+    ...icaStrategies,
+    ...svmFileStrategies,
+  ]);
+};
