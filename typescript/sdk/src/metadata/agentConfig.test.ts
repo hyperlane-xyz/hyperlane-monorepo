@@ -97,7 +97,7 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
   });
 });
 
-describe('AgentChainMetadataSchema quorumRpcUrls', () => {
+describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
   const baseChainMetadata = {
     name: 'legacy',
     domainId: 1000,
@@ -110,26 +110,28 @@ describe('AgentChainMetadataSchema quorumRpcUrls', () => {
     merkleTreeHook: '0x0000000000000000000000000000000000000004',
   };
 
-  it('parses and preserves a configured quorumRpcUrls array', () => {
-    const quorumRpcUrls = [
+  it('parses and preserves a configured additionalQuorumRpcUrls array', () => {
+    const additionalQuorumRpcUrls = [
       { http: 'http://quorum-a.example' },
       { http: 'http://quorum-b.example' },
     ];
     const result = AgentChainMetadataSchema.safeParse({
       ...baseChainMetadata,
-      quorumRpcUrls,
+      additionalQuorumRpcUrls,
     });
     expect(result.success).to.be.true;
     if (result.success) {
-      expect(result.data.quorumRpcUrls).to.deep.equal(quorumRpcUrls);
+      expect(result.data.additionalQuorumRpcUrls).to.deep.equal(
+        additionalQuorumRpcUrls,
+      );
     }
   });
 
-  it('leaves quorumRpcUrls unset when not configured', () => {
+  it('leaves additionalQuorumRpcUrls unset when not configured', () => {
     const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
     expect(result.success).to.be.true;
     if (result.success) {
-      expect(result.data.quorumRpcUrls).to.be.undefined;
+      expect(result.data.additionalQuorumRpcUrls).to.be.undefined;
     }
   });
 });

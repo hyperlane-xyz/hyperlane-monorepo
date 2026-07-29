@@ -30,8 +30,9 @@ export interface ValidatorBaseChainConfig {
   reorgPeriod: string | number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
-  // Opt-in per chain: populates quorumRpcUrls (private + public batch) for the
-  // validator's safety-critical merkle tree hook reads. Defaults to false/unset
+  // Opt-in per chain: populates additionalQuorumRpcUrls (additional public batch;
+  // rpcUrls already votes in the same quorum group, so no private batch needed) for
+  // the validator's safety-critical merkle tree hook reads. Defaults to false/unset
   // so quorum verification stays off until deliberately enabled for a chain,
   // rather than turning on for every chain at once. Independent of this, the
   // base hook still uses whatever rpcConsensusType the chain is configured

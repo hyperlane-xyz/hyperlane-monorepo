@@ -55,12 +55,11 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
-    /// RPCs that vote together (2/3 majority) on the merkle tree hook's safety-critical
-    /// reads; the winning value must also match what `rpcs`' own configured consensus
-    /// mode independently returns. Empty disables quorum verification entirely.
-    /// Recommended: include your private `rpcs` here too, alongside a sizeable public
-    /// batch — a pool of 1-2 entries provides little real protection.
-    pub quorum_rpcs: Vec<RpcConfig>,
+    /// Additional RPCs that vote together with `rpcs` (2/3 majority, combined) on the
+    /// merkle tree hook's safety-critical reads. Empty disables quorum verification
+    /// entirely. Intended for *additional* public RPCs only — `rpcs` already votes in the
+    /// same group, so there's no need to duplicate its (typically private) entries here.
+    pub additional_quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
     /// Test-only: skips on-chain self-announce. Never use in production.
@@ -231,7 +230,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             &mut err,
         ));
 
-        let quorum_rpcs = get_rpc_urls(&chain, "quorumRpcUrls", "customQuorumRpcUrls", &mut err);
+        let additional_quorum_rpcs = get_rpc_urls(
+            &chain,
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
+            &mut err,
+        );
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
@@ -256,7 +260,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             rpcs,
-            quorum_rpcs,
+            additional_quorum_rpcs,
             allow_public_rpcs,
             skip_announce,
             max_sign_concurrency,
@@ -500,16 +504,16 @@ mod test {
     }
 
     #[test]
-    fn test_get_rpc_urls_quorum_keys() {
+    fn test_get_rpc_urls_additional_quorum_keys() {
         let rpcs = r#"
             {
-                "quorumrpcurls": [
+                "additionalquorumrpcurls": [
                     {
                         "http": "http://quorum-a.example",
                         "public": true
                     }
                 ],
-                "customquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
+                "customadditionalquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
             }
         "#;
         let rpcs = serde_json::from_str(rpcs).unwrap();
@@ -517,12 +521,13 @@ mod test {
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
         let parsed = get_rpc_urls(
             &value_parser,
-            "quorumRpcUrls",
-            "customQuorumRpcUrls",
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
             &mut err,
         );
 
-        // customQuorumRpcUrls overrides quorumRpcUrls, same as customRpcUrls does for rpcUrls.
+        // customAdditionalQuorumRpcUrls overrides additionalQuorumRpcUrls, same as
+        // customRpcUrls does for rpcUrls.
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://quorum-b.example");
         assert!(!parsed[0].public);

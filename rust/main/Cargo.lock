@@ -17334,6 +17334,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-ethereum",
+ "hyperlane-metric",
  "hyperlane-test",
  "itertools 0.10.5",
  "k256 0.13.4",
