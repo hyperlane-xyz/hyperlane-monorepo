@@ -55,10 +55,10 @@ export class MultiProtocolCore extends MultiProtocolApp<
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     origin: ChainName,
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: HexString; destination: ChainName }> {
+  ): Promise<Array<{ messageId: HexString; destination: ChainName }>> {
     return this.adapter(origin).extractMessageIds(sourceTx);
   }
 
@@ -69,7 +69,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
     delayMs?: number,
     maxAttempts?: number,
   ): Promise<boolean> {
-    const messages = this.adapter(origin).extractMessageIds(sourceTx);
+    const messages = await this.adapter(origin).extractMessageIds(sourceTx);
     await Promise.all(
       messages.map((msg) =>
         this.adapter(destination).waitForMessageProcessed(

@@ -1,9 +1,14 @@
 /* eslint-disable no-console */
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
 
-import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import {
+  DomainRoutingIsm,
+  DomainRoutingIsm__factory,
+  TrustedRelayerIsm,
+} from '@hyperlane-xyz/core';
+import { Address, WithAddress, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -17,15 +22,21 @@ import {
   randomMultisigIsmConfig,
 } from '../test/testUtils.js';
 
-import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
+import {
+  HyperlaneIsmFactory,
+  assertSubmodulesMatchExpected,
+} from './HyperlaneIsmFactory.js';
 import {
   DomainRoutingIsmConfig,
   IsmType,
   MultisigIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
+
+chai.use(chaiAsPromised);
 
 describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -86,6 +97,26 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  it('recovers an address-bearing pausable ism config', async () => {
+    const config: PausableIsmConfig = {
+      type: IsmType.PAUSABLE,
+      owner: await multiProvider.getSignerAddress(chain),
+      paused: false,
+    };
+    const deployed = await ismFactory.deploy({ destination: chain, config });
+    const recoveredConfig: WithAddress<PausableIsmConfig> = {
+      ...config,
+      address: deployed.address,
+    };
+
+    const recovered = await ismFactory.deploy({
+      destination: chain,
+      config: recoveredConfig,
+    });
+
+    expect(recovered.address).to.equal(deployed.address);
   });
 
   it('deploys a trusted relayer ism', async () => {
@@ -469,5 +500,87 @@ describe('HyperlaneIsmFactory', async () => {
         newMailboxAddress,
       ));
     expect(matches).to.be.true;
+  });
+
+  // Guards the "resumed deploy / already initialized" branch in
+  // deployRoutingIsm: owner matching alone isn't enough to safely skip
+  // re-initialization — the configured submodules must match too, or a
+  // routing ISM correctly owned but wired to the wrong submodules would be
+  // silently accepted as if the deploy had succeeded.
+  describe('assertSubmodulesMatchExpected', () => {
+    let domainRoutingIsm: DomainRoutingIsm;
+    let domains: number[];
+    let modules: Address[];
+
+    before(async () => {
+      const config: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner: await multiProvider.getSignerAddress(chain),
+        domains: Object.fromEntries(
+          testChains
+            .filter(
+              (c) => c !== TestChainName.test1 && c !== TestChainName.test4,
+            )
+            .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
+        ),
+      };
+      const ism = await ismFactory.deploy({ destination: chain, config });
+      domainRoutingIsm = DomainRoutingIsm__factory.connect(
+        ism.address,
+        multiProvider.getSigner(chain),
+      );
+      domains = (await domainRoutingIsm.domains()).map((d) => d.toNumber());
+      modules = await Promise.all(
+        domains.map((d) => domainRoutingIsm.module(d)),
+      );
+    });
+
+    it('does not throw when on-chain domains/modules match expected', async () => {
+      await expect(
+        assertSubmodulesMatchExpected(
+          domainRoutingIsm,
+          domains,
+          modules,
+          chain,
+        ),
+      ).to.not.be.rejected;
+    });
+
+    it('throws when a domain routes to a different module than expected', async () => {
+      const tamperedModules = [...modules];
+      tamperedModules[0] = randomAddress();
+      await expect(
+        assertSubmodulesMatchExpected(
+          domainRoutingIsm,
+          domains,
+          tamperedModules,
+          chain,
+        ),
+      ).to.be.rejectedWith('front-run');
+    });
+
+    it('throws when the expected domain count differs from what is configured on-chain', async () => {
+      await expect(
+        assertSubmodulesMatchExpected(
+          domainRoutingIsm,
+          domains.slice(1),
+          modules.slice(1),
+          chain,
+        ),
+      ).to.be.rejectedWith('front-run');
+    });
+
+    it('throws when an expected domain is not configured on-chain, even if the domain count matches', async () => {
+      const unconfiguredDomain = Math.max(...domains) + 1;
+      const tamperedDomains = [unconfiguredDomain, ...domains.slice(1)];
+      await expect(
+        assertSubmodulesMatchExpected(
+          domainRoutingIsm,
+          tamperedDomains,
+          modules,
+          chain,
+        ),
+      ).to.be.rejectedWith('front-run');
+    });
   });
 });

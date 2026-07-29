@@ -24,7 +24,7 @@ import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../registry.js';
 
-import { igp } from './igp.js';
+import { getIgp } from './igp.js';
 import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -34,9 +34,16 @@ import { supportedChainNames } from './supportedChainNames.js';
 // was taken with the Rome Testnet team to only connect to 5 core testnets.
 // This is also the reason for the selective IGP/gas oracle configuration.
 
-export const core: ChainMap<CoreConfig> = objMap(
-  ethereumChainOwners,
-  (local, owner) => {
+// Lazily builds the core config map. Deferred (and memoized) because it depends
+// on the IGP config, which is itself computed lazily to keep merely importing
+// the environment config cheap. See getIgp in ./igp.ts.
+let coreCache: ChainMap<CoreConfig> | undefined;
+export function getCore(): ChainMap<CoreConfig> {
+  if (coreCache) {
+    return coreCache;
+  }
+  const igp = getIgp();
+  coreCache = objMap(ethereumChainOwners, (local, owner) => {
     const connectedChains = supportedChainNames.filter(
       (chain) => chain !== local,
     );
@@ -162,5 +169,6 @@ export const core: ChainMap<CoreConfig> = objMap(
       requiredHook,
       ...owner,
     };
-  },
-);
+  });
+  return coreCache;
+}

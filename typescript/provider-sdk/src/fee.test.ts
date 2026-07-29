@@ -10,6 +10,8 @@ import {
   DerivedFeeConfig,
   FeeArtifactConfig,
   FeeConfig,
+  FeeParams,
+  FeeParamsType,
   FeeStrategyType,
   FeeType,
   RoutingFeeArtifactConfig,
@@ -36,6 +38,12 @@ const chainLookup: ChainLookup = {
   getKnownChainNames: () => ['ethereum', 'polygon'],
 };
 
+const rawParams = (maxFee: string, halfAmount: string): FeeParams => ({
+  type: FeeParamsType.raw,
+  maxFee,
+  halfAmount,
+});
+
 describe('fee type support', () => {
   describe('feeConfigToArtifact', () => {
     it('passes through linear fee config unchanged', () => {
@@ -43,8 +51,7 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -59,8 +66,7 @@ describe('fee type support', () => {
         type: FeeType.regressive,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '1000',
+        params: rawParams('2000', '1000'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -72,8 +78,7 @@ describe('fee type support', () => {
         type: FeeType.progressive,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '3000',
-        halfAmount: '1500',
+        params: rawParams('3000', '1500'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -85,8 +90,7 @@ describe('fee type support', () => {
         type: FeeType.offchainQuotedLinear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
         quoteSigners: ['0xsigner1'],
       };
 
@@ -102,13 +106,11 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
       };
@@ -121,15 +123,14 @@ describe('fee type support', () => {
         routes: {
           1: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           137: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
+        token: undefined,
       };
       expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });
@@ -143,8 +144,7 @@ describe('fee type support', () => {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.progressive,
-              maxFee: '5000',
-              halfAmount: '2500',
+              params: rawParams('5000', '2500'),
             },
           },
         },
@@ -159,11 +159,11 @@ describe('fee type support', () => {
           1: {
             '0xrouter1': {
               type: FeeStrategyType.progressive,
-              maxFee: '5000',
-              halfAmount: '2500',
+              params: rawParams('5000', '2500'),
             },
           },
         },
+        token: undefined,
       };
       expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });
@@ -176,13 +176,11 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           unknownchain: {
             type: FeeStrategyType.linear,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
       };
@@ -203,7 +201,9 @@ describe('fee type support', () => {
   });
 
   describe('feeArtifactToDerivedConfig', () => {
-    it('derives linear fee config with address', () => {
+    const TOKEN = '0xtoken';
+
+    it('derives linear fee config with resolved bigints and bps', () => {
       const derived = feeArtifactToDerivedConfig(
         {
           artifactState: ArtifactState.DEPLOYED,
@@ -211,25 +211,27 @@ describe('fee type support', () => {
             type: FeeType.linear,
             owner: '0xowner',
             beneficiary: '0xbeneficiary',
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       expect(derived).to.deep.equal({
         type: FeeType.linear,
+        token: TOKEN,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        maxFee: 1000n,
+        halfAmount: 500n,
+        bps: 10000,
         address: '0xfee',
       });
     });
 
-    it('converts routing fee domain IDs back to chain names', () => {
+    it('converts routing fee domain IDs back to chain names with derived entries', () => {
       const derived = feeArtifactToDerivedConfig(
         {
           artifactState: ArtifactState.DEPLOYED,
@@ -240,35 +242,45 @@ describe('fee type support', () => {
             routes: {
               1: {
                 type: FeeStrategyType.linear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: rawParams('1000', '500'),
               },
               137: {
                 type: FeeStrategyType.regressive,
-                maxFee: '2000',
-                halfAmount: '1000',
+                params: rawParams('2000', '1000'),
               },
             },
           },
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.routing,
+        token: TOKEN,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            token: TOKEN,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            maxFee: 1000n,
+            halfAmount: 500n,
+            bps: 10000,
+            address: '0xfee',
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            token: TOKEN,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            maxFee: 2000n,
+            halfAmount: 1000n,
+            bps: 10000,
+            address: '0xfee',
           },
         },
         address: '0xfee',
@@ -288,15 +300,13 @@ describe('fee type support', () => {
               1: {
                 '0xrouter1': {
                   type: FeeStrategyType.linear,
-                  maxFee: '1000',
-                  halfAmount: '500',
+                  params: rawParams('1000', '500'),
                 },
               },
               137: {
                 '0xrouter2': {
                   type: FeeStrategyType.regressive,
-                  maxFee: '2000',
-                  halfAmount: '1000',
+                  params: rawParams('2000', '1000'),
                 },
               },
             },
@@ -304,25 +314,36 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.crossCollateralRouting,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              token: TOKEN,
+              owner: '0xowner',
+              beneficiary: '0xbeneficiary',
+              maxFee: 1000n,
+              halfAmount: 500n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
           polygon: {
             '0xrouter2': {
               type: FeeStrategyType.regressive,
-              maxFee: '2000',
-              halfAmount: '1000',
+              token: TOKEN,
+              owner: '0xowner',
+              beneficiary: '0xbeneficiary',
+              maxFee: 2000n,
+              halfAmount: 1000n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
         },
@@ -342,35 +363,22 @@ describe('fee type support', () => {
             routes: {
               1: {
                 type: FeeStrategyType.linear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: rawParams('1000', '500'),
               },
               99999: {
                 type: FeeStrategyType.regressive,
-                maxFee: '2000',
-                halfAmount: '1000',
+                params: rawParams('2000', '1000'),
               },
             },
           },
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
-      const expectedDerived: DerivedFeeConfig = {
-        type: FeeType.routing,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
-          ethereum: {
-            type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
-          },
-        },
-        address: '0xfee',
-      };
-      expect(derived).to.deep.equal(expectedDerived);
+      assert(derived.type === FeeType.routing, 'Expected routing');
+      expect(Object.keys(derived.feeContracts)).to.deep.equal(['ethereum']);
     });
 
     it('skips unknown domain IDs in crossCollateralRouting fee derived config', () => {
@@ -385,15 +393,13 @@ describe('fee type support', () => {
               1: {
                 '0xrouter1': {
                   type: FeeStrategyType.linear,
-                  maxFee: '1000',
-                  halfAmount: '500',
+                  params: rawParams('1000', '500'),
                 },
               },
               99999: {
                 '0xrouter2': {
                   type: FeeStrategyType.progressive,
-                  maxFee: '3000',
-                  halfAmount: '1500',
+                  params: rawParams('3000', '1500'),
                 },
               },
             },
@@ -401,24 +407,14 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
-      const expectedDerived: DerivedFeeConfig = {
-        type: FeeType.crossCollateralRouting,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
-          ethereum: {
-            '0xrouter1': {
-              type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
-            },
-          },
-        },
-        address: '0xfee',
-      };
-      expect(derived).to.deep.equal(expectedDerived);
+      assert(
+        derived.type === FeeType.crossCollateralRouting,
+        'Expected CC routing',
+      );
+      expect(Object.keys(derived.feeContracts)).to.deep.equal(['ethereum']);
     });
 
     it('throws for unhandled fee types', () => {
@@ -430,130 +426,285 @@ describe('fee type support', () => {
             deployed: { address: '0xfee' },
           },
           chainLookup,
+          TOKEN,
         ),
       ).to.throw(/Unhandled fee type/);
     });
   });
 
   describe('shouldDeployNewFee', () => {
-    it('requires redeploy when fee type changes', () => {
-      const actual: FeeArtifactConfig = {
-        type: FeeType.linear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
-      const expected: FeeArtifactConfig = {
-        type: FeeType.regressive,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
+    const bpsParams = (
+      bps: number,
+      maxFee?: string,
+      halfAmount?: string,
+    ): FeeParams => ({ type: FeeParamsType.bps, bps, maxFee, halfAmount });
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
-    });
+    interface ShouldDeployNewFeeCase {
+      name: string;
+      actual: FeeArtifactConfig;
+      expected: FeeArtifactConfig;
+      redeploy: boolean;
+    }
 
-    it('requires redeploy when linear fee params change', () => {
-      const actual: FeeArtifactConfig = {
-        type: FeeType.linear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
-      const expected: FeeArtifactConfig = {
-        type: FeeType.linear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '1000',
-      };
-
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
-    });
-
-    it('does not redeploy linear fee when config unchanged', () => {
-      const config: FeeArtifactConfig = {
-        type: FeeType.linear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
-
-      expect(shouldDeployNewFee(config, config)).to.equal(false);
-    });
-
-    it('requires redeploy when offchainQuotedLinear params change', () => {
-      const actual: FeeArtifactConfig = {
-        type: FeeType.offchainQuotedLinear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-        quoteSigners: ['0xsigner1'],
-      };
-      const expected: FeeArtifactConfig = {
-        type: FeeType.offchainQuotedLinear,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '500',
-        quoteSigners: ['0xsigner1'],
-      };
-
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
-    });
-
-    it('does not redeploy routing fee (mutable)', () => {
-      const actual: FeeArtifactConfig = {
-        type: FeeType.routing,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {},
-      };
-      const expected: FeeArtifactConfig = {
-        type: FeeType.routing,
-        owner: '0xnewowner',
-        beneficiary: '0xnewbeneficiary',
-        routes: {
-          1: {
-            type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
-          },
+    const cases: ShouldDeployNewFeeCase[] = [
+      {
+        name: 'requires redeploy when fee type changes',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
         },
-      };
-
-      expect(shouldDeployNewFee(actual, expected)).to.equal(false);
-    });
-
-    it('does not redeploy crossCollateralRouting fee (mutable)', () => {
-      const actual: FeeArtifactConfig = {
-        type: FeeType.crossCollateralRouting,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {},
-      };
-      const expected: FeeArtifactConfig = {
-        type: FeeType.crossCollateralRouting,
-        owner: '0xnewowner',
-        beneficiary: '0xnewbeneficiary',
-        routes: {
-          1: {
-            '0xrouter': {
+        expected: {
+          type: FeeType.regressive,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        redeploy: true,
+      },
+      {
+        name: 'requires redeploy when linear fee params change',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('2000', '1000'),
+        },
+        redeploy: true,
+      },
+      {
+        name: 'does not redeploy linear fee when config unchanged',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        redeploy: false,
+      },
+      {
+        name: 'requires redeploy when offchainQuotedLinear params change',
+        actual: {
+          type: FeeType.offchainQuotedLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1'],
+        },
+        expected: {
+          type: FeeType.offchainQuotedLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('2000', '500'),
+          quoteSigners: ['0xsigner1'],
+        },
+        redeploy: true,
+      },
+      {
+        name: 'does not redeploy routing fee (mutable)',
+        actual: {
+          type: FeeType.routing,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          routes: {},
+        },
+        expected: {
+          type: FeeType.routing,
+          owner: '0xnewowner',
+          beneficiary: '0xnewbeneficiary',
+          routes: {
+            1: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
         },
-      };
+        redeploy: false,
+      },
+      {
+        name: 'does not redeploy crossCollateralRouting fee (mutable)',
+        actual: {
+          type: FeeType.crossCollateralRouting,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          routes: {},
+        },
+        expected: {
+          type: FeeType.crossCollateralRouting,
+          owner: '0xnewowner',
+          beneficiary: '0xnewbeneficiary',
+          routes: {
+            1: {
+              '0xrouter': {
+                type: FeeStrategyType.linear,
+                params: rawParams('1000', '500'),
+              },
+            },
+          },
+        },
+        redeploy: false,
+      },
+      // Regression: user-input bps shape vs reader-returned bps-with-raw
+      // populated (the shape SVM leaf readers return). Without semantic
+      // params comparison every apply/enroll would spuriously redeploy.
+      {
+        name: 'does not redeploy linear fee when bps shapes match (with vs without raw populated)',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(50, '184467440737', '18446744073600'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(50),
+        },
+        redeploy: false,
+      },
+      {
+        name: 'does not redeploy linear fee when raw matches bps with populated raw',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('184467440737', '18446744073600'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(50, '184467440737', '18446744073600'),
+        },
+        redeploy: false,
+      },
+      // Cross-shape with bps side lacking resolved raw values: VM-specific
+      // bps→raw is unknowable in provider-sdk, so the safe default is to
+      // treat as different (redeploy).
+      {
+        name: 'redeploys when raw is compared to bps without populated raw (unsafe)',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(50),
+        },
+        redeploy: true,
+      },
+      {
+        name: 'redeploys when bps differs even with both raws populated',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(50, '184467440737', '18446744073600'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: bpsParams(100),
+        },
+        redeploy: true,
+      },
+      // Regression: mutable leaf fields (owner, beneficiary, token,
+      // quoteSigners) are settable post-deploy on both VMs, so changes
+      // here go through the writer's update path rather than a redeploy.
+      {
+        name: 'does not redeploy linear fee when only beneficiary changes (mutable)',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xold',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xnew',
+          params: rawParams('1000', '500'),
+        },
+        redeploy: false,
+      },
+      {
+        name: 'does not redeploy linear fee when only owner changes (mutable)',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xold',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xnew',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+        },
+        redeploy: false,
+      },
+      {
+        name: 'does not redeploy linear fee when only token changes (mutable)',
+        actual: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          token: '0xoldtoken',
+          params: rawParams('1000', '500'),
+        },
+        expected: {
+          type: FeeType.linear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          token: '0xnewtoken',
+          params: rawParams('1000', '500'),
+        },
+        redeploy: false,
+      },
+      {
+        name: 'does not redeploy offchainQuotedLinear when only quoteSigners change (mutable)',
+        actual: {
+          type: FeeType.offchainQuotedLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1'],
+        },
+        expected: {
+          type: FeeType.offchainQuotedLinear,
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          params: rawParams('1000', '500'),
+          quoteSigners: ['0xsigner1', '0xsigner2'],
+        },
+        redeploy: false,
+      },
+    ];
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(false);
-    });
+    for (const { name, actual, expected, redeploy } of cases) {
+      it(name, () => {
+        expect(shouldDeployNewFee(actual, expected)).to.equal(redeploy);
+      });
+    }
 
     it('throws for unhandled fee types', () => {
       expect(() =>
@@ -573,8 +724,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
       };
 
@@ -589,8 +739,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
         deployed: { address: '0xold' },
       };
@@ -601,8 +750,7 @@ describe('fee type support', () => {
           type: FeeType.regressive,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
       };
 
@@ -631,18 +779,18 @@ describe('fee type support', () => {
           routes: {
             1: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
         },
       };
 
       const result = mergeFeeArtifacts(current, expected);
-      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect((result as DeployedFeeArtifact).deployed.address).to.equal(
-        '0xexisting',
+      assert(
+        result.artifactState === ArtifactState.DEPLOYED,
+        'expected DEPLOYED',
       );
+      expect(result.deployed.address).to.equal('0xexisting');
     });
 
     it('deploys new linear fee when params change', () => {
@@ -652,8 +800,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
         deployed: { address: '0xold' },
       };
@@ -664,8 +811,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '2000',
-          halfAmount: '1000',
+          params: rawParams('2000', '1000'),
         },
       };
 

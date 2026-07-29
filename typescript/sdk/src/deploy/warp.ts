@@ -11,6 +11,8 @@ import {
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type FeeReadContext } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
@@ -23,6 +25,7 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   CollateralWarpConfig,
   CrossCollateralWarpConfig,
+  DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
   NativeWarpConfig,
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
@@ -50,6 +53,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
+import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
@@ -97,9 +101,62 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.crossCollateral,
 ]);
 
+/**
+ * Builds a `FeeReadContext` directly from a warp deploy config, bypassing
+ * `validateWarpConfigForAltVM` + `warpConfigToArtifact` +
+ * `buildFeeReadContextFromWarpArtifactConfig`. The read flow only needs the
+ * per-domain router set, not the full `ProviderWarpConfig` conversion, so
+ * this works for any token type (including EVM-only `xerc20`,
+ * `fastCollateral`, etc.) that the AltVM validator would reject.
+ *
+ * Mirrors `buildFeeReadContextFromWarpArtifactConfig` (provider-sdk) — same
+ * `DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY` injection so CC default-router
+ * quotes remain visible to the reader.
+ */
+export function buildFeeReadContextFromWarpDeployConfig(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  chainLookup: ChainLookup,
+): FeeReadContext {
+  const knownRoutersPerDomain: Record<number, Set<string>> = {};
+
+  for (const [chainNameOrId, router] of Object.entries(
+    config.remoteRouters ?? {},
+  )) {
+    const domain = chainLookup.getDomainId(chainNameOrId);
+    if (isNullish(domain)) continue;
+    const existing = knownRoutersPerDomain[domain] ?? new Set();
+    knownRoutersPerDomain[domain] = new Set([
+      ...existing,
+      addressToBytes32(router.address),
+      DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+    ]);
+  }
+
+  if (
+    config.type === TokenType.crossCollateral &&
+    config.crossCollateralRouters
+  ) {
+    for (const [chainNameOrId, routers] of Object.entries(
+      config.crossCollateralRouters,
+    )) {
+      const domain = chainLookup.getDomainId(chainNameOrId);
+      if (isNullish(domain)) continue;
+      const existing = knownRoutersPerDomain[domain] ?? new Set();
+      knownRoutersPerDomain[domain] = new Set([
+        ...existing,
+        ...routers.map((r) => addressToBytes32(r)),
+        DEFAULT_CROSS_COLLATERAL_FEE_ROUTER_KEY,
+      ]);
+    }
+  }
+
+  return { knownRoutersPerDomain };
+}
+
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
+  protocol?: ProtocolType,
 ): ProviderWarpConfig {
   if (!SUPPORTED_ALTVM_TOKEN_TYPES.has(config.type)) {
     const supportedTypes = Array.from(SUPPORTED_ALTVM_TOKEN_TYPES).join(', ');
@@ -114,6 +171,7 @@ export function validateWarpConfigForAltVM(
       config.interchainSecurityModule as ProviderIsmConfig | string,
       chain,
       'warp config',
+      protocol,
     );
   }
 
@@ -140,6 +198,10 @@ export function validateWarpConfigForAltVM(
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
     scale,
+    contractVersion: config.contractVersion,
+    fee: config.tokenFee
+      ? tokenFeeInputToFeeConfig(config.tokenFee)
+      : undefined,
   };
 
   switch (config.type) {
@@ -164,6 +226,7 @@ export function validateWarpConfigForAltVM(
         symbol: config.symbol,
         decimals: config.decimals,
         metadataUri: config.metadataUri,
+        token: config.token,
       };
       return result;
     }
@@ -369,8 +432,21 @@ export async function executeWarpDeploy(
           rateLimitedSnapshot,
           (_chain, _ismConfig): _ismConfig is IsmConfig => chainSet.has(_chain),
         );
+        // Deploy as the deployer signer (intermediate owner), mirroring the
+        // AltVM branch below. Cross-chain router enrollment runs after deploy
+        // in enrollCrossChainRouters, submitted by the deployer key, and hands
+        // ownership to the configured owner. If deploy set the configured owner
+        // up front, the deployer could no longer sign those post-deploy
+        // enrollment txs. Only the top-level router owner is overridden; ISM and
+        // hook owners come from their own config sub-trees and are unaffected.
+        const intermediateOwnerConfig = await promiseObjAll(
+          objMap(protocolSpecificConfig, async (chain, config) => ({
+            ...config,
+            owner: await multiProvider.getSigner(chain).getAddress(),
+          })),
+        );
         const evmContracts = await deployer.deploy(
-          protocolSpecificConfig,
+          intermediateOwnerConfig,
           rateLimitedForBatch,
         );
         deployedContracts = {
@@ -397,8 +473,23 @@ export async function executeWarpDeploy(
             signer,
           );
 
+          // Deploy as the signer (intermediate owner), mirroring the EVM
+          // deployer (see TokenDeployer.deploy). Cross-chain router enrollment
+          // runs after deploy in enrollCrossChainRouters, submitted by the
+          // deployer key; it also hands ownership to the configured owner. If
+          // create() set the configured owner up front, the deployer could no
+          // longer sign those post-deploy enrollment txs.
+          const intermediateOwnerConfig = {
+            ...config,
+            owner: signer.getSignerAddress(),
+          };
+
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(config, chain),
+            validateWarpConfigForAltVM(
+              intermediateOwnerConfig,
+              chain,
+              chainMetadata.protocol,
+            ),
             chainLookup,
           );
 
@@ -868,6 +959,17 @@ export async function enrollCrossChainRouters(
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: resolvedConfigMap[currentChain].owner,
+            // Deploy set the ProxyAdmin owner to the intermediate deployer owner
+            // so post-deploy enrollment could be self-signed. actualConfig reads
+            // that live (deployer) owner, so carry the configured owner through
+            // here — otherwise the deferred update sees no change and the
+            // deployer keeps upgrade authority over the proxy.
+            proxyAdmin: actualConfig.proxyAdmin && {
+              address: actualConfig.proxyAdmin.address,
+              owner:
+                resolvedConfigMap[currentChain].proxyAdmin?.owner ??
+                resolvedConfigMap[currentChain].owner,
+            },
             remoteRouters,
             destinationGas,
             // For cross-protocol routes (EVM+SVM/Cosmos), the EVM deployer
@@ -909,7 +1011,11 @@ export async function enrollCrossChainRouters(
           };
 
           const artifact = warpConfigToArtifact(
-            validateWarpConfigForAltVM(expectedConfig, currentChain),
+            validateWarpConfigForAltVM(
+              expectedConfig,
+              currentChain,
+              chainMetadata.protocol,
+            ),
             chainLookup,
           );
 

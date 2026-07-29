@@ -139,6 +139,7 @@ export async function deriveTokenMetadata(
           name,
           symbol,
           decimals,
+          scale: config.scale,
         }),
       );
     }

@@ -7,6 +7,10 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { type RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { type Annotated, assert } from '@hyperlane-xyz/utils';
 
+import { AleoNetworkId } from '../constants.js';
+
+export { AleoNetworkId };
+
 export interface AleoTransaction extends ExecuteOptions {}
 export type AnnotatedAleoTransaction = Annotated<AleoTransaction>;
 export interface AleoReceipt extends ConfirmedTransactionJSON {
@@ -34,13 +38,6 @@ export enum AleoIsmType {
   MERKLE_ROOT_MULTISIG = 4,
   MESSAGE_ID_MULTISIG = 5,
 }
-
-export const AleoNetworkId = {
-  MAINNET: 0,
-  TESTNET: 1,
-} as const;
-
-export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
 
 export function toAleoNetworkId(chainId: number): AleoNetworkId {
   assert(
@@ -72,6 +69,7 @@ interface BaseAleoWarpTokenConfig {
 
 export interface AleoNativeWarpTokenConfig extends BaseAleoWarpTokenConfig {
   type: AleoTokenType.NATIVE;
+  scale?: number;
 }
 
 export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
@@ -80,6 +78,7 @@ export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
   name: string;
   symbol: string;
   decimals: number;
+  scale?: number;
 }
 
 export interface AleoSyntheticWarpTokenConfig extends BaseAleoWarpTokenConfig {
@@ -87,6 +86,7 @@ export interface AleoSyntheticWarpTokenConfig extends BaseAleoWarpTokenConfig {
   name: string;
   symbol: string;
   decimals: number;
+  scale?: number;
 }
 
 export type AleoWarpTokenConfig =

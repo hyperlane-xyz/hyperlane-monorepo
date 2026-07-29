@@ -4,6 +4,7 @@ import {
   defaultMultisigConfigs,
   getValidatorFromStorageLocation,
 } from '@hyperlane-xyz/sdk';
+import { validatorMetadataRpcUrlHash } from '@hyperlane-xyz/utils';
 
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
@@ -27,17 +28,15 @@ async function main() {
   const registry = await config.getRegistry(false);
   const metadata = await registry.getMetadata();
 
-  const publicRpcs: string[] = [];
+  const publicRpcsByChain: Record<string, string[]> = {};
 
   for (const chain of targetNetworks) {
     const chainMetadata = metadata[chain];
     if (!chainMetadata) {
       throw new Error(`No metadata for ${chain}`);
     }
-    publicRpcs.push(
-      ...chainMetadata.rpcUrls.map((rpc) =>
-        ethers.utils.solidityKeccak256(['string'], [rpc.http]),
-      ),
+    const publicRpcs = chainMetadata.rpcUrls.map((rpc) =>
+      ethers.utils.solidityKeccak256(['string'], [rpc.http]),
     );
     if (chainMetadata.grpcUrls)
       publicRpcs.push(
@@ -45,6 +44,7 @@ async function main() {
           ethers.utils.solidityKeccak256(['string'], [rpc.http]),
         ),
       );
+    publicRpcsByChain[chain] = publicRpcs;
   }
   const output: {
     chain: string;
@@ -56,6 +56,7 @@ async function main() {
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
+      const publicRpcs = publicRpcsByChain[chain];
       const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
       const defaultValidatorConfigs =
         defaultMultisigConfigs[chain].validators || [];
@@ -74,7 +75,7 @@ async function main() {
           const metadata = await validatorInstance.getMetadata();
 
           const matchCount = publicRpcs.filter((rpc) =>
-            metadata.rpcs?.some((x) => x == rpc),
+            metadata.rpcs?.some((x) => validatorMetadataRpcUrlHash(x) === rpc),
           ).length;
           const rpcCount = metadata.rpcs?.length;
 

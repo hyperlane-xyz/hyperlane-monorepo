@@ -46,12 +46,21 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct MailboxProgram;
+impl package_versioned::PackageVersioned for MailboxProgram {}
+
 /// Entrypoint for the Mailbox program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<MailboxProgram>();
+    }
+
     match MailboxIxn::from_instruction_data(instruction_data)? {
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
@@ -350,6 +359,22 @@ fn inbox_process(
         });
     }
 
+    // Derive a per-ISM process-authority PDA so that ISMs that require the
+    // Mailbox to co-sign (e.g. RateLimited) receive a proper signer account.
+    // Including the ISM program ID in the seeds binds this authority to the
+    // specific ISM being called, preventing a malicious recipient-selected ISM
+    // from forwarding the signer to a victim ISM via a nested CPI.
+    let (process_authority_key, process_authority_bump) =
+        Pubkey::find_program_address(&[b"process_authority", ism.as_ref()], program_id);
+
+    // If the ISM requested its process-authority PDA, mark it as a signer in
+    // the CPI so that invoke_signed can grant signing authority.
+    for meta in &mut ism_verify_account_metas {
+        if meta.pubkey == process_authority_key {
+            meta.is_signer = true;
+        }
+    }
+
     // Call into the ISM to verify the message.
     let verify_instruction = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
         metadata: process.metadata,
@@ -357,7 +382,15 @@ fn inbox_process(
     });
     let verify =
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
-    invoke(&verify, &ism_verify_infos)?;
+    invoke_signed(
+        &verify,
+        &ism_verify_infos,
+        &[&[
+            b"process_authority",
+            ism.as_ref(),
+            &[process_authority_bump],
+        ]],
+    )?;
 
     // Mark the message as delivered by creating the processed message account.
     let processed_message_account_data = ProcessedMessageAccount::from(ProcessedMessage::new(
@@ -776,7 +809,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
         .expect("Too many messages in outbox tree");
 
     let mut ret_buf = [0; 36];
-    ret_buf[0..31].copy_from_slice(root.as_ref());
+    ret_buf[0..32].copy_from_slice(root.as_ref());
     ret_buf[32..].copy_from_slice(&count.to_le_bytes());
 
     // Wrap it in the SimulationReturnData because serialized ret_buf

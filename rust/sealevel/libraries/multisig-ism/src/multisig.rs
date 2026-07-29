@@ -32,6 +32,10 @@ impl<T: Signable> MultisigIsm<T> {
     /// ordering.
     /// Returns an error if the threshold is not met or if any of the signatures are invalid.
     pub fn verify(&self) -> Result<(), MultisigIsmError> {
+        if self.signatures.len() < self.threshold as usize {
+            return Err(MultisigIsmError::ThresholdNotMet);
+        }
+
         let signed_digest = self.signed_data.eth_signed_message_hash();
         let signed_digest_bytes = signed_digest.as_bytes();
 
@@ -177,6 +181,30 @@ mod test {
             TestSignedPayload(),
             // Sigs out of order
             vec![signature_1, signature_0],
+            vec![validator_0, validator_1],
+            2,
+        );
+
+        assert_eq!(
+            multisig_ism.verify().unwrap_err(),
+            MultisigIsmError::ThresholdNotMet
+        );
+    }
+
+    #[test]
+    fn test_multisig_ism_verify_fewer_signatures_than_threshold() {
+        let validator_0 = H160::from_str("0xfdB65576568b99A8a00a292577b8fc51abB115bD").unwrap();
+        let signature_0 = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        let validator_1 = H160::from_str("0x5090cEd8BC5A7D3c2FbE2b2702eE4a8e7b227181").unwrap();
+
+        // Threshold of 2 but only one signature provided: must error, not panic
+        // when indexing signatures[1].
+        let multisig_ism = MultisigIsm::new(
+            TestSignedPayload(),
+            vec![signature_0],
             vec![validator_0, validator_1],
             2,
         );

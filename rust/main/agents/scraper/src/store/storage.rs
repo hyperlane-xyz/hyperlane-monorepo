@@ -51,7 +51,7 @@ impl HyperlaneDbStore {
         stored_events_metric: Option<IntCounterVec>,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(domain.id(), index_settings.from as u64)
+            db.block_cursor(domain.id(), "", index_settings.from as u64)
                 .await?,
         );
         Ok(Self {

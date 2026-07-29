@@ -1,8 +1,11 @@
 import { type TransactionReceipt } from '@ethersproject/providers';
 
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { type IRegistry } from '@hyperlane-xyz/registry';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
+  type ChainMap,
+  type ChainName,
   type DispatchedMessage,
   HookType,
   HyperlaneCore,
@@ -10,9 +13,9 @@ import {
   type TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { type ProtocolType } from '@hyperlane-xyz/utils';
+import { type ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
-import { log, logGreen } from '../logger.js';
+import { log, logDebug, logGreen } from '../logger.js';
 import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 /**
@@ -100,6 +103,45 @@ export type RunSelfRelayOptions = {
   txReceipt: TransactionReceipt;
   successMessage?: string;
 };
+
+export async function logDeliveryTime(
+  origin: ChainName,
+  destination: ChainName,
+  dispatchBlockNumber: number,
+  messageId: string,
+  chainAddresses: ChainMap<Record<string, string>>,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  if (
+    !isEVMLike(multiProvider.getProtocol(origin)) ||
+    !isEVMLike(multiProvider.getProtocol(destination))
+  ) {
+    return;
+  }
+  try {
+    const mailboxAddress = chainAddresses[destination]?.mailbox;
+    if (!mailboxAddress) return;
+
+    const mailbox = Mailbox__factory.connect(
+      mailboxAddress,
+      multiProvider.getProvider(destination),
+    );
+    const processedBlockNum = await mailbox.processedAt(messageId);
+    const [dispatchBlock, processedBlock] = await Promise.all([
+      multiProvider.getProvider(origin).getBlock(dispatchBlockNumber),
+      multiProvider.getProvider(destination).getBlock(processedBlockNum),
+    ]);
+    if (dispatchBlock && processedBlock) {
+      logGreen(
+        `Delivery time: ${processedBlock.timestamp - dispatchBlock.timestamp}s`,
+      );
+    }
+  } catch (error: unknown) {
+    logDebug(
+      `Failed to log delivery time for ${origin}→${destination} message ${messageId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
 
 export async function runSelfRelay({
   registry,

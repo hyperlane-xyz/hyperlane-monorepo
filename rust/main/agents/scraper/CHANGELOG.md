@@ -1,3 +1,13 @@
+## [2.3.0] - 2026-07-20
+
+* chore: jun 5 deprecations (21 chains) (#8860)
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* feat: index same chain ccr swaps (#8796)
+* feat: static interval override for idle indexing and validator checkpoint polling (#8989)
+* fix(scraper): retry dispatches on partial enrichment (#8891)
+* refactor(evm): remove evm tron techstack (#8408)
+* test(tron): agent e2e tests (#8427)
+
 ## [2.1.0] - 2026-03-04
 
 * feat(agents): add chain configuration metrics (#8185)

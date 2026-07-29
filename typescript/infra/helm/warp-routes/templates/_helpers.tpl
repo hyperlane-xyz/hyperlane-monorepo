@@ -67,6 +67,12 @@ The warp-routes container
 - name: warp-routes
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
   env:
   - name: SERVICE_NAME
     value: {{ .Values.serviceName | default "warp-monitor" | quote }}

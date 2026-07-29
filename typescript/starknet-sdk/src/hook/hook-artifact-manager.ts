@@ -47,11 +47,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     private readonly chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ) {
-    this.provider = StarknetProvider.connect(
-      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
-      chainMetadata.chainId,
-      { metadata: chainMetadata },
-    );
+    this.provider = StarknetProvider.connect(chainMetadata);
     this.mailboxAddress = context?.mailbox
       ? normalizeStarknetAddressSafe(context.mailbox)
       : '';

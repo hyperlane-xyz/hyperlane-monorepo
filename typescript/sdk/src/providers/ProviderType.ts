@@ -8,7 +8,8 @@ import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import type {
   Connection,
   Keypair,
-  Transaction as SolTransaction,
+  Transaction as SolLegacyTransaction,
+  VersionedTransaction as SolVersionedTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
 import type {
@@ -47,6 +48,21 @@ import type {
 } from '@hyperlane-xyz/radix-sdk/runtime';
 import type { Annotated, KnownProtocolType } from '@hyperlane-xyz/utils';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+
+/**
+ * Union of the two on-the-wire transaction shapes Sealevel adapters may
+ * emit: legacy `Transaction` for routes that fit in 1232 bytes, and
+ * `VersionedTransaction` for routes that need Address Lookup Tables to
+ * compress the account list (e.g. fee + new-flow IGP transfer_remote
+ * calls which carry 40+ accounts).
+ *
+ * Downstream wallet adapters (@solana/wallet-adapter-react, the warp UI
+ * template's MockSolanaAdapter) already accept this union via the
+ * standard `WalletAdapter.sendTransaction` overload. Consumers that
+ * call legacy-only methods (e.g. `.partialSign`) must branch on the
+ * runtime type.
+ */
+type SolTransaction = SolLegacyTransaction | SolVersionedTransaction;
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',

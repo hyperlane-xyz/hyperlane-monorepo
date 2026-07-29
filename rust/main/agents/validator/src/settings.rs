@@ -49,12 +49,22 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints
+    /// How frequently to check for new checkpoints. Defaults to 2s, overridable
+    /// via `interval`, or via `chains.<originChainName>.index.interval` if
+    /// `interval` is unset.
     pub interval: Duration,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
+    /// RPCs that vote together (2/3 majority) on the merkle tree hook's safety-critical
+    /// reads; the winning value must also match what `rpcs`' own configured consensus
+    /// mode independently returns. Empty disables quorum verification entirely.
+    /// Recommended: include your private `rpcs` here too, alongside a sizeable public
+    /// batch — a pool of 1-2 entries provides little real protection.
+    pub quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
+    /// Test-only: skips on-chain self-announce. Never use in production.
+    pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
 }
@@ -91,6 +101,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let allow_public_rpcs = p
             .chain(&mut err)
             .get_opt_key("allowPublicRpcs")
+            .parse_bool()
+            .unwrap_or(false);
+
+        let skip_announce = p
+            .chain(&mut err)
+            .get_opt_key("skipAnnounce")
             .parse_bool()
             .unwrap_or(false);
 
@@ -137,13 +153,6 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .and_then(parse_checkpoint_syncer)
             .end();
 
-        let interval = p
-            .chain(&mut err)
-            .get_opt_key("interval")
-            .parse_u64()
-            .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(5));
-
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
         let reorg_period = p
@@ -154,6 +163,39 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("reorgPeriod")
             .parse_value("Invalid reorgPeriod")
             .unwrap_or(ReorgPeriod::from_blocks(1));
+
+        // Retains the 2s fallback #8843 established: only the precedence is new (explicit
+        // `interval` -> chain's `index.interval` -> this default), not the default itself, to
+        // avoid widening checkpoint-availability latency for validators that don't configure
+        // either.
+        const DEFAULT_INTERVAL: Duration = Duration::from_secs(2);
+        let explicit_interval_secs = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
+        if explicit_interval_secs == Some(0) {
+            err.push(
+                cwp.clone(),
+                eyre::eyre!("`interval` must be greater than zero, or omitted for the 2s default"),
+            );
+        }
+        let chain_interval_secs = p
+            .chain(&mut err)
+            .get_key("chains")
+            .get_key(origin_chain_name)
+            .get_opt_key("index")
+            .get_opt_key("interval")
+            .parse_u64()
+            .end();
+        if chain_interval_secs == Some(0) {
+            err.push(
+                cwp.clone(),
+                eyre::eyre!(
+                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 2s default"
+                ),
+            );
+        }
+        let interval = explicit_interval_secs
+            .map(Duration::from_secs)
+            .or(chain_interval_secs.map(Duration::from_secs))
+            .unwrap_or(DEFAULT_INTERVAL);
 
         let chain = p
             .chain(&mut err)
@@ -189,11 +231,17 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             &mut err,
         ));
 
+        let quorum_rpcs = get_rpc_urls(&chain, "quorumRpcUrls", "customQuorumRpcUrls", &mut err);
+
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
-        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+        // Tron and Ethereum both use secp256k1 keys, so the validator attestation
+        // signer can double as the origin chain signer (used for self-announce txs).
+        if matches!(
+            origin_chain.domain_protocol(),
+            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Tron
+        ) {
             if let Some(origin) = base.chains.get_mut(&origin_chain) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }
@@ -208,7 +256,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             rpcs,
+            quorum_rpcs,
             allow_public_rpcs,
+            skip_announce,
             max_sign_concurrency,
         })
     }
@@ -446,6 +496,37 @@ mod test {
         assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
         assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
+        assert!(!parsed[1].public);
+    }
+
+    #[test]
+    fn test_get_rpc_urls_quorum_keys() {
+        let rpcs = r#"
+            {
+                "quorumrpcurls": [
+                    {
+                        "http": "http://quorum-a.example",
+                        "public": true
+                    }
+                ],
+                "customquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(
+            &value_parser,
+            "quorumRpcUrls",
+            "customQuorumRpcUrls",
+            &mut err,
+        );
+
+        // customQuorumRpcUrls overrides quorumRpcUrls, same as customRpcUrls does for rpcUrls.
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].url, "http://quorum-b.example");
+        assert!(!parsed[0].public);
+        assert_eq!(parsed[1].url, "http://quorum-c.example");
         assert!(!parsed[1].public);
     }
 }

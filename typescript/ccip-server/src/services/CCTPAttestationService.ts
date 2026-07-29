@@ -1,6 +1,8 @@
 import { BytesLike, ethers } from 'ethers';
 import { Logger } from 'pino';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -79,14 +81,6 @@ class CCTPAttestationService {
     return `${this.url}/v2/messages/${sourceDomain}?transactionHash=${transactionHash}`;
   }
 
-  /**
-   * Get the CCTP v2 attestation
-   * @param CCTP message retrieved from the MessageSend log event
-   * @param transaction hash containing the MessageSent event
-   * @param messageId Hyperlane message ID for tracking
-   * @param logger logger for request context
-   * @returns the attestation byte array
-   */
   async getAttestation(
     cctpMessage: string,
     transactionHash: string,
@@ -201,42 +195,85 @@ class CCTPAttestationService {
       throw new Error(`CCTP service response parsing failed: ${error}`);
     }
 
-    json.messages.forEach((message) => {
-      if (message.attestation === 'PENDING') {
-        const errorString = 'CCTP attestation is pending';
-        switch (message.delayReason) {
-          case 'insufficient_fee':
-          case 'amount_above_max':
-          case 'insufficient_allowance_available':
-            PrometheusMetrics.logUnhandledError(
-              this.serviceName,
-              UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-            );
-            logger.error(
-              {
-                error_reason:
-                  UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-                ...message,
-                ...context,
-              },
-              errorString + ` due to ${message.delayReason}`,
-            );
-            break;
-          default:
-            logger.info(
-              {
-                ...context,
-                ...message,
-              },
-              errorString,
-            );
-        }
-        throw new Error(errorString);
-      }
-    });
+    assert(
+      json.messages.length > 0,
+      'CCTP attestation API returned no messages',
+    );
 
-    // TODO: handle multiple messages in one tx hash
-    return [json.messages[0].message, json.messages[0].attestation];
+    // Fast path: single message in the tx — no disambiguation needed (99.99% of traffic).
+    // Multi-message path: normalize to account for Circle-populated mutable fields and find
+    // the entry that corresponds to the cctpMessage bytes extracted from the receipt.
+    // For v2: four fields are zeroed at emit and populated by Circle off-chain:
+    //   Header: nonce (12-43), finalityThresholdExecuted (144-147)
+    //   BurnMessageV2 body: feeExecuted (312-343), expirationBlock (344-375)
+    //   GMP messages are 180 bytes so 312-375 are out of range — safe no-op.
+    // For v1: byte-exact comparison — applying v2 normalization would corrupt stable
+    //   sender/recipient fields (v1 nonce is uint64 at 12-19; bytes 20+ are stable).
+    let matchingMessage: CCTPMessageEntry;
+    if (json.messages.length === 1) {
+      matchingMessage = json.messages[0];
+    } else {
+      const normalizeCctpMessageV2 = (hex: string): string => {
+        const bytes = ethers.utils.arrayify(hex);
+        bytes.fill(0, 12, 44); // nonce
+        bytes.fill(0, 144, 148); // finalityThresholdExecuted
+        if (bytes.length >= 344) bytes.fill(0, 312, 344); // feeExecuted
+        if (bytes.length >= 376) bytes.fill(0, 344, 376); // expirationBlock
+        return ethers.utils.hexlify(bytes);
+      };
+      const normalizedCctpMessage =
+        version === this.CCTP_VERSION_2
+          ? normalizeCctpMessageV2(cctpMessage)
+          : cctpMessage.toLowerCase();
+      const found = json.messages.find((m) => {
+        if (m.message == null) return false; // Circle returns null for messages still being processed
+        const normalizedApiMessage =
+          version === this.CCTP_VERSION_2
+            ? normalizeCctpMessageV2(m.message)
+            : m.message.toLowerCase();
+        return normalizedApiMessage === normalizedCctpMessage;
+      });
+      if (found == null) {
+        logger.info(
+          { messageId, messageCount: json.messages.length },
+          'Could not match Circle API messages to cctpMessage — treating as pending',
+        );
+        throw new Error('CCTP attestation is pending');
+      }
+      matchingMessage = found;
+    }
+
+    if (
+      matchingMessage.message == null ||
+      matchingMessage.attestation == null ||
+      matchingMessage.attestation === 'PENDING'
+    ) {
+      const errorString = 'CCTP attestation is pending';
+      switch (matchingMessage.delayReason) {
+        case 'insufficient_fee':
+        case 'amount_above_max':
+        case 'insufficient_allowance_available':
+          PrometheusMetrics.logUnhandledError(
+            this.serviceName,
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+          );
+          logger.error(
+            {
+              error_reason:
+                UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+              ...matchingMessage,
+              ...context,
+            },
+            errorString + ` due to ${matchingMessage.delayReason}`,
+          );
+          break;
+        default:
+          logger.info({ ...context, ...matchingMessage }, errorString);
+      }
+      throw new Error(errorString);
+    }
+
+    return [matchingMessage.message, matchingMessage.attestation];
   }
 }
 

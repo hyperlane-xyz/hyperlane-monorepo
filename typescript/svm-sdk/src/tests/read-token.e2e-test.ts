@@ -14,7 +14,9 @@ describe('SVM Warp Token read E2E Tests', function () {
 
   before(async () => {
     rpc = createRpc('https://api.mainnet-beta.solana.com');
-    artifactManager = new SvmWarpArtifactManager(rpc);
+    artifactManager = new SvmWarpArtifactManager(rpc, {
+      chainName: 'solanamainnet',
+    });
   });
 
   for (const testCase of [

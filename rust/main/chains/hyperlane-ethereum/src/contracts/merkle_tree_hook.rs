@@ -323,6 +323,19 @@ where
         let count = call.call().await?;
         Ok(count)
     }
+
+    #[instrument(skip(self))]
+    async fn tree_at_block(&self, height: u64) -> ChainResult<IncrementalMerkleAtBlock> {
+        let call = self
+            .contract
+            .tree()
+            .block(BlockId::Number(BlockNumber::Number(height.into())));
+        let tree = call.call().await?;
+        Ok(IncrementalMerkleAtBlock {
+            tree: tree.into(),
+            block_height: Some(height),
+        })
+    }
 }
 
 impl<M> EthereumMerkleTreeHook<M>

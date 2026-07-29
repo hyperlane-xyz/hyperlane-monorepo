@@ -9,7 +9,10 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type WarpArtifactConfig,
+  warpConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
   type ChainAddresses,
@@ -19,6 +22,9 @@ import {
   CCIPContractCache,
   type ChainMap,
   type ChainName,
+  type CompositeIsmConfig,
+  type CompositeIsmNodeConfig,
+  CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
   ExplorerLicenseType,
@@ -29,6 +35,7 @@ import {
   type OpStackIsmConfig,
   type PausableIsmConfig,
   type HypTokenRouterConfig,
+  type ProtocolTransaction,
   type RoutingIsmConfig,
   type SubmissionStrategy,
   type TokenMetadataMap,
@@ -57,10 +64,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
+  type Annotated,
   addressToBytes32,
   assert,
   formatError,
   isEVMLike,
+  isNullish,
   mapAllSettled,
   mustGet,
   objFilter,
@@ -156,10 +165,30 @@ export async function runWarpRouteDeploy({
       isEVMLike(chainMetadata[chain].protocol) || !!altVmSigners[chain],
   );
 
+  // Build per-chain WarpArtifactConfigs for AltVM chains so the preflight
+  // balance check can size the deploy budget against feature-composed cost
+  // (fee program, cross-collateral extras, custom ISM/hook) instead of the
+  // flat base-router constant. EVM chains use ETHEREUM_MINIMUM_GAS and are
+  // not included in this map.
+  const chainLookup = altVmChainLookup(multiProvider);
+  const warpConfigByChain: ChainMap<WarpArtifactConfig> = {};
+  for (const chain of deploymentChains) {
+    const protocolType = chainMetadata[chain].protocol;
+    if (isEVMLike(protocolType)) continue;
+    const validated = validateWarpConfigForAltVM(
+      warpDeployConfig[chain],
+      chain,
+      protocolType,
+    );
+    const artifact = warpConfigToArtifact(validated, chainLookup);
+    warpConfigByChain[chain] = artifact.config;
+  }
+
   await runPreflightChecksForChains({
     context,
     chains: deploymentChains,
     minGas: GasAction.WARP_DEPLOY_GAS,
+    warpConfigByChain,
   });
 
   const initialBalances = await getBalances(context, deploymentChains);
@@ -382,6 +411,7 @@ function generateTokenConfigs(
     warpCoreConfig.tokens.push({
       chainName,
       standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      tokenType: config.type,
       decimals: tokenMetadataMap.getDecimals(chainName)!,
       symbol: config.symbol || tokenMetadataMap.getSymbol(chainName)!,
       name: tokenMetadataMap.getName(chainName)!,
@@ -469,7 +499,11 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const updateTransactions = await updateExistingWarpRoute(
+  const {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  } = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
@@ -477,14 +511,21 @@ export async function runWarpRouteApply(
   );
 
   // Check if update transactions are empty
-  const hasAnyTx = Object.values(updateTransactions).some(
-    (txs) => txs.length > 0,
-  );
+  const hasAnyTx = [
+    ...Object.values(updateTransactions),
+    ...Object.values(feeUpdateTransactions),
+    ...Object.values(ownershipTransactions),
+  ].some((txs) => txs.length > 0);
 
   if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, updateTransactions);
+  await submitWarpApplyTransactions(
+    params,
+    updateTransactions,
+    feeUpdateTransactions,
+    ownershipTransactions,
+  );
 }
 
 /**
@@ -706,13 +747,36 @@ export async function extendWarpRoute(
   return updatedWarpCoreConfig;
 }
 
+type WarpApplyTransactions = {
+  txs: ChainMap<TypedAnnotatedTransaction[]>;
+  feeTxs: ChainMap<TypedAnnotatedTransaction[]>;
+  ownershipTxs: ChainMap<TypedAnnotatedTransaction[]>;
+};
+
+type SafeTxBuilderPayload = {
+  version: string;
+  chainId: string;
+  meta: Record<string, unknown>;
+  transactions: object[];
+};
+
+function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'chainId' in value &&
+    'transactions' in value &&
+    Array.isArray((value as SafeTxBuilderPayload).transactions)
+  );
+}
+
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
+): Promise<WarpApplyTransactions> {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, altVmSigners, registry } = params.context;
 
@@ -727,6 +791,8 @@ async function updateExistingWarpRoute(
   );
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const feeUpdateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const ownershipTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -772,9 +838,11 @@ async function updateExistingWarpRoute(
               ccipContractCache,
               contractVerifier,
             );
-            const transactions =
-              await evmERC20WarpModule.update(configWithMailbox);
-            updateTransactions[chain] = transactions;
+            const { txs, feeTxs, ownershipTxs } =
+              await evmERC20WarpModule.updateSplit(configWithMailbox);
+            updateTransactions[chain] = txs;
+            feeUpdateTransactions[chain] = feeTxs;
+            ownershipTransactions[chain] = ownershipTxs;
             break;
           }
           default: {
@@ -782,6 +850,7 @@ async function updateExistingWarpRoute(
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
+              protocolType,
             );
 
             const chainLookup = altVmChainLookup(multiProvider);
@@ -806,7 +875,11 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return updateTransactions;
+  return {
+    txs: updateTransactions,
+    feeTxs: feeUpdateTransactions,
+    ownershipTxs: ownershipTransactions,
+  };
 }
 
 /**
@@ -897,12 +970,14 @@ type IsmDisplayConfig =
   | MultisigIsmConfig // type, validators, threshold
   | OpStackIsmConfig // type, origin, nativeBridge
   | PausableIsmConfig // type, owner, paused, ownerOverrides
-  | TrustedRelayerIsmConfig; // type, relayer
+  | TrustedRelayerIsmConfig // type, relayer
+  | CompositeIsmConfig; // type, owner, root (Sealevel-only)
 
-function transformDeployConfigForDisplay(
+export function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
 ) {
-  const transformedIsmConfigs: Record<ChainName, any[]> = {};
+  const transformedIsmConfigs: Record<ChainName, Record<string, unknown>[]> =
+    {};
   const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
     if (config.interchainSecurityModule)
       transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
@@ -926,8 +1001,10 @@ function transformDeployConfigForDisplay(
   };
 }
 
-function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
-  const ismConfigs: any[] = [];
+function transformIsmConfigForDisplay(
+  ismConfig: IsmDisplayConfig,
+): Record<string, unknown>[] {
+  const ismConfigs: Record<string, unknown>[] = [];
   switch (ismConfig.type) {
     case IsmType.AGGREGATION:
       ismConfigs.push({
@@ -999,21 +1076,294 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
           Relayer: ismConfig.relayer,
         },
       ];
+    case IsmType.COMPOSITE:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          Root: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(ismConfig.root),
+      ];
     default:
       return [ismConfig];
   }
 }
 
 /**
- * Submits transactions for a single chain and handles receipts/self-relay
+ * Flattens a routing/fallbackRouting node's domain overrides into display
+ * rows, threading `${parentPath}.domains.${chain}` through the recursion so
+ * multiple domains' rows (e.g. two different multisig configs) aren't
+ * ambiguous once flattened into one table.
+ */
+function transformCompositeIsmDomainsForDisplay(
+  domains: ChainMap<CompositeIsmNodeConfig> | undefined,
+  parentPath: string,
+): Record<string, unknown>[] {
+  if (!domains) return [];
+  return Object.entries(domains).flatMap(([chain, sub]) =>
+    transformCompositeIsmNodeForDisplay(sub, `${parentPath}.domains.${chain}`),
+  );
+}
+
+/**
+ * Recursively flattens a composite ISM's node tree into display rows, one row
+ * per node — mirrors how AGGREGATION recurses into `modules` above. Nested
+ * node configs (subIsms, lower/upper, domains) are never printed as raw
+ * objects; each becomes its own row via recursion, tagged with its full
+ * `Path` (e.g. `root.subIsms[1].domains.ethereum`) so rows that would
+ * otherwise collide (two domains, or lower/upper both `test`) stay
+ * distinguishable once flattened into one table.
+ */
+function transformCompositeIsmNodeForDisplay(
+  node: CompositeIsmNodeConfig,
+  path: string = 'root',
+): Record<string, unknown>[] {
+  switch (node.type) {
+    case CompositeIsmNodeType.AGGREGATION:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          SubIsms: 'See table(s) below.',
+        },
+        ...node.subIsms.flatMap((sub, i) =>
+          transformCompositeIsmNodeForDisplay(sub, `${path}.subIsms[${i}]`),
+        ),
+      ];
+    case CompositeIsmNodeType.AMOUNT_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Threshold: node.threshold,
+          Lower: 'See table(s) below.',
+          Upper: 'See table(s) below.',
+        },
+        ...transformCompositeIsmNodeForDisplay(node.lower, `${path}.lower`),
+        ...transformCompositeIsmNodeForDisplay(node.upper, `${path}.upper`),
+      ];
+    case CompositeIsmNodeType.ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.FALLBACK_ROUTING:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          FallbackIsm: node.fallbackIsm,
+          Domains: node.domains
+            ? Object.keys(node.domains).join(', ')
+            : 'Undefined',
+        },
+        ...transformCompositeIsmDomainsForDisplay(node.domains, path),
+      ];
+    case CompositeIsmNodeType.TRUSTED_RELAYER:
+      return [{ Path: path, Type: node.type, Relayer: node.relayer }];
+    case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          Validators: node.validators,
+          Threshold: node.threshold,
+        },
+      ];
+    case CompositeIsmNodeType.TEST:
+      return [{ Path: path, Type: node.type, Accept: node.accept }];
+    case CompositeIsmNodeType.PAUSABLE:
+      return [{ Path: path, Type: node.type, Paused: node.paused }];
+    case CompositeIsmNodeType.RATE_LIMITED:
+      return [
+        {
+          Path: path,
+          Type: node.type,
+          MaxCapacity: node.maxCapacity,
+          Mailbox: node.mailbox,
+          Recipient: node.recipient ?? 'Undefined',
+        },
+      ];
+    default: {
+      // Compile-time exhaustiveness check — but if a new node type is ever
+      // added to CompositeIsmNodeConfig without a case here, this must fail
+      // loudly at runtime too, not silently print the raw unhandled object.
+      const _exhaustive: never = node;
+      throw new Error(
+        `Unhandled composite ISM node type: ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
+}
+
+async function getFeeSubmitterByStrategy<T extends ProtocolType>({
+  chain,
+  context,
+  strategyUrl,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+}): Promise<TxSubmitterBuilder<T> | undefined> {
+  const { multiProvider, altVmSigners, registry } = context;
+
+  if (!strategyUrl) return undefined;
+
+  const submissionStrategy = readChainSubmissionStrategy(strategyUrl)[chain];
+  if (!submissionStrategy?.feeSubmitter) return undefined;
+
+  const feeStrategy: ExtendedSubmissionStrategy = {
+    submitter: submissionStrategy.feeSubmitter,
+  };
+
+  const protocol = multiProvider.getProtocol(chain);
+  const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+    [ProtocolType.Ethereum]: {
+      file: (_multiProvider: MultiProvider, metadata: any) =>
+        new EV5FileSubmitter(metadata),
+    },
+  };
+
+  if (!isEVMLike(protocol)) {
+    const signer = mustGet(altVmSigners, chain);
+    additionalSubmitterFactories[protocol] = {
+      jsonRpc: () => new AltVMJsonRpcSubmitter(signer, { chain }),
+      [CustomTxSubmitterType.FILE]: (
+        _multiProvider: MultiProvider,
+        metadata: any,
+      ) => new AltVMFileSubmitter(signer, metadata),
+    };
+  }
+
+  return getSubmitterBuilder<T>({
+    submissionStrategy: feeStrategy as SubmissionStrategy,
+    multiProvider,
+    coreAddressesByChain: await registry.getAddresses(),
+    additionalSubmitterFactories,
+  });
+}
+
+type ChainTxPayloads = {
+  safePayloads: SafeTxBuilderPayload[];
+  feeError?: string;
+};
+
+// Extracts the Gnosis Safe address from a submitter metadata object via duck-typing.
+// Handles both direct Safe submitters (safeAddress) and ICA submitters with a
+// nested internalSubmitter that holds the Safe address.
+function extractSafeAddressFromSubmitter(meta: unknown): string {
+  if (meta == null || typeof meta !== 'object') return '';
+  const obj = meta as Record<string, unknown>;
+  if (typeof obj.safeAddress === 'string') return obj.safeAddress;
+  const inner = obj.internalSubmitter;
+  if (inner != null && typeof inner === 'object') {
+    const innerObj = inner as Record<string, unknown>;
+    if (typeof innerObj.safeAddress === 'string') return innerObj.safeAddress;
+  }
+  return '';
+}
+
+/**
+ * True when the submitter materializes its batch into a payload/file artifact
+ * (or wraps one) instead of broadcasting transactions live. For these submitters
+ * re-running submit() just rebuilds the artifact, so merging fee txs into the
+ * main submission is safe and collapses to a single bundle / callRemote. Live
+ * broadcasters (e.g. JSON_RPC, Gnosis Safe propose) are excluded so fee failures
+ * cannot trigger a retried rebroadcast of already-submitted main txs.
+ */
+function submitterProducesPayload(
+  submitter: ExtendedSubmissionStrategy['submitter'] | undefined,
+): boolean {
+  if (!submitter) return false;
+  switch (submitter.type) {
+    case CustomTxSubmitterType.FILE:
+    case TxSubmitterType.GNOSIS_TX_BUILDER:
+      return true;
+    case TxSubmitterType.INTERCHAIN_ACCOUNT:
+      return submitterProducesPayload(submitter.internalSubmitter);
+    case TxSubmitterType.TIMELOCK_CONTROLLER:
+      return submitterProducesPayload(submitter.proposerSubmitter);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Submits a per-chain batch through the chain's submitter.
+ *
+ * A submitter is typed for a single protocol, so its submit() expects
+ * Annotated<ProtocolTransaction<ProtocolType>>[]. Warp apply collects a
+ * heterogeneous TypedAnnotatedTransaction[] that is homogeneous per chain at
+ * runtime, but TS can't prove the union-of-annotated vs annotated-of-union
+ * equivalence. The element-type assertion below narrows that single boundary
+ * (still type-checked against the submit signature — not `any`).
+ */
+function submitChainBatch(
+  submitter: TxSubmitterBuilder<ProtocolType>,
+  txs: TypedAnnotatedTransaction[],
+): ReturnType<TxSubmitterBuilder<ProtocolType>['submit']> {
+  return submitter.submit(
+    ...(txs as Annotated<ProtocolTransaction<ProtocolType>>[]),
+  );
+}
+
+/**
+ * Submits transactions for a single chain and handles receipts/self-relay.
+ * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
+ * so callers can merge payloads across chains into combined files per chain ID.
  */
 async function submitChainTransactions(
   params: WarpApplyParams,
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
+  feeTxs: TypedAnnotatedTransaction[],
+  ownershipTxs: TypedAnnotatedTransaction[],
   isExtendedChain: boolean,
-): Promise<void> {
+): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
+  const safePayloads: SafeTxBuilderPayload[] = [];
+  let returnedFeeError: string | undefined;
+
+  // Read safe addresses once; used to key combined bundles by (chainId, safeAddress)
+  // so payloads for two different Safes on the same origin chain stay separate.
+  const chainStrategyEntry = params.strategyUrl
+    ? readChainSubmissionStrategy(params.strategyUrl)[chain]
+    : undefined;
+  const mainSafeAddress = extractSafeAddressFromSubmitter(
+    chainStrategyEntry?.submitter,
+  );
+  const feeSafeAddress = extractSafeAddressFromSubmitter(
+    chainStrategyEntry?.feeSubmitter ?? chainStrategyEntry?.submitter,
+  );
+
+  // Fee-contract-owner txs are merged into the main submission only when there is
+  // no dedicated feeSubmitter AND the main submitter materializes a payload/file
+  // artifact (e.g. Safe TX Builder, or an ICA wrapping one). For those, merging
+  // collapses everything into a single bundle / callRemote and re-running submit()
+  // just rebuilds the artifact. When the main submitter broadcasts live (e.g.
+  // JSON_RPC), merging would fold fee txs into the retried main submit() so a fee
+  // failure could rebroadcast already-mined router txs — instead those fee txs are
+  // submitted separately through the isolated try/catch below.
+  const hasDedicatedFeeSubmitter = !isNullish(chainStrategyEntry?.feeSubmitter);
+  const mergeFeeIntoMain =
+    !hasDedicatedFeeSubmitter &&
+    feeTxs.length > 0 &&
+    submitterProducesPayload(chainStrategyEntry?.submitter);
+  const mainTransactions = mergeFeeIntoMain
+    ? [...transactions, ...feeTxs]
+    : transactions;
 
   await retryAsync(
     async () => {
@@ -1023,53 +1373,135 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
+      const transactionReceipts =
+        mainTransactions.length > 0
+          ? await submitChainBatch(submitter, mainTransactions)
+          : undefined;
 
-      if (!isEVMLike(protocol)) {
-        return;
+      if (isSafeTxBuilderPayload(transactionReceipts)) {
+        safePayloads.push({
+          ...transactionReceipts,
+          meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
+        });
       }
 
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+      if (!isSafeTxBuilderPayload(transactionReceipts)) {
+        if (!isEVMLike(protocol)) {
+          return;
+        }
+
+        if (transactionReceipts) {
+          const receiptPath = `${params.receiptsDir}/${chain}-${
+            submitter.txSubmitterType
+          }-${Date.now()}-receipts.json`;
+          writeYamlOrJson(receiptPath, transactionReceipts);
+          logGreen(
+            `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+          );
+        }
+
+        const canRelay = canSelfRelay(
+          params.selfRelay ?? false,
+          config,
+          transactionReceipts,
         );
+
+        if (canRelay.relay) {
+          try {
+            await retryAsync(() =>
+              runSelfRelay({
+                txReceipt: canRelay.txReceipt,
+                multiProvider: params.context.multiProvider,
+                registry: params.context.registry,
+                successMessage: WarpSendLogs.SUCCESS,
+              }),
+            );
+          } catch (error) {
+            warnYellow(`Error when self-relaying Warp transaction`, error);
+          }
+        }
       }
 
-      const canRelay = canSelfRelay(
-        params.selfRelay ?? false,
-        config,
-        transactionReceipts,
-      );
-
-      if (!canRelay.relay) {
-        return;
+      // Runs whenever fee txs were NOT merged into the main submission: either a
+      // dedicated feeSubmitter is configured, or the main submitter broadcasts
+      // live (so fee txs are kept out of the retried main submit() and isolated
+      // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
+      // up to retryAsync and re-run the main submit block (which would rebroadcast
+      // already-submitted main txs); the failure is surfaced as a soft warning via
+      // returnedFeeError instead.
+      if (!mergeFeeIntoMain && feeTxs.length > 0) {
+        try {
+          const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
+            chain,
+            context: params.context,
+            strategyUrl: params.strategyUrl,
+          });
+          // Fall back to the main submitter when no dedicated feeSubmitter is
+          // configured (live-broadcast strategies that opted out of merging).
+          const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
+          const feeSafeAddressForBundle = dedicatedFeeSubmitter
+            ? feeSafeAddress
+            : mainSafeAddress;
+          const feeReceipts = await submitChainBatch(feeSubmitter, feeTxs);
+          if (isSafeTxBuilderPayload(feeReceipts)) {
+            safePayloads.push({
+              ...feeReceipts,
+              meta: {
+                ...feeReceipts.meta,
+                _safeAddress: feeSafeAddressForBundle,
+              },
+            });
+          }
+          if (
+            feeReceipts &&
+            !isSafeTxBuilderPayload(feeReceipts) &&
+            isEVMLike(protocol)
+          ) {
+            const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
+            writeYamlOrJson(feeReceiptPath, feeReceipts);
+            logGreen(
+              `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
+            );
+          }
+        } catch (error) {
+          returnedFeeError =
+            error instanceof Error ? error.message : String(error);
+          warnYellow(
+            `Error when submitting fee transactions for ${chain}`,
+            error,
+          );
+        }
       }
 
-      // if self relaying does not work (possibly because metadata cannot be built yet)
-      // we don't want to rerun the complete code block as this will result in
-      // the update transactions being sent multiple times
-      try {
-        await retryAsync(() =>
-          runSelfRelay({
-            txReceipt: canRelay.txReceipt,
-            multiProvider: params.context.multiProvider,
-            registry: params.context.registry,
-            successMessage: WarpSendLogs.SUCCESS,
-          }),
+      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
+      // setFeeRecipient) execute before ownership is transferred to a new address.
+      if (ownershipTxs.length > 0) {
+        const ownershipReceipts = await submitChainBatch(
+          submitter,
+          ownershipTxs,
         );
-      } catch (error) {
-        warnYellow(`Error when self-relaying Warp transaction`, error);
+        if (isSafeTxBuilderPayload(ownershipReceipts)) {
+          safePayloads.push({
+            ...ownershipReceipts,
+            meta: {
+              ...ownershipReceipts.meta,
+              _safeAddress: mainSafeAddress,
+            },
+          });
+        } else if (ownershipReceipts && isEVMLike(protocol)) {
+          const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
+          writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
+          logGreen(
+            `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
+          );
+        }
       }
     },
     5, // attempts
     100, // baseRetryMs
   );
+
+  return { safePayloads, feeError: returnedFeeError };
 }
 
 /**
@@ -1078,6 +1510,8 @@ async function submitChainTransactions(
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
+  feeUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
+  ownershipUpdateTransactions: ChainMap<TypedAnnotatedTransaction[]> = {},
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
@@ -1090,7 +1524,12 @@ async function submitWarpApplyTransactions(
   // private key is used across multiple chains, parallel tx submission causes
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
-  const chains = Object.keys(updateTransactions);
+  const allChains = new Set([
+    ...Object.keys(updateTransactions),
+    ...Object.keys(feeUpdateTransactions),
+    ...Object.keys(ownershipUpdateTransactions),
+  ]);
+  const chains = [...allChains];
   const evmChains = chains.filter((chain) =>
     isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
@@ -1099,17 +1538,29 @@ async function submitWarpApplyTransactions(
   );
 
   const failures: string[] = [];
+  const feeFailures: string[] = [];
   const isExtended = (chain: string) => extendedChains.includes(chain);
+  const allPayloads: SafeTxBuilderPayload[] = [];
+
+  const collectPayloads = (
+    { safePayloads, feeError }: ChainTxPayloads,
+    chain: string,
+  ) => {
+    allPayloads.push(...safePayloads);
+    if (feeError) feeFailures.push(`${chain}: ${feeError}`);
+  };
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const { rejected } = await mapAllSettled(
+    const { fulfilled, rejected } = await mapAllSettled(
       evmChains,
       (chain) =>
         submitChainTransactions(
           params,
           chain,
-          updateTransactions[chain],
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
           isExtended(chain),
         ),
       (chain) => chain,
@@ -1125,16 +1576,22 @@ async function submitWarpApplyTransactions(
       );
       failures.push(chain);
     }
+    for (const [chain, payloads] of fulfilled) collectPayloads(payloads, chain);
   }
 
   // Submit non-EVM chains sequentially (they may share signers)
   for (const chain of nonEvmChains) {
     try {
-      await submitChainTransactions(
-        params,
+      collectPayloads(
+        await submitChainTransactions(
+          params,
+          chain,
+          updateTransactions[chain] ?? [],
+          feeUpdateTransactions[chain] ?? [],
+          ownershipUpdateTransactions[chain] ?? [],
+          isExtended(chain),
+        ),
         chain,
-        updateTransactions[chain],
-        isExtended(chain),
       );
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -1146,9 +1603,52 @@ async function submitWarpApplyTransactions(
     }
   }
 
+  // Write whatever Safe payloads succeeded before surfacing any chain failures,
+  // so a partial success (e.g. chain A ok, chain B failed) doesn't lose chain A's bundle.
+  writeCombinedBundles(params.receiptsDir, allPayloads);
+
   if (failures.length > 0) {
     throw new Error(
       `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
+    );
+  }
+
+  if (feeFailures.length > 0) {
+    warnYellow(
+      `Fee transaction submission failed for the following chain(s) — main transactions were NOT affected:\n${feeFailures.join('\n')}`,
+    );
+  }
+}
+
+function writeCombinedBundles(
+  receiptsDir: string,
+  payloads: SafeTxBuilderPayload[],
+): void {
+  // Group by (chainId, safeAddress) — payloads for different Safes on the same origin
+  // chain stay separate; main and fee payloads for the same Safe are merged together.
+  const byGroup = new Map<string, SafeTxBuilderPayload[]>();
+  for (const payload of payloads) {
+    const safeAddress = (payload.meta._safeAddress as string) ?? '';
+    const groupKey = `${payload.chainId}:${safeAddress}`;
+    const list = byGroup.get(groupKey) ?? [];
+    list.push(payload);
+    byGroup.set(groupKey, list);
+  }
+  for (const [groupKey, group] of byGroup.entries()) {
+    const [chainId, safeAddress] = groupKey.split(':');
+    const combinedMeta: Record<string, unknown> = { ...group[0].meta };
+    delete combinedMeta._safeAddress;
+    const combined: SafeTxBuilderPayload = {
+      version: group[0].version,
+      chainId,
+      meta: combinedMeta,
+      transactions: group.flatMap((p) => p.transactions),
+    };
+    const safeSegment = safeAddress ? `-safe${safeAddress.slice(0, 8)}` : '';
+    const path = `${receiptsDir}/combined-chainId${chainId}${safeSegment}-${Date.now()}-receipts.json`;
+    writeYamlOrJson(path, combined);
+    logGreen(
+      `Combined ${group.length} bundle(s) (${combined.transactions.length} txs) for chain ID ${chainId} written to ${path}`,
     );
   }
 }

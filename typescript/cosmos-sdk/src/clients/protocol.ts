@@ -16,7 +16,10 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
-import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type FeeReadContext,
+  type IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -28,25 +31,23 @@ import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 
+// Base router deploy cost in gas units (ugas), used to size
+// getMinGas().WARP_DEPLOY_GAS. The composable per-config breakdown lives on
+// CosmosNativeProvider.getMinGasForWarpDeploy.
+const WARP_DEPLOY_BASE_UGAS = BigInt(3e6);
+
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
+    return CosmosNativeProvider.connect(chainMetadata);
   }
 
   async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey } = config;
 
-    return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    return CosmosNativeSigner.connectWithSigner(chainMetadata, privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -121,6 +122,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
 
   createFeeArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     return null;
   }
@@ -128,10 +130,11 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e6),
-      WARP_DEPLOY_GAS: BigInt(3e6),
+      WARP_DEPLOY_GAS: WARP_DEPLOY_BASE_UGAS,
       TEST_SEND_GAS: BigInt(3e5),
       AVS_GAS: BigInt(3e6),
       ISM_DEPLOY_GAS: BigInt(5e5),
+      HOOK_DEPLOY_GAS: BigInt(5e5),
     };
   }
 }

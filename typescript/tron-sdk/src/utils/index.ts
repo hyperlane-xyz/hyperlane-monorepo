@@ -1,9 +1,9 @@
 import { TronWeb } from 'tronweb';
 
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
-import { IABI } from './types.js';
-import { BigNumber, providers } from 'ethers';
+import { IABI, TronReceipt } from './types.js';
+import { BigNumber, providers, utils } from 'ethers';
 
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 export const TRON_EMPTY_MESSAGE =
@@ -11,18 +11,62 @@ export const TRON_EMPTY_MESSAGE =
 export const EIP1967_ADMIN_SLOT =
   '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
 
-export function decodeRevertReason(hex: string, tronweb: any): string {
+export function decodeRevertReason(hex: string): string {
   try {
     if (hex.startsWith('08c379a0')) {
-      // Standard Error(string) selector
+      // Standard Error(string) selector — decode the ABI-encoded string payload.
       const data = '0x' + hex.substring(8);
-      // Decode using TronWeb's internal ethers.js util
-      return tronweb.utils.abi.decodeParams(['string'], data)[0];
+      return String(utils.defaultAbiCoder.decode(['string'], data)[0]);
     }
     return `Hex Error: ${hex}`;
   } catch {
     return `Could not decode hex: ${hex}`;
   }
+}
+
+/**
+ * Subset of a Tron transaction-info receipt needed to detect execution failure.
+ *
+ * `receipt` is optional because non-contract transfers surface no execution
+ * receipt, and the top-level `result` is what flags those as failures.
+ */
+export type TronReceiptResult = Pick<
+  TronReceipt,
+  'resMessage' | 'contractResult' | 'result'
+> &
+  Partial<Pick<TronReceipt, 'receipt'>>;
+
+/**
+ * Throws when a mined Tron transaction reverted or failed on-chain.
+ *
+ * Tron surfaces execution failures through `getTransactionInfo` rather than the
+ * broadcast result, so both the ethers-compatible wallet path (TronWallet) and
+ * the AltVM provider path (TronProvider) must inspect the receipt to fail
+ * loudly, mirroring EVM's CALL_EXCEPTION on a status-0 receipt.
+ */
+export function assertTronReceiptSuccess(
+  info: TronReceiptResult,
+  tronweb: TronWeb,
+  txid: string,
+): void {
+  const nested = info.receipt?.result;
+  const topLevelFailed = info.result === 'FAILED';
+  // Nested receipt.result is Tron's contractResult enum (SUCCESS/REVERT/
+  // OUT_OF_ENERGY/OUT_OF_TIME/...). Any value other than SUCCESS is a mined
+  // failure. It is absent for non-contract transfers, which are not failures.
+  const nestedFailed = !isNullish(nested) && nested !== 'SUCCESS';
+  if (!topLevelFailed && !nestedFailed) {
+    return;
+  }
+
+  let revertReason = 'Unknown Error';
+  if (info.resMessage) {
+    revertReason = tronweb.toUtf8(info.resMessage);
+  } else if (info.contractResult && info.contractResult[0]) {
+    revertReason = decodeRevertReason(info.contractResult[0]);
+  }
+
+  throw new Error(`Tron Transaction Failed: ${revertReason} (txid: ${txid})`);
 }
 
 export async function createDeploymentTransaction(

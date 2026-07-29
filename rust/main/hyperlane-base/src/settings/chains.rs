@@ -7,14 +7,15 @@ use ethers::prelude::Selector;
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod, RoutingIsm,
-    SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
+    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
+    Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod,
+    RoutingIsm, SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160,
+    H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -75,6 +76,10 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
+    /// Only valid for Sealevel chains — an error is returned if set on other protocols.
+    /// Falls back to `signer` if not set.
+    pub identity: Option<SignerConf>,
     /// Submitter type for this chain
     pub submitter: SubmitterType,
     /// The estimated block time, i.e. the average time the next block is added to the chain
@@ -236,7 +241,7 @@ pub struct CoreContractAddresses {
 }
 
 /// Indexing settings
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
@@ -245,6 +250,28 @@ pub struct IndexSettings {
     pub chunk_size: u32,
     /// The indexing mode.
     pub mode: IndexMode,
+    /// How long a cursor sleeps when it's caught up and has nothing new to
+    /// index. Defaults to 5s, overridable via `index.interval` (seconds) in
+    /// the chain config.
+    pub idle_sleep_duration: Duration,
+    /// The raw `index.interval` as explicitly configured, if any. `None` means the chain didn't
+    /// set it, distinct from `idle_sleep_duration` (which always has the 5s default baked in) -
+    /// callers that need to distinguish "operator opted into a faster/slower poll" from "using
+    /// the default" (e.g. the rate-limited cursor's near-tip tip-refresh throttle, which
+    /// otherwise defaults to 30s) should use this instead.
+    pub configured_interval: Option<Duration>,
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        Self {
+            from: 0,
+            chunk_size: 0,
+            mode: IndexMode::default(),
+            idle_sleep_duration: Duration::from_secs(5),
+            configured_interval: None,
+        }
+    }
 }
 
 impl ChainConf {
@@ -361,6 +388,17 @@ impl ChainConf {
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
         let ctx = "Building mailbox";
+
+        if self.identity.is_some()
+            && self.connection.protocol() != HyperlaneDomainProtocol::Sealevel
+        {
+            return Err(eyre!(
+                "'identity' is only supported for Sealevel chains, but chain '{}' uses protocol '{:?}'",
+                self.domain.name(),
+                self.connection.protocol()
+            ));
+        }
+
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
@@ -377,6 +415,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
+                let identity_keypair = self.sealevel_identity_signer().await.context(ctx)?;
 
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -389,6 +428,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
+                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 )
                 .map(|m| Box::new(m) as Box<dyn Mailbox>)
                 .map_err(Into::into)
@@ -461,7 +501,7 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
-                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)
+                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None, None)
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
@@ -838,6 +878,47 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Build a CCR same-chain swap indexer for EVM chains.
+    /// Only supported for Ethereum connections; returns `Ok(None)` for other chain types.
+    pub async fn build_ccr_swap_indexer(
+        &self,
+        metrics: &CoreMetrics,
+        local_domain: u32,
+        ccr_to_erc20: std::collections::HashMap<H160, H160>,
+    ) -> Result<Option<Box<dyn Indexer<SameChainCcrSwap>>>> {
+        let ctx = "Building CCR swap indexer";
+        // Use a zero address as the locator — CcrSwapIndexer uses ccr_to_erc20 keys instead.
+        let locator = self.locator(H256::zero());
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
+                let indexer = self
+                    .build_ethereum(
+                        conf,
+                        &locator,
+                        metrics,
+                        h_eth::CcrSwapIndexerBuilder {
+                            local_domain,
+                            ccr_to_erc20,
+                            reorg_period,
+                        },
+                    )
+                    .await
+                    .context(ctx)?;
+                Ok(Some(indexer))
+            }
+            _ => {
+                warn!(
+                    domain = %self.domain.name(),
+                    "CCR swap indexer is only supported for Ethereum chains; skipping"
+                );
+                Ok(None)
+            }
+        }
+    }
+
     /// Try to convert the chain settings into a merkle tree hook indexer
     pub async fn build_merkle_tree_hook_indexer(
         &self,
@@ -1153,6 +1234,34 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Creates a [`h_sealevel::SealevelCompositeIsm`] for a composite ISM program.
+    ///
+    /// Only valid for Sealevel chains; returns an error for all others.
+    pub async fn build_sealevel_composite_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<h_sealevel::SealevelCompositeIsm> {
+        let ctx = "Building Sealevel composite ISM";
+        let locator = self.locator(address);
+
+        match &self.connection {
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let identity_keypair = self.sealevel_identity_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                Ok(h_sealevel::SealevelCompositeIsm::new(
+                    provider,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
+                ))
+            }
+            _ => eyre::bail!("SealevelCompositeIsm is only supported on Sealevel chains"),
+        }
+    }
+
     /// Try to convert the chain setting into a RoutingIsm Ism contract
     pub async fn build_routing_ism(
         &self,
@@ -1302,8 +1411,10 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Tron(_) => {
-                Err(eyre!("Tron does not support CCIP read ISM yet")).context(ctx)
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronCcipReadIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn CcipReadIsm>)
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
@@ -1363,6 +1474,21 @@ impl ChainConf {
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
+    }
+
+    /// Returns the identity keypair for Sealevel chains — the relayer's on-chain identity used
+    /// e.g. by TrustedRelayer ISMs.
+    ///
+    /// Returns `None` when `identity` is not configured.  Callers that need a fallback (e.g.
+    /// `SealevelMailbox`) handle the None case themselves.  This matches the lander path in
+    /// `create_identity_keypair`: both return None when identity is absent, so the two paths
+    /// always agree on whether a distinct identity key is in use.
+    async fn sealevel_identity_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+        if let Some(conf) = &self.identity {
+            Ok(Some(conf.build::<h_sealevel::Keypair>().await?))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
@@ -1467,7 +1593,7 @@ impl ChainConf {
         B: BuildableWithProvider + Sync,
     {
         let mut signer = None;
-        if B::NEEDS_SIGNER {
+        if B::SIGNER_REQUIREMENT != h_eth::SignerRequirement::None {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();

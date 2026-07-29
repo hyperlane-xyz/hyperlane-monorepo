@@ -111,8 +111,6 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
@@ -121,14 +119,13 @@ function getChainConnections(
       ['solanamainnet', 'galactica'],
       ['solanamainnet', 'radix'],
       ['solanamainnet', 'carrchain'],
-      ['solanamainnet', 'incentiv'],
-      ['solanamainnet', 'litchain'],
       ['solanamainnet', 'aleo'],
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],
       ['solanamainnet', 'tron'],
       ['solanamainnet', 'igra'],
       ['solanamainnet', 'fluent'],
+      ['solanamainnet', 'nesa'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -161,6 +158,10 @@ function getChainConnections(
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
       ['solanatestnet', 'basesepolia'],
+      ['solanadevnet', 'solanatestnet'],
+      ['solanadevnet', 'sepolia'],
+      ['solanadevnet', 'arbitrumsepolia'],
+      ['solanadevnet', 'basesepolia'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);

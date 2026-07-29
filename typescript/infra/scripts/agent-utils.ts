@@ -489,6 +489,12 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   const agentConfig = getAgentConfig(context, environment);
+  if (
+    Object.keys(newValidatorCounts).length > 0 &&
+    !agentConfig.rolesWithKeys.includes(Role.Validator)
+  ) {
+    agentConfig.rolesWithKeys.push(Role.Validator);
+  }
 
   for (const [chain, validatorCount] of Object.entries(newValidatorCounts)) {
     const baseConfig = {
@@ -641,7 +647,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain] && chain !== 'zeronetwork') {
+        if (chainMetadata[chain]) {
           acc[chain] = chainMetadata[chain];
         }
         return acc;

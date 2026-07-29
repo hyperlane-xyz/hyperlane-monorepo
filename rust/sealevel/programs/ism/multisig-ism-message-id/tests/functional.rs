@@ -22,7 +22,6 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     domain_data_pda_seeds,
     error::Error as MultisigIsmError,
     instruction::{Domained, Instruction as MultisigIsmProgramInstruction, ValidatorsAndThreshold},
-    metadata::MultisigIsmMessageIdMetadata,
     processor::process_instruction,
 };
 use hyperlane_test_utils::assert_transaction_error;
@@ -31,6 +30,7 @@ use multisig_ism::interface::{
 };
 #[cfg(test)]
 use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
+use multisig_ism::MultisigIsmMessageIdMetadata;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
 use solana_sdk::{
@@ -525,4 +525,41 @@ async fn test_ism_type() {
         .unwrap()
         .return_data;
     assert_eq!(type_u32, ModuleType::MessageIdMultisig as u32);
+}
+
+#[tokio::test]
+async fn test_get_program_version() {
+    let program_id = multisig_ism_message_id_id();
+    let (banks_client, payer, recent_blockhash) = ProgramTest::new(
+        "hyperlane_sealevel_ism_multisig_ism",
+        program_id,
+        processor!(process_instruction),
+    )
+    .start()
+    .await;
+
+    let ix = Instruction::new_with_bytes(
+        program_id,
+        &package_versioned::get_program_version_instruction_data(),
+        vec![],
+    );
+
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[ix],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+
+    assert!(simulation.result.unwrap().is_ok());
+    let return_data = simulation
+        .simulation_details
+        .unwrap()
+        .return_data
+        .expect("no return data");
+    let result = SimulationReturnData::<String>::try_from_slice(&return_data.data)
+        .expect("failed to deserialize");
+    assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
 }

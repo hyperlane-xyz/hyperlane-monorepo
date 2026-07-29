@@ -5,21 +5,21 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   DEFAULT_ROUTER_KEY,
+  type DerivedTokenRouterConfig,
   FeeQuotingCommand,
   HookType,
   TokenFeeType,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
+import type { QuoteMode } from '../../src/config.js';
 import {
   EIP712_DOMAIN,
   SIGNED_QUOTE_TYPES,
   ZERO_ADDRESS,
 } from '../../src/constants.js';
-import {
-  QuoteService,
-  type ChainQuoteContext,
-  type QuoteServiceOptions,
-} from '../../src/services/quoteService.js';
+import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
+import { QuoteService } from '../../src/services/quoteService.js';
 
 // Foundry/Hardhat default test account #0
 const TEST_PRIVATE_KEY =
@@ -66,35 +66,39 @@ const mockDerivedConfig = {
   },
 } as any;
 
-function createTestContext(
-  overrides?: Partial<ChainQuoteContext>,
-): ChainQuoteContext {
-  const routers = new Map();
-  routers.set(ROUTER, {
-    feeToken: FEE_TOKEN,
-    derivedConfig: mockDerivedConfig,
-  });
-  return {
-    chainName: 'ethereum',
-    quotedCallsAddress: QUOTED_CALLS,
-    routers,
-    ...overrides,
-  };
+interface TestServiceOverrides {
+  /** Per-route derivedConfig override (replaces `mockDerivedConfig`). */
+  derivedConfig?: any;
+  quoteMode?: QuoteMode;
+  quoteExpiry?: number;
+  transientBuffer?: number;
 }
 
-function createTestService(
-  overrides?: Partial<QuoteServiceOptions>,
-): QuoteService {
-  const chainContexts = new Map<string, ChainQuoteContext>();
-  chainContexts.set('ethereum', createTestContext());
-  return new QuoteService({
+function createTestService(overrides: TestServiceOverrides = {}): QuoteService {
+  const logger = pino({ level: 'silent' });
+  const evm = EvmQuoteService.fromState({
     signerKey: TEST_PRIVATE_KEY,
-    quoteMode: 'transient',
-    quoteExpiry: 300,
+    logger,
+    routes: [
+      {
+        origin: 'ethereum',
+        warpRouter: ROUTER,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
+        feeToken: FEE_TOKEN,
+        derivedConfig: (overrides.derivedConfig ??
+          mockDerivedConfig) as DerivedTokenRouterConfig,
+      },
+    ],
+  });
+  return new QuoteService({
+    services: new Map([[ProtocolType.Ethereum, evm]]),
+    protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
+    quoteMode: overrides.quoteMode ?? 'transient',
+    quoteExpiry: overrides.quoteExpiry ?? 300,
+    transientBuffer: overrides.transientBuffer ?? 240,
     multiProvider: mockMultiProvider,
-    chainContexts,
-    logger: pino({ level: 'silent' }),
-    ...overrides,
+    logger,
   });
 }
 
@@ -278,14 +282,9 @@ describe('QuoteService', () => {
     }
 
     function svcWithHook(hook: any) {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      return createTestService({
         derivedConfig: { ...mockDerivedConfig, hook },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      return createTestService({ chainContexts });
     }
 
     it('resolves destination-specific IGP from routing hook', async () => {
@@ -352,9 +351,7 @@ describe('QuoteService', () => {
     });
 
     it('resolves CCRF default fee for transferRemote', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {
@@ -379,9 +376,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -402,9 +396,7 @@ describe('QuoteService', () => {
         '0x6666666666666666666666666666666666666666' as Address;
       const TARGET_ROUTER =
         '0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc' as Hex;
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {
@@ -439,9 +431,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -458,12 +447,69 @@ describe('QuoteService', () => {
       expect(feeQuote).to.exist;
     });
 
+    it('resolves CCRF router-specific fee for an uppercase-hex targetRouter', async () => {
+      const ROUTER_FEE =
+        '0x6666666666666666666666666666666666666666' as Address;
+      const TARGET_ROUTER =
+        '0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc' as Hex;
+      const TARGET_ROUTER_UPPER =
+        '0x000000000000000000000000CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' as Hex;
+      const svc = createTestService({
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            type: TokenFeeType.CrossCollateralRoutingFee,
+            address: FEE_CONTRACT,
+            token: FEE_TOKEN,
+            owner: ZERO_ADDRESS,
+            feeContracts: {
+              arbitrum: {
+                [DEFAULT_ROUTER_KEY]: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: DEST_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+                [TARGET_ROUTER]: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: ROUTER_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const res = await svc.getQuote(
+        'ethereum',
+        FeeQuotingCommand.TransferRemoteTo,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+        TARGET_ROUTER_UPPER,
+      );
+      const feeQuote = res.quotes.find(
+        (q) => q.quoter.toLowerCase() === ROUTER_FEE.toLowerCase(),
+      );
+      expect(feeQuote, 'uppercase targetRouter should hit the specific leaf').to
+        .exist;
+    });
+
     it('falls back to CCRF default when targetRouter not in routers', async () => {
       const UNKNOWN_ROUTER =
         '0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd' as Hex;
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {
@@ -488,9 +534,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -507,10 +550,12 @@ describe('QuoteService', () => {
       expect(feeQuote).to.exist;
     });
 
-    it('falls back to parent fee contract when destination not in feeContracts', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+    it('skips warp fee quote when destination not in RoutingFee.feeContracts', async () => {
+      // RoutingFee doesn't extend AbstractOffchainQuoter on-chain so it has no
+      // `quoteSigners` of its own — when the destination isn't in the routing
+      // map, there's no offchain-quoted leaf to sign against and the server
+      // must skip the warp quote (returning only the IGP quote).
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {
@@ -518,7 +563,6 @@ describe('QuoteService', () => {
             address: FEE_CONTRACT,
             token: FEE_TOKEN,
             owner: ZERO_ADDRESS,
-            quoteSigners: [TEST_SIGNER],
             feeContracts: {
               optimism: {
                 type: TokenFeeType.OffchainQuotedLinearFee,
@@ -534,9 +578,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -549,7 +590,12 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).to.not.exist;
+      // IGP quote is still produced.
+      expect(res.quotes).to.have.lengthOf(1);
+      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+        IGP_ADDRESS.toLowerCase(),
+      );
     });
   });
 
@@ -558,17 +604,12 @@ describe('QuoteService', () => {
       '0x5555555555555555555555555555555555555555' as Address;
 
     it('skips IGP quote when quoteSigners is empty (not upgraded)', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           hook: { ...mockDerivedConfig.hook, quoteSigners: [] },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -585,17 +626,12 @@ describe('QuoteService', () => {
     });
 
     it('skips IGP quote when quoteSigners is undefined (not upgraded)', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           hook: { ...mockDerivedConfig.hook, quoteSigners: undefined },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -612,9 +648,7 @@ describe('QuoteService', () => {
     });
 
     it('skips warp fee quote when signer not authorized', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           tokenFee: {
@@ -623,9 +657,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -642,17 +673,12 @@ describe('QuoteService', () => {
     });
 
     it('skips IGP quote when signer not authorized', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           hook: { ...mockDerivedConfig.hook, quoteSigners: [OTHER_SIGNER] },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -669,9 +695,7 @@ describe('QuoteService', () => {
     });
 
     it('returns empty quotes when not authorized on any quoter', async () => {
-      const routers = new Map();
-      routers.set(ROUTER, {
-        feeToken: FEE_TOKEN,
+      const svc = createTestService({
         derivedConfig: {
           ...mockDerivedConfig,
           hook: { ...mockDerivedConfig.hook, quoteSigners: [OTHER_SIGNER] },
@@ -681,9 +705,6 @@ describe('QuoteService', () => {
           },
         },
       });
-      const chainContexts = new Map<string, ChainQuoteContext>();
-      chainContexts.set('ethereum', createTestContext({ routers }));
-      const svc = createTestService({ chainContexts });
 
       const res = await svc.getQuote(
         'ethereum',
@@ -712,6 +733,43 @@ describe('QuoteService', () => {
     } catch (e: any) {
       expect(e.message).to.include('Unknown origin');
     }
+  });
+
+  it('accepts EVM-like (Tron) origins for v1 quotes', async () => {
+    const logger = pino({ level: 'silent' });
+    const evm = EvmQuoteService.fromState({
+      signerKey: TEST_PRIVATE_KEY,
+      logger,
+      routes: [
+        {
+          origin: 'tron',
+          warpRouter: ROUTER,
+          chainId: 1,
+          quotedCallsAddress: QUOTED_CALLS,
+          feeToken: FEE_TOKEN,
+          derivedConfig: mockDerivedConfig as DerivedTokenRouterConfig,
+        },
+      ],
+    });
+    const service = new QuoteService({
+      services: new Map([[ProtocolType.Ethereum, evm]]),
+      protocolByChain: new Map([['tron', ProtocolType.Tron]]),
+      quoteMode: 'transient',
+      quoteExpiry: 300,
+      transientBuffer: 240,
+      multiProvider: mockMultiProvider,
+      logger,
+    });
+
+    const res = await service.getQuote(
+      'tron',
+      FeeQuotingCommand.TransferRemote,
+      ROUTER,
+      DESTINATION,
+      SALT,
+      RECIPIENT,
+    );
+    expect(res.quotes).to.be.an('array').with.lengthOf(2);
   });
 
   it('throws for unknown router', async () => {

@@ -47,9 +47,15 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
-  return objMap(contracts, (_, contract) =>
-    contract.address ? contract.address : serializeContracts(contract),
-  );
+  return objMap(contracts, (key, contract) => {
+    // Deployers must omit optional contracts instead of setting undefined;
+    // every present leaf is expected to serialize to an address.
+    assert(
+      contract,
+      `Cannot serialize missing contract for key ${String(key)}`,
+    );
+    return contract.address ? contract.address : serializeContracts(contract);
+  });
 }
 
 function getFactory<F extends HyperlaneFactories>(

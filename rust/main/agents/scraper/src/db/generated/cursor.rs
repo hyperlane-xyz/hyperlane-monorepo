@@ -17,6 +17,7 @@ pub struct Model {
     pub domain: i32,
     pub time_created: TimeDateTime,
     pub height: i64,
+    pub event_type: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -25,6 +26,7 @@ pub enum Column {
     Domain,
     TimeCreated,
     Height,
+    EventType,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -52,6 +54,7 @@ impl ColumnTrait for Column {
             Self::Domain => ColumnType::Integer.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Height => ColumnType::BigInteger.def(),
+            Self::EventType => ColumnType::String(StringLen::N(64)).def(),
         }
     }
 }

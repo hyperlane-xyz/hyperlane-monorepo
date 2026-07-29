@@ -1,3 +1,5 @@
+use std::str::FromStr;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -5,9 +7,9 @@ use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use moka::future::Cache;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
-use std::str::FromStr;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
@@ -25,6 +27,40 @@ fn resolve_kms_region(region: &str) -> Region {
         name: region.to_owned(),
         endpoint: format!("https://kms.{region}.amazonaws.com"),
     })
+}
+
+/// Cache of constructed AWS signers, keyed by (KMS key id, region), so independent call
+/// sites needing the same signer share one `GetPublicKey` call instead of repeating it.
+///
+/// Uses moka's `try_get_with`, not a `tokio::sync::OnceCell`: moka coalesces concurrent
+/// callers into one `init` attempt on both success and failure, so a KMS outage fails once
+/// for everyone waiting instead of serializing a fresh `AWS_SIGNER_TIMEOUT`-long attempt
+/// per waiter.
+type AwsSignerCache = Cache<(String, String), AwsSigner>;
+
+static AWS_SIGNER_CACHE: OnceLock<AwsSignerCache> = OnceLock::new();
+
+fn get_aws_signer_cache() -> &'static AwsSignerCache {
+    AWS_SIGNER_CACHE.get_or_init(|| Cache::builder().max_capacity(100).build())
+}
+
+/// Builds an `AwsSigner` for the given KMS key id and region, reusing an already-constructed
+/// signer for the same (id, region) pair if one exists rather than making a fresh KMS call.
+async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
+    get_aws_signer_cache()
+        .try_get_with((id.to_owned(), region.to_owned()), async {
+            let http_client =
+                utils::http_client_with_timeout().map_err(|err| eyre::eyre!(err.to_string()))?;
+            let client = KmsClient::new_with_client(
+                rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
+                resolve_kms_region(region),
+            );
+            AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT))
+                .await
+                .map_err(Report::from)
+        })
+        .await
+        .map_err(|arc_err| eyre::eyre!("{arc_err}"))
 }
 
 /// Signer types
@@ -107,14 +143,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
-                let http_client = utils::http_client_with_timeout()
-                    .map_err(|err| eyre::eyre!(err.to_string()))?;
-                let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    resolve_kms_region(region),
-                );
-                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
-                hyperlane_ethereum::Signers::Aws(signer)
+                hyperlane_ethereum::Signers::Aws(build_aws_signer(id, region).await?)
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
@@ -148,16 +177,9 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
                 let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
                 Ok(hyperlane_tron::TronSigner::from(wallet))
             }
-            SignerConf::Aws { id, region } => {
-                let http_client = utils::http_client_with_timeout()
-                    .map_err(|err| eyre::eyre!(err.to_string()))?;
-                let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    resolve_kms_region(region),
-                );
-                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
-                Ok(hyperlane_tron::TronSigner::Aws(signer))
-            }
+            SignerConf::Aws { id, region } => Ok(hyperlane_tron::TronSigner::Aws(
+                build_aws_signer(id, region).await?,
+            )),
             _ => bail!(format!("{conf:?} key is not supported by tron")),
         }
     }
@@ -332,12 +354,75 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
     use ethers::{signers::LocalWallet, utils::hex};
     use hyperlane_core::{AccountAddressType, Encode, H256};
+    use moka::future::Cache;
     use rusoto_core::Region;
+    use tokio::sync::Barrier;
 
     use super::resolve_kms_region;
     use crate::settings::{ChainSigner, SignerConf};
+
+    /// Exercises the exact coalescing mechanism `build_aws_signer` relies on
+    /// (`moka::future::Cache::try_get_with`) against a fake, always-failing initializer -
+    /// proving concurrent callers on the same key share one attempt and one failure, and
+    /// that a later call is not permanently blocked by a stale cached error.
+    #[tokio::test]
+    async fn concurrent_failing_lookups_are_coalesced_into_one_attempt() {
+        let cache: Cache<&'static str, u32> = Cache::builder().max_capacity(10).build();
+        let attempts = Arc::new(AtomicUsize::new(0));
+
+        const WAITERS: usize = 5;
+        let barrier = Arc::new(Barrier::new(WAITERS));
+        let tasks: Vec<_> = (0..WAITERS)
+            .map(|_| {
+                let cache = cache.clone();
+                let attempts = attempts.clone();
+                let barrier = barrier.clone();
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    cache
+                        .try_get_with("key", async {
+                            attempts.fetch_add(1, Ordering::SeqCst);
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            Err::<u32, &'static str>("simulated KMS failure")
+                        })
+                        .await
+                })
+            })
+            .collect();
+
+        for task in tasks {
+            let result = task.await.expect("spawned task must not panic");
+            assert!(
+                result.is_err(),
+                "the shared failure must propagate to every waiter"
+            );
+        }
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            1,
+            "concurrent callers on the same key must coalesce into a single init attempt, \
+             not one attempt per waiter"
+        );
+
+        // A later, non-concurrent call must retry rather than reuse the (uncached) failure.
+        let retry_result = cache
+            .try_get_with("key", async {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                Ok::<u32, &'static str>(42)
+            })
+            .await;
+        assert_eq!(retry_result, Ok(42));
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            2,
+            "a later call must retry after a failure, not reuse a permanently cached error"
+        );
+    }
 
     #[test]
     fn resolve_kms_region_known_region_uses_enum_variant() {

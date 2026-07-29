@@ -18,9 +18,7 @@ export async function createSigner(
   privateKey: string = TEST_ALEO_PRIVATE_KEY,
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
 ): Promise<AleoSigner> {
-  return AleoSigner.connectWithSigner([chainMetadata.rpcUrl], privateKey, {
-    metadata: chainMetadata,
-  });
+  return AleoSigner.connectWithSigner(chainMetadata, privateKey);
 }
 
 /**

@@ -1,7 +1,13 @@
 import type { Address } from '@solana/kit';
 
-import { deriveProgramDataAddress } from '../deploy/program-deployer.js';
-import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
+import { deriveProgramDataAddress } from '../pda.js';
+import {
+  CLOCK_SYSVAR_ADDRESS,
+  LOADER_V3_PROGRAM_ADDRESS,
+  RENT_SYSVAR_ADDRESS,
+  SYSTEM_PROGRAM_ADDRESS,
+} from '../constants.js';
+import { u32le } from '../codecs/binary.js';
 import type { SvmInstruction } from '../types.js';
 
 import {
@@ -9,14 +15,105 @@ import {
   readonlyAccount,
   readonlySignerAddress,
   writableAccount,
+  writableSignerAddress,
 } from './utils.js';
 
+/** BPF Loader Upgradeable SetAuthority discriminant (u32 LE). */
+const SET_AUTHORITY_DISCRIMINANT = new Uint8Array([4, 0, 0, 0]);
+
+/** BPF Loader Upgradeable Upgrade discriminant (u32 LE). */
+const UPGRADE_DISCRIMINANT = new Uint8Array([3, 0, 0, 0]);
+
+/** BPF Loader Upgradeable ExtendProgram discriminant (variant 6). */
+const EXTEND_PROGRAM_DISCRIMINANT = 6;
+
+/** BPF Loader Upgradeable ExtendProgramChecked discriminant (variant 9). */
+const EXTEND_PROGRAM_CHECKED_DISCRIMINANT = 9;
+
 /**
- * Builds a BPF Loader Upgradeable SetAuthority instruction (discriminant = 4)
- * to transfer upgrade authority of a deployed program to a new address.
+ * Builds an ExtendProgram instruction (variant 6).
  *
- * Uses address-only signers (no embedded keypair) consistent with the rest of
- * the codebase — signing is deferred to transaction submission.
+ * Permissionless legacy extend that does not verify the upgrade authority.
+ * Use when the enable_extend_program_checked feature gate is inactive on the
+ * target cluster.
+ */
+export function getExtendProgramInstruction(
+  programDataAddress: Address,
+  programAddress: Address,
+  payer: Address,
+  additionalBytes: number,
+): SvmInstruction {
+  const data = new Uint8Array(8);
+  data.set(u32le(EXTEND_PROGRAM_DISCRIMINANT), 0);
+  data.set(u32le(additionalBytes), 4);
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    [
+      writableAccount(programDataAddress),
+      writableAccount(programAddress),
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSignerAddress(payer),
+    ],
+    data,
+  );
+}
+
+/**
+ * Builds an ExtendProgramChecked instruction (variant 9).
+ *
+ * Requires the upgrade authority as signer. Only valid where the
+ * enable_extend_program_checked feature gate is active; activation is
+ * per-cluster, so callers must select the variant based on the target
+ * cluster's feature state rather than the validator binary version.
+ */
+export function getExtendProgramCheckedInstruction(
+  programDataAddress: Address,
+  programAddress: Address,
+  authority: Address,
+  payer: Address,
+  additionalBytes: number,
+): SvmInstruction {
+  const data = new Uint8Array(8);
+  data.set(u32le(EXTEND_PROGRAM_CHECKED_DISCRIMINANT), 0);
+  data.set(u32le(additionalBytes), 4);
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    [
+      writableAccount(programDataAddress),
+      writableAccount(programAddress),
+      readonlySignerAddress(authority),
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSignerAddress(payer),
+    ],
+    data,
+  );
+}
+
+/**
+ * Builds a SetAuthority instruction to transfer buffer authority.
+ *
+ * Used before program upgrades when the buffer writer differs from the
+ * program's upgrade authority (the Loader requires both to match).
+ */
+export function getSetBufferAuthorityInstruction(
+  bufferAddress: Address,
+  currentAuthority: Address,
+  newAuthority: Address,
+): SvmInstruction {
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    [
+      writableAccount(bufferAddress),
+      readonlySignerAddress(currentAuthority),
+      readonlyAccount(newAuthority),
+    ],
+    SET_AUTHORITY_DISCRIMINANT,
+  );
+}
+
+/**
+ * Builds a SetAuthority instruction to transfer upgrade authority
+ * of a deployed program to a new address (or renounce it).
  */
 export async function getSetUpgradeAuthorityInstruction(
   programAddress: Address,
@@ -24,8 +121,6 @@ export async function getSetUpgradeAuthorityInstruction(
   newAuthority: Address | null,
 ): Promise<SvmInstruction> {
   const programDataAddress = await deriveProgramDataAddress(programAddress);
-  // SetAuthority discriminant: u32le(4)
-  const data = new Uint8Array([4, 0, 0, 0]);
   const accounts = [
     writableAccount(programDataAddress),
     readonlySignerAddress(currentAuthority),
@@ -33,5 +128,43 @@ export async function getSetUpgradeAuthorityInstruction(
   if (newAuthority) {
     accounts.push(readonlyAccount(newAuthority));
   }
-  return buildInstruction(LOADER_V3_PROGRAM_ADDRESS, accounts, data);
+
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    accounts,
+    SET_AUTHORITY_DISCRIMINANT,
+  );
+}
+
+/**
+ * Builds an Upgrade instruction using address-only signers.
+ *
+ * Unlike the @solana-program/loader-v3 getUpgradeInstruction which
+ * requires a TransactionSigner for the authority, this accepts a bare
+ * Address. The caller (authority holder) signs at transaction submission.
+ *
+ * Used when the upgrade authority differs from the buffer writer —
+ * the authority address is known but the keypair is not available
+ * to the code preparing the transaction.
+ */
+export function getUpgradeInstruction(
+  programDataAddress: Address,
+  programAddress: Address,
+  bufferAddress: Address,
+  spillAddress: Address,
+  authority: Address,
+): SvmInstruction {
+  return buildInstruction(
+    LOADER_V3_PROGRAM_ADDRESS,
+    [
+      writableAccount(programDataAddress),
+      writableAccount(programAddress),
+      writableAccount(bufferAddress),
+      writableAccount(spillAddress),
+      readonlyAccount(RENT_SYSVAR_ADDRESS),
+      readonlyAccount(CLOCK_SYSVAR_ADDRESS),
+      readonlySignerAddress(authority),
+    ],
+    UPGRADE_DISCRIMINANT,
+  );
 }

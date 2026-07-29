@@ -26,13 +26,16 @@ pub enum MetadataBuildError {
     #[error("An external error causes the build to fail ({0})")]
     FailedToBuild(String),
     /// While building metadata, encountered something that should
-    /// prohibit all metadata for the message from being built.
-    /// Provides the reason for the refusal.
+    /// prohibit this module's metadata from being built. May block
+    /// delivery if the refusing module is required to meet ISM threshold.
     #[error("Refused ({0})")]
     Refused(MetadataBuildRefused),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
+    /// Validator quorum not yet reached — signatures are still being collected
+    #[error("Awaiting validator signatures")]
+    AwaitingValidatorSignatures,
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]

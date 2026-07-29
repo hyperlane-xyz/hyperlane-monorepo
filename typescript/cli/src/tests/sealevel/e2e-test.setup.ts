@@ -6,7 +6,10 @@ import {
   getPreloadedPrograms,
   runSolanaNode,
 } from '@hyperlane-xyz/sealevel-sdk/testing';
-import { createRpc } from '@hyperlane-xyz/sealevel-sdk';
+import {
+  FALLBACK_SIMULATION_PAYER,
+  createRpc,
+} from '@hyperlane-xyz/sealevel-sdk';
 
 import {
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
@@ -55,6 +58,12 @@ before(async function () {
       HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel,
       50_000_000_000n,
     );
+
+    // Fund the simulation fallback payer so `core read` against mailboxes
+    // whose owner has no SOL (e.g. burn-address or renounced) can still
+    // simulate GetProgramVersion. Production mainnet has this address
+    // funded; localnet does not by default.
+    await airdropSol(rpc, FALLBACK_SIMULATION_PAYER, 10_000_000_000n);
   } catch (error: unknown) {
     cleanup();
     throw error;

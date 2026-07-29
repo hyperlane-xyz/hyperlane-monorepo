@@ -20,8 +20,23 @@ export const SPL_NOOP_PROGRAM_ADDRESS =
 export const LOADER_V3_PROGRAM_ADDRESS =
   'BPFLoaderUpgradeab1e11111111111111111111111' as Address;
 
+export const FEATURE_GATE_PROGRAM_ADDRESS = castAddress(
+  'Feature111111111111111111111111111111111111',
+);
+
+// Feature gate for the ExtendProgramChecked instruction (variant 9). When
+// inactive on a cluster, the legacy ExtendProgram (variant 6) must be used.
+export const EXTEND_PROGRAM_CHECKED_FEATURE = castAddress(
+  '2oMRZEDWT2tqtYMofhmmfQ8SsjqUFzT6sYXppQDavxwz',
+);
+
 // Solana hard limit on account data size.
 export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;
+
+// Minimum bytes a single program-data extend may add. The BPF upgradeable
+// loader rejects smaller extends ("requires a minimum of 10240 additional
+// bytes"); larger single extends are permitted.
+export const MIN_PROGRAM_DATA_EXTEND_BYTES = 10 * 1024;
 
 // Fixed base fee per signature on Solana.
 // https://solana.com/docs/core/fees#base-fee
@@ -35,6 +50,10 @@ export const SPL_TOKEN_PROGRAM_ADDRESS =
 export const TOKEN_2022_PROGRAM_ADDRESS =
   'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
 
+// https://spl.solana.com/associated-token-account
+export const ASSOCIATED_TOKEN_PROGRAM_ADDRESS =
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL' as Address;
+
 // https://github.com/metaplex-foundation/mpl-token-metadata/blob/c314930196b6b16e1ba8fefdf206e9af7b0e4c37/programs/token-metadata/program/src/lib.rs#L25
 export const METAPLEX_METADATA_PROGRAM_ADDRESS =
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;
@@ -46,3 +65,7 @@ export const COMPUTE_BUDGET_PROGRAM_ID = castAddress(
 
 // Default compute unit budget for SVM deployment transactions.
 export const DEFAULT_COMPUTE_UNITS = 400_000;
+
+// Solana per-transaction compute unit ceiling. Use for heavy txs (e.g. BPF
+// program upgrade + extend) where headroom matters more than priority cost.
+export const MAX_COMPUTE_UNITS = 1_400_000;
