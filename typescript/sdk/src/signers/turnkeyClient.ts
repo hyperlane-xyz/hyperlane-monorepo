@@ -1,6 +1,7 @@
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import type { TActivity } from '@turnkey/sdk-server';
 import { TurnkeyServerClient } from '@turnkey/sdk-server';
+import { z } from 'zod';
 
 import { deepCopy, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -53,15 +54,19 @@ export const DEFAULT_TURNKEY_API_BASE_URL = 'https://api.turnkey.com';
  * The publicKey field contains:
  * - For Sealevel: base58-encoded Solana public key
  * - For EVM: hex-encoded Ethereum address
+ *
+ * The optional apiBaseUrl defaults to {@link DEFAULT_TURNKEY_API_BASE_URL}.
  */
-export type TurnkeyConfig = {
-  organizationId: string;
-  apiPublicKey: string;
-  apiPrivateKey: string;
-  privateKeyId: string;
-  publicKey: string;
-  apiBaseUrl?: string; // Optional API base URL (defaults to DEFAULT_TURNKEY_API_BASE_URL)
-};
+export const TurnkeyConfigSchema = z.object({
+  organizationId: z.string(),
+  apiPublicKey: z.string(),
+  apiPrivateKey: z.string(),
+  privateKeyId: z.string(),
+  publicKey: z.string(),
+  apiBaseUrl: z.string().optional(),
+});
+
+export type TurnkeyConfig = z.infer<typeof TurnkeyConfigSchema>;
 
 /**
  * Shared Turnkey client manager
