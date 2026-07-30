@@ -673,12 +673,16 @@ const relayerResources = {
   },
 };
 
-// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores (rare
-// transient spikes to ~5.7, absorbed by burst since there is no CPU limit),
-// memory peak ~2.4Gi. Request covers the memory peak and ~2x the CPU p99.
+// Sized from 30-day observed usage: CPU p50 ~0.08 / p99 ~0.24 cores, memory
+// peak ~2.4Gi. Steady-state is tiny, but restart/cold-start catch-up bursts
+// (cursor re-sync + backlog drain) reach ~6 cores just like the main relayer;
+// with no CPU limit these are absorbed by burst. The prior 500m request made
+// those bursts read as ~12x request and constantly tripped the ratio-based
+// >75% CPU alert. Request raised to 2 cores to give burst headroom and cut
+// that alert noise; memory covers the peak with headroom.
 const fastPathRelayerResources = {
   requests: {
-    cpu: '500m',
+    cpu: '2000m',
     memory: '3G',
   },
 };
