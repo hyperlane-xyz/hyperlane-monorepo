@@ -40,6 +40,10 @@ impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
     const NEEDS_SIGNER: bool = false;
 
+    fn uses_finalized_block_cache(&self) -> bool {
+        true
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,

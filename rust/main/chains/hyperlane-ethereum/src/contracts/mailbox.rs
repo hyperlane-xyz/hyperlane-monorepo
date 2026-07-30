@@ -60,6 +60,10 @@ impl BuildableWithProvider for SequenceIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
     const NEEDS_SIGNER: bool = false;
 
+    fn uses_finalized_block_cache(&self) -> bool {
+        true
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
@@ -82,6 +86,10 @@ pub struct DeliveryIndexerBuilder {
 impl BuildableWithProvider for DeliveryIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<H256>>;
     const NEEDS_SIGNER: bool = false;
+
+    fn uses_finalized_block_cache(&self) -> bool {
+        true
+    }
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
