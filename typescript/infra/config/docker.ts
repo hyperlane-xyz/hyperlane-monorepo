@@ -45,9 +45,9 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '0cee059-20260730-000935',
   relayerRC: '0cee059-20260730-000935',
   relayerFastPath: '0cee059-20260730-000935',
-  validator: '0cee059-20260730-000935',
-  validatorRC: '0cee059-20260730-000935',
-  validatorFastPath: '0cee059-20260730-000935',
+  validator: 'd29e3f7-20260730-125155',
+  validatorRC: 'd29e3f7-20260730-125155',
+  validatorFastPath: 'd29e3f7-20260730-125155',
   scraper: 'c1678d0-20260728-164228',
   // monorepo services
   checkWarpDeploy: 'main',
