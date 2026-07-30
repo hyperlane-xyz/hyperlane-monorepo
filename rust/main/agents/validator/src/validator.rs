@@ -64,19 +64,19 @@ const MIN_RECOMMENDED_QUORUM_RPCS: usize = 3;
 /// (`resolve_quorum_target_height`).
 ///
 /// `tree()`/`latest_checkpoint()`/`latest_checkpoint_at_block()` instead run a single 2/3
-/// majority vote across `quorum_hooks`: one hook per `rpcUrls` entry (role `Primary`,
-/// always counted in the threshold, whether it succeeds or fails this round) plus one hook
-/// per `additionalQuorumRpcUrls` entry (role `Quorum`, excluded from the threshold's denominator if
-/// it fails this round — but only if at least one other `Quorum`-role entry responded, so
-/// a fully-failed quorum pool can't shrink the denominator down to a compromised
-/// `Primary`-only remainder; see `select_quorum_result`). `additionalQuorumRpcUrls` is
-/// meant to hold *additional* public RPCs on top of what's already in `rpcUrls` — it
-/// widens the vote without weakening it: a public endpoint blipping shouldn't itself
-/// block checkpoint signing, or force unanimous agreement among the rest. The merged
-/// vote's winner must also independently match what `base_hook` (`rpcUrls`'s own
-/// consensus) returns — see `require_base_hook_agreement` — so a colluding or
-/// compromised subset of the merged group (most plausibly `additionalQuorumRpcUrls`,
-/// being public) can't outvote an honest `Primary`.
+/// majority vote across `quorum_hooks`: one hook per `rpcUrls` entry (role `Primary`) plus
+/// one hook per `additionalQuorumRpcUrls` entry (role `Quorum`). The threshold's
+/// denominator is always the full configured `quorum_hooks` pool size — a failed entry,
+/// `Primary` or `Quorum`, is always counted against it, never excluded (see
+/// `select_quorum_result` for why: every "exclude an unavailable `Quorum`-role entry"
+/// heuristic tried here turned out to have a fail-open bypass). Tolerating an
+/// `additionalQuorumRpcUrls` blip therefore comes from over-provisioning the pool size
+/// (see `MIN_RECOMMENDED_QUORUM_RPCS`/`warn_if_quorum_pool_undersized`), not from
+/// excluding failures after the fact. The merged vote's winner must also independently
+/// match what `base_hook` (`rpcUrls`'s own consensus) returns — see
+/// `require_base_hook_agreement` — so a colluding or compromised subset of the merged
+/// group (most plausibly `additionalQuorumRpcUrls`, being public) can't outvote an
+/// honest `Primary`.
 #[derive(Debug)]
 struct ValidatorMultiRpcQuorumMerkleTreeHook {
     base_hook: Arc<dyn MerkleTreeHook>,
@@ -155,29 +155,25 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
 
     /// Majority vote (2/3) across `quorum_hooks`' results.
     ///
-    /// A failed `Quorum`-role RPC (a `additionalQuorumRpcUrls` entry) this round is excluded from
-    /// the threshold's denominator, regardless of whether it's public or private (e.g. 4
-    /// configured, 1 quorum-role entry down -> 2/3-of-3, not 2/3-of-4): `additionalQuorumRpcUrls` is
-    /// additional, optional coverage, so one entry blipping shouldn't by itself force
-    /// unanimous agreement among the rest, or block checkpoint signing outright. A failed
-    /// `Primary`-role RPC (an `rpcUrls` entry) always still counts against the full pool —
-    /// `rpcUrls` is the core set every validator already depends on, so its failures should
-    /// still tighten the threshold rather than being silently tolerated. A `Quorum`-role
-    /// RPC's error also never becomes the round's returned error (see `first_primary_err`
-    /// below): it's expected/tolerated, so it must never surface up through
-    /// logs/alerting the way an unexpected `Primary`-role failure would.
+    /// The threshold's denominator is always the full configured `quorum_hooks` pool
+    /// size (`self.quorum_hooks.len()`) — a failed entry, whether `Primary`-role (an
+    /// `rpcUrls` entry) or `Quorum`-role (an `additionalQuorumRpcUrls` entry), always
+    /// still counts against it and is never excluded. Earlier revisions tried excluding
+    /// unavailable `Quorum`-role entries from the denominator so a blip wouldn't force
+    /// near-unanimous agreement among the rest, gated on some cheap signal (whether at
+    /// least one, or later a 2/3 majority, of the `Quorum`-role pool responded this
+    /// round). Every such signal turned out to have a fail-open bypass: a compromised
+    /// `Primary` can manipulate the target height so only a colluding minority of
+    /// `additionalQuorumRpcUrls` answers while the honest majority correctly errors "not
+    /// found" — and response/agreement counts alone can't reliably tell that apart from
+    /// a genuine blip. Keeping the denominator fixed removes the exploit entirely:
+    /// tolerating expected `additionalQuorumRpcUrls` blips instead comes from
+    /// over-provisioning the pool size (see `MIN_RECOMMENDED_QUORUM_RPCS` /
+    /// `warn_if_quorum_pool_undersized`), not from excluding failures after the fact.
     ///
-    /// The exclusion above is only granted if at least two thirds of the `Quorum`-role
-    /// pool actually responded this round (the same 2/3 bar used everywhere else in this
-    /// function). A minority of `Quorum`-role successes is NOT enough: that's exactly the
-    /// signal a target-height manipulation attack would produce (e.g. a compromised
-    /// `Primary` picks a future/nonexistent height that only it -- and a colluding
-    /// minority of `additionalQuorumRpcUrls` entries -- can answer, while the honest
-    /// majority correctly errors "not found"). If exclusion were granted on any single
-    /// success, that colluding minority could shrink the denominator down to just
-    /// themselves plus `Primary` and trivially clear the threshold. So unless a genuine
-    /// 2/3 majority of the `Quorum`-role pool responded, its failures count against the
-    /// threshold like `Primary` failures do, rather than being excluded.
+    /// A `Quorum`-role RPC's error also never becomes the round's returned error (see
+    /// `first_primary_err` below): metrics/alerting should surface unexpected
+    /// `Primary`-role failures, not additional-quorum blips.
     fn select_quorum_result<T: Clone + Debug>(
         &self,
         results: Vec<(String, RpcRole, ChainResult<T>)>,
@@ -190,25 +186,15 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         // error (which callers log at `error!`/`warn!`, i.e. this is the one place that
         // failure could otherwise leak out).
         let mut first_primary_err = None;
-        let mut excluded_quorum_rpcs: Vec<String> = Vec::new();
+        let mut failed_quorum_rpcs: Vec<String> = Vec::new();
         let mut failed_primary_rpcs: Vec<String> = Vec::new();
-        let mut quorum_role_total = 0usize;
-        let mut quorum_role_oks = 0usize;
 
         for (label, role, result) in results {
-            if role == RpcRole::Quorum {
-                quorum_role_total = quorum_role_total.saturating_add(1);
-            }
             match result {
-                Ok(value) => {
-                    if role == RpcRole::Quorum {
-                        quorum_role_oks = quorum_role_oks.saturating_add(1);
-                    }
-                    oks.push((label, value));
-                }
+                Ok(value) => oks.push((label, value)),
                 Err(err) => {
                     if role == RpcRole::Quorum {
-                        excluded_quorum_rpcs.push(label);
+                        failed_quorum_rpcs.push(label);
                     } else {
                         failed_primary_rpcs.push(label);
                         if first_primary_err.is_none() {
@@ -226,40 +212,15 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 "rpcUrls entries failed this round; they still count against the quorum threshold"
             );
         }
-
-        // See the doc comment above: only shrink the denominator if the exclusion isn't
-        // itself the attack signal (i.e. a genuine 2/3 majority of the Quorum-role pool
-        // responded, not just a colluding minority).
-        let grant_quorum_exclusion = quorum_role_total == 0
-            || quorum_role_oks >= Self::two_thirds_threshold(quorum_role_total);
-        let excluded_count = if grant_quorum_exclusion {
-            excluded_quorum_rpcs.len()
-        } else {
-            0
-        };
-        let effective_pool_size = self.quorum_hooks.len().saturating_sub(excluded_count);
-        let threshold = Self::two_thirds_threshold(effective_pool_size);
-        if !excluded_quorum_rpcs.is_empty() {
-            if grant_quorum_exclusion {
-                debug!(
-                    context,
-                    excluded_quorum_rpcs = ?excluded_quorum_rpcs,
-                    effective_pool_size,
-                    threshold,
-                    "Excluding unavailable additionalQuorumRpcUrls entries from this round's quorum threshold"
-                );
-            } else {
-                warn!(
-                    context,
-                    excluded_quorum_rpcs = ?excluded_quorum_rpcs,
-                    quorum_role_oks,
-                    quorum_role_total,
-                    "Fewer than 2/3 of additionalQuorumRpcUrls entries responded this round; NOT \
-                     excluding the failures from the threshold, since that's exactly the signal \
-                     a target-height manipulation attack would produce"
-                );
-            }
+        if !failed_quorum_rpcs.is_empty() {
+            debug!(
+                context,
+                failed_quorum_rpcs = ?failed_quorum_rpcs,
+                "additionalQuorumRpcUrls entries failed this round; they still count against the quorum threshold"
+            );
         }
+
+        let threshold = Self::two_thirds_threshold(self.quorum_hooks.len());
         let mut max_agreeing = 0;
         let mut best_agreeing_rpcs: Vec<&str> = Vec::new();
 
@@ -2093,9 +2054,9 @@ mod tests {
 
     /// Regression test for a fail-open attack: if a compromised `Primary` manipulates the
     /// target height such that every honest `Quorum`-role RPC errors (e.g. "header not
-    /// found" for a fabricated future height), the `Quorum`-role pool must NOT be
-    /// excluded from the threshold -- otherwise the compromised `Primary` would trivially
-    /// "win" a 1-of-1 vote against itself.
+    /// found" for a fabricated future height), the failed `Quorum`-role entries must
+    /// still count against the (fixed) threshold -- otherwise the compromised `Primary`
+    /// would trivially "win" a 1-of-1 vote against itself.
     #[tokio::test]
     async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_rejects_when_quorum_role_pool_fully_fails(
     ) {
@@ -2159,11 +2120,9 @@ mod tests {
     /// Regression test for a fail-open attack on *partial* Quorum-role pool failure: if a
     /// compromised `Primary` manipulates the target height such that only a colluding
     /// minority of `additionalQuorumRpcUrls` can answer (agreeing with the fabricated
-    /// value) while the honest majority correctly errors "not found", granting the
-    /// exclusion on that single colluding success would shrink the denominator down to
-    /// just the compromised `Primary` plus its accomplice and let them trivially clear
-    /// the threshold. The exclusion must require a genuine 2/3 majority of the
-    /// `Quorum`-role pool to have responded, so this round must fail to reach quorum.
+    /// value) while the honest majority correctly errors "not found", the compromised
+    /// `Primary` plus its single accomplice (2 of the fixed 4-entry denominator) must
+    /// still fall short of the 2/3 threshold, so this round must fail to reach quorum.
     #[tokio::test]
     async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_rejects_when_quorum_role_pool_minority_colludes(
     ) {
@@ -2237,6 +2196,100 @@ mod tests {
             hook.tree(&ReorgPeriod::None).await.is_err(),
             "a colluding minority of the Quorum-role pool must not be able to shrink the \
              denominator enough to win alongside a compromised Primary"
+        );
+    }
+
+    /// Regression test for a fail-open attack where the honest `Quorum`-role majority
+    /// *responds* rather than errors, so a response-count-based exclusion signal (e.g.
+    /// "2/3 of the Quorum-role pool responded this round") would have been satisfied even
+    /// though only a minority actually agrees with the compromised `Primary`'s fabricated
+    /// value: 1 compromised `Primary` + 1 colluding `Quorum`-role entry (agrees with the
+    /// fabricated value) + 1 honest `Quorum`-role entry that answers with the correct,
+    /// different value + 1 honest `Quorum`-role entry that errors. Neither the fabricated
+    /// value (2 of the fixed 4-entry denominator) nor the honest value (1 of 4) reaches
+    /// the 2/3 threshold, so this round must fail to reach quorum.
+    #[tokio::test]
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_rejects_when_quorum_role_pool_partially_disagrees(
+    ) {
+        let mailbox_domain = dummy_domain(1337, "test-domain").id();
+
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_count().never();
+        base_hook.expect_tree().never();
+        // Never reached: the merged vote fails to reach quorum before base_hook would be
+        // consulted.
+        base_hook.expect_tree_at_block().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
+        mock_height_resolution(&mut base_hook, mailbox_domain, 42);
+
+        let fabricated_tree = {
+            let mut fabricated =
+                hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+            fabricated.ingest(H256::from_low_u64_be(1));
+            IncrementalMerkleAtBlock {
+                tree: fabricated,
+                block_height: Some(42),
+            }
+        };
+        let honest_tree = {
+            let mut honest = hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+            honest.ingest(H256::from_low_u64_be(2));
+            IncrementalMerkleAtBlock {
+                tree: honest,
+                block_height: Some(42),
+            }
+        };
+
+        let mut compromised_primary = MockMerkleTreeHook::new();
+        compromised_primary.expect_latest_checkpoint().never();
+        compromised_primary
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once({
+                let fabricated_tree = fabricated_tree.clone();
+                move |_| Ok(fabricated_tree)
+            });
+
+        let mut colluding_quorum = MockMerkleTreeHook::new();
+        colluding_quorum.expect_latest_checkpoint().never();
+        colluding_quorum
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(move |_| Ok(fabricated_tree));
+
+        let mut honest_quorum_correct = MockMerkleTreeHook::new();
+        honest_quorum_correct.expect_latest_checkpoint().never();
+        honest_quorum_correct
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(move |_| Ok(honest_tree));
+
+        let mut honest_quorum_erroring = MockMerkleTreeHook::new();
+        honest_quorum_erroring.expect_latest_checkpoint().never();
+        honest_quorum_erroring
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|_| Err(ChainCommunicationError::from_other_str("header not found")));
+
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
+            base_hook: Arc::new(base_hook),
+            quorum_hooks: vec![
+                primary_rpc("rpc-primary-compromised", compromised_primary),
+                quorum_rpc("rpc-quorum-colluding", colluding_quorum),
+                quorum_rpc("rpc-quorum-honest-correct", honest_quorum_correct),
+                quorum_rpc("rpc-quorum-honest-erroring", honest_quorum_erroring),
+            ],
+        };
+
+        assert!(
+            hook.tree(&ReorgPeriod::None).await.is_err(),
+            "a compromised Primary plus a single colluding Quorum-role entry must not be \
+             able to win just because a majority of the Quorum-role pool responded -- they \
+             must also agree with the winning candidate"
         );
     }
 
@@ -2386,12 +2439,14 @@ mod tests {
         );
     }
 
-    /// 4 configured `quorum_hooks`, 1 public RPC down this round -> excluded from the
-    /// threshold, leaving an effective pool of 3 (threshold 2). Of the 3 responders, only
-    /// 2 agree (the third disagrees) -- still enough to reach the reduced threshold, even
-    /// though it wouldn't reach the un-excluded threshold of 3.
+    /// 4 configured `quorum_hooks`, 1 `Quorum`-role RPC down this round. Unlike earlier
+    /// revisions, a down `Quorum`-role entry is NOT excluded from the threshold's
+    /// denominator (same treatment as a down `Primary`-role entry) -- see
+    /// `select_quorum_result`'s doc comment for why. The threshold stays at
+    /// ceil(2*4/3) = 3; only 2 of the 3 responders agree (the third disagrees), so
+    /// quorum is not reached.
     #[tokio::test]
-    async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_excludes_down_quorum_role_rpc_from_threshold(
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_does_not_exclude_down_quorum_role_rpc_from_threshold(
     ) {
         let mailbox_domain = dummy_domain(1337, "test-domain").id();
         let expected_tree = IncrementalMerkleAtBlock {
@@ -2409,16 +2464,10 @@ mod tests {
         let mut base_hook = MockMerkleTreeHook::new();
         base_hook.expect_count().never();
         base_hook.expect_tree().never();
+        // Never reached: the quorum_hooks vote fails before base_hook would be consulted.
+        base_hook.expect_tree_at_block().never();
         base_hook.expect_latest_checkpoint_at_block().never();
         mock_height_resolution(&mut base_hook, mailbox_domain, 50);
-        base_hook
-            .expect_tree_at_block()
-            .once()
-            .with(mockall::predicate::eq(50))
-            .return_once({
-                let expected_tree = expected_tree.clone();
-                move |_| Ok(expected_tree)
-            });
 
         let mut quorum_down = MockMerkleTreeHook::new();
         quorum_down.expect_latest_checkpoint().never();
@@ -2465,10 +2514,7 @@ mod tests {
             ],
         };
 
-        assert_eq!(
-            hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
-            Some(50)
-        );
+        assert!(hook.tree(&ReorgPeriod::None).await.is_err());
     }
 
     /// Same 4-hook, 1-down, 1-disagreeing shape as the test above, except the down RPC is
