@@ -96,9 +96,14 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  // Removing the offchain lookup ism because it is a family of different isms
+  // Removing the offchain lookup ism because it is a family of different isms,
+  // and the warp-route hybrid hook/ISMs because their constructors require a
+  // live paired TokenRouter, which randomIsmConfig cannot generate
   for (const ismType of MUTABLE_ISM_TYPE.filter(
-    (ismType) => ismType !== IsmType.OFFCHAIN_LOOKUP,
+    (ismType) =>
+      ismType !== IsmType.OFFCHAIN_LOOKUP &&
+      ismType !== IsmType.NET_FLOW_RATE_LIMITED &&
+      ismType !== IsmType.DELAYED_FLOW_ROUTER,
   )) {
     it(`should find owner differences between the local config and the on chain config for ism of type ${ismType}`, async function () {
       warpConfig[CHAIN_NAME_3].interchainSecurityModule =
