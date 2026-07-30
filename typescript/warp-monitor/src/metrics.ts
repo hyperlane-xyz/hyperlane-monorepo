@@ -282,22 +282,47 @@ export function replacePendingDestinationMetricsForRoute(
 }
 
 /**
- * Replace all inventory-balance series for a single route: remove the route's
- * previous series, then write the new set. Sibling routes are untouched.
+ * Upsert inventory-balance series for a single route. Successfully-read nodes
+ * are written; nodes that were attempted but failed this cycle keep their
+ * last-good series (stale) rather than vanishing on a transient RPC error;
+ * nodes no longer part of the route (not attempted) are removed. Sibling routes
+ * are untouched.
+ *
+ * `attemptedNodeIds` is the full set of nodes probed this cycle (the route's
+ * current topology). A node in `attemptedNodeIds` but absent from `inventory`
+ * failed its balance read and its prior value is preserved.
  */
 export function replaceInventoryBalanceMetricsForRoute(
   warpRouteId: string,
   inventory: InventoryBalanceMetric[],
+  attemptedNodeIds: Set<string>,
 ): void {
-  for (const labels of lastInventoryLabelsByRoute.get(warpRouteId) ?? []) {
-    inventoryBalanceGauge.remove(labels);
+  const priorLabels = lastInventoryLabelsByRoute.get(warpRouteId) ?? [];
+
+  // Drop only series for nodes no longer part of the route. Attempted-but-failed
+  // nodes keep their last-good series so a transient RPC error does not silence
+  // the metric.
+  for (const labels of priorLabels) {
+    if (!attemptedNodeIds.has(labels.node_id)) {
+      inventoryBalanceGauge.remove(labels);
+    }
   }
 
-  const emitted: InventoryMetricLabels[] = [];
+  const nextLabels: InventoryMetricLabels[] = [];
+  const seen = new Set<string>();
   for (const metric of inventory) {
     updateInventoryBalanceMetrics(metric);
-    emitted.push(toInventoryLabels(metric));
+    nextLabels.push(toInventoryLabels(metric));
+    seen.add(metric.nodeId);
+  }
+  // Retain bookkeeping for attempted nodes that failed this cycle: their stale
+  // series is still exposed, so it must remain tracked for future removal.
+  for (const labels of priorLabels) {
+    if (attemptedNodeIds.has(labels.node_id) && !seen.has(labels.node_id)) {
+      nextLabels.push(labels);
+      seen.add(labels.node_id);
+    }
   }
 
-  lastInventoryLabelsByRoute.set(warpRouteId, emitted);
+  lastInventoryLabelsByRoute.set(warpRouteId, nextLabels);
 }

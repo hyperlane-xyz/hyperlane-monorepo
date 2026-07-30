@@ -393,7 +393,11 @@ export async function updatePendingAndInventoryMetrics(
     }),
   );
 
-  replaceInventoryBalanceMetricsForRoute(warpRouteId, inventory);
+  replaceInventoryBalanceMetricsForRoute(
+    warpRouteId,
+    inventory,
+    new Set(routerNodes.map((node) => node.nodeId)),
+  );
 }
 
 // Updates the metrics for a single token in a warp route. Always computes the

@@ -265,4 +265,100 @@ describe('updatePendingAndInventoryMetrics', () => {
     expect(inventoryLine).to.exist;
     expect(inventoryLine!.trim().endsWith(' 1')).to.equal(true);
   });
+
+  it('preserves last-good inventory for a node whose balance read fails on a later cycle', async () => {
+    const inventoryAddress = '0x1111111111111111111111111111111111111111';
+    const stableNodeId = 'COLLAT|anvil2|0xroutera';
+    const flakyNodeId = 'COLLAT|anvil2|0xrouterb';
+
+    let flakyCalls = 0;
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId: stableNodeId,
+        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        domainId: 31337,
+        routerAddress: '0xroutera',
+        tokenAddress: '0xtokena',
+        tokenName: 'Collateral Token A',
+        tokenSymbol: 'COLLAT',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => 5_000_000n,
+        }),
+      },
+      {
+        nodeId: flakyNodeId,
+        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        domainId: 31337,
+        routerAddress: '0xrouterb',
+        tokenAddress: '0xtokenb',
+        tokenName: 'Collateral Token B',
+        tokenSymbol: 'COLLAT',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => {
+            flakyCalls += 1;
+            if (flakyCalls > 1) throw new Error('rpc down');
+            return 7_000_000n;
+          },
+        }),
+      },
+    ];
+
+    const pendingTransfersClient: Pick<
+      ExplorerPendingTransfersClient,
+      'getPendingDestinationTransfers'
+    > = {
+      async getPendingDestinationTransfers() {
+        return [] as PendingDestinationTransfer[];
+      },
+    };
+
+    const collateralByNodeId = new Map<string, bigint>([
+      [stableNodeId, 5_000_000n],
+      [flakyNodeId, 7_000_000n],
+    ]);
+
+    const runCycle = async () =>
+      updatePendingAndInventoryMetrics(
+        { multiProvider: {} } as WarpCore,
+        routerNodes,
+        collateralByNodeId,
+        'MULTI/inventory-stale-test',
+        pendingTransfersClient as ExplorerPendingTransfersClient,
+        200,
+        inventoryAddress,
+      );
+
+    // First cycle: both nodes read successfully. Second cycle: flaky node fails.
+    await runCycle();
+    await runCycle();
+
+    const metrics = await metricsRegister.metrics();
+    const flakyLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_inventory_balance{') &&
+          line.includes(`node_id="${flakyNodeId}"`),
+      );
+    // A transient RPC failure must not silence the metric: the flaky node keeps
+    // its last-good value (7) rather than being removed.
+    expect(flakyLine).to.exist;
+    expect(flakyLine!.trim().endsWith(' 7')).to.equal(true);
+
+    const stableLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_inventory_balance{') &&
+          line.includes(`node_id="${stableNodeId}"`),
+      );
+    expect(stableLine).to.exist;
+    expect(stableLine!.trim().endsWith(' 5')).to.equal(true);
+  });
 });
