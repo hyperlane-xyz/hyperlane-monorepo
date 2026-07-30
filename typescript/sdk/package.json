@@ -16,7 +16,8 @@
   "type": "module",
   "sideEffects": false,
   "browser": {
-    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js"
+    "./dist/providers/builders/aleo.js": "./dist/providers/builders/aleo.browser.js",
+    "./dist/providers/builders/radix.js": "./dist/providers/builders/radix.browser.js"
   },
   "types": "./dist/index.d.ts",
   "exports": {
