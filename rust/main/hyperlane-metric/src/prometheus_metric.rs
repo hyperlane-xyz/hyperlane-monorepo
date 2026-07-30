@@ -23,14 +23,26 @@ pub const PROVIDER_DROP_COUNT_HELP: &str =
     "Total number of times this provider was dropped by this client";
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] =
-    &["provider_node", "connection", "chain", "method", "status"];
+pub const REQUEST_COUNT_LABELS: &[&str] = &[
+    "provider_node",
+    "connection",
+    "chain",
+    "method",
+    "status",
+    "rpc_role",
+];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
-pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
-    &["provider_node", "connection", "chain", "method", "status"];
+pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &[
+    "provider_node",
+    "connection",
+    "chain",
+    "method",
+    "status",
+    "rpc_role",
+];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
@@ -106,6 +118,7 @@ impl PrometheusClientMetrics {
             "chain" => config.chain_name(),
             "method" => method,
             "status" => if success { "success" } else { "failure" },
+            "rpc_role" => config.rpc_role.as_str(),
         };
         if let Some(counter) = &self.request_count {
             counter.with(&labels).inc()
@@ -164,6 +177,30 @@ impl ClientConnectionType {
     }
 }
 
+/// Which pool an RPC connection belongs to. Lets metrics (and downstream alerting)
+/// distinguish a chain's normal RPC pool from a verification-only pool like the
+/// validator's `additionalQuorumRpcUrls`, where failures are expected/tolerated and shouldn't be
+/// treated the same as a primary-pool failure.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RpcRole {
+    /// A chain's normal RPC pool (e.g. `rpcUrls`).
+    #[default]
+    Primary,
+    /// A verification-only pool (e.g. the validator's `additionalQuorumRpcUrls`).
+    Quorum,
+}
+
+impl RpcRole {
+    /// as str
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Primary => "primary",
+            Self::Quorum => "quorum",
+        }
+    }
+}
+
 /// Configuration for the prometheus JsonRpcClioent. This can be loaded via
 /// serde.
 #[derive(Default, Clone, Debug, Deserialize)]
@@ -176,6 +213,10 @@ pub struct PrometheusConfig {
 
     /// Information about the chain this client is for.
     pub chain: Option<ChainInfo>,
+
+    /// Which pool this connection belongs to (primary vs. a verification-only pool like
+    /// the validator's `additionalQuorumRpcUrls`). Defaults to `Primary`.
+    pub rpc_role: RpcRole,
 }
 
 impl PrometheusConfig {
@@ -191,6 +232,7 @@ impl PrometheusConfig {
                 host: url_to_host_info(url),
             }),
             chain,
+            rpc_role: RpcRole::default(),
         }
     }
 

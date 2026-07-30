@@ -234,17 +234,17 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
-    quorumRpcUrls: z
+    additionalQuorumRpcUrls: z
       .array(RpcUrlSchema)
       .optional()
       .describe(
-        'Validator only: statically configured RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. Overridden entirely by customQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customQuorumRpcUrls for the full quorum semantics.',
+        'Validator only: statically configured, *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Overridden entirely by customAdditionalQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customAdditionalQuorumRpcUrls for the full quorum semantics.',
       ),
-    customQuorumRpcUrls: z
+    customAdditionalQuorumRpcUrls: z
       .string()
       .optional()
       .describe(
-        'Validator only: comma separated list of RPC URLs that vote together (2/3 majority) on safety-critical merkle tree hook reads. The winning value must also match what rpcUrls (its own configured consensus mode) independently returns. Empty disables quorum verification. Recommended: include your private rpcUrls here too, alongside a sizeable public batch -- a pool of 1-2 entries provides little real protection.',
+        'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
