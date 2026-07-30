@@ -14,9 +14,14 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  * @title BlacklistIsm
  * @notice Rejects messages whose ID is blacklisted.
  * Provides per-message-ID granularity for blocking reorged or malicious messages.
- * For bulk nonce-range blocking, prefer NonceFloorIsm composed with DomainRoutingIsm.
- * @dev Append-only: entries are permanent and cannot be removed. There is no
- * removal path by design. Compose with `DomainRoutingIsm` to swap modules if
+ * @dev Negative filtering only: `verify` returns true for any non-blacklisted
+ * message and provides NO positive authentication. Compose it as a mandatory
+ * member of an `AggregationIsm` (counted by the threshold) alongside an
+ * authenticating ISM such as a multisig ISM. Never route a domain directly to
+ * this ISM via `DomainRoutingIsm` — that removes all authentication for the
+ * affected messages.
+ * @dev Append-only: entries are permanent and cannot be removed. Enroll it
+ * behind an aggregation/routing ISM you control so the module can be swapped if
  * recovery is needed.
  */
 contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
