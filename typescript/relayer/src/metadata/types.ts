@@ -105,7 +105,8 @@ export interface RoutingMetadataBuildResult extends BaseMetadataBuildResult {
     | typeof IsmType.FALLBACK_ROUTING
     | typeof IsmType.INCREMENTAL_ROUTING
     | typeof IsmType.AMOUNT_ROUTING
-    | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;
+    | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING
+    | typeof IsmType.MAILBOX_DEFAULT;
   /** Origin chain that determined routing */
   originChain: ChainName;
   /** Result from the selected sub-ISM (recursive) */
@@ -120,7 +121,9 @@ export interface NullMetadataBuildResult extends BaseMetadataBuildResult {
     | typeof IsmType.OP_STACK
     | typeof IsmType.PAUSABLE
     | typeof IsmType.CCIP
-    | typeof IsmType.RATE_LIMITED;
+    | typeof IsmType.RATE_LIMITED
+    | typeof IsmType.NET_FLOW_RATE_LIMITED
+    | typeof IsmType.DELAYED_FLOW_ROUTER;
   /** Always present for null ISMs */
   metadata: string;
 }

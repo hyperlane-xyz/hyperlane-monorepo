@@ -6,9 +6,15 @@ import hre from 'hardhat';
 import {
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
+  HypERC20__factory,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, randomInt } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  addressToBytes32,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -27,9 +33,12 @@ import {
   assertSubmodulesMatchExpected,
 } from './HyperlaneIsmFactory.js';
 import {
+  DelayedFlowRouterHookIsmConfig,
   DomainRoutingIsmConfig,
   IsmType,
+  MailboxDefaultIsmConfig,
   MultisigIsmConfig,
+  NetFlowRateLimitedHookIsmConfig,
   PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
@@ -45,6 +54,7 @@ describe('HyperlaneIsmFactory', async () => {
   let exampleRoutingConfig: DomainRoutingIsmConfig;
   let mailboxAddress: Address;
   let newMailboxAddress: Address;
+  let warpRouterAddress: Address;
   let contractsMap: HyperlaneContractsMap<ProxyFactoryFactories> = {};
 
   const chain = TestChainName.test1;
@@ -66,6 +76,11 @@ describe('HyperlaneIsmFactory', async () => {
     newMailboxAddress = (
       await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
     ).getContracts(chain).mailbox.address;
+
+    // paired TokenRouter required by the warp-route hybrid hook/ISM constructors
+    warpRouterAddress = (
+      await new HypERC20__factory(signer).deploy(18, 1, 1, mailboxAddress)
+    ).address;
   });
 
   beforeEach(async () => {
@@ -97,6 +112,180 @@ describe('HyperlaneIsmFactory', async () => {
       ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
+  });
+
+  it('deploys and matches a mailbox default ism', async () => {
+    const config: MailboxDefaultIsmConfig = { type: IsmType.MAILBOX_DEFAULT };
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailboxAddress,
+    );
+    expect(matches).to.be.true;
+
+    // must not match when checked against a different mailbox
+    const matchesOtherMailbox = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      newMailboxAddress,
+    );
+    expect(matchesOtherMailbox).to.be.false;
+  });
+
+  it('deploys and matches a net flow rate limited hook ism', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const config: NetFlowRateLimitedHookIsmConfig = {
+      type: IsmType.NET_FLOW_RATE_LIMITED,
+      warpRouter: warpRouterAddress,
+      thresholdBps: 500,
+      duration: 86400n,
+      owner,
+    };
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailboxAddress,
+    );
+    expect(matches).to.be.true;
+
+    const mismatchedConfigs: NetFlowRateLimitedHookIsmConfig[] = [
+      {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 501,
+        duration: 86400n,
+        owner,
+      },
+      {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: randomAddress(),
+        thresholdBps: 500,
+        duration: 86400n,
+        owner,
+      },
+      {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 3600n,
+        owner,
+      },
+      {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: randomAddress(),
+      },
+    ];
+    for (const mismatched of mismatchedConfigs) {
+      const mismatchedMatches = await moduleMatchesConfig(
+        chain,
+        ism.address,
+        mismatched,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+        mailboxAddress,
+      );
+      expect(mismatchedMatches).to.be.false;
+    }
+  });
+
+  it('deploys and matches a delayed flow router hook ism', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const remoteRouter = addressToBytes32(randomAddress()).toLowerCase();
+    const config: DelayedFlowRouterHookIsmConfig = {
+      type: IsmType.DELAYED_FLOW_ROUTER,
+      warpRouter: warpRouterAddress,
+      thresholdBps: 10000,
+      maxDelay: 3600,
+      duration: 86400n,
+      owner,
+      remoteRouters: { [TestChainName.test2]: remoteRouter },
+    };
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailboxAddress,
+    );
+    expect(matches).to.be.true;
+
+    const mismatchedConfigs: DelayedFlowRouterHookIsmConfig[] = [
+      // different maxDelay
+      {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 7200,
+        duration: 86400n,
+        owner,
+        remoteRouters: { [TestChainName.test2]: remoteRouter },
+      },
+      // different enrolled router value
+      {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner,
+        remoteRouters: {
+          [TestChainName.test2]:
+            addressToBytes32(randomAddress()).toLowerCase(),
+        },
+      },
+      // strict set equality: an empty config must not match one enrollment
+      {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner,
+        remoteRouters: {},
+      },
+    ];
+    for (const mismatched of mismatchedConfigs) {
+      const mismatchedMatches = await moduleMatchesConfig(
+        chain,
+        ism.address,
+        mismatched,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+        mailboxAddress,
+      );
+      expect(mismatchedMatches).to.be.false;
+    }
   });
 
   it('recovers an address-bearing pausable ism config', async () => {

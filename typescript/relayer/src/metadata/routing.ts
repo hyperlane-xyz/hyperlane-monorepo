@@ -8,6 +8,7 @@ import {
   DomainRoutingIsmConfig,
   EvmIsmReader,
   IsmType,
+  MailboxDefaultIsmConfig,
   RoutingIsmConfig,
   isDynamicallyRoutedIsmType,
 } from '@hyperlane-xyz/sdk';
@@ -91,7 +92,9 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
   }
 
   public async build(
-    context: MetadataContext<WithAddress<RoutingIsmConfig>>,
+    context: MetadataContext<
+      WithAddress<RoutingIsmConfig | MailboxDefaultIsmConfig>
+    >,
     maxDepth = 10,
   ): Promise<RoutingMetadataBuildResult> {
     const { message, ism } = context;

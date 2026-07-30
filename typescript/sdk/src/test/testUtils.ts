@@ -138,6 +138,10 @@ export const hookTypesToFilter: HookType[] = [
   HookType.CCIP,
   HookType.CCTP,
   HookType.UNKNOWN,
+  // hook/ISM hybrids are deployed via their ISM config and need a live paired
+  // TokenRouter, so they cannot be randomly generated
+  HookType.NET_FLOW_RATE_LIMITED,
+  HookType.DELAYED_FLOW_ROUTER,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
 
@@ -358,6 +362,12 @@ export const randomIsmConfig = (
   maxDepth = 2,
   providedIsmType?: IsmType,
 ): Exclude<IsmConfig, string> => {
+  // MAILBOX_DEFAULT maps to the ROUTING module type but has no domains table,
+  // so it cannot share the generic routing branch below
+  if (providedIsmType === IsmType.MAILBOX_DEFAULT) {
+    return { type: IsmType.MAILBOX_DEFAULT };
+  }
+
   // Use input IsmType, otherwise randomize a config based on depth
   const moduleType = providedIsmType
     ? ismTypeToModuleType(providedIsmType)

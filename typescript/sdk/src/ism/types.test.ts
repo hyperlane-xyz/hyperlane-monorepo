@@ -5,9 +5,11 @@ import {
   AggregationIsmConfigSchema,
   type CompositeIsmConfig,
   CompositeIsmConfigSchema,
+  DelayedFlowRouterHookIsmConfigSchema,
   IsmConfigSchema,
   IsmType,
   ModuleType,
+  NetFlowRateLimitedHookIsmConfigSchema,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -34,6 +36,99 @@ describe('AggregationIsmConfigSchema refine', () => {
 
     IsmConfig.threshold = 0;
     expect(AggregationIsmConfigSchema.safeParse(IsmConfig).success).to.be.true;
+  });
+});
+
+describe('NetFlowRateLimitedHookIsmConfigSchema', () => {
+  const valid = {
+    type: IsmType.NET_FLOW_RATE_LIMITED,
+    warpRouter: SOME_ADDRESS,
+    thresholdBps: 500,
+    duration: 86400n,
+    owner: OTHER_ADDRESS,
+  };
+
+  it('parses a valid config, also via the top-level IsmConfigSchema union', () => {
+    expect(NetFlowRateLimitedHookIsmConfigSchema.safeParse(valid).success).to.be
+      .true;
+    expect(IsmConfigSchema.safeParse(valid).success).to.be.true;
+  });
+
+  it('rejects a zero duration', () => {
+    const invalid = { ...valid, duration: 0n };
+    expect(NetFlowRateLimitedHookIsmConfigSchema.safeParse(invalid).success).to
+      .be.false;
+    expect(IsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('requires thresholdBps strictly below 100% (reject mode)', () => {
+    const atBound = { ...valid, thresholdBps: 9999 };
+    expect(NetFlowRateLimitedHookIsmConfigSchema.safeParse(atBound).success).to
+      .be.true;
+
+    const fullBps = { ...valid, thresholdBps: 10000 };
+    expect(NetFlowRateLimitedHookIsmConfigSchema.safeParse(fullBps).success).to
+      .be.false;
+  });
+});
+
+describe('DelayedFlowRouterHookIsmConfigSchema', () => {
+  // fixed literals so the expected bytes32 below is pinned, not computed
+  const ROUTER_20_BYTE = '0xDEaDbeEfdEAdbeEfDeadBEeFdeadbeefDeAdbEEf';
+  const ROUTER_32_BYTE_UPPER =
+    '0x000000000000000000000000DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF';
+  const ROUTER_BYTES32_NORMALIZED =
+    '0x000000000000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
+
+  const valid = {
+    type: IsmType.DELAYED_FLOW_ROUTER,
+    warpRouter: SOME_ADDRESS,
+    thresholdBps: 500,
+    maxDelay: 3600,
+    duration: 86400n,
+    owner: OTHER_ADDRESS,
+  };
+
+  it('parses a valid config, also via the top-level IsmConfigSchema union', () => {
+    expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(valid).success).to.be
+      .true;
+    expect(IsmConfigSchema.safeParse(valid).success).to.be.true;
+  });
+
+  it('permits a 100% thresholdBps (delay mode) but nothing above', () => {
+    const fullBps = { ...valid, thresholdBps: 10000 };
+    expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(fullBps).success).to
+      .be.true;
+
+    const aboveFullBps = { ...valid, thresholdBps: 10001 };
+    expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(aboveFullBps).success)
+      .to.be.false;
+  });
+
+  it('rejects a zero duration', () => {
+    const invalid = { ...valid, duration: 0n };
+    expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(invalid).success).to
+      .be.false;
+  });
+
+  it('normalizes 20-byte and mixed-case 32-byte remote routers to lowercase bytes32', () => {
+    const config = {
+      ...valid,
+      remoteRouters: { test2: ROUTER_20_BYTE, test3: ROUTER_32_BYTE_UPPER },
+    };
+    const parsed = DelayedFlowRouterHookIsmConfigSchema.parse(config);
+    expect(parsed.remoteRouters).to.deep.equal({
+      test2: ROUTER_BYTES32_NORMALIZED,
+      test3: ROUTER_BYTES32_NORMALIZED,
+    });
+  });
+
+  it('rejects remote router values that are neither 20 nor 32 bytes', () => {
+    for (const badValue of ['0x1234', '0x' + 'a'.repeat(63), 'deadbeef']) {
+      const invalid = { ...valid, remoteRouters: { test2: badValue } };
+      expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(invalid).success).to
+        .be.false;
+    }
   });
 });
 

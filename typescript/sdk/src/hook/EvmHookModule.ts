@@ -1079,6 +1079,12 @@ export class EvmHookModule extends HyperlaneModule<
         );
       case HookType.RATE_LIMITED:
         return this.deployRateLimitedHook({ config });
+      case HookType.NET_FLOW_RATE_LIMITED:
+      case HookType.DELAYED_FLOW_ROUTER:
+        throw new Error(
+          `${config.type} is a hook/ISM hybrid deployed via its ISM config ` +
+            `(HyperlaneIsmFactory); reference the deployed instance by address as the hook`,
+        );
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }

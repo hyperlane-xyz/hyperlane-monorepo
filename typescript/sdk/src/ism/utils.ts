@@ -1,15 +1,20 @@
 import { ethers, utils } from 'ethers';
+import type { Logger } from 'pino';
 
 import {
   AbstractStorageMultisigIsm__factory,
   AmountRoutingIsm__factory,
   CCIPIsm__factory,
+  DefaultIsm__factory,
+  DelayedFlowRouterHookIsm,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IRoutingIsm__factory,
   MailboxClient__factory,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -18,6 +23,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  addressToBytes32,
+  concurrentMap,
   deepEquals,
   eqAddress,
   formatMessage,
@@ -35,6 +42,7 @@ import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import {
+  DelayedFlowRouterHookIsmConfig,
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
   IsmConfig,
@@ -47,6 +55,40 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+
+/**
+ * Derives the enrolled remote routers of a DelayedFlowRouterHookIsm as a
+ * chain-name-keyed map of lowercase bytes32 router values. Unknown domains are
+ * skipped with a warning. Shared by EvmIsmReader and EvmHookReader (the same
+ * contract is derived through both its ISM and hook views).
+ */
+export async function deriveDelayedFlowRemoteRouters(
+  ism: DelayedFlowRouterHookIsm,
+  multiProvider: MultiProvider,
+  concurrency: number,
+  readerLogger: Logger,
+): Promise<NonNullable<DelayedFlowRouterHookIsmConfig['remoteRouters']>> {
+  const domainIds = await ism.domains();
+  const entries = await concurrentMap(
+    concurrency,
+    domainIds,
+    async (domainId): Promise<[string, string] | undefined> => {
+      const chainName = multiProvider.tryGetChainName(domainId);
+      if (!chainName) {
+        readerLogger.warn(
+          `Unknown domain ID ${domainId} enrolled on DelayedFlowRouterHookIsm at ${ism.address}, skipping enrolled router`,
+        );
+        return undefined;
+      }
+      const router = await ism.routers(domainId);
+      return [chainName, router.toLowerCase()];
+    },
+  );
+
+  return Object.fromEntries(
+    entries.filter((entry): entry is [string, string] => !!entry),
+  );
+}
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -217,6 +259,15 @@ export async function moduleCanCertainlyVerify(
       case IsmType.TEST_ISM: {
         return true;
       }
+      case IsmType.NET_FLOW_RATE_LIMITED:
+      case IsmType.DELAYED_FLOW_ROUTER:
+        // NULL-type flow limiters: they gate on bucket state, not message
+        // authenticity, so they do not block verification per se
+        return true;
+      case IsmType.MAILBOX_DEFAULT:
+        // The routed-to mailbox default ISM cannot be resolved from the config
+        // alone (no address), so err toward a false negative
+        return false;
       default:
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
@@ -489,6 +540,78 @@ export async function moduleMatchesConfig(
       if (config.owner) {
         const onChainOwner = await rateLimitedIsm.owner();
         matches &&= eqAddress(onChainOwner, config.owner);
+      }
+      break;
+    }
+    case IsmType.MAILBOX_DEFAULT: {
+      // A DefaultIsm matches if it defers to the expected mailbox
+      const defaultIsm = DefaultIsm__factory.connect(moduleAddress, provider);
+      const onChainMailbox = await defaultIsm.mailbox();
+      matches = mailbox !== undefined && eqAddress(onChainMailbox, mailbox);
+      break;
+    }
+    case IsmType.NET_FLOW_RATE_LIMITED: {
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [onChainWarpRouter, onChainThresholdBps, onChainDuration] =
+        await Promise.all([
+          netFlowIsm.warpRouter(),
+          netFlowIsm.thresholdBps(),
+          netFlowIsm.DURATION(),
+        ]);
+      matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      matches &&= onChainThresholdBps.eq(config.thresholdBps);
+      matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
+      if (config.owner) {
+        const onChainOwner = await netFlowIsm.owner();
+        matches &&= eqAddress(onChainOwner, config.owner);
+      }
+      break;
+    }
+    case IsmType.DELAYED_FLOW_ROUTER: {
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [
+        onChainWarpRouter,
+        onChainThresholdBps,
+        onChainMaxDelay,
+        onChainDuration,
+        onChainOwner,
+      ] = await Promise.all([
+        delayedIsm.warpRouter(),
+        delayedIsm.thresholdBps(),
+        delayedIsm.maxDelay(),
+        delayedIsm.DURATION(),
+        delayedIsm.owner(),
+      ]);
+      matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      matches &&= onChainThresholdBps.eq(config.thresholdBps);
+      matches &&= onChainMaxDelay === config.maxDelay;
+      matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
+      matches &&= eqAddress(onChainOwner, config.owner);
+      if (matches && config.remoteRouters !== undefined) {
+        // strict set equality between configured and enrolled routers
+        const onChainDomains = (await delayedIsm.domains()).map((domain) =>
+          Number(domain),
+        );
+        const configEntries = Object.entries(config.remoteRouters);
+        matches &&= onChainDomains.length === configEntries.length;
+        for (const [chainName, router] of configEntries) {
+          if (!matches) break;
+          const domainId = multiProvider.tryGetDomainId(chainName);
+          if (domainId === null || !onChainDomains.includes(domainId)) {
+            matches = false;
+            break;
+          }
+          const onChainRouter = await delayedIsm.routers(domainId);
+          matches &&=
+            onChainRouter.toLowerCase() ===
+            addressToBytes32(router).toLowerCase();
+        }
       }
       break;
     }

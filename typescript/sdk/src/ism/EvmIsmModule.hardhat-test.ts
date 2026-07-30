@@ -3,9 +3,14 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+import {
+  DelayedFlowRouterHookIsm__factory,
+  HypERC20__factory,
+  NetFlowRateLimitedHookIsm__factory,
+  RateLimitedIsm__factory,
+} from '@hyperlane-xyz/core';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -24,10 +29,13 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  DelayedFlowRouterHookIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
+  MailboxDefaultIsmConfig,
   MultisigIsmConfig,
+  NetFlowRateLimitedHookIsmConfig,
   RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
@@ -42,6 +50,8 @@ describe('EvmIsmModule', async () => {
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
+  // paired TokenRouter required by the warp-route hybrid hook/ISM constructors
+  let warpRouterAddress: Address;
 
   before(async () => {
     const [signer, funder] = await hre.ethers.getSigners();
@@ -73,6 +83,10 @@ describe('EvmIsmModule', async () => {
     mailboxAddress = (
       await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
     ).getContracts(chain).mailbox.address;
+
+    warpRouterAddress = (
+      await new HypERC20__factory(signer).deploy(18, 1, 1, mailboxAddress)
+    ).address;
   });
 
   beforeEach(async () => {
@@ -201,6 +215,66 @@ describe('EvmIsmModule', async () => {
         multiProvider.getProvider(chain),
       );
       expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+    });
+
+    it('deploys a mailbox default ism', async () => {
+      const config: MailboxDefaultIsmConfig = {
+        type: IsmType.MAILBOX_DEFAULT,
+      };
+      await createIsm(config);
+    });
+
+    it('deploys a net flow rate limited hook ism and transfers ownership to non-deployer', async () => {
+      const owner = randomAddress();
+      const config: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner,
+      };
+      const { ism } = await createIsm(config);
+
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await netFlowIsm.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
+      expect((await netFlowIsm.warpRouter()).toLowerCase()).to.equal(
+        warpRouterAddress.toLowerCase(),
+      );
+    });
+
+    it('deploys a delayed flow router hook ism, enrolling routers before transferring ownership', async () => {
+      // owner is a non-deployer EOA: the deploy only succeeds if the
+      // owner-gated enrollment happens BEFORE the ownership transfer
+      const owner = randomAddress();
+      const remoteRouter = addressToBytes32(randomAddress()).toLowerCase();
+      const config: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner,
+        remoteRouters: { [TestChainName.test2]: remoteRouter },
+      };
+      const { ism } = await createIsm(config);
+
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect(
+        await delayedIsm.routers(
+          multiProvider.getDomainId(TestChainName.test2),
+        ),
+      ).to.equal(remoteRouter);
+      expect((await delayedIsm.owner()).toLowerCase()).to.equal(
         owner.toLowerCase(),
       );
     });
@@ -647,6 +721,253 @@ describe('EvmIsmModule', async () => {
         multiProvider.getProvider(chain),
       );
       expect((await rateLimitedIsm.DURATION()).toString()).to.equal('3600');
+    });
+
+    it('no changes to an existing mailbox default ism means no redeployment or updates', async () => {
+      const config: MailboxDefaultIsmConfig = {
+        type: IsmType.MAILBOX_DEFAULT,
+      };
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      await expectTxsAndUpdate(ism, config, 0);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('redeploys when changing a mailbox default ism to another type', async () => {
+      const { ism, initialIsmAddress } = await createIsm({
+        type: IsmType.MAILBOX_DEFAULT,
+      });
+
+      const trustedRelayerConfig: TrustedRelayerIsmConfig = {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: randomAddress(),
+      };
+      // keep testConfig in sync for the afterEach read-back assertion
+      testConfig = trustedRelayerConfig;
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, trustedRelayerConfig, 0);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+    });
+
+    it('transfers netFlowRateLimitedHookIsm ownership in-place on owner change', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const netFlowConfig: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(netFlowConfig);
+
+      const newOwner = randomAddress();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      netFlowConfig.owner = newOwner;
+
+      // NET_FLOW_RATE_LIMITED is mutable — update() transfers ownership in-place (1 tx)
+      await expectTxsAndUpdate(ism, netFlowConfig, 1);
+
+      // same contract address — no redeploy
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await netFlowIsm.owner()).toLowerCase()).to.equal(
+        newOwner.toLowerCase(),
+      );
+    });
+
+    it('redeploys a new netFlowRateLimitedHookIsm on thresholdBps change (immutable)', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const netFlowConfig: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(netFlowConfig);
+
+      // thresholdBps is immutable on-chain; changing it must redeploy
+      netFlowConfig.thresholdBps = 750;
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, netFlowConfig, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await netFlowIsm.thresholdBps()).toString()).to.equal('750');
+    });
+
+    it('updates netFlowRateLimitedHookIsm owner in-place inside an aggregation ism without redeploying the container', async () => {
+      // the contract mandates composing NetFlowRateLimitedHookIsm under an
+      // authenticating ISM, so aggregation-wrapped is the primary shape
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const netFlowConfig: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: signerAddress,
+      };
+      const aggregationConfig: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [netFlowConfig, randomMultisigIsmConfig(3, 5)],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(aggregationConfig);
+
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      const newOwner = randomAddress();
+      netFlowConfig.owner = newOwner;
+
+      // owner is the netFlow's only mutable field: expect a single in-place
+      // transferOwnership tx, with the aggregation container untouched
+      await expectTxsAndUpdate(ism, aggregationConfig, 1);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('no changes to an existing delayedFlowRouterHookIsm means no redeployment or updates', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteRouters: {
+          [TestChainName.test2]:
+            addressToBytes32(randomAddress()).toLowerCase(),
+        },
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(delayedConfig);
+
+      await expectTxsAndUpdate(ism, delayedConfig, 0);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('enrolls and unenrolls remote routers on an existing delayedFlowRouterHookIsm', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const test2Router = addressToBytes32(randomAddress()).toLowerCase();
+      const test3Router = addressToBytes32(randomAddress()).toLowerCase();
+      const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteRouters: { [TestChainName.test2]: test2Router },
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(delayedConfig);
+
+      // replace test2 with test3: 1 enroll tx + 1 unenroll tx
+      delayedConfig.remoteRouters = { [TestChainName.test3]: test3Router };
+      await expectTxsAndUpdate(ism, delayedConfig, 2);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      const test3Domain = multiProvider.getDomainId(TestChainName.test3);
+      expect(await delayedIsm.routers(test3Domain)).to.equal(test3Router);
+      const enrolledDomains = await delayedIsm.domains();
+      expect(enrolledDomains.map((domain) => Number(domain))).to.deep.equal([
+        test3Domain,
+      ]);
+    });
+
+    it('transfers delayedFlowRouterHookIsm ownership after enrollment updates', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteRouters: {},
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(delayedConfig);
+
+      // enroll a router AND hand over ownership in the same update: the txs
+      // only execute successfully if enrollment (owner-gated) precedes the
+      // ownership transfer
+      const newOwner = randomAddress();
+      delayedConfig.remoteRouters = {
+        [TestChainName.test2]: addressToBytes32(randomAddress()).toLowerCase(),
+      };
+      delayedConfig.owner = newOwner;
+      await expectTxsAndUpdate(ism, delayedConfig, 2);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await delayedIsm.owner()).toLowerCase()).to.equal(
+        newOwner.toLowerCase(),
+      );
+    });
+
+    it('redeploys a new delayedFlowRouterHookIsm on maxDelay change (immutable)', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteRouters: {},
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(delayedConfig);
+
+      // maxDelay is immutable on-chain; changing it must redeploy
+      delayedConfig.maxDelay = 7200;
+
+      // update() redeploys internally and emits no txs
+      await expectTxsAndUpdate(ism, delayedConfig, 0);
+
+      // different contract address — redeployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect(await delayedIsm.maxDelay()).to.equal(7200);
     });
   });
 });

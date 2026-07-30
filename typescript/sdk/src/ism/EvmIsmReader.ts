@@ -8,10 +8,13 @@ import {
   ArbL2ToL1Ism__factory,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
+  DefaultIsm__factory,
+  DelayedFlowRouterHookIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IOutbox__factory,
   InterchainAccountRouter__factory,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
@@ -50,12 +53,14 @@ import {
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
+  MailboxDefaultIsmConfig,
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
+import { deriveDelayedFlowRemoteRouters } from './utils.js';
 
 const INCREMENTAL_REVERT_STRING =
   'IncrementalDomainRoutingIsm: removal not supported';
@@ -440,7 +445,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
   private async deriveNonOwnableRoutingConfig(
     address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
+  ): Promise<WithAddress<RoutingIsmConfig | MailboxDefaultIsmConfig>> {
     const ism = AmountRoutingIsm__factory.connect(address, this.provider);
 
     let lowerIsm: Address;
@@ -454,6 +459,21 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       ]);
     } catch (error) {
       throwIfNotMissingSelector(error);
+
+      // DefaultIsm exposes a public mailbox() getter; the legacy
+      // InterchainAccountIsm keeps its mailbox private, so this probe cleanly
+      // separates the two remaining ownerless routing ISMs.
+      const defaultIsm = DefaultIsm__factory.connect(address, this.provider);
+      try {
+        await defaultIsm.mailbox();
+        return {
+          type: IsmType.MAILBOX_DEFAULT,
+          address,
+        };
+      } catch (innerError) {
+        throwIfNotMissingSelector(innerError);
+      }
+
       // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
       this.logger.debug(
         'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
@@ -677,6 +697,81 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
         address,
       );
+    }
+
+    // Both warp-route hybrid hook/ISMs (NetFlowRateLimitedHookIsm and
+    // DelayedFlowRouterHookIsm) expose warpRouter(); no other NULL-type ISM in
+    // this repo does, so this probe cannot shadow (or be shadowed by) the
+    // probes above. maxDelay() then separates the two: it only exists on
+    // DelayedFlowRouterHookIsm.
+    const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+      address,
+      this.provider,
+    );
+    let warpRouter: Address | undefined;
+    try {
+      warpRouter = await netFlowIsm.warpRouter();
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        'Error accessing "warpRouter" property, implying this is not a warp-route hybrid hook/ISM.',
+        address,
+      );
+    }
+    if (warpRouter) {
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        address,
+        this.provider,
+      );
+      let maxDelay: number | undefined;
+      try {
+        maxDelay = await delayedIsm.maxDelay();
+      } catch (error) {
+        throwIfNotMissingSelector(error);
+        this.logger.debug(
+          'Error accessing "maxDelay" property, implying this is a NetFlowRateLimitedHookIsm.',
+          address,
+        );
+      }
+
+      if (maxDelay !== undefined) {
+        const [thresholdBps, duration, owner, remoteRouters] =
+          await Promise.all([
+            delayedIsm.thresholdBps(),
+            delayedIsm.DURATION(),
+            delayedIsm.owner(),
+            deriveDelayedFlowRemoteRouters(
+              delayedIsm,
+              this.multiProvider,
+              this.concurrency,
+              this.logger,
+            ),
+          ]);
+        return {
+          address,
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          warpRouter,
+          thresholdBps: thresholdBps.toNumber(),
+          maxDelay,
+          duration: duration.toBigInt(),
+          owner,
+          remoteRouters,
+        };
+      }
+
+      const [thresholdBps, duration, owner] = await Promise.all([
+        netFlowIsm.thresholdBps(),
+        netFlowIsm.DURATION(),
+        netFlowIsm.owner(),
+      ]);
+      return {
+        address,
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        warpRouter,
+        thresholdBps: thresholdBps.toNumber(),
+        duration: duration.toBigInt(),
+        owner,
+      };
     }
 
     // no specific properties, must be Test ISM

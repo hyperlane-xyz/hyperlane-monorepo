@@ -4,12 +4,15 @@ import {
   AbstractCcipReadIsm,
   ArbL2ToL1Ism,
   CCIPIsm,
+  DefaultIsm,
+  DelayedFlowRouterHookIsm,
   IAggregationIsm,
   IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
   InterchainAccountRouter,
+  NetFlowRateLimitedHookIsm,
   OPStackIsm,
   PausableIsm,
   RateLimitedIsm,
@@ -23,6 +26,7 @@ import type {
   WithAddress,
 } from '@hyperlane-xyz/utils';
 import {
+  addressToBytes32,
   isEmptyAddress,
   isNullish,
   isValidAddressSealevel,
@@ -85,6 +89,15 @@ export const IsmType = {
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
   COMPOSITE: 'compositeIsm',
+  // Ownerless routing ISM that always defers to the mailbox's default ISM.
+  // Distinct from provider-sdk/AltVM's "default ISM" notion (the zero-address
+  // mailbox field): this is a deployed contract with its own address.
+  MAILBOX_DEFAULT: 'defaultIsm',
+  // Hybrid hook/ISM: one contract instance is installed as BOTH the hook and
+  // the ISM of a single warp router (shared bucket state). Deployed via the
+  // ISM config surface; the hook side is referenced by address.
+  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
+  DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -106,6 +119,10 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INCREMENTAL_ROUTING,
   IsmType.RATE_LIMITED,
+  // owner is the only mutable field; rate params force a redeploy
+  IsmType.NET_FLOW_RATE_LIMITED,
+  // owner + remote router enrollment are mutable; rate params force a redeploy
+  IsmType.DELAYED_FLOW_ROUTER,
 ];
 
 /**
@@ -123,6 +140,8 @@ export const STATIC_ISM_TYPES: IsmType[] = [
 export const DYNAMICALLY_ROUTED_ISM_TYPES = [
   IsmType.AMOUNT_ROUTING,
   IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+  // No static domains table: route() resolves to the mailbox's default ISM
+  IsmType.MAILBOX_DEFAULT,
 ] as const;
 
 /** Type guard for dynamically routed ISM types */
@@ -140,6 +159,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.AMOUNT_ROUTING:
     case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
     case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.MAILBOX_DEFAULT:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -157,6 +177,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.TRUSTED_RELAYER:
     case IsmType.CCIP:
     case IsmType.RATE_LIMITED:
+    case IsmType.NET_FLOW_RATE_LIMITED:
+    case IsmType.DELAYED_FLOW_ROUTER:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -200,6 +222,15 @@ export type RateLimitedIsmConfig = z.infer<typeof RateLimitedIsmConfigSchema>;
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
 >;
+export type MailboxDefaultIsmConfig = z.infer<
+  typeof MailboxDefaultIsmConfigSchema
+>;
+export type NetFlowRateLimitedHookIsmConfig = z.infer<
+  typeof NetFlowRateLimitedHookIsmConfigSchema
+>;
+export type DelayedFlowRouterHookIsmConfig = z.infer<
+  typeof DelayedFlowRouterHookIsmConfigSchema
+>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -207,7 +238,9 @@ export type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
-  | RateLimitedIsmConfig;
+  | RateLimitedIsmConfig
+  | NetFlowRateLimitedHookIsmConfig
+  | DelayedFlowRouterHookIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -270,6 +303,9 @@ export type IsmConfig =
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
   | RateLimitedIsmConfig
+  | NetFlowRateLimitedHookIsmConfig
+  | DelayedFlowRouterHookIsmConfig
+  | MailboxDefaultIsmConfig
   | MultisigIsmConfig
   | WeightedMultisigIsmConfig
   | RoutingIsmConfig
@@ -305,6 +341,9 @@ export type DeployedIsmType = {
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
   [IsmType.RATE_LIMITED]: RateLimitedIsm;
+  [IsmType.MAILBOX_DEFAULT]: DefaultIsm;
+  [IsmType.NET_FLOW_RATE_LIMITED]: NetFlowRateLimitedHookIsm;
+  [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsm;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -376,6 +415,63 @@ export const RateLimitedIsmConfigSchema = z
     }
     return val;
   });
+
+export const MailboxDefaultIsmConfigSchema = z.object({
+  type: z.literal(IsmType.MAILBOX_DEFAULT),
+  // No config fields: the mailbox is chain identity, supplied by the deploy
+  // context (like TRUSTED_RELAYER / RATE_LIMITED), not the declarative config.
+});
+
+/**
+ * Remote counterpart of a DelayedFlowRouterHookIsm, enrolled as a Router
+ * route. Accepts a 20-byte EVM address or a 32-byte hex value; normalized to
+ * lowercase bytes32 (the on-chain `routers(uint32)` representation) at parse
+ * time so config and derived on-chain state compare equal. Shared with the
+ * hook-side view of the same contract (../hook/types.ts).
+ */
+export const ZRouterBytes32 = z
+  .string()
+  .regex(
+    /^0x([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/,
+    'must be a 20-byte address or 32-byte hex value',
+  )
+  .transform((value) => addressToBytes32(value).toLowerCase());
+
+export const NetFlowRateLimitedHookIsmConfigSchema = z
+  .object({
+    type: z.literal(IsmType.NET_FLOW_RATE_LIMITED),
+    /** Warp router this contract guards; must have it installed as hook AND ISM. */
+    warpRouter: ZHash,
+    /** Net outflow allowed per `duration` window, in bps of live TVL (< 10000). */
+    thresholdBps: z.number().int().min(0).max(9999),
+    /** Refill window in seconds — must match the on-chain immutable `DURATION`. */
+    duration: ZBigNumberish,
+    owner: ZHash.optional(),
+  })
+  .refine((val) => val.duration > 0n, {
+    message: 'duration must be greater than 0',
+    path: ['duration'],
+  });
+
+export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.DELAYED_FLOW_ROUTER),
+  /** Warp router this contract guards; must have it installed as hook AND ISM. */
+  warpRouter: ZHash,
+  /** Bucket size per `duration` window, in bps of live TVL (delay mode permits 100%). */
+  thresholdBps: z.number().int().min(0).max(10000),
+  /** Cap on any single message's wait time, in seconds (uint48). */
+  maxDelay: z.number().int().nonnegative(),
+  /** Refill window in seconds — must match the on-chain immutable `DURATION`. */
+  duration: ZBigNumberish,
+  /**
+   * Enrolled remote DelayedFlowRouterHookIsm counterparts, keyed by chain
+   * name. Omit to leave the current on-chain enrollment untouched.
+   */
+  remoteRouters: z.record(ZRouterBytes32).optional(),
+}).refine((val) => val.duration > 0n, {
+  message: 'duration must be greater than 0',
+  path: ['duration'],
+});
 
 export const CCIPIsmConfigSchema = z.object({
   type: z.literal(IsmType.CCIP),
@@ -891,6 +987,9 @@ export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
     TrustedRelayerIsmConfigSchema,
     CCIPIsmConfigSchema,
     RateLimitedIsmConfigSchema,
+    NetFlowRateLimitedHookIsmConfigSchema,
+    DelayedFlowRouterHookIsmConfigSchema,
+    MailboxDefaultIsmConfigSchema,
     MultisigIsmConfigSchema,
     WeightedMultisigIsmConfigSchema,
     RoutingIsmConfigSchema,

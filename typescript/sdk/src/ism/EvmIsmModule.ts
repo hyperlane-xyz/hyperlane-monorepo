@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import {
   AbstractCcipReadIsm__factory,
   AmountRoutingIsm__factory,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -14,6 +15,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  addressToBytes32,
   arrayEqual,
   assert,
   deepEquals,
@@ -40,6 +42,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  DelayedFlowRouterHookIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -47,6 +50,7 @@ import {
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
+  NetFlowRateLimitedHookIsmConfig,
   OffchainLookupIsmConfig,
   PausableIsmConfig,
   RateLimitedIsmConfig,
@@ -176,8 +180,39 @@ export class EvmIsmModule extends HyperlaneModule<
       }
       rateLimitedImmutableChanged = durationChanged || recipientChanged;
     }
+
+    // Same principle for the warp-route hybrid hook/ISMs: their rate params
+    // are constructor-set immutables, so any change forces a redeploy. All
+    // fields are present in read(), so no extra on-chain fetch is needed.
+    let hybridImmutableChanged = false;
+    if (
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === IsmType.NET_FLOW_RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.NET_FLOW_RATE_LIMITED
+    ) {
+      hybridImmutableChanged =
+        normalizedCurrentConfig.duration !== normalizedTargetConfig.duration ||
+        normalizedCurrentConfig.thresholdBps !==
+          normalizedTargetConfig.thresholdBps ||
+        normalizedCurrentConfig.warpRouter !==
+          normalizedTargetConfig.warpRouter;
+    } else if (
+      typeof normalizedCurrentConfig !== 'string' &&
+      normalizedCurrentConfig.type === IsmType.DELAYED_FLOW_ROUTER &&
+      normalizedTargetConfig.type === IsmType.DELAYED_FLOW_ROUTER
+    ) {
+      hybridImmutableChanged =
+        normalizedCurrentConfig.duration !== normalizedTargetConfig.duration ||
+        normalizedCurrentConfig.thresholdBps !==
+          normalizedTargetConfig.thresholdBps ||
+        normalizedCurrentConfig.maxDelay !== normalizedTargetConfig.maxDelay ||
+        normalizedCurrentConfig.warpRouter !==
+          normalizedTargetConfig.warpRouter;
+    }
+
     if (
       rateLimitedImmutableChanged ||
+      hybridImmutableChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
@@ -301,6 +336,19 @@ export class EvmIsmModule extends HyperlaneModule<
       // owner is optional on RateLimitedIsmConfig — handle ownership here
       // rather than falling through to the generic transferOwnershipTransactions call
       return this.updateRateLimitedIsm({ current, target });
+    } else if (
+      current.type === IsmType.NET_FLOW_RATE_LIMITED &&
+      target.type === IsmType.NET_FLOW_RATE_LIMITED
+    ) {
+      // owner is optional on NetFlowRateLimitedHookIsmConfig — handle
+      // ownership here rather than falling through to the generic
+      // transferOwnershipTransactions call
+      return this.updateNetFlowRateLimitedIsm({ current, target });
+    } else if (
+      current.type === IsmType.DELAYED_FLOW_ROUTER &&
+      target.type === IsmType.DELAYED_FLOW_ROUTER
+    ) {
+      updateTxs.push(...this.updateDelayedFlowRouterIsm({ current, target }));
     } else {
       throw new Error(
         `Unsupported update to mutable ISM of type ${target.type}`,
@@ -511,6 +559,116 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return txs;
+  }
+
+  protected updateNetFlowRateLimitedIsm({
+    current,
+    target,
+  }: {
+    current: NetFlowRateLimitedHookIsmConfig;
+    target: NetFlowRateLimitedHookIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    // Rate params (warpRouter/thresholdBps/duration) are immutable and handled
+    // upstream in update() by redeploying, so owner is the only field that can
+    // differ here.
+    if (current.owner != null && target.owner == null) {
+      this.logger.warn(
+        `target.owner is undefined for NetFlowRateLimitedHookIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"; ownership transfer will be skipped`,
+      );
+      return [];
+    }
+
+    if (current.owner != null && target.owner != null) {
+      return transferOwnershipTransactions(
+        this.chainId,
+        this.args.addresses.deployedIsm,
+        { owner: current.owner },
+        { owner: target.owner },
+      );
+    }
+
+    return [];
+  }
+
+  protected updateDelayedFlowRouterIsm({
+    current,
+    target,
+  }: {
+    current: DelayedFlowRouterHookIsmConfig;
+    target: DelayedFlowRouterHookIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    // Rate params (warpRouter/thresholdBps/maxDelay/duration) are immutable
+    // and handled upstream in update() by redeploying; ownership transfer is
+    // handled by the generic tail in updateMutableIsm (after these txs, so the
+    // owner-gated enrollment calls below are still executable by the current
+    // owner). Only remote router enrollment is reconciled here.
+    if (target.remoteRouters === undefined) {
+      // omitted field — preserve the current on-chain enrollment
+      return [];
+    }
+
+    const currentRouters = current.remoteRouters ?? {};
+    const toEnrollDomains: number[] = [];
+    const toEnrollRouters: string[] = [];
+    for (const [chainName, router] of Object.entries(target.remoteRouters)) {
+      const domainId = this.multiProvider.tryGetDomainId(chainName);
+      if (domainId === null) {
+        this.logger.warn(
+          `Chain ${chainName} doesn't have chain metadata provided, skipping remote router enrollment ...`,
+        );
+        continue;
+      }
+      const targetRouter = addressToBytes32(router).toLowerCase();
+      const currentRouter = currentRouters[chainName];
+      if (
+        currentRouter === undefined ||
+        addressToBytes32(currentRouter).toLowerCase() !== targetRouter
+      ) {
+        toEnrollDomains.push(domainId);
+        toEnrollRouters.push(targetRouter);
+      }
+    }
+
+    const toUnenrollDomains: number[] = [];
+    for (const chainName of Object.keys(currentRouters)) {
+      if (target.remoteRouters[chainName] !== undefined) {
+        continue;
+      }
+      const domainId = this.multiProvider.tryGetDomainId(chainName);
+      if (domainId === null) {
+        this.logger.warn(
+          `Chain ${chainName} doesn't have chain metadata provided, skipping remote router unenrollment ...`,
+        );
+        continue;
+      }
+      toUnenrollDomains.push(domainId);
+    }
+
+    const ismInterface = DelayedFlowRouterHookIsm__factory.createInterface();
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+    if (toEnrollDomains.length > 0) {
+      updateTxs.push({
+        annotation: `Enrolling ${toEnrollDomains.length} remote router(s) on DelayedFlowRouterHookIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data: ismInterface.encodeFunctionData('enrollRemoteRouters', [
+          toEnrollDomains,
+          toEnrollRouters,
+        ]),
+      });
+    }
+    if (toUnenrollDomains.length > 0) {
+      updateTxs.push({
+        annotation: `Unenrolling ${toUnenrollDomains.length} remote router(s) on DelayedFlowRouterHookIsm on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data: ismInterface.encodeFunctionData('unenrollRemoteRouters', [
+          toUnenrollDomains,
+        ]),
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async deploy({
@@ -725,6 +883,33 @@ export class EvmIsmModule extends HyperlaneModule<
         this.multiProvider.getProvider(this.chain),
       ).recipient();
       return eqAddress(onChainRecipient, normalizedTargetConfig.recipient);
+    }
+
+    // The warp-route hybrid hook/ISMs can only be updated in place when their
+    // immutable rate params match — otherwise update() redeploys them, which
+    // changes the sub-module address and forces a container redeploy anyway.
+    if (
+      normalizedCurrentConfig.type === IsmType.NET_FLOW_RATE_LIMITED &&
+      normalizedTargetConfig.type === IsmType.NET_FLOW_RATE_LIMITED
+    ) {
+      return (
+        normalizedCurrentConfig.duration === normalizedTargetConfig.duration &&
+        normalizedCurrentConfig.thresholdBps ===
+          normalizedTargetConfig.thresholdBps &&
+        normalizedCurrentConfig.warpRouter === normalizedTargetConfig.warpRouter
+      );
+    }
+    if (
+      normalizedCurrentConfig.type === IsmType.DELAYED_FLOW_ROUTER &&
+      normalizedTargetConfig.type === IsmType.DELAYED_FLOW_ROUTER
+    ) {
+      return (
+        normalizedCurrentConfig.duration === normalizedTargetConfig.duration &&
+        normalizedCurrentConfig.thresholdBps ===
+          normalizedTargetConfig.thresholdBps &&
+        normalizedCurrentConfig.maxDelay === normalizedTargetConfig.maxDelay &&
+        normalizedCurrentConfig.warpRouter === normalizedTargetConfig.warpRouter
+      );
     }
 
     return true;

@@ -10,6 +10,8 @@ import {
   AtomicInitDefaultFallbackRoutingIsm__factory,
   AtomicInitDomainRoutingIsm__factory,
   AtomicInitIncrementalDomainRoutingIsm__factory,
+  DefaultIsm__factory,
+  DelayedFlowRouterHookIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsm__factory,
   IAggregationIsm,
@@ -21,6 +23,7 @@ import {
   IncrementalDomainRoutingIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  NetFlowRateLimitedHookIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -38,6 +41,7 @@ import {
   Address,
   Domain,
   addBufferToGasLimit,
+  addressToBytes32,
   assert,
   eqAddress,
   objFilter,
@@ -89,6 +93,9 @@ const ismFactories = {
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
   [IsmType.RATE_LIMITED]: new RateLimitedIsm__factory(),
+  [IsmType.MAILBOX_DEFAULT]: new DefaultIsm__factory(),
+  [IsmType.NET_FLOW_RATE_LIMITED]: new NetFlowRateLimitedHookIsm__factory(),
+  [IsmType.DELAYED_FLOW_ROUTER]: new DelayedFlowRouterHookIsm__factory(),
 };
 
 const domainRoutingInitializationSize = (destination: ChainName) => {
@@ -421,6 +428,86 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             );
             await this.multiProvider.handleTx(destination, tx);
           }
+        }
+        break;
+      }
+      case IsmType.MAILBOX_DEFAULT:
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.MAILBOX_DEFAULT,
+          [mailbox],
+        );
+        break;
+      case IsmType.NET_FLOW_RATE_LIMITED: {
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.NET_FLOW_RATE_LIMITED,
+          [mailbox, config.warpRouter, config.thresholdBps, config.duration],
+        );
+        if (config.owner) {
+          const signerAddress = await this.multiProvider
+            .getSigner(destination)
+            .getAddress();
+          if (!eqAddress(signerAddress, config.owner)) {
+            const overrides =
+              this.multiProvider.getTransactionOverrides(destination);
+            const tx = await contract.transferOwnership(
+              config.owner,
+              overrides,
+            );
+            await this.multiProvider.handleTx(destination, tx);
+          }
+        }
+        break;
+      }
+      case IsmType.DELAYED_FLOW_ROUTER: {
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.DELAYED_FLOW_ROUTER,
+          [
+            config.warpRouter,
+            config.thresholdBps,
+            config.maxDelay,
+            config.duration,
+          ],
+        );
+        const overrides =
+          this.multiProvider.getTransactionOverrides(destination);
+
+        const domainIds: number[] = [];
+        const routerAddresses: string[] = [];
+        for (const [chainName, router] of Object.entries(
+          config.remoteRouters ?? {},
+        )) {
+          const domainId = this.multiProvider.tryGetDomainId(chainName);
+          if (domainId === null) {
+            logger.warn(
+              `Chain ${chainName} doesn't have chain metadata provided, skipping remote router enrollment ...`,
+            );
+            continue;
+          }
+          domainIds.push(domainId);
+          routerAddresses.push(addressToBytes32(router).toLowerCase());
+        }
+        if (domainIds.length > 0) {
+          const tx = await contract.enrollRemoteRouters(
+            domainIds,
+            routerAddresses,
+            overrides,
+          );
+          await this.multiProvider.handleTx(destination, tx);
+        }
+
+        // Ownership transfer is the LAST deployer-signed step — the enrollment
+        // above is owner-gated and requires the deployer to still be owner.
+        const signerAddress = await this.multiProvider
+          .getSigner(destination)
+          .getAddress();
+        if (!eqAddress(signerAddress, config.owner)) {
+          const tx = await contract.transferOwnership(config.owner, overrides);
+          await this.multiProvider.handleTx(destination, tx);
         }
         break;
       }
