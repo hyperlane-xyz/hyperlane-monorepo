@@ -36,6 +36,27 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 pub mod igp;
 pub use igp::*;
 
+// ========= Crypto test helpers =========
+
+/// Signs a 32-byte hash with a k256 secp256k1 key, returning a 65-byte recoverable signature.
+pub fn sign_hash(signing_key: &k256::ecdsa::SigningKey, hash: &[u8; 32]) -> [u8; 65] {
+    let (sig, recovery_id) = signing_key
+        .sign_prehash_recoverable(hash)
+        .expect("signing failed");
+    let mut bytes = [0u8; 65];
+    bytes[..64].copy_from_slice(&sig.to_bytes());
+    bytes[64] = recovery_id.to_byte();
+    bytes
+}
+
+/// Derives the Ethereum address (H160) from a k256 signing key via keccak256.
+pub fn eth_address(signing_key: &k256::ecdsa::SigningKey) -> hyperlane_core::H160 {
+    let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
+    let pubkey_bytes = verifying_key.to_encoded_point(false);
+    let hash = solana_program::keccak::hash(&pubkey_bytes.as_bytes()[1..]);
+    hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
+}
+
 // ========= Mailbox =========
 
 pub fn mailbox_id() -> Pubkey {

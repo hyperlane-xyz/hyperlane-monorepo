@@ -6,6 +6,7 @@ on:
       - 'Dockerfile'
       - 'docker-entrypoint.sh'
       - '.dockerignore'
+      - '.nvmrc'
       - '.registryrc'
       - '.github/workflows/monorepo-docker.yml'
       - 'pnpm-lock.yaml'
@@ -14,6 +15,7 @@ on:
       - 'Dockerfile'
       - 'docker-entrypoint.sh'
       - '.dockerignore'
+      - '.nvmrc'
       - '.registryrc'
       - '.github/workflows/monorepo-docker.yml'
       - 'pnpm-lock.yaml'
@@ -81,6 +83,12 @@ jobs:
           FOUNDRY_VERSION=$(cat solidity/.foundryrc)
           echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
 
+      - name: Read Node version
+        shell: bash
+        run: |
+          NODE_VERSION=$(cat .nvmrc)
+          echo "NODE_VERSION=${NODE_VERSION#v}" >> $GITHUB_ENV
+
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -102,6 +110,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}

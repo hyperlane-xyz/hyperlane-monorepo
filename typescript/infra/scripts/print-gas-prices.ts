@@ -4,6 +4,7 @@ import path from 'path';
 
 import {
   ChainMap,
+  ChainStatus,
   GasPriceConfig,
   MultiProtocolProvider,
   getCosmosChainGasPrice,
@@ -74,6 +75,13 @@ async function main() {
           const currentGasPrice = gasPrices[
             chain as keyof typeof gasPrices
           ] as GasPriceConfig;
+
+          if (
+            chainMetadata[chain]?.availability?.status === ChainStatus.Disabled
+          ) {
+            return [chain, currentGasPrice ?? createDefaultGasPrice(chain)];
+          }
+
           const newGasPrice = await getGasPrice(mpp, chain, currentGasPrice);
 
           const currentAmount = getGasPriceAmount(currentGasPrice);

@@ -14,11 +14,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import type { AleoSigner } from '../clients/signer.js';
-import {
-  fromAleoAddress,
-  getProgramSuffix,
-  toAleoAddress,
-} from '../utils/helper.js';
+import { toAleoAddress } from '../utils/helper.crypto.js';
+import { fromAleoAddress, getProgramSuffix } from '../utils/helper.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
@@ -79,6 +76,7 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
       name: token.name,
       symbol: token.symbol,
       decimals: token.decimals,
+      scale: token.scale,
     };
 
     return {

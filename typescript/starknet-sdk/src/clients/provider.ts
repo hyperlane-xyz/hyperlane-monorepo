@@ -1,5 +1,6 @@
 import {
   AccountInterface,
+  BlockTag,
   CairoOption,
   CairoOptionVariant,
   Contract,
@@ -11,6 +12,10 @@ import {
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ContractType,
   getCompiledContract,
@@ -82,14 +87,22 @@ function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
   return tokenTypeByClassHash;
 }
 
+// Warp-deploy cost breakdown for Starknet. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (fri, 18 decimals).
+//
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_FRI = 10_000_000_000_000_000_000n; // 10 STRK base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_FRI = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_FRI = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_FRI = 0n; // + custom hook / IGP (config.hook object)
+
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
-  static connect(
-    rpcUrls: string[],
-    _chainId: string | number,
-    extraParams?: { metadata?: ChainMetadataForAltVM },
-  ): StarknetProvider {
-    assert(extraParams?.metadata, 'metadata missing for Starknet provider');
-    const metadata = extraParams.metadata;
+  static connect(metadata: ChainMetadataForAltVM): StarknetProvider {
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
     assert(rpcUrls.length > 0, 'at least one rpc url is required');
 
     const blockTime = metadata.blocks?.estimateBlockTime;
@@ -99,6 +112,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     const provider = new RpcProvider({
       nodeUrl: rpcUrls[0],
       transactionRetryIntervalFallback,
+      // Default reads to the latest accepted block instead of starknet.js's
+      // `pending` default. Some RPC providers reject `block_id: "pending"`
+      // (-32602 Invalid block id), and reading already-finalized state at
+      // `latest` is both universally supported and semantically correct.
+      blockIdentifier: BlockTag.LATEST,
     });
     return new StarknetProvider(provider, metadata, rpcUrls);
   }
@@ -108,6 +126,18 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     protected readonly metadata: ChainMetadataForAltVM,
     protected readonly rpcUrls: string[],
   ) {}
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_FRI,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_FRI,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_FRI,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_FRI,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_FRI,
+    });
+  }
 
   getRawProvider(): RpcProvider {
     return this.provider;

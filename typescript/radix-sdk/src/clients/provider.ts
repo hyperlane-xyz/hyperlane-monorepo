@@ -2,6 +2,11 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { isMessageDelivered } from '../mailbox/mailbox-query.js';
@@ -12,15 +17,18 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-type RadixProviderMetadata = {
-  chainId?: string | number;
-  gatewayUrls?: { http: string }[];
-  packageAddress?: string;
-};
-
-type RadixConnectionParams = {
-  metadata?: RadixProviderMetadata;
-};
+// Warp-deploy cost breakdown for Radix. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (XRD, 18 decimals).
+//
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_XRD = 7_000_000_000_000_000_000n; // 7 XRD base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD = 0n;
+const WARP_DEPLOY_FEE_PROGRAM_XRD = 0n;
+const WARP_DEPLOY_CUSTOM_ISM_XRD = 0n;
+const WARP_DEPLOY_CUSTOM_HOOK_XRD = 0n;
 
 export const NETWORKS = {
   [NetworkId.Stokenet]: {
@@ -47,6 +55,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   protected packageAddress: string;
 
   protected base: RadixBase;
+  protected chainMetadata: ChainMetadataForAltVM;
   protected query: {
     warp: RadixWarpQuery;
   };
@@ -54,31 +63,36 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     warp: RadixWarpPopulate;
   };
 
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_XRD,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_XRD,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_XRD,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_XRD,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_XRD,
+    });
+  }
+
   static async connect(
-    rpcUrls: string[],
-    chainId: string | number,
-    extraParams?: RadixConnectionParams,
+    metadata: ChainMetadataForAltVM,
   ): Promise<RadixProvider> {
-    const networkId = parseInt(chainId.toString());
-    const metadata = extraParams?.metadata;
-    if (metadata?.chainId != null) {
-      const metadataChainId = parseInt(metadata.chainId.toString());
-      assert(
-        metadataChainId === networkId,
-        `mismatched chainId: arg ${chainId} vs metadata ${metadata.chainId}`,
-      );
-    }
+    const networkId = parseInt(metadata.chainId.toString());
+    const rpcUrls = (metadata.rpcUrls ?? []).map(({ http }) => http);
 
     return new RadixProvider({
       rpcUrls,
       networkId,
-      gatewayUrls: metadata?.gatewayUrls?.map(({ http }) => http),
-      packageAddress: metadata?.packageAddress,
+      gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata.packageAddress,
+      chainMetadata: metadata,
     });
   }
 
   constructor(options: RadixSDKOptions) {
     this.rpcUrls = options.rpcUrls;
+    this.chainMetadata = options.chainMetadata;
     this.networkId = options.networkId ?? NetworkId.Mainnet;
 
     const networkBaseConfig = NETWORKS[this.networkId];

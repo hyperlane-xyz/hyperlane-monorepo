@@ -325,6 +325,7 @@ mod tests {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
             signer: None,
+            identity: None,
             submitter: SubmitterType::Classic,
             estimated_block_time: Duration::from_secs(1),
             reorg_period: ReorgPeriod::from_blocks(10),

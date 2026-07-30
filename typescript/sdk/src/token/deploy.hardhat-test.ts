@@ -86,6 +86,12 @@ describe('TokenDeployer', async () => {
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      multiProvider.metadata[chainName] = {
+        ...multiProvider.metadata[chainName],
+        blockExplorers: [],
+      };
+    }
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
@@ -491,7 +497,7 @@ describe('TokenDeployer', async () => {
           expect.fail('Expected pure non-EVM route subset to reject');
         } catch (error) {
           expect((error as Error).message).to.contain(
-            'Warp route check requires at least one EVM chain in the selected route config',
+            'Warp route check requires at least one EVM or supported altVM chain in the selected route config',
           );
         }
       });

@@ -1,7 +1,11 @@
-import { U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  composeWarpDeployGas,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -9,7 +13,9 @@ import {
   ALEO_NULL_ADDRESS,
   U128ToString,
   arrayToPlaintext,
+  bytesLeToU128String,
   bytes32ToU128String,
+  u128PairToBytes32,
   fillArray,
   formatAddress,
   fromAleoAddress,
@@ -18,10 +24,19 @@ import {
   getBalanceKey,
   getProgramIdFromSuffix,
   getProgramSuffix,
+  isArc20ProgramId,
+  isV2WarpToken,
   toAleoAddress,
 } from '../utils/helper.js';
+import type { AleoSdk } from '../utils/provable.js';
 import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
-import { getRemoteRouters } from '../warp/warp-query.js';
+import {
+  callViewFunction,
+  getArc20ProgramId,
+  getArc20TokenMetadata,
+  getRemoteRouters,
+  parseAleoUint,
+} from '../warp/provider-query.js';
 
 import { AleoBase } from './base.js';
 
@@ -31,9 +46,23 @@ interface TransactionFeeCache {
   };
 }
 
+// Warp-deploy cost breakdown for Aleo. Composed additively in
+// getMinGasForWarpDeploy() based on the WarpConfig shape. Values are native
+// denom (microcredits, 6 decimals).
+//
+// The base is a devnet-observed base-router deploy floor with safety margin;
+// mainnet gas prices differ, so treat it as a lower-bound advisory. Per-feature
+// deltas stay 0n pending measured feature-heavy deploys.
+const WARP_DEPLOY_BASE_MICROCREDITS = 100_000_000n; // 100 credits base router deploy
+const WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS = 0n; // + crossCollateral router extras
+const WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS = 0n; // + fee program (config.fee object)
+const WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS = 0n; // + custom ISM (config.interchainSecurityModule object)
+const WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS = 0n; // + custom hook / IGP (config.hook object)
+
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
   private transactionFeeCache: TransactionFeeCache = {};
   private signerTransferCache = new Map<string, boolean>();
+  protected readonly chainMetadata: ChainMetadataForAltVM;
 
   private async hasSignerTransferFunctions(
     programId: string,
@@ -48,14 +77,33 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   static async connect(
-    rpcUrls: string[],
-    chainId: string | number,
+    metadata: ChainMetadataForAltVM,
+    sdk: AleoSdk,
   ): Promise<AleoProvider> {
-    return new AleoProvider(rpcUrls, chainId);
+    const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
+    return new AleoProvider(rpcUrls, metadata.chainId, metadata, sdk);
   }
 
-  constructor(rpcUrls: string[], chainId: string | number) {
-    super(rpcUrls, chainId);
+  constructor(
+    rpcUrls: string[],
+    chainId: string | number,
+    chainMetadata: ChainMetadataForAltVM,
+    sdk: AleoSdk,
+  ) {
+    super(rpcUrls, chainId, sdk);
+    this.chainMetadata = chainMetadata;
+  }
+
+  async getMinGasForWarpDeploy(
+    warpConfig: WarpArtifactConfig,
+  ): Promise<bigint> {
+    return composeWarpDeployGas(warpConfig, {
+      base: WARP_DEPLOY_BASE_MICROCREDITS,
+      crossCollateralExtra: WARP_DEPLOY_CROSS_COLLATERAL_EXTRA_MICROCREDITS,
+      feeProgram: WARP_DEPLOY_FEE_PROGRAM_MICROCREDITS,
+      customIsm: WARP_DEPLOY_CUSTOM_ISM_MICROCREDITS,
+      customHook: WARP_DEPLOY_CUSTOM_HOOK_MICROCREDITS,
+    });
   }
 
   protected generateSuffix(n: number): string {
@@ -85,10 +133,20 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
+      if (isArc20ProgramId(req.denom)) {
+        const raw = await callViewFunction(
+          this.aleoClient,
+          req.denom,
+          'balance_of',
+          [aleoAddress],
+        );
+        return parseAleoUint(raw);
+      }
+
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        getBalanceKey(aleoAddress, req.denom),
+        getBalanceKey(this.sdk, aleoAddress, req.denom),
       );
 
       if (!result) {
@@ -107,6 +165,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   ): Promise<bigint> {
     if (!req.denom) {
       return 0n;
+    }
+
+    if (isArc20ProgramId(req.denom)) {
+      const raw = await callViewFunction(this.aleoClient, req.denom, 'supply');
+      return parseAleoUint(raw);
     }
 
     let result = null;
@@ -260,7 +323,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxProgramId,
       `could not find mailbox program id on token ${req.tokenAddress}`,
     );
-    token.mailboxAddress = toAleoAddress(mailboxProgramId);
+    token.mailboxAddress = toAleoAddress(this.sdk, mailboxProgramId);
 
     const tokenMetadata = await this.queryMappingValue(
       programId,
@@ -277,14 +340,27 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
         : `${getProgramIdFromSuffix(this.prefix, 'hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
-    token.denom = tokenMetadata.token_id || '';
-
-    if (token.denom) {
-      const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
-
-      token.name = tokenRegistryMetadata.name;
-      token.symbol = tokenRegistryMetadata.symbol;
-      token.decimals = tokenRegistryMetadata.decimals;
+    if (isV2WarpToken(programId)) {
+      const arc20ProgramId = await getArc20ProgramId(
+        this.aleoClient,
+        programId,
+      );
+      token.denom = arc20ProgramId;
+      const arc20Metadata = await getArc20TokenMetadata(
+        this.aleoClient,
+        arc20ProgramId,
+      );
+      token.name = arc20Metadata.name;
+      token.symbol = arc20Metadata.symbol;
+      token.decimals = arc20Metadata.decimals;
+    } else {
+      token.denom = tokenMetadata.token_id || '';
+      if (token.denom) {
+        const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
+        token.name = tokenRegistryMetadata.name;
+        token.symbol = tokenRegistryMetadata.symbol;
+        token.decimals = tokenRegistryMetadata.decimals;
+      }
     }
 
     switch (tokenMetadata.token_type) {
@@ -306,6 +382,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
     const remoteRouters = await getRemoteRouters(
+      this.sdk,
       this.aleoClient,
       req.tokenAddress,
     );
@@ -329,29 +406,92 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       'true',
     );
 
+    const arc20ProgramId = isV2WarpToken(programId)
+      ? await getArc20ProgramId(this.aleoClient, programId)
+      : undefined;
+
     switch (metadata['token_type']) {
       case AleoTokenType.NATIVE: {
         return this.getBalance({
-          address: getAddressFromProgramId(programId),
+          address: getAddressFromProgramId(this.sdk, programId),
           denom: '',
         });
       }
       case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
-          denom: metadata['token_id'],
+          denom: arc20ProgramId ?? metadata['token_id'],
           programId,
         });
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
-          address: getAddressFromProgramId(programId),
-          denom: metadata['token_id'],
+          address: getAddressFromProgramId(this.sdk, programId),
+          denom: arc20ProgramId ?? metadata['token_id'],
         });
       }
       default: {
         throw new Error(`Unknown token type ${metadata['token_type']}`);
       }
     }
+  }
+
+  // ### QUERY DISPATCH ###
+
+  async getDispatchNonceForTx(
+    mailboxAddress: string,
+    txId: string,
+  ): Promise<number | null> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const blockHash = await this.findBlockHashByTxId(txId);
+    const block = await this.aleoClient.getBlockByHash(blockHash);
+    const blockHeight = Number(block.header.metadata.height);
+    try {
+      const nonce = await this.queryMappingValue(
+        programId,
+        'dispatch_event_index',
+        `${blockHeight}u32`,
+        { retryOnNull: true },
+      );
+      return nonce != null ? (nonce as number) : null;
+    } catch {
+      // Retries exhausted; genuinely no dispatch event for this block.
+      return null;
+    }
+  }
+
+  async getDispatchedMessageId(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<string> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const raw = await this.queryMappingString(
+      programId,
+      'dispatch_id_events',
+      `${nonce}u32`,
+    );
+    return u128PairToBytes32(raw);
+  }
+
+  async getDispatchedDestinationDomain(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<number> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const result = await this.queryMappingValue(
+      programId,
+      'dispatch_events',
+      `${nonce}u32`,
+    );
+    assert(
+      result != null,
+      `No dispatch_events entry at nonce ${nonce} (mailbox=${mailboxAddress})`,
+    );
+    const domain = result['destination_domain'];
+    assert(
+      typeof domain === 'number',
+      `destination_domain is not a number: ${domain}`,
+    );
+    return domain;
   }
 
   private async getQuotes(
@@ -433,9 +573,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-        .toString()
-        .replace('u128', '');
+      gasLimit = bytesLeToU128String(
+        Uint8Array.from(metadataBytes.slice(0, 16)),
+      ).replace('u128', '');
     }
 
     const { mailboxAddress } = await this.getToken({
@@ -462,6 +602,16 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
     if (req.denom) {
+      if (isArc20ProgramId(req.denom)) {
+        return {
+          programName: req.denom,
+          functionName: 'transfer_public',
+          priorityFee: 0,
+          privateFee: false,
+          inputs: [req.recipient, `${req.amount}u128`],
+        };
+      }
+
       return {
         programName: 'token_registry.aleo',
         functionName: 'transfer_public',
@@ -525,9 +675,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-        .toString()
-        .replace('u128', '');
+      gasLimit = bytesLeToU128String(
+        Uint8Array.from(metadataBytes.slice(0, 16)),
+      ).replace('u128', '');
     }
 
     const mailbox = await this.getMailbox({
@@ -565,9 +715,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      const gasLimit = U128.fromBytesLe(
+      const gasLimit = bytesLeToU128String(
         Uint8Array.from(metadataBytes.slice(0, 16)),
-      ).toString();
+      );
 
       const hookMetadata = `{gas_limit:${gasLimit},extra_data:[${metadataBytes.map((b) => `${b}u8`).join(',')}]}`;
 

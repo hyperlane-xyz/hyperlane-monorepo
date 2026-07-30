@@ -3,8 +3,11 @@ import { type Address, fetchEncodedAccount } from '@solana/kit';
 import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 import {
+  COLLATERAL_PLUGIN_SIZE,
   decodeHyperlaneTokenAccount,
   type HyperlaneTokenAccountData,
+  NATIVE_PLUGIN_SIZE,
+  SYNTHETIC_PLUGIN_SIZE,
 } from '../accounts/token.js';
 import {
   deriveCrossCollateralStatePda,
@@ -14,6 +17,7 @@ import {
   deriveEscrowPda,
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
+import { queryProgramVersionWithOwnerFallback } from '../version/version-query.js';
 
 export enum SvmWarpTokenType {
   Native = 'native',
@@ -29,11 +33,40 @@ export enum SvmWarpTokenType {
 export async function fetchTokenAccount(
   rpc: SvmRpc,
   programId: Address,
+  pluginSize: number,
 ): Promise<HyperlaneTokenAccountData | null> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programId);
   const account = await fetchEncodedAccount(rpc, tokenPda);
   if (!account.exists) return null;
-  return decodeHyperlaneTokenAccount(account.data as Uint8Array);
+  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data), pluginSize);
+}
+
+export function fetchNativeTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, NATIVE_PLUGIN_SIZE);
+}
+
+export function fetchSyntheticTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, SYNTHETIC_PLUGIN_SIZE);
+}
+
+export function fetchCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
+}
+
+export function fetchCrossCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
 }
 
 /**
@@ -88,6 +121,15 @@ export async function detectWarpTokenType(
   const result = matches[0];
   assert(result !== undefined, 'Unexpected empty matches after validation');
   return result;
+}
+
+/** Queries the on-chain program version for a warp token program. */
+export async function fetchWarpProgramVersion(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+): Promise<string | null> {
+  return queryProgramVersionWithOwnerFallback(rpc, programId, owner);
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

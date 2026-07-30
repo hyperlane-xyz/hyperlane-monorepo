@@ -52,3 +52,7 @@ yalc.lock
 # Forge build artifacts
 cache/
 out/
+
+# agent test configs
+rust/main/config/local_config.json
+rust/main/config/test_config.json

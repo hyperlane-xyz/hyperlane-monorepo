@@ -203,6 +203,119 @@ export class HyperlaneE2EWarpTestCommands {
     });
   }
 
+  /**
+   * Creates the SVM Address Lookup Tables for a warp route and persists
+   * them to the registry. Wraps `hyperlane warp alt create`.
+   *
+   * `force` recreates warp-specific ALTs while reusing the registered
+   * core ALT; `fullForce` recreates everything.
+   */
+  public altCreate(
+    privateKey: string,
+    warpRouteId: string,
+    options?: { chain?: string; force?: boolean; fullForce?: boolean },
+  ): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt create \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${options?.chain ? ['--chain', options.chain] : []} \
+          ${options?.force ? ['--force'] : []} \
+          ${options?.fullForce ? ['--full-force'] : []} \
+          ${this.privateKeyFlag} ${privateKey} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  /**
+   * Reads the on-chain contents of the SVM Address Lookup Tables
+   * registered for a warp route. Wraps `hyperlane warp alt read`.
+   */
+  public altRead(warpRouteId: string, chain?: string): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt read \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          --verbosity debug`;
+  }
+
+  /**
+   * Diffs the on-chain SVM Address Lookup Tables registered for a warp
+   * route against what the SDK would regenerate. Wraps
+   * `hyperlane warp alt check`.
+   */
+  public altCheck(warpRouteId: string, chain?: string): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt check \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          --verbosity debug`;
+  }
+
+  /**
+   * Submits an offchain-signed standing warp fee quote. Wraps
+   * `hyperlane warp quote create` — ttl must be > 0 (the CLI rejects
+   * standalone transient quotes, which would be unusable).
+   */
+  public quoteCreate({
+    privateKey,
+    warpRouteId,
+    chain,
+    destination,
+    recipient,
+    amount,
+    maxFee,
+    halfAmount,
+    ttl,
+    quoteSignerKey,
+  }: {
+    privateKey: string;
+    warpRouteId: string;
+    chain: string;
+    destination: string;
+    recipient: string;
+    amount: string;
+    maxFee: string;
+    halfAmount: string;
+    ttl: number;
+    quoteSignerKey: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp quote create \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          --chain ${chain} \
+          --destination ${destination} \
+          --recipient ${recipient} \
+          --amount ${amount} \
+          --max-fee ${maxFee} \
+          --half-amount ${halfAmount} \
+          --ttl ${ttl} \
+          --quote-signer-key ${quoteSignerKey} \
+          ${this.privateKeyFlag} ${privateKey} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  /**
+   * Reads standing offchain-signed warp fee quotes for a deployed warp
+   * route. Wraps `hyperlane warp quote read`.
+   */
+  public quoteRead({
+    warpRouteId,
+    chain,
+    out,
+  }: {
+    warpRouteId: string;
+    chain?: string;
+    out?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp quote read \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          ${out ? ['--out', out] : []} \
+          --verbosity debug`;
+  }
+
   public sendRaw({
     origin,
     destination,

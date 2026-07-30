@@ -1,0 +1,26 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "quote-verifier"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh.workspace = true
+ecdsa-signature = { path = "../ecdsa-signature" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+solana-program.workspace = true
+thiserror.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://solana.com/news/rust-to-solana
+getrandom = { workspace = true, features = ["custom"] }
+
+[dev-dependencies]
+k256.workspace = true
+rand.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]

@@ -28,7 +28,7 @@ import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
 import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../config/contexts.js';
-import { core as coreConfig } from '../config/environments/mainnet3/core.js';
+import { getCore as getCoreConfig } from '../config/environments/mainnet3/core.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { chainsToSkip, minimalIcaChains } from '../src/config/chain.js';
@@ -227,7 +227,7 @@ async function main() {
     );
     // Config is intended to be changed for ad-hoc use cases:
     config = {
-      ethereum: coreConfig.ethereum.defaultHook,
+      ethereum: getCoreConfig().ethereum.defaultHook,
     };
   } else if (module === Modules.CCIP) {
     if (environment !== 'mainnet3') {

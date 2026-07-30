@@ -197,3 +197,113 @@ describe('hook protocolFee support', () => {
     );
   });
 });
+
+describe('hook interchainGasPaymaster support', () => {
+  const oracleData = {
+    gasPrice: '1',
+    tokenExchangeRate: '1000000000000000000',
+  };
+
+  it('preserves quoteSigners and contractVersion through Config → Artifact', () => {
+    const config: HookConfig = {
+      type: 'interchainGasPaymaster',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      oracleKey: '0xoracleKey',
+      overhead: { ethereum: 50000 },
+      oracleConfig: { ethereum: oracleData },
+      contractVersion: '1.0.0',
+      quoteSigners: ['0xaa', '0xbb'],
+    };
+
+    const artifact = hookConfigToArtifact(config, chainLookup);
+    expect(artifact.config).to.deep.equal({
+      type: 'interchainGasPaymaster',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      oracleKey: '0xoracleKey',
+      overhead: { 1: 50000 },
+      oracleConfig: { 1: oracleData },
+      contractVersion: '1.0.0',
+      quoteSigners: ['0xaa', '0xbb'],
+    });
+  });
+
+  it('passes through undefined quoteSigners and contractVersion', () => {
+    const config: HookConfig = {
+      type: 'interchainGasPaymaster',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      oracleKey: '0xoracleKey',
+      overhead: { ethereum: 50000 },
+      oracleConfig: { ethereum: oracleData },
+    };
+
+    const artifact = hookConfigToArtifact(config, chainLookup);
+    expect(artifact.config).to.have.property('contractVersion', undefined);
+    expect(artifact.config).to.have.property('quoteSigners', undefined);
+  });
+
+  it('preserves quoteSigners and contractVersion through Artifact → DerivedConfig', () => {
+    const derived = hookArtifactToDerivedConfig(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'interchainGasPaymaster',
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          oracleKey: '0xoracleKey',
+          overhead: { 1: 50000 },
+          oracleConfig: { 1: oracleData },
+          contractVersion: '1.0.0',
+          quoteSigners: ['0xaa'],
+        },
+        deployed: { address: '0xigpAddress' },
+      },
+      chainLookup,
+    );
+
+    expect(derived).to.deep.equal({
+      type: 'interchainGasPaymaster',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      oracleKey: '0xoracleKey',
+      overhead: { ethereum: 50000 },
+      oracleConfig: { ethereum: oracleData },
+      contractVersion: '1.0.0',
+      quoteSigners: ['0xaa'],
+      address: '0xigpAddress',
+    });
+  });
+
+  it('round-trips Config → Artifact → DerivedConfig with all fields preserved', () => {
+    const config: HookConfig = {
+      type: 'interchainGasPaymaster',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      oracleKey: '0xoracleKey',
+      overhead: { ethereum: 50000 },
+      oracleConfig: { ethereum: oracleData },
+      contractVersion: '1.0.0',
+      quoteSigners: ['0xaa', '0xbb'],
+    };
+
+    const artifact = hookConfigToArtifact(config, chainLookup);
+    const derived = hookArtifactToDerivedConfig(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: artifact.config,
+        deployed: { address: '0xigpAddress' },
+      },
+      chainLookup,
+    );
+
+    expect(derived).to.deep.include({
+      type: 'interchainGasPaymaster',
+      contractVersion: '1.0.0',
+    });
+    expect(derived)
+      .to.have.property('quoteSigners')
+      .that.deep.equals(['0xaa', '0xbb']);
+  });
+});

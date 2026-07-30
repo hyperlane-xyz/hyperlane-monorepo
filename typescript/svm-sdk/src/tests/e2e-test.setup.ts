@@ -1,5 +1,6 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { EXTEND_PROGRAM_CHECKED_FEATURE } from '../constants.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import {
   type PreloadableProgram,
@@ -15,6 +16,15 @@ const TESTS_WITHOUT_VALIDATOR = new Set(['read-token']);
 const SKIP_VALIDATOR = TESTS_WITHOUT_VALIDATOR.has(
   process.env.SVM_SDK_E2E_TEST ?? '',
 );
+
+// Feature gates to deactivate per suite, so a suite can exercise the code
+// path a cluster without that feature takes (test validators activate all
+// features by default).
+const FEATURE_DEACTIVATIONS: Record<string, string[]> = {
+  'program-extend-upgrade': [EXTEND_PROGRAM_CHECKED_FEATURE],
+};
+const DEACTIVATE_FEATURES =
+  FEATURE_DEACTIVATIONS[process.env.SVM_SDK_E2E_TEST ?? ''] ?? [];
 
 const ALL_PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
   'mailbox',
@@ -37,7 +47,11 @@ before(async function () {
 
   try {
     rootLogger.info('Starting Solana test validator...');
-    validator = await runSolanaNode(TEST_SVM_CHAIN_METADATA, programs);
+    validator = await runSolanaNode(
+      TEST_SVM_CHAIN_METADATA,
+      programs,
+      DEACTIVATE_FEATURES,
+    );
     rootLogger.info(`Solana test validator started at ${validator.rpcUrl}`);
   } catch (error: unknown) {
     cleanup();

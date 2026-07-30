@@ -47,33 +47,15 @@ describe('Radix Warp Tokens (e2e)', function () {
   const ZERO_ADDRESS = '0000000000000000000000000000000000000000';
 
   before(async () => {
-    const rpcUrls =
-      TEST_RADIX_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
-    assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
-
-    radixSigner = (await RadixSigner.connectWithSigner(
-      rpcUrls,
+    radixSigner = await RadixSigner.connectWithSigner(
+      DEPLOYED_TEST_CHAIN_METADATA,
       TEST_RADIX_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
-        },
-      },
-    )) as RadixSigner;
+    );
 
-    otherRadixSigner = (await RadixSigner.connectWithSigner(
-      rpcUrls,
+    otherRadixSigner = await RadixSigner.connectWithSigner(
+      DEPLOYED_TEST_CHAIN_METADATA,
       OTHER_RADIX_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
-        },
-      },
-    )) as RadixSigner;
+    );
 
     await otherRadixSigner['signer'].getTestnetXrd();
 

@@ -7,6 +7,7 @@ on:
       - 'typescript/Dockerfile'
       - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
+      - '.nvmrc'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
   pull_request:
@@ -14,6 +15,7 @@ on:
       - 'typescript/Dockerfile'
       - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
+      - '.nvmrc'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
   workflow_dispatch:
@@ -84,6 +86,11 @@ jobs:
           FOUNDRY_VERSION=$(cat solidity/.foundryrc)
           echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
 
+      - name: Read Node version
+        run: |
+          NODE_VERSION=$(cat .nvmrc)
+          echo "NODE_VERSION=${NODE_VERSION#v}" >> $GITHUB_ENV
+
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -105,6 +112,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}

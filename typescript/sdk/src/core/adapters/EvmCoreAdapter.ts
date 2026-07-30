@@ -40,9 +40,9 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
     );
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
     if (
       sourceTx.type !== ProviderType.EthersV5 &&
       sourceTx.type !== ProviderType.Tron

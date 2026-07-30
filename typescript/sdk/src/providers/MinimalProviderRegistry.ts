@@ -82,7 +82,7 @@ export class MinimalProviderRegistry<
   ): TypedProvider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { protocol, name, chainId, rpcUrls } = metadata;
+    const { protocol, name, rpcUrls } = metadata;
     if (protocol === ProtocolType.Unknown) return null;
     type = type || PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
     if (!type) return null;
@@ -92,7 +92,7 @@ export class MinimalProviderRegistry<
     const builder = this.getProviderBuilder(protocol, type);
     if (!rpcUrls.length || !builder) return null;
 
-    const provider = builder(rpcUrls, chainId);
+    const provider = builder(metadata);
     this.providers[name] ||= {};
     this.providers[name][type] = provider;
     return provider;

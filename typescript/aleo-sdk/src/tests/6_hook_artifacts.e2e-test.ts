@@ -21,6 +21,7 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
+import { TEST_ALEO_CHAIN_METADATA } from '../testing/constants.js';
 import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
 
@@ -33,17 +34,15 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   let mailboxAddress: string;
 
   before(async () => {
-    const localnetRpc = 'http://localhost:3030';
     // test private key with funds
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
     const domainId = 1234;
 
-    aleoSigner = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
-      metadata: {
-        chainId: 1,
-      },
-    });
+    aleoSigner = await AleoSigner.connectWithSigner(
+      TEST_ALEO_CHAIN_METADATA,
+      privateKey,
+    );
     signer = aleoSigner;
 
     const aleoClient = aleoSigner.getAleoClient();

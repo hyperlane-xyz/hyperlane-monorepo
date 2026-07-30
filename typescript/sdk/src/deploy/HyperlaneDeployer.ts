@@ -19,6 +19,7 @@ import {
   eqAddress,
   isEVMLike,
   isZeroishAddress,
+  pollAsync,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -326,9 +327,18 @@ export abstract class HyperlaneDeployer<
         populatedTx.gasLimit = addBufferToGasLimit(estimatedGas);
         await this.multiProvider.sendTransaction(chain, populatedTx);
 
-        if (!eqAddress(targetIsm, await getIsm(contract))) {
-          throw new Error(`Set ISM failed on ${chain}`);
-        }
+        await pollAsync(
+          async () => {
+            const actualIsm = await getIsm(contract);
+            if (!eqAddress(targetIsm, actualIsm)) {
+              throw new Error(
+                `Set ISM failed on ${chain}, wanted ${targetIsm}, got ${actualIsm}`,
+              );
+            }
+          },
+          this.postTxReadDelayMs(chain),
+          10,
+        );
       });
     }
   }
@@ -354,12 +364,18 @@ export abstract class HyperlaneDeployer<
           chain,
           setHook(contract, config),
         );
-        const actualHook = await getHook(contract);
-        if (!eqAddress(config, actualHook)) {
-          throw new Error(
-            `Set hook failed on ${chain}, wanted ${config}, got ${actualHook}`,
-          );
-        }
+        await pollAsync(
+          async () => {
+            const actualHook = await getHook(contract);
+            if (!eqAddress(config, actualHook)) {
+              throw new Error(
+                `Set hook failed on ${chain}, wanted ${config}, got ${actualHook}`,
+              );
+            }
+          },
+          this.postTxReadDelayMs(chain),
+          10,
+        );
       });
     }
   }
@@ -398,6 +414,12 @@ export abstract class HyperlaneDeployer<
 
   initializeFnSignature(_contractName: string): string {
     return 'initialize';
+  }
+
+  protected postTxReadDelayMs(chain: ChainName): number {
+    const estimateBlockTime =
+      this.multiProvider.getChainMetadata(chain).blocks?.estimateBlockTime ?? 1;
+    return Math.max(estimateBlockTime * 1000, 1000);
   }
 
   public async deployContractFromFactory<F extends ethers.ContractFactory>(

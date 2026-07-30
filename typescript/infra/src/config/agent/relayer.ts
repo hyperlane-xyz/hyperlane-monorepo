@@ -85,6 +85,7 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   reorgPeriodOverrides?: ChainMap<number>;
+  interval?: number;
   relayApi?: RelayApiConfig;
 }
 

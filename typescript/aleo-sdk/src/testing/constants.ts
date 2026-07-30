@@ -29,7 +29,7 @@ export const TEST_ALEO_BURN_ADDRESS =
  * Docker image for Aleo devnode
  */
 export const ALEO_DEVNODE_IMAGE =
-  'ghcr.io/hyperlane-xyz/hyperlane-aleo-tools:v1.0.1';
+  'gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.1.0';
 
 /**
  * Environment variables for Aleo devnode
@@ -38,7 +38,7 @@ export const TEST_ALEO_ENV = {
   NETWORK: 'testnet',
   PRIVATE_KEY: TEST_ALEO_PRIVATE_KEY,
   ENDPOINT: 'http://0.0.0.0:3030',
-  CONSENSUS_VERSION_HEIGHTS: '0,1,2,3,4,5,6,7,8,9,10,11',
+  CONSENSUS_VERSION_HEIGHTS: '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16',
   CREATE_BLOCK: 'true',
 } as const;
 

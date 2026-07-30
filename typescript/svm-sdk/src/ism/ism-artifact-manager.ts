@@ -15,6 +15,10 @@ import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import type { SvmDeployedIsm, SvmRpc } from '../types.js';
 
+import {
+  SvmCompositeIsmReader,
+  SvmCompositeIsmWriter,
+} from './composite-ism.js';
 import { detectIsmType } from './ism-query.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
@@ -39,6 +43,7 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       >;
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
+      compositeIsm: () => new SvmCompositeIsmReader(this.rpc),
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
         throw new Error(
@@ -67,6 +72,14 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
           this.rpc,
           signer,
         ),
+      compositeIsm: () =>
+        new SvmCompositeIsmWriter(
+          {
+            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.compositeIsm },
+          },
+          this.rpc,
+          signer,
+        ),
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
         throw new Error(
@@ -85,6 +98,8 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
         return 'testIsm';
       case IsmType.MESSAGE_ID_MULTISIG:
         return 'messageIdMultisigIsm';
+      case IsmType.COMPOSITE:
+        return 'compositeIsm';
       default:
         throw new Error(`Unsupported ISM type on Solana: ${ismType}`);
     }

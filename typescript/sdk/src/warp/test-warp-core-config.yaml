@@ -160,6 +160,24 @@ tokens:
     symbol: atom
     name: atom
     addressOrDenom: atom
+  # testownercollateral EvmHypOwnerCollateral token
+  - chainName: testownercollateral
+    standard: EvmHypOwnerCollateral
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x5234567890123456789012345678901234567890'
+    connections:
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
+  # testrebasecollateral EvmHypRebaseCollateral token
+  - chainName: testrebasecollateral
+    standard: EvmHypRebaseCollateral
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x6234567890123456789012345678901234567890'
+    connections:
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
   - chainName: starknetdevnet
     standard: StarknetHypSynthetic
     decimals: 18

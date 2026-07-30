@@ -374,7 +374,15 @@ impl Middleware for TronProvider {
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
-        // Check for contract call failure
+        // Prefer constant_result when non-empty: CCIP-read reverts return their
+        // OffchainLookup payload there even when result.code is set on some node
+        // versions. Only fall back to the error code when constant_result is absent.
+        if let Some(data) = call.constant_result.first() {
+            return Ok(Bytes::from(hex::decode(data).map_err(|e| {
+                ProviderError::CustomError(format!("Failed to decode hex constant_result: {e}"))
+            })?));
+        }
+
         if let Some(ref result) = call.result {
             if result.code.is_some() {
                 return Err(ProviderError::CustomError(format!(
@@ -384,19 +392,9 @@ impl Middleware for TronProvider {
             }
         }
 
-        let data = call
-            .constant_result
-            .first()
-            .ok_or_else(|| {
-                ProviderError::CustomError(
-                    "No constant result returned from trigger_constant_contract".into(),
-                )
-            })?
-            .clone();
-
-        Ok(Bytes::from(hex::decode(&data).map_err(|e| {
-            ProviderError::CustomError(format!("Failed to decode hex constant_result: {e}"))
-        })?))
+        Err(ProviderError::CustomError(
+            "No constant result returned from trigger_constant_contract".into(),
+        ))
     }
 
     async fn estimate_gas(

@@ -34,9 +34,9 @@ export class StarknetCoreAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: StarknetJsTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
     if (sourceTx.type !== ProviderType.Starknet) {
       throw new Error(
         `Unsupported provider type for StarknetCoreAdapter ${sourceTx.type}`,

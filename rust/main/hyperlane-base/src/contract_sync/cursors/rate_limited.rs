@@ -89,10 +89,13 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
     sync_state: SyncState,
     metrics: Arc<CursorMetrics>,
     domain: HyperlaneDomain,
+    idle_sleep_duration: Duration,
+    configured_interval: Option<Duration>,
 }
 
 impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         indexer: Arc<dyn Indexer<T>>,
         metrics: Arc<CursorMetrics>,
@@ -101,6 +104,8 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         chunk_size: u32,
         initial_height: i64,
         watermark: Option<u32>,
+        idle_sleep_duration: Duration,
+        configured_interval: Option<Duration>,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
 
@@ -140,6 +145,8 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
             ),
             metrics,
             domain: domain.to_owned(),
+            idle_sleep_duration,
+            configured_interval,
         })
     }
 
@@ -157,10 +164,14 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         }
 
         // We are within one chunk size of the known tip.
-        // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
-        if let Some(sleep_time) =
-            Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
-        {
+        // If it's been less than the refresh window since the last tip update, sleep for a bit
+        // until we're ready to fetch the next tip. This used to be a hardcoded 30s regardless of
+        // config, which silently overrode an explicitly configured interval for any chain near
+        // tip. We only shrink the window when the operator explicitly configured an interval
+        // (e.g. fastpath's 1s) - chains that didn't configure one keep the original 30s default,
+        // since lowering it for everyone would multiply tip-refresh RPC calls fleet-wide.
+        let refresh_window = self.configured_interval.unwrap_or(Duration::from_secs(30));
+        if let Some(sleep_time) = refresh_window.checked_sub(self.last_tip_update.elapsed()) {
             return Ok(Some(sleep_time));
         }
         Ok(None)
@@ -226,8 +237,7 @@ where
         if let Some(range) = self.get_next_range().await? {
             return Ok((CursorAction::Query(range), eta));
         } else {
-            // TODO: Define the sleep time from interval flag
-            return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+            return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
         }
     }
 
@@ -368,6 +378,15 @@ pub(crate) mod test {
     async fn mock_rate_limited_cursor<T: Indexable + Debug + Send + Sync + 'static>(
         custom_chain_tips: Option<Vec<u32>>,
     ) -> RateLimitedContractSyncCursor<T> {
+        mock_rate_limited_cursor_with_interval(custom_chain_tips, None).await
+    }
+
+    async fn mock_rate_limited_cursor_with_interval<
+        T: Indexable + Debug + Send + Sync + 'static,
+    >(
+        custom_chain_tips: Option<Vec<u32>>,
+        configured_interval: Option<Duration>,
+    ) -> RateLimitedContractSyncCursor<T> {
         let mut seq = Sequence::new();
         let mut indexer = MockIndexer::<T>::new();
         match custom_chain_tips {
@@ -403,6 +422,8 @@ pub(crate) mod test {
             chunk_size,
             initial_height,
             None,
+            Duration::from_secs(5),
+            configured_interval,
         )
         .await
         .unwrap()
@@ -440,5 +461,52 @@ pub(crate) mod test {
         let mut cursor = mock_rate_limited_cursor::<MockIndexable>(Some(chain_tips)).await;
         let (action, _) = cursor.next_action().await.unwrap();
         assert!(matches!(action, CursorAction::Sleep(_)));
+    }
+
+    /// When an interval is explicitly configured (e.g. fastpath's 1s), it must govern the
+    /// near-tip throttle too - otherwise the configured interval is silently overridden by a
+    /// much longer wait whenever the cursor is within one chunk of tip.
+    #[tokio::test]
+    async fn test_get_rate_limit_uses_configured_interval_when_set() {
+        let chain_tips = vec![10];
+        let cursor = mock_rate_limited_cursor_with_interval::<MockIndexable>(
+            Some(chain_tips),
+            Some(Duration::from_secs(1)),
+        )
+        .await;
+
+        // next_block (0) + chunk_size (10) == tip (10), so we're within one chunk of tip and
+        // get_rate_limit's near-tip branch applies. last_tip_update was just set at construction.
+        let sleep_time = cursor
+            .get_rate_limit()
+            .await
+            .expect("get_rate_limit must not fail")
+            .expect("must sleep when within one chunk of the known tip");
+        assert!(
+            sleep_time <= Duration::from_secs(1),
+            "sleep_time {sleep_time:?} exceeds the explicitly configured 1s interval - the \
+             near-tip throttle is not governed by the configured interval"
+        );
+    }
+
+    /// Chains that don't explicitly configure `index.interval` must keep the original 30s
+    /// near-tip refresh throttle - shrinking it to the 5s idle-sleep default for every
+    /// unconfigured chain would multiply tip-refresh RPC calls fleet-wide, not just for the
+    /// fastpath context the configurable interval was added for.
+    #[tokio::test]
+    async fn test_get_rate_limit_preserves_default_window_when_unset() {
+        let chain_tips = vec![10];
+        let cursor = mock_rate_limited_cursor::<MockIndexable>(Some(chain_tips)).await;
+
+        let sleep_time = cursor
+            .get_rate_limit()
+            .await
+            .expect("get_rate_limit must not fail")
+            .expect("must sleep when within one chunk of the known tip");
+        assert!(
+            sleep_time > Duration::from_secs(5),
+            "sleep_time {sleep_time:?} is at or below the 5s idle-sleep default - an unset \
+             interval must keep the original 30s near-tip refresh throttle"
+        );
     }
 }

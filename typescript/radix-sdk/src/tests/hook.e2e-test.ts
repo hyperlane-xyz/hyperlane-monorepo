@@ -12,7 +12,7 @@ import {
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
+import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -36,21 +36,10 @@ describe('Radix Hooks (e2e)', function () {
   const DOMAIN_2 = 96;
 
   before(async () => {
-    const rpcUrls =
-      DEPLOYED_TEST_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
-    assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
-
-    radixSigner = (await RadixSigner.connectWithSigner(
-      rpcUrls,
+    radixSigner = await RadixSigner.connectWithSigner(
+      DEPLOYED_TEST_CHAIN_METADATA,
       TEST_RADIX_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
-        },
-      },
-    )) as RadixSigner;
+    );
 
     providerSdkSigner = radixSigner;
 

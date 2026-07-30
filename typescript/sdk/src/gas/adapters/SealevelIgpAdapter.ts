@@ -28,6 +28,7 @@ import {
   SealevelGasOverheadConfig,
   SealevelIgpData,
   SealevelIgpDataSchema,
+  SealevelIgpFeeConfig,
   SealevelIgpInstruction,
   SealevelIgpQuoteGasPaymentInstruction,
   SealevelIgpQuoteGasPaymentResponse,
@@ -40,6 +41,7 @@ import {
   SealevelSetDestinationGasOverheadsInstructionSchema,
   SealevelSetGasOracleConfigsInstruction,
   SealevelSetGasOracleConfigsInstructionSchema,
+  decodeTrailingIgpFeeConfig,
 } from './serialization.js';
 
 export interface IgpPaymentKeys {
@@ -226,7 +228,25 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return accountData.data as SealevelIgpData;
+
+    const data = accountData.data;
+    assert(
+      data instanceof SealevelIgpData,
+      'Decoded wrapper.data is not SealevelIgpData',
+    );
+
+    const consumedSize = serialize(SealevelIgpDataSchema, accountData).length;
+    data.fee_config = decodeTrailingIgpFeeConfig(
+      Buffer.from(accountInfo.data),
+      consumedSize,
+    );
+    return data;
+  }
+
+  async getFeeConfig(): Promise<SealevelIgpFeeConfig | undefined> {
+    const { fee_config } = await this.getAccountInfo();
+
+    return fee_config;
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/processor.rs#L536-L581

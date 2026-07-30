@@ -31,6 +31,10 @@ pub struct StorableMessage<'a> {
     pub meta: &'a LogMeta,
     /// The database id of the transaction the message was sent in
     pub txn_id: i64,
+    /// Override for the stored message ID. When `None`, uses `msg.id()`.
+    /// Used by synthetic messages (e.g. same-chain CCR swaps) that need a
+    /// recognizable ID format distinct from real keccak256 message hashes.
+    pub id_override: Option<H256>,
 }
 
 impl ScraperDb {
@@ -294,7 +298,9 @@ impl ScraperDb {
             .map(|storable| message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
-                msg_id: Unchanged(h256_to_bytes(&storable.msg.id())),
+                msg_id: Unchanged(h256_to_bytes(
+                    &storable.id_override.unwrap_or_else(|| storable.msg.id()),
+                )),
                 origin: Unchanged(storable.msg.origin as i32),
                 destination: Set(storable.msg.destination as i32),
                 nonce: Unchanged(storable.msg.nonce as i32),
@@ -428,6 +434,7 @@ mod tests {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
                 txn_id: i as i64,
+                id_override: None,
             })
             .collect();
         let res = scraper_db
@@ -489,6 +496,7 @@ mod tests {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
                 txn_id: i as i64,
+                id_override: None,
             })
             .collect();
         let res = scraper_db
@@ -518,6 +526,7 @@ mod tests {
                     msg,
                     meta: &logs_meta[i],
                     txn_id: 0_i64,
+                    id_override: None,
                 }
             })
             .collect();

@@ -1,12 +1,14 @@
 import { constants } from 'ethers';
 
 import {
+  CrossCollateralRoutingFee__factory,
   OffchainQuotedLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   difference,
   eqAddress,
@@ -34,6 +36,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  DerivedCrossCollateralRoutingFeeConfig,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
@@ -427,7 +430,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
       mutableFields.quoteSigners = true;
     }
-    if (targetConfig.type === TokenFeeType.RoutingFee) {
+    if (
+      targetConfig.type === TokenFeeType.RoutingFee ||
+      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
       mutableFields.feeContracts = true;
     }
 
@@ -522,6 +528,79 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       ];
     }
 
+    // CrossCollateralRoutingFee: update sub-fee contracts (nested structure)
+    if (
+      normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+      normalizedActualConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+      actualConfig.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
+      const targetFeeContracts = normalizedTargetConfig.feeContracts ?? {};
+      // Carry actual addresses into target entries, but limit to target keys only so
+      // orphan entries from actualConfig don't get re-injected into the update loop.
+      const merged = objMerge<DerivedCrossCollateralRoutingFeeConfig>(
+        actualConfig,
+        normalizedTargetConfig,
+        10,
+        true,
+      );
+      if (merged.feeContracts) {
+        for (const chainName of Object.keys(merged.feeContracts)) {
+          if (!(chainName in targetFeeContracts)) {
+            delete merged.feeContracts[chainName];
+          } else {
+            for (const routerBytes32 of Object.keys(
+              merged.feeContracts[chainName],
+            )) {
+              if (!(routerBytes32 in targetFeeContracts[chainName])) {
+                delete merged.feeContracts[chainName][routerBytes32];
+              }
+            }
+          }
+        }
+      }
+
+      // Emit clearing transactions for entries removed from target.
+      const removalDestinations: number[] = [];
+      const removalRouterKeys: string[] = [];
+      const zeroAddresses: string[] = [];
+      for (const [chainName, routerConfigs] of Object.entries(
+        actualConfig.feeContracts ?? {},
+      )) {
+        const targetRouterConfigs = targetFeeContracts[chainName] ?? {};
+        for (const routerBytes32 of Object.keys(routerConfigs)) {
+          if (!(routerBytes32 in targetRouterConfigs)) {
+            removalDestinations.push(this.multiProvider.getDomainId(chainName));
+            removalRouterKeys.push(routerBytes32);
+            zeroAddresses.push(constants.AddressZero);
+          }
+        }
+      }
+      const removalTxs: AnnotatedEV5Transaction[] =
+        removalDestinations.length > 0
+          ? [
+              {
+                annotation:
+                  'Clearing removed CrossCollateralRoutingFee sub-contract pointers',
+                chainId: this.chainId,
+                to: this.args.addresses.deployedFee,
+                data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+                  'setCrossCollateralRouterFeeContracts',
+                  [removalDestinations, removalRouterKeys, zeroAddresses],
+                ),
+              },
+            ]
+          : [];
+
+      return [
+        ...(await this.updateCrossCollateralRoutingFee(merged)),
+        ...removalTxs,
+        ...this.createOwnershipUpdateTxs(
+          normalizedActualConfig,
+          normalizedTargetConfig,
+        ),
+      ];
+    }
+
     // Routing fee: update sub-fee contracts
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
@@ -547,6 +626,165 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       normalizedActualConfig,
       normalizedTargetConfig,
     );
+  }
+
+  private async updateCrossCollateralRoutingFee(
+    targetConfig: DerivedCrossCollateralRoutingFeeConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!targetConfig.feeContracts) return [];
+
+    const currentRoutingAddress = this.args.addresses.deployedFee;
+
+    // Validate all destination chains and collect domain IDs upfront so that an unknown
+    // chain name fails before any sub-fee deployments are attempted.
+    const domainIdByChain = new Map<string, number>();
+    for (const chainName of Object.keys(targetConfig.feeContracts)) {
+      domainIdByChain.set(chainName, this.multiProvider.getDomainId(chainName));
+    }
+
+    // Deduplicate update work for shared addresses (old address → deployed address after update).
+    // Multiple (chainName, routerBytes32) pairs may point to the same physical contract; we only
+    // run the update once per (address, config) pair. If two entries share an address but have
+    // divergent target configs (split case), each gets its own deployment.
+    const updatedByAddress = new Map<
+      string,
+      { config: ResolvedTokenFeeConfigInput; deployedAddr: string }
+    >();
+
+    // Per-entry deployed address, keyed by "chainName:routerBytes32".
+    const entryDeployedAddr = new Map<string, string>();
+
+    for (const [chainName, routerConfigs] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      for (const [routerBytes32, subFeeConfig] of Object.entries(
+        routerConfigs,
+      )) {
+        assert(
+          /^0x[0-9a-fA-F]{64}$/.test(routerBytes32),
+          `routerBytes32 key "${routerBytes32}" for chain ${chainName} is not a valid 32-byte hex string`,
+        );
+        const address = subFeeConfig.address;
+        const entryKey = `${chainName}:${routerBytes32}`;
+
+        if (!address) {
+          // No existing sub-fee contract — deploy a new one
+          this.logger.info(
+            `No existing sub-fee contract for ${chainName}/${routerBytes32}, deploying new one`,
+          );
+          const subFeeModule = await EvmTokenFeeModule.create({
+            multiProvider: this.multiProvider,
+            chain: this.chainName,
+            config: subFeeConfig,
+            contractVerifier: this.contractVerifier,
+          });
+          const deployedSubFee = subFeeModule.serialize().deployedFee;
+          this.logger.debug(
+            `New cross-collateral sub-fee contract deployed at ${deployedSubFee} for ${chainName}/${routerBytes32}`,
+          );
+          entryDeployedAddr.set(entryKey, deployedSubFee);
+        } else {
+          const addrKey = address.toLowerCase();
+          const cached = updatedByAddress.get(addrKey);
+          const configMatches =
+            cached && deepEquals(cached.config, subFeeConfig);
+
+          if (!cached || !configMatches) {
+            if (cached && !configMatches) {
+              // Same physical address but divergent target config — this is a route split.
+              // Deploy a fresh sub-fee contract rather than reusing the other entry's result.
+              this.logger.info(
+                `Cross-collateral sub-fee config diverged for ${chainName}/${routerBytes32} at ${address}, deploying new contract`,
+              );
+              const subFeeModule = await EvmTokenFeeModule.create({
+                multiProvider: this.multiProvider,
+                chain: this.chainName,
+                config: subFeeConfig,
+                contractVerifier: this.contractVerifier,
+              });
+              const deployedSubFee = subFeeModule.serialize().deployedFee;
+              this.logger.debug(
+                `New cross-collateral sub-fee contract deployed at ${deployedSubFee} for ${chainName}/${routerBytes32}`,
+              );
+              entryDeployedAddr.set(entryKey, deployedSubFee);
+              continue;
+            }
+            // First time we see this address — run the update
+            const subFeeModule = new EvmTokenFeeModule(
+              this.multiProvider,
+              {
+                addresses: { deployedFee: address },
+                chain: this.chainName,
+                config: subFeeConfig,
+              },
+              this.contractVerifier,
+            );
+            const subFeeUpdateTransactions = await subFeeModule.update(
+              subFeeConfig,
+              { address },
+            );
+            updateTransactions.push(...subFeeUpdateTransactions);
+            const deployedSubFeeAddr = subFeeModule.serialize().deployedFee;
+            if (!eqAddress(deployedSubFeeAddr, address)) {
+              this.logger.debug(
+                `Cross-collateral sub-fee redeployed: ${address} → ${deployedSubFeeAddr} for ${chainName}/${routerBytes32}`,
+              );
+            }
+            updatedByAddress.set(addrKey, {
+              config: subFeeConfig,
+              deployedAddr: deployedSubFeeAddr,
+            });
+          }
+          const entry = updatedByAddress.get(addrKey);
+          assert(entry !== undefined, `Missing deployed fee for ${addrKey}`);
+          entryDeployedAddr.set(entryKey, entry.deployedAddr);
+        }
+      }
+    }
+
+    // Build setCrossCollateralRouterFeeContracts args for entries whose pointer changed
+    const destinations: number[] = [];
+    const routerKeys: string[] = [];
+    const newAddresses: string[] = [];
+
+    for (const [chainName, routerConfigs] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const domainId = domainIdByChain.get(chainName);
+      assert(domainId !== undefined, `Domain ID not found for ${chainName}`);
+      for (const [routerBytes32, subFeeConfig] of Object.entries(
+        routerConfigs,
+      )) {
+        const entryKey = `${chainName}:${routerBytes32}`;
+        const deployedSubFee = entryDeployedAddr.get(entryKey);
+        assert(
+          deployedSubFee !== undefined,
+          `Missing deployed fee for entry ${entryKey}`,
+        );
+        const oldAddr = subFeeConfig.address;
+
+        if (!oldAddr || !eqAddress(deployedSubFee, oldAddr)) {
+          destinations.push(domainId);
+          routerKeys.push(routerBytes32);
+          newAddresses.push(deployedSubFee);
+        }
+      }
+    }
+
+    if (destinations.length > 0) {
+      updateTransactions.push({
+        annotation: 'Updating CrossCollateralRoutingFee sub-contract pointers',
+        chainId: this.chainId,
+        to: currentRoutingAddress,
+        data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+          'setCrossCollateralRouterFeeContracts',
+          [destinations, routerKeys, newAddresses],
+        ),
+      });
+    }
+
+    return updateTransactions;
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {

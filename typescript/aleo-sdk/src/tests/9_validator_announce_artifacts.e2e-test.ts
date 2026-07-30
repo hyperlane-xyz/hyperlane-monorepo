@@ -32,14 +32,8 @@ describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
 
   before(async () => {
     aleoSigner = await AleoSigner.connectWithSigner(
-      [TEST_ALEO_CHAIN_METADATA.rpcUrl],
+      { ...TEST_ALEO_CHAIN_METADATA, domainId },
       TEST_ALEO_PRIVATE_KEY,
-      {
-        metadata: {
-          chainId: 1,
-          domainId,
-        },
-      },
     );
 
     aleoClient = aleoSigner.getAleoClient();

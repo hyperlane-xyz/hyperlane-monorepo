@@ -7,12 +7,17 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  IsmType,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
-import { runWarpRouteCombine } from './warp.js';
+import {
+  runWarpRouteCombine,
+  transformDeployConfigForDisplay,
+} from './warp.js';
 
 const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil2: 31337,
@@ -383,5 +388,130 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('scale=3/2');
     expect(thrown?.message).to.include('scale=1');
     expect(thrown?.message).to.not.include('[object Object]');
+  });
+});
+
+describe('transformDeployConfigForDisplay', () => {
+  const OWNER = '11111111111111111111111111111111111111111';
+  const MAILBOX = '22222222222222222222222222222222222222222';
+  const RELAYER = '33333333333333333333333333333333333333333';
+
+  it('recurses into routing/fallbackRouting domain sub-nodes of a composite ISM', () => {
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'routing',
+            domains: {
+              ethereum: {
+                type: 'multisigMessageId',
+                validators: [RELAYER],
+                threshold: 1,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    expect(rows.some((row) => row.Type === 'multisigMessageId')).to.equal(true);
+  });
+
+  it('tags each domain row with its own path when multiple domains have distinct configs', () => {
+    const RELAYER_2 = '44444444444444444444444444444444444444444';
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'routing',
+            domains: {
+              ethereum: {
+                type: 'multisigMessageId',
+                validators: [RELAYER],
+                threshold: 1,
+              },
+              polygon: {
+                type: 'trustedRelayer',
+                relayer: RELAYER_2,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    const ethereumRow = rows.find(
+      (row) =>
+        row.Path === 'root.domains.ethereum' &&
+        row.Type === 'multisigMessageId',
+    );
+    const polygonRow = rows.find(
+      (row) =>
+        row.Path === 'root.domains.polygon' && row.Type === 'trustedRelayer',
+    );
+    expect(ethereumRow?.Validators).to.deep.equal([RELAYER]);
+    expect(polygonRow?.Relayer).to.equal(RELAYER_2);
+  });
+
+  it('disambiguates a nested tree via Path when sibling rows would otherwise collide', () => {
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.COMPOSITE,
+          owner: OWNER,
+          root: {
+            type: 'aggregation',
+            threshold: 1,
+            subIsms: [
+              {
+                type: 'amountRouting',
+                threshold: '1000',
+                lower: { type: 'test', accept: true },
+                upper: { type: 'test', accept: false },
+              },
+              { type: 'trustedRelayer', relayer: RELAYER },
+            ],
+          },
+        },
+      },
+    };
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    const lowerRow = rows.find(
+      (row) => row.Path === 'root.subIsms[0].lower' && row.Type === 'test',
+    );
+    const upperRow = rows.find(
+      (row) => row.Path === 'root.subIsms[0].upper' && row.Type === 'test',
+    );
+    const relayerRow = rows.find(
+      (row) => row.Path === 'root.subIsms[1]' && row.Type === 'trustedRelayer',
+    );
+    expect(lowerRow?.Accept).to.equal(true);
+    expect(upperRow?.Accept).to.equal(false);
+    expect(relayerRow?.Relayer).to.equal(RELAYER);
   });
 });

@@ -3,7 +3,7 @@ use std::{ops::Add, str::FromStr};
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
-    ProcessAltOverride,
+    ProcessAltOverride, UniversalRouterRevealConfig,
 };
 use solana_sdk::pubkey::Pubkey;
 use url::Url;
@@ -296,6 +296,7 @@ fn build_sealevel_connection_conf(
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
     let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
     let process_alt_overrides = parse_sealevel_process_alt_overrides(chain, &mut local_err);
+    let ur_reveal = parse_sealevel_ur_reveal(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -312,6 +313,7 @@ fn build_sealevel_connection_conf(
         transaction_submitter,
         mailbox_process_alt,
         process_alt_overrides,
+        ur_reveal,
     }))
 }
 
@@ -338,6 +340,59 @@ fn parse_sealevel_mailbox_process_alt(
         }
     } else {
         None
+    }
+}
+
+fn parse_sealevel_ur_reveal(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<UniversalRouterRevealConfig> {
+    let ccs_url = chain
+        .chain(err)
+        .get_opt_key("urReveal")
+        .get_opt_key("ccsUrl")
+        .parse_string()
+        .end()
+        .map(|s| s.to_owned());
+
+    let program_id = chain
+        .chain(err)
+        .get_opt_key("urReveal")
+        .get_opt_key("programId")
+        .parse_string()
+        .end()
+        .map(|s| s.to_owned());
+
+    match (ccs_url, program_id) {
+        (Some(ccs_url), Some(program_id)) => {
+            // Validate at startup so misconfiguration fails fast rather than at first reveal.
+            if Url::parse(&ccs_url).is_err() {
+                err.push(
+                    (&chain.cwp).add("urReveal").add("ccsUrl"),
+                    eyre!("urReveal.ccsUrl is not a valid URL: {ccs_url}"),
+                );
+                return None;
+            }
+            if Pubkey::from_str(&program_id).is_err() {
+                err.push(
+                    (&chain.cwp).add("urReveal").add("programId"),
+                    eyre!("urReveal.programId is not a valid Solana pubkey: {program_id}"),
+                );
+                return None;
+            }
+            Some(UniversalRouterRevealConfig {
+                ccs_url,
+                program_id,
+            })
+        }
+        (None, None) => None,
+        _ => {
+            err.push(
+                (&chain.cwp).add("urReveal"),
+                eyre!("urReveal requires both ccsUrl and programId"),
+            );
+            None
+        }
     }
 }
 

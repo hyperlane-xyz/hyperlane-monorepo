@@ -27,6 +27,15 @@ impl Deref for SealevelKeypair {
     }
 }
 
+impl Clone for SealevelKeypair {
+    fn clone(&self) -> Self {
+        Self(
+            Keypair::try_from(self.0.to_bytes().as_slice())
+                .expect("bytes from a valid Keypair are always valid"),
+        )
+    }
+}
+
 impl std::fmt::Debug for SealevelKeypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.pubkey())

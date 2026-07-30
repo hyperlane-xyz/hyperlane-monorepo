@@ -49,6 +49,17 @@ pub enum EthereumProviderConnectionError {
     WebsocketClientError(#[from] WsClientError),
 }
 
+/// The signer capability required by a provider builder.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum SignerRequirement {
+    /// The provider does not need signer information.
+    None,
+    /// The provider only needs the signer's address as its default sender.
+    Sender,
+    /// The provider needs middleware capable of signing transactions.
+    Signer,
+}
+
 impl From<EthereumProviderConnectionError> for ChainCommunicationError {
     fn from(e: EthereumProviderConnectionError) -> Self {
         ChainCommunicationError::from_other(e)
@@ -61,8 +72,15 @@ pub trait BuildableWithProvider {
     /// The type that will be created.
     type Output;
 
-    /// Whether this provider requires a signer
+    /// Whether this provider requires a signer.
     const NEEDS_SIGNER: bool;
+
+    /// The signer capability required by this provider.
+    const SIGNER_REQUIREMENT: SignerRequirement = if Self::NEEDS_SIGNER {
+        SignerRequirement::Signer
+    } else {
+        SignerRequirement::None
+    };
 
     /// Whether this provider requires submission middleware such as gas oracle,
     /// gas escalator, nonce manager. It defaults to true, since it's only Lander
@@ -194,8 +212,21 @@ pub trait BuildableWithProvider {
     where
         P: JsonRpcClient + 'static,
     {
-        self.build_with_signer(Provider::new(client), conn, locator, signer)
-            .await
+        let provider = Provider::new(client);
+        match Self::SIGNER_REQUIREMENT {
+            SignerRequirement::None => Ok(self.build_with_provider(provider, conn, locator).await),
+            SignerRequirement::Sender => {
+                let provider = match signer {
+                    Some(signer) => provider.with_sender(signer.address()),
+                    None => provider,
+                };
+                Ok(self.build_with_provider(provider, conn, locator).await)
+            }
+            SignerRequirement::Signer => {
+                self.build_with_signer(provider, conn, locator, signer)
+                    .await
+            }
+        }
     }
 
     /// Wrap the provider creation with a signing provider if signers were
@@ -348,4 +379,154 @@ static REQWEST_CLIENT_CACHE: OnceLock<DashMap<Url, Client>> = OnceLock::new();
 
 fn get_reqwest_client_cache() -> &'static DashMap<Url, Client> {
     REQWEST_CLIENT_CACHE.get_or_init(DashMap::new)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use ethers::providers::HttpClientError;
+    use ethers::signers::LocalWallet;
+    use serde::{de::DeserializeOwned, Serialize};
+
+    use super::*;
+
+    #[derive(Clone, Debug, Default)]
+    struct CountingClient {
+        chain_id_requests: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl JsonRpcClient for CountingClient {
+        type Error = HttpClientError;
+
+        async fn request<T, R>(&self, method: &str, _params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response = if method == "eth_chainId" {
+                self.chain_id_requests.fetch_add(1, Ordering::Relaxed);
+                r#""0x1""#
+            } else {
+                "not valid json"
+            };
+            serde_json::from_str(response).map_err(|err| HttpClientError::SerdeJson {
+                err,
+                text: response.to_owned(),
+            })
+        }
+    }
+
+    struct SenderBuilder;
+
+    #[async_trait]
+    impl BuildableWithProvider for SenderBuilder {
+        type Output = Option<Address>;
+        const NEEDS_SIGNER: bool = true;
+        const SIGNER_REQUIREMENT: SignerRequirement = SignerRequirement::Sender;
+
+        async fn build_with_provider<M>(
+            &self,
+            provider: M,
+            _conn: &ConnectionConf,
+            _locator: &ContractLocator,
+        ) -> Self::Output
+        where
+            M: Middleware + 'static,
+        {
+            provider.default_sender()
+        }
+    }
+
+    struct SignerBuilder;
+
+    #[async_trait]
+    impl BuildableWithProvider for SignerBuilder {
+        type Output = Option<Address>;
+        const NEEDS_SIGNER: bool = true;
+
+        async fn build_with_provider<M>(
+            &self,
+            provider: M,
+            _conn: &ConnectionConf,
+            _locator: &ContractLocator,
+        ) -> Self::Output
+        where
+            M: Middleware + 'static,
+        {
+            provider.default_sender()
+        }
+    }
+
+    fn test_signer() -> Result<Signers, ethers::core::k256::elliptic_curve::Error> {
+        ethers::core::k256::SecretKey::from_be_bytes(&[1_u8; 32])
+            .map(LocalWallet::from)
+            .map(Signers::Local)
+    }
+
+    fn test_locator() -> (HyperlaneDomain, hyperlane_core::H256) {
+        (
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            hyperlane_core::H256::zero(),
+        )
+    }
+
+    #[tokio::test]
+    async fn sender_requirement_sets_default_sender_without_chain_id_request(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            crate::InterchainSecurityModuleBuilder::SIGNER_REQUIREMENT,
+            SignerRequirement::Sender
+        );
+        let client = CountingClient::default();
+        let signer = test_signer()?;
+        let expected_sender = signer.address();
+        let (domain, address) = test_locator();
+        let locator = ContractLocator {
+            domain: &domain,
+            address,
+        };
+
+        let sender = SenderBuilder
+            .build(
+                client.clone(),
+                &ConnectionConf::default(),
+                &locator,
+                Some(signer),
+            )
+            .await?;
+
+        assert_eq!(sender, Some(expected_sender));
+        assert_eq!(client.chain_id_requests.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_needs_signer_flag_fetches_chain_id() -> Result<(), Box<dyn std::error::Error>> {
+        let client = CountingClient::default();
+        let signer = test_signer()?;
+        let expected_sender = signer.address();
+        let (domain, address) = test_locator();
+        let locator = ContractLocator {
+            domain: &domain,
+            address,
+        };
+
+        let sender = SignerBuilder
+            .build(
+                client.clone(),
+                &ConnectionConf::default(),
+                &locator,
+                Some(signer),
+            )
+            .await?;
+
+        assert_eq!(sender, Some(expected_sender));
+        assert_eq!(client.chain_id_requests.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
 }

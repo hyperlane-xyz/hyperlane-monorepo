@@ -34,8 +34,8 @@ describe('CosmWasmCoreAdapter', () => {
     expect(adapter).to.be.instanceOf(CosmWasmCoreAdapter);
   });
 
-  it('extracts message IDs', () => {
-    const messages = adapter.extractMessageIds({
+  it('extracts message IDs', async () => {
+    const messages = await adapter.extractMessageIds({
       type: ProviderType.CosmJsWasm,
       receipt: TX_RECEIPT,
     });

@@ -209,6 +209,57 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await linearFeeContract.token()).to.equal(config.token);
   });
 
+  it('should deploy RoutingFee with multiple sub-fees of the same type as unique contracts', async () => {
+    // Regression test: caching caused all sub-fees of the same type to share one
+    // address. After the first one's transferOwnership succeeded, subsequent ones
+    // would hit the cache and fail with UNPREDICTABLE_GAS_LIMIT because the
+    // deployer was no longer the owner of the cached contract.
+    const [, otherSigner] = await hre.ethers.getSigners();
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: otherSigner.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test1]: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: otherSigner.address,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: BPS,
+        },
+        [TestChainName.test3]: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: otherSigner.address,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: BPS,
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+
+    expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
+
+    const fee1Address = await routingFeeContract.feeContracts(
+      multiProvider.getDomainId(TestChainName.test1),
+    );
+    const fee3Address = await routingFeeContract.feeContracts(
+      multiProvider.getDomainId(TestChainName.test3),
+    );
+
+    expect(fee1Address).to.not.equal(hre.ethers.constants.AddressZero);
+    expect(fee3Address).to.not.equal(hre.ethers.constants.AddressZero);
+    expect(fee1Address).to.not.equal(fee3Address);
+  });
+
   it('should deploy RoutingFee with fee contracts when owner differs from signer', async () => {
     const [, otherSigner] = await hre.ethers.getSigners();
 

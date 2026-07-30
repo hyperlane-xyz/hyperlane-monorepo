@@ -117,7 +117,9 @@ tags = ["private key", "svm"]
 [[rules]]
 id = "svm-base58-private-key"
 description = "Solana wallet private key"
-regex = '''\b[1-9A-HJ-NP-Za-km-z]{87,88}\b'''
+# A 64-byte Solana keypair base58-encodes to 86-88 chars; leading zero seed
+# bytes shorten it (85 at 8 such bytes). 85-88 covers any RNG-generated key.
+regex = '''\b[1-9A-HJ-NP-Za-km-z]{85,88}\b'''
 tags = ["private key", "svm"]
 
 # Not testing evm, starknet or cosmos private key as

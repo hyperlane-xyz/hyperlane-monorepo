@@ -1,3 +1,31 @@
+## [2.3.0] - 2026-07-20
+
+* feat(infra): token-based IGP config, reclaim, relayer guard (#8910)
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* feat: deploy relay api on testnet (#8685)
+* feat: faster polling for validator signatures (#8843)
+* feat: relayer api (#8364)
+* feat: sealevel metaswaps reveals (#8930)
+* feat: static interval override for idle indexing and validator checkpoint polling (#8989)
+* feat: tron ccip support (#8849)
+* fix(relayer): bound and validate CCIP-read responses (#9047)
+* fix(relayer): restrict CCIP-read network destinations (#9048)
+* fix: Ethermint nonce detection and PostSubmitFailure retry latency (#8426)
+* fix: aggregation ism metadata building improvement (#8920)
+* fix: reduce cctp interval to 10 retries (#8744)
+* fix: relay api gas payments (#8690)
+* fix: retry ICA reveal messages when commit is not yet confirmed (#8836)
+* fix: skip scraper lookup for txHash (#8517)
+* fix: support cctp general message passing (#8705)
+* perf(relayer): cache successful checkpoint fetches (#8865)
+* perf(relayer): optimize ICA reveal polling for all messages (#8876)
+* perf(relayer): overlap multisig checkpoint reads (#9032)
+* perf(relayer): reduce quorum fetch latency (#8866)
+* perf(relayer): reuse CCIP-read HTTP connections (#9046)
+* perf(relayer): reuse CCIP-read authentication signatures (#9045)
+* perf(relayer): wake database loader after indexing (#9034)
+* refactor(evm): remove evm tron techstack (#8408)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)

@@ -12,6 +12,7 @@ use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
     cmd_utils::{create_new_directory, deploy_program},
+    composite_ism::{deploy_composite_ism, load_config as load_ism_config},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
@@ -83,12 +84,30 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(
-                &mut ctx,
-                &core.built_so_dir,
-                &key_dir,
-                core.local_domain,
-            );
+            let (multisig_ism_message_id, composite_ism) =
+                if let Some(config_file) = &core.composite_ism_config_file {
+                    let root = load_ism_config(config_file);
+                    let program_id = deploy_composite_ism(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                        root,
+                    );
+                    (None, Some(program_id))
+                } else {
+                    let program_id = deploy_multisig_ism_message_id(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                    );
+                    (Some(program_id), None)
+                };
+
+            let ism_program_id = multisig_ism_message_id
+                .or(composite_ism)
+                .expect("one ISM must be deployed");
 
             let mailbox_program_id =
                 deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id, core.local_domain);
@@ -102,7 +121,8 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
-                multisig_ism_message_id: ism_program_id,
+                multisig_ism_message_id,
+                composite_ism,
                 igp_program_id,
                 overhead_igp_account,
                 igp_account,
@@ -279,8 +299,14 @@ pub struct CoreProgramIds {
     pub mailbox: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub validator_announce: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub multisig_ism_message_id: Pubkey,
+    #[serde(default, with = "crate::serde::serde_option_pubkey")]
+    pub multisig_ism_message_id: Option<Pubkey>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "crate::serde::serde_option_pubkey"
+    )]
+    pub composite_ism: Option<Pubkey>,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_program_id: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]

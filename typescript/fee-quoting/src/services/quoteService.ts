@@ -1,90 +1,91 @@
 import type { Logger } from 'pino';
 import type { Counter } from 'prom-client';
-import { type Address, type Hex, type LocalAccount, encodePacked } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import type { Address, Hex } from 'viem';
 
-import { deepFind, eqAddress } from '@hyperlane-xyz/utils';
-import type { WithAddress } from '@hyperlane-xyz/utils';
 import {
-  DEFAULT_ROUTER_KEY,
-  type DerivedTokenFeeConfig,
-  type DerivedTokenRouterConfig,
-  FeeQuotingCommand,
+  type AnyQuoteV2Entry,
+  type FeeQuotingCommand,
   type FeeQuotingQuoteResponse,
-  type HookConfig,
-  HookType,
-  type IgpHookConfig,
+  NoQuoteAvailableReason,
   type MultiProvider,
-  type SignedQuoteData,
-  type SubmitQuoteCommand,
-  TokenFeeType,
-  WARP_FEE_COMMANDS,
+  QuoteV2Endpoint,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
-import type { QuoteMode } from '../config.js';
-import {
-  EIP712_DOMAIN,
-  SIGNED_QUOTE_TYPES,
-  ZERO_ADDRESS,
-} from '../constants.js';
-import { ApiError } from '../middleware/errorHandler.js';
+import { QuoteMode } from '../config.js';
+import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
 
-/** Per-router config derived from on-chain state */
-export interface RouterQuoteContext {
-  feeToken: Address;
-  derivedConfig: DerivedTokenRouterConfig;
-}
-
-/** Per-chain context shared across all routers on that chain */
-export interface ChainQuoteContext {
-  chainName: string;
-  quotedCallsAddress: Address;
-  routers: Map<Address, RouterQuoteContext>;
-}
+import { EvmQuoteService } from './evmQuoteService.js';
+import type {
+  IProtocolQuoteService,
+  IgpQuoteRequest,
+  QuoteBinding,
+  WarpQuoteRequest,
+} from './IProtocolQuoteService.js';
 
 export interface QuoteServiceOptions {
-  signerKey: Hex;
+  /**
+   * Per-protocol services for v2 dispatch. Must include an `EvmQuoteService`
+   * under `ProtocolType.Ethereum` — v1 (`/quote/*`) is EVM-only and reaches
+   * `getV1Quotes` on that entry directly (intentionally not on
+   * `IProtocolQuoteService`).
+   */
+  services: ReadonlyMap<ProtocolType, IProtocolQuoteService>;
+  /** Chain name → protocol. Populated at startup from the warp configs. */
+  protocolByChain: ReadonlyMap<string, ProtocolType>;
   quoteMode: QuoteMode;
   quoteExpiry: number;
+  transientBuffer: number;
   multiProvider: MultiProvider;
-  chainContexts: Map<string, ChainQuoteContext>;
   logger: Logger;
   quotesServed?: Counter<string>;
 }
 
+/**
+ * Thin orchestrator. Per-protocol concrete services own their full stack —
+ * artifact reading, per-route state, signing. This class just routes
+ * incoming requests to the right service.
+ *
+ * v1 `/quote/*` is EVM-only by contract and talks to `EvmQuoteService`
+ * directly via the typed handle. v2 `/v2/quote/*` dispatches by origin
+ * chain's protocol through the `services` map — adding a new protocol means
+ * dropping its service into the map at construction, no code change here.
+ */
 export class QuoteService {
-  private readonly account: LocalAccount;
+  private readonly evm: EvmQuoteService;
+  private readonly services: ReadonlyMap<ProtocolType, IProtocolQuoteService>;
+  private readonly protocolByChain: ReadonlyMap<string, ProtocolType>;
   private readonly quoteMode: QuoteMode;
   private readonly quoteExpiry: number;
+  private readonly transientBuffer: number;
   private readonly multiProvider: MultiProvider;
-  private readonly chainContexts: Map<string, ChainQuoteContext>;
   private readonly logger: Logger;
   private readonly quotesServed?: Counter<string>;
 
   constructor(options: QuoteServiceOptions) {
-    this.account = privateKeyToAccount(options.signerKey);
+    const evm = options.services.get(ProtocolType.Ethereum);
+    assert(
+      evm instanceof EvmQuoteService,
+      'QuoteService requires an EvmQuoteService under ProtocolType.Ethereum in `services`',
+    );
+    this.evm = evm;
+    this.services = options.services;
+    this.protocolByChain = options.protocolByChain;
     this.quoteMode = options.quoteMode;
     this.quoteExpiry = options.quoteExpiry;
+    this.transientBuffer = options.transientBuffer;
     this.multiProvider = options.multiProvider;
-    this.chainContexts = options.chainContexts;
     this.logger = options.logger;
     this.quotesServed = options.quotesServed;
   }
 
   get signerAddress(): Address {
-    return this.account.address;
+    return this.evm.signerAddress;
   }
 
-  getChainContext(origin: string): ChainQuoteContext | undefined {
-    return this.chainContexts.get(origin);
-  }
+  // ============ v1: legacy `/quote/*` endpoints ============
 
-  /**
-   * Generate signed quotes for a QuotedCalls command.
-   *
-   * In transient mode: requires sender, generates clientSalt, scopes quotes to caller.
-   * In standing mode: no sender needed, quotes are reusable until expiry.
-   */
   async getQuote(
     origin: string,
     command: FeeQuotingCommand,
@@ -94,83 +95,27 @@ export class QuoteService {
     recipient?: Hex,
     targetRouter?: Hex,
   ): Promise<FeeQuotingQuoteResponse> {
-    const ctx = this.chainContexts.get(origin);
-    if (!ctx) {
+    const protocol = this.protocolByChain.get(origin);
+    if (!protocol) {
       throw new ApiError(`Unknown origin chain: ${origin}`, 400);
     }
-
-    const normalizedRouter = router.toLowerCase() as Address;
-    const routerCtx = ctx.routers.get(normalizedRouter);
-    if (!routerCtx) {
-      throw new ApiError(`Unknown router ${router} on ${origin}`, 400);
+    if (!isEVMLike(protocol)) {
+      throw new ApiError('v1 quotes are EVM-only', 400);
     }
 
-    // Mode controls expiry and submitter:
-    //   transient → expiry == issuedAt, submitter = QuotedCalls (prevents front-running)
-    //   standing  → expiry  > issuedAt, submitter = address(0) (unrestricted)
-    const binding: QuoteBinding = {
-      salt,
-      submitter:
-        this.quoteMode === 'transient' ? ctx.quotedCallsAddress : ZERO_ADDRESS,
-      expiry: this.quoteMode === 'transient' ? 'transient' : this.quoteExpiry,
-      transientBuffer: DEFAULT_TRANSIENT_BUFFER_SECONDS,
-    };
-
+    const binding = this.buildBinding(salt);
     const destChainName = this.multiProvider.getChainName(destination);
-    const quotePromises: Promise<SubmitQuoteCommand>[] = [];
 
-    if (WARP_FEE_COMMANDS.has(command)) {
-      if (!recipient) {
-        throw new ApiError(`recipient required for ${command}`, 400);
-      }
-      const feeResult = resolveFeeQuoter(
-        routerCtx.derivedConfig,
-        destChainName,
-        this.account.address,
-        targetRouter,
-      );
-      if (feeResult.resolved) {
-        quotePromises.push(
-          this.signWarpFeeQuote(
-            ctx,
-            feeResult.address as Address,
-            destination,
-            recipient,
-            binding,
-          ),
-        );
-      } else {
-        this.logSkipped(
-          'warp fee',
-          feeResult.reason,
-          origin,
-          router,
-          destChainName,
-        );
-      }
-    }
-
-    const igpResult = resolveIgp(
-      routerCtx.derivedConfig,
+    const quotes = await this.evm.getV1Quotes({
+      command,
+      origin,
       destChainName,
-      this.account.address,
-    );
-    if (igpResult.resolved) {
-      quotePromises.push(
-        this.signIgpQuote(
-          ctx,
-          igpResult.address as Address,
-          routerCtx.feeToken,
-          destination,
-          router,
-          binding,
-        ),
-      );
-    } else {
-      this.logSkipped('IGP', igpResult.reason, origin, router, destChainName);
-    }
-
-    const quotes = await Promise.all(quotePromises);
+      destination,
+      router,
+      recipient,
+      targetRouter,
+      binding,
+    });
 
     const dest = String(destination);
     for (const q of quotes) {
@@ -192,231 +137,120 @@ export class QuoteService {
         quoters: quotes.map((q) => q.quoter),
         mode: this.quoteMode,
       },
-      'Generated signed quotes',
+      'Generated v1 signed quotes',
     );
 
     return { quotes };
   }
 
-  private logSkipped(
-    quoterType: string,
-    reason: SkipReason,
-    origin: string,
-    router: Address,
-    destination: string,
-  ): void {
-    const ctx = { origin, router, destination, quoterType: quoterType };
-    if (reason === 'not_authorized') {
-      this.logger.warn(
-        ctx,
-        `Skipping ${quoterType} quote: signer not in quoteSigners`,
-      );
-    } else {
-      this.logger.debug(
-        ctx,
-        `Skipping ${quoterType} quote: ${reason === 'not_configured' ? 'not configured' : 'contract not upgraded'}`,
-      );
-    }
-  }
+  // ============ v2: `/v2/quote/*` endpoints ============
 
-  private async signWarpFeeQuote(
-    ctx: ChainQuoteContext,
-    feeQuoter: Address,
-    destination: number,
-    recipient: Hex,
-    binding: QuoteBinding,
-  ): Promise<SubmitQuoteCommand> {
-    const context = encodePacked(
-      ['uint32', 'bytes32', 'uint256'],
-      [destination, recipient, BigInt(2) ** BigInt(256) - BigInt(1)],
-    );
-    const data = encodePacked(['uint256', 'uint256'], [0n, 1n]);
-
-    const { quote, signature } = await this.signQuote(
-      this.multiProvider.getChainId(ctx.chainName) as number,
-      feeQuoter,
-      context,
-      data,
-      binding,
-    );
-    return { quoter: feeQuoter, quote, signature };
-  }
-
-  private async signIgpQuote(
-    ctx: ChainQuoteContext,
-    igp: Address,
-    feeToken: Address,
-    destination: number,
-    sender: Address,
-    binding: QuoteBinding,
-  ): Promise<SubmitQuoteCommand> {
-    const context = encodePacked(
-      ['address', 'uint32', 'address'],
-      [feeToken, destination, sender],
-    );
-    const data = encodePacked(['uint128', 'uint128'], [0n, 0n]);
-
-    const { quote, signature } = await this.signQuote(
-      this.multiProvider.getChainId(ctx.chainName) as number,
-      igp,
-      context,
-      data,
-      binding,
-    );
-    return { quoter: igp, quote, signature };
-  }
-
-  private async signQuote(
-    chainId: number,
-    verifyingContract: Address,
-    context: Hex,
-    data: Hex,
-    binding: QuoteBinding,
-  ): Promise<{ quote: SignedQuoteData; signature: Hex }> {
-    const now = Math.floor(Date.now() / 1000);
-    // Transient: issuedAt = expiry = now + buffer (sentinel for transient storage).
-    // The buffer ensures block.timestamp <= expiry when the tx lands.
-    // Standing: issuedAt = now, expiry = now + TTL.
-    const issuedAt =
-      binding.expiry === 'transient' ? now + binding.transientBuffer : now;
-    const expiry =
-      binding.expiry === 'transient' ? issuedAt : now + binding.expiry;
-
-    const quote: SignedQuoteData = {
-      context,
-      data,
-      issuedAt,
-      expiry,
-      salt: binding.salt,
-      submitter: binding.submitter,
+  async getWarpQuoteV2(args: {
+    origin: string;
+    router: string;
+    destination: number;
+    salt: Hex;
+    recipient: Hex;
+    targetRouter: Hex;
+    txSubmitter: string;
+  }): Promise<AnyQuoteV2Entry> {
+    const service = this.dispatch(args.origin);
+    const req: WarpQuoteRequest = {
+      origin: args.origin,
+      router: args.router,
+      destChainName: this.multiProvider.getChainName(args.destination),
+      destination: args.destination,
+      recipient: args.recipient,
+      targetRouter: args.targetRouter,
+      txSubmitter: args.txSubmitter,
+      binding: this.buildBinding(args.salt),
     };
+    const entry = await service.getWarpQuote(req);
+    this.recordQuoteServed(QuoteV2Endpoint.Warp, args, entry);
+    return entry;
+  }
 
-    const signature = await this.account.signTypedData({
-      domain: {
-        ...EIP712_DOMAIN,
-        chainId: chainId,
-        verifyingContract,
-      },
-      types: SIGNED_QUOTE_TYPES,
-      primaryType: 'SignedQuote',
-      message: {
-        context: quote.context,
-        data: quote.data,
-        issuedAt: quote.issuedAt,
-        expiry: quote.expiry,
-        salt: quote.salt,
-        submitter: quote.submitter,
-      },
+  async getIgpQuoteV2(args: {
+    origin: string;
+    router: string;
+    destination: number;
+    salt: Hex;
+    txSubmitter: string;
+  }): Promise<AnyQuoteV2Entry> {
+    const service = this.dispatch(args.origin);
+    const req: IgpQuoteRequest = {
+      origin: args.origin,
+      router: args.router,
+      destChainName: this.multiProvider.getChainName(args.destination),
+      destination: args.destination,
+      sender: args.router,
+      txSubmitter: args.txSubmitter,
+      binding: this.buildBinding(args.salt),
+    };
+    const entry = await service.getIgpQuote(req);
+    this.recordQuoteServed(QuoteV2Endpoint.Igp, args, entry);
+    return entry;
+  }
+
+  // ============ helpers ============
+
+  /**
+   * Increment the `quotes_served` counter and emit a per-quote log line for a
+   * v2 quote, mirroring the v1 `getQuote` path so SVM (v2-only) origins are not
+   * absent from `hyperlane_fee_quoting_quotes_served_total`. `command` uses the
+   * v2 endpoint name (`warp` / `igp`) — v2 has no `FeeQuotingCommand` analogue.
+   */
+  private recordQuoteServed(
+    command: QuoteV2Endpoint,
+    args: { origin: string; router: string; destination: number },
+    entry: AnyQuoteV2Entry,
+  ): void {
+    this.quotesServed?.inc({
+      origin: args.origin,
+      command,
+      router: args.router,
+      destination: String(args.destination),
+      quoter: entry.quoter,
     });
 
-    return { quote, signature };
+    this.logger.info(
+      {
+        origin: args.origin,
+        command,
+        router: args.router,
+        destination: args.destination,
+        quoter: entry.quoter,
+        mode: this.quoteMode,
+      },
+      'Generated v2 signed quote',
+    );
   }
-}
 
-/** Default transient buffer in seconds (5 minutes for testing) */
-const DEFAULT_TRANSIENT_BUFFER_SECONDS = 300;
-
-/** Salt/submitter/expiry binding for a quote */
-interface QuoteBinding {
-  salt: Hex;
-  submitter: Address;
-  /** 'transient' = expiry equals issuedAt; number = standing TTL in seconds */
-  expiry: 'transient' | number;
-  /** Buffer in seconds for transient quotes (derived from block time) */
-  transientBuffer: number;
-}
-
-// ============ Config traversal ============
-
-type SkipReason = 'not_configured' | 'not_upgraded' | 'not_authorized';
-type ResolveResult =
-  | { resolved: true; address: string }
-  | { resolved: false; reason: SkipReason };
-
-function checkSignerAuthorized(
-  signers: string[] | undefined,
-  signer: Address,
-): SkipReason | undefined {
-  if (!signers) return 'not_upgraded';
-  if (signers.length === 0) return 'not_upgraded';
-  if (!signers.some((s) => eqAddress(s, signer))) return 'not_authorized';
-  return undefined;
-}
-
-function resolveFeeQuoter(
-  config: DerivedTokenRouterConfig,
-  destChainName: string,
-  signer: Address,
-  targetRouter?: Hex,
-): ResolveResult {
-  const tokenFee = config.tokenFee;
-  if (!tokenFee) return { resolved: false, reason: 'not_configured' };
-
-  let resolved = tokenFee;
-  if (tokenFee.type === TokenFeeType.RoutingFee && tokenFee.feeContracts) {
-    const destFee = tokenFee.feeContracts[destChainName] as
-      | DerivedTokenFeeConfig
-      | undefined;
-    if (destFee) resolved = destFee;
-  } else if (
-    tokenFee.type === TokenFeeType.CrossCollateralRoutingFee &&
-    tokenFee.feeContracts
-  ) {
-    const destConfig = tokenFee.feeContracts[destChainName] as
-      | Record<string, DerivedTokenFeeConfig>
-      | undefined;
-    if (destConfig) {
-      // Keys are router key hashes (bytes32). Look up targetRouter key first,
-      // then fall back to DEFAULT_ROUTER_KEY.
-      const routerFee = targetRouter ? destConfig[targetRouter] : undefined;
-      resolved = routerFee ?? destConfig[DEFAULT_ROUTER_KEY] ?? resolved;
+  private dispatch(origin: string): IProtocolQuoteService {
+    const protocol = this.protocolByChain.get(origin);
+    if (!protocol) {
+      throw new ApiError(`Unknown origin chain: ${origin}`, 400);
     }
+    // EVM-family chains (Ethereum, Tron, ...) all share the single
+    // EvmQuoteService registered under ProtocolType.Ethereum.
+    const key = isEVMLike(protocol) ? ProtocolType.Ethereum : protocol;
+    const service = this.services.get(key);
+    if (!service) {
+      throw new NoQuoteAvailableError(
+        NoQuoteAvailableReason.NotConfigured,
+        `Protocol ${protocol} not configured for offchain quoting`,
+      );
+    }
+    return service;
   }
 
-  const signers =
-    'quoteSigners' in resolved ? resolved.quoteSigners : undefined;
-  const reason = checkSignerAuthorized(signers, signer);
-  if (reason) return { resolved: false, reason };
-
-  return { resolved: true, address: resolved.address };
-}
-
-type ObjectHookConfig = Exclude<HookConfig, string>;
-
-/** Resolve the hook config for a specific destination, unwrapping routing layers. */
-function resolveDestinationHook(
-  hook: ObjectHookConfig,
-  destChainName: string,
-): ObjectHookConfig | undefined {
-  if (hook.type !== HookType.ROUTING && hook.type !== HookType.FALLBACK_ROUTING)
-    return hook;
-  const resolved =
-    hook.domains[destChainName] ??
-    (hook.type === HookType.FALLBACK_ROUTING ? hook.fallback : undefined);
-  return resolved && typeof resolved !== 'string' ? resolved : undefined;
-}
-
-const isIgp = (v: object): v is WithAddress<IgpHookConfig> =>
-  typeof v === 'object' &&
-  v !== null &&
-  'type' in v &&
-  v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
-  'address' in v;
-
-function resolveIgp(
-  config: DerivedTokenRouterConfig,
-  destChainName: string,
-  signer: Address,
-): ResolveResult {
-  if (typeof config.hook === 'string')
-    return { resolved: false, reason: 'not_configured' };
-
-  const destHook = resolveDestinationHook(config.hook, destChainName);
-  const igp = destHook && deepFind(destHook as object, isIgp);
-  if (!igp) return { resolved: false, reason: 'not_configured' };
-
-  const reason = checkSignerAuthorized(igp.quoteSigners, signer);
-  return reason
-    ? { resolved: false, reason }
-    : { resolved: true, address: igp.address };
+  private buildBinding(salt: Hex): QuoteBinding {
+    return this.quoteMode === QuoteMode.TRANSIENT
+      ? {
+          kind: QuoteMode.TRANSIENT,
+          salt,
+          transientBuffer: this.transientBuffer,
+        }
+      : { kind: QuoteMode.STANDING, salt, ttlSeconds: this.quoteExpiry };
+  }
 }
