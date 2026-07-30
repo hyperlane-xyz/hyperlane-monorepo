@@ -717,7 +717,17 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   interval: ZNzUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
   ),
-});
+}).refine(
+  ({ checkpointSyncer }) =>
+    checkpointSyncer.type !== 's3' ||
+    (checkpointSyncer.accessKeyId === undefined) ===
+      (checkpointSyncer.secretAccessKey === undefined),
+  {
+    message:
+      'S3 checkpoint syncer accessKeyId and secretAccessKey must be configured together',
+    path: ['checkpointSyncer'],
+  },
+);
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 

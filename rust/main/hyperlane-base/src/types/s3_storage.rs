@@ -281,10 +281,13 @@ impl S3Storage {
         Ok(())
     }
 
-    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
-        let get_object_result = self
-            .anonymous_client()
-            .await
+    async fn read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
+        let client = if self.client_config.credentials.is_some() {
+            self.authenticated_client().await.clone()
+        } else {
+            self.anonymous_client().await
+        };
+        let get_object_result = client
             .get_object()
             .bucket(self.bucket.clone())
             .key(self.get_composite_key(key.clone()))
@@ -308,7 +311,11 @@ impl S3Storage {
             .get_or_init(|| async {
                 let config = self.default_aws_sdk_config_loader().load().await;
                 let endpoint = self.resolved_endpoint();
-                self.client_from_sdk_config(&config, endpoint.as_deref(), false)
+                self.client_from_sdk_config(
+                    &config,
+                    endpoint.as_deref(),
+                    self.client_config.endpoint_is_announced,
+                )
             })
             .await
     }
@@ -450,7 +457,7 @@ impl S3Storage {
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
         let ret = self
-            .anonymously_read_from_bucket(S3Storage::latest_index_key())
+            .read_from_bucket(S3Storage::latest_index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -473,7 +480,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
+        self.read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -557,9 +564,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn reorg_status(&self) -> Result<ReorgEventResponse> {
-        let file = self
-            .anonymously_read_from_bucket(S3Storage::reorg_flag_key())
-            .await?;
+        let file = self.read_from_bucket(S3Storage::reorg_flag_key()).await?;
 
         let contents = match file {
             Some(s) => s,
@@ -810,6 +815,82 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn credentialed_reads_use_per_instance_clients() {
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binding a loopback listener must succeed");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener must have a local address");
+
+        let server = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for _ in 0..2 {
+                let (mut socket, _) = listener
+                    .accept()
+                    .await
+                    .expect("each test client must connect");
+                requests.push(read_request_headers(&mut socket).await);
+                socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                    )
+                    .await
+                    .expect("writing the response must succeed");
+            }
+            requests
+        });
+
+        let storage = |access_key_id: &str| {
+            S3Storage::new(
+                "test-bucket".to_string(),
+                None,
+                Region::new("us-east-1"),
+                S3ClientConfig {
+                    endpoint: Some(format!("http://{addr}")),
+                    force_path_style: Some(true),
+                    credentials: Some(S3Credentials {
+                        access_key_id: access_key_id.to_string(),
+                        secret_access_key: "custom-secret-key".to_string(),
+                    }),
+                    endpoint_is_announced: false,
+                },
+                None,
+            )
+        };
+        let first = storage("first-access-key");
+        let second = storage("second-access-key");
+
+        first
+            .read_from_bucket("metadata_latest.json".to_string())
+            .await
+            .expect("the first credentialed read must succeed");
+        second
+            .read_from_bucket("metadata_latest.json".to_string())
+            .await
+            .expect("the second credentialed read must succeed");
+
+        let requests = server.await.expect("the mock server task must not panic");
+        let requests: Vec<_> = requests
+            .into_iter()
+            .map(|request| String::from_utf8(request).expect("request headers must be UTF-8"))
+            .collect();
+        assert!(
+            requests[0].contains("Credential=first-access-key/"),
+            "first read used the wrong credentials: {}",
+            requests[0]
+        );
+        assert!(
+            requests[1].contains("Credential=second-access-key/"),
+            "second read used the wrong credentials: {}",
+            requests[1]
+        );
+    }
+
     #[test]
     fn custom_announcement_round_trip_marks_endpoint_untrusted() {
         use std::str::FromStr;
@@ -883,7 +964,7 @@ mod tests {
     /// buffer first. If the download weren't actually being aborted, the server would keep
     /// streaming (and this future would keep awaiting) for as long as it takes to send 1GiB.
     #[tokio::test]
-    async fn anonymously_read_from_bucket_aborts_download_of_oversized_object() {
+    async fn read_from_bucket_aborts_download_of_oversized_object() {
         use tokio::io::AsyncWriteExt;
         use tokio::net::TcpListener;
 

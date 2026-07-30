@@ -67,6 +67,7 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
     // the validator signing key with the version helm needs.
     Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
       validator: KeyConfig;
+      chainSigner: KeyConfig | undefined;
       checkpointSyncerCredentials?: S3CheckpointSyncerCredentials;
     }
   >;

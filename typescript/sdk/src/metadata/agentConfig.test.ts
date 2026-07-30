@@ -161,8 +161,11 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
 });
 
 describe('ValidatorAgentConfigSchema S3 compatibility', () => {
-  it('preserves endpoint and path-style options', () => {
-    const result = ValidatorAgentConfigSchema.safeParse({
+  function configWithCredentials(credentials: {
+    accessKeyId?: string;
+    secretAccessKey?: string;
+  }) {
+    return {
       chains: {
         legacy: {
           name: 'legacy',
@@ -186,10 +189,18 @@ describe('ValidatorAgentConfigSchema S3 compatibility', () => {
         region: 'us-east-1',
         endpoint: 'http://127.0.0.1:9000',
         forcePathStyle: true,
+        ...credentials,
+      },
+    };
+  }
+
+  it('preserves endpoint, path-style, and credential options', () => {
+    const result = ValidatorAgentConfigSchema.safeParse(
+      configWithCredentials({
         accessKeyId: 'test-access-key',
         secretAccessKey: 'test-secret-key',
-      },
-    });
+      }),
+    );
 
     expect(result.success).to.be.true;
     if (result.success && result.data.checkpointSyncer.type === 's3') {
@@ -204,6 +215,22 @@ describe('ValidatorAgentConfigSchema S3 compatibility', () => {
         'test-secret-key',
       );
     }
+  });
+
+  it('rejects accessKeyId without secretAccessKey', () => {
+    expect(
+      ValidatorAgentConfigSchema.safeParse(
+        configWithCredentials({ accessKeyId: 'test-access-key' }),
+      ).success,
+    ).to.be.false;
+  });
+
+  it('rejects secretAccessKey without accessKeyId', () => {
+    expect(
+      ValidatorAgentConfigSchema.safeParse(
+        configWithCredentials({ secretAccessKey: 'test-secret-key' }),
+      ).success,
+    ).to.be.false;
   });
 });
 
