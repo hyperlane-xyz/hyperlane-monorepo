@@ -192,7 +192,7 @@ impl Signer for GcpSigner {
 
 /// Converts a signature + derived recovery id into an ethers signature (v = 27/28, no EIP-155 offset yet).
 fn ksig_to_ethsig(sig: &KSig, recovery_id: RecoveryId) -> EthSig {
-    let v = (recovery_id.to_byte() + 27) as u64;
+    let v = u64::from(recovery_id.to_byte()).saturating_add(27);
     let (r, s) = sig.split_bytes();
     let r = U256::from_big_endian(r.as_slice());
     let s = U256::from_big_endian(s.as_slice());
@@ -201,7 +201,10 @@ fn ksig_to_ethsig(sig: &KSig, recovery_id: RecoveryId) -> EthSig {
 
 /// Modify the v value of a signature to conform to EIP-155.
 fn apply_eip155(sig: &mut EthSig, chain_id: u64) {
-    sig.v = (chain_id * 2 + 35) + ((sig.v - 1) % 2);
+    sig.v = chain_id
+        .saturating_mul(2)
+        .saturating_add(35)
+        .saturating_add(sig.v.saturating_sub(1).wrapping_rem(2));
 }
 
 /// Convert a verifying key to an Ethereum address.
