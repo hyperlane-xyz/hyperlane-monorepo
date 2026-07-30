@@ -2,15 +2,32 @@ import { BigNumber, Wallet, ethers, providers } from 'ethers';
 import { keccak256 as ethersKeccak256 } from 'ethers/lib/utils.js';
 import { TronWeb, Types } from 'tronweb';
 
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  retryAsync,
+  sleep,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   MAX_TRON_ORIGIN_ENERGY_LIMIT,
   TronJsonRpcProvider,
 } from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
-import { assertTronReceiptSuccess } from '../utils/index.js';
+import { assertTronReceiptSuccess, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
+
+/**
+ * Max time to wait for a broadcast Tron transaction to be mined before failing.
+ * Bounds the confirmation poll so a dropped/never-mined tx rejects loudly
+ * instead of hanging forever.
+ */
+const TX_CONFIRMATION_TIMEOUT_MS = 90_000;
+
+/** Interval between confirmation polls while waiting for a receipt. */
+const TX_CONFIRMATION_POLL_MS = 1_000;
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -158,13 +175,16 @@ export class TronWallet extends Wallet {
 export class TronTransactionBuilder extends TronWeb {
   private tronAddress: string;
   private tronAddressHex: string;
-  private provider: TronJsonRpcProvider;
+  private confirmationTimeoutMs: number;
+  private confirmationPollMs: number;
 
   constructor(
     tronWebUrl: string,
     tronAddress: string,
-    jsonRpcUrl?: string,
+    _jsonRpcUrl?: string,
     headers?: Record<string, string>,
+    confirmationTimeoutMs: number = TX_CONFIRMATION_TIMEOUT_MS,
+    confirmationPollMs: number = TX_CONFIRMATION_POLL_MS,
   ) {
     // Strip custom_rpc_header from the URL and merge with any provided headers
     const { url: cleanTronWebUrl, headers: parsedHeaders } =
@@ -174,18 +194,9 @@ export class TronTransactionBuilder extends TronWeb {
 
     this.tronAddress = tronAddress;
     this.setAddress(this.tronAddress);
-    // Use provided JSON-RPC URL, or derive from TronWeb URL.
-    // Use URL API so /jsonrpc goes into the pathname, not after query params.
-    let rpcUrl = jsonRpcUrl;
-    if (!rpcUrl) {
-      const u = new URL(tronWebUrl);
-      if (!u.pathname.endsWith('/jsonrpc')) {
-        u.pathname = u.pathname.replace(/\/$/, '') + '/jsonrpc';
-      }
-      rpcUrl = u.toString();
-    }
-    this.provider = new TronJsonRpcProvider(rpcUrl);
     this.tronAddressHex = this.address.toHex(this.tronAddress);
+    this.confirmationTimeoutMs = confirmationTimeoutMs;
+    this.confirmationPollMs = confirmationPollMs;
   }
 
   getTransactionResponse(
@@ -211,36 +222,100 @@ export class TronTransactionBuilder extends TronWeb {
       nonce: 0,
       gasLimit,
       gasPrice,
-      data: evmTx.data?.toString() ?? '0x',
+      data: isNullish(evmTx.data) ? '0x' : ethers.utils.hexlify(evmTx.data),
       value: BigNumber.from(evmTx.value ?? 0),
       chainId: evmTx.chainId!,
       tronTransaction: tronTx,
       wait: async (confirmations?: number) => {
         const hash = txHash ? ensure0x(txHash) : originalTxHash;
-        const receipt = await this.provider.waitForTransaction(
-          hash,
-          confirmations,
-        );
-        // Stock ethers waitForTransaction resolves the receipt without the
-        // status-0 revert throw it only injects for EVM. getTransactionInfo
-        // queries the solidity node, which lags mining and returns {} until the
-        // block solidifies, so use the full-node unconfirmed info that is
-        // available immediately. If it is not yet populated, fall back to the
-        // JSON-RPC receipt status so a reverted tx still fails loudly.
-        const info = await this.trx.getUnconfirmedTransactionInfo(
-          strip0x(hash),
-        );
-        if (info?.id) {
-          assertTronReceiptSuccess(info, this, strip0x(hash));
-        } else {
-          assert(
-            receipt.status !== 0,
-            `Tron Transaction Failed: reverted (txid: ${strip0x(hash)})`,
-          );
-        }
-        return receipt;
+        return this.waitForTransactionReceipt(hash, confirmations, evmTx);
       },
     };
+  }
+
+  private async waitForTransactionReceipt(
+    txHash: string,
+    confirmations = 1,
+    evmTx: TransactionRequest,
+  ): Promise<providers.TransactionReceipt> {
+    const txid = strip0x(txHash);
+    const deadline = Date.now() + this.confirmationTimeoutMs;
+    while (Date.now() < deadline) {
+      const info = await retryAsync(
+        () => this.trx.getUnconfirmedTransactionInfo(txid),
+        5,
+        500,
+      );
+      if (info?.id && info.blockNumber) {
+        assertTronReceiptSuccess(info, this, txid);
+        const currentBlock =
+          confirmations > 1
+            ? await retryAsync(() => this.trx.getCurrentBlock(), 5, 500)
+            : undefined;
+        const actualConfirmations =
+          (currentBlock?.block_header.raw_data.number ?? info.blockNumber) -
+          info.blockNumber +
+          1;
+        if (actualConfirmations >= confirmations) {
+          return this.toEthersReceipt(info, actualConfirmations, evmTx);
+        }
+      }
+      await sleep(this.confirmationPollMs);
+    }
+    throw new Error(
+      `Tron transaction ${txid} not confirmed within ${this.confirmationTimeoutMs}ms`,
+    );
+  }
+
+  private toEthersReceipt(
+    info: Types.TransactionInfo,
+    confirmations: number,
+    evmTx: TransactionRequest,
+  ): providers.TransactionReceipt {
+    const transactionHash = ensure0x(info.id);
+    // Tron transaction info omits blockHash. Avoid another rate-limited RPC;
+    // Hyperlane receipt consumers only require logs and blockNumber.
+    const blockHash = `0x${'0'.repeat(64)}`;
+    const logs = (info.log ?? []).map((log, logIndex) => ({
+      blockNumber: info.blockNumber,
+      blockHash,
+      transactionIndex: 0,
+      removed: false,
+      address: ethers.utils.getAddress(
+        ensure0x(
+          log.address.startsWith('41') && log.address.length === 42
+            ? log.address.slice(2)
+            : log.address,
+        ),
+      ),
+      data: ensure0x(log.data ?? ''),
+      topics: (log.topics ?? []).map((topic) => ensure0x(topic)),
+      transactionHash,
+      logIndex,
+    }));
+    const gasUsed = BigNumber.from(info.receipt?.energy_usage_total ?? 0);
+
+    const receipt: providers.TransactionReceipt = {
+      to: evmTx.to ?? ethers.constants.AddressZero,
+      from: ethers.utils.getAddress(
+        ensure0x(this.tronAddressHex.slice(2)).toLowerCase(),
+      ),
+      contractAddress: ethers.constants.AddressZero,
+      transactionIndex: 0,
+      gasUsed,
+      logsBloom: `0x${'0'.repeat(512)}`,
+      blockHash,
+      transactionHash,
+      logs,
+      blockNumber: info.blockNumber,
+      confirmations,
+      cumulativeGasUsed: gasUsed,
+      effectiveGasPrice: BigNumber.from(0),
+      byzantium: true,
+      type: 0,
+      status: 1,
+    };
+    return receipt;
   }
 
   async buildTransaction(
@@ -276,7 +351,7 @@ export class TronTransactionBuilder extends TronWeb {
     return this.transactionBuilder.createSmartContract(
       {
         abi: [],
-        bytecode: strip0x(tx.data.toString()),
+        bytecode: strip0x(ethers.utils.hexlify(tx.data)),
         feeLimit,
         callValue,
         originEnergyLimit: Math.min(
@@ -293,14 +368,16 @@ export class TronTransactionBuilder extends TronWeb {
     feeLimit: number,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(tx.to!).toLowerCase();
+    assert(tx.to, 'Contract call transaction must have a destination');
+    assert(tx.data, 'Contract call transaction must have data');
+    const tronHexTo = toTronHex(this, tx.to);
     const result = await this.transactionBuilder.triggerSmartContract(
       tronHexTo,
       '',
       {
         feeLimit,
         callValue,
-        input: strip0x(tx.data!.toString()),
+        input: strip0x(ethers.utils.hexlify(tx.data)),
       },
       [],
       this.tronAddress,
@@ -316,7 +393,7 @@ export class TronTransactionBuilder extends TronWeb {
     to: string,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(to).toLowerCase();
+    const tronHexTo = toTronHex(this, to);
     return this.transactionBuilder.sendTrx(
       tronHexTo,
       callValue,
