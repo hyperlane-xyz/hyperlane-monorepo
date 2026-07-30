@@ -225,8 +225,15 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
+        _clearRebalanceState(domain);
+        Router._unenrollRemoteRouter(domain);
+    }
+
+    /// @dev Clears the rebalance config (recipient + allowed bridges) for a
+    /// domain losing its last enrollment, so a removed route cannot retain
+    /// rebalance authority.
+    function _clearRebalanceState(uint32 domain) internal {
         delete allowed.recipient[domain];
         _clear(allowed.bridges[domain]._inner);
-        Router._unenrollRemoteRouter(domain);
     }
 }

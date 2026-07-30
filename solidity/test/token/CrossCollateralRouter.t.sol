@@ -1840,6 +1840,60 @@ contract CrossCollateralRouterTest is Test {
         );
     }
 
+    function test_unenrollCrossCollateralRouters_clearsRebalanceState_ccrOnlyDomain()
+        public
+    {
+        bytes32 ctusdRouter = address(usdcRouterB).addressToBytes32();
+        _enrollCitreaOnUsdtA(ctusdRouter);
+
+        MockITokenBridge ironBridge = new MockITokenBridge(originUSDT);
+        usdtRouterA.addBridge(CITREA_DOMAIN, ironBridge);
+        usdtRouterA.setRecipient(CITREA_DOMAIN, ctusdRouter);
+        usdtRouterA.addRebalancer(address(this));
+
+        assertEq(usdtRouterA.allowedRecipient(CITREA_DOMAIN), ctusdRouter);
+        assertEq(usdtRouterA.allowedBridges(CITREA_DOMAIN).length, 1);
+
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = CITREA_DOMAIN;
+        routers[0] = ctusdRouter;
+        usdtRouterA.unenrollCrossCollateralRouters(domains, routers);
+
+        // The last CCR route is gone and the domain has no classic remote
+        // router, so its rebalance config is scrubbed.
+        assertEq(usdtRouterA.allowedRecipient(CITREA_DOMAIN), bytes32(0));
+        assertEq(usdtRouterA.allowedBridges(CITREA_DOMAIN).length, 0);
+
+        // A removed route can no longer retain rebalance authority.
+        vm.expectRevert("MCR: Not allowed bridge");
+        usdtRouterA.rebalance(CITREA_DOMAIN, 1, ironBridge);
+    }
+
+    function test_unenrollCrossCollateralRouters_keepsRebalanceState_classicDomain()
+        public
+    {
+        // DESTINATION is classically enrolled in setUp; also give it a CCR route.
+        bytes32 ccrRouter = address(usdcRouterB).addressToBytes32();
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = DESTINATION;
+        routers[0] = ccrRouter;
+        usdtRouterA.enrollCrossCollateralRouters(domains, routers);
+
+        MockITokenBridge bridge = new MockITokenBridge(originUSDT);
+        usdtRouterA.addBridge(DESTINATION, bridge);
+        bytes32 recipient = address(0xBEEF).addressToBytes32();
+        usdtRouterA.setRecipient(DESTINATION, recipient);
+
+        // Unenroll the CCR route; the classic remote router remains.
+        usdtRouterA.unenrollCrossCollateralRouters(domains, routers);
+
+        // Config is preserved because the domain is still classically enrolled.
+        assertEq(usdtRouterA.allowedRecipient(DESTINATION), recipient);
+        assertEq(usdtRouterA.allowedBridges(DESTINATION).length, 1);
+    }
+
     // ============ Helpers ============
 
     function _batchEnroll(

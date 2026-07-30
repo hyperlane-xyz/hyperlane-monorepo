@@ -117,6 +117,12 @@ contract CrossCollateralRouter is
             if (_crossCollateralRouters[_domains[i]].remove(_routers[i])) {
                 if (_crossCollateralRouters[_domains[i]].length() == 0) {
                     _crossCollateralDomains.remove(uint256(_domains[i]));
+                    // No cross-collateral route remains for this domain; if it
+                    // also has no classic remote router, clear its rebalance
+                    // config so a removed route cannot retain rebalance authority.
+                    if (routers(_domains[i]) == bytes32(0)) {
+                        _clearRebalanceState(_domains[i]);
+                    }
                 }
                 emit CrossCollateralRouterUnenrolled(_domains[i], _routers[i]);
             }
