@@ -58,6 +58,13 @@ pub const FALLBACK_HEDGE_DURATION_SECONDS_LABELS: &[&str] = &["chain", "method",
 pub const FALLBACK_HEDGE_DURATION_SECONDS_HELP: &str =
     "End-to-end duration of fallback requests eligible for hedging";
 
+/// Expected label names for the dynamic-block request cache metric.
+pub const REQUEST_CACHE_COUNT_LABELS: &[&str] =
+    &["provider_node", "chain", "method", "result", "rpc_role"];
+/// Help string for the dynamic-block request cache metric.
+pub const REQUEST_CACHE_COUNT_HELP: &str =
+    "Logical reads, cache hits, upstream reads, and upstream errors for cached RPC requests";
+
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
@@ -102,6 +109,15 @@ pub struct PrometheusClientMetrics {
     /// End-to-end latency for requests eligible for fallback hedging.
     #[builder(setter(into, strip_option), default)]
     pub fallback_hedge_duration_seconds: Option<HistogramVec>,
+
+    /// Dynamic-block request cache events.
+    /// - `provider_node`: node serving the request.
+    /// - `chain`: chain the request was made on.
+    /// - `method`: JSON-RPC method.
+    /// - `result`: `logical_read`, `cache_hit`, `upstream_read`, or `upstream_error`.
+    /// - `rpc_role`: primary or quorum pool.
+    #[builder(setter(into, strip_option), default)]
+    pub request_cache_count: Option<IntCounterVec>,
 }
 
 impl PrometheusClientMetrics {
@@ -177,6 +193,26 @@ impl PrometheusClientMetrics {
         };
         if let Some(histogram) = &self.fallback_hedge_duration_seconds {
             histogram.with(&labels).observe(duration.as_secs_f64());
+        }
+    }
+
+    /// Increment a dynamic-block request cache event.
+    pub fn increment_request_cache_metric(
+        &self,
+        config: &PrometheusConfig,
+        method: &str,
+        result: &str,
+    ) {
+        if let Some(counter) = &self.request_cache_count {
+            counter
+                .with_label_values(&[
+                    config.node_host(),
+                    config.chain_name(),
+                    method,
+                    result,
+                    config.rpc_role.as_str(),
+                ])
+                .inc();
         }
     }
 }
