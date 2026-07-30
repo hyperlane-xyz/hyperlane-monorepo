@@ -1,5 +1,14 @@
 # @hyperlane-xyz/radix-sdk
 
+## 39.1.0
+
+### Patch Changes
+
+- 6c9210b: Lazy-loaded the Radix browser provider and exposed token metadata through its public async API so applications without active Radix usage no longer include the Radix Engine Toolkit in their initial bundle.
+- Updated dependencies [4976bb1]
+  - @hyperlane-xyz/utils@39.1.0
+  - @hyperlane-xyz/provider-sdk@8.0.1
+
 ## 39.0.0
 
 ### Major Changes
