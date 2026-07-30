@@ -80,6 +80,7 @@ catalog:
   # AWS
   '@aws-sdk/client-s3': ^3.577.0
   '@aws-sdk/client-kms': ^3.577.0
+  '@smithy/node-http-handler': ^4.4.5
 
   # Registry
   '@hyperlane-xyz/registry': 24.3.0

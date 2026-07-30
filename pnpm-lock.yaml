@@ -93,6 +93,9 @@ catalogs:
     '@safe-global/types-kit':
       specifier: 3.1.0
       version: 3.1.0
+    '@smithy/node-http-handler':
+      specifier: ^4.4.5
+      version: 4.4.5
     '@solana/kit':
       specifier: ^6.1.0
       version: 6.1.0
@@ -2241,6 +2244,9 @@ importers:
       '@safe-global/types-kit':
         specifier: 'catalog:'
         version: 3.1.0(typescript@6.0.2)(zod@3.25.76)
+      '@smithy/node-http-handler':
+        specifier: 'catalog:'
+        version: 4.4.5
       '@solana/spl-token':
         specifier: 'catalog:'
         version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)

@@ -1,13 +1,14 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { AgentSignerKeyType, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
 import { Role } from '../src/roles.js';
 import type { RootAgentConfig } from '../src/config/agent/agent.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 
+import { AgentAwsKey } from '../src/agents/aws/key.js';
 import { ValidatorHelmManager } from '../src/agents/index.js';
 import { ValidatorAgentAwsUser } from '../src/agents/aws/validator-user.js';
 
@@ -64,7 +65,7 @@ describe('ValidatorHelmManager', () => {
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);
   });
 
-  it('uses pre-provisioned credentials without AWS provisioning for custom S3', async () => {
+  it('separates custom S3 credentials from AWS signer provisioning', async () => {
     const createUser = sinon.stub(
       ValidatorAgentAwsUser.prototype,
       'createIfNotExists',
@@ -76,6 +77,10 @@ describe('ValidatorHelmManager', () => {
     const createKey = sinon.stub(
       ValidatorAgentAwsUser.prototype,
       'createKeyIfNotExists',
+    );
+    createKey.callsFake(
+      async (agentConfig) =>
+        new AgentAwsKey(agentConfig, Role.Validator, 'sepolia', 0),
     );
     const config: RootAgentConfig = {
       runEnv: 'testnet4',
@@ -124,9 +129,9 @@ describe('ValidatorHelmManager', () => {
     const values = await manager.helmValues();
     const validator = values.hyperlane.validator?.configs?.[0];
 
-    sinon.assert.notCalled(createUser);
+    sinon.assert.calledOnce(createUser);
     sinon.assert.notCalled(createBucket);
-    sinon.assert.notCalled(createKey);
+    sinon.assert.calledOnce(createKey);
     expect(validator?.checkpointSyncer).to.deep.equal({
       type: CheckpointSyncerType.S3,
       bucket: 'test-bucket',
@@ -137,5 +142,11 @@ describe('ValidatorHelmManager', () => {
       accessKeyIdSecret: 'do-spaces-access-key-id',
       secretAccessKeySecret: 'do-spaces-secret-access-key',
     });
+    expect(validator?.validator).to.deep.equal({
+      type: AgentSignerKeyType.Aws,
+      id: 'alias/fastpath-testnet4-key-validator-0',
+      region: 'us-east-1',
+    });
+    expect(validator?.chainSigner).to.deep.equal(validator?.validator);
   });
 });

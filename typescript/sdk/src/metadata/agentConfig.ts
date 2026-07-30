@@ -680,6 +680,16 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .boolean()
           .optional()
           .describe('Whether to force path-style bucket addressing'),
+        accessKeyId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('An access key scoped to this S3 checkpoint syncer'),
+        secretAccessKey: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('A secret key scoped to this S3 checkpoint syncer'),
       })
       .describe('A checkpoint syncer that uses S3'),
     z

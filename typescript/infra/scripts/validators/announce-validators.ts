@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, isValidValidatorStorageLocation } from '@hyperlane-xyz/sdk';
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
@@ -46,7 +46,7 @@ async function main() {
   if (location) {
     chains.push(chain!);
 
-    if (location.startsWith('s3://')) {
+    if (isValidValidatorStorageLocation(location)) {
       const validator = await InfraS3Validator.fromStorageLocation(location);
       announcements.push({
         storageLocation: validator.storageLocation(),

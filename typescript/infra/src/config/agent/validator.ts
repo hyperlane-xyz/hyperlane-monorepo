@@ -173,6 +173,23 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
           `Custom S3 checkpoint syncer for ${this.chainName} validator ${idx} requires credential secret references`,
         );
         checkpointSyncerCredentials = credentials;
+        if (this.aws) {
+          // The signer still needs its AWS IAM credentials and KMS policy, but
+          // custom checkpoint storage must not trigger AWS S3 provisioning.
+          const awsUser = new ValidatorAgentAwsUser(
+            this.runEnv,
+            this.context,
+            this.chainName,
+            idx,
+            this.aws.region,
+            cfg.checkpointSyncer.bucket,
+          );
+          await awsUser.createIfNotExists();
+          validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+          if (isEVMLike(protocol)) {
+            chainSigner = validator;
+          }
+        }
       } else {
         const awsUser = new ValidatorAgentAwsUser(
           this.runEnv,

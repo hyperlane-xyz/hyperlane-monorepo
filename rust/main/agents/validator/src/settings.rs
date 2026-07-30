@@ -15,6 +15,7 @@ use hyperlane_base::{
         parser::{RawAgentConf, RawAgentSignerConf, ValueParser},
         CheckpointSyncerConf, Settings, SignerConf,
     },
+    S3Credentials,
 };
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
@@ -372,6 +373,34 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .get_opt_key("forcePathStyle")
                 .parse_bool()
                 .end();
+            let access_key_id = syncer
+                .chain(&mut err)
+                .get_opt_key("accessKeyId")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let secret_access_key = syncer
+                .chain(&mut err)
+                .get_opt_key("secretAccessKey")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let credentials = match (access_key_id, secret_access_key) {
+                (Some(access_key_id), Some(secret_access_key)) => Some(S3Credentials {
+                    access_key_id,
+                    secret_access_key,
+                }),
+                (None, None) => None,
+                _ => {
+                    err.push(
+                        syncer.cwp.clone(),
+                        eyre!(
+                            "S3 checkpoint syncer accessKeyId and secretAccessKey must be configured together"
+                        ),
+                    );
+                    None
+                }
+            };
 
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
@@ -380,6 +409,8 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 folder,
                 endpoint,
                 force_path_style,
+                credentials,
+                endpoint_is_announced: false,
             })
         }
         Some("gcs") => {
@@ -590,7 +621,9 @@ mod test {
             "bucket": "test-bucket",
             "region": "us-east-1",
             "endpoint": "http://127.0.0.1:9000",
-            "forcepathstyle": true
+            "forcepathstyle": true,
+            "accesskeyid": "test-access-key",
+            "secretaccesskey": "test-secret-key"
         });
         let value_parser = ValueParser::new(ConfigPath::default(), &config);
         let parsed = parse_checkpoint_syncer(value_parser).expect("valid S3 config must be parsed");
@@ -602,12 +635,18 @@ mod test {
                 folder,
                 endpoint,
                 force_path_style,
+                credentials,
+                endpoint_is_announced,
             } => {
                 assert_eq!(bucket, "test-bucket");
                 assert_eq!(region.as_ref(), "us-east-1");
                 assert_eq!(folder, None);
                 assert_eq!(endpoint.as_deref(), Some("http://127.0.0.1:9000"));
                 assert_eq!(force_path_style, Some(true));
+                let credentials = credentials.expect("S3 credentials must be parsed");
+                assert_eq!(credentials.access_key_id, "test-access-key");
+                assert_eq!(credentials.secret_access_key, "test-secret-key");
+                assert!(!endpoint_is_announced);
             }
             _ => panic!("Expected S3 checkpoint syncer"),
         }

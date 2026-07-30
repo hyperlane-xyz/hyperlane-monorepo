@@ -186,6 +186,8 @@ describe('ValidatorAgentConfigSchema S3 compatibility', () => {
         region: 'us-east-1',
         endpoint: 'http://127.0.0.1:9000',
         forcePathStyle: true,
+        accessKeyId: 'test-access-key',
+        secretAccessKey: 'test-secret-key',
       },
     });
 
@@ -195,6 +197,12 @@ describe('ValidatorAgentConfigSchema S3 compatibility', () => {
         'http://127.0.0.1:9000',
       );
       expect(result.data.checkpointSyncer.forcePathStyle).to.be.true;
+      expect(result.data.checkpointSyncer.accessKeyId).to.equal(
+        'test-access-key',
+      );
+      expect(result.data.checkpointSyncer.secretAccessKey).to.equal(
+        'test-secret-key',
+      );
     }
   });
 });
