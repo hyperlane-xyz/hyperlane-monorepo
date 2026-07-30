@@ -44,6 +44,7 @@ export async function createTurnkeySigner(
       case TurnkeyRole.EvmRebalancer:
       case TurnkeyRole.EvmIgpClaimer:
       case TurnkeyRole.EvmIgpUpdater:
+      case TurnkeyRole.EvmPauser:
         signer = new TurnkeyEvmSigner(turnkeyConfig);
         break;
       default:
