@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { globby } from 'globby';
 import { basename, join } from 'path';
-import { CompiledContract } from 'starknet';
+import { hash, type CompiledContract } from 'starknet';
 
 import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
@@ -11,15 +11,20 @@ import { prettierOutputTransformer } from './prettier.js';
 
 type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
 type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
+type RawCompiledContract = Omit<CompiledContract, 'abi'> & {
+  abi: CompiledContract['abi'] | string;
+};
 export type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
 export class StarknetArtifactGenerator {
   private compiledContractsDir: string;
   private rootOutputDir: string;
+  private runtimeOutputDir: string;
 
   constructor(compiledContractsDir: string, rootOutputDir: string) {
     this.compiledContractsDir = compiledContractsDir;
     this.rootOutputDir = rootOutputDir;
+    this.runtimeOutputDir = join(rootOutputDir, '../runtime-artifacts');
   }
 
   getContractTypeFromPath(path: string): ContractType {
@@ -57,7 +62,10 @@ export class StarknetArtifactGenerator {
    * @notice Creates the output directory if it doesn't exist
    */
   async createOutputDirectory() {
-    await fs.mkdir(this.rootOutputDir, { recursive: true });
+    await Promise.all([
+      fs.mkdir(this.rootOutputDir, { recursive: true }),
+      fs.mkdir(this.runtimeOutputDir, { recursive: true }),
+    ]);
   }
 
   /**
@@ -99,6 +107,24 @@ export class StarknetArtifactGenerator {
   generateDeclarationContent(name: string, isSierra: boolean) {
     const type = isSierra ? 'CompiledContract' : 'CairoAssembly';
     return Templates.dtsArtifact(name, type);
+  }
+
+  generateRuntimeJavaScriptContent(
+    name: string,
+    artifact: RawCompiledContract,
+  ) {
+    const compiledContract: CompiledContract = {
+      ...artifact,
+      abi:
+        typeof artifact.abi === 'string'
+          ? JSON.parse(artifact.abi)
+          : artifact.abi,
+    };
+
+    return Templates.jsArtifact(name, {
+      abi: compiledContract.abi,
+      classHash: hash.computeContractClassHash(compiledContract),
+    });
   }
 
   /**
@@ -170,6 +196,52 @@ export class StarknetArtifactGenerator {
     };
   }
 
+  generateRuntimeIndexContents(processedFilesMap: ReadonlyProcessedFilesMap): {
+    jsContent: string;
+    dtsContent: string;
+  } {
+    const imports: string[] = [];
+    const contractExports: string[] = [];
+    const tokenExports: string[] = [];
+    const mockExports: string[] = [];
+
+    processedFilesMap.forEach((value, name) => {
+      if (!value.sierra) return;
+
+      const baseName = name.replace(
+        new RegExp(`^(${Object.values(ContractType).join('|')})_?`),
+        '',
+      );
+      const runtimeVarName = `${value.type}_${baseName}_runtime`;
+      imports.push(
+        `import { ${name} as ${runtimeVarName} } from './${name}.js';`,
+      );
+      const exportString = `${baseName}: ${runtimeVarName},`;
+
+      switch (value.type) {
+        case ContractType.TOKEN:
+          tokenExports.push(exportString);
+          break;
+        case ContractType.MOCK:
+          mockExports.push(exportString);
+          break;
+        default:
+          contractExports.push(exportString);
+          break;
+      }
+    });
+
+    return {
+      jsContent: Templates.jsRuntimeIndex(
+        imports.join('\n'),
+        contractExports,
+        tokenExports,
+        mockExports,
+      ),
+      dtsContent: Templates.dtsRuntimeIndex(),
+    };
+  }
+
   /**
    * @notice Processes a single artifact file
    */
@@ -205,6 +277,19 @@ export class StarknetArtifactGenerator {
       join(this.rootOutputDir, outputFileName + '.d.ts'),
       await prettierOutputTransformer(dtsContent),
     );
+
+    if (contractClass === ContractClass.SIERRA) {
+      await Promise.all([
+        fs.writeFile(
+          join(this.runtimeOutputDir, name + '.js'),
+          this.generateRuntimeJavaScriptContent(name, artifact),
+        ),
+        fs.writeFile(
+          join(this.runtimeOutputDir, name + '.d.ts'),
+          await prettierOutputTransformer(Templates.dtsRuntimeArtifact(name)),
+        ),
+      ]);
+    }
 
     return { name, contractType, contractClass };
   }
@@ -251,15 +336,26 @@ export class StarknetArtifactGenerator {
 
     const { jsContent, dtsContent } =
       this.generateIndexContents(processedFilesMap);
+    const runtimeIndex = this.generateRuntimeIndexContents(processedFilesMap);
 
-    await fs.writeFile(
-      join(this.rootOutputDir, 'index.js'),
-      await prettierOutputTransformer(jsContent),
-    );
-    await fs.writeFile(
-      join(this.rootOutputDir, 'index.d.ts'),
-      await prettierOutputTransformer(dtsContent),
-    );
+    await Promise.all([
+      fs.writeFile(
+        join(this.rootOutputDir, 'index.js'),
+        await prettierOutputTransformer(jsContent),
+      ),
+      fs.writeFile(
+        join(this.rootOutputDir, 'index.d.ts'),
+        await prettierOutputTransformer(dtsContent),
+      ),
+      fs.writeFile(
+        join(this.runtimeOutputDir, 'index.js'),
+        await prettierOutputTransformer(runtimeIndex.jsContent),
+      ),
+      fs.writeFile(
+        join(this.runtimeOutputDir, 'index.d.ts'),
+        await prettierOutputTransformer(runtimeIndex.dtsContent),
+      ),
+    ]);
 
     return processedFilesMap;
   }

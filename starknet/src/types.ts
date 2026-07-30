@@ -21,6 +21,21 @@ export interface StarknetContracts {
   mocks: StarknetContractGroup;
 }
 
+export interface StarknetRuntimeContract {
+  abi: CompiledContract['abi'];
+  classHash: string;
+}
+
+export interface StarknetRuntimeContractGroup {
+  [name: string]: StarknetRuntimeContract;
+}
+
+export interface StarknetRuntimeContracts {
+  contracts: StarknetRuntimeContractGroup;
+  token: StarknetRuntimeContractGroup;
+  mocks: StarknetRuntimeContractGroup;
+}
+
 /**
  * @notice Contract file type enum
  */
