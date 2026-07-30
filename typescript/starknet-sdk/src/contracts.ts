@@ -14,8 +14,8 @@ import {
 
 import {
   ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractAbi as getPublishedContractAbi,
+} from '@hyperlane-xyz/starknet-core/runtime';
 import {
   ZERO_ADDRESS_HEX_32,
   assert,
@@ -133,9 +133,8 @@ export function getStarknetContract(
   providerOrAccount?: ProviderInterface | AccountInterface,
   contractType: ContractType = ContractType.CONTRACT,
 ): Contract {
-  const { abi } = getCompiledContract(contractName, contractType);
   return new Contract(
-    abi,
+    getPublishedContractAbi(contractName, contractType),
     normalizeStarknetAddressSafe(address),
     providerOrAccount,
   );

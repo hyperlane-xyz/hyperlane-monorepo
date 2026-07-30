@@ -10,6 +10,13 @@ export class Templates {
       `;
   }
 
+  static dtsRuntimeArtifact(name: string) {
+    return `
+      import type { StarknetRuntimeContract } from '../types.js';
+      export declare const ${name}: StarknetRuntimeContract;
+      `;
+  }
+
   static jsIndex(
     imports: string,
     contractExports: string[],
@@ -38,5 +45,34 @@ ${mockExports.join('\n')}
   
 import type { StarknetContracts } from '../types';
 export declare const starknetContracts: StarknetContracts;`;
+  }
+
+  static jsRuntimeIndex(
+    imports: string,
+    contractExports: string[],
+    tokenExports: string[],
+    mockExports: string[],
+  ) {
+    return `
+${imports}
+
+export const starknetRuntimeContracts = {
+  contracts: {
+${contractExports.join('\n')}
+  },
+  token: {
+${tokenExports.join('\n')}
+  },
+  mocks: {
+${mockExports.join('\n')}
+  },
+};
+`;
+  }
+
+  static dtsRuntimeIndex() {
+    return `import type { StarknetRuntimeContracts } from '../types.js';
+
+export declare const starknetRuntimeContracts: StarknetRuntimeContracts;`;
   }
 }

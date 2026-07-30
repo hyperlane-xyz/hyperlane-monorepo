@@ -40,7 +40,7 @@ export async function loadProtocolProviders(
       }
       case ProtocolType.Starknet: {
         const { StarknetProtocolProvider } =
-          await import('@hyperlane-xyz/starknet-sdk');
+          await import('@hyperlane-xyz/starknet-sdk/runtime');
         registerProtocol(protocol, () => new StarknetProtocolProvider());
         break;
       }
