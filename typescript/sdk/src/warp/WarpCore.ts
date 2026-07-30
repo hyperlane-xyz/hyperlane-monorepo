@@ -35,6 +35,7 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
+  XERC20_STANDARDS,
 } from '../token/TokenStandard.js';
 import { TokenType } from '../token/config.js';
 import {
@@ -1582,13 +1583,7 @@ export class WarpCore {
     }
 
     let destinationMintLimit: bigint = 0n;
-    if (
-      resolvedDestinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
-      resolvedDestinationToken.standard ===
-        TokenStandard.EvmHypVSXERC20Lockbox ||
-      resolvedDestinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      resolvedDestinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
+    if (XERC20_STANDARDS.includes(resolvedDestinationToken.standard)) {
       const adapter = resolvedDestinationToken.getAdapter(
         this.multiProvider,
       ) as IHypXERC20Adapter<unknown>;
@@ -1597,7 +1592,10 @@ export class WarpCore {
       if (
         resolvedDestinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
         resolvedDestinationToken.standard ===
-          TokenStandard.EvmHypVSXERC20Lockbox
+          TokenStandard.EvmHypVSXERC20Lockbox ||
+        resolvedDestinationToken.standard === TokenStandard.TronHypVSXERC20 ||
+        resolvedDestinationToken.standard ===
+          TokenStandard.TronHypVSXERC20Lockbox
       ) {
         const bufferCap = await adapter.getMintMaxLimit();
         const max = bufferCap / 2n;
@@ -1609,7 +1607,9 @@ export class WarpCore {
         }
       }
     } else if (
-      resolvedDestinationToken.standard === TokenStandard.EvmHypCollateralFiat
+      resolvedDestinationToken.standard ===
+        TokenStandard.EvmHypCollateralFiat ||
+      resolvedDestinationToken.standard === TokenStandard.TronHypCollateralFiat
     ) {
       const adapter = resolvedDestinationToken.getAdapter(
         this.multiProvider,
@@ -1641,10 +1641,7 @@ export class WarpCore {
   ): Promise<Record<string, string> | null> {
     const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
 
-    if (
-      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
-      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
+    if (XERC20_STANDARDS.includes(originTokenAmount.token.standard)) {
       const burnLimit = await (
         adapter as IHypXERC20Adapter<unknown>
       ).getBurnLimit();

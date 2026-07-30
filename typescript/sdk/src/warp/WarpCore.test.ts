@@ -803,6 +803,108 @@ describe('WarpCore', () => {
     });
   });
 
+  it('Validates Tron destination rate limits', async () => {
+    const standards = [
+      TokenStandard.TronHypXERC20,
+      TokenStandard.TronHypXERC20Lockbox,
+      TokenStandard.TronHypVSXERC20,
+      TokenStandard.TronHypVSXERC20Lockbox,
+      TokenStandard.TronHypCollateralFiat,
+    ];
+
+    for (const standard of standards) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard,
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      originToken.connections!.push({ token: destinationToken });
+
+      const getMintLimit = sinon.stub().resolves(80n);
+      const getMintMaxLimit = sinon.stub().resolves(100n);
+      sinon.stub(destinationToken, 'getAdapter').returns({
+        getMintLimit,
+        getMintMaxLimit,
+      } as any);
+
+      const tronWarpCore = new WarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const isVSXERC20 =
+        standard === TokenStandard.TronHypVSXERC20 ||
+        standard === TokenStandard.TronHypVSXERC20Lockbox;
+      const expectedLimit = isVSXERC20 ? 50n : 80n;
+
+      expect(
+        await (tronWarpCore as any).validateDestinationRateLimit(
+          originToken.amount(expectedLimit),
+          test2.name,
+        ),
+      ).to.be.null;
+      expect(
+        await (tronWarpCore as any).validateDestinationRateLimit(
+          originToken.amount(expectedLimit + 1n),
+          test2.name,
+        ),
+      ).to.deep.equal({ amount: 'Rate limit exceeded on destination' });
+      sinon.assert.calledTwice(getMintLimit);
+      if (isVSXERC20) sinon.assert.calledTwice(getMintMaxLimit);
+      else sinon.assert.notCalled(getMintMaxLimit);
+    }
+  });
+
+  it('Validates Tron xERC20 origin burn limits', async () => {
+    const standards = [
+      TokenStandard.TronHypXERC20,
+      TokenStandard.TronHypXERC20Lockbox,
+      TokenStandard.TronHypVSXERC20,
+      TokenStandard.TronHypVSXERC20Lockbox,
+    ];
+
+    for (const standard of standards) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const getBurnLimit = sinon.stub().resolves(40n);
+      sinon.stub(originToken, 'getAdapter').returns({ getBurnLimit } as any);
+
+      const tronWarpCore = new WarpCore(multiProvider, [originToken]);
+      expect(
+        await (tronWarpCore as any).validateOriginCollateral(
+          originToken.amount(40n),
+        ),
+      ).to.be.null;
+      expect(
+        await (tronWarpCore as any).validateOriginCollateral(
+          originToken.amount(41n),
+        ),
+      ).to.deep.equal({ amount: 'Insufficient burn limit on origin' });
+      sinon.assert.calledTwice(getBurnLimit);
+    }
+  });
+
   it('Validates destination token routing', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
@@ -1555,7 +1657,10 @@ describe('WarpCore', () => {
       sinon.stub(t, 'getAdapter').returns({
         isApproveRequired: () => Promise.resolve(true),
         populateApproveTx: () =>
-          Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
+          Promise.resolve({
+            to: MOCK_QUOTED_CALLS_ADDRESS,
+            data: '0x',
+          }),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
