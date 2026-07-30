@@ -395,9 +395,8 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Environment does not support chain');
   }
 
-  // Validators get their own namespace per environment, shared across contexts,
-  // isolated from every other role — the k8s namespace is the trust boundary
-  // Workload Identity relies on for the validator's KMS/GCS credentials.
+  // Own namespace per environment (shared across contexts) — the k8s
+  // namespace is the trust boundary Workload Identity relies on.
   override get namespace(): string {
     return `validator-${this.environment}`;
   }
@@ -456,18 +455,10 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     }
 
     if (this.config.gcp) {
-      // Workload Identity binds one k8s ServiceAccount to one GCP service
-      // account, and every replica in this release shares one pod template
-      // (and therefore one ServiceAccount) regardless of how many validator
-      // indices the chain has. So the GSA bound here is scoped per *release*
-      // (chain), not per index — see gcpValidatorServiceAccountName /
-      // ValidatorAgentGcpUser, which grants this same GSA access to every
-      // index's key and bucket individually as each is built.
+      // GSA is release-scoped (see ValidatorAgentGcpUser), not per index.
       const serviceAccountEmail = `${gcpValidatorServiceAccountName(this.context, this.environment, this.chainName)}@${this.config.gcp.project}.iam.gserviceaccount.com`;
-      // Pin the k8s ServiceAccount name explicitly rather than letting the
-      // chart derive it from `agent-common.fullname` — the binding below
-      // needs to target the exact same name the chart actually creates,
-      // and duplicating the chart's naming logic here would drift.
+      // Pinned explicitly so it matches what the chart actually creates,
+      // rather than duplicating its `agent-common.fullname` derivation here.
       const ksaName = this.helmReleaseName;
       helmValues.serviceAccount = {
         name: ksaName,

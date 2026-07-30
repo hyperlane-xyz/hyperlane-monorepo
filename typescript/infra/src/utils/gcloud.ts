@@ -319,11 +319,9 @@ export async function grantServiceAccountStorageRoleIfNotExists(
   );
 }
 
-// ==================
-// Cloud KMS + GCS + Workload Identity (validator provisioning)
-// ==================
+// == Cloud KMS + GCS + Workload Identity (validator provisioning) ==
 
-// Returns the full KeyRing resource name, creating it first if it doesn't exist.
+// Returns the full KeyRing resource name.
 export async function createKmsKeyRingIfNotExists(
   project: string,
   location: string,
@@ -344,9 +342,8 @@ export async function createKmsKeyRingIfNotExists(
   return resourceName;
 }
 
-// Creates an HSM-backed secp256k1 asymmetric signing key if it doesn't already
-// exist, and returns its full CryptoKey resource name. Never exports key material —
-// the key is only ever usable via KMS's own sign API.
+// Returns the full CryptoKey resource name. Never exports key material —
+// only usable via KMS's own sign API.
 export async function createKmsSignerKeyIfNotExists(
   project: string,
   location: string,
@@ -368,8 +365,7 @@ export async function createKmsSignerKeyIfNotExists(
   return resourceName;
 }
 
-// Fetches the PEM-encoded public key for a CryptoKeyVersion. Used only to derive
-// the key's Ethereum address — the private key material never leaves KMS.
+// Used to derive the key's Ethereum address; private key material never leaves KMS.
 export async function getKmsPublicKeyPem(
   project: string,
   location: string,
@@ -383,8 +379,7 @@ export async function getKmsPublicKeyPem(
   return pem;
 }
 
-// Grants a service account permission to sign with (and view the public key of)
-// a specific CryptoKey — scoped to that key alone, not the key ring or project.
+// Scoped to this one CryptoKey — not the key ring or project.
 export async function grantKmsKeySignerRoleIfNotExists(
   project: string,
   location: string,
@@ -413,7 +408,6 @@ export async function grantKmsKeySignerRoleIfNotExists(
   logger.debug(`Granted ${role} to ${serviceAccountEmail} on key ${keyId}`);
 }
 
-// Creates a GCS bucket with uniform bucket-level access if it doesn't already exist.
 export async function createGcsBucketIfNotExists(
   project: string,
   location: string,
@@ -432,8 +426,8 @@ export async function createGcsBucketIfNotExists(
   }
 }
 
-// Grants public, unauthenticated read access to every object in the bucket —
-// required so relayers with no relationship to this GCP project can fetch checkpoints.
+// Public, unauthenticated read — relayers with no relationship to this
+// project still need to fetch checkpoints.
 export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
   const role = 'roles/storage.objectViewer';
   const policy = await execCmdAndParseJson(
@@ -453,9 +447,8 @@ export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
   logger.debug(`Granted public read on bucket ${bucketName}`);
 }
 
-// Binds a Kubernetes ServiceAccount (identified by namespace + name, under the
-// project's Workload Identity Pool) to a GCP service account, letting a pod
-// running as that KSA impersonate this GSA with no static credential anywhere.
+// Lets a pod running as this KSA impersonate the GSA via Workload Identity —
+// no static credential anywhere.
 export async function bindWorkloadIdentityUserIfNotExists(
   serviceAccountEmail: string,
   project: string,

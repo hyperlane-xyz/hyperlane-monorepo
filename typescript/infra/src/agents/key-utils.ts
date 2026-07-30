@@ -366,9 +366,7 @@ export function getValidatorKeysForChain(
   chainSigner: CloudAgentKey;
 } {
   logger.debug(`Retrieving validator keys for ${chainName}`);
-  // Note the GCP-KMS-backed key is deliberately not chain-scoped: it's
-  // consolidated per validator index, shared across every chain that index
-  // signs checkpoints for. See AgentGcpKmsKey / ValidatorAgentGcpUser.
+  // GCP-KMS key is per index, not per chain (see AgentGcpKmsKey).
   const validator = agentConfig.gcp
     ? new AgentGcpKmsKey(agentConfig, Role.Validator, index)
     : agentConfig.aws

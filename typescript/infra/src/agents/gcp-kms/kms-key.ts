@@ -30,9 +30,8 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-// Cloud KMS asymmetric keys get one version ("1") on first creation; rotation
-// would add new versions, but rotation isn't implemented for this key (see
-// `update()` below), so this is the only version that ever exists today.
+// Cloud KMS keys start at version 1; rotation (which would add more) isn't
+// implemented (see `update()` below).
 const PRIMARY_KEY_VERSION = '1';
 
 function pemToDer(pem: string): Buffer {
@@ -44,13 +43,9 @@ function pemToDer(pem: string): Buffer {
 }
 
 // A Cloud KMS-backed HSM signing key, consolidated per validator index and
-// shared across every chain that index signs checkpoints for (deliberately
-// not chain-scoped — mirrors the FastPath shared-validator-key identifier
-// shape, see `usesSharedValidatorKey` in agent.ts).
-//
-// Auth to Cloud KMS is entirely ambient (GKE Workload Identity): no static
-// credential is ever created or stored for this key. Only the public
-// key/address is ever read out of KMS; the private key material never leaves it.
+// shared across every chain that index signs for (not chain-scoped — mirrors
+// `usesSharedValidatorKey`'s FastPath identifier shape in agent.ts). Auth is
+// ambient (Workload Identity); private key material never leaves KMS.
 export class AgentGcpKmsKey extends CloudAgentKey {
   private readonly project: string;
   private readonly location: string;
@@ -77,15 +72,13 @@ export class AgentGcpKmsKey extends CloudAgentKey {
     return `${this.context}-${this.environment}-key-${this.role}-${this.index}`;
   }
 
-  // The CryptoKey resource name — used for the provisioning operations
-  // (create/list/IAM-bind) that operate at the key level, not the version level.
+  // Key-level resource name, for provisioning ops (create/list/IAM-bind).
   get keyResourceName(): string {
     return `projects/${this.project}/locations/${this.location}/keyRings/${this.keyRingId}/cryptoKeys/${this.keyId}`;
   }
 
-  // The version-qualified resource name. Cloud KMS's GetPublicKey/AsymmetricSign
-  // both require a specific CryptoKeyVersion, not just the CryptoKey — this is
-  // what the Rust signer actually needs (SignerConf::Gcp { key_version_name }).
+  // GetPublicKey/AsymmetricSign need a specific CryptoKeyVersion, not just the
+  // CryptoKey — this is what the Rust signer reads (SignerConf::Gcp).
   get keyVersionResourceName(): string {
     return `${this.keyResourceName}/cryptoKeyVersions/${PRIMARY_KEY_VERSION}`;
   }
@@ -147,8 +140,7 @@ export class AgentGcpKmsKey extends CloudAgentKey {
     );
   }
 
-  // Grants a service account permission to sign with (and view the public key
-  // of) this specific key — scoped to the key alone, never the key ring or project.
+  // Scoped to this key alone, never the key ring or project.
   async grantSignerRole(serviceAccountEmail: string) {
     await grantKmsKeySignerRoleIfNotExists(
       this.project,

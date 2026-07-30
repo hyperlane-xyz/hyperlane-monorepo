@@ -96,13 +96,9 @@ impl GcpSigner {
         Ok(Self {
             client,
             key_version_name,
-            // Matches `build_aws_signer`'s `AwsSigner::new(client, id, 0, ...)` call in
-            // hyperlane-base/src/settings/signers.rs: this value is never a real per-chain
-            // chain_id, just a required constructor field. It's harmless for checkpoint
-            // signing (the only current use) since `HyperlaneSigner::sign_hash` normalizes
-            // `v` by parity only, which the EIP-155 transform preserves regardless of the
-            // chain_id used to produce it. `with_chain_id` should be called with the real
-            // value before this signer is ever used to sign an actual on-chain transaction.
+            // Matches build_aws_signer's placeholder chain_id (signers.rs) - harmless for
+            // checkpoint signing (sign_hash normalizes `v` by parity only), but should be
+            // set via with_chain_id before this signer ever signs a real transaction.
             chain_id: 0,
             pubkey,
             address,

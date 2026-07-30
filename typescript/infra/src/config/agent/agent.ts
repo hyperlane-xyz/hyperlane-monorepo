@@ -146,11 +146,8 @@ export type RadixKeyConfig = {
   type: AgentSignerKeyType.Radix;
   suffix: string;
 };
-// Cloud KMS-backed key. `keyVersionName` is the full crypto key VERSION resource
-// name — Cloud KMS's GetPublicKey/AsymmetricSign both require the version-qualified
-// path, not just the CryptoKey — e.g.
-// projects/<project>/locations/<location>/keyRings/<keyring>/cryptoKeys/<key>/cryptoKeyVersions/<version>.
-// Auth is ambient (GKE Workload Identity) — no secret material is required for this type.
+// Cloud KMS-backed key. `keyVersionName` is the full CryptoKeyVersion resource
+// name (GetPublicKey/AsymmetricSign require the version, not just the key).
 export type GcpKeyConfig = {
   type: AgentSignerKeyType.Gcp;
   keyVersionName: string;

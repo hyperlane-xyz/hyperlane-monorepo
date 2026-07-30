@@ -388,6 +388,12 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .parse_string()
                 .end()
                 .map(str::to_owned);
+            let use_application_default = syncer
+                .chain(&mut err)
+                .get_opt_key("use_application_default")
+                .parse_bool()
+                .end()
+                .unwrap_or(false);
 
             cfg_unwrap_all!(&syncer.cwp, err: [bucket]);
             err.into_result(CheckpointSyncerConf::Gcs {
@@ -395,6 +401,7 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 folder,
                 service_account_key,
                 user_secrets,
+                use_application_default,
             })
         }
         Some(_) => Err(eyre!("Unknown checkpoint syncer type"))

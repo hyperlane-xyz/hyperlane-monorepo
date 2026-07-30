@@ -74,11 +74,9 @@ fn get_gcp_signer_cache() -> &'static GcpSignerCache {
     GCP_SIGNER_CACHE.get_or_init(|| Cache::builder().max_capacity(100).build())
 }
 
-/// Builds a `GcpSigner` for the given KMS crypto key version resource name, reusing an
-/// already-constructed signer for the same name if one exists rather than making a fresh
-/// KMS call. Credentials are resolved via Application Default Credentials (workload
-/// identity on GKE, or `GOOGLE_APPLICATION_CREDENTIALS` locally) - nothing credential-related
-/// is read from config.
+/// Builds a `GcpSigner` for the given KMS crypto key version, reusing an already-constructed
+/// signer for the same name rather than making a fresh KMS call. Credentials are ambient
+/// (Application Default Credentials) - nothing credential-related is read from config.
 async fn build_gcp_signer(key_version_name: &str) -> Result<hyperlane_ethereum::GcpSigner, Report> {
     get_gcp_signer_cache()
         .try_get_with(key_version_name.to_owned(), async {
@@ -110,9 +108,8 @@ pub enum SignerConf {
         /// The AWS region
         region: String,
     },
-    /// A GCP Cloud KMS signer. Credentials are resolved via Application Default
-    /// Credentials (workload identity on GKE, or `GOOGLE_APPLICATION_CREDENTIALS`
-    /// locally) - nothing credential-related is read from this config.
+    /// A GCP Cloud KMS signer. Credentials are ambient (Application Default
+    /// Credentials) - nothing credential-related is read from this config.
     Gcp {
         /// Fully-qualified resource name of the crypto key version, e.g.
         /// `projects/{p}/locations/{l}/keyRings/{k}/cryptoKeys/{ck}/cryptoKeyVersions/{v}`.
