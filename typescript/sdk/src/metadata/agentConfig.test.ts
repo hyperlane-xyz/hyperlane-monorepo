@@ -134,6 +134,29 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
       expect(result.data.additionalQuorumRpcUrls).to.be.undefined;
     }
   });
+
+  it('parses and preserves a configured customAdditionalQuorumRpcUrls override string', () => {
+    const customAdditionalQuorumRpcUrls =
+      'http://quorum-a.example,http://quorum-b.example';
+    const result = AgentChainMetadataSchema.safeParse({
+      ...baseChainMetadata,
+      customAdditionalQuorumRpcUrls,
+    });
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.customAdditionalQuorumRpcUrls).to.equal(
+        customAdditionalQuorumRpcUrls,
+      );
+    }
+  });
+
+  it('leaves customAdditionalQuorumRpcUrls unset when not configured', () => {
+    const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
+    }
+  });
 });
 
 describe('Agent config', () => {
