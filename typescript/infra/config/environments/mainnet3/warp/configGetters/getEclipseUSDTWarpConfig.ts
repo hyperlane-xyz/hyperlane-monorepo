@@ -4,7 +4,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { usdtTokenAddresses } from '../tokens.js';
@@ -147,7 +147,7 @@ const getBaseEvmConfig = (
     contractVersion: chain === 'ethereum' ? contractVersion : undefined,
     decimals,
     tokenFee: getFixedRoutingFeeConfig(
-      getWarpFeeOwner(chain),
+      WARP_FEES_TURNKEY_OWNER,
       destinations,
       destinationFeeBps,
     ),
