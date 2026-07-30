@@ -144,18 +144,24 @@ const getBaseEvmConfig = (
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
   const destinationFeeBps = feeBps[chain];
   assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
+  const governanceOwner = getWarpFeeOwner(chain);
+  // tron's warp-fee contracts were not rotated to the Turnkey treasury key
+  // (EVM ICA tooling can't drive tron), so its RoutingFee owner stays with
+  // governance. All other EVM legs had only the top-level RoutingFee rotated.
+  const routingFeeOwner =
+    chain === 'tron' ? governanceOwner : WARP_FEES_TURNKEY_OWNER;
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
     contractVersion: chain === 'ethereum' ? contractVersion : undefined,
     decimals,
     tokenFee: getFixedRoutingFeeConfig(
-      WARP_FEES_TURNKEY_OWNER,
+      routingFeeOwner,
       destinations,
       destinationFeeBps,
       undefined,
       undefined,
-      getWarpFeeOwner(chain),
+      governanceOwner,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
