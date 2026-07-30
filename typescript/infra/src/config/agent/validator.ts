@@ -6,7 +6,7 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
@@ -52,7 +52,8 @@ export interface ValidatorConfig {
   originChainName: ChainName;
   reorgPeriod: string | number;
   validators: Array<{
-    checkpointSyncer: CheckpointSyncerConfig;
+    checkpointSyncer: AgentValidatorConfig['checkpointSyncer'];
+    checkpointSyncerCredentials?: S3CheckpointSyncerCredentials;
     // The key that signs checkpoints
     validator: KeyConfig;
     // The key that signs txs (e.g. self-announcements)
@@ -66,6 +67,7 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
     // the validator signing key with the version helm needs.
     Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
       validator: KeyConfig;
+      checkpointSyncerCredentials?: S3CheckpointSyncerCredentials;
     }
   >;
 }
@@ -94,7 +96,13 @@ export type S3CheckpointSyncerConfig = S3Config & {
   type: typeof CheckpointSyncerType.S3;
   endpoint?: string;
   forcePathStyle?: boolean;
+  credentials?: S3CheckpointSyncerCredentials;
 };
+
+export interface S3CheckpointSyncerCredentials {
+  accessKeyIdSecret: string;
+  secretAccessKeySecret: string;
+}
 
 export type GcsCheckpointSyncerConfig = {
   type: typeof CheckpointSyncerType.Gcs;
@@ -151,25 +159,39 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
     let chainSigner: KeyConfig | undefined = undefined;
+    let checkpointSyncerCredentials: S3CheckpointSyncerCredentials | undefined;
+    let checkpointSyncer: AgentValidatorConfig['checkpointSyncer'] =
+      cfg.checkpointSyncer;
 
     if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
-      const awsUser = new ValidatorAgentAwsUser(
-        this.runEnv,
-        this.context,
-        this.chainName,
-        idx,
-        cfg.checkpointSyncer.region,
-        cfg.checkpointSyncer.bucket,
-      );
-      await awsUser.createIfNotExists();
-      await awsUser.createBucketIfNotExists();
+      const { credentials, ...runtimeCheckpointSyncer } = cfg.checkpointSyncer;
+      checkpointSyncer = runtimeCheckpointSyncer;
 
-      if (this.aws) {
-        validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+      if (cfg.checkpointSyncer.endpoint !== undefined) {
+        assert(
+          credentials?.accessKeyIdSecret && credentials.secretAccessKeySecret,
+          `Custom S3 checkpoint syncer for ${this.chainName} validator ${idx} requires credential secret references`,
+        );
+        checkpointSyncerCredentials = credentials;
+      } else {
+        const awsUser = new ValidatorAgentAwsUser(
+          this.runEnv,
+          this.context,
+          this.chainName,
+          idx,
+          cfg.checkpointSyncer.region,
+          cfg.checkpointSyncer.bucket,
+        );
+        await awsUser.createIfNotExists();
+        await awsUser.createBucketIfNotExists();
 
-        // AWS-based chain signer keys are only used for EVM-like chains
-        if (isEVMLike(protocol)) {
-          chainSigner = validator;
+        if (this.aws) {
+          validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+
+          // AWS-based chain signer keys are only used for EVM-like chains
+          if (isEVMLike(protocol)) {
+            chainSigner = validator;
+          }
         }
       }
     } else {
@@ -184,7 +206,8 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     }
 
     return {
-      checkpointSyncer: cfg.checkpointSyncer,
+      checkpointSyncer,
+      ...(checkpointSyncerCredentials ? { checkpointSyncerCredentials } : {}),
       validator,
       chainSigner,
     };

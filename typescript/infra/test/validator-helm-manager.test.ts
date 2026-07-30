@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
@@ -8,8 +9,11 @@ import type { RootAgentConfig } from '../src/config/agent/agent.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 
 import { ValidatorHelmManager } from '../src/agents/index.js';
+import { ValidatorAgentAwsUser } from '../src/agents/aws/validator-user.js';
 
 describe('ValidatorHelmManager', () => {
+  afterEach(() => sinon.restore());
+
   it('renders validator reorg period into the origin chain config', async () => {
     const config: RootAgentConfig = {
       runEnv: 'testnet4',
@@ -58,5 +62,80 @@ describe('ValidatorHelmManager', () => {
     expect(values.hyperlane.chains[0].index?.interval).to.equal(1);
     expect(values.hyperlane.validator?.configs).to.have.lengthOf(1);
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);
+  });
+
+  it('uses pre-provisioned credentials without AWS provisioning for custom S3', async () => {
+    const createUser = sinon.stub(
+      ValidatorAgentAwsUser.prototype,
+      'createIfNotExists',
+    );
+    const createBucket = sinon.stub(
+      ValidatorAgentAwsUser.prototype,
+      'createBucketIfNotExists',
+    );
+    const createKey = sinon.stub(
+      ValidatorAgentAwsUser.prototype,
+      'createKeyIfNotExists',
+    );
+    const config: RootAgentConfig = {
+      runEnv: 'testnet4',
+      namespace: 'test',
+      context: Contexts.FastPath,
+      aws: { region: 'us-east-1' },
+      rolesWithKeys: [Role.Validator],
+      environmentChainNames: ['sepolia'],
+      contextChainNames: {
+        [Role.Validator]: ['sepolia'],
+        [Role.Relayer]: [],
+        [Role.Scraper]: [],
+      },
+      validators: {
+        rpcConsensusType: RpcConsensusType.Fallback,
+        docker: {
+          repo: 'ghcr.io/hyperlane-xyz/hyperlane-agent',
+          tag: 'test',
+        },
+        chains: {
+          sepolia: {
+            interval: 1,
+            reorgPeriod: 1,
+            validators: [
+              {
+                name: 'fastpath-test-validator-0',
+                address: '',
+                checkpointSyncer: {
+                  type: CheckpointSyncerType.S3,
+                  bucket: 'test-bucket',
+                  region: 'nyc3',
+                  endpoint: 'https://nyc3.digitaloceanspaces.com',
+                  credentials: {
+                    accessKeyIdSecret: 'do-spaces-access-key-id',
+                    secretAccessKeySecret: 'do-spaces-secret-access-key',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const manager = new ValidatorHelmManager(config, 'sepolia');
+    const values = await manager.helmValues();
+    const validator = values.hyperlane.validator?.configs?.[0];
+
+    sinon.assert.notCalled(createUser);
+    sinon.assert.notCalled(createBucket);
+    sinon.assert.notCalled(createKey);
+    expect(validator?.checkpointSyncer).to.deep.equal({
+      type: CheckpointSyncerType.S3,
+      bucket: 'test-bucket',
+      region: 'nyc3',
+      endpoint: 'https://nyc3.digitaloceanspaces.com',
+    });
+    expect(validator?.checkpointSyncerCredentials).to.deep.equal({
+      accessKeyIdSecret: 'do-spaces-access-key-id',
+      secretAccessKeySecret: 'do-spaces-secret-access-key',
+    });
   });
 });

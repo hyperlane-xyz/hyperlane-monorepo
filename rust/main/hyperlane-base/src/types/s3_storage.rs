@@ -1,4 +1,4 @@
-use std::{fmt, sync::OnceLock, time::Duration};
+use std::{env, fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region, SdkConfig};
@@ -22,6 +22,7 @@ use crate::CheckpointSyncer;
 /// The timeout for all S3 operations.
 const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const S3_MAX_OBJECT_SIZE: i64 = 50 * 1024; // 50KiB
+const AWS_ENDPOINT_URL_S3: &str = "AWS_ENDPOINT_URL_S3";
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -148,7 +149,8 @@ impl S3Storage {
         self.authenticated_client
             .get_or_init(|| async {
                 let config = self.default_aws_sdk_config_loader().load().await;
-                self.client_from_sdk_config(&config)
+                let endpoint = self.resolved_endpoint();
+                self.client_from_sdk_config(&config, endpoint.as_deref())
             })
             .await
     }
@@ -162,9 +164,10 @@ impl S3Storage {
     /// S3 bucket's AWS account. Additionally, this allows relayer operators to not
     /// require AWS credentials.
     async fn anonymous_client(&self) -> Client {
+        let endpoint = self.resolved_endpoint();
         let cache_key = AnonymousClientCacheKey {
             region: self.region.clone(),
-            endpoint: self.endpoint.clone(),
+            endpoint: endpoint.clone(),
             force_path_style: self.force_path_style,
         };
         let cell = get_anonymous_client_cache().entry(cache_key).or_default();
@@ -177,21 +180,32 @@ impl S3Storage {
                 .no_credentials()
                 .load()
                 .await;
-            self.client_from_sdk_config(&config)
+            self.client_from_sdk_config(&config, endpoint.as_deref())
         })
         .await
         .clone()
     }
 
-    fn client_from_sdk_config(&self, config: &SdkConfig) -> Client {
+    fn client_from_sdk_config(&self, config: &SdkConfig, endpoint: Option<&str>) -> Client {
         let mut builder = aws_sdk_s3::config::Builder::from(config);
-        if let Some(endpoint) = &self.endpoint {
+        if let Some(endpoint) = endpoint {
             builder = builder.endpoint_url(endpoint);
         }
         if let Some(force_path_style) = self.force_path_style {
             builder = builder.force_path_style(force_path_style);
         }
         Client::from_conf(builder.build())
+    }
+
+    fn resolved_endpoint(&self) -> Option<String> {
+        Self::resolve_endpoint(self.endpoint.clone(), env::var(AWS_ENDPOINT_URL_S3).ok())
+    }
+
+    fn resolve_endpoint(
+        explicit_endpoint: Option<String>,
+        environment_endpoint: Option<String>,
+    ) -> Option<String> {
+        explicit_endpoint.or_else(|| environment_endpoint.filter(|endpoint| !endpoint.is_empty()))
     }
 
     /// A default ConfigLoader with timeout, region, and behavior version.
@@ -300,12 +314,25 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn announcement_location(&self) -> String {
-        match self.folder.as_deref() {
+        let location = match self.folder.as_deref() {
             None | Some("") => format!("s3://{}/{}", self.bucket, self.region),
             Some(folder_str) => {
                 format!("s3://{}/{}/{}", self.bucket, self.region, folder_str)
             }
+        };
+        let endpoint = self.resolved_endpoint();
+        if endpoint.is_none() && self.force_path_style.is_none() {
+            return location;
         }
+
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        if let Some(endpoint) = endpoint {
+            query.append_pair("endpoint", &endpoint);
+        }
+        if let Some(force_path_style) = self.force_path_style {
+            query.append_pair("forcePathStyle", &force_path_style.to_string());
+        }
+        format!("{location}?{}", query.finish())
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
@@ -383,6 +410,36 @@ mod tests {
         );
         let location = s3_storage.announcement_location();
         assert_eq!(location, "s3://test-bucket/us-east-1");
+
+        let custom_storage = S3Storage::new(
+            "test-bucket".to_string(),
+            Some("test-folder".to_string()),
+            Region::new("nyc3"),
+            Some("https://nyc3.digitaloceanspaces.com".to_string()),
+            Some(true),
+            None,
+        );
+        assert_eq!(
+            custom_storage.announcement_location(),
+            "s3://test-bucket/nyc3/test-folder?endpoint=https%3A%2F%2Fnyc3.digitaloceanspaces.com&forcePathStyle=true"
+        );
+    }
+
+    #[test]
+    fn explicit_endpoint_precedes_environment_fallback() {
+        assert_eq!(
+            S3Storage::resolve_endpoint(
+                Some("https://explicit.example.com".to_string()),
+                Some("https://environment.example.com".to_string()),
+            )
+            .as_deref(),
+            Some("https://explicit.example.com")
+        );
+        assert_eq!(
+            S3Storage::resolve_endpoint(None, Some("https://environment.example.com".to_string()),)
+                .as_deref(),
+            Some("https://environment.example.com")
+        );
     }
 
     #[tokio::test]
@@ -454,10 +511,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explicit_endpoint_and_path_style_are_applied() {
+    async fn announcement_round_trip_fetches_from_custom_endpoint() {
         use aws_sdk_s3::config::{Credentials, SharedCredentialsProvider};
+        use std::{convert::Infallible, str::FromStr};
         use tokio::io::AsyncWriteExt;
         use tokio::net::TcpListener;
+
+        use crate::settings::CheckpointSyncerConf;
 
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -479,25 +539,42 @@ mod tests {
             request
         });
 
-        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
-            .build(hyper::client::HttpConnector::new());
+        let resolver =
+            tower::service_fn(move |_| async move { Ok::<_, Infallible>(std::iter::once(addr)) });
+        let connector = hyper::client::HttpConnector::new_with_resolver(resolver);
+        let http_client =
+            aws_smithy_http_client::hyper_014::HyperClientBuilder::new().build(connector);
         let shared_config = SdkConfig::builder()
             .behavior_version(BehaviorVersion::latest())
             .region(Region::new("us-east-1"))
             .http_client(http_client)
             .credentials_provider(SharedCredentialsProvider::new(Credentials::for_tests()))
             .build();
-        let storage = S3Storage::new(
+        let configured_storage = S3Storage::new(
             "test-bucket".to_string(),
             None,
             Region::new("us-east-1"),
-            Some(format!("http://{addr}")),
+            Some(format!("http://s3.example.com:{}", addr.port())),
             Some(true),
             None,
         );
+        let announcement = configured_storage.announcement_location();
+        let parsed = CheckpointSyncerConf::from_str(&announcement)
+            .expect("the custom announcement must parse");
+        let CheckpointSyncerConf::S3 {
+            bucket,
+            folder,
+            region,
+            endpoint,
+            force_path_style,
+        } = parsed
+        else {
+            panic!("expected an S3 checkpoint syncer");
+        };
+        let storage = S3Storage::new(bucket, folder, region, endpoint, force_path_style, None);
 
         storage
-            .client_from_sdk_config(&shared_config)
+            .client_from_sdk_config(&shared_config, storage.endpoint.as_deref())
             .put_object()
             .bucket("test-bucket")
             .key("metadata_latest.json")

@@ -81,6 +81,7 @@ hyper = "0.14"
 reqwest.workspace = true
 tempfile.workspace = true
 tracing-test.workspace = true
+tower.workspace = true
 walkdir.workspace = true
 
 [build-dependencies]
