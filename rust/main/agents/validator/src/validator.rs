@@ -167,15 +167,17 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
     /// below): it's expected/tolerated, so it must never surface up through
     /// logs/alerting the way an unexpected `Primary`-role failure would.
     ///
-    /// The exclusion above is only granted if at least one `Quorum`-role entry actually
-    /// responded this round. If *every* `Quorum`-role entry fails simultaneously, that's
-    /// not "one entry blipping" — it's exactly the signal a target-height manipulation
-    /// attack would produce (e.g. a compromised `Primary` picks a future/nonexistent
-    /// height that only it can answer, and every honest `additionalQuorumRpcUrls` entry
-    /// correctly errors "not found"). Letting the denominator shrink to just the
-    /// `Primary` pool in that case would let a compromised `Primary` win by default. So
-    /// a fully-failed `Quorum`-role pool counts against the threshold like `Primary`
-    /// failures do, rather than being excluded.
+    /// The exclusion above is only granted if at least two thirds of the `Quorum`-role
+    /// pool actually responded this round (the same 2/3 bar used everywhere else in this
+    /// function). A minority of `Quorum`-role successes is NOT enough: that's exactly the
+    /// signal a target-height manipulation attack would produce (e.g. a compromised
+    /// `Primary` picks a future/nonexistent height that only it -- and a colluding
+    /// minority of `additionalQuorumRpcUrls` entries -- can answer, while the honest
+    /// majority correctly errors "not found"). If exclusion were granted on any single
+    /// success, that colluding minority could shrink the denominator down to just
+    /// themselves plus `Primary` and trivially clear the threshold. So unless a genuine
+    /// 2/3 majority of the `Quorum`-role pool responded, its failures count against the
+    /// threshold like `Primary` failures do, rather than being excluded.
     fn select_quorum_result<T: Clone + Debug>(
         &self,
         results: Vec<(String, RpcRole, ChainResult<T>)>,
@@ -226,8 +228,10 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
         }
 
         // See the doc comment above: only shrink the denominator if the exclusion isn't
-        // itself the attack signal (i.e. at least one Quorum-role entry responded).
-        let grant_quorum_exclusion = quorum_role_total == 0 || quorum_role_oks > 0;
+        // itself the attack signal (i.e. a genuine 2/3 majority of the Quorum-role pool
+        // responded, not just a colluding minority).
+        let grant_quorum_exclusion = quorum_role_total == 0
+            || quorum_role_oks >= Self::two_thirds_threshold(quorum_role_total);
         let excluded_count = if grant_quorum_exclusion {
             excluded_quorum_rpcs.len()
         } else {
@@ -248,9 +252,11 @@ impl ValidatorMultiRpcQuorumMerkleTreeHook {
                 warn!(
                     context,
                     excluded_quorum_rpcs = ?excluded_quorum_rpcs,
-                    "Every responding additionalQuorumRpcUrls entry failed this round; NOT \
-                     excluding them from the threshold, since a fully-failed quorum pool is \
-                     exactly the signal a target-height manipulation attack would produce"
+                    quorum_role_oks,
+                    quorum_role_total,
+                    "Fewer than 2/3 of additionalQuorumRpcUrls entries responded this round; NOT \
+                     excluding the failures from the threshold, since that's exactly the signal \
+                     a target-height manipulation attack would produce"
                 );
             }
         }
@@ -2147,6 +2153,90 @@ mod tests {
         assert!(
             hook.tree(&ReorgPeriod::None).await.is_err(),
             "a fully-failed Quorum-role pool must not let a lone Primary win by default"
+        );
+    }
+
+    /// Regression test for a fail-open attack on *partial* Quorum-role pool failure: if a
+    /// compromised `Primary` manipulates the target height such that only a colluding
+    /// minority of `additionalQuorumRpcUrls` can answer (agreeing with the fabricated
+    /// value) while the honest majority correctly errors "not found", granting the
+    /// exclusion on that single colluding success would shrink the denominator down to
+    /// just the compromised `Primary` plus its accomplice and let them trivially clear
+    /// the threshold. The exclusion must require a genuine 2/3 majority of the
+    /// `Quorum`-role pool to have responded, so this round must fail to reach quorum.
+    #[tokio::test]
+    async fn validator_multi_rpc_quorum_merkle_tree_hook_tree_rejects_when_quorum_role_pool_minority_colludes(
+    ) {
+        let mailbox_domain = dummy_domain(1337, "test-domain").id();
+
+        let mut base_hook = MockMerkleTreeHook::new();
+        base_hook.expect_count().never();
+        base_hook.expect_tree().never();
+        // Never reached: the merged vote fails to reach quorum before base_hook would be
+        // consulted.
+        base_hook.expect_tree_at_block().never();
+        base_hook.expect_latest_checkpoint_at_block().never();
+        mock_height_resolution(&mut base_hook, mailbox_domain, 42);
+
+        let fabricated_tree = {
+            let mut fabricated =
+                hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+            fabricated.ingest(H256::from_low_u64_be(1));
+            IncrementalMerkleAtBlock {
+                tree: fabricated,
+                block_height: Some(42),
+            }
+        };
+
+        let mut compromised_primary = MockMerkleTreeHook::new();
+        compromised_primary.expect_latest_checkpoint().never();
+        compromised_primary
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once({
+                let fabricated_tree = fabricated_tree.clone();
+                move |_| Ok(fabricated_tree)
+            });
+
+        let mut colluding_quorum = MockMerkleTreeHook::new();
+        colluding_quorum.expect_latest_checkpoint().never();
+        colluding_quorum
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(move |_| Ok(fabricated_tree));
+
+        let mut honest_quorum_a = MockMerkleTreeHook::new();
+        honest_quorum_a.expect_latest_checkpoint().never();
+        honest_quorum_a
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|_| Err(ChainCommunicationError::from_other_str("header not found")));
+
+        let mut honest_quorum_b = MockMerkleTreeHook::new();
+        honest_quorum_b.expect_latest_checkpoint().never();
+        honest_quorum_b
+            .expect_tree_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|_| Err(ChainCommunicationError::from_other_str("header not found")));
+
+        let hook = ValidatorMultiRpcQuorumMerkleTreeHook {
+            base_hook: Arc::new(base_hook),
+            quorum_hooks: vec![
+                primary_rpc("rpc-primary-compromised", compromised_primary),
+                quorum_rpc("rpc-quorum-colluding", colluding_quorum),
+                quorum_rpc("rpc-quorum-honest-a", honest_quorum_a),
+                quorum_rpc("rpc-quorum-honest-b", honest_quorum_b),
+            ],
+        };
+
+        assert!(
+            hook.tree(&ReorgPeriod::None).await.is_err(),
+            "a colluding minority of the Quorum-role pool must not be able to shrink the \
+             denominator enough to win alongside a compromised Primary"
         );
     }
 

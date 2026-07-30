@@ -316,6 +316,8 @@ fn get_rpc_urls(
         .end()
         .map(|urls| {
             urls.split(',')
+                .map(str::trim)
+                .filter(|url| !url.is_empty())
                 .map(|url| RpcConfig {
                     url: url.to_owned(),
                     public: false,
@@ -533,5 +535,38 @@ mod test {
         assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://quorum-c.example");
         assert!(!parsed[1].public);
+    }
+
+    /// Regression test: an empty `customAdditionalQuorumRpcUrls` override (e.g. an env
+    /// var explicitly set to `""` to disable the additional quorum pool) must produce
+    /// zero entries, not a single bogus empty-string `RpcConfig` that would later fail
+    /// `Url::parse` and crash validator startup instead of just disabling the feature.
+    #[test]
+    fn test_get_rpc_urls_empty_override_disables_pool() {
+        let rpcs = r#"
+            {
+                "additionalquorumrpcurls": [
+                    {
+                        "http": "http://quorum-a.example",
+                        "public": true
+                    }
+                ],
+                "customadditionalquorumrpcurls": ""
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(
+            &value_parser,
+            "additionalQuorumRpcUrls",
+            "customAdditionalQuorumRpcUrls",
+            &mut err,
+        );
+
+        assert!(
+            parsed.is_empty(),
+            "an empty override string must disable the pool entirely, got {parsed:?}"
+        );
     }
 }
