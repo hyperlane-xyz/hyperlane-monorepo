@@ -40,6 +40,7 @@ import {
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_EXPLORER_QUERY_LIMIT } from './constants.js';
 import { MultiWarpMonitor } from './multi-monitor.js';
 import { WarpMonitor } from './monitor.js';
 import { initializeLogger } from './utils.js';
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
   const explorerQueryLimit = parsePositiveInt(
     process.env.EXPLORER_QUERY_LIMIT,
     'EXPLORER_QUERY_LIMIT',
-    200,
+    DEFAULT_EXPLORER_QUERY_LIMIT,
   );
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
   const explorerApiUrl = process.env.EXPLORER_API_URL;

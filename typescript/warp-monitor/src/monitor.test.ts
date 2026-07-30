@@ -203,7 +203,7 @@ describe('updatePendingAndInventoryMetrics', () => {
     ).to.equal(false);
   });
 
-  it('resets pending metrics and still updates inventory when explorer query fails', async () => {
+  it('leaves pending series stale (does not publish zeroes) and still updates inventory when explorer query fails', async () => {
     const nodeId = 'COLLAT|anvil2|0xroutera';
     const routerNodes: RouterNodeMetadata[] = [
       {
@@ -250,8 +250,10 @@ describe('updatePendingAndInventoryMetrics', () => {
           line.startsWith('hyperlane_warp_route_pending_destination_amount{') &&
           line.includes(`node_id="${nodeId}"`),
       );
-    expect(pendingAmountLine).to.exist;
-    expect(pendingAmountLine!.trim().endsWith(' 0')).to.equal(true);
+    // A failed explorer query must NOT publish confident zeroes; with no prior
+    // series the pending gauge stays absent for this node rather than reading
+    // "all clear" and silencing deficit alerting during the outage.
+    expect(pendingAmountLine).to.equal(undefined);
 
     const inventoryLine = metrics
       .split('\n')

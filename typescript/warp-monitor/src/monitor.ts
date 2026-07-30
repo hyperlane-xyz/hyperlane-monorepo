@@ -34,15 +34,16 @@ import {
   ExplorerPendingTransfersClient,
   type RouterNodeMetadata,
 } from './explorer.js';
+import { DEFAULT_EXPLORER_QUERY_LIMIT } from './constants.js';
 import {
+  type InventoryBalanceMetric,
+  type PendingDestinationMetric,
+  type ProjectedDeficitMetric,
   metricsRegister,
-  resetInventoryBalanceMetrics,
-  resetPendingDestinationMetrics,
-  updateInventoryBalanceMetrics,
+  replaceInventoryBalanceMetricsForRoute,
+  replacePendingDestinationMetricsForRoute,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
-  updatePendingDestinationMetrics,
-  updateProjectedDeficitMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
@@ -190,28 +191,20 @@ export async function buildRouteRuntime(
     warpDeployConfig,
     routerNodes,
     pendingTransfersClient,
-    explorerQueryLimit: config.explorerQueryLimit ?? 200,
+    explorerQueryLimit:
+      config.explorerQueryLimit ?? DEFAULT_EXPLORER_QUERY_LIMIT,
     inventoryAddress: config.inventoryAddress,
     skipSharedBalanceMetrics: config.skipSharedBalanceMetrics ?? false,
   };
 }
 
 /**
- * Reset the per-cycle gauges that are fully rebuilt each cycle. These gauges
- * are global (shared across all routes emitting into the same registry), so
- * this must be called ONCE at the start of a full cycle — before any route is
- * processed — never per-route, or one route's reset would wipe another's
- * freshly-written series.
- */
-export function resetCycleMetrics(): void {
-  resetPendingDestinationMetrics();
-  resetInventoryBalanceMetrics();
-}
-
-/**
  * Run a single monitoring pass for one route: token balance metrics followed by
- * pending/projected-deficit/inventory metrics. Does NOT reset gauges — callers
- * must call {@link resetCycleMetrics} once per cycle before running routes.
+ * pending/projected-deficit/inventory metrics. Each route atomically replaces
+ * only its own pending/inventory series (see
+ * {@link replacePendingDestinationMetricsForRoute}), so there is no fleet-wide
+ * reset that could wipe sibling routes mid-cycle, and a route that fails to
+ * collect leaves its prior series stale rather than zeroing them.
  */
 export async function runRouteCycle(
   ctx: SharedMonitorContext,
@@ -246,13 +239,19 @@ export async function updatePendingAndInventoryMetrics(
   collateralByNodeId: Map<string, bigint>,
   warpRouteId: string,
   pendingTransfersClient?: ExplorerPendingTransfersClient,
-  explorerQueryLimit = 200,
+  explorerQueryLimit = DEFAULT_EXPLORER_QUERY_LIMIT,
   inventoryAddress?: string,
 ): Promise<void> {
   const logger = getLogger();
   const now = Date.now();
 
   const pendingByNodeId = new Map<string, PendingDestinationAggregate>();
+  // With no explorer configured, pending data is trivially available and empty
+  // (we legitimately report zero pending). Only an actual query FAILURE leaves
+  // the flag false, so we skip the replacement below and let the route's prior
+  // pending/deficit series go stale instead of publishing confident zeroes
+  // that would silence deficit alerting during an explorer outage.
+  let pendingDataAvailable = !pendingTransfersClient;
   if (pendingTransfersClient) {
     try {
       const pendingTransfers =
@@ -283,90 +282,97 @@ export async function updatePendingAndInventoryMetrics(
 
         pendingByNodeId.set(transfer.destinationNodeId, aggregate);
       }
+      pendingDataAvailable = true;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(
-        {
-          error: message,
-        },
-        'Failed to query explorer pending transfers',
+        { warpRouteId, error: message },
+        'Failed to query explorer pending transfers; leaving prior series stale',
       );
     }
   }
 
-  const deficits: Array<{ nodeId: string; projectedDeficit: string }> = [];
-  for (const node of routerNodes) {
-    const aggregate = pendingByNodeId.get(node.nodeId) ?? {
-      amountBaseUnits: 0n,
-      count: 0,
-      oldestPendingSeconds: 0,
-    };
+  if (pendingDataAvailable) {
+    const pending: PendingDestinationMetric[] = [];
+    const projected: ProjectedDeficitMetric[] = [];
+    const deficits: Array<{ nodeId: string; projectedDeficit: string }> = [];
 
-    const routerCollateral = collateralByNodeId.get(node.nodeId) ?? 0n;
+    for (const node of routerNodes) {
+      const aggregate = pendingByNodeId.get(node.nodeId) ?? {
+        amountBaseUnits: 0n,
+        count: 0,
+        oldestPendingSeconds: 0,
+      };
 
-    updatePendingDestinationMetrics({
-      warpRouteId,
-      nodeId: node.nodeId,
-      chainName: node.chainName,
-      routerAddress: node.routerAddress,
-      tokenAddress: node.tokenAddress,
-      tokenSymbol: node.tokenSymbol,
-      tokenName: node.tokenName,
-      pendingAmount: formatTokenAmount(node.token, aggregate.amountBaseUnits),
-      pendingCount: aggregate.count,
-      oldestPendingSeconds: aggregate.oldestPendingSeconds,
-    });
-
-    if (!node.token.isCollateralized()) {
-      continue;
-    }
-
-    const projectedDeficitBaseUnits =
-      aggregate.amountBaseUnits > routerCollateral
-        ? aggregate.amountBaseUnits - routerCollateral
-        : 0n;
-
-    updateProjectedDeficitMetrics({
-      warpRouteId,
-      nodeId: node.nodeId,
-      chainName: node.chainName,
-      routerAddress: node.routerAddress,
-      tokenAddress: node.tokenAddress,
-      tokenSymbol: node.tokenSymbol,
-      tokenName: node.tokenName,
-      projectedDeficit: formatTokenAmount(
-        node.token,
-        projectedDeficitBaseUnits,
-      ),
-    });
-
-    if (projectedDeficitBaseUnits > 0n) {
-      deficits.push({
+      pending.push({
+        warpRouteId,
         nodeId: node.nodeId,
-        projectedDeficit: projectedDeficitBaseUnits.toString(),
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        pendingAmount: formatTokenAmount(node.token, aggregate.amountBaseUnits),
+        pendingCount: aggregate.count,
+        oldestPendingSeconds: aggregate.oldestPendingSeconds,
       });
-    }
-  }
 
-  if (deficits.length > 0) {
-    logger.warn(
-      {
-        deficits,
-        deficitNodeCount: deficits.length,
-      },
-      'Detected projected destination deficits from pending transfers',
-    );
+      if (!node.token.isCollateralized()) {
+        continue;
+      }
+
+      const routerCollateral = collateralByNodeId.get(node.nodeId) ?? 0n;
+      const projectedDeficitBaseUnits =
+        aggregate.amountBaseUnits > routerCollateral
+          ? aggregate.amountBaseUnits - routerCollateral
+          : 0n;
+
+      projected.push({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        projectedDeficit: formatTokenAmount(
+          node.token,
+          projectedDeficitBaseUnits,
+        ),
+      });
+
+      if (projectedDeficitBaseUnits > 0n) {
+        deficits.push({
+          nodeId: node.nodeId,
+          projectedDeficit: projectedDeficitBaseUnits.toString(),
+        });
+      }
+    }
+
+    replacePendingDestinationMetricsForRoute(warpRouteId, pending, projected);
+
+    if (deficits.length > 0) {
+      logger.warn(
+        {
+          warpRouteId,
+          deficits,
+          deficitNodeCount: deficits.length,
+        },
+        'Detected projected destination deficits from pending transfers',
+      );
+    }
   }
 
   if (!inventoryAddress) return;
 
+  const inventory: InventoryBalanceMetric[] = [];
   await Promise.all(
     routerNodes.map(async (node) => {
       try {
         const adapter = node.token.getAdapter(warpCore.multiProvider);
         const inventoryBalance = await adapter.getBalance(inventoryAddress);
 
-        updateInventoryBalanceMetrics({
+        inventory.push({
           warpRouteId,
           nodeId: node.nodeId,
           chainName: node.chainName,
@@ -380,12 +386,14 @@ export async function updatePendingAndInventoryMetrics(
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error(
-          { nodeId: node.nodeId, error: message },
+          { warpRouteId, nodeId: node.nodeId, error: message },
           `Reading inventory balance for ${node.nodeId} failed`,
         );
       }
     }),
   );
+
+  replaceInventoryBalanceMetricsForRoute(warpRouteId, inventory);
 }
 
 // Updates the metrics for a single token in a warp route. Always computes the
@@ -497,6 +505,19 @@ async function updateTokenMetrics(
       return collateralSnapshot;
     }
 
+    // A ChainMap lookup is typed as always-present, but a deploy config that
+    // omits (or differently names) this chain has no entry. Skip the
+    // extra-lockbox path rather than letting a TypeError escape and reject the
+    // whole route cycle (which would drop its pending/deficit/inventory metrics
+    // too, not just the lockbox limits).
+    if (!(token.chainName in warpDeployConfig)) {
+      logger.warn(
+        { token: token.symbol, chain: token.chainName },
+        'No warp deploy config entry for chain, skipping extra lockboxes',
+      );
+      await Promise.all(promises);
+      return collateralSnapshot;
+    }
     // If the current token is an xERC20, we need to check if there are any extra lockboxes
     const currentTokenDeployConfig = warpDeployConfig[token.chainName];
     if (
@@ -702,11 +723,12 @@ export class WarpMonitor {
       'Starting warp route monitor',
     );
 
-    // Indefinitely loops, updating warp route metrics at the specified frequency.
+    // Indefinitely loops, updating warp route metrics at the specified
+    // frequency. runRouteCycle replaces this route's series in place, so no
+    // per-cycle reset is needed.
     for (;;) {
       await tryFn(
         async () => {
-          resetCycleMetrics();
           await runRouteCycle(ctx, route);
         },
         'Updating warp route metrics',

@@ -31,20 +31,57 @@ type BaseRouterMetric = {
   tokenName: string;
 };
 
-type PendingDestinationMetric = BaseRouterMetric & {
+export type PendingDestinationMetric = BaseRouterMetric & {
   pendingAmount: number;
   pendingCount: number;
   oldestPendingSeconds: number;
 };
 
-type ProjectedDeficitMetric = BaseRouterMetric & {
+export type ProjectedDeficitMetric = BaseRouterMetric & {
   projectedDeficit: number;
 };
 
-type InventoryBalanceMetric = BaseRouterMetric & {
+export type InventoryBalanceMetric = BaseRouterMetric & {
   inventoryAddress: string;
   inventoryBalance: number;
 };
+
+type PendingMetricLabels = Record<
+  (typeof pendingMetricLabelNames)[number],
+  string
+>;
+type InventoryMetricLabels = Record<
+  (typeof inventoryMetricLabelNames)[number],
+  string
+>;
+
+// Per-route bookkeeping of the label sets each route last emitted. Lets a route
+// atomically replace only its own series (remove old, write new) without a
+// global reset that would wipe sibling routes' freshly-written data — the
+// failure mode when many routes share one registry in the centralized monitor.
+const lastPendingLabelsByRoute = new Map<string, PendingMetricLabels[]>();
+const lastInventoryLabelsByRoute = new Map<string, InventoryMetricLabels[]>();
+
+function toPendingLabels(metric: BaseRouterMetric): PendingMetricLabels {
+  return {
+    warp_route_id: metric.warpRouteId,
+    node_id: metric.nodeId,
+    chain_name: metric.chainName,
+    router_address: metric.routerAddress,
+    token_address: metric.tokenAddress,
+    token_symbol: metric.tokenSymbol,
+    token_name: metric.tokenName,
+  };
+}
+
+function toInventoryLabels(
+  metric: InventoryBalanceMetric,
+): InventoryMetricLabels {
+  return {
+    ...toPendingLabels(metric),
+    inventory_address: metric.inventoryAddress,
+  };
+}
 
 const pendingMetricLabelNames = [
   'warp_route_id',
@@ -175,25 +212,18 @@ export function resetPendingDestinationMetrics(): void {
   pendingDestinationCountGauge.reset();
   pendingDestinationOldestSecondsGauge.reset();
   projectedDeficitGauge.reset();
+  lastPendingLabelsByRoute.clear();
 }
 
 export function resetInventoryBalanceMetrics(): void {
   inventoryBalanceGauge.reset();
+  lastInventoryLabelsByRoute.clear();
 }
 
 export function updatePendingDestinationMetrics(
   metric: PendingDestinationMetric,
 ): void {
-  const labels = {
-    warp_route_id: metric.warpRouteId,
-    node_id: metric.nodeId,
-    chain_name: metric.chainName,
-    router_address: metric.routerAddress,
-    token_address: metric.tokenAddress,
-    token_symbol: metric.tokenSymbol,
-    token_name: metric.tokenName,
-  };
-
+  const labels = toPendingLabels(metric);
   pendingDestinationAmountGauge.labels(labels).set(metric.pendingAmount);
   pendingDestinationCountGauge.labels(labels).set(metric.pendingCount);
   pendingDestinationOldestSecondsGauge
@@ -204,32 +234,70 @@ export function updatePendingDestinationMetrics(
 export function updateProjectedDeficitMetrics(
   metric: ProjectedDeficitMetric,
 ): void {
-  const labels = {
-    warp_route_id: metric.warpRouteId,
-    node_id: metric.nodeId,
-    chain_name: metric.chainName,
-    router_address: metric.routerAddress,
-    token_address: metric.tokenAddress,
-    token_symbol: metric.tokenSymbol,
-    token_name: metric.tokenName,
-  };
-
-  projectedDeficitGauge.labels(labels).set(metric.projectedDeficit);
+  projectedDeficitGauge
+    .labels(toPendingLabels(metric))
+    .set(metric.projectedDeficit);
 }
 
 export function updateInventoryBalanceMetrics(
   metric: InventoryBalanceMetric,
 ): void {
-  const labels = {
-    warp_route_id: metric.warpRouteId,
-    node_id: metric.nodeId,
-    chain_name: metric.chainName,
-    router_address: metric.routerAddress,
-    token_address: metric.tokenAddress,
-    token_symbol: metric.tokenSymbol,
-    token_name: metric.tokenName,
-    inventory_address: metric.inventoryAddress,
-  };
+  inventoryBalanceGauge
+    .labels(toInventoryLabels(metric))
+    .set(metric.inventoryBalance);
+}
 
-  inventoryBalanceGauge.labels(labels).set(metric.inventoryBalance);
+/**
+ * Replace all pending-destination and projected-deficit series for a single
+ * route in one shot: remove the route's previous series, then write the new
+ * set. Sibling routes are untouched. Call this only when the pending data was
+ * successfully collected — skipping the call on an explorer failure leaves the
+ * route's prior series stale instead of publishing confident zeroes.
+ */
+export function replacePendingDestinationMetricsForRoute(
+  warpRouteId: string,
+  pending: PendingDestinationMetric[],
+  projected: ProjectedDeficitMetric[],
+): void {
+  for (const labels of lastPendingLabelsByRoute.get(warpRouteId) ?? []) {
+    pendingDestinationAmountGauge.remove(labels);
+    pendingDestinationCountGauge.remove(labels);
+    pendingDestinationOldestSecondsGauge.remove(labels);
+    projectedDeficitGauge.remove(labels);
+  }
+
+  const emitted: PendingMetricLabels[] = [];
+  for (const metric of pending) {
+    updatePendingDestinationMetrics(metric);
+    emitted.push(toPendingLabels(metric));
+  }
+  // Projected-deficit nodes are a subset of pending nodes (collateralized
+  // only), so their labels are already covered by `emitted` for next cycle's
+  // removal.
+  for (const metric of projected) {
+    updateProjectedDeficitMetrics(metric);
+  }
+
+  lastPendingLabelsByRoute.set(warpRouteId, emitted);
+}
+
+/**
+ * Replace all inventory-balance series for a single route: remove the route's
+ * previous series, then write the new set. Sibling routes are untouched.
+ */
+export function replaceInventoryBalanceMetricsForRoute(
+  warpRouteId: string,
+  inventory: InventoryBalanceMetric[],
+): void {
+  for (const labels of lastInventoryLabelsByRoute.get(warpRouteId) ?? []) {
+    inventoryBalanceGauge.remove(labels);
+  }
+
+  const emitted: InventoryMetricLabels[] = [];
+  for (const metric of inventory) {
+    updateInventoryBalanceMetrics(metric);
+    emitted.push(toInventoryLabels(metric));
+  }
+
+  lastInventoryLabelsByRoute.set(warpRouteId, emitted);
 }
