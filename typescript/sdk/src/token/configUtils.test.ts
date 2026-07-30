@@ -374,7 +374,7 @@ describe('configUtils', () => {
           feeContracts: {
             ethereum: {
               type: TokenFeeType.LinearFee,
-              owner: ADDRESS,
+              owner: constants.AddressZero,
               token: ADDRESS,
               bps: 300n,
             },
@@ -426,13 +426,13 @@ describe('configUtils', () => {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 200n,
               },
               [ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 300n,
               },
@@ -473,7 +473,7 @@ describe('configUtils', () => {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
+                owner: constants.AddressZero,
                 token: ADDRESS,
                 bps: 200n,
               },
@@ -513,13 +513,47 @@ describe('configUtils', () => {
           feeContracts: {
             ethereum: {
               type: TokenFeeType.LinearFee,
-              owner: ADDRESS,
+              owner: constants.AddressZero,
               token: ADDRESS,
               bps: 100n,
             },
           },
         },
       });
+    });
+
+    it('ignores nested sub-fee owner drift while preserving the top-level owner', () => {
+      const OTHER_OWNER = '0x1111111111111111111111111111111111111111';
+
+      const build = (subOwner: string) =>
+        transformConfigToCheck({
+          type: TokenType.collateral,
+          token: ADDRESS,
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: ADDRESS,
+            token: ADDRESS,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.OffchainQuotedLinearFee,
+                owner: subOwner,
+                token: ADDRESS,
+                bps: 100n,
+                quoteSigners: [ADDRESS],
+              },
+            },
+          },
+        } as any);
+
+      // Two configs that differ ONLY in the nested sub-fee owner normalize equal.
+      expect(build(ADDRESS)).to.eql(build(OTHER_OWNER));
+
+      // Top-level RoutingFee owner is still surfaced (not collapsed).
+      expect((build(OTHER_OWNER).tokenFee as any).owner).to.equal(ADDRESS);
+      // Nested quoteSigners are still surfaced (checked independently of owner).
+      expect(
+        (build(OTHER_OWNER).tokenFee as any).feeContracts.ethereum.quoteSigners,
+      ).to.eql([ADDRESS]);
     });
   });
 

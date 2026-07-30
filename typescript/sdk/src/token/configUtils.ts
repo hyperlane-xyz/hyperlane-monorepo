@@ -628,36 +628,46 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+// Sub-fee (nested) owners are intentionally excluded from the warp check. The
+// top-level RoutingFee owner is the only meaningful authority: it controls
+// pricing via setFeeContract and can claim accrued fees, and OffchainQuoted
+// quote-signer sets are checked directly. Collapsing every nested owner to a
+// fixed sentinel on both sides of the diff makes sub-fee owner drift invisible
+// while the top-level owner, fee params, and quoteSigners still diff normally.
+const IGNORED_SUB_FEE_OWNER = constants.AddressZero;
+
 function normalizeCrossCollateralFeeContractsForCheck(
   destinationConfig: Record<string, TokenFeeConfigInput>,
 ) {
   return Object.fromEntries(
     Object.entries(destinationConfig).map(([router, nestedFee]) => [
       router,
-      normalizeTokenFeeForCheck(nestedFee),
+      normalizeTokenFeeForCheck(nestedFee, true),
     ]),
   );
 }
 
 function normalizeTokenFeeForCheck(
   feeConfig: TokenFeeConfigInput | undefined,
+  isNested = false,
 ): TokenFeeConfigInput | undefined {
   if (!feeConfig) return feeConfig;
 
   const tokenConfig =
     'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+  const owner = isNested ? IGNORED_SUB_FEE_OWNER : feeConfig.owner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     const normalizedFeeContracts = Object.fromEntries(
       Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
         chain,
-        normalizeTokenFeeForCheck(nestedFee),
+        normalizeTokenFeeForCheck(nestedFee, true),
       ]),
     );
 
     return {
       type: TokenFeeType.RoutingFee,
-      owner: feeConfig.owner,
+      owner,
       ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
@@ -674,7 +684,7 @@ function normalizeTokenFeeForCheck(
     );
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
-      owner: feeConfig.owner,
+      owner,
       feeContracts: normalizedFeeContracts,
     };
   }
@@ -682,7 +692,7 @@ function normalizeTokenFeeForCheck(
   if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
     return {
       type: feeConfig.type,
-      owner: feeConfig.owner,
+      owner,
       bps: feeConfig.bps,
       ...tokenConfig,
       quoteSigners: feeConfig.quoteSigners,
@@ -692,7 +702,7 @@ function normalizeTokenFeeForCheck(
   if (feeConfig.type === TokenFeeType.LinearFee) {
     return {
       type: feeConfig.type,
-      owner: feeConfig.owner,
+      owner,
       bps: feeConfig.bps,
       ...tokenConfig,
     };

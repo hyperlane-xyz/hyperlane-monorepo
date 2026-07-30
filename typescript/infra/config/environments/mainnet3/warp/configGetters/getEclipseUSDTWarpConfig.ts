@@ -144,12 +144,12 @@ const getBaseEvmConfig = (
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
   const destinationFeeBps = feeBps[chain];
   assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
-  const governanceOwner = getWarpFeeOwner(chain);
-  // tron's warp-fee contracts were not rotated to the Turnkey treasury key
-  // (EVM ICA tooling can't drive tron), so its RoutingFee owner stays with
-  // governance. All other EVM legs had only the top-level RoutingFee rotated.
+  // tron's RoutingFee owner was not rotated to the Turnkey treasury key (EVM
+  // ICA tooling can't drive tron), so it stays with governance; every other EVM
+  // leg uses the Turnkey key. Sub-fee owners are not a meaningful authority and
+  // are not checked (see normalizeTokenFeeForCheck), so a single owner suffices.
   const routingFeeOwner =
-    chain === 'tron' ? governanceOwner : WARP_FEES_TURNKEY_OWNER;
+    chain === 'tron' ? getWarpFeeOwner(chain) : WARP_FEES_TURNKEY_OWNER;
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
@@ -159,9 +159,6 @@ const getBaseEvmConfig = (
       routingFeeOwner,
       destinations,
       destinationFeeBps,
-      undefined,
-      undefined,
-      governanceOwner,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
