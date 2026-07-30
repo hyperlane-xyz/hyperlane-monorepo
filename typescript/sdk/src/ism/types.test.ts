@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
+import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
+
 import {
   AggregationIsmConfigSchema,
   type CompositeIsmConfig,
@@ -8,6 +12,7 @@ import {
   IsmConfigSchema,
   IsmType,
   ModuleType,
+  RateLimitedIsmConfigSchema,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -444,5 +449,36 @@ describe('CompositeIsmConfigSchema', () => {
       root: { type: 'trustedRelayer', relayer: OTHER_SEALEVEL_ADDRESS },
     };
     expect(CompositeIsmConfigSchema.safeParse(valid).success).to.be.true;
+  });
+});
+
+describe('RateLimitedIsmConfigSchema duration default', () => {
+  const baseConfig = {
+    type: IsmType.RATE_LIMITED,
+    maxCapacity: '86400',
+  };
+
+  it('defaults duration to 1 day (86400s) when omitted', () => {
+    const result = RateLimitedIsmConfigSchema.safeParse(baseConfig);
+
+    assert(
+      result.success,
+      'expected RateLimitedIsmConfigSchema parse to succeed',
+    );
+    expect(result.data.duration).to.equal(RATE_LIMIT_DEFAULT_DURATION_SECONDS);
+  });
+
+  it('honors an explicitly provided duration', () => {
+    const result = RateLimitedIsmConfigSchema.safeParse({
+      ...baseConfig,
+      maxCapacity: '172800',
+      duration: 172800n,
+    });
+
+    assert(
+      result.success,
+      'expected RateLimitedIsmConfigSchema parse to succeed',
+    );
+    expect(result.data.duration).to.equal(172800n);
   });
 });
