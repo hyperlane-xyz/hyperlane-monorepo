@@ -92,6 +92,8 @@ export interface LocalCheckpointSyncerConfig {
 
 export type S3CheckpointSyncerConfig = S3Config & {
   type: typeof CheckpointSyncerType.S3;
+  endpoint?: string;
+  forcePathStyle?: boolean;
 };
 
 export type GcsCheckpointSyncerConfig = {

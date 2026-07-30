@@ -361,12 +361,25 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .parse_string()
                 .end()
                 .map(str::to_owned);
+            let endpoint = syncer
+                .chain(&mut err)
+                .get_opt_key("endpoint")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let force_path_style = syncer
+                .chain(&mut err)
+                .get_opt_key("forcePathStyle")
+                .parse_bool()
+                .end();
 
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
                 bucket,
                 region: Region::new(region),
                 folder,
+                endpoint,
+                force_path_style,
             })
         }
         Some("gcs") => {
@@ -568,5 +581,35 @@ mod test {
             parsed.is_empty(),
             "an empty override string must disable the pool entirely, got {parsed:?}"
         );
+    }
+
+    #[test]
+    fn test_parse_s3_checkpoint_syncer_options() {
+        let config = serde_json::json!({
+            "type": "s3",
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "endpoint": "http://127.0.0.1:9000",
+            "forcepathstyle": true
+        });
+        let value_parser = ValueParser::new(ConfigPath::default(), &config);
+        let parsed = parse_checkpoint_syncer(value_parser).expect("valid S3 config must be parsed");
+
+        match parsed {
+            CheckpointSyncerConf::S3 {
+                bucket,
+                region,
+                folder,
+                endpoint,
+                force_path_style,
+            } => {
+                assert_eq!(bucket, "test-bucket");
+                assert_eq!(region.as_ref(), "us-east-1");
+                assert_eq!(folder, None);
+                assert_eq!(endpoint.as_deref(), Some("http://127.0.0.1:9000"));
+                assert_eq!(force_path_style, Some(true));
+            }
+            _ => panic!("Expected S3 checkpoint syncer"),
+        }
     }
 }

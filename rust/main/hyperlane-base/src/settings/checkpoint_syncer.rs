@@ -30,6 +30,10 @@ pub enum CheckpointSyncerConf {
         folder: Option<String>,
         /// S3 Region
         region: Region,
+        /// Optional endpoint for an S3-compatible object store
+        endpoint: Option<String>,
+        /// Whether to force path-style bucket addressing
+        force_path_style: Option<bool>,
     },
     /// A checkpoint syncer on Google Cloud Storage
     Gcs {
@@ -80,6 +84,8 @@ impl FromStr for CheckpointSyncerConf {
                     bucket: bucket.into(),
                     folder,
                     region: aws_config::Region::new(region.to_owned()),
+                    endpoint: None,
+                    force_path_style: None,
                 })
             }
             "file" => Ok(CheckpointSyncerConf::LocalStorage {
@@ -153,10 +159,14 @@ impl CheckpointSyncerConf {
                 bucket,
                 folder,
                 region,
+                endpoint,
+                force_path_style,
             } => Box::new(S3Storage::new(
                 bucket.clone(),
                 folder.clone(),
                 region.clone(),
+                endpoint.clone(),
+                *force_path_style,
                 latest_index_gauge,
             )),
             CheckpointSyncerConf::Gcs {
@@ -292,10 +302,14 @@ mod test {
                 bucket,
                 folder,
                 region,
+                endpoint,
+                force_path_style,
             } => {
                 assert_eq!(bucket, "my-bucket");
                 assert_eq!(folder.as_deref(), Some("folder"));
                 assert_eq!(region.as_ref(), "eu-central-2");
+                assert_eq!(endpoint, None);
+                assert_eq!(force_path_style, None);
             }
             _ => panic!("Expected S3 checkpoint syncer"),
         }

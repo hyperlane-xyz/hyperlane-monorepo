@@ -1,7 +1,7 @@
 use std::{fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
-use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
+use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region, SdkConfig};
 use aws_sdk_s3::{
     error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
     primitives::ByteStream, Client,
@@ -32,6 +32,10 @@ pub struct S3Storage {
     folder: Option<String>,
     /// The region of the bucket.
     region: Region,
+    /// An optional endpoint for S3-compatible object stores.
+    endpoint: Option<String>,
+    /// Whether to force path-style bucket addressing.
+    force_path_style: Option<bool>,
     /// A client with AWS credentials. This client is not initialized globally and has a lifetime
     /// tied to the S3Storage instance, so if heavy use of this client is expected, S3Storage
     /// itself should be long-lived.
@@ -41,13 +45,21 @@ pub struct S3Storage {
     latest_index: Option<IntGauge>,
 }
 
-/// A global cache of anonymous S3 clients, per region.
+#[derive(Clone, Eq, Hash, PartialEq)]
+struct AnonymousClientCacheKey {
+    region: Region,
+    endpoint: Option<String>,
+    force_path_style: Option<bool>,
+}
+
+/// A global cache of anonymous S3 clients, per endpoint configuration.
 /// We've seen freshly created S3 clients make expensive DNS / TCP
 /// requests when creating them. This cache allows us to reuse
 /// anonymous clients across the entire agent.
-static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, OnceCell<Client>>> = OnceLock::new();
+static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<AnonymousClientCacheKey, OnceCell<Client>>> =
+    OnceLock::new();
 
-fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
+fn get_anonymous_client_cache() -> &'static DashMap<AnonymousClientCacheKey, OnceCell<Client>> {
     ANONYMOUS_CLIENT_CACHE.get_or_init(DashMap::new)
 }
 
@@ -136,7 +148,7 @@ impl S3Storage {
         self.authenticated_client
             .get_or_init(|| async {
                 let config = self.default_aws_sdk_config_loader().load().await;
-                Client::new(&config)
+                self.client_from_sdk_config(&config)
             })
             .await
     }
@@ -150,9 +162,12 @@ impl S3Storage {
     /// S3 bucket's AWS account. Additionally, this allows relayer operators to not
     /// require AWS credentials.
     async fn anonymous_client(&self) -> Client {
-        let cell = get_anonymous_client_cache()
-            .entry(self.region.clone())
-            .or_default();
+        let cache_key = AnonymousClientCacheKey {
+            region: self.region.clone(),
+            endpoint: self.endpoint.clone(),
+            force_path_style: self.force_path_style,
+        };
+        let cell = get_anonymous_client_cache().entry(cache_key).or_default();
 
         cell.get_or_init(|| async {
             let config = self
@@ -162,10 +177,21 @@ impl S3Storage {
                 .no_credentials()
                 .load()
                 .await;
-            Client::new(&config)
+            self.client_from_sdk_config(&config)
         })
         .await
         .clone()
+    }
+
+    fn client_from_sdk_config(&self, config: &SdkConfig) -> Client {
+        let mut builder = aws_sdk_s3::config::Builder::from(config);
+        if let Some(endpoint) = &self.endpoint {
+            builder = builder.endpoint_url(endpoint);
+        }
+        if let Some(force_path_style) = self.force_path_style {
+            builder = builder.force_path_style(force_path_style);
+        }
+        Client::from_conf(builder.build())
     }
 
     /// A default ConfigLoader with timeout, region, and behavior version.
@@ -340,6 +366,8 @@ mod tests {
             Some("test-folder".to_string()),
             Region::new("us-east-1"),
             None,
+            None,
+            None,
         );
         let location = s3_storage.announcement_location();
         assert_eq!(location, "s3://test-bucket/us-east-1/test-folder");
@@ -349,6 +377,8 @@ mod tests {
             "test-bucket".to_string(),
             None,
             Region::new("us-east-1"),
+            None,
+            None,
             None,
         );
         let location = s3_storage.announcement_location();
@@ -398,7 +428,7 @@ mod tests {
     /// Reads a mock HTTP server's request off `socket` up to the end of the headers. The
     /// connection stays open afterwards (the client is waiting on a response), so EOF never
     /// comes.
-    async fn discard_request_headers(socket: &mut tokio::net::TcpStream) {
+    async fn read_request_headers(socket: &mut tokio::net::TcpStream) -> Vec<u8> {
         use tokio::io::AsyncReadExt;
 
         let mut buf = Vec::new();
@@ -416,6 +446,73 @@ mod tests {
                 break;
             }
         }
+        buf
+    }
+
+    async fn discard_request_headers(socket: &mut tokio::net::TcpStream) {
+        read_request_headers(socket).await;
+    }
+
+    #[tokio::test]
+    async fn explicit_endpoint_and_path_style_are_applied() {
+        use aws_sdk_s3::config::{Credentials, SharedCredentialsProvider};
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("binding a loopback listener must succeed");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener must have a local address");
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener
+                .accept()
+                .await
+                .expect("the test client must connect");
+            let request = read_request_headers(&mut socket).await;
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .expect("writing the response must succeed");
+            request
+        });
+
+        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
+            .build(hyper::client::HttpConnector::new());
+        let shared_config = SdkConfig::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new("us-east-1"))
+            .http_client(http_client)
+            .credentials_provider(SharedCredentialsProvider::new(Credentials::for_tests()))
+            .build();
+        let storage = S3Storage::new(
+            "test-bucket".to_string(),
+            None,
+            Region::new("us-east-1"),
+            Some(format!("http://{addr}")),
+            Some(true),
+            None,
+        );
+
+        storage
+            .client_from_sdk_config(&shared_config)
+            .put_object()
+            .bucket("test-bucket")
+            .key("metadata_latest.json")
+            .body(Vec::new().into())
+            .send()
+            .await
+            .expect("the request must use the configured endpoint");
+
+        let request = server.await.expect("the mock server task must not panic");
+        let request = String::from_utf8(request).expect("request headers must be UTF-8");
+        assert!(
+            request
+                .starts_with("PUT /test-bucket/metadata_latest.json?x-id=PutObject HTTP/1.1\r\n"),
+            "unexpected request target: {request}"
+        );
     }
 
     /// Proves the abort happens mid-transfer, not just on the buffered result: a local server

@@ -8,6 +8,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AgentChainMetadataSchema,
   RelayerAgentConfigSchema,
+  ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
 
@@ -155,6 +156,45 @@ describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
     expect(result.success).to.be.true;
     if (result.success) {
       expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
+    }
+  });
+});
+
+describe('ValidatorAgentConfigSchema S3 compatibility', () => {
+  it('preserves endpoint and path-style options', () => {
+    const result = ValidatorAgentConfigSchema.safeParse({
+      chains: {
+        legacy: {
+          name: 'legacy',
+          domainId: 1000,
+          chainId: 1000,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: 'http://localhost:8545' }],
+          mailbox: '0x0000000000000000000000000000000000000001',
+          interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+          validatorAnnounce: '0x0000000000000000000000000000000000000003',
+          merkleTreeHook: '0x0000000000000000000000000000000000000004',
+        },
+      },
+      originChainName: 'legacy',
+      validator: {
+        key: `0x${'00'.repeat(32)}`,
+      },
+      checkpointSyncer: {
+        type: 's3',
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'http://127.0.0.1:9000',
+        forcePathStyle: true,
+      },
+    });
+
+    expect(result.success).to.be.true;
+    if (result.success && result.data.checkpointSyncer.type === 's3') {
+      expect(result.data.checkpointSyncer.endpoint).to.equal(
+        'http://127.0.0.1:9000',
+      );
+      expect(result.data.checkpointSyncer.forcePathStyle).to.be.true;
     }
   });
 });

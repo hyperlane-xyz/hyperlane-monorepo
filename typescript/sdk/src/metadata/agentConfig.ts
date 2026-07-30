@@ -671,6 +671,15 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .describe(
             'The folder/key-prefix to use, defaults to the root of the bucket',
           ),
+        endpoint: z
+          .string()
+          .url()
+          .optional()
+          .describe('The endpoint for an S3-compatible object store'),
+        forcePathStyle: z
+          .boolean()
+          .optional()
+          .describe('Whether to force path-style bucket addressing'),
       })
       .describe('A checkpoint syncer that uses S3'),
     z
