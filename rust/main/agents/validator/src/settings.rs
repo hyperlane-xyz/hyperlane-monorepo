@@ -213,40 +213,27 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_u64()
             .unwrap_or(50) as usize;
 
-        let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", false, &mut err);
+        let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
-        rpcs.extend(get_rpc_urls(
-            &chain,
-            "grpcUrls",
-            "customGrpcUrls",
-            false,
-            &mut err,
-        ));
+        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
         // tron wallet urls
         rpcs.extend(get_rpc_urls(
             &chain,
             "walletUrls",
             "customWalletUrls",
-            false,
             &mut err,
         ));
         rpcs.extend(get_rpc_urls(
             &chain,
             "walletSolidityUrls",
             "customWalletSolidityUrls",
-            false,
             &mut err,
         ));
 
-        // `additionalQuorumRpcUrls` is intended for *additional public* RPCs (see
-        // `ValidatorSettings::additional_quorum_rpcs`), so its custom-override entries
-        // default to `public: true` -- unlike the other override keys above, which are
-        // gated by `allow_public_rpcs` and so must default to private.
         let additional_quorum_rpcs = get_rpc_urls(
             &chain,
             "additionalQuorumRpcUrls",
             "customAdditionalQuorumRpcUrls",
-            true,
             &mut err,
         );
 
@@ -285,14 +272,10 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 ///
 /// rpcKey is either grpcUrls or rpcUrls
 /// overrideKey is either customGrpcUrls or customRpcUrls
-/// overrideDefaultPublic is the `public` value given to override entries, which carry no
-/// `public` field of their own (unlike the array form) -- `true` for keys like
-/// `additionalQuorumRpcUrls` that are intended to hold public RPCs, `false` otherwise
 fn get_rpc_urls(
     chain: &ValueParser,
     rpc_key: &str,
     override_key: &str,
-    override_default_public: bool,
     err: &mut ConfigParsingError,
 ) -> Vec<RpcConfig> {
     // struct looks like the following
@@ -333,11 +316,9 @@ fn get_rpc_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .map(str::trim)
-                .filter(|url| !url.is_empty())
                 .map(|url| RpcConfig {
                     url: url.to_owned(),
-                    public: override_default_public,
+                    public: false,
                 })
                 .collect_vec()
         });
@@ -458,7 +439,7 @@ mod test {
 
         let mut err = ConfigParsingError::default();
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", false, &mut err); // why does it convert to lowercase?
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err); // why does it convert to lowercase?
 
         assert_eq!(parsed.len(), expected.len());
         for (i, rpc) in expected.iter().enumerate() {
@@ -485,7 +466,7 @@ mod test {
         let rpcs = serde_json::from_str(rpcs).unwrap();
         let mut err = ConfigParsingError::default();
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", false, &mut err);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url.com");
@@ -513,7 +494,7 @@ mod test {
         let rpcs = serde_json::from_str(rpcs).unwrap();
         let mut err = ConfigParsingError::default();
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", false, &mut err);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
@@ -542,53 +523,15 @@ mod test {
             &value_parser,
             "additionalQuorumRpcUrls",
             "customAdditionalQuorumRpcUrls",
-            true,
             &mut err,
         );
 
         // customAdditionalQuorumRpcUrls overrides additionalQuorumRpcUrls, same as
-        // customRpcUrls does for rpcUrls. Unlike customRpcUrls, its override entries
-        // default to public: true, since additionalQuorumRpcUrls is intended for public
-        // RPCs -- otherwise every deployment using this override would spuriously trip
-        // `warn_if_additional_quorum_rpc_not_public`.
+        // customRpcUrls does for rpcUrls.
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://quorum-b.example");
-        assert!(parsed[0].public);
+        assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://quorum-c.example");
-        assert!(parsed[1].public);
-    }
-
-    /// Regression test: an empty `customAdditionalQuorumRpcUrls` override (e.g. an env
-    /// var explicitly set to `""` to disable the additional quorum pool) must produce
-    /// zero entries, not a single bogus empty-string `RpcConfig` that would later fail
-    /// `Url::parse` and crash validator startup instead of just disabling the feature.
-    #[test]
-    fn test_get_rpc_urls_empty_override_disables_pool() {
-        let rpcs = r#"
-            {
-                "additionalquorumrpcurls": [
-                    {
-                        "http": "http://quorum-a.example",
-                        "public": true
-                    }
-                ],
-                "customadditionalquorumrpcurls": ""
-            }
-        "#;
-        let rpcs = serde_json::from_str(rpcs).unwrap();
-        let mut err = ConfigParsingError::default();
-        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(
-            &value_parser,
-            "additionalQuorumRpcUrls",
-            "customAdditionalQuorumRpcUrls",
-            true,
-            &mut err,
-        );
-
-        assert!(
-            parsed.is_empty(),
-            "an empty override string must disable the pool entirely, got {parsed:?}"
-        );
+        assert!(!parsed[1].public);
     }
 }
