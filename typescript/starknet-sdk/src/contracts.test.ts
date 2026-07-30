@@ -6,6 +6,7 @@ import {
   ContractType,
   getContractAbi,
   getContractClassHash,
+  getRuntimeContractNames,
 } from '@hyperlane-xyz/starknet-core/runtime';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
@@ -87,27 +88,30 @@ describe('starknet-sdk contracts helpers', () => {
     expect(tx.calldata).to.deep.equal(new CallData(abi).compile('owner', []));
   });
 
-  it('publishes runtime data matching deployment artifacts in every group', () => {
-    const contracts = [
-      { name: StarknetContractName.MAILBOX, type: ContractType.CONTRACT },
-      { name: StarknetContractName.HYP_NATIVE, type: ContractType.TOKEN },
-      { name: 'TestERC20', type: ContractType.MOCK },
-    ];
+  it('publishes runtime data matching deployment artifacts in every group', function () {
+    this.timeout(120_000);
 
-    for (const { name, type } of contracts) {
-      const compiledContract = getCompiledContract(name, type);
+    for (const contractType of Object.values(ContractType)) {
+      const contractNames = getRuntimeContractNames(contractType);
+      expect(contractNames).not.to.be.empty;
 
-      expect(getContractAbi(name, type)).to.deep.equal(compiledContract.abi);
-      expect(getContractClassHash(name, type)).to.equal(
-        hash.computeContractClassHash(compiledContract),
-      );
+      for (const name of contractNames) {
+        const compiledContract = getCompiledContract(name, contractType);
+
+        expect(getContractAbi(name, contractType)).to.deep.equal(
+          compiledContract.abi,
+        );
+        expect(getContractClassHash(name, contractType)).to.equal(
+          hash.computeContractClassHash(compiledContract),
+        );
+      }
     }
   });
 
-  it('throws when runtime data does not contain the requested contract', () => {
-    expect(() => getContractAbi('missing-contract')).to.throw(
-      'CONTRACT_NOT_FOUND',
-    );
+  it('throws when runtime data does not own the requested contract', () => {
+    for (const name of ['missing-contract', 'toString']) {
+      expect(() => getContractAbi(name)).to.throw('CONTRACT_NOT_FOUND');
+    }
   });
 
   it('throws when coercing bigint values above the safe integer range', () => {

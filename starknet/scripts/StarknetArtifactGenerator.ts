@@ -16,6 +16,10 @@ type RawCompiledContract = Omit<CompiledContract, 'abi'> & {
 };
 export type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
+const CONTRACT_TYPE_PREFIX_REGEX = new RegExp(
+  `^(${Object.values(ContractType).join('|')})_?`,
+);
+
 export class StarknetArtifactGenerator {
   private compiledContractsDir: string;
   private rootOutputDir: string;
@@ -142,10 +146,7 @@ export class StarknetArtifactGenerator {
     processedFilesMap.forEach((value, name) => {
       // Extracts the contract name by removing the prefix (contracts_, token_, or mocks_)
       // Example: "token_HypErc20" becomes "HypErc20"
-      const baseName = name.replace(
-        new RegExp(`^(${Object.values(ContractType).join('|')})_?`),
-        '',
-      );
+      const baseName = name.replace(CONTRACT_TYPE_PREFIX_REGEX, '');
 
       let sierraVarName: string | undefined;
       let casmVarName: string | undefined;
@@ -208,10 +209,7 @@ export class StarknetArtifactGenerator {
     processedFilesMap.forEach((value, name) => {
       if (!value.sierra) return;
 
-      const baseName = name.replace(
-        new RegExp(`^(${Object.values(ContractType).join('|')})_?`),
-        '',
-      );
+      const baseName = name.replace(CONTRACT_TYPE_PREFIX_REGEX, '');
       const runtimeVarName = `${value.type}_${baseName}_runtime`;
       imports.push(
         `import { ${name} as ${runtimeVarName} } from './${name}.js';`,

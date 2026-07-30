@@ -24,17 +24,17 @@ function getRuntimeContractGroup(
 
 function getRuntimeContract(name: string, contractType: ContractType) {
   const group = getRuntimeContractGroup(contractType);
-  const contract = group[name];
-  if (!contract) {
+  if (!Object.prototype.hasOwnProperty.call(group, name)) {
     throw new ContractError(ERR_CODES.CONTRACT_NOT_FOUND, {
       name,
       type: contractType,
     });
   }
 
-  return contract;
+  return group[name];
 }
 
+/** Returns a published contract ABI without loading deployment artifacts. */
 export function getContractAbi(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
@@ -42,11 +42,19 @@ export function getContractAbi(
   return getRuntimeContract(name, contractType).abi;
 }
 
+/** Returns a precomputed contract class hash without loading deployment artifacts. */
 export function getContractClassHash(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
 ): string {
   return getRuntimeContract(name, contractType).classHash;
+}
+
+/** Returns the names of all contracts published in a runtime artifact group. */
+export function getRuntimeContractNames(
+  contractType: ContractType = ContractType.CONTRACT,
+): string[] {
+  return Object.keys(getRuntimeContractGroup(contractType));
 }
 
 export { ContractType } from './types.js';
