@@ -1,8 +1,10 @@
 import { BigNumber, providers } from 'ethers';
+import { TronWeb } from 'tronweb';
 
-import { retryAsync } from '@hyperlane-xyz/utils';
+import { ensure0x, retryAsync } from '@hyperlane-xyz/utils';
 
-import { stripCustomRpcHeaders } from './urlUtils.js';
+import { triggerTronContractCall } from '../utils/index.js';
+import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
@@ -26,6 +28,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   public host: string;
   private maxRetries: number;
   private baseRetryMs: number;
+  private tronWeb: TronWeb;
 
   constructor(
     host: string,
@@ -39,6 +42,10 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
+    this.tronWeb = new TronWeb({
+      fullHost: toHttpApiUrl(host),
+      headers,
+    });
   }
 
   /**
@@ -60,11 +67,40 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
    * errors like 503s from TronGrid rate limiting.
    */
   async perform(method: string, params: any): Promise<any> {
+    if (method === 'call' && params.blockTag === 'latest') {
+      return this.callContract(params.transaction);
+    }
+
     return retryAsync(
       () => super.perform(method, params),
       this.maxRetries,
       this.baseRetryMs,
     );
+  }
+
+  private async callContract(
+    transaction: providers.TransactionRequest,
+  ): Promise<string> {
+    const response = await triggerTronContractCall(
+      this.tronWeb,
+      transaction,
+      transaction.from,
+      ({ contractAddress, callValue, input, issuerAddress }) =>
+        retryAsync(
+          () =>
+            this.tronWeb.transactionBuilder.triggerConstantContract(
+              contractAddress,
+              '',
+              { callValue, input },
+              [],
+              issuerAddress,
+            ),
+          this.maxRetries,
+          this.baseRetryMs,
+        ),
+      'Tron constant call failed',
+    );
+    return ensure0x(response.constant_result?.[0] ?? '');
   }
 
   /**
