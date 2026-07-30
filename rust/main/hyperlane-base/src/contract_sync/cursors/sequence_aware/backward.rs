@@ -1,6 +1,12 @@
 //! A sequence-aware cursor that syncs backwards until there are no earlier logs to index.
 
-use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    fmt::Debug,
+    ops::RangeInclusive,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -20,6 +26,8 @@ use crate::cursors::Indexable;
 use super::{CursorMetrics, LastIndexedSnapshot, MetricsData, TargetSnapshot};
 
 const MAX_BACKWARD_SYNC_BLOCKING_TIME: Duration = Duration::from_secs(5);
+const INITIAL_SEQUENCE_GAP_BACKOFF: Duration = Duration::from_secs(5);
+const MAX_SEQUENCE_GAP_BACKOFF: Duration = Duration::from_secs(5 * 60);
 
 /// A sequence-aware cursor that syncs backward until there are no earlier logs to index.
 pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
@@ -48,6 +56,12 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     domain: HyperlaneDomain,
     /// Cursor metrics.
     metrics: Arc<CursorMetrics>,
+    /// Consecutive incomplete sequence ranges at the current snapshot.
+    sequence_gap_retries: u32,
+    /// Earliest time at which the incomplete range may be queried again.
+    sequence_gap_retry_at: Option<Instant>,
+    /// Target and cumulatively missing sequences from prior incomplete ranges.
+    sequence_gap_state: Option<(u32, HashSet<u32>)>,
 }
 
 impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
@@ -124,6 +138,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             index_mode,
             domain,
             metrics,
+            sequence_gap_retries: 0,
+            sequence_gap_retry_at: None,
+            sequence_gap_state: None,
         }
     }
 
@@ -136,6 +153,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        if self
+            .sequence_gap_retry_at
+            .is_some_and(|retry_at| Instant::now() < retry_at)
+        {
+            return Ok(None);
+        }
+
         // Skip any already indexed logs.
         tokio::select! {
             res = self.skip_indexed() => res?,
@@ -265,6 +289,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// iterating until we find a sequence that hasn't been indexed.
     async fn skip_indexed(&mut self) -> Result<()> {
         let prev_indexed_snapshot = self.last_indexed_snapshot.clone();
+        let mut made_progress = false;
 
         // While we're not fully synced, check if the next log we're looking for has been
         // inserted into the db, and update the cursor accordingly.
@@ -276,6 +301,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 .get_sequence_log_block_number(current_indexing_sequence)
                 .await?
             {
+                made_progress = true;
                 self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(current_indexing_sequence),
                     at_block: block_number,
@@ -296,7 +322,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // on each iteration
             tokio::task::yield_now().await;
         }
-        if prev_indexed_snapshot != self.last_indexed_snapshot {
+        if made_progress {
+            self.clear_sequence_gap_retry();
             debug!(
                 last_indexed_snapshot=?prev_indexed_snapshot,
                 current_indexing_snapshot=?self.current_indexing_snapshot,
@@ -396,7 +423,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
-    ) -> Result<()> {
+    ) -> Result<Option<HashSet<u32>>> {
         // We require that the range starts at the current sequence.
         // This should always be the case, but to be extra safe we handle this case.
         if *range.end() != current_indexing_snapshot.sequence {
@@ -408,7 +435,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 "Expected range to end at the current sequence",
             );
             self.rewind();
-            return Ok(());
+            return Ok(Some(range.collect()));
         }
 
         // We require that we've gotten all sequences in the range.
@@ -416,8 +443,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just before the last indexed snapshot.
             // Rewind to the last snapshot.
+            let missing_sequences = expected_sequences
+                .difference(all_log_sequences)
+                .copied()
+                .collect();
             self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
-            return Ok(());
+            return Ok(Some(missing_sequences));
         }
 
         // If we've gotten here, it means we indexed the entire range.
@@ -433,7 +464,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 last_indexed_snapshot=?self.last_indexed_snapshot,
                 "Expected non-empty logs and range in sequence mode",
             );
-            return Ok(());
+            return Ok(Some(range.collect()));
         };
 
         // Update the last indexed snapshot.
@@ -444,7 +475,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // Position the current snapshot to the previous sequence.
         self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
 
-        Ok(())
+        Ok(None)
     }
 
     /// Rewinds the cursor to target immediately preceding the last indexed snapshot,
@@ -473,6 +504,63 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
 
     fn rewind(&mut self) {
         self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
+    }
+
+    fn schedule_sequence_gap_retry(
+        &mut self,
+        target_sequence: u32,
+        missing_sequences: HashSet<u32>,
+    ) {
+        let (missing_sequences, made_progress) = match self.sequence_gap_state.take() {
+            Some((previous_target, previous_missing)) if previous_target == target_sequence => {
+                let cumulative_missing = previous_missing
+                    .intersection(&missing_sequences)
+                    .copied()
+                    .collect::<HashSet<_>>();
+                let made_progress = cumulative_missing.len() < previous_missing.len();
+                (cumulative_missing, made_progress)
+            }
+            _ => (missing_sequences, true),
+        };
+        if missing_sequences.is_empty() {
+            self.clear_sequence_gap_retry();
+            return;
+        }
+        if made_progress {
+            self.sequence_gap_retries = 0;
+        }
+        self.sequence_gap_state = Some((target_sequence, missing_sequences));
+        self.sequence_gap_retries = self.sequence_gap_retries.saturating_add(1);
+        let exponent = self.sequence_gap_retries.saturating_sub(1).min(6);
+        let multiplier = 1_u32 << exponent;
+        let delay = INITIAL_SEQUENCE_GAP_BACKOFF
+            .saturating_mul(multiplier)
+            .min(MAX_SEQUENCE_GAP_BACKOFF);
+        self.sequence_gap_retry_at = Some(
+            Instant::now()
+                .checked_add(delay)
+                .expect("bounded sequence gap delay should fit in Instant"),
+        );
+
+        let labels = &[T::name(), self.domain.name()];
+        self.metrics
+            .cursor_sequence_gap_retries
+            .with_label_values(labels)
+            .inc();
+        self.metrics
+            .cursor_sequence_gap_backoff_seconds
+            .with_label_values(labels)
+            .set(i64::try_from(delay.as_secs()).expect("five-minute delay should fit in i64"));
+    }
+
+    fn clear_sequence_gap_retry(&mut self) {
+        self.sequence_gap_retries = 0;
+        self.sequence_gap_retry_at = None;
+        self.sequence_gap_state = None;
+        self.metrics
+            .cursor_sequence_gap_backoff_seconds
+            .with_label_values(&[T::name(), self.domain.name()])
+            .set(0);
     }
 
     /// Updates the cursor metrics.
@@ -554,12 +642,21 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ContractSyncCursor<T>
             .collect::<HashSet<_>>();
 
         match &self.index_mode {
-            IndexMode::Sequence => self.update_sequence_range(
-                logs,
-                &all_log_sequences,
-                range,
-                current_indexing_snapshot,
-            )?,
+            IndexMode::Sequence => {
+                if let Some(missing_sequences) = self.update_sequence_range(
+                    logs,
+                    &all_log_sequences,
+                    range,
+                    current_indexing_snapshot.clone(),
+                )? {
+                    self.schedule_sequence_gap_retry(
+                        current_indexing_snapshot.sequence,
+                        missing_sequences,
+                    );
+                } else {
+                    self.clear_sequence_gap_retry();
+                }
+            }
             IndexMode::Block => {
                 self.update_block_range(logs, &all_log_sequences, range, current_indexing_snapshot)?
             }
@@ -1333,6 +1430,7 @@ mod test {
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
                 logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
+                cur.sequence_gap_retry_at = None;
                 // Expect the range to be:
                 // (current - chunk_size, current)
                 let range = cur.get_next_range().await.unwrap().unwrap();
@@ -1411,6 +1509,198 @@ mod test {
                 ],
             )
             .await;
+        }
+
+        #[tokio::test]
+        async fn test_sequence_gaps_back_off_and_recover_without_skipping() {
+            let mut cursor = get_cursor().await;
+            let range = 94..=99;
+
+            cursor.update(vec![], range.clone()).await.unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 1);
+            assert!(cursor.sequence_gap_retry_at.is_some());
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                5
+            );
+
+            cursor.sequence_gap_retry_at = Some(Instant::now() - Duration::from_secs(1));
+            assert_eq!(cursor.get_next_range().await.unwrap(), Some(range.clone()));
+            cursor
+                .update(
+                    (94..=98)
+                        .map(|sequence| {
+                            (
+                                MockSequencedData::new(sequence).into(),
+                                log_meta_with_block(sequence.into()),
+                            )
+                        })
+                        .collect(),
+                    range.clone(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 1);
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                5
+            );
+
+            cursor.sequence_gap_retry_at = Some(Instant::now() - Duration::from_secs(1));
+            cursor
+                .update(
+                    range
+                        .clone()
+                        .map(|sequence| {
+                            (
+                                MockSequencedData::new(sequence).into(),
+                                log_meta_with_block(sequence.into()),
+                            )
+                        })
+                        .collect(),
+                    range,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(cursor.sequence_gap_retries, 0);
+            assert_eq!(cursor.sequence_gap_retry_at, None);
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                0
+            );
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                Some(TargetSnapshot {
+                    sequence: 93,
+                    at_block: 94,
+                })
+            );
+        }
+
+        #[tokio::test]
+        async fn test_rotating_gaps_use_cumulative_progress() {
+            let mut cursor = get_cursor().await;
+            let range = 94..=99;
+
+            cursor
+                .update(
+                    (94..=98)
+                        .map(|sequence| {
+                            (
+                                MockSequencedData::new(sequence).into(),
+                                log_meta_with_block(sequence.into()),
+                            )
+                        })
+                        .collect(),
+                    range.clone(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(cursor.sequence_gap_retries, 1);
+            assert!(cursor.sequence_gap_retry_at.is_some());
+
+            cursor.sequence_gap_retry_at = None;
+            cursor
+                .update(
+                    (95..=99)
+                        .map(|sequence| {
+                            (
+                                MockSequencedData::new(sequence).into(),
+                                log_meta_with_block(sequence.into()),
+                            )
+                        })
+                        .collect(),
+                    range.clone(),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(cursor.sequence_gap_retries, 0);
+            assert_eq!(cursor.sequence_gap_retry_at, None);
+            assert_eq!(cursor.sequence_gap_state, None);
+            assert_eq!(cursor.get_next_range().await.unwrap(), Some(range));
+        }
+
+        #[tokio::test]
+        async fn test_db_progress_clears_gap_backoff_metrics() {
+            let mut cursor = get_cursor().await;
+            cursor.current_indexing_snapshot = Some(TargetSnapshot {
+                sequence: 102,
+                at_block: 1002,
+            });
+            cursor.schedule_sequence_gap_retry(102, HashSet::from([102]));
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                5
+            );
+
+            cursor.skip_indexed().await.unwrap();
+
+            assert_eq!(cursor.sequence_gap_retries, 0);
+            assert_eq!(cursor.sequence_gap_retry_at, None);
+            assert_eq!(cursor.sequence_gap_state, None);
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                0
+            );
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                Some(TargetSnapshot {
+                    sequence: 99,
+                    at_block: 1000,
+                })
+            );
+        }
+
+        #[tokio::test]
+        async fn test_sequence_gap_backoff_caps_at_five_minutes() {
+            let mut cursor = get_cursor().await;
+            let range = 94..=99;
+
+            for _ in 0..8 {
+                cursor.sequence_gap_retry_at = None;
+                cursor.update(vec![], range.clone()).await.unwrap();
+            }
+
+            assert_eq!(cursor.sequence_gap_retries, 8);
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_backoff_seconds
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                300
+            );
+            assert_eq!(
+                cursor
+                    .metrics
+                    .cursor_sequence_gap_retries
+                    .with_label_values(&["mock_indexable", "test"])
+                    .get(),
+                8
+            );
         }
 
         #[tracing_test::traced_test]
