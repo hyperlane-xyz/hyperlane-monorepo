@@ -396,7 +396,7 @@ export const RateLimitedHookSchema = OwnableSchema.extend({
 export const NetFlowRateLimitedHookConfigSchema = z
   .object({
     type: z.literal(HookType.NET_FLOW_RATE_LIMITED),
-    warpRouter: ZHash,
+    warpRouter: ZHash.optional(),
     thresholdBps: z.number().int().min(0).max(9999),
     duration: ZBigNumberish,
     owner: ZHash.optional(),
@@ -411,11 +411,16 @@ export type NetFlowRateLimitedHookConfig = z.infer<
 
 export const DelayedFlowRouterHookConfigSchema = OwnableSchema.extend({
   type: z.literal(HookType.DELAYED_FLOW_ROUTER),
-  warpRouter: ZHash,
+  warpRouter: ZHash.optional(),
   thresholdBps: z.number().int().min(0).max(10000),
   maxDelay: z.number().int().nonnegative(),
   duration: ZBigNumberish,
-  remoteRouters: z.record(ZRouterBytes32).optional(),
+  /**
+   * Enrolled remote counterparts, keyed by chain name; values are the remote
+   * DelayedFlowRouterHookIsm instances (the contract is itself a Router, so
+   * on-chain nomenclature keeps "router": enrollRemoteRouters/routers()).
+   */
+  remoteIsms: z.record(ZRouterBytes32).optional(),
 }).refine((val) => val.duration > 0n, {
   message: 'duration must be greater than 0',
   path: ['duration'],

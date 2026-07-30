@@ -54,6 +54,14 @@ describe('NetFlowRateLimitedHookIsmConfigSchema', () => {
     expect(IsmConfigSchema.safeParse(valid).success).to.be.true;
   });
 
+  it('parses without warpRouter (injected by the warp deploy machinery)', () => {
+    const withoutWarpRouter = { ...valid, warpRouter: undefined };
+    expect(
+      NetFlowRateLimitedHookIsmConfigSchema.safeParse(withoutWarpRouter)
+        .success,
+    ).to.be.true;
+  });
+
   it('rejects a zero duration', () => {
     const invalid = { ...valid, duration: 0n };
     expect(NetFlowRateLimitedHookIsmConfigSchema.safeParse(invalid).success).to
@@ -95,6 +103,13 @@ describe('DelayedFlowRouterHookIsmConfigSchema', () => {
     expect(IsmConfigSchema.safeParse(valid).success).to.be.true;
   });
 
+  it('parses without warpRouter (injected by the warp deploy machinery)', () => {
+    const withoutWarpRouter = { ...valid, warpRouter: undefined };
+    expect(
+      DelayedFlowRouterHookIsmConfigSchema.safeParse(withoutWarpRouter).success,
+    ).to.be.true;
+  });
+
   it('permits a 100% thresholdBps (delay mode) but nothing above', () => {
     const fullBps = { ...valid, thresholdBps: 10000 };
     expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(fullBps).success).to
@@ -114,10 +129,10 @@ describe('DelayedFlowRouterHookIsmConfigSchema', () => {
   it('normalizes 20-byte and mixed-case 32-byte remote routers to lowercase bytes32', () => {
     const config = {
       ...valid,
-      remoteRouters: { test2: ROUTER_20_BYTE, test3: ROUTER_32_BYTE_UPPER },
+      remoteIsms: { test2: ROUTER_20_BYTE, test3: ROUTER_32_BYTE_UPPER },
     };
     const parsed = DelayedFlowRouterHookIsmConfigSchema.parse(config);
-    expect(parsed.remoteRouters).to.deep.equal({
+    expect(parsed.remoteIsms).to.deep.equal({
       test2: ROUTER_BYTES32_NORMALIZED,
       test3: ROUTER_BYTES32_NORMALIZED,
     });
@@ -125,7 +140,7 @@ describe('DelayedFlowRouterHookIsmConfigSchema', () => {
 
   it('rejects remote router values that are neither 20 nor 32 bytes', () => {
     for (const badValue of ['0x1234', '0x' + 'a'.repeat(63), 'deadbeef']) {
-      const invalid = { ...valid, remoteRouters: { test2: badValue } };
+      const invalid = { ...valid, remoteIsms: { test2: badValue } };
       expect(DelayedFlowRouterHookIsmConfigSchema.safeParse(invalid).success).to
         .be.false;
     }

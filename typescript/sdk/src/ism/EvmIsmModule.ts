@@ -184,6 +184,9 @@ export class EvmIsmModule extends HyperlaneModule<
     // Same principle for the warp-route hybrid hook/ISMs: their rate params
     // are constructor-set immutables, so any change forces a redeploy. All
     // fields are present in read(), so no extra on-chain fetch is needed.
+    // warpRouter is optional on the target (implicit in warp-route context),
+    // so it only counts as changed when explicitly provided — mirroring the
+    // RATE_LIMITED recipient handling above.
     let hybridImmutableChanged = false;
     if (
       typeof normalizedCurrentConfig !== 'string' &&
@@ -194,8 +197,9 @@ export class EvmIsmModule extends HyperlaneModule<
         normalizedCurrentConfig.duration !== normalizedTargetConfig.duration ||
         normalizedCurrentConfig.thresholdBps !==
           normalizedTargetConfig.thresholdBps ||
-        normalizedCurrentConfig.warpRouter !==
-          normalizedTargetConfig.warpRouter;
+        (normalizedTargetConfig.warpRouter !== undefined &&
+          normalizedCurrentConfig.warpRouter !==
+            normalizedTargetConfig.warpRouter);
     } else if (
       typeof normalizedCurrentConfig !== 'string' &&
       normalizedCurrentConfig.type === IsmType.DELAYED_FLOW_ROUTER &&
@@ -206,8 +210,9 @@ export class EvmIsmModule extends HyperlaneModule<
         normalizedCurrentConfig.thresholdBps !==
           normalizedTargetConfig.thresholdBps ||
         normalizedCurrentConfig.maxDelay !== normalizedTargetConfig.maxDelay ||
-        normalizedCurrentConfig.warpRouter !==
-          normalizedTargetConfig.warpRouter;
+        (normalizedTargetConfig.warpRouter !== undefined &&
+          normalizedCurrentConfig.warpRouter !==
+            normalizedTargetConfig.warpRouter);
     }
 
     if (
@@ -601,16 +606,17 @@ export class EvmIsmModule extends HyperlaneModule<
     // and handled upstream in update() by redeploying; ownership transfer is
     // handled by the generic tail in updateMutableIsm (after these txs, so the
     // owner-gated enrollment calls below are still executable by the current
-    // owner). Only remote router enrollment is reconciled here.
-    if (target.remoteRouters === undefined) {
+    // owner). Only remote counterpart (`remoteIsms`) enrollment is reconciled
+    // here — the on-chain calls keep Router nomenclature (enrollRemoteRouters).
+    if (target.remoteIsms === undefined) {
       // omitted field — preserve the current on-chain enrollment
       return [];
     }
 
-    const currentRouters = current.remoteRouters ?? {};
+    const currentRouters = current.remoteIsms ?? {};
     const toEnrollDomains: number[] = [];
     const toEnrollRouters: string[] = [];
-    for (const [chainName, router] of Object.entries(target.remoteRouters)) {
+    for (const [chainName, router] of Object.entries(target.remoteIsms)) {
       const domainId = this.multiProvider.tryGetDomainId(chainName);
       if (domainId === null) {
         this.logger.warn(
@@ -631,7 +637,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     const toUnenrollDomains: number[] = [];
     for (const chainName of Object.keys(currentRouters)) {
-      if (target.remoteRouters[chainName] !== undefined) {
+      if (target.remoteIsms[chainName] !== undefined) {
         continue;
       }
       const domainId = this.multiProvider.tryGetDomainId(chainName);
@@ -896,7 +902,9 @@ export class EvmIsmModule extends HyperlaneModule<
         normalizedCurrentConfig.duration === normalizedTargetConfig.duration &&
         normalizedCurrentConfig.thresholdBps ===
           normalizedTargetConfig.thresholdBps &&
-        normalizedCurrentConfig.warpRouter === normalizedTargetConfig.warpRouter
+        (normalizedTargetConfig.warpRouter === undefined ||
+          normalizedCurrentConfig.warpRouter ===
+            normalizedTargetConfig.warpRouter)
       );
     }
     if (
@@ -908,7 +916,9 @@ export class EvmIsmModule extends HyperlaneModule<
         normalizedCurrentConfig.thresholdBps ===
           normalizedTargetConfig.thresholdBps &&
         normalizedCurrentConfig.maxDelay === normalizedTargetConfig.maxDelay &&
-        normalizedCurrentConfig.warpRouter === normalizedTargetConfig.warpRouter
+        (normalizedTargetConfig.warpRouter === undefined ||
+          normalizedCurrentConfig.warpRouter ===
+            normalizedTargetConfig.warpRouter)
       );
     }
 

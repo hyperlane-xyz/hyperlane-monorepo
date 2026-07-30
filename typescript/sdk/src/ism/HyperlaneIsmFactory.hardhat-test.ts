@@ -222,7 +222,7 @@ describe('HyperlaneIsmFactory', async () => {
       maxDelay: 3600,
       duration: 86400n,
       owner,
-      remoteRouters: { [TestChainName.test2]: remoteRouter },
+      remoteIsms: { [TestChainName.test2]: remoteRouter },
     };
     const ism = await ismFactory.deploy({
       destination: chain,
@@ -249,7 +249,7 @@ describe('HyperlaneIsmFactory', async () => {
         maxDelay: 7200,
         duration: 86400n,
         owner,
-        remoteRouters: { [TestChainName.test2]: remoteRouter },
+        remoteIsms: { [TestChainName.test2]: remoteRouter },
       },
       // different enrolled router value
       {
@@ -259,7 +259,7 @@ describe('HyperlaneIsmFactory', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner,
-        remoteRouters: {
+        remoteIsms: {
           [TestChainName.test2]:
             addressToBytes32(randomAddress()).toLowerCase(),
         },
@@ -272,7 +272,7 @@ describe('HyperlaneIsmFactory', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner,
-        remoteRouters: {},
+        remoteIsms: {},
       },
     ];
     for (const mismatched of mismatchedConfigs) {
@@ -286,6 +286,58 @@ describe('HyperlaneIsmFactory', async () => {
       );
       expect(mismatchedMatches).to.be.false;
     }
+
+    // a config omitting warpRouter (warp-route context) still matches
+    const withoutWarpRouter: DelayedFlowRouterHookIsmConfig = {
+      type: IsmType.DELAYED_FLOW_ROUTER,
+      thresholdBps: 10000,
+      maxDelay: 3600,
+      duration: 86400n,
+      owner,
+      remoteIsms: { [TestChainName.test2]: remoteRouter },
+    };
+    const matchesWithoutWarpRouter = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      withoutWarpRouter,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailboxAddress,
+    );
+    expect(matchesWithoutWarpRouter).to.be.true;
+  });
+
+  it('rejects deploying a hybrid hook ism without a warpRouter', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+
+    const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+      type: IsmType.DELAYED_FLOW_ROUTER,
+      thresholdBps: 10000,
+      maxDelay: 3600,
+      duration: 86400n,
+      owner,
+    };
+    await expect(
+      ismFactory.deploy({
+        destination: chain,
+        config: delayedConfig,
+        mailbox: mailboxAddress,
+      }),
+    ).to.be.rejectedWith('Warp router address is required');
+
+    const netFlowConfig: NetFlowRateLimitedHookIsmConfig = {
+      type: IsmType.NET_FLOW_RATE_LIMITED,
+      thresholdBps: 500,
+      duration: 86400n,
+      owner,
+    };
+    await expect(
+      ismFactory.deploy({
+        destination: chain,
+        config: netFlowConfig,
+        mailbox: mailboxAddress,
+      }),
+    ).to.be.rejectedWith('Warp router address is required');
   });
 
   it('recovers an address-bearing pausable ism config', async () => {

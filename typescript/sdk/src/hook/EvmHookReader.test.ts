@@ -535,7 +535,7 @@ describe('EvmHookReader', () => {
       maxDelay: 3600,
       duration: 86400n,
       owner: mockOwner,
-      remoteRouters: { [TestChainName.test1]: mockRemoteRouter },
+      remoteIsms: { [TestChainName.test1]: mockRemoteRouter },
     };
 
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);

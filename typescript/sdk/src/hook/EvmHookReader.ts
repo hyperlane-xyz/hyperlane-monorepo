@@ -37,7 +37,7 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
-import { deriveDelayedFlowRemoteRouters } from '../ism/utils.js';
+import { deriveDelayedFlowRemoteIsms } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -500,13 +500,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       return undefined;
     }
 
-    const [warpRouter, thresholdBps, duration, owner, remoteRouters] =
+    const [warpRouter, thresholdBps, duration, owner, remoteIsms] =
       await Promise.all([
         hook.warpRouter(),
         hook.thresholdBps(),
         hook.DURATION(),
         hook.owner(),
-        deriveDelayedFlowRemoteRouters(
+        deriveDelayedFlowRemoteIsms(
           hook,
           this.multiProvider,
           this.concurrency,
@@ -522,7 +522,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       maxDelay,
       duration: duration.toBigInt(),
       owner,
-      remoteRouters,
+      remoteIsms,
     };
 
     this._cache.set(address, config);

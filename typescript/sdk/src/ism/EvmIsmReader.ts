@@ -60,7 +60,7 @@ import {
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
-import { deriveDelayedFlowRemoteRouters } from './utils.js';
+import { deriveDelayedFlowRemoteIsms } from './utils.js';
 
 const INCREMENTAL_REVERT_STRING =
   'IncrementalDomainRoutingIsm: removal not supported';
@@ -735,18 +735,17 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       }
 
       if (maxDelay !== undefined) {
-        const [thresholdBps, duration, owner, remoteRouters] =
-          await Promise.all([
-            delayedIsm.thresholdBps(),
-            delayedIsm.DURATION(),
-            delayedIsm.owner(),
-            deriveDelayedFlowRemoteRouters(
-              delayedIsm,
-              this.multiProvider,
-              this.concurrency,
-              this.logger,
-            ),
-          ]);
+        const [thresholdBps, duration, owner, remoteIsms] = await Promise.all([
+          delayedIsm.thresholdBps(),
+          delayedIsm.DURATION(),
+          delayedIsm.owner(),
+          deriveDelayedFlowRemoteIsms(
+            delayedIsm,
+            this.multiProvider,
+            this.concurrency,
+            this.logger,
+          ),
+        ]);
         return {
           address,
           type: IsmType.DELAYED_FLOW_ROUTER,
@@ -755,7 +754,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           maxDelay,
           duration: duration.toBigInt(),
           owner,
-          remoteRouters,
+          remoteIsms,
         };
       }
 

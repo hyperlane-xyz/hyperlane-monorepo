@@ -441,6 +441,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.NET_FLOW_RATE_LIMITED: {
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        assert(
+          config.warpRouter,
+          `Warp router address is required for deploying ${ismType}`,
+        );
         contract = await this.deployer.deployContract(
           destination,
           IsmType.NET_FLOW_RATE_LIMITED,
@@ -463,6 +467,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       }
       case IsmType.DELAYED_FLOW_ROUTER: {
+        assert(
+          config.warpRouter,
+          `Warp router address is required for deploying ${ismType}`,
+        );
         contract = await this.deployer.deployContract(
           destination,
           IsmType.DELAYED_FLOW_ROUTER,
@@ -479,7 +487,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         const domainIds: number[] = [];
         const routerAddresses: string[] = [];
         for (const [chainName, router] of Object.entries(
-          config.remoteRouters ?? {},
+          config.remoteIsms ?? {},
         )) {
           const domainId = this.multiProvider.tryGetDomainId(chainName);
           if (domainId === null) {

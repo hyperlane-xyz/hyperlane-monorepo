@@ -4,11 +4,13 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  DelayedFlowRouterHookIsm__factory,
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
   LinearFee__factory,
   MailboxClient__factory,
+  NetFlowRateLimitedHookIsm__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
   RateLimitedIsm__factory,
@@ -22,6 +24,8 @@ import {
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
+  assert,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -32,15 +36,19 @@ import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { enrollCrossChainRouters } from '../deploy/warp.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  DelayedFlowRouterHookIsmConfig,
   IsmConfig,
   IsmType,
+  NetFlowRateLimitedHookIsmConfig,
   RateLimitedIsmConfig,
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
@@ -818,6 +826,305 @@ describe('TokenDeployer', async () => {
       expect((await router.owner()).toLowerCase()).to.equal(
         warpOwner.toLowerCase(),
       );
+    });
+  });
+
+  describe('Hybrid hook/ISM deferred deploy', () => {
+    let ismDeployer: HypERC20Deployer;
+    let ismFactory: HyperlaneIsmFactory;
+    let registryAddresses: Record<string, Record<string, string>>;
+
+    const remoteChain = TestChainName.test2;
+
+    before(async () => {
+      const pfd = new HyperlaneProxyFactoryDeployer(multiProvider);
+      const factories = await pfd.deploy(
+        multiProvider.mapKnownChains(() => ({})),
+      );
+      ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
+
+      registryAddresses = {};
+      for (const chainName of [chain, remoteChain]) {
+        registryAddresses[chainName] = {
+          ...objMap(factories[chainName], (_, contract) => contract.address),
+          mailbox: coreApp.getContracts(chainName).mailbox.address,
+        };
+      }
+    });
+
+    beforeEach(() => {
+      ismDeployer = new HypERC20Deployer(multiProvider, ismFactory);
+    });
+
+    function delayedFlowTree(owner: Address): AggregationIsmConfig {
+      return {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: signer.address,
+          },
+          {
+            type: IsmType.DELAYED_FLOW_ROUTER,
+            thresholdBps: 10000,
+            maxDelay: 3600,
+            duration: 86400n,
+            owner,
+          } satisfies DelayedFlowRouterHookIsmConfig,
+        ],
+      };
+    }
+
+    it('wires a nested delayedFlowRouterHookIsm as ISM member AND hook, keeping deployer ownership for enrollment', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+        },
+      };
+
+      const contracts = await ismDeployer.deploy(warpConfig, {
+        [chain]: delayedFlowTree(warpOwner),
+      });
+      const routerAddress = contracts[chain].synthetic.address;
+      const provider = multiProvider.getProvider(chain);
+
+      const tokenClient = MailboxClient__factory.connect(
+        routerAddress,
+        provider,
+      );
+      const ismAddress = await tokenClient.interchainSecurityModule();
+      expect(isZeroishAddress(ismAddress)).to.be.false;
+
+      // hook must be wired to the hybrid instance
+      const hookAddress = await tokenClient.hook();
+      expect(isZeroishAddress(hookAddress)).to.be.false;
+
+      // the hook is the DelayedFlowRouterHookIsm paired with this router
+      const delayedIsm = DelayedFlowRouterHookIsm__factory.connect(
+        hookAddress,
+        provider,
+      );
+      expect(eqAddress(await delayedIsm.warpRouter(), routerAddress)).to.be
+        .true;
+      expect(await delayedIsm.maxDelay()).to.equal(3600);
+
+      // the same instance must be a member of the aggregation ISM
+      const aggregationIsm = StaticAggregationIsm__factory.connect(
+        ismAddress,
+        provider,
+      );
+      const [modules] = await aggregationIsm.modulesAndThreshold(
+        ethers.constants.AddressZero,
+      );
+      expect(modules.map((m) => m.toLowerCase())).to.include(
+        hookAddress.toLowerCase(),
+      );
+
+      // DFR ownership stays with the deployer so the post-deploy enrollment
+      // pass can sign enrollRemoteRouters; the token itself is handed over
+      expect(eqAddress(await delayedIsm.owner(), signer.address)).to.be.true;
+      const router = GasRouter__factory.connect(routerAddress, provider);
+      expect((await router.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+    });
+
+    it('wires a top-level netFlowRateLimitedHookIsm as both hook and ISM', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+        },
+      };
+
+      const netFlowConfig: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+        owner: warpOwner,
+      };
+
+      const contracts = await ismDeployer.deploy(warpConfig, {
+        [chain]: netFlowConfig,
+      });
+      const routerAddress = contracts[chain].synthetic.address;
+      const provider = multiProvider.getProvider(chain);
+
+      const tokenClient = MailboxClient__factory.connect(
+        routerAddress,
+        provider,
+      );
+      const ismAddress = await tokenClient.interchainSecurityModule();
+      const hookAddress = await tokenClient.hook();
+      expect(eqAddress(ismAddress, hookAddress)).to.be.true;
+
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        ismAddress,
+        provider,
+      );
+      expect(eqAddress(await netFlowIsm.warpRouter(), routerAddress)).to.be
+        .true;
+      // NetFlow needs no post-deploy enrollment, so ownership transfers at deploy
+      expect((await netFlowIsm.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+    });
+
+    it('defaults an omitted netFlowRateLimitedHookIsm owner to the chain config owner', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+        },
+      };
+
+      const ownerlessNetFlow: NetFlowRateLimitedHookIsmConfig = {
+        type: IsmType.NET_FLOW_RATE_LIMITED,
+        thresholdBps: 500,
+        duration: 86400n,
+      };
+
+      const contracts = await ismDeployer.deploy(warpConfig, {
+        [chain]: ownerlessNetFlow,
+      });
+      const routerAddress = contracts[chain].synthetic.address;
+      const provider = multiProvider.getProvider(chain);
+
+      const ismAddress = await MailboxClient__factory.connect(
+        routerAddress,
+        provider,
+      ).interchainSecurityModule();
+      const netFlowIsm = NetFlowRateLimitedHookIsm__factory.connect(
+        ismAddress,
+        provider,
+      );
+      // mirrors the RATE_LIMITED sibling: an omitted owner defaults to the
+      // chain's configured owner instead of stranding with the deployer
+      expect((await netFlowIsm.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+    });
+
+    it('enrolls delayedFlowRouterHookIsm counterparts cross-chain and transfers ownership last', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+          interchainSecurityModule: delayedFlowTree(warpOwner),
+        },
+        [remoteChain]: {
+          ...config[remoteChain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+          interchainSecurityModule: delayedFlowTree(warpOwner),
+        },
+      };
+
+      // mirror executeWarpDeploy: tokens deploy with the deployer as
+      // intermediate owner and the deferred ISM tree stripped from the config
+      // (resolveWarpIsmAndHook returns undefined for deferred trees); the
+      // trees ride along via the deferredIsms argument
+      const intermediateOwnerConfig = objMap(warpDeployConfig, (_, c) => ({
+        ...c,
+        owner: signer.address,
+        interchainSecurityModule: undefined,
+      }));
+      const contracts = await ismDeployer.deploy(intermediateOwnerConfig, {
+        [chain]: delayedFlowTree(warpOwner),
+        [remoteChain]: delayedFlowTree(warpOwner),
+      });
+      const deployedContracts = objMap(
+        contracts,
+        (_, c) => c.synthetic.address,
+      );
+
+      const enrollTxs = await enrollCrossChainRouters(
+        {
+          multiProvider,
+          altVmSigners: {},
+          registryAddresses,
+          warpDeployConfig,
+        },
+        deployedContracts,
+      );
+      for (const [txChain, txs] of Object.entries(enrollTxs)) {
+        for (const rawTx of txs) {
+          // enrollCrossChainRouters only emits EVM txs for these test chains
+          const tx = rawTx as AnnotatedEV5Transaction;
+          assert(
+            typeof tx.to === 'string' && typeof tx.data === 'string',
+            `Expected an EVM transaction for ${txChain}`,
+          );
+          // drop the annotated chainId: every hardhat test chain shares one
+          // node (chainId 31337) while test-chain metadata carries fake ids
+          await multiProvider.sendTransaction(txChain, {
+            to: tx.to,
+            data: tx.data,
+            value: tx.value,
+          });
+        }
+      }
+
+      const localProvider = multiProvider.getProvider(chain);
+      const remoteProvider = multiProvider.getProvider(remoteChain);
+      const localDfr = DelayedFlowRouterHookIsm__factory.connect(
+        await MailboxClient__factory.connect(
+          deployedContracts[chain],
+          localProvider,
+        ).hook(),
+        localProvider,
+      );
+      const remoteDfr = DelayedFlowRouterHookIsm__factory.connect(
+        await MailboxClient__factory.connect(
+          deployedContracts[remoteChain],
+          remoteProvider,
+        ).hook(),
+        remoteProvider,
+      );
+
+      // mutual DFR enrollment
+      const localDomain = multiProvider.getDomainId(chain);
+      const remoteDomain = multiProvider.getDomainId(remoteChain);
+      expect(await localDfr.routers(remoteDomain)).to.equal(
+        addressToBytes32(remoteDfr.address).toLowerCase(),
+      );
+      expect(await remoteDfr.routers(localDomain)).to.equal(
+        addressToBytes32(localDfr.address).toLowerCase(),
+      );
+
+      // ownership handed to the configured owner after enrollment
+      expect((await localDfr.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+      expect((await remoteDfr.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+
+      // a second pass converges to zero transactions
+      const secondEnrollTxs = await enrollCrossChainRouters(
+        {
+          multiProvider,
+          altVmSigners: {},
+          registryAddresses,
+          warpDeployConfig,
+        },
+        deployedContracts,
+      );
+      expect(Object.keys(secondEnrollTxs)).to.have.length(0);
     });
   });
 

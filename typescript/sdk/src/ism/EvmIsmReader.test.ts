@@ -312,7 +312,7 @@ describe('EvmIsmReader', () => {
       maxDelay: 3600,
       duration: 86400n,
       owner: mockOwner,
-      remoteRouters: { [TestChainName.test2]: mockRemoteRouter },
+      remoteIsms: { [TestChainName.test2]: mockRemoteRouter },
     };
 
     // top-level method infers ism type

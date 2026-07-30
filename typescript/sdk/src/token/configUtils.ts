@@ -12,6 +12,7 @@ import {
   isAddressEvm,
   isCosmosIbcDenomAddress,
   isEVMLike,
+  isNullish,
   isObjEmpty,
   objFilter,
   objMap,
@@ -21,6 +22,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { IsmType } from '../ism/types.js';
 import {
   ResolvedTokenFeeConfigInput,
   TokenFeeConfigInput,
@@ -36,6 +38,11 @@ import {
 } from '../router/types.js';
 import { ChainMap } from '../types.js';
 import { normalizeScale } from '../utils/decimals.js';
+import {
+  collectHybridIsmNodes,
+  completeHybridIsmNodes,
+  ismTreeContainsHybridHookIsm,
+} from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -188,6 +195,34 @@ export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
  * @param virtualConfig - Optional virtual config to include in the warpDeployConfig
  * @returns A promise resolving to an expanded Warp deploy config with derived and virtual metadata
  */
+/**
+ * Collects the DelayedFlowRouterHookIsm addresses deployed on every chain
+ * other than `chain`, keyed by chain name as lowercase bytes32 — the expected
+ * `remoteIsms` pairing for `chain`'s own instance. Read from the derived
+ * on-chain configs (nested derived ISM nodes carry their address), so no
+ * extra RPC calls are needed.
+ */
+function collectRemoteDelayedFlowIsms(
+  chain: string,
+  expandedOnChainWarpConfig: WarpRouteDeployConfigMailboxRequired,
+): Record<string, string> {
+  const remoteIsms: Record<string, string> = {};
+  for (const [remoteChain, remoteConfig] of Object.entries(
+    expandedOnChainWarpConfig,
+  )) {
+    if (remoteChain === chain) continue;
+    if (typeof remoteConfig.interchainSecurityModule !== 'object') continue;
+    for (const node of collectHybridIsmNodes(
+      remoteConfig.interchainSecurityModule,
+    )) {
+      if (node.type !== IsmType.DELAYED_FLOW_ROUTER) continue;
+      if (!('address' in node) || typeof node.address !== 'string') continue;
+      remoteIsms[remoteChain] = addressToBytes32(node.address).toLowerCase();
+    }
+  }
+  return remoteIsms;
+}
+
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
@@ -258,6 +293,33 @@ export async function expandWarpDeployConfig(params: {
             chainConfig.proxyAdmin.owner ??
             config.owner,
         };
+      }
+
+      // Hybrid hook/ISM trees: complete the expected nodes with the values
+      // the warp deploy machinery manages (warpRouter = the token itself;
+      // remoteIsms = the cross-chain DelayedFlowRouterHookIsm pairing, read
+      // from the other chains' derived on-chain trees), and default the
+      // expected hook to the hybrid node — deploy wires the single hybrid
+      // instance as BOTH the token's ISM (in-tree) and its hook.
+      if (
+        typeof config.interchainSecurityModule === 'object' &&
+        ismTreeContainsHybridHookIsm(config.interchainSecurityModule)
+      ) {
+        const remoteDelayedFlowIsms = expandedOnChainWarpConfig
+          ? collectRemoteDelayedFlowIsms(chain, expandedOnChainWarpConfig)
+          : undefined;
+        const completedIsm = completeHybridIsmNodes(
+          config.interchainSecurityModule,
+          deployedRoutersAddresses[chain],
+          remoteDelayedFlowIsms,
+          config.owner,
+        );
+        chainConfig.interchainSecurityModule = completedIsm;
+
+        const hybridNodes = collectHybridIsmNodes(completedIsm);
+        if (isNullish(config.hook) && hybridNodes.length === 1) {
+          chainConfig.hook = hybridNodes[0];
+        }
       }
 
       // Properly set the remote routers addresses to their 32 bytes representation

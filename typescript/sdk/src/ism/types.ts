@@ -440,8 +440,13 @@ export const ZRouterBytes32 = z
 export const NetFlowRateLimitedHookIsmConfigSchema = z
   .object({
     type: z.literal(IsmType.NET_FLOW_RATE_LIMITED),
-    /** Warp router this contract guards; must have it installed as hook AND ISM. */
-    warpRouter: ZHash,
+    /**
+     * Warp router this contract guards; must have it installed as hook AND
+     * ISM. Optional in warp-route deploy configs (defaults to the containing
+     * warp router, injected at deploy time like RATE_LIMITED's recipient);
+     * required for standalone ISM deploys (asserted in HyperlaneIsmFactory).
+     */
+    warpRouter: ZHash.optional(),
     /** Net outflow allowed per `duration` window, in bps of live TVL (< 10000). */
     thresholdBps: z.number().int().min(0).max(9999),
     /** Refill window in seconds — must match the on-chain immutable `DURATION`. */
@@ -455,8 +460,13 @@ export const NetFlowRateLimitedHookIsmConfigSchema = z
 
 export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.DELAYED_FLOW_ROUTER),
-  /** Warp router this contract guards; must have it installed as hook AND ISM. */
-  warpRouter: ZHash,
+  /**
+   * Warp router this contract guards; must have it installed as hook AND
+   * ISM. Optional in warp-route deploy configs (defaults to the containing
+   * warp router, injected at deploy time like RATE_LIMITED's recipient);
+   * required for standalone ISM deploys (asserted in HyperlaneIsmFactory).
+   */
+  warpRouter: ZHash.optional(),
   /** Bucket size per `duration` window, in bps of live TVL (delay mode permits 100%). */
   thresholdBps: z.number().int().min(0).max(10000),
   /** Cap on any single message's wait time, in seconds (uint48). */
@@ -464,10 +474,12 @@ export const DelayedFlowRouterHookIsmConfigSchema = OwnableSchema.extend({
   /** Refill window in seconds — must match the on-chain immutable `DURATION`. */
   duration: ZBigNumberish,
   /**
-   * Enrolled remote DelayedFlowRouterHookIsm counterparts, keyed by chain
-   * name. Omit to leave the current on-chain enrollment untouched.
+   * Enrolled remote counterparts, keyed by chain name; values are the remote
+   * DelayedFlowRouterHookIsm instances (the contract is itself a Router, so
+   * on-chain nomenclature keeps "router": enrollRemoteRouters/routers()).
+   * Omit to leave the current on-chain enrollment untouched.
    */
-  remoteRouters: z.record(ZRouterBytes32).optional(),
+  remoteIsms: z.record(ZRouterBytes32).optional(),
 }).refine((val) => val.duration > 0n, {
   message: 'duration must be greater than 0',
   path: ['duration'],

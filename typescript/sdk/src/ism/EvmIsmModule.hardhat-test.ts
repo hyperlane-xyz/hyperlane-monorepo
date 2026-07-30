@@ -261,7 +261,7 @@ describe('EvmIsmModule', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner,
-        remoteRouters: { [TestChainName.test2]: remoteRouter },
+        remoteIsms: { [TestChainName.test2]: remoteRouter },
       };
       const { ism } = await createIsm(config);
 
@@ -854,7 +854,7 @@ describe('EvmIsmModule', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner: signerAddress,
-        remoteRouters: {
+        remoteIsms: {
           [TestChainName.test2]:
             addressToBytes32(randomAddress()).toLowerCase(),
         },
@@ -863,6 +863,36 @@ describe('EvmIsmModule', async () => {
       const { ism, initialIsmAddress } = await createIsm(delayedConfig);
 
       await expectTxsAndUpdate(ism, delayedConfig, 0);
+
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it('does not redeploy a delayedFlowRouterHookIsm when the target omits warpRouter', async () => {
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const delayedConfig: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        warpRouter: warpRouterAddress,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteIsms: {},
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(delayedConfig);
+
+      // warp-route-context configs omit warpRouter (implicitly the token);
+      // the update must treat it as unchanged, not as an immutable-field change
+      const targetWithoutWarpRouter: DelayedFlowRouterHookIsmConfig = {
+        type: IsmType.DELAYED_FLOW_ROUTER,
+        thresholdBps: 10000,
+        maxDelay: 3600,
+        duration: 86400n,
+        owner: signerAddress,
+        remoteIsms: {},
+      };
+      await expectTxsAndUpdate(ism, targetWithoutWarpRouter, 0);
 
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
@@ -879,13 +909,13 @@ describe('EvmIsmModule', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner: signerAddress,
-        remoteRouters: { [TestChainName.test2]: test2Router },
+        remoteIsms: { [TestChainName.test2]: test2Router },
       };
 
       const { ism, initialIsmAddress } = await createIsm(delayedConfig);
 
       // replace test2 with test3: 1 enroll tx + 1 unenroll tx
-      delayedConfig.remoteRouters = { [TestChainName.test3]: test3Router };
+      delayedConfig.remoteIsms = { [TestChainName.test3]: test3Router };
       await expectTxsAndUpdate(ism, delayedConfig, 2);
 
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
@@ -912,7 +942,7 @@ describe('EvmIsmModule', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner: signerAddress,
-        remoteRouters: {},
+        remoteIsms: {},
       };
 
       const { ism, initialIsmAddress } = await createIsm(delayedConfig);
@@ -921,7 +951,7 @@ describe('EvmIsmModule', async () => {
       // only execute successfully if enrollment (owner-gated) precedes the
       // ownership transfer
       const newOwner = randomAddress();
-      delayedConfig.remoteRouters = {
+      delayedConfig.remoteIsms = {
         [TestChainName.test2]: addressToBytes32(randomAddress()).toLowerCase(),
       };
       delayedConfig.owner = newOwner;
@@ -948,7 +978,7 @@ describe('EvmIsmModule', async () => {
         maxDelay: 3600,
         duration: 86400n,
         owner: signerAddress,
-        remoteRouters: {},
+        remoteIsms: {},
       };
 
       const { ism, initialIsmAddress } = await createIsm(delayedConfig);

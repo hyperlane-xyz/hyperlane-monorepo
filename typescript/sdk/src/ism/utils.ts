@@ -57,17 +57,19 @@ import {
 const logger = rootLogger.child({ module: 'IsmUtils' });
 
 /**
- * Derives the enrolled remote routers of a DelayedFlowRouterHookIsm as a
- * chain-name-keyed map of lowercase bytes32 router values. Unknown domains are
- * skipped with a warning. Shared by EvmIsmReader and EvmHookReader (the same
- * contract is derived through both its ISM and hook views).
+ * Derives the enrolled remote DelayedFlowRouterHookIsm counterparts
+ * (`remoteIsms`) as a chain-name-keyed map of lowercase bytes32 values, read
+ * from the contract's Router enrollment (`domains()`/`routers()` — on-chain
+ * nomenclature keeps "router"). Unknown domains are skipped with a warning.
+ * Shared by EvmIsmReader and EvmHookReader (the same contract is derived
+ * through both its ISM and hook views).
  */
-export async function deriveDelayedFlowRemoteRouters(
+export async function deriveDelayedFlowRemoteIsms(
   ism: DelayedFlowRouterHookIsm,
   multiProvider: MultiProvider,
   concurrency: number,
   readerLogger: Logger,
-): Promise<NonNullable<DelayedFlowRouterHookIsmConfig['remoteRouters']>> {
+): Promise<NonNullable<DelayedFlowRouterHookIsmConfig['remoteIsms']>> {
   const domainIds = await ism.domains();
   const entries = await concurrentMap(
     concurrency,
@@ -561,7 +563,9 @@ export async function moduleMatchesConfig(
           netFlowIsm.thresholdBps(),
           netFlowIsm.DURATION(),
         ]);
-      matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      if (config.warpRouter) {
+        matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      }
       matches &&= onChainThresholdBps.eq(config.thresholdBps);
       matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
       if (config.owner) {
@@ -588,17 +592,19 @@ export async function moduleMatchesConfig(
         delayedIsm.DURATION(),
         delayedIsm.owner(),
       ]);
-      matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      if (config.warpRouter) {
+        matches &&= eqAddress(onChainWarpRouter, config.warpRouter);
+      }
       matches &&= onChainThresholdBps.eq(config.thresholdBps);
       matches &&= onChainMaxDelay === config.maxDelay;
       matches &&= onChainDuration.toBigInt() === BigInt(config.duration);
       matches &&= eqAddress(onChainOwner, config.owner);
-      if (matches && config.remoteRouters !== undefined) {
-        // strict set equality between configured and enrolled routers
+      if (matches && config.remoteIsms !== undefined) {
+        // strict set equality between configured and enrolled counterparts
         const onChainDomains = (await delayedIsm.domains()).map((domain) =>
           Number(domain),
         );
-        const configEntries = Object.entries(config.remoteRouters);
+        const configEntries = Object.entries(config.remoteIsms);
         matches &&= onChainDomains.length === configEntries.length;
         for (const [chainName, router] of configEntries) {
           if (!matches) break;

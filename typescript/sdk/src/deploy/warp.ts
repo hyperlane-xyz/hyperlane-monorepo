@@ -1,4 +1,5 @@
 import {
+  DelayedFlowRouterHookIsm__factory,
   MailboxClient__factory,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
@@ -36,6 +37,7 @@ import {
   Address,
   addressToBytes32,
   assert,
+  eqAddress,
   isNullish,
   isObjEmpty,
   mapAllSettled,
@@ -59,7 +61,11 @@ import { HookConfig } from '../hook/types.js';
 import { hookTreeContainsRateLimited } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig } from '../ism/types.js';
+import {
+  DelayedFlowRouterHookIsmConfig,
+  IsmConfig,
+  IsmType,
+} from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
@@ -78,8 +84,12 @@ import {
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
 import {
+  assertHybridIsmDeployConstraints,
+  collectHybridIsmNodes,
   extractIsmAndHookFactoryAddresses,
-  ismTreeContainsRateLimited,
+  fillHybridIsmOwnerDefaults,
+  ismTreeContainsDeferredIsm,
+  ismTreeContainsHybridHookIsm,
 } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
@@ -300,25 +310,33 @@ export async function executeWarpDeploy(
     contractVerifier,
   );
 
-  // Capture ISM configs that contain a RATE_LIMITED node before resolveWarpIsmAndHook
-  // runs — that function replaces each chain's ISM field with the deployed address,
-  // but RATE_LIMITED ISMs (and any composite ISM containing one) are skipped there
-  // because the constructor requires the token address (recipient), which doesn't
-  // exist yet.  They are wired inside TokenDeployer.deploy() before ownership is
-  // transferred so that setInterchainSecurityModule succeeds regardless of config.owner.
-  const rateLimitedSnapshot: ChainMap<IsmConfig> = {};
+  // Capture ISM configs that contain a deferred node (RATE_LIMITED or a
+  // warp-route hybrid hook/ISM) before resolveWarpIsmAndHook runs — that
+  // function replaces each chain's ISM field with the deployed address, but
+  // deferred ISM trees are skipped there because the constructors require the
+  // token address (recipient / warpRouter), which doesn't exist yet. They are
+  // wired inside TokenDeployer.deploy() before ownership is transferred so
+  // that setInterchainSecurityModule/setHook succeed regardless of
+  // config.owner.
+  const deferredIsmSnapshot: ChainMap<IsmConfig> = {};
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
     if (typeof config.interchainSecurityModule !== 'object') continue;
     const ism = config.interchainSecurityModule;
-    if (!ismTreeContainsRateLimited(ism)) continue;
+    if (!ismTreeContainsDeferredIsm(ism)) continue;
     const protocol = multiProvider.getProtocol(chain);
     assert(
       protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
-      `RateLimitedIsm is only supported on Ethereum and Tron chains, but chain ${chain} has protocol ${protocol}`,
+      `Deferred ISMs (RateLimitedIsm / hybrid hook/ISMs) are only supported on Ethereum and Tron chains, but chain ${chain} has protocol ${protocol}`,
     );
-    // Store the full ISM tree as-is; recipient + owner defaults are applied
-    // uniformly in setRateLimitedIsms via setRateLimitedIsmRecipient.
-    rateLimitedSnapshot[chain] = ism;
+    if (ismTreeContainsHybridHookIsm(ism)) {
+      assertHybridIsmDeployConstraints(chain, ism, config);
+    }
+    // Store the full ISM tree with omitted NET_FLOW owners defaulted to the
+    // chain's configured owner NOW — the deferred deploy pass runs with the
+    // intermediate (deployer) owner config, so the user's owner is only
+    // available here. recipient/warpRouter injection and the remaining owner
+    // defaults are applied uniformly in setDeferredIsms.
+    deferredIsmSnapshot[chain] = fillHybridIsmOwnerDefaults(ism, config.owner);
   }
 
   // Hooks containing RATE_LIMITED need the token router address as sender, so they are deferred
@@ -428,8 +446,8 @@ export async function executeWarpDeploy(
               );
 
         const chainSet = new Set(Object.keys(protocolSpecificConfig));
-        const rateLimitedForBatch = objFilter(
-          rateLimitedSnapshot,
+        const deferredForBatch = objFilter(
+          deferredIsmSnapshot,
           (_chain, _ismConfig): _ismConfig is IsmConfig => chainSet.has(_chain),
         );
         // Deploy as the deployer signer (intermediate owner), mirroring the
@@ -447,7 +465,7 @@ export async function executeWarpDeploy(
         );
         const evmContracts = await deployer.deploy(
           intermediateOwnerConfig,
-          rateLimitedForBatch,
+          deferredForBatch,
         );
         deployedContracts = {
           ...deployedContracts,
@@ -663,14 +681,15 @@ async function createWarpIsm({
     return interchainSecurityModule;
   }
 
-  // RateLimitedIsm has a chicken-and-egg problem: the constructor requires the
-  // token (recipient) address, but ISMs are deployed here — before the token exists.
-  // We skip any ISM tree that contains a RATE_LIMITED node and deploy it later in
-  // setRateLimitedIsms() (after the token is deployed), then wire it up via
-  // setInterchainSecurityModule().
-  if (ismTreeContainsRateLimited(interchainSecurityModule)) {
+  // Deferred ISMs (RATE_LIMITED and the hybrid hook/ISMs) have a
+  // chicken-and-egg problem: their constructors require the token address
+  // (recipient / warpRouter), but ISMs are deployed here — before the token
+  // exists. We skip any ISM tree that contains such a node and deploy it later
+  // in setDeferredIsms() (after the token is deployed), then wire it up via
+  // setInterchainSecurityModule() (and setHook() for hybrids).
+  if (ismTreeContainsDeferredIsm(interchainSecurityModule)) {
     rootLogger.info(
-      `Skipping ISM deployment for ${chain} (contains RateLimitedIsm), will deploy after token.`,
+      `Skipping ISM deployment for ${chain} (contains a deferred ISM), will deploy after token.`,
     );
     return undefined;
   }
@@ -831,6 +850,65 @@ async function createWarpHook({
   }
 }
 
+type DelayedFlowEnrollmentTarget = {
+  ismAddress: Address;
+  userNode: DelayedFlowRouterHookIsmConfig;
+};
+
+/**
+ * Locates each chain's deployed DelayedFlowRouterHookIsm (wired as the
+ * token's hook by TokenDeployer.setDeferredIsms) so the cross-chain
+ * enrollment pass can pair the instances DFR↔DFR. Chains are paired iff their
+ * deploy config's ISM tree contains a DELAYED_FLOW_ROUTER node — the user
+ * never hand-writes `remoteIsms`.
+ */
+async function deriveDelayedFlowEnrollmentTargets(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  deployedContracts: ChainMap<Address>,
+): Promise<ChainMap<DelayedFlowEnrollmentTarget>> {
+  const targets: ChainMap<DelayedFlowEnrollmentTarget> = {};
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    if (config.foreignDeployment) continue;
+    if (typeof config.interchainSecurityModule !== 'object') continue;
+    const protocol = multiProvider.getProtocol(chain);
+    if (protocol !== ProtocolType.Ethereum && protocol !== ProtocolType.Tron) {
+      continue;
+    }
+
+    const delayedNodes = collectHybridIsmNodes(
+      config.interchainSecurityModule,
+    ).filter(
+      (node): node is DelayedFlowRouterHookIsmConfig =>
+        node.type === IsmType.DELAYED_FLOW_ROUTER,
+    );
+    if (delayedNodes.length === 0) continue;
+    assert(
+      delayedNodes.length === 1,
+      `Expected exactly one DELAYED_FLOW_ROUTER node in the ISM tree on ${chain}, found ${delayedNodes.length}`,
+    );
+
+    const tokenAddress = deployedContracts[chain];
+    assert(tokenAddress, `No deployed token found for ${chain}`);
+    const provider = multiProvider.getProvider(chain);
+    const hookAddress = await MailboxClient__factory.connect(
+      tokenAddress,
+      provider,
+    ).hook();
+    const onChainWarpRouter = await DelayedFlowRouterHookIsm__factory.connect(
+      hookAddress,
+      provider,
+    ).warpRouter();
+    assert(
+      eqAddress(onChainWarpRouter, tokenAddress),
+      `Hook ${hookAddress} on ${chain} is not the token's DelayedFlowRouterHookIsm (warpRouter mismatch)`,
+    );
+
+    targets[chain] = { ismAddress: hookAddress, userNode: delayedNodes[0] };
+  }
+  return targets;
+}
+
 export async function enrollCrossChainRouters(
   {
     multiProvider,
@@ -846,6 +924,14 @@ export async function enrollCrossChainRouters(
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   rootLogger.info(`Start enrolling cross chain routers`);
+
+  // Pre-derive DelayedFlowRouterHookIsm pairings up front: each chain's
+  // enrollment txs need every OTHER chain's deployed instance address.
+  const delayedFlowTargets = await deriveDelayedFlowEnrollmentTargets(
+    multiProvider,
+    warpDeployConfig,
+    deployedContracts,
+  );
 
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: gasOverhead(config.type),
@@ -990,6 +1076,45 @@ export async function enrollCrossChainRouters(
               parseInt(domain, 10),
             ),
           });
+
+          const delayedFlowTarget = delayedFlowTargets[currentChain];
+          if (delayedFlowTarget) {
+            const { ismAddress, userNode } = delayedFlowTarget;
+            const remoteIsms = Object.fromEntries(
+              Object.entries(delayedFlowTargets)
+                .filter(([chain]) => chain !== currentChain)
+                .map(([chain, target]) => [
+                  chain,
+                  addressToBytes32(target.ismAddress).toLowerCase(),
+                ]),
+            );
+
+            const delayedFlowIsmModule = new EvmIsmModule(multiProvider, {
+              chain: currentChain,
+              config: userNode,
+              addresses: {
+                ...extractIsmAndHookFactoryAddresses(
+                  registryAddresses[currentChain],
+                ),
+                mailbox: registryAddresses[currentChain].mailbox,
+                deployedIsm: ismAddress,
+              },
+            });
+            // Deploy left the instance owned by the deployer with no
+            // enrollments; this update enrolls the remote counterparts and
+            // transfers ownership to the configured owner LAST (enrollment is
+            // owner-gated).
+            const delayedFlowTxs = await delayedFlowIsmModule.update({
+              type: IsmType.DELAYED_FLOW_ROUTER,
+              warpRouter: deployedContracts[currentChain],
+              thresholdBps: userNode.thresholdBps,
+              maxDelay: userNode.maxDelay,
+              duration: userNode.duration,
+              owner: userNode.owner,
+              remoteIsms,
+            });
+            transactions.push(...delayedFlowTxs);
+          }
 
           break;
         }

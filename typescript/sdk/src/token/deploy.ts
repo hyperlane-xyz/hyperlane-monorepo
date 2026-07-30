@@ -43,8 +43,14 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { normalizeScale } from '../utils/decimals.js';
-import { setRateLimitedIsmRecipient } from '../utils/ism.js';
+import {
+  collectHybridIsmNodes,
+  ismTreeContainsHybridHookIsm,
+  prepareHybridIsmNodesForDeploy,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 import {
   CCTP_PPM_PRECISION_VERSION,
   CCTP_PPM_STORAGE_VERSION,
@@ -827,31 +833,59 @@ abstract class TokenDeployer<
     );
   }
 
-  // Wire rate-limited ISMs BEFORE ownership transfer so that
-  // setInterchainSecurityModule succeeds regardless of config.owner.
-  // Handles both top-level RateLimitedIsm and ISMs nested inside composites
-  // (aggregation, routing, etc.) by setting `recipient` on every RATE_LIMITED
-  // node in the tree before deploying.
+  /**
+   * @deprecated Use setDeferredIsms — RATE_LIMITED is one of several deferred
+   * ISM kinds now handled by the same pass.
+   */
+  // TODO(sdk next major): remove this delegate
   protected async setRateLimitedIsms(
     rateLimitedIsms: ChainMap<IsmConfig>,
+    configMap: ChainMap<HypTokenRouterConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    return this.setDeferredIsms(
+      rateLimitedIsms,
+      configMap,
+      deployedContractsMap,
+    );
+  }
+
+  // Wire deferred ISMs (RATE_LIMITED and the warp-route hybrid hook/ISMs)
+  // BEFORE ownership transfer so that setInterchainSecurityModule/setHook
+  // succeed regardless of config.owner. Handles both top-level nodes and
+  // nodes nested inside composites (aggregation, routing, etc.):
+  // - RATE_LIMITED nodes get `recipient` set to the token address;
+  // - hybrid nodes get `warpRouter` set to the token address, and the single
+  //   hybrid instance is additionally wired as the token's hook (the same
+  //   contract must serve both roles — shared bucket state);
+  // - DELAYED_FLOW_ROUTER nodes are deployed with the deployer as
+  //   intermediate owner so the post-deploy cross-chain enrollment pass
+  //   (deploy/warp.ts enrollCrossChainRouters) can sign enrollRemoteRouters,
+  //   which then hands ownership to the configured owner.
+  protected async setDeferredIsms(
+    deferredIsms: ChainMap<IsmConfig>,
     configMap: ChainMap<HypTokenRouterConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     const ismFactory = this.options.ismFactory;
     assert(
       ismFactory,
-      'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+      'ismFactory is required to deploy deferred ISMs — pass it to the deployer constructor',
     );
 
     await promiseObjAll(
-      objMap(rateLimitedIsms, async (chain, ismConfig) => {
+      objMap(deferredIsms, async (chain, ismConfig) => {
         const router = this.router(deployedContractsMap[chain]);
         const mailbox = configMap[chain].mailbox;
         const defaultOwner = configMap[chain].owner;
+        const deployerAddress = await this.multiProvider
+          .getSigner(chain)
+          .getAddress();
 
-        const resolvedIsm = setRateLimitedIsmRecipient(
-          ismConfig,
+        const resolvedIsm = prepareHybridIsmNodesForDeploy(
+          setRateLimitedIsmRecipient(ismConfig, router.address, defaultOwner),
           router.address,
+          deployerAddress,
           defaultOwner,
         );
 
@@ -872,13 +906,42 @@ abstract class TokenDeployer<
             [deployedIsm.address],
           ),
         });
+
+        if (!ismTreeContainsHybridHookIsm(ismConfig)) return;
+
+        // The hybrid instance must be BOTH the token's ISM (via the tree
+        // wired above) and its hook. Locate the deployed leaf by deriving
+        // the on-chain tree (nested derived nodes carry their address).
+        const derivedIsm = await new EvmIsmReader(
+          this.multiProvider,
+          chain,
+        ).deriveIsmConfig(deployedIsm.address);
+        const hybridNodes = collectHybridIsmNodes(derivedIsm);
+        assert(
+          hybridNodes.length === 1,
+          `Expected exactly one hybrid hook/ISM in the deployed ISM tree on ${chain}, found ${hybridNodes.length}`,
+        );
+        const hybridNode = hybridNodes[0];
+        assert(
+          'address' in hybridNode && typeof hybridNode.address === 'string',
+          `Derived hybrid hook/ISM node on ${chain} is missing its address`,
+        );
+        this.logger.info(
+          `Wiring hybrid hook/ISM ${hybridNode.address} as hook on token ${router.address} on ${chain}`,
+        );
+        await this.multiProvider.sendTransaction(chain, {
+          to: router.address,
+          data: tokenContract.interface.encodeFunctionData('setHook', [
+            hybridNode.address,
+          ]),
+        });
       }),
     );
   }
 
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
-    rateLimitedIsms?: ChainMap<IsmConfig>,
+    deferredIsms?: ChainMap<IsmConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     // Fail fast if any chain requires a predicate wrapper but lacks the factory.
     // Checked before any on-chain work to avoid partial deployments.
@@ -891,13 +954,13 @@ abstract class TokenDeployer<
       );
     }
 
-    // Fail fast if rateLimitedIsms are requested but ismFactory is missing.
-    // setRateLimitedIsms runs after super.deploy(), so catching this early
+    // Fail fast if deferredIsms are requested but ismFactory is missing.
+    // setDeferredIsms runs after super.deploy(), so catching this early
     // prevents partial on-chain work before hitting the same assert there.
-    if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
+    if (deferredIsms && Object.keys(deferredIsms).length > 0) {
       assert(
         this.options.ismFactory,
-        'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+        'ismFactory is required to deploy deferred ISMs — pass it to the deployer constructor',
       );
     }
 
@@ -1008,16 +1071,12 @@ abstract class TokenDeployer<
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
-    // RateLimitedIsms are wired after enrollment. A brief window exists where
+    // Deferred ISMs are wired after enrollment. A brief window exists where
     // the token's effective ISM is the mailbox defaultIsm, but it is inert on a
     // fresh deploy: no remote peers are enrolled yet, so no valid inbound message
     // can arrive and be handled by the token during that window.
-    if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
-      await this.setRateLimitedIsms(
-        rateLimitedIsms,
-        configMap,
-        deployedContractsMap,
-      );
+    if (deferredIsms && Object.keys(deferredIsms).length > 0) {
+      await this.setDeferredIsms(deferredIsms, configMap, deployedContractsMap);
     }
 
     await this.setFeeHooks(configMap, deployedContractsMap);
