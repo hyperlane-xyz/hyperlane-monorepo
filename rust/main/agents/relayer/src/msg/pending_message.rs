@@ -54,6 +54,9 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
+const VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+const VALIDATOR_SIGNATURE_FAST_RETRY_MAX: u32 = 3;
+
 /// Revert string emitted by the ICA router when the originating commit has not
 /// yet been confirmed on-chain. There is no typed error variant for this today —
 /// it is an opaque on-chain revert string — so Display-format substring matching
@@ -1075,22 +1078,21 @@ impl PendingMessage {
         reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
         // Signatures are simply not yet available (validator hasn't signed past the reorg
-        // period yet). Use a 2s fast-path for the first ~10 retries so the relayer picks
-        // them up within ~2s of the validator writing them, rather than waiting through the
-        // normal 5s→10s→30s→60s exponential backoff. Note: num_retries is the total persisted
-        // retry counter across all reasons, not a per-reason count — messages that burned through
-        // >10 retries before reaching metadata-wait won't get this fast-path.
+        // period yet). Use a short 2s fast-path so the relayer can pick them up promptly
+        // without repeatedly rebuilding aggregation metadata for up to 20 seconds. Note:
+        // num_retries is the total persisted retry counter across all reasons, not a
+        // per-reason count.
         //
         // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
         // from the beginning rather than landing mid-table at the 3-min arm.
         if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
-            if (1..=10).contains(&num_retries) {
-                return Some(Duration::from_secs(2));
+            if (1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX).contains(&num_retries) {
+                return Some(VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL);
             }
-            // Offset retries so 11→1, 12→2, … resuming the normal ramp.
+            // Offset retries so the first retry after the fast path resumes the normal ramp.
             // Pass reason=None to avoid recursing into this branch again.
             return Self::calculate_msg_backoff(
-                num_retries.saturating_sub(10),
+                num_retries.saturating_sub(VALIDATOR_SIGNATURE_FAST_RETRY_MAX),
                 max_retries,
                 message_id,
                 None,
@@ -1266,7 +1268,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, VALIDATOR_SIGNATURE_FAST_RETRY_MAX};
 
     #[test]
     fn test_calculate_msg_backoff_does_not_overflow() {
@@ -1374,11 +1376,11 @@ mod test {
     }
 
     #[test]
-    fn test_could_not_fetch_metadata_backoff() {
+    fn test_awaiting_validator_signatures_backoff() {
         let reason = ReprepareReason::AwaitingValidatorSignatures;
 
-        // Fast-path: retries 1–10 always return 2s
-        for i in 1..=10 {
+        // Fast path: the bounded initial retries always return 2s.
+        for i in 1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX {
             assert_eq!(
                 PendingMessage::calculate_msg_backoff(
                     i,
@@ -1391,20 +1393,21 @@ mod test {
             );
         }
 
-        // After fast-path: resumes gentle ramp (retry 11 → effective 1 → 5s)
+        // After the fast path, resume the gentle ramp from its first step.
+        let first_normal_retry = VALIDATOR_SIGNATURE_FAST_RETRY_MAX.saturating_add(1);
         assert_eq!(
             PendingMessage::calculate_msg_backoff(
-                11,
+                first_normal_retry,
                 DEFAULT_MAX_MESSAGE_RETRIES,
                 None,
                 Some(&reason)
             ),
             Some(Duration::from_secs(5)),
-            "retry 11 should resume normal ramp at 5s, not jump to 180s"
+            "first retry after the fast path should resume the normal ramp at 5s"
         );
         assert_eq!(
             PendingMessage::calculate_msg_backoff(
-                12,
+                first_normal_retry.saturating_add(1),
                 DEFAULT_MAX_MESSAGE_RETRIES,
                 None,
                 Some(&reason)
@@ -1413,7 +1416,7 @@ mod test {
         );
         assert_eq!(
             PendingMessage::calculate_msg_backoff(
-                13,
+                first_normal_retry.saturating_add(2),
                 DEFAULT_MAX_MESSAGE_RETRIES,
                 None,
                 Some(&reason)

@@ -9,7 +9,9 @@ import { validatorBaseConfigsFn } from '../utils.js';
 import { environment } from './chains.js';
 
 const DEFAULT_VALIDATOR_INTERVAL = 5;
-const FASTPATH_VALIDATOR_INTERVAL = 1;
+// Preserve about one-second average checkpoint polling delay while halving
+// steady-state polling relative to the original 1-second cadence.
+const FASTPATH_VALIDATOR_INTERVAL = 2;
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 // bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
 // use a small non-zero reorg period instead of 1 even on the fast path.

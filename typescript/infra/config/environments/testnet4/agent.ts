@@ -475,7 +475,9 @@ const fastPath: RootAgentConfig = {
     cache: {
       enabled: true,
     },
-    interval: 1,
+    // Halve steady-state index polling RPCs while keeping fastpath detection
+    // within one additional second (0.5s average).
+    interval: 2,
     resources: relayerResources,
   },
 };
