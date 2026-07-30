@@ -10,7 +10,13 @@ import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
+import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
+import {
+  createGcsBucketIfNotExists,
+  grantPublicReadOnBucketIfNotExists,
+} from '../../utils/gcloud.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
 
 import {
@@ -148,8 +154,55 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
     let chainSigner: KeyConfig | undefined = undefined;
+    let checkpointSyncer: CheckpointSyncerConfig = cfg.checkpointSyncer;
 
-    if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
+    if (this.gcp) {
+      // GCP KMS mode: one HSM-backed signing key and one bucket per validator
+      // index, shared across every chain that index signs checkpoints for —
+      // chains are separated by a folder prefix within the bucket, not by
+      // separate buckets/keys (see AgentGcpKmsKey). The GCP service account
+      // used to actually access them, though, is scoped per *release* (chain),
+      // not per index: a chain's validators all share one StatefulSet pod
+      // template and therefore one Kubernetes ServiceAccount, and Workload
+      // Identity binds one KSA to exactly one GSA — so every index belonging
+      // to this chain grants access onto the *same* GSA here (see
+      // ValidatorAgentGcpUser), rather than each index getting its own.
+      // Auth is entirely ambient (GKE Workload Identity); no secret is ever
+      // created or stored for this key or its bucket access.
+      const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
+      await createGcsBucketIfNotExists(
+        this.gcp.project,
+        this.gcp.location,
+        bucketName,
+      );
+      await grantPublicReadOnBucketIfNotExists(bucketName);
+
+      const gcpKey = new AgentGcpKmsKey(this, this.role, idx);
+      await gcpKey.createIfNotExists();
+
+      const gcpUser = new ValidatorAgentGcpUser(
+        this.runEnv,
+        this.context,
+        this.chainName,
+        this.gcp.project,
+      );
+      await gcpUser.createServiceAccountIfNotExists();
+      await gcpUser.grantAccessForIndex(gcpKey, bucketName);
+
+      validator = gcpKey.keyConfig;
+      checkpointSyncer = {
+        type: CheckpointSyncerType.Gcs,
+        bucket: bucketName,
+        folder: this.chainName,
+      };
+
+      // Mirrors the AWS behavior below: GCP-KMS-based chain signer keys are
+      // only used for EVM-like chains, since Cloud KMS only holds a
+      // secp256k1 key here, not a native key for every other chain protocol.
+      if (isEVMLike(protocol)) {
+        chainSigner = validator;
+      }
+    } else if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,
         this.context,
@@ -175,13 +228,13 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       );
     }
 
-    // If the chainSigner isn't set to the AWS-based key above, then set the default.
+    // If the chainSigner isn't set to the AWS/GCP-based key above, then set the default.
     if (chainSigner === undefined) {
       chainSigner = defaultChainSignerKeyConfig(this.chainName);
     }
 
     return {
-      checkpointSyncer: cfg.checkpointSyncer,
+      checkpointSyncer,
       validator,
       chainSigner,
     };

@@ -31,6 +31,7 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
+  bindWorkloadIdentityUserIfNotExists,
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   fetchGCPSecret,
@@ -47,6 +48,7 @@ import {
 } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
+import { gcpValidatorServiceAccountName } from './gcp-kms/validator-user.js';
 
 const HELM_CHART_PATH = join(
   getInfraPath(),
@@ -393,6 +395,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Environment does not support chain');
   }
 
+  // Validators get their own namespace per environment, shared across contexts,
+  // isolated from every other role — the k8s namespace is the trust boundary
+  // Workload Identity relies on for the validator's KMS/GCS credentials.
+  override get namespace(): string {
+    return `validator-${this.environment}`;
+  }
+
   get length(): number {
     return this.config.validators.length;
   }
@@ -444,6 +453,34 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     // To work around this, we shorten the name of the helm release to `agent`
     if (this.config.context !== Contexts.Hyperlane) {
       helmValues.nameOverride = 'agent';
+    }
+
+    if (this.config.gcp) {
+      // Workload Identity binds one k8s ServiceAccount to one GCP service
+      // account, and every replica in this release shares one pod template
+      // (and therefore one ServiceAccount) regardless of how many validator
+      // indices the chain has. So the GSA bound here is scoped per *release*
+      // (chain), not per index — see gcpValidatorServiceAccountName /
+      // ValidatorAgentGcpUser, which grants this same GSA access to every
+      // index's key and bucket individually as each is built.
+      const serviceAccountEmail = `${gcpValidatorServiceAccountName(this.context, this.environment, this.chainName)}@${this.config.gcp.project}.iam.gserviceaccount.com`;
+      // Pin the k8s ServiceAccount name explicitly rather than letting the
+      // chart derive it from `agent-common.fullname` — the binding below
+      // needs to target the exact same name the chart actually creates,
+      // and duplicating the chart's naming logic here would drift.
+      const ksaName = this.helmReleaseName;
+      helmValues.serviceAccount = {
+        name: ksaName,
+        annotations: {
+          'iam.gke.io/gcp-service-account': serviceAccountEmail,
+        },
+      };
+      await bindWorkloadIdentityUserIfNotExists(
+        serviceAccountEmail,
+        this.config.gcp.project,
+        this.namespace,
+        ksaName,
+      );
     }
 
     return helmValues;

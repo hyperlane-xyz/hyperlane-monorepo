@@ -18,9 +18,16 @@ ethers-signers.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+google-cloud-kms-v1.workspace = true
 hex.workspace = true
 hex-literal.workspace = true
 itertools.workspace = true
+# Deliberately a second, independent k256 (0.13.4) alongside the one `ethers-core`
+# pins internally for `AwsSigner` (an old, incompatible version) - the two never
+# need to interconvert, since only the final (r, s, v) ethers::types::Signature
+# crosses between GcpSigner and the rest of this crate. See gcp.rs's test module
+# comment for where this surfaces during testing.
+k256 = { workspace = true, features = ["pem"] }
 num.workspace = true
 num-traits.workspace = true
 reqwest.workspace = true

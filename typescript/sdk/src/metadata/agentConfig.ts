@@ -51,6 +51,7 @@ export enum AgentIndexMode {
 
 export enum AgentSignerKeyType {
   Aws = 'aws',
+  Gcp = 'gcp',
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',

@@ -319,6 +319,170 @@ export async function grantServiceAccountStorageRoleIfNotExists(
   );
 }
 
+// ==================
+// Cloud KMS + GCS + Workload Identity (validator provisioning)
+// ==================
+
+// Returns the full KeyRing resource name, creating it first if it doesn't exist.
+export async function createKmsKeyRingIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+): Promise<string> {
+  const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}`;
+  const matches = await execCmdAndParseJson(
+    `gcloud kms keyrings list --project=${project} --location=${location} --filter="name=${resourceName}" --format=json`,
+  );
+  if (matches.length === 0) {
+    await execCmd(
+      `gcloud kms keyrings create ${keyRingId} --project=${project} --location=${location}`,
+    );
+    logger.debug(`Created new KMS key ring ${resourceName}`);
+  } else {
+    logger.debug(`KMS key ring ${resourceName} already exists`);
+  }
+  return resourceName;
+}
+
+// Creates an HSM-backed secp256k1 asymmetric signing key if it doesn't already
+// exist, and returns its full CryptoKey resource name. Never exports key material —
+// the key is only ever usable via KMS's own sign API.
+export async function createKmsSignerKeyIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+): Promise<string> {
+  const resourceName = `projects/${project}/locations/${location}/keyRings/${keyRingId}/cryptoKeys/${keyId}`;
+  const matches = await execCmdAndParseJson(
+    `gcloud kms keys list --project=${project} --location=${location} --keyring=${keyRingId} --filter="name=${resourceName}" --format=json`,
+  );
+  if (matches.length === 0) {
+    await execCmd(
+      `gcloud kms keys create ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --purpose=asymmetric-signing --default-algorithm=ec-sign-secp256k1-sha256 --protection-level=hsm`,
+    );
+    logger.debug(`Created new KMS signing key ${resourceName}`);
+  } else {
+    logger.debug(`KMS signing key ${resourceName} already exists`);
+  }
+  return resourceName;
+}
+
+// Fetches the PEM-encoded public key for a CryptoKeyVersion. Used only to derive
+// the key's Ethereum address — the private key material never leaves KMS.
+export async function getKmsPublicKeyPem(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+  version = '1',
+): Promise<string> {
+  const [pem] = await execCmd(
+    `gcloud kms keys versions get-public-key ${version} --project=${project} --location=${location} --keyring=${keyRingId} --key=${keyId} --output-file=-`,
+  );
+  return pem;
+}
+
+// Grants a service account permission to sign with (and view the public key of)
+// a specific CryptoKey — scoped to that key alone, not the key ring or project.
+export async function grantKmsKeySignerRoleIfNotExists(
+  project: string,
+  location: string,
+  keyRingId: string,
+  keyId: string,
+  serviceAccountEmail: string,
+) {
+  const member = `serviceAccount:${serviceAccountEmail}`;
+  const role = 'roles/cloudkms.signerVerifier';
+  const policy = await execCmdAndParseJson(
+    `gcloud kms keys get-iam-policy ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --format=json`,
+  );
+  const hasRole = (policy.bindings || []).some(
+    (binding: any) =>
+      binding.role === role && binding.members?.includes(member),
+  );
+  if (hasRole) {
+    logger.debug(
+      `Service account ${serviceAccountEmail} already has ${role} on key ${keyId}`,
+    );
+    return;
+  }
+  await execCmd(
+    `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
+  );
+  logger.debug(`Granted ${role} to ${serviceAccountEmail} on key ${keyId}`);
+}
+
+// Creates a GCS bucket with uniform bucket-level access if it doesn't already exist.
+export async function createGcsBucketIfNotExists(
+  project: string,
+  location: string,
+  bucketName: string,
+) {
+  const matches = await execCmdAndParseJson(
+    `gcloud storage buckets list --project=${project} --filter="name=${bucketName}" --format=json`,
+  );
+  if (matches.length === 0) {
+    await execCmd(
+      `gcloud storage buckets create gs://${bucketName} --project=${project} --location=${location} --uniform-bucket-level-access`,
+    );
+    logger.debug(`Created new GCS bucket ${bucketName}`);
+  } else {
+    logger.debug(`GCS bucket ${bucketName} already exists`);
+  }
+}
+
+// Grants public, unauthenticated read access to every object in the bucket —
+// required so relayers with no relationship to this GCP project can fetch checkpoints.
+export async function grantPublicReadOnBucketIfNotExists(bucketName: string) {
+  const role = 'roles/storage.objectViewer';
+  const policy = await execCmdAndParseJson(
+    `gcloud storage buckets get-iam-policy gs://${bucketName} --format=json`,
+  );
+  const hasRole = (policy.bindings || []).some(
+    (binding: any) =>
+      binding.role === role && binding.members?.includes('allUsers'),
+  );
+  if (hasRole) {
+    logger.debug(`Bucket ${bucketName} is already publicly readable`);
+    return;
+  }
+  await execCmd(
+    `gcloud storage buckets add-iam-policy-binding gs://${bucketName} --member=allUsers --role="${role}"`,
+  );
+  logger.debug(`Granted public read on bucket ${bucketName}`);
+}
+
+// Binds a Kubernetes ServiceAccount (identified by namespace + name, under the
+// project's Workload Identity Pool) to a GCP service account, letting a pod
+// running as that KSA impersonate this GSA with no static credential anywhere.
+export async function bindWorkloadIdentityUserIfNotExists(
+  serviceAccountEmail: string,
+  project: string,
+  namespace: string,
+  ksaName: string,
+) {
+  const member = `serviceAccount:${project}.svc.id.goog[${namespace}/${ksaName}]`;
+  const role = 'roles/iam.workloadIdentityUser';
+  const policy = await execCmdAndParseJson(
+    `gcloud iam service-accounts get-iam-policy ${serviceAccountEmail} --project=${project} --format=json`,
+  );
+  const hasRole = (policy.bindings || []).some(
+    (binding: any) =>
+      binding.role === role && binding.members?.includes(member),
+  );
+  if (hasRole) {
+    logger.debug(`${member} already bound to ${serviceAccountEmail}`);
+    return;
+  }
+  await execCmd(
+    `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} --project=${project} --member="${member}" --role="${role}"`,
+  );
+  logger.debug(
+    `Bound ${member} to ${serviceAccountEmail} via Workload Identity`,
+  );
+}
+
 export async function createServiceAccountKey(serviceAccountEmail: string) {
   const localKeyFile = '/tmp/tmp_key.json';
   await execCmd(

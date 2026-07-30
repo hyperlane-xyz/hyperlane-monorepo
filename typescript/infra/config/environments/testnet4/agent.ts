@@ -132,8 +132,9 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
-  aws: {
-    region: 'us-east-1',
+  gcp: {
+    project: 'abacus-labs-dev',
+    location: 'us-east1',
   },
 } as const;
 

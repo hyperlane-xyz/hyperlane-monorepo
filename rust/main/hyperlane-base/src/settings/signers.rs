@@ -63,6 +63,37 @@ async fn build_aws_signer(id: &str, region: &str) -> Result<AwsSigner, Report> {
         .map_err(|arc_err| eyre::eyre!("{arc_err}"))
 }
 
+/// Cache of constructed GCP signers, keyed by KMS crypto key version resource name, so
+/// independent call sites needing the same signer share one `GetPublicKey` call instead of
+/// repeating it. Same `try_get_with` coalescing rationale as `AWS_SIGNER_CACHE` above.
+type GcpSignerCache = Cache<String, hyperlane_ethereum::GcpSigner>;
+
+static GCP_SIGNER_CACHE: OnceLock<GcpSignerCache> = OnceLock::new();
+
+fn get_gcp_signer_cache() -> &'static GcpSignerCache {
+    GCP_SIGNER_CACHE.get_or_init(|| Cache::builder().max_capacity(100).build())
+}
+
+/// Builds a `GcpSigner` for the given KMS crypto key version resource name, reusing an
+/// already-constructed signer for the same name if one exists rather than making a fresh
+/// KMS call. Credentials are resolved via Application Default Credentials (workload
+/// identity on GKE, or `GOOGLE_APPLICATION_CREDENTIALS` locally) - nothing credential-related
+/// is read from config.
+async fn build_gcp_signer(key_version_name: &str) -> Result<hyperlane_ethereum::GcpSigner, Report> {
+    get_gcp_signer_cache()
+        .try_get_with(key_version_name.to_owned(), async {
+            let client = google_cloud_kms_v1::client::KeyManagementService::builder()
+                .build()
+                .await
+                .map_err(|err| eyre::eyre!(err.to_string()))?;
+            hyperlane_ethereum::GcpSigner::new(client, key_version_name.to_owned())
+                .await
+                .map_err(Report::from)
+        })
+        .await
+        .map_err(|arc_err| eyre::eyre!("{arc_err}"))
+}
+
 /// Signer types
 #[derive(Default, Debug, Clone)]
 pub enum SignerConf {
@@ -78,6 +109,14 @@ pub enum SignerConf {
         id: String,
         /// The AWS region
         region: String,
+    },
+    /// A GCP Cloud KMS signer. Credentials are resolved via Application Default
+    /// Credentials (workload identity on GKE, or `GOOGLE_APPLICATION_CREDENTIALS`
+    /// locally) - nothing credential-related is read from this config.
+    Gcp {
+        /// Fully-qualified resource name of the crypto key version, e.g.
+        /// `projects/{p}/locations/{l}/keyRings/{k}/cryptoKeys/{ck}/cryptoKeyVersions/{v}`.
+        key_version_name: String,
     },
     /// Cosmos Specific key
     CosmosKey {
@@ -144,6 +183,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             )),
             SignerConf::Aws { id, region } => {
                 hyperlane_ethereum::Signers::Aws(build_aws_signer(id, region).await?)
+            }
+            SignerConf::Gcp { key_version_name } => {
+                hyperlane_ethereum::Signers::Gcp(build_gcp_signer(key_version_name).await?)
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
