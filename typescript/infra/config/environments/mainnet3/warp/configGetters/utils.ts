@@ -339,11 +339,15 @@ export function scaleDownConfig(
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
  *
- * @param owner - The owner address for the fee contract
+ * @param owner - The owner of the top-level RoutingFee contract
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
  * @param feeParams - Optional pre-deployed fee parameters per chain
  * @param quoteSigners - If provided, uses OffchainQuotedLinearFee instead of LinearFee
+ * @param subFeeOwner - Owner of the nested per-destination sub-fee contracts.
+ *   Defaults to `owner`. Set this separately when the RoutingFee owner has been
+ *   rotated (e.g. to a treasury key that only claims) while pricing control of
+ *   the sub-fee contracts stays with governance.
  */
 export function getFixedRoutingFeeConfig(
   owner: Address,
@@ -351,6 +355,7 @@ export function getFixedRoutingFeeConfig(
   bps: number | Record<ChainName, number>,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
   quoteSigners?: Address[],
+  subFeeOwner: Address = owner,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
@@ -363,7 +368,7 @@ export function getFixedRoutingFeeConfig(
       feeContracts[chain] = params
         ? {
             type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
+            owner: subFeeOwner,
             bps: chainBps,
             maxFee: BigInt(params.maxFee),
             halfAmount: BigInt(params.halfAmount),
@@ -371,7 +376,7 @@ export function getFixedRoutingFeeConfig(
           }
         : {
             type: TokenFeeType.OffchainQuotedLinearFee,
-            owner,
+            owner: subFeeOwner,
             bps: chainBps,
             quoteSigners,
           };
@@ -379,12 +384,12 @@ export function getFixedRoutingFeeConfig(
       feeContracts[chain] = params
         ? {
             type: TokenFeeType.LinearFee,
-            owner,
+            owner: subFeeOwner,
             bps: chainBps,
             maxFee: BigInt(params.maxFee),
             halfAmount: BigInt(params.halfAmount),
           }
-        : { type: TokenFeeType.LinearFee, owner, bps: chainBps };
+        : { type: TokenFeeType.LinearFee, owner: subFeeOwner, bps: chainBps };
     }
   }
 
