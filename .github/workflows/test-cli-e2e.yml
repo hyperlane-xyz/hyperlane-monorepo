@@ -105,6 +105,7 @@ jobs:
           # deploy
           - warp-bridge-1
           - warp-bridge-2
+          - warp-delayed-flow
           - warp-deploy-1
           - warp-deploy-2
           - warp-deploy-predicate
