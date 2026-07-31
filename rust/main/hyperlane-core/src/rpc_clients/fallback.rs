@@ -29,6 +29,9 @@ const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 
 const FAILED_REQUEST_THRESHOLD: u32 = 10;
 
+// Caps how long we wait on one provider; otherwise a stalled connection blocks the whole loop.
+const FALLBACK_PROVIDER_CALL_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Information about a provider in `PrioritizedProviders`
 
 #[derive(Clone, Copy, Debug, new)]
@@ -77,6 +80,7 @@ pub struct FallbackProvider<T, B> {
     /// The sub-providers called by this provider
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
+    call_timeout: Duration,
     _phantom: PhantomData<B>,
 }
 
@@ -97,6 +101,7 @@ impl<T, B> Clone for FallbackProvider<T, B> {
         Self {
             inner: self.inner.clone(),
             max_block_time: self.max_block_time,
+            call_timeout: self.call_timeout,
             _phantom: PhantomData,
         }
     }
@@ -233,8 +238,19 @@ where
             let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
-                let resp = f(provider.clone()).await;
-                self.handle_stalled_provider(priority, provider).await;
+                let resp = match tokio::time::timeout(self.call_timeout, f(provider.clone())).await
+                {
+                    Ok(resp) => {
+                        // Only check for a stalled block height on a provider that actually
+                        // responded. A provider that just timed out shouldn't be hit with
+                        // another unbounded call from handle_stalled_provider.
+                        self.handle_stalled_provider(priority, provider).await;
+                        resp
+                    }
+                    Err(_) => Err(crate::ChainCommunicationError::from_other_str(
+                        "fallback provider call timed out",
+                    )),
+                };
                 if resp.is_err() {
                     self.handle_failed_provider(priority).await;
                 }
@@ -262,6 +278,7 @@ where
 pub struct FallbackProviderBuilder<T, B> {
     providers: Vec<T>,
     max_block_time: Duration,
+    call_timeout: Duration,
     _phantom: PhantomData<B>,
 }
 
@@ -270,6 +287,7 @@ impl<T, B> Default for FallbackProviderBuilder<T, B> {
         Self {
             providers: Vec::new(),
             max_block_time: MAX_BLOCK_TIME,
+            call_timeout: FALLBACK_PROVIDER_CALL_TIMEOUT,
             _phantom: PhantomData,
         }
     }
@@ -296,6 +314,13 @@ impl<T, B> FallbackProviderBuilder<T, B> {
         self
     }
 
+    /// Override the per-provider call timeout. Mainly useful for tests that
+    /// need to exercise the timeout path without waiting 30 seconds.
+    pub fn with_call_timeout(mut self, call_timeout: Duration) -> Self {
+        self.call_timeout = call_timeout;
+        self
+    }
+
     /// Create a fallback provider.
     pub fn build(self) -> FallbackProvider<T, B> {
         let provider_count = self.providers.len();
@@ -311,6 +336,7 @@ impl<T, B> FallbackProviderBuilder<T, B> {
         FallbackProvider {
             inner: Arc::new(prioritized_providers),
             max_block_time: self.max_block_time,
+            call_timeout: self.call_timeout,
             _phantom: PhantomData,
         }
     }
@@ -443,5 +469,46 @@ pub mod test {
             .map(|p| p.index)
             .collect();
         assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_call_timeout_unblocks_stalled_provider() {
+        let provider1 = ProviderMock::new(None);
+        let provider2 = ProviderMock::new(None);
+        provider2.push("aaa", true);
+
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::builder()
+                .add_providers(vec![provider1, provider2])
+                .with_call_timeout(Duration::from_millis(50))
+                .build();
+
+        let call = fallback_provider.call(|provider: ProviderMock| {
+            let future = async move {
+                if provider.requests.lock().unwrap().is_empty() {
+                    // simulate a provider that connects but never responds
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    Ok(100)
+                } else {
+                    Ok(100)
+                }
+            };
+            Box::pin(future)
+        });
+
+        // If the timeout doesn't kick in, this outer timeout is what catches the hang.
+        let result = tokio::time::timeout(Duration::from_secs(2), call).await;
+        assert!(result.is_ok(), "call() hung past the configured timeout");
+        assert_eq!(result.unwrap().unwrap(), 100);
+
+        let failed_counts: Vec<_> = fallback_provider
+            .inner
+            .priorities
+            .read()
+            .await
+            .iter()
+            .map(|p| p.last_failed_count)
+            .collect();
+        assert_eq!(failed_counts[0], 1);
     }
 }
