@@ -15,7 +15,9 @@ fullnameOverride: ''
 centralized:
   enabled: false
   # Monitor every route in the registry. When false, warpRouteIds is used.
-  warpRouteAll: true
+  # Defaults to false so a misconfigured deploy monitors nothing (and crash-loops)
+  # rather than silently pulling in every registry route, incl. testnet/staging.
+  warpRouteAll: false
   # Explicit route IDs to monitor when warpRouteAll is false.
   warpRouteIds: []
   # Max routes processed concurrently per cycle. Kept low so per-cycle RPC/CPU
