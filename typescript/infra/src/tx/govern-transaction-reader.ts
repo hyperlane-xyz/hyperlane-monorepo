@@ -1116,6 +1116,8 @@ export class GovernTransactionReader {
     let insight: string | undefined;
     let feeDetails: Record<string, any> | undefined;
 
+    assert(tx.to, 'Warp Module transaction must have a to address');
+
     // setFeeRecipient is special: it reads the fee contract on-chain to
     // produce a richer insight, so it cannot be served by the sync format
     // helpers below.
@@ -1129,7 +1131,7 @@ export class GovernTransactionReader {
       const [recipient] = decoded.args;
       const feeInfo = await this.readFeeContractDetails(
         chain,
-        tx.to!,
+        tx.to,
         recipient,
       );
       insight = feeInfo.insight;
@@ -1149,7 +1151,7 @@ export class GovernTransactionReader {
       let contractVersion: string | undefined;
       try {
         contractVersion = await PackageVersioned__factory.connect(
-          tx.to!,
+          tx.to,
           this.multiProvider.getProvider(chain),
         ).PACKAGE_VERSION();
       } catch {
@@ -1181,7 +1183,6 @@ export class GovernTransactionReader {
       ownableTx = await this.readOwnableTransaction(chain, tx);
     }
 
-    assert(tx.to, 'Warp Module transaction must have a to address');
     const tokenAddress = tx.to.toLowerCase();
     const token = this.warpRouteIndex[chain][tokenAddress];
 
