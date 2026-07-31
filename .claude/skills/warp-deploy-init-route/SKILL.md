@@ -517,6 +517,8 @@ The route ID always matches the filename suffix (without `-deploy.yaml`), so it 
 
 Refer to this resolved value as `<warp-route-id>` in the commands below (Steps 7d and 8) — it is the explicit ticket ID when one was given, the derived chains-alphabetical ID otherwise. Do not hardcode `<TOKEN>/<chains-alphabetical>` in the deploy commands, or an explicit-ID deploy (e.g. `WBTC/staging`) would write/deploy under the wrong id.
 
+**Validate the resolved ID before it crosses a filesystem or shell boundary** — it becomes a registry filename _and_ a `--warp-route-id` argument, so a hostile ticket value is an injection/traversal vector. Require the shape `<TOKEN>/<suffix>` with **exactly one `/`**, each part matching `^[A-Za-z0-9._-]+$` only — reject anything containing `..`, additional `/`, whitespace, or shell metacharacters (``; | & $ ` > < ( ) * ? \``). Halt with a clear error if it doesn't match (a `../`- or metacharacter-laden value could escape `deployments/warp_routes/` or alter the privileged deploy command). Then build the deploy.yaml path, resolve it, and assert it still lives under `$REGISTRY_PATH/deployments/warp_routes/` before writing. Always pass the id as a single quoted argument (`--warp-route-id "<warp-route-id>"`), never unquoted.
+
 ### 7b: Identify Required Protocols
 
 For each chain in the route, determine its VM protocol type:
