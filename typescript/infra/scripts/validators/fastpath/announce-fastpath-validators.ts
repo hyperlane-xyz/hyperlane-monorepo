@@ -1,7 +1,7 @@
 /**
  * Announce all fastpath validators (AW, Enigma, Luganodes) on-chain.
  *
- * - AW:        storage locations read from fastpath agent config (S3)
+ * - AW:        storage locations read from fastpath agent config (S3 or GCS)
  * - Enigma:    s3://hyperlane-fastpath-validator-enigma-signatures/<chain>
  * - Luganodes: s3://hyperlane-fastpath-validators-signatures/<chain>
  *
@@ -22,6 +22,7 @@ import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../../config/contexts.js';
 import { getChains } from '../../../config/registry.js';
 import { InfraS3Validator } from '../../../src/agents/aws/validator.js';
+import { InfraGcsValidator } from '../../../src/agents/gcp/validator.js';
 import { CheckpointSyncerType } from '../../../src/config/agent/validator.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import { getAgentConfig, getArgs as getRootArgs } from '../../agent-utils.js';
@@ -79,21 +80,34 @@ async function main() {
         .filter(([c]) => evmChains.includes(c))
         .map(async ([c, chainConfig]) => {
           for (const v of chainConfig.validators) {
-            if (v.checkpointSyncer.type !== CheckpointSyncerType.S3) continue;
             const contracts = core.getContracts(c);
-            const infraValidator = new InfraS3Validator(
-              {
-                localDomain: multiProvider.getDomainId(c),
-                address: v.address,
-                mailbox: contracts.mailbox.address,
-              },
-              v.checkpointSyncer,
-            );
-            pending.push({
-              chain: c,
-              storageLocation: infraValidator.storageLocation(),
-              announcement: await infraValidator.getSignedAnnouncement(),
-            });
+            const validatorConfig = {
+              localDomain: multiProvider.getDomainId(c),
+              address: v.address,
+              mailbox: contracts.mailbox.address,
+            };
+            if (v.checkpointSyncer.type === CheckpointSyncerType.S3) {
+              const infraValidator = new InfraS3Validator(
+                validatorConfig,
+                v.checkpointSyncer,
+              );
+              pending.push({
+                chain: c,
+                storageLocation: infraValidator.storageLocation(),
+                announcement: await infraValidator.getSignedAnnouncement(),
+              });
+            } else if (v.checkpointSyncer.type === CheckpointSyncerType.Gcs) {
+              const infraValidator = new InfraGcsValidator(validatorConfig, {
+                bucket: v.checkpointSyncer.bucket,
+                folder: v.checkpointSyncer.folder,
+                caching: true,
+              });
+              pending.push({
+                chain: c,
+                storageLocation: infraValidator.storageLocation(),
+                announcement: await infraValidator.getSignedAnnouncement(),
+              });
+            }
           }
         }),
     );

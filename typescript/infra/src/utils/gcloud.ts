@@ -1,7 +1,7 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import fs from 'fs';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageNames } from '../../config/docker.js';
 import { rm, writeFile } from 'fs/promises';
@@ -330,8 +330,16 @@ export async function grantServiceAccountStorageRoleIfNotExists(
     );
     return;
   }
-  await execCmd(
-    `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+  // A just-created service account can take a few seconds to propagate to
+  // other GCP APIs (Storage's IAM binding endpoint here) — retry rather than
+  // fail outright on "does not exist" for a service account we just created.
+  await retryAsync(
+    () =>
+      execCmd(
+        `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+      ),
+    6,
+    3000,
   );
 }
 
@@ -430,8 +438,15 @@ export async function grantKmsKeySignerRoleIfNotExists(
     );
     return;
   }
-  await execCmd(
-    `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
+  // A just-created service account can take a few seconds to propagate to
+  // other GCP APIs — retry rather than fail outright on "does not exist".
+  await retryAsync(
+    () =>
+      execCmd(
+        `gcloud kms keys add-iam-policy-binding ${keyId} --project=${project} --location=${location} --keyring=${keyRingId} --member="${member}" --role="${role}"`,
+      ),
+    6,
+    3000,
   );
   logger.debug(`Granted ${role} to ${serviceAccountEmail} on key ${keyId}`);
 }
@@ -485,22 +500,31 @@ export async function bindWorkloadIdentityUserIfNotExists(
 ) {
   const member = `serviceAccount:${project}.svc.id.goog[${namespace}/${ksaName}]`;
   const role = 'roles/iam.workloadIdentityUser';
-  const policy = await execCmdAndParseJson(
-    `gcloud iam service-accounts get-iam-policy ${serviceAccountEmail} --project=${project} --format=json`,
-  );
-  const hasRole = (policy.bindings || []).some(
-    (binding: any) =>
-      binding.role === role && binding.members?.includes(member),
-  );
-  if (hasRole) {
-    logger.debug(`${member} already bound to ${serviceAccountEmail}`);
-    return;
-  }
-  await execCmd(
-    `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} --project=${project} --member="${member}" --role="${role}"`,
-  );
-  logger.debug(
-    `Bound ${member} to ${serviceAccountEmail} via Workload Identity`,
+  // A just-created service account can take a few seconds to propagate to
+  // other GCP APIs — retry the whole read-then-write rather than fail
+  // outright on "does not exist" for a service account we just created.
+  await retryAsync(
+    async () => {
+      const policy = await execCmdAndParseJson(
+        `gcloud iam service-accounts get-iam-policy ${serviceAccountEmail} --project=${project} --format=json`,
+      );
+      const hasRole = (policy.bindings || []).some(
+        (binding: any) =>
+          binding.role === role && binding.members?.includes(member),
+      );
+      if (hasRole) {
+        logger.debug(`${member} already bound to ${serviceAccountEmail}`);
+        return;
+      }
+      await execCmd(
+        `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} --project=${project} --member="${member}" --role="${role}"`,
+      );
+      logger.debug(
+        `Bound ${member} to ${serviceAccountEmail} via Workload Identity`,
+      );
+    },
+    6,
+    3000,
   );
 }
 

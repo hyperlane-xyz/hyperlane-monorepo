@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, GcpValidator } from '@hyperlane-xyz/sdk';
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
@@ -52,6 +52,12 @@ async function main() {
         storageLocation: validator.storageLocation(),
         announcement: await validator.getSignedAnnouncement(),
       });
+    } else if (location.startsWith('gs://')) {
+      const validator = await GcpValidator.fromStorageLocation(location);
+      announcements.push({
+        storageLocation: validator.storageLocation(),
+        announcement: await validator.getSignedAnnouncement(),
+      });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
         location.substring(7),
@@ -81,20 +87,35 @@ async function main() {
         })
         .map(async ([validatorChain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
+            const contracts = core.getContracts(validatorChain);
+            const localDomain = multiProvider.getDomainId(validatorChain);
+            const validatorConfig = {
+              localDomain,
+              address: validatorBaseConfig.address,
+              mailbox: contracts.mailbox.address,
+            };
             if (
               validatorBaseConfig.checkpointSyncer.type ==
               CheckpointSyncerType.S3
             ) {
-              const contracts = core.getContracts(validatorChain);
-              const localDomain = multiProvider.getDomainId(validatorChain);
               const validator = new InfraS3Validator(
-                {
-                  localDomain,
-                  address: validatorBaseConfig.address,
-                  mailbox: contracts.mailbox.address,
-                },
+                validatorConfig,
                 validatorBaseConfig.checkpointSyncer,
               );
+              announcements.push({
+                storageLocation: validator.storageLocation(),
+                announcement: await validator.getSignedAnnouncement(),
+              });
+              chains.push(validatorChain);
+            } else if (
+              validatorBaseConfig.checkpointSyncer.type ==
+              CheckpointSyncerType.Gcs
+            ) {
+              const validator = new GcpValidator(validatorConfig, {
+                bucket: validatorBaseConfig.checkpointSyncer.bucket,
+                folder: validatorBaseConfig.checkpointSyncer.folder,
+                caching: true,
+              });
               announcements.push({
                 storageLocation: validator.storageLocation(),
                 announcement: await validator.getSignedAnnouncement(),
