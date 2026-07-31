@@ -231,4 +231,10 @@ describe('normalizeRecoveryV', () => {
       'Invalid v value from Turnkey',
     );
   });
+
+  it('throws on a hex-but-unsupported recovery id', () => {
+    expect(() => normalizeRecoveryV('05')).to.throw(
+      'Unsupported recovery id from Turnkey: 05',
+    );
+  });
 });

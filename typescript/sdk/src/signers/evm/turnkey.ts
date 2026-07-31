@@ -40,7 +40,12 @@ export function normalizeRecoveryV(v: string): number {
   if (isNaN(parsedV)) {
     throw new Error(`Invalid v value from Turnkey: ${v}`);
   }
-  return parsedV < 27 ? parsedV + 27 : parsedV;
+  // Only a real recovery id is valid: 0/1 (Turnkey's form) → 27/28 (ethers'
+  // form), or an already-lifted 27/28. Reject anything else — a bad value
+  // would silently yield an unrecoverable signature rather than fail loudly.
+  if (parsedV === 0 || parsedV === 1) return parsedV + 27;
+  if (parsedV === 27 || parsedV === 28) return parsedV;
+  throw new Error(`Unsupported recovery id from Turnkey: ${v}`);
 }
 
 /**
