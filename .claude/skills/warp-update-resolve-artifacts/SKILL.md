@@ -251,7 +251,7 @@ For all other types (Turnkey / Privy / MPC / custom-multisig / timelock / other)
 
 ### 4e. SVM owners
 
-For SVM owners (Solana base58 pubkeys), Squads classification is Phase 2 wiring; flag as `type: Squads`, `notes: classification not yet automated for SVM` and continue. If the user knows it's NOT a Squads multisig, they can override via 4d.
+For SVM owners (Solana base58 pubkeys), do **NOT** default to `type: Squads`. Reading the account (`getAccountInfo`) only proves it exists — it does **not** distinguish a Squads multisig PDA from a plain wallet or another program-owned account, and stamping `Squads` on assumption would route proposals to the wrong signer. On-chain Squads detection is Phase-2 wiring, so until then leave the type unclassified (`notes: SVM owner classification not yet automated — Squads vs wallet vs program-owned undetermined`) and require the user to confirm the actual type via 4d before any downstream routing. If unconfirmed, treat it as a manual hand-off (never auto-route to the Squads signer).
 
 ---
 

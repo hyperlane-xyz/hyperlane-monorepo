@@ -373,7 +373,9 @@ This grep matches **EVM** receipts only. If the new chain is non-EVM (SVM/Cosmos
 
 Two distinct expectations (per the Ownership model section at the top of this skill):
 
-- **New chain's `jsonRpc` receipt** should contain `transferOwnership(<customer-ICA-or-Safe-from-Step-5>)` — the deployer's atomic post-deploy transfer to the customer. Confirm the target address matches Step 5's resolved ICA / Safe.
+- **New chain's owner transfer** — verification is protocol-specific:
+  - **EVM / Tron new chain:** its `jsonRpc` receipt should contain `transferOwnership(<customer-ICA-or-Safe-from-Step-5>)` — the deployer's atomic post-deploy transfer to the customer. Confirm the target address matches Step 5's resolved ICA / Safe.
+  - **Non-EVM new chain (Sealevel / Cosmos / Starknet / …):** the transfer is not an EVM `transferOwnership` call and won't appear in the grep. Verify the new chain's owner directly via `warp check` (it reads the chain's own owner state) and confirm it equals Step 5's resolved owner.
 - **Existing chains' receipt files** should NOT contain ANY `transferOwnership` calls. Existing-chain ownership is already where it should be; the extension does not change it.
 
 If either expectation is violated — `transferOwnership` to the deployer address anywhere, or `transferOwnership` calls targeting existing chains — the deploy.yaml `owner` fields were corrupted (typically by a previous run hitting the `runWarpRouteApply` corruption bug; see the Notes section). **Stop immediately — do not send these files to the customer.** To fix:
