@@ -1894,6 +1894,60 @@ contract CrossCollateralRouterTest is Test {
         assertEq(usdtRouterA.allowedBridges(DESTINATION).length, 1);
     }
 
+    function test_unenrollRemoteRouter_keepsRebalanceState_whenCcrRouteRemains()
+        public
+    {
+        // DESTINATION is classically enrolled in setUp; also give it a CCR route.
+        bytes32 ccrRouter = address(usdcRouterB).addressToBytes32();
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = DESTINATION;
+        routers[0] = ccrRouter;
+        usdtRouterA.enrollCrossCollateralRouters(domains, routers);
+
+        MockITokenBridge bridge = new MockITokenBridge(originUSDT);
+        usdtRouterA.addBridge(DESTINATION, bridge);
+        bytes32 recipient = address(0xBEEF).addressToBytes32();
+        usdtRouterA.setRecipient(DESTINATION, recipient);
+
+        // Remove the CLASSIC route; the CCR route for DESTINATION remains.
+        usdtRouterA.unenrollRemoteRouter(DESTINATION);
+
+        // Config is preserved because the CCR route still needs it.
+        assertEq(usdtRouterA.allowedRecipient(DESTINATION), recipient);
+        assertEq(usdtRouterA.allowedBridges(DESTINATION).length, 1);
+
+        // Removing the last CCR route now clears it — no route remains.
+        usdtRouterA.unenrollCrossCollateralRouters(domains, routers);
+        assertEq(usdtRouterA.allowedRecipient(DESTINATION), bytes32(0));
+        assertEq(usdtRouterA.allowedBridges(DESTINATION).length, 0);
+    }
+
+    function test_unenrollRemoteRouter_clearsRebalanceState_classicOnlyDomain()
+        public
+    {
+        // A fresh domain with only a classic remote router (no CCR route);
+        // DESTINATION/ORIGIN both carry CCR routes from setUp.
+        uint32 classicOnly = 42;
+        usdtRouterA.enrollRemoteRouter(
+            classicOnly,
+            address(usdcRouterB).addressToBytes32()
+        );
+
+        MockITokenBridge bridge = new MockITokenBridge(originUSDT);
+        usdtRouterA.addBridge(classicOnly, bridge);
+        usdtRouterA.setRecipient(
+            classicOnly,
+            address(0xBEEF).addressToBytes32()
+        );
+
+        usdtRouterA.unenrollRemoteRouter(classicOnly);
+
+        // No route remains, so the rebalance config is cleared.
+        assertEq(usdtRouterA.allowedRecipient(classicOnly), bytes32(0));
+        assertEq(usdtRouterA.allowedBridges(classicOnly).length, 0);
+    }
+
     // ============ Helpers ============
 
     function _batchEnroll(
