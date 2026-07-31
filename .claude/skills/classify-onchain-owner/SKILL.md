@@ -1,6 +1,6 @@
 ---
 name: classify-onchain-owner
-description: The low-level on-chain probes for identifying what an owner address is — cast code → EOA / EIP-7702-delegated EOA / contract, VERSION() → Gnosis Safe, hyperlane ica deploy → ICA derivation, getAccountInfo → Sealevel account existence — with how to interpret each result. The primitive layer beneath validate-owners / resolve-artifacts / update-owners, which each apply their own per-chain or per-artifact policy on top.
+description: The low-level on-chain probes for identifying what an owner address is — cast code → EOA / EIP-7702-delegated EOA / contract, VERSION() → Gnosis Safe, read-only get-owner-ica.ts derive → ICA derivation, getAccountInfo → Sealevel account existence — with how to interpret each result. The primitive layer beneath validate-owners / resolve-artifacts / update-owners, which each apply their own per-chain or per-artifact policy on top.
 ---
 
 # Classify On-Chain Owner (primitive probes)
@@ -28,7 +28,16 @@ These are the raw probes for determining what an owner address IS on chain. A ca
 
 ## EVM — ICA derivation
 
-`pnpm --silent -C typescript/cli hyperlane ica deploy --origin <origin> --chains <chain> --owner <controlling-owner> …` (key flag per `/warp-key-value-expansion`). The call is idempotent — it derives the deterministic ICA address for `(origin, controlling-owner)` and only deploys if the caller's command shape requests it:
+Derive the deterministic ICA address for `(origin, controlling-owner)` **read-only** — view calls only, no transaction — with `get-owner-ica.ts` and NO `--deploy`:
+
+```bash
+pnpm --silent tsx typescript/infra/scripts/keys/get-owner-ica.ts \
+  --environment mainnet3 --ownerChain <origin> --owner <controlling-owner> --chains <chain>
+```
+
+> ⚠️ **Never use `hyperlane ica deploy` for this probe.** That CLI command has no read-only mode: it **deploys the ICA (spends gas, creates a contract) whenever the derived account is absent**. Probing a _non_-ICA owner therefore mints an unrelated ICA — the exact failure a read-only classifier must avoid. `get-owner-ica.ts` without `--deploy` only calls `InterchainAccount.getAccount` (a view) and prints the address.
+
+Compare the derived address to the on-chain owner:
 
 | Result                                | Meaning                                                                                                                                        |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |

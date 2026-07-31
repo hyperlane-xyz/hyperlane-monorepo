@@ -140,12 +140,12 @@ For each unique owner address, run the following sequence.
 
 ### 4.0: Probe Shortcut — Match Against Known Hyperlane Governance Maps
 
-Most Hyperlane-owned warp routes have owners that already live in the canonical governance config in `typescript/infra/config/environments/mainnet3/governance/`. The Safe / ICA / timelock / ProxyAdmin maps there are the source of truth for those addresses across all chains, organized by governance group (AW / Foundation warpFees / Regular / Irregular / oUSDT). Use them as a probe shortcut — a direct match means you can skip the on-chain `cast` and `hyperlane ica deploy` calls in 4a–4c and resolve the type from the map directly.
+Most Hyperlane-owned warp routes have owners that already live in the canonical governance config in `typescript/infra/config/environments/mainnet3/governance/`. The Safe / ICA / timelock / ProxyAdmin maps there are the source of truth for those addresses across all chains, organized by governance group (AW / Foundation warpFees / Regular / Irregular / oUSDT). Use them as a probe shortcut — a direct match means you can skip the on-chain `cast` and ICA-derive calls in 4a–4c and resolve the type from the map directly.
 
 Read the lookup helpers in `typescript/infra/config/environments/mainnet3/governance/utils.ts` (`getGovernanceSafes`, `getGovernanceIcas`, `getSafesByGovernanceForChain`, `getGovernanceTimelocks`, `getWarpFeeOwner`) and the per-group address maps in `safe/`, `ica/`, `timelock/`, `proxy-admin/`. For each owner address being classified:
 
 - Match in `safe/<group>.ts[chain]` → `type: Safe`. Skip 4b's `VERSION()` probe.
-- Match in `ica/<group>.ts[chain]` → `type: ICA`, `origin: ethereum`, `controllingOwner: <safe-from-the-same-group-on-ethereum>`. Skip 4c's `hyperlane ica deploy` derivation — the map already encodes the deterministic result. Still run 4c.1 to classify the controller (it'll usually match `safe/<group>.ts[ethereum]` and short-circuit too).
+- Match in `ica/<group>.ts[chain]` → `type: ICA`, `origin: ethereum`, `controllingOwner: <safe-from-the-same-group-on-ethereum>`. Skip 4c's ICA derivation — the map already encodes the deterministic result. Still run 4c.1 to classify the controller (it'll usually match `safe/<group>.ts[ethereum]` and short-circuit too).
 - Match in `timelock/<group>.ts[chain]` → `type: Timelock`, and record the underlying owner from the same group's Safe map as the resolution target.
 - Match in `proxy-admin/<group>.ts[chain]` → informational annotation that the artifact's ProxyAdmin is the canonical one; the ProxyAdmin's _own_ owner is classified separately.
 
@@ -155,7 +155,7 @@ You MAY add a free-form governance label (e.g. `details: "matched awSafes[arbitr
 
 ### 4.1 Route by owner protocol (before the EVM probes)
 
-Steps 4a–4c use EVM tooling (`cast code`, Safe `VERSION()`, `hyperlane ica deploy`) and apply only to **EVM** owners (and Tron, which is EVM-address-compatible). Determine the owner chain's protocol first:
+Steps 4a–4c use EVM tooling (`cast code`, Safe `VERSION()`, and the read-only `get-owner-ica.ts` derive) and apply only to **EVM** owners (and Tron, which is EVM-address-compatible). Determine the owner chain's protocol first:
 
 - **EVM / Tron** → run 4a–4d.
 - **SVM** (Solana base58) → skip to 4e.
@@ -176,14 +176,14 @@ Run the Safe probe (`VERSION()`) from `/classify-onchain-owner` against the owne
 If the route has an `ethereum` leg, attempt one ICA derivation using the ethereum leg's `owner` as the candidate controlling owner:
 
 ```bash
-pnpm --silent -C typescript/cli hyperlane ica deploy \
-  --registry http://localhost:<port> \
-  --origin ethereum \
-  --chains <this-chain> \
-  --owner <ethereum-leg-owner-address>
+pnpm --silent tsx typescript/infra/scripts/keys/get-owner-ica.ts \
+  --environment mainnet3 \
+  --ownerChain ethereum \
+  --owner <ethereum-leg-owner-address> \
+  --chains <this-chain>
 ```
 
-This command is idempotent and read-mostly: it prints the deterministic ICA address derived from `(ethereum, ethereum-leg-owner, ICA router on <this-chain>, ISM)`. No tx is sent if the ICA already exists.
+This is **read-only** — `get-owner-ica.ts` without `--deploy` only calls `InterchainAccount.getAccount` (a view) and prints the deterministic ICA address derived from `(ethereum, ethereum-leg-owner, ICA router on <this-chain>, ISM)`; it sends no tx. **Do NOT use `hyperlane ica deploy` here** — that CLI command has no read-only mode and would _deploy_ an ICA (spend gas, create a contract) when probing a non-ICA owner whose derived account is absent (see `/classify-onchain-owner`).
 
 - If the derived address **matches** the on-chain owner: classify as `type: ICA`, `origin: ethereum`, `controllingOwner: <ethereum-leg-owner>`. Then proceed to 4c.1 to classify the controller itself.
 - If the derived address **does not match** OR ethereum isn't in the route: fall through to 4d. The owner could still be an ICA controlled from a different chain, OR something else entirely.
@@ -245,7 +245,7 @@ What type of owner is this? Possible types:
 
 > **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text.
 
-If the user supplies `type: ICA` with a different origin, verify the derivation by re-running the `hyperlane ica deploy` command with the user-supplied origin + controlling owner. If the derived address still doesn't match, the user-supplied origin is wrong — surface the mismatch and re-prompt.
+If the user supplies `type: ICA` with a different origin, verify the derivation by re-running the read-only `get-owner-ica.ts` derive (no `--deploy`) with the user-supplied `--ownerChain` + `--owner`. If the derived address still doesn't match, the user-supplied origin is wrong — surface the mismatch and re-prompt.
 
 For all other types (Turnkey / Privy / MPC / custom-multisig / timelock / other), the skill records the classification without further verification. The signing-path mapping is downstream's responsibility (most non-Safe / non-ICA / non-Squads types map to `file` submitter + manual hand-off; downstream skills decide).
 
@@ -383,7 +383,7 @@ For owners with types that don't yet have a native submitter path (Turnkey / Pri
 
 ## Notes
 
-- **Read-only skill.** Nothing on chain is mutated. The `hyperlane ica deploy` call in Step 4c without `--deploy` is idempotent — it only derives + reports the deterministic address.
+- **Read-only skill.** Nothing on chain is mutated. Step 4c derives the ICA address with `get-owner-ica.ts` (no `--deploy`), which sends no tx. It must NOT use `hyperlane ica deploy` — that command deploys-if-absent and would mutate chain state when probing a non-ICA owner.
 - **Open-set classification.** Contract-but-not-Safe is NOT assumed to be an ICA. Auto-detection covers the cheap cases (EOA reject, Safe via VERSION(), ICA via route-ethereum derivation). Everything else the user classifies. Owner types intentionally include non-multisig wallet shapes (Turnkey, Privy, MPC) because real customer routes use them.
 - **Drift is a warning, not a halt.** This skill records drift but doesn't decide what to do about it; downstream update skills surface drift to the human in their CONFIRM gates and let the human decide whether to proceed.
 - **EOA owner halts the skill.** An EOA on the production owner slot is a corruption signal and needs human investigation before any update runs.
