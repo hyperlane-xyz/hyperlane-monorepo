@@ -346,18 +346,25 @@ This is a HARD gate before any propose call lands on chain, and it implements th
 - **Multisig / file batches** are pending, so validate them **Mode B** on a fork: `hyperlane warp fork` every chain, replay the warp apply receipts under impersonated owners (including the multisig), self-relay any cross-chain ICA messages, and run `hyperlane warp check` on the fork against the target deploy.yaml. The real-chain confirmation for these is the registry PR CI in Step 11 (greens after the signers execute).
   - **Fail-closed caveat:** per `/warp-verify-onchain-config`, `/warp-route-check` today only consumes a **single flat EVM transactions file** — it cannot ingest a receipts directory, a Safe-object batch, or any SVM batch. If the batch to verify is any of those, the fork gate **cannot run**: do NOT report it fork-verified; surface it for manual verification and rely on the post-execution registry-PR CI. Only a single-file EVM batch is fork-authoritative until the part-2 warp-route-check rework.
 
-Invoke:
+**First decide whether the fork gate can even run.** Per the caveat above (and `/warp-verify-onchain-config`), `/warp-route-check` only consumes a **single flat EVM transactions file**.
 
-```
-/warp-route-check
-```
+- Every pending batch is a single flat EVM tx file → invoke it:
 
-Pass the warp route ID + the receipts directory. The skill returns PASS / FAIL with a per-chain violation table.
+  ```
+  /warp-route-check
+  ```
 
-- **PASS**: proceed to Step 9.
+  passing the warp route ID + that file. It returns PASS / FAIL with a per-chain violation table.
+
+- Any pending batch is a receipts _directory_, a Safe-object batch, or an SVM batch → **do NOT invoke `/warp-route-check`** (it cannot consume them). That batch is **UNSUPPORTED** by the fork gate — take the UNSUPPORTED path below.
+
+Outcomes:
+
+- **PASS** (EVM fork check ran clean): proceed to Step 9.
 - **FAIL**: surface the violations. Do NOT proceed to propose. Two options:
   - The deploy.yaml diff is wrong → go back to Step 3, fix, re-apply.
   - The warp apply output is corrupt (transferOwnership-to-deployer bug, etc.) → see Step 7.
+- **UNSUPPORTED** (a batch the fork gate can't consume): do NOT claim it fork-verified and do NOT auto-proceed. Decode the batch's calldata and verify **manually** that it produces the target config, then end your message with a `[CONFIRM: Manually verified <batch> matches target — proceed to propose]` gate. Only proceed to Step 9 after the human confirms; the post-execution registry-PR CI (Step 11) is the remaining real-chain check.
 
 Skipping this gate has caused production incidents in the past — the rule is non-negotiable.
 
