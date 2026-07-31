@@ -14,12 +14,19 @@ import {
   testXERC20,
   testXERC20Lockbox,
 } from '../consts/testChains.js';
+import { Address } from '@hyperlane-xyz/utils';
+
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
+import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
-import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  InterchainGasQuote,
+} from '../token/adapters/ITokenAdapter.js';
 import { TokenType } from '../token/config.js';
 import { ChainName } from '../types.js';
 
@@ -44,6 +51,37 @@ const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 const MOCK_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
+
+// Exposes the protected validation methods so tests can drive them directly.
+class TestWarpCore extends WarpCore {
+  runValidateDestinationRateLimit(
+    originTokenAmount: TokenAmount<IToken>,
+    destination: ChainName,
+    destinationToken?: IToken,
+  ): Promise<Record<string, string> | null> {
+    return this.validateDestinationRateLimit(
+      originTokenAmount,
+      destination,
+      destinationToken,
+    );
+  }
+
+  runValidateOriginCollateral(
+    originTokenAmount: TokenAmount<IToken>,
+    destination: ChainName,
+    recipient: Address,
+    sender?: Address,
+    destinationToken?: IToken,
+  ): Promise<Record<string, string> | null> {
+    return this.validateOriginCollateral(
+      originTokenAmount,
+      destination,
+      recipient,
+      sender,
+      destinationToken,
+    );
+  }
+}
 
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
@@ -832,16 +870,16 @@ describe('WarpCore', () => {
         name: 'Test Token',
         connections: [],
       });
-      originToken.connections!.push({ token: destinationToken });
+      originToken.addConnection({ token: destinationToken });
 
       const getMintLimit = sinon.stub().resolves(80n);
       const getMintMaxLimit = sinon.stub().resolves(100n);
       sinon.stub(destinationToken, 'getAdapter').returns({
         getMintLimit,
         getMintMaxLimit,
-      } as any);
+      } as unknown as ITokenAdapter<unknown>);
 
-      const tronWarpCore = new WarpCore(multiProvider, [
+      const tronWarpCore = new TestWarpCore(multiProvider, [
         originToken,
         destinationToken,
       ]);
@@ -851,13 +889,13 @@ describe('WarpCore', () => {
       const expectedLimit = isVSXERC20 ? 50n : 80n;
 
       expect(
-        await (tronWarpCore as any).validateDestinationRateLimit(
+        await tronWarpCore.runValidateDestinationRateLimit(
           originToken.amount(expectedLimit),
           test2.name,
         ),
       ).to.be.null;
       expect(
-        await (tronWarpCore as any).validateDestinationRateLimit(
+        await tronWarpCore.runValidateDestinationRateLimit(
           originToken.amount(expectedLimit + 1n),
           test2.name,
         ),
@@ -868,13 +906,177 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Validates Tron xERC20 origin burn limits', async () => {
+  it('Validates scaled destination rate limits in message space', async () => {
+    // decimals are equal on both sides so decimal-only conversion is a no-op;
+    // this isolates the scale term and proves the check compares message amounts
+    // (amount * originScale vs mintLimit * destScale) rather than raw local units.
+    interface ScaleCase {
+      name: string;
+      originStandard: TokenStandard;
+      destStandard: TokenStandard;
+      originScale: number;
+      destScale: number;
+      mintLimit: bigint;
+      // Present only for VS routes, where the effective limit is clamped to
+      // bufferCap / 2 before the comparison.
+      bufferCap?: bigint;
+      amount: bigint;
+      expectSufficient: boolean;
+    }
+
+    const cases: ScaleCase[] = [
+      // xERC20 origin→dest: effective limit 80, origin scale 4 → dest scale 1.
+      // decimal-only would compare 80 >= 30 and wrongly approve; message space
+      // compares 30*4=120 vs 80*1=80 and correctly rejects.
+      {
+        name: 'xERC20 origin→dest rejects amount decimal-only would approve',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 80n,
+        amount: 30n,
+        expectSufficient: false,
+      },
+      {
+        name: 'xERC20 origin→dest allows scaled within-limit amount',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 80n,
+        amount: 20n,
+        expectSufficient: true,
+      },
+      // Reverse direction: origin scale 1 → dest scale 4, available in message
+      // space is 80*4=320. decimal-only would compare 80 >= 200 and wrongly
+      // reject; message space allows 200*1=200 <= 320.
+      {
+        name: 'xERC20 dest→origin allows amount decimal-only would reject',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 80n,
+        amount: 200n,
+        expectSufficient: true,
+      },
+      {
+        name: 'xERC20 dest→origin rejects true over-limit amount',
+        originStandard: TokenStandard.TronHypXERC20,
+        destStandard: TokenStandard.TronHypXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 80n,
+        amount: 400n,
+        expectSufficient: false,
+      },
+      // VS routes clamp the mint limit to bufferCap / 2 (=80) before comparing.
+      {
+        name: 'VS xERC20 origin→dest rejects amount decimal-only would approve',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 30n,
+        expectSufficient: false,
+      },
+      {
+        name: 'VS xERC20 origin→dest allows scaled within-limit amount',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 4,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 20n,
+        expectSufficient: true,
+      },
+      {
+        name: 'VS xERC20 dest→origin allows amount decimal-only would reject',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 200n,
+        expectSufficient: true,
+      },
+      {
+        name: 'VS xERC20 dest→origin rejects true over-limit amount',
+        originStandard: TokenStandard.TronHypVSXERC20,
+        destStandard: TokenStandard.TronHypVSXERC20,
+        originScale: 1,
+        destScale: 4,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 400n,
+        expectSufficient: false,
+      },
+    ];
+
+    for (const c of cases) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: c.originStandard,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        scale: c.originScale,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard: c.destStandard,
+        addressOrDenom: MOCK_ADDRESS_2,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        scale: c.destScale,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+
+      const getMintLimit = sinon.stub().resolves(c.mintLimit);
+      const getMintMaxLimit = sinon.stub().resolves(c.bufferCap ?? 0n);
+      sinon.stub(destinationToken, 'getAdapter').returns({
+        getMintLimit,
+        getMintMaxLimit,
+      } as unknown as ITokenAdapter<unknown>);
+
+      const tronWarpCore = new TestWarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+      const result = await tronWarpCore.runValidateDestinationRateLimit(
+        originToken.amount(c.amount),
+        test2.name,
+      );
+      if (c.expectSufficient) {
+        expect(result, c.name).to.be.null;
+      } else {
+        expect(result, c.name).to.deep.equal({
+          amount: 'Rate limit exceeded on destination',
+        });
+      }
+    }
+  });
+
+  it('Validates Tron xERC20 origin burn limits including token fee', async () => {
     const standards = [
       TokenStandard.TronHypXERC20,
       TokenStandard.TronHypXERC20Lockbox,
       TokenStandard.TronHypVSXERC20,
       TokenStandard.TronHypVSXERC20Lockbox,
     ];
+    const burnLimit = 40n;
+    const tokenFee = 5n;
 
     for (const standard of standards) {
       const originToken = new Token({
@@ -887,21 +1089,47 @@ describe('WarpCore', () => {
         name: 'Test Token',
         connections: [],
       });
-      const getBurnLimit = sinon.stub().resolves(40n);
-      sinon.stub(originToken, 'getAdapter').returns({ getBurnLimit } as any);
 
-      const tronWarpCore = new WarpCore(multiProvider, [originToken]);
+      const getBurnLimit = sinon.stub().resolves(burnLimit);
+      sinon.stub(originToken, 'getAdapter').returns({
+        getBurnLimit,
+      } as unknown as ITokenAdapter<unknown>);
+
+      // Token fee is charged in the origin token (same asset being burned), so it
+      // must count toward the burn debit.
+      const quoteTransferRemoteGas = sinon.stub().resolves({
+        igpQuote: { amount: 0n },
+        tokenFeeQuote: { amount: tokenFee, addressOrDenom: MOCK_ADDRESS },
+      });
+      sinon.stub(originToken, 'getHypAdapter').returns({
+        quoteTransferRemoteGas,
+      } as unknown as IHypTokenAdapter<unknown>);
+
+      const tronWarpCore = new TestWarpCore(multiProvider, [originToken]);
+
+      // amount + tokenFee == burnLimit → within limit.
       expect(
-        await (tronWarpCore as any).validateOriginCollateral(
-          originToken.amount(40n),
+        await tronWarpCore.runValidateOriginCollateral(
+          originToken.amount(burnLimit - tokenFee),
+          test2.name,
+          MOCK_ADDRESS,
         ),
+        standard,
       ).to.be.null;
+
+      // amount alone is within the burn limit, but amount + tokenFee exceeds it.
+      // Without fee-inclusive accounting this would wrongly pass.
       expect(
-        await (tronWarpCore as any).validateOriginCollateral(
-          originToken.amount(41n),
+        await tronWarpCore.runValidateOriginCollateral(
+          originToken.amount(burnLimit - tokenFee + 1n),
+          test2.name,
+          MOCK_ADDRESS,
         ),
+        standard,
       ).to.deep.equal({ amount: 'Insufficient burn limit on origin' });
+
       sinon.assert.calledTwice(getBurnLimit);
+      sinon.assert.calledTwice(quoteTransferRemoteGas);
     }
   });
 

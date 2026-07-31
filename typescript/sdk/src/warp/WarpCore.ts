@@ -1325,8 +1325,13 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError =
-      await this.validateOriginCollateral(originTokenAmount);
+    const originCollateralError = await this.validateOriginCollateral(
+      originTokenAmount,
+      destination,
+      recipient,
+      sender,
+      resolvedDestinationToken,
+    );
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -1617,13 +1622,45 @@ export class WarpCore {
       destinationMintLimit = await adapter.getMintLimit();
     }
 
-    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
-      resolvedDestinationToken.decimals,
-      originToken.decimals,
-      destinationMintLimit.toString(),
-    );
+    // Legacy fallback: when both scales are undefined but decimals differ,
+    // we can't use message-space comparison because messageAmountFromLocal
+    // with identity scale would compare raw local units across different
+    // decimal spaces. Fall back to decimal conversion instead.
+    // Well-configured routes should have scale set — verifyScale() catches
+    // this at deploy time. Misconfigured routes that reach the message-space
+    // path below may produce incorrect results.
+    if (
+      originToken.decimals !== resolvedDestinationToken.decimals &&
+      originToken.scale === undefined &&
+      resolvedDestinationToken.scale === undefined
+    ) {
+      const destinationMintLimitInOriginDecimals = BigInt(
+        convertDecimalsToIntegerString(
+          resolvedDestinationToken.decimals,
+          originToken.decimals,
+          destinationMintLimit.toString(),
+        ),
+      );
+      const isSufficient = destinationMintLimitInOriginDecimals >= amount;
+      this.logger.debug(
+        `${originTokenAmount.token.symbol} to ${destination} has ${
+          isSufficient ? 'sufficient' : 'INSUFFICIENT'
+        } rate limits`,
+      );
+      if (!isSufficient)
+        return { amount: 'Rate limit exceeded on destination' };
+      return null;
+    }
 
-    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
+    const requiredMessageAmount = messageAmountFromLocal(
+      amount,
+      originToken.scale,
+    );
+    const availableMessageAmount = messageAmountFromLocal(
+      destinationMintLimit,
+      resolvedDestinationToken.scale,
+    );
+    const isSufficient = availableMessageAmount >= requiredMessageAmount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
         isSufficient ? 'sufficient' : 'INSUFFICIENT'
@@ -1638,14 +1675,36 @@ export class WarpCore {
    */
   protected async validateOriginCollateral(
     originTokenAmount: TokenAmount<IToken>,
+    destination: ChainNameOrId,
+    recipient: Address,
+    sender?: Address,
+    destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
-    const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
+    const { token: originToken, amount } = originTokenAmount;
+    const adapter = originToken.getAdapter(this.multiProvider);
 
-    if (XERC20_STANDARDS.includes(originTokenAmount.token.standard)) {
+    if (XERC20_STANDARDS.includes(originToken.standard)) {
+      // The on-chain burn path debits amount + any interchain fee charged in
+      // the same asset being burned (token-denominated hook fee). The IGP /
+      // native gas fee is paid separately and does not count toward the burn
+      // limit, so only add fees fungible with the origin token.
+      const { tokenFeeQuote } = await this.getInterchainTransferFee({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+        destinationToken,
+      });
+      const originTokenFee =
+        tokenFeeQuote && originToken.isFungibleWith(tokenFeeQuote.token)
+          ? tokenFeeQuote.amount
+          : 0n;
+      const burnDebit = amount + originTokenFee;
+
       const burnLimit = await (
         adapter as IHypXERC20Adapter<unknown>
       ).getBurnLimit();
-      if (burnLimit < BigInt(originTokenAmount.amount)) {
+      if (burnLimit < burnDebit) {
         return { amount: 'Insufficient burn limit on origin' };
       }
     }
