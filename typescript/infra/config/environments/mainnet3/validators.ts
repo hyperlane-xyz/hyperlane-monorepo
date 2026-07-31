@@ -67,8 +67,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x63478422679303c3e4fc611b771fa4a707ef7f4a'],
           [Contexts.ReleaseCandidate]: [
             '0xb51768c1388e976486a43dbbbbf9ce04cf45e990',
-            '0x6325de37b33e20089c091950518a471e29c52883',
-            '0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c',
           ],
           [Contexts.Neutron]: [],
         },
@@ -83,8 +81,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x03c842db86a6a3e524d4a6615390c1ea8e2b9541'],
           [Contexts.ReleaseCandidate]: [
             '0x0580884289890805802012b9872afa5ae41a5fa6',
-            '0xa5465cb5095a2e6093587e644d6121d6ed55c632',
-            '0x87cf8a85465118aff9ec728ca157798201b1e368',
           ],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
@@ -100,8 +96,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x3fb8263859843bffb02950c492d492cae169f4cf'],
           [Contexts.ReleaseCandidate]: [
             '0x2c7cf6d1796e37676ba95f056ff21bf536c6c2d3',
-            '0xcd250d48d16e2ce4b939d44b5215f9e978975152',
-            '0x26691cd3e9c1b8a82588606b31d9d69b14cb2729',
           ],
           [Contexts.Neutron]: [],
         },
@@ -144,8 +138,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac'],
           [Contexts.ReleaseCandidate]: [
             '0xf0a990959f833ccde624c8bcd4c7669286a57a0f',
-            '0x456b636bdde99d69176261d7a4fba42c16f57f56',
-            '0xe78d3681d4f59e0768be8b1171f920ed4d52409f',
           ],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
@@ -161,8 +153,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x570af9b7b36568c8877eebba6c6727aa9dab7268'],
           [Contexts.ReleaseCandidate]: [
             '0x911dfcc19dd5b723e84be452f6af52adef020bc8',
-            '0xee2d4fd5fe2170e51c6279552297117feaeb19e1',
-            '0x50ff94984161976a13e9ec3b2a7647da5319448f',
           ],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
@@ -178,8 +168,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1'],
           [Contexts.ReleaseCandidate]: [
             '0xb4c18167c163391facb345bb069d12d0430a6a89',
-            '0x2f6dc057ae079997f76205903b85c8302164a78c',
-            '0x229d4dc6a740212da746b0e35314419a24bc2a5b',
           ],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
@@ -195,8 +183,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x20349eadc6c72e94ce38268b96692b1a5c20de4f'],
           [Contexts.ReleaseCandidate]: [
             '0x7e4391786e0b5b0cbaada12d32c931e46e44f104',
-            '0x138ca73e805afa14e85d80f6e35c46e6f235429e',
-            '0x2d58cdb2bed9aac57b488b1bad06839ddc280a78',
           ],
           [Contexts.Neutron]: [],
         },
@@ -211,8 +197,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xd4df66a859585678f2ea8357161d896be19cc1ca'],
           [Contexts.ReleaseCandidate]: [
             '0xd5122daa0c3dfc94a825ae928f3ea138cdb6a2e1',
-            '0x2d1f367e942585f8a1c25c742397dc8be9a61dee',
-            '0x2111141b7f985d305f392c502ad52dd74ef9c569',
           ],
           [Contexts.Neutron]: [],
         },
@@ -227,8 +211,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9'],
           [Contexts.ReleaseCandidate]: [
             '0xa8363570749080c7faa1de714e0782ff444af4cc',
-            '0x3b55d9febe02a9038ef8c867fa8bbfdd8d70f9b8',
-            '0xed7703e06572768bb09e03d88e6b788d8800b9fb',
           ],
           [Contexts.Neutron]: [],
           [Contexts.FastPath]: [FASTPATH_VALIDATOR_ADDRESS],
@@ -356,8 +338,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x1f87c368f8e05a85ef9126d984a980a20930cb9c'],
           [Contexts.ReleaseCandidate]: [
             '0xe858971cd865b11d3e8fb6b6af72db0d85881baf',
-            '0xad94659e2383214e4a1c4e8d3c17caffb75bc31b',
-            '0x0f9e5775ac4d3b73dd28e5a3f8394443186cb70c',
           ],
           [Contexts.Neutron]: [],
         },

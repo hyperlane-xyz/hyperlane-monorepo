@@ -42,40 +42,36 @@ export const validatorChainConfig = (
         'basesepolia',
       ),
     },
+    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
+    // multisig ISM (threshold 2) — do not deploy this reduced config for this
+    // chain's Hyperlane context until the ISM threshold is separately lowered
+    // to 1-of-1, or message delivery breaks.
     fuji: {
       interval: 5,
       reorgPeriod: getReorgPeriod('fuji'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e',
-            '0x895ae30bc83ff1493b9cf7781b0b813d23659857',
-            '0x43e915573d9f1383cbf482049e4a012290759e7f',
-          ],
+          [Contexts.Hyperlane]: ['0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e'],
           [Contexts.ReleaseCandidate]: [
             '0xfc419f9ba3c56c55e28844ade491d428f5a77d55',
-            '0x0a636e76df4124b092cabb4321d6aaef9defb514',
-            '0xbf86037899efe97bca4cea865607e10b849b5878',
           ],
           [Contexts.Neutron]: [],
         },
         'fuji',
       ),
     },
+    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
+    // multisig ISM (threshold 2) — do not deploy this reduced config for this
+    // chain's Hyperlane context until the ISM threshold is separately lowered
+    // to 1-of-1, or message delivery breaks.
     bsctestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('bsctestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e',
-            '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796',
-            '0x1f030345963c54ff8229720dd3a711c15c554aeb',
-          ],
+          [Contexts.Hyperlane]: ['0x242d8a855a8c932dec51f7999ae7d1e48b10c95e'],
           [Contexts.ReleaseCandidate]: [
             '0x6353c7402626054c824bd0eca721f82b725e2b4d',
-            '0xcb5be62b19c52b78cd3993c71c3fa74d821475ae',
-            '0xc50ddb8f03133611853b7f03ffe0a8098e08ae15',
           ],
           [Contexts.Neutron]: [],
         },
@@ -83,20 +79,18 @@ export const validatorChainConfig = (
       ),
     },
 
+    // Hyperlane-context validator here is still 1-of-3 in the on-chain default
+    // multisig ISM (threshold 2) — do not deploy this reduced config for this
+    // chain's Hyperlane context until the ISM threshold is separately lowered
+    // to 1-of-1, or message delivery breaks.
     sepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sepolia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
-            '0x469f0940684d147defc44f3647146cb90dd0bc8e',
-            '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
-          ],
+          [Contexts.Hyperlane]: ['0xb22b65f202558adf86a8bb2847b76ae1036686a5'],
           [Contexts.ReleaseCandidate]: [
             '0x49f253c0dab33be1573d6c2769b3d9e584d91f82',
-            '0x13b51805e9af68e154778d973165f32e10b7446b',
-            '0x7f699c3fc3de4928f1c0abfba1eac3fbb5a00d1b',
           ],
           [Contexts.Neutron]: [],
         },
