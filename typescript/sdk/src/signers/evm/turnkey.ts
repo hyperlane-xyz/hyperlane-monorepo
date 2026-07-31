@@ -13,6 +13,20 @@ import {
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 
 /**
+ * Turnkey's `signRawPayload` returns r/s as bare 32-byte hex (no `0x` prefix).
+ * Validate the component is exactly 32 bytes (64 hex chars) after stripping any
+ * prefix and return it `0x`-prefixed for ethers.
+ */
+function normalizeSignatureComponent(label: string, value: string): string {
+  const stripped =
+    value.startsWith('0x') || value.startsWith('0X') ? value.slice(2) : value;
+  if (!/^[0-9a-fA-F]{64}$/.test(stripped)) {
+    throw new Error(`Invalid ${label} value from Turnkey`);
+  }
+  return `0x${stripped}`;
+}
+
+/**
  * Turnkey signer for EVM transactions
  * Uses Turnkey's secure enclaves to sign transactions without exposing private keys
  * This is a custom ethers v5-compatible Signer that uses Turnkey SDK directly
@@ -231,17 +245,19 @@ export class TurnkeyEvmSigner extends ethers.Signer {
       throw new Error('Missing signature components from Turnkey');
     }
 
-    const hexPattern = /^0x[0-9a-fA-F]+$/;
-    if (!hexPattern.test(r) || !hexPattern.test(s)) {
-      throw new Error('Invalid signature format from Turnkey');
-    }
+    // Turnkey returns r/s as bare hex and v as a recovery id ("00"/"01"). Re-add
+    // the 0x prefix and lift the recovery id into ethers' 27/28 v space: ethers
+    // v5 `joinSignature` mis-maps a bare 0/1 to the wrong recoveryParam.
+    const rHex = normalizeSignatureComponent('r', r);
+    const sHex = normalizeSignatureComponent('s', s);
 
-    const vNum = parseInt(v, 16);
-    if (isNaN(vNum)) {
+    const parsedV = parseInt(v, 16);
+    if (isNaN(parsedV)) {
       throw new Error(`Invalid v value from Turnkey: ${v}`);
     }
+    const recoveryV = parsedV < 27 ? parsedV + 27 : parsedV;
 
-    return ethers.utils.joinSignature({ r, s, v: vNum });
+    return ethers.utils.joinSignature({ r: rHex, s: sHex, v: recoveryV });
   }
 
   /**
