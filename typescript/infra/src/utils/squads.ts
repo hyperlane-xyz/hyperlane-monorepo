@@ -814,23 +814,31 @@ export async function submitProposalToSquads(
 
 /**
  * A single vault transaction to propose. Ordered creation preserves the
- * source-tx boundary, but the proposer neither sets nor enforces execution-time
- * ordering: the external executor sets slot ordering and the vault
- * transaction's compute budget at vaultTransactionExecute time. Receipts that
- * need execution-time ordering are rejected before reaching this path.
+ * source-tx boundary, but the proposer neither sets nor enforces
+ * execution-time ordering: the external executor sets slot ordering at
+ * vaultTransactionExecute time. Receipts that need execution-time ordering
+ * are rejected before reaching this path. `computeUnits`, when present, is
+ * the compute-unit limit the source transaction required; it is carried
+ * through and surfaced (see `submitReceiptTxsToSquads`) for the executor to
+ * set at `vaultTransactionExecute` — the proposer cannot set it itself, since
+ * the compute budget applies to the OUTER execution transaction the executor
+ * builds, not the vault transaction created here.
  */
 export type OrderedVaultProposal = {
   instructions: TransactionInstruction[];
+  computeUnits?: number;
 };
 
 /**
  * Submit a receipt's source transactions as separate, ordered Squads
  * proposals — one vault transaction per source tx rather than a single
  * flattened vault transaction. This keeps each step in its own vault
- * transaction. Ordering and the vault transaction's compute budget are the
- * external executor's responsibility at vaultTransactionExecute time; receipts
- * that depend on execution-time ordering are rejected upstream rather than
- * proposed here.
+ * transaction. Ordering is the external executor's responsibility at
+ * vaultTransactionExecute time; receipts that depend on execution-time
+ * ordering are rejected upstream rather than proposed here. When a proposal
+ * carries a `computeUnits` requirement, it is logged so the executor knows to
+ * set that compute-unit limit when executing the corresponding vault
+ * transaction.
  */
 export async function submitReceiptTxsToSquads(
   chain: ChainName,
@@ -855,6 +863,13 @@ export async function submitReceiptTxsToSquads(
         memo,
       );
       transactionIndexes.push(transactionIndex);
+      if (proposal.computeUnits != null) {
+        rootLogger.info(
+          chalk.yellow(
+            `  Vault tx index ${transactionIndex} requires compute-unit-limit ${proposal.computeUnits} at vaultTransactionExecute — executor must set it.`,
+          ),
+        );
+      }
     }
     rootLogger.info(
       chalk.green(

@@ -59,11 +59,14 @@ async function proposeFile({
 
   const { vault, multisigPda } = getSquadsKeys(chain);
 
-  // Fail closed on receipts the automated path cannot faithfully propose:
-  // execution-time slot ordering (waitForSlotAdvance), a non-default compute
-  // budget, or ALT compression. The proposer cannot reproduce any of these at
-  // execution time, so such receipts are marked Failed (surfaced for manual
-  // ordered execution) rather than partially / incorrectly proposed.
+  // Fail closed only on receipts the automated path cannot faithfully
+  // propose: execution-time slot ordering (waitForSlotAdvance). The proposer
+  // cannot enforce that at execution time, so such receipts are marked Failed
+  // (surfaced for manual ordered execution) rather than partially /
+  // incorrectly proposed. A non-default compute budget is carried through
+  // and surfaced for the executor to set at vaultTransactionExecute; an
+  // ALT-compressed receipt is rehydrated from its expanded instructions and
+  // validated against the wire (see planReceiptProposals).
   const complexity = assertSimpleReceipt(txs);
   if (!complexity.ok) {
     throw new Error(complexity.reason);

@@ -1,3 +1,4 @@
+import { AccountRole } from '@solana/kit';
 import {
   AddressLookupTableAccount,
   Keypair,
@@ -9,56 +10,19 @@ import {
 import { expect } from 'chai';
 import bs58 from 'bs58';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
+  type PrintableSvmInstruction,
   assertAuthorizedByVault,
   assertSimpleReceipt,
   collectSignerAuthorities,
-  hasAddressTableLookups,
   parseFilename,
   planReceiptProposals,
 } from '../src/utils/warp-propose-squads.js';
 
 // u64 max marks an active (non-deactivated) address lookup table.
 const ALT_ACTIVE_DEACTIVATION_SLOT = 2n ** 64n - 1n;
-
-/**
- * Encode a v0 transaction whose readonly accounts are compressed into an
- * address-lookup table, so the serialized message carries addressTableLookups.
- */
-function encodeV0TxWithAlt(): string {
-  const readonlyAccounts = [
-    Keypair.generate().publicKey,
-    Keypair.generate().publicKey,
-    Keypair.generate().publicKey,
-  ];
-  const ix = new TransactionInstruction({
-    programId: new PublicKey(PROGRAM),
-    keys: [
-      { pubkey: new PublicKey(VAULT), isSigner: true, isWritable: true },
-      ...readonlyAccounts.map((pubkey) => ({
-        pubkey,
-        isSigner: false,
-        isWritable: false,
-      })),
-    ],
-    data: Buffer.from([1]),
-  });
-  const lookupTable = new AddressLookupTableAccount({
-    key: Keypair.generate().publicKey,
-    state: {
-      deactivationSlot: ALT_ACTIVE_DEACTIVATION_SLOT,
-      lastExtendedSlot: 0,
-      lastExtendedSlotStartIndex: 0,
-      addresses: readonlyAccounts,
-    },
-  });
-  const message = new TransactionMessage({
-    payerKey: new PublicKey(VAULT),
-    recentBlockhash: bs58.encode(new Uint8Array(32)),
-    instructions: [ix],
-  }).compileToV0Message([lookupTable]);
-  return bs58.encode(new VersionedTransaction(message).serialize());
-}
 
 const VAULT = '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa';
 const FOREIGN = 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ';
@@ -76,6 +40,30 @@ function ownerInstruction(authority: string): TransactionInstruction {
   });
 }
 
+/**
+ * Instruction with three readonly non-signer accounts, so it has something to
+ * compress into an address-lookup table in `encodeV0TxWithAlt`.
+ */
+function altOwnerInstruction(): TransactionInstruction {
+  const readonlyAccounts = [
+    Keypair.generate().publicKey,
+    Keypair.generate().publicKey,
+    Keypair.generate().publicKey,
+  ];
+  return new TransactionInstruction({
+    programId: new PublicKey(PROGRAM),
+    keys: [
+      { pubkey: new PublicKey(VAULT), isSigner: true, isWritable: true },
+      ...readonlyAccounts.map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: false,
+      })),
+    ],
+    data: Buffer.from([1]),
+  });
+}
+
 function encodeV0Tx(
   payer: string,
   instructions: TransactionInstruction[],
@@ -86,6 +74,68 @@ function encodeV0Tx(
     instructions,
   }).compileToV0Message();
   return bs58.encode(new VersionedTransaction(message).serialize());
+}
+
+/**
+ * Encode a v0 transaction whose readonly (non-signer) accounts are
+ * compressed into an address-lookup table, so the serialized message carries
+ * addressTableLookups. Takes the same instructions used to build the wire so
+ * callers can derive matching expanded `instructions[]` from them.
+ */
+function encodeV0TxWithAlt(
+  payer: string,
+  instructions: TransactionInstruction[],
+): string {
+  const lookupAddresses = instructions.flatMap((ix) =>
+    ix.keys.filter((key) => !key.isSigner).map((key) => key.pubkey),
+  );
+  const lookupTable = new AddressLookupTableAccount({
+    key: Keypair.generate().publicKey,
+    state: {
+      deactivationSlot: ALT_ACTIVE_DEACTIVATION_SLOT,
+      lastExtendedSlot: 0,
+      lastExtendedSlotStartIndex: 0,
+      addresses: lookupAddresses,
+    },
+  });
+  const message = new TransactionMessage({
+    payerKey: new PublicKey(payer),
+    recentBlockhash: bs58.encode(new Uint8Array(32)),
+    instructions,
+  }).compileToV0Message([lookupTable]);
+  return bs58.encode(new VersionedTransaction(message).serialize());
+}
+
+/**
+ * Derive the expanded `instructions[]` shape a writer would emit
+ * (svm-sdk's `SvmSigner.transactionToPrintableJson`) from the SAME
+ * `TransactionInstruction[]` used to build a test's wire payload.
+ */
+function printableInstructionsFrom(
+  instructions: TransactionInstruction[],
+): PrintableSvmInstruction[] {
+  return instructions.map((ix) => ({
+    programAddress: ix.programId.toBase58(),
+    accounts: ix.keys.map((key) => ({
+      address: key.pubkey.toBase58(),
+      role: key.isSigner
+        ? key.isWritable
+          ? AccountRole.WRITABLE_SIGNER
+          : AccountRole.READONLY_SIGNER
+        : key.isWritable
+          ? AccountRole.WRITABLE
+          : AccountRole.READONLY,
+    })),
+    data: ix.data.toString('hex'),
+  }));
+}
+
+function keySummary(ix: TransactionInstruction) {
+  return ix.keys.map((key) => ({
+    address: key.pubkey.toBase58(),
+    isSigner: key.isSigner,
+    isWritable: key.isWritable,
+  }));
 }
 
 describe('warp-propose-squads', () => {
@@ -160,31 +210,33 @@ describe('warp-propose-squads', () => {
     });
   });
 
-  describe('hasAddressTableLookups', () => {
-    it('is false for a plain v0 transaction', () => {
-      const tx = encodeV0Tx(VAULT, [ownerInstruction(VAULT)]);
-      expect(hasAddressTableLookups(tx)).to.be.false;
-    });
-
-    it('is true for an ALT-compressed v0 transaction', () => {
-      expect(hasAddressTableLookups(encodeV0TxWithAlt())).to.be.true;
-    });
-  });
-
   describe('assertSimpleReceipt', () => {
-    const simpleTx = () => encodeV0Tx(VAULT, [ownerInstruction(VAULT)]);
+    const simpleIx = () => ownerInstruction(VAULT);
 
     it('accepts a plain receipt (no barrier, default/absent compute, no ALT)', () => {
+      const ix = simpleIx();
       const result = assertSimpleReceipt([
-        { transaction_base58: simpleTx() },
-        { transaction_base58: simpleTx(), computeUnits: 400_000 },
+        {
+          transaction_base58: encodeV0Tx(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+        },
+        {
+          transaction_base58: encodeV0Tx(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+          computeUnits: 400_000,
+        },
       ]);
       expect(result.ok).to.be.true;
     });
 
     it('fails closed on a slot-advance barrier receipt', () => {
+      const ix = simpleIx();
       const result = assertSimpleReceipt([
-        { transaction_base58: simpleTx(), waitForSlotAdvance: true },
+        {
+          transaction_base58: encodeV0Tx(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+          waitForSlotAdvance: true,
+        },
       ]);
       expect(result.ok).to.be.false;
       if (result.ok) {
@@ -193,26 +245,27 @@ describe('warp-propose-squads', () => {
       expect(result.reason).to.contain('waitForSlotAdvance');
     });
 
-    it('fails closed on a non-default compute budget receipt', () => {
+    it('does not reject a non-default compute budget receipt (carried through instead)', () => {
+      const ix = simpleIx();
       const result = assertSimpleReceipt([
-        { transaction_base58: simpleTx(), computeUnits: 1_400_000 },
+        {
+          transaction_base58: encodeV0Tx(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+          computeUnits: 1_400_000,
+        },
       ]);
-      expect(result.ok).to.be.false;
-      if (result.ok) {
-        return;
-      }
-      expect(result.reason).to.contain('1400000');
+      expect(result.ok).to.be.true;
     });
 
-    it('fails closed on an ALT-compressed receipt', () => {
+    it('does not reject an ALT-compressed receipt (rehydrated from expanded instructions)', () => {
+      const ix = altOwnerInstruction();
       const result = assertSimpleReceipt([
-        { transaction_base58: encodeV0TxWithAlt() },
+        {
+          transaction_base58: encodeV0TxWithAlt(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+        },
       ]);
-      expect(result.ok).to.be.false;
-      if (result.ok) {
-        return;
-      }
-      expect(result.reason).to.contain('lookup');
+      expect(result.ok).to.be.true;
     });
   });
 
@@ -220,20 +273,171 @@ describe('warp-propose-squads', () => {
     it('rehydrates one plan per source tx, preserving instruction boundaries', () => {
       // Two instructions in tx0, one in tx1: proves each source tx keeps its own
       // instruction set rather than being flattened together.
-      const tx0 = encodeV0Tx(VAULT, [
-        ownerInstruction(VAULT),
-        ownerInstruction(VAULT),
-      ]);
-      const tx1 = encodeV0Tx(VAULT, [ownerInstruction(VAULT)]);
+      const tx0Ixs = [ownerInstruction(VAULT), ownerInstruction(VAULT)];
+      const tx1Ixs = [ownerInstruction(VAULT)];
 
       const plans = planReceiptProposals([
-        { transaction_base58: tx0 },
-        { transaction_base58: tx1 },
+        {
+          transaction_base58: encodeV0Tx(VAULT, tx0Ixs),
+          instructions: printableInstructionsFrom(tx0Ixs),
+        },
+        {
+          transaction_base58: encodeV0Tx(VAULT, tx1Ixs),
+          instructions: printableInstructionsFrom(tx1Ixs),
+        },
       ]);
 
       expect(plans).to.have.lengthOf(2);
       expect(plans[0].instructions).to.have.lengthOf(2);
       expect(plans[1].instructions).to.have.lengthOf(1);
+    });
+
+    it('rehydrates an ALT-compressed receipt from its expanded instructions and carries computeUnits', () => {
+      const ix = altOwnerInstruction();
+      const plans = planReceiptProposals([
+        {
+          transaction_base58: encodeV0TxWithAlt(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+          computeUnits: 1_400_000,
+        },
+      ]);
+
+      expect(plans).to.have.lengthOf(1);
+      expect(plans[0].computeUnits).to.equal(1_400_000);
+      expect(plans[0].instructions).to.have.lengthOf(1);
+      const rehydrated = plans[0].instructions[0];
+      expect(rehydrated.programId.toBase58()).to.equal(PROGRAM);
+      expect(keySummary(rehydrated)).to.deep.equal(keySummary(ix));
+    });
+
+    it('carries a max-compute-budget receipt (e.g. program upgrade) through as computeUnits', () => {
+      const ix = ownerInstruction(VAULT);
+      const plans = planReceiptProposals([
+        {
+          transaction_base58: encodeV0Tx(VAULT, [ix]),
+          instructions: printableInstructionsFrom([ix]),
+          computeUnits: 1_400_000,
+        },
+      ]);
+
+      expect(plans).to.have.lengthOf(1);
+      expect(plans[0].computeUnits).to.equal(1_400_000);
+    });
+
+    it('throws when the expanded instructions do not match the wire payload (programAddress tamper)', () => {
+      const ix = ownerInstruction(VAULT);
+      const printableIxs = printableInstructionsFrom([ix]);
+      const tampered: PrintableSvmInstruction[] = [
+        {
+          programAddress: TOKEN_PDA,
+          accounts: printableIxs[0].accounts,
+          data: printableIxs[0].data,
+        },
+      ];
+
+      expect(() =>
+        planReceiptProposals([
+          {
+            transaction_base58: encodeV0Tx(VAULT, [ix]),
+            instructions: tampered,
+          },
+        ]),
+      ).to.throw('Receipt instructions do not match wire payload');
+    });
+
+    it('throws when the expanded instructions do not match the wire payload (data tamper)', () => {
+      const ix = ownerInstruction(VAULT);
+      const printableIxs = printableInstructionsFrom([ix]);
+      const tampered: PrintableSvmInstruction[] = [
+        {
+          programAddress: printableIxs[0].programAddress,
+          accounts: printableIxs[0].accounts,
+          data: 'ff',
+        },
+      ];
+
+      expect(() =>
+        planReceiptProposals([
+          {
+            transaction_base58: encodeV0Tx(VAULT, [ix]),
+            instructions: tampered,
+          },
+        ]),
+      ).to.throw('Receipt instructions do not match wire payload');
+    });
+
+    it('throws when an account address is swapped to a foreign key (account substitution attack)', () => {
+      // ownerInstruction accounts: [TOKEN_PDA (writable), authority (signer)].
+      // The wire (transaction_base58) and the instruction's programAddress/data
+      // stay byte-identical to a legitimate receipt; only the signer account's
+      // address is swapped, mirroring an attacker rewriting the authority the
+      // proposed vault transaction will target.
+      const ix = ownerInstruction(VAULT);
+      const printableIxs = printableInstructionsFrom([ix]);
+      const wireAccounts = printableIxs[0].accounts;
+      assert(wireAccounts, 'expected accounts on fixture instruction');
+      const tampered: PrintableSvmInstruction[] = [
+        {
+          programAddress: printableIxs[0].programAddress,
+          accounts: [
+            wireAccounts[0],
+            { address: FOREIGN, role: wireAccounts[1].role },
+          ],
+          data: printableIxs[0].data,
+        },
+      ];
+
+      expect(() =>
+        planReceiptProposals([
+          {
+            transaction_base58: encodeV0Tx(VAULT, [ix]),
+            instructions: tampered,
+          },
+        ]),
+      ).to.throw('Receipt instructions do not match wire payload');
+    });
+
+    it('throws when an account claims a role stronger than the wire grants (role escalation attack)', () => {
+      // Third account is genuinely readonly + non-signer in the wire: it is
+      // neither the fee payer (VAULT) nor referenced elsewhere as writable, so
+      // there is no legitimate reason for the receipt to claim it writable.
+      const readonlyAccount = Keypair.generate().publicKey;
+      const ix = new TransactionInstruction({
+        programId: new PublicKey(PROGRAM),
+        keys: [
+          {
+            pubkey: new PublicKey(TOKEN_PDA),
+            isSigner: false,
+            isWritable: true,
+          },
+          { pubkey: new PublicKey(VAULT), isSigner: true, isWritable: false },
+          { pubkey: readonlyAccount, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([4, 5, 6]),
+      });
+      const printableIxs = printableInstructionsFrom([ix]);
+      const wireAccounts = printableIxs[0].accounts;
+      assert(wireAccounts, 'expected accounts on fixture instruction');
+      const tampered: PrintableSvmInstruction[] = [
+        {
+          programAddress: printableIxs[0].programAddress,
+          accounts: [
+            wireAccounts[0],
+            wireAccounts[1],
+            { address: wireAccounts[2].address, role: AccountRole.WRITABLE },
+          ],
+          data: printableIxs[0].data,
+        },
+      ];
+
+      expect(() =>
+        planReceiptProposals([
+          {
+            transaction_base58: encodeV0Tx(VAULT, [ix]),
+            instructions: tampered,
+          },
+        ]),
+      ).to.throw('Receipt instructions do not match wire payload');
     });
   });
 });
