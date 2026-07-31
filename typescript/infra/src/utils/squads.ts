@@ -863,8 +863,24 @@ export async function submitReceiptTxsToSquads(
     );
     return { transactionIndexes };
   } catch (error) {
-    rootLogger.error(chalk.red(`Failed to submit receipt to Squads: ${error}`));
-    throw error;
+    // Surface which ordered proposals already landed on-chain: a mid-loop
+    // failure leaves the earlier vault transactions created, and a blind rerun
+    // would duplicate them. Report the indexes and attach them to the thrown
+    // error so the caller can skip/execute those before retrying.
+    const createdCount = transactionIndexes.length;
+    const landed = createdCount
+      ? ` ${createdCount} proposal(s) already created (vault transaction index(es): ${transactionIndexes.join(
+          ', ',
+        )}); a rerun would duplicate them — execute or cancel these first.`
+      : '';
+    rootLogger.error(
+      chalk.red(`Failed to submit receipt to Squads: ${error}.${landed}`),
+    );
+    const wrapped =
+      error instanceof Error
+        ? error
+        : new Error(`Failed to submit receipt to Squads: ${error}`);
+    throw Object.assign(wrapped, { transactionIndexes });
   }
 }
 
