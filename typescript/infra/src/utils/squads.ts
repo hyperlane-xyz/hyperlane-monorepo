@@ -1,4 +1,5 @@
 import {
+  Connection,
   PublicKey,
   TransactionInstruction,
   TransactionMessage,
@@ -18,7 +19,7 @@ import {
   MultiProtocolProvider,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
 
@@ -732,6 +733,56 @@ export async function buildSquadsProposalCancellation(
  * @param mpp - Multi-protocol provider
  * @param signerAdapter - Pre-configured SVM signer adapter for signing and submitting transactions
  */
+async function createAndApproveSquadsProposal(
+  chain: ChainName,
+  vaultInstructions: TransactionInstruction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<bigint> {
+  // Get creator public key from adapter
+  const creatorPublicKey = signerAdapter.publicKey();
+
+  // Build Squads proposal instructions
+  const { instructions: proposalInstructions, transactionIndex } =
+    await buildSquadsVaultTransactionProposal(
+      chain,
+      mpp,
+      vaultInstructions,
+      creatorPublicKey,
+      memo,
+    );
+
+  // Build, sign, send, and confirm transaction using the adapter
+  rootLogger.info(
+    chalk.gray(
+      'Submitting proposal creation transaction with automatic confirmation...',
+    ),
+  );
+  const createSignature =
+    await signerAdapter.buildAndSendTransaction(proposalInstructions);
+
+  rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
+  rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+
+  // Approve the proposal as the proposer
+  rootLogger.info(chalk.gray('Approving proposal as proposer...'));
+  const { multisigPda, programId } = getSquadsKeys(chain);
+  const approveIx = instructions.proposalApprove({
+    multisigPda,
+    transactionIndex,
+    member: creatorPublicKey,
+    programId,
+  });
+
+  const approveSignature = await signerAdapter.buildAndSendTransaction([
+    approveIx,
+  ]);
+  rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+
+  return transactionIndex;
+}
+
 export async function submitProposalToSquads(
   chain: ChainName,
   vaultInstructions: TransactionInstruction[],
@@ -742,45 +793,13 @@ export async function submitProposalToSquads(
   rootLogger.info(chalk.cyan('\n=== Submitting to Squads ==='));
 
   try {
-    // Get creator public key from adapter
-    const creatorPublicKey = signerAdapter.publicKey();
-
-    // Build Squads proposal instructions
-    const { instructions: proposalInstructions, transactionIndex } =
-      await buildSquadsVaultTransactionProposal(
-        chain,
-        mpp,
-        vaultInstructions,
-        creatorPublicKey,
-        memo,
-      );
-
-    // Build, sign, send, and confirm transaction using the adapter
-    rootLogger.info(
-      chalk.gray(
-        'Submitting proposal creation transaction with automatic confirmation...',
-      ),
+    await createAndApproveSquadsProposal(
+      chain,
+      vaultInstructions,
+      mpp,
+      signerAdapter,
+      memo,
     );
-    const createSignature =
-      await signerAdapter.buildAndSendTransaction(proposalInstructions);
-
-    rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
-    rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
-
-    // Approve the proposal as the proposer
-    rootLogger.info(chalk.gray('Approving proposal as proposer...'));
-    const { multisigPda, programId } = getSquadsKeys(chain);
-    const approveIx = instructions.proposalApprove({
-      multisigPda,
-      transactionIndex,
-      member: creatorPublicKey,
-      programId,
-    });
-
-    const approveSignature = await signerAdapter.buildAndSendTransaction([
-      approveIx,
-    ]);
-    rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
     rootLogger.info(
       chalk.green(
         'Proposal created and approved by proposer. Other multisig members can now approve.',
@@ -790,6 +809,90 @@ export async function submitProposalToSquads(
     rootLogger.error(
       chalk.red(`Failed to submit proposal to Squads: ${error}`),
     );
+    throw error;
+  }
+}
+
+const SLOT_ADVANCE_POLL_MS = 500;
+const SLOT_ADVANCE_TIMEOUT_MS = 30_000;
+
+/**
+ * Block until the cluster's confirmed slot advances past the slot observed on
+ * entry. Used to honor a source transaction's `waitForSlotAdvance` barrier so
+ * dependent steps (e.g. a program extend then upgrade) land in distinct slots.
+ */
+async function waitForSlotAdvance(svmProvider: Connection): Promise<void> {
+  const startSlot = await svmProvider.getSlot('confirmed');
+  const deadline = Date.now() + SLOT_ADVANCE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sleep(SLOT_ADVANCE_POLL_MS);
+    const slot = await svmProvider.getSlot('confirmed');
+    if (slot > startSlot) {
+      rootLogger.debug(chalk.gray(`Slot advanced ${startSlot} -> ${slot}`));
+      return;
+    }
+  }
+  throw new Error(`Timed out waiting for slot to advance past ${startSlot}`);
+}
+
+/**
+ * A single ordered vault transaction to propose. `waitForSlotAdvance` marks a
+ * barrier: the next proposal is not created until the cluster slot advances.
+ * There is no compute-units field: the vault transaction's compute budget is
+ * set by the executor at vaultTransactionExecute time, not by the proposer.
+ */
+export type OrderedVaultProposal = {
+  instructions: TransactionInstruction[];
+  waitForSlotAdvance?: boolean;
+};
+
+/**
+ * Submit a receipt's source transactions as separate, ordered Squads
+ * proposals — one vault transaction per source tx rather than a single
+ * flattened vault transaction. This keeps dependent multi-step receipts (a
+ * program extend, upgrade, then config) in distinct vault transactions so each
+ * executes in its own slot, and honors each source tx's `waitForSlotAdvance`
+ * barrier between proposals. The vault transaction's compute budget is set by
+ * the executor at vaultTransactionExecute time, not carried by the proposer.
+ */
+export async function submitReceiptTxsToSquads(
+  chain: ChainName,
+  proposals: OrderedVaultProposal[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memoBase?: string,
+): Promise<{ transactionIndexes: bigint[] }> {
+  rootLogger.info(chalk.cyan('\n=== Submitting receipt to Squads ==='));
+  const svmProvider = mpp.getSolanaWeb3Provider(chain);
+  const transactionIndexes: bigint[] = [];
+
+  try {
+    for (const [index, proposal] of proposals.entries()) {
+      const memo = memoBase
+        ? `${memoBase} (${index + 1}/${proposals.length})`
+        : undefined;
+      const transactionIndex = await createAndApproveSquadsProposal(
+        chain,
+        proposal.instructions,
+        mpp,
+        signerAdapter,
+        memo,
+      );
+      transactionIndexes.push(transactionIndex);
+
+      const isLast = index === proposals.length - 1;
+      if (proposal.waitForSlotAdvance && !isLast) {
+        await waitForSlotAdvance(svmProvider);
+      }
+    }
+    rootLogger.info(
+      chalk.green(
+        `Created and approved ${transactionIndexes.length} ordered proposal(s). Other multisig members can now approve.`,
+      ),
+    );
+    return { transactionIndexes };
+  } catch (error) {
+    rootLogger.error(chalk.red(`Failed to submit receipt to Squads: ${error}`));
     throw error;
   }
 }
