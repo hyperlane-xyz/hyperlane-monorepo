@@ -6,7 +6,11 @@ import type { TurnkeyServerClient } from '@turnkey/sdk-server';
 
 import { TurnkeyClientManager, TurnkeyConfig } from '../turnkeyClient.js';
 
-import { TurnkeyEvmSigner } from './turnkey.js';
+import {
+  TurnkeyEvmSigner,
+  normalizeRecoveryV,
+  normalizeSignatureComponent,
+} from './turnkey.js';
 
 // A Safe SafeTx typed-data payload — the domain/message fields Turnkey policy
 // must be able to inspect.
@@ -160,5 +164,71 @@ describe('TurnkeyEvmSigner._signTypedData', () => {
         'Missing signature components from Turnkey',
       );
     }
+  });
+});
+
+describe('normalizeSignatureComponent', () => {
+  const HEX_64 = 'a'.repeat(64);
+
+  it('returns a bare-hex component 0x-prefixed', () => {
+    expect(normalizeSignatureComponent('r', HEX_64)).to.equal(`0x${HEX_64}`);
+  });
+
+  it('accepts an already-0x-prefixed component', () => {
+    expect(normalizeSignatureComponent('r', `0x${HEX_64}`)).to.equal(
+      `0x${HEX_64}`,
+    );
+  });
+
+  it('normalizes 0x-prefixed and bare forms to the same value', () => {
+    expect(normalizeSignatureComponent('s', HEX_64)).to.equal(
+      normalizeSignatureComponent('s', `0x${HEX_64}`),
+    );
+  });
+
+  it('rejects a too-short component', () => {
+    expect(() => normalizeSignatureComponent('r', 'a'.repeat(63))).to.throw(
+      'Invalid r value from Turnkey',
+    );
+  });
+
+  it('rejects a too-long component', () => {
+    expect(() => normalizeSignatureComponent('s', 'a'.repeat(65))).to.throw(
+      'Invalid s value from Turnkey',
+    );
+  });
+
+  it('rejects a non-hex component and names the label', () => {
+    expect(() =>
+      normalizeSignatureComponent('r', `g${'a'.repeat(63)}`),
+    ).to.throw('Invalid r value from Turnkey');
+  });
+});
+
+describe('normalizeRecoveryV', () => {
+  type Case = { name: string; v: string; expected: number };
+  const cases: Case[] = [
+    { name: 'lifts recovery id 00 to 27', v: '00', expected: 27 },
+    { name: 'lifts recovery id 01 to 28', v: '01', expected: 28 },
+    { name: 'passes 1b (27) through', v: '1b', expected: 27 },
+    { name: 'passes 1c (28) through', v: '1c', expected: 28 },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(normalizeRecoveryV(c.v)).to.equal(c.expected);
+    });
+  }
+
+  it('throws on a non-hex v', () => {
+    expect(() => normalizeRecoveryV('zz')).to.throw(
+      'Invalid v value from Turnkey: zz',
+    );
+  });
+
+  it('throws on an empty v', () => {
+    expect(() => normalizeRecoveryV('')).to.throw(
+      'Invalid v value from Turnkey',
+    );
   });
 });

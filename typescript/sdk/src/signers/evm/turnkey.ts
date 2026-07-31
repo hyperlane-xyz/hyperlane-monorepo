@@ -17,13 +17,30 @@ const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
  * Validate the component is exactly 32 bytes (64 hex chars) after stripping any
  * prefix and return it `0x`-prefixed for ethers.
  */
-function normalizeSignatureComponent(label: string, value: string): string {
+export function normalizeSignatureComponent(
+  label: string,
+  value: string,
+): string {
   const stripped =
     value.startsWith('0x') || value.startsWith('0X') ? value.slice(2) : value;
   if (!/^[0-9a-fA-F]{64}$/.test(stripped)) {
     throw new Error(`Invalid ${label} value from Turnkey`);
   }
   return `0x${stripped}`;
+}
+
+/**
+ * Lift Turnkey's recovery id into ethers' v space. Turnkey returns v as a hex
+ * recovery id ("00"/"01"); ethers v5 `joinSignature` expects 27/28, and
+ * misinterprets a bare 0/1. Values already in 27/28 form ("1b"/"1c") pass through
+ * unchanged. A non-hex/garbage v throws.
+ */
+export function normalizeRecoveryV(v: string): number {
+  const parsedV = parseInt(v, 16);
+  if (isNaN(parsedV)) {
+    throw new Error(`Invalid v value from Turnkey: ${v}`);
+  }
+  return parsedV < 27 ? parsedV + 27 : parsedV;
 }
 
 /**
@@ -250,12 +267,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
     // v5 `joinSignature` misinterprets a bare 0/1 as the wrong recoveryParam.
     const rHex = normalizeSignatureComponent('r', r);
     const sHex = normalizeSignatureComponent('s', s);
-
-    const parsedV = parseInt(v, 16);
-    if (isNaN(parsedV)) {
-      throw new Error(`Invalid v value from Turnkey: ${v}`);
-    }
-    const recoveryV = parsedV < 27 ? parsedV + 27 : parsedV;
+    const recoveryV = normalizeRecoveryV(v);
 
     return ethers.utils.joinSignature({ r: rHex, s: sHex, v: recoveryV });
   }
