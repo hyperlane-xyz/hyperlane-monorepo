@@ -15,7 +15,7 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
 
     # Solana
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"solanamainnet"}[1d]) - 27 or
-    # Any ATA payer on Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, per Nam 2026-07-31)
+    # Any ATA payer on Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, excluded 2026-07-31 for PD Q1VFMA8E9P5OEO)
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", wallet_name!~"USDCSTAGE/.*", chain=~"solanamainnet"}[1d]) - 0.2 or
     # USDC/eclipsemainnet
     last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.8 or
@@ -49,7 +49,7 @@ export const LOW_URGENCY_ENG_KEY_FUNDER_FOOTER = `    # Mainnets that don't use 
 
     # Solana
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"solanamainnet"}[1d]) - 13.5 or
-    # Any ATA payer on Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, per Nam 2026-07-31)
+    # Any ATA payer on Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, excluded 2026-07-31 for PD Q1VFMA8E9P5OEO)
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", wallet_name!~"USDCSTAGE/.*", chain=~"solanamainnet"}[1d]) - 0.1 or
     # Any ATA payer on Solana
     last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.4 or
@@ -79,7 +79,7 @@ export const HIGH_URGENCY_RELAYER_FOOTER = `    # Special contexts already have 
     # Eclipse
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.001 or
 
-    # Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, per Nam 2026-07-31)
+    # Solana (exclude USDCSTAGE staging route ata-payer — idle staging, not important, excluded 2026-07-31 for PD Q1VFMA8E9P5OEO)
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", wallet_name!~"USDCSTAGE/.*", chain=~"solanamainnet"}[1d]) - 0.1 or
 
     # SOON
